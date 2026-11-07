@@ -35,21 +35,29 @@ struct WarmingTests {
         }
     }
 
-    /// A field with `settings`; the provider set up (a key, an AWS profile) unless `setUp` says not.
+    /// A field with `settings`, its requests on `session` (a stub's; else one that answers nothing), the origins a
+    /// request succeeded at kept in memory, never in the user's caches (`BedrockClient(session:)`).
     func host(_ settings: Settings, model: WarmingModel = WarmingModel(), clock: Uptime = Uptime(), session: URLSession? = nil,
-              converter: Converter? = nil, setUp: Bool = true, _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
-        let converter = converter ?? Converter(client: session.map { BedrockClient(session: $0) } ?? BedrockClient(),
+              converter: Converter? = nil, _ adjust: (inout SessionServices) -> Void = { _ in }) -> FakeHost {
+        let converter = converter ?? Converter(client: BedrockClient(session: session ?? StubURLProtocol.session()),
                                                loadConfig: { settings.config }, appleModel: model)
         var services = SessionServices(converter: converter, loadSettings: { settings.config })
         let engine = FakeEngine()
         services.levelOne = { .engine(engine) }
         services.uptime = { clock.now }
         services.warmsConnections = session != nil
-        services.providerSetUp = { _, _ in setUp }
         adjust(&services)
         let host = FakeHost(services: services)
         host.focus()
         return host
+    }
+
+    /// A converter on the stub's session whose client has seen a request succeed at each of `origins` (as one does,
+    /// `ConnectionWarmth.answered`).
+    func converter(_ settings: Settings, succeededAt origins: [String]) -> Converter {
+        let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { settings.config })
+        for origin in origins { converter.client.bedrock.warmth.succeeded.remember(origin) }
+        return converter
     }
 
     func settled(_ condition: () -> Bool) -> Bool {
@@ -118,16 +126,15 @@ struct WarmingTests {
 
     // MARK: - A cloud provider's connection
 
-    /// One @'s highlighted row an AI command ("@hello": Improve): one HEAD to the provider's origin, with no key, no
-    /// credentials, no body, on the requests' own session; none again while the draft stays one, nor within
-    /// `ConnectionWarmth.idle` of it.
+    /// One @'s highlighted row an AI command ("@hello": Improve), the Claude API at its own address, where a request
+    /// succeeded before: one HEAD to its origin, with no key, no credentials, no body, on the requests' own session; none
+    /// again while the draft stays one, nor within `ConnectionWarmth.idle` of it.
     @Test func anAICommandOpensTheProvidersConnection() async throws {
         try await withInterfaceLanguage("en") {
-            let server = "warm-anthropic.example.com"
+            let server = "api.anthropic.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.anthropic)
-            settings.config.anthropic.baseURL = "https://\(server)"
-            let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { settings.config })
+            let converter = converter(settings, succeededAt: ["https://api.anthropic.com:443"])
             let host = host(settings, session: StubURLProtocol.session(), converter: converter)
             host.type("@hello")
             #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
@@ -146,16 +153,23 @@ struct WarmingTests {
         }
     }
 
-    /// Bedrock: its region's endpoint, where the settings name the region.
+    /// Bedrock: its region's endpoint, the region the settings name; without one, the endpoint a request succeeded at
+    /// last (nothing of the AWS files or the environment read).
     @Test func bedrocksConnectionIsItsRegions() async {
         await withInterfaceLanguage("en") {
-            let server = "bedrock-runtime.warm-west-9.amazonaws.com"
-            StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
+            let (named, last) = ("bedrock-runtime.warm-west-9.amazonaws.com", "bedrock-runtime.warm-north-4.amazonaws.com")
+            for server in [named, last] { StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: [])) }
             let settings = Settings(.bedrock)
             settings.config.region = "warm-west-9"
-            let host = host(settings, session: StubURLProtocol.session())
+            let origins = ["https://\(named):443", "https://bedrock-runtime.warm-east-3.amazonaws.com:443", "https://\(last):443"]
+            let converter = converter(settings, succeededAt: origins)
+            let host = host(settings, session: StubURLProtocol.session(), converter: converter)
             host.type("@hello")
-            #expect(settled { StubURLProtocol.requests(host: server).first?.httpMethod == "HEAD" })
+            #expect(settled { StubURLProtocol.requests(host: named).first?.httpMethod == "HEAD" })
+            settings.config.region = nil
+            let unnamed = self.host(settings, session: StubURLProtocol.session(), converter: converter)
+            unnamed.type("@hello")
+            #expect(settled { StubURLProtocol.requests(host: last).first?.httpMethod == "HEAD" })
         }
     }
 
@@ -163,33 +177,35 @@ struct WarmingTests {
     /// secure input.
     @Test func noHEADForTheHostedServiceNoAIOrSecureInput() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-quiet.example.com"
+            let server = "api.openai.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let hosted = Settings(.hosted)
             let noAI = Settings(.openai)
-            noAI.config.openai.baseURL = "https://\(server)/v1"
             noAI.config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
             let secure = Settings(.openai)
-            secure.config.openai.baseURL = "https://\(server)/v1"
+            let origins = ["https://api.openai.com:443"] + (HostedService.host.map { ["https://\($0):443"] } ?? [])
             for (settings, secureInput) in [(hosted, false), (noAI, false), (secure, true)] {
-                let host = host(settings, session: StubURLProtocol.session()) { $0.secureInputActive = { secureInput } }
+                let host = host(settings, session: StubURLProtocol.session(), converter: converter(settings, succeededAt: origins)) {
+                    $0.secureInputActive = { secureInput }
+                }
                 host.press(FakeHost.at)
                 host.type("i")
                 host.press(FakeHost.tab)
             }
             Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).isEmpty)
+            #expect(ConnectionWarmth.headURL(URL(string: HostedService.baseURL)!) == nil)
         }
     }
 
     /// Translate as You Type turned on with a cloud provider: no HEAD (only an AI command and autocomplete open one).
     @Test func translateAsYouTypeOpensNoConnection() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-translate.example.com"
+            let server = "api.anthropic.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.anthropic)
-            settings.config.anthropic.baseURL = "https://\(server)"
-            let host = host(settings, session: StubURLProtocol.session())
+            let host = host(settings, session: StubURLProtocol.session(),
+                            converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"]))
             _ = host.session.apply(host.composer.setTranslateMode(TranslateMode.Session(target: .chinese)))
             Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).isEmpty)
@@ -199,12 +215,12 @@ struct WarmingTests {
     /// Cloud autocomplete: the field's first key that types opens the connection, before the pause is over.
     @Test func autocompletesFirstKeyOpensTheConnection() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-gemini.example.com"
+            let server = "generativelanguage.googleapis.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.gemini)
-            settings.config.gemini.baseURL = "https://\(server)"
             settings.config.autocomplete = true
-            let host = host(settings, session: StubURLProtocol.session())
+            let host = host(settings, session: StubURLProtocol.session(),
+                            converter: converter(settings, succeededAt: ["https://\(server):443"]))
             host.appTypesKeys = true
             host.type("H")
             #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
@@ -220,17 +236,18 @@ struct WarmingTests {
     /// with an AI row highlighted does, and so does "@" alone on a selection, whose first row is the AI's.
     @Test func oneAtOpensTheConnectionOnlyForTextOrASelection() async {
         await withInterfaceLanguage("en") {
-            let server = "warm-oneat.example.com"
+            let server = "api.anthropic.com"
             StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
             let settings = Settings(.anthropic)
-            settings.config.anthropic.baseURL = "https://\(server)"
-            let alone = host(settings, session: StubURLProtocol.session())
+            let alone = host(settings, session: StubURLProtocol.session(),
+                             converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"]))
             alone.press(FakeHost.at)
             alone.press(FakeHost.down)
             #expect(alone.composer.oneAtRows.contains { InputSession.asksTheModel($0) != nil })
             Thread.sleep(forTimeInterval: 0.1)
             #expect(StubURLProtocol.requests(host: server).isEmpty, "\"@\" alone")
-            let selected = host(settings, session: StubURLProtocol.session())
+            let selected = host(settings, session: StubURLProtocol.session(),
+                                converter: converter(settings, succeededAt: ["https://api.anthropic.com:443"]))
             selected.document = "The report looks good"
             selected.selection = 0..<21
             selected.press(FakeHost.at)
@@ -238,79 +255,135 @@ struct WarmingTests {
         }
     }
 
-    /// A provider that isn't set up (no key, no AWS profile or keys) gets no HEAD: Bedrock, the default provider, for
-    /// someone who never set it up.
-    @Test func aProviderNotSetUpGetsNoHEAD() async throws {
-        try await withInterfaceLanguage("en") {
-            let server = "bedrock-runtime.warm-east-7.amazonaws.com"
-            StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 404, headers: [:], chunks: []))
-            let settings = Settings(.bedrock)
-            settings.config.region = "warm-east-7"
-            let host = host(settings, session: StubURLProtocol.session(), setUp: false)
-            host.type("@hello")
-            Thread.sleep(forTimeInterval: 0.1)
-            #expect(StubURLProtocol.requests(host: server).isEmpty)
-            // Set up: the AWS keys in the environment, or the profile in the AWS files.
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("warm-aws-\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: folder) }
-            let config = folder.appendingPathComponent("config")
-            try "[profile work]\nregion = eu-west-1\n".write(to: config, atomically: true, encoding: .utf8)
-            var work = settings.config
-            work.awsProfile = "work"
-            let files = ["AWS_CONFIG_FILE": config.path, "AWS_SHARED_CREDENTIALS_FILE": folder.appendingPathComponent("none").path]
-            #expect(ConnectionWarmth.isSetUp(.bedrock, config: work, environment: files))
-            #expect(!ConnectionWarmth.isSetUp(.bedrock, config: settings.config, environment: files), "no profile \"default\"")
-            #expect(ConnectionWarmth.isSetUp(.bedrock, config: settings.config,
-                                             environment: ["AWS_ACCESS_KEY_ID": "AKIAEXAMPLE", "AWS_SECRET_ACCESS_KEY": "x"]))
-            #expect(!ConnectionWarmth.isSetUp(.hosted, config: settings.config) && !ConnectionWarmth.isSetUp(.apple, config: settings.config))
+    /// Only where a real request succeeded before: none for a provider no request went to (Bedrock, the default
+    /// provider, for someone who never set it up), none after a request that was refused; after one answered, the next
+    /// AI command opens the connection. A base URL of the user's is never one, answered or not.
+    @Test func onlyWhereARequestSucceededBefore() async throws {
+        func heads(_ host: String) -> Int { StubURLProtocol.requests(host: host).filter { $0.httpMethod == "HEAD" }.count }
+        /// An AI command typed in a field of `settings` whose requests `converter` makes (nil: one of its own).
+        func typeAnAICommand(_ settings: Settings, converter: Converter? = nil) async {
+            await withInterfaceLanguage("en") {
+                host(settings, session: StubURLProtocol.session(), converter: converter).type("@hello")
+                Thread.sleep(forTimeInterval: 0.1)
+            }
         }
+        let never = Settings(.bedrock)
+        never.config.region = nil
+        await typeAnAICommand(never)
+        #expect(heads("bedrock-runtime.us-east-1.amazonaws.com") == 0)
+
+        let server = "api.anthropic.com"
+        let settings = Settings(.anthropic)
+        let converter = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { settings.config },
+                                  loadKey: { _, _ in "sk-ant-test-0000" })
+        let refused = StubURLProtocol.Response(status: 401, headers: [:], chunks: [Data(#"{"error":{"message":"invalid x-api-key"}}"#.utf8)])
+        StubURLProtocol.register(host: server, [refused])
+        do { for try await _ in converter.convert("hello") {} } catch {}
+        #expect(!StubURLProtocol.requests(host: server).isEmpty, "the request")
+        await typeAnAICommand(settings, converter: converter)
+        #expect(heads(server) == 0, "no HEAD after a refusal")
+
+        StubURLProtocol.register(host: server, StubURLProtocol.Response(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: []))
+        do { for try await _ in converter.convert("hello again") {} } catch {}
+        #expect(converter.client.bedrock.warmth.succeeded.knows("https://api.anthropic.com:443"))
+        // Idle since the request: the next AI command opens the connection.
+        let clock = Uptime()
+        let later = ConnectionWarmth(succeeded: converter.client.bedrock.warmth.succeeded, now: { clock.now })
+        clock.advance(ConnectionWarmth.idle + 1)
+        #expect(later.due(try #require(URL(string: "https://api.anthropic.com"))))
+
+        // A relay of the user's, answered: never remembered, never warmed.
+        let relay = "warm-relay.example.com"
+        StubURLProtocol.register(host: relay, StubURLProtocol.Response(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: []))
+        let custom = Settings(.anthropic)
+        custom.config.anthropic.baseURL = "https://\(relay)"
+        let relayed = Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { custom.config },
+                                loadKey: { _, _ in "sk-ant-test-0000" })
+        do { for try await _ in relayed.convert("hello") {} } catch {}
+        #expect(!StubURLProtocol.requests(host: relay).isEmpty)
+        #expect(!relayed.client.bedrock.warmth.succeeded.knows("https://\(relay):443"))
+        await typeAnAICommand(custom, converter: relayed)
+        #expect(heads(relay) == 0, "no HEAD to a base URL of the user's")
     }
 
-    /// Only to an https address on the internet nothing went to in the last 90 s: a request counts as something sent.
+    /// At most one HEAD per origin in 90 s: a request counts as something sent.
     @Test func aHEADGoesOnlyAfterAnIdlePeriod() throws {
         let clock = Uptime()
-        let warmth = ConnectionWarmth(now: { clock.now })
-        let api = try #require(URL(string: "https://api.example.com/v1"))
+        let origins = WarmOrigins(file: nil)
+        for origin in ["https://api.openai.com:443", "https://api.anthropic.com:443"] { origins.remember(origin) }
+        let warmth = ConnectionWarmth(succeeded: origins, now: { clock.now })
+        let api = try #require(URL(string: "https://api.openai.com/v1"))
         #expect(warmth.due(api) && !warmth.due(api))
         clock.advance(ConnectionWarmth.idle + 1)
-        warmth.sending(to: URL(string: "https://API.example.com:443/v1/chat/completions"))
+        warmth.sending(to: URL(string: "https://API.openai.com:443/v1/chat/completions"))
         clock.advance(ConnectionWarmth.idle - 1)
         #expect(!warmth.due(api), "a request went 89 s ago")
         clock.advance(2)
         #expect(warmth.due(api))
-        // Another service is another connection; none to this Mac, the local network, or over http.
-        #expect(warmth.due(try #require(URL(string: "https://api.other.example.com"))))
-        for local in ["https://localhost:11434/v1", "https://192.168.1.20/v1", "http://api.example.org"] {
-            #expect(!warmth.due(try #require(URL(string: local))), "\(local)")
-        }
+        // Another service is another connection; none to one no request succeeded at.
+        #expect(warmth.due(try #require(URL(string: "https://api.anthropic.com"))))
+        #expect(!warmth.due(try #require(URL(string: "https://generativelanguage.googleapis.com"))))
     }
 
-    /// Never this Mac, the local network or a VPN's names, in any spelling: an IP address, a name of one label, a
-    /// private-use name; nor the hosted service by its host.
-    @Test func aHEADGoesOnlyToAHostOnTheInternet() throws {
-        let local = ["https://nas.lan:8443/v1", "https://mac-mini.tail1234.ts.net/v1", "https://100.64.0.7/v1", "https://100.101.102.103",
-                     "https://myserver/v1", "https://router.home.arpa/v1", "https://0.0.0.0/v1", "https://[::ffff:127.0.0.1]/v1",
-                     "https://127.1/v1", "https://localhost./v1", "https://LOCALHOST:8080", "https://foo.localhost/v1",
-                     "https://user:pass@proxy/v1", "https://box.local/v1", "https://llm.internal/v1", "https://2130706433/v1",
-                     "https://0x7f000001/v1", "https://[::1]:11434/v1", "https://[fd00::1]/v1", "https://api.test/v1",
-                     HostedService.baseURL + "/v1"]
-        for address in local {
+    /// Only to a built-in provider's own host at its default address: the Claude API's, the Gemini API's, OpenAI's,
+    /// Bedrock's in a region. Never a base URL of the user's (another service, a relay, another port, a model on this Mac
+    /// or the network), never plain http, never the hosted service.
+    @Test func aHEADGoesOnlyToABuiltInProvidersOwnHost() throws {
+        let custom = ["https://api.deepseek.com", "https://dashscope.aliyuncs.com/compatible-mode/v1", "https://llm.example.com/v1",
+                      "https://api.openai.com:8443/v1", "https://api.openai.com.relay.example/v1", "https://relay.example/api.anthropic.com",
+                      "http://api.openai.com/v1", "https://localhost:11434/v1", "https://127.0.0.1/v1", "https://192.168.1.20/v1",
+                      "https://nas.lan:8443/v1", "https://bedrock-runtime.amazonaws.com", "https://bedrock-runtime..amazonaws.com",
+                      "https://xbedrock-runtime.us-east-1.amazonaws.com", "https://bedrock-runtime.us_east.amazonaws.com",
+                      "https://bedrock-runtime.us-east-1.amazonaws.com:8443", "https://bedrock.us-east-1.amazonaws.com",
+                      HostedService.baseURL + "/v1"]
+        let origins = WarmOrigins(file: nil)
+        for address in custom {
             let url = try #require(URL(string: address), "\(address)")
             #expect(ConnectionWarmth.headURL(url) == nil, "\(address)")
-            #expect(!ConnectionWarmth(now: { 0 }).due(url), "\(address)")
+            if let origin = ConnectionWarmth.origin(url) { origins.remember(origin) }
+            #expect(!ConnectionWarmth(succeeded: origins, now: { 0 }).due(url), "\(address): even where a request went")
         }
-        for address in ["https://api.openai.com/v1", "https://api.deepseek.com", "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                        "https://bedrock-runtime.us-east-1.amazonaws.com"] {
-            #expect(ConnectionWarmth.headURL(try #require(URL(string: address))) != nil, "\(address)")
+        for (address, head) in [("https://api.anthropic.com", "https://api.anthropic.com/"),
+                                ("https://generativelanguage.googleapis.com", "https://generativelanguage.googleapis.com/"),
+                                ("https://api.openai.com/v1", "https://api.openai.com/"), ("https://API.Anthropic.com:443/v1", "https://api.anthropic.com/"),
+                                ("https://bedrock-runtime.us-east-1.amazonaws.com", "https://bedrock-runtime.us-east-1.amazonaws.com/")] {
+            #expect(ConnectionWarmth.headURL(try #require(URL(string: address)))?.absoluteString == head, "\(address)")
         }
     }
 
     /// The HEAD goes to the origin alone: no user or password, path or query of the base URL.
     @Test func aHEADGoesToTheOriginAlone() throws {
-        let url = try #require(URL(string: "https://user:pass@llm.example.com:8443/v1/chat?key=secret"))
-        #expect(ConnectionWarmth.headURL(url)?.absoluteString == "https://llm.example.com:8443/")
-        #expect(ConnectionWarmth.headURL(try #require(URL(string: "https://API.Example.com/v1")))?.absoluteString == "https://api.example.com/")
+        let url = try #require(URL(string: "https://user:pass@api.openai.com/v1/chat?key=secret"))
+        #expect(ConnectionWarmth.headURL(url)?.absoluteString == "https://api.openai.com/")
+    }
+
+    /// Where a request succeeded is kept on this computer, in a file of its own (the app's among its caches): the origin
+    /// and the time alone; an origin not succeeded at for 30 days is forgotten. Each test's is in memory or a temporary
+    /// folder, never the user's.
+    @Test func whereARequestSucceededIsKeptLocally() throws {
+        #expect(WarmOrigins.shared.file == CorePaths.cacheDir.appendingPathComponent("warm-origins.json"))
+        #expect(BedrockClient(session: StubURLProtocol.session()).warmth.succeeded.file == nil)
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("warm-origins-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let file = folder.appendingPathComponent("warm-origins.json")
+        let day: TimeInterval = 24 * 3600
+        let start = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let clock = Locked(initialState: start)
+        let kept = WarmOrigins(file: file, today: { clock.withLock { $0 } })
+        kept.remember("https://api.anthropic.com:443")
+        clock.withLock { $0 = start.addingTimeInterval(10 * day) }
+        kept.remember("https://bedrock-runtime.us-west-2.amazonaws.com:443")
+        let read = try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: String]
+        #expect(Set(read.map { Array($0.keys) } ?? []) == ["https://api.anthropic.com:443", "https://bedrock-runtime.us-west-2.amazonaws.com:443"],
+                "\(String(describing: read))")
+        #expect(read?.values.allSatisfy { ISO8601DateFormatter().date(from: $0) != nil } == true, "the times alone")
+        // Another process, or the next launch, from the file.
+        let again = WarmOrigins(file: file, today: { start.addingTimeInterval(29 * day) })
+        #expect(again.knows("https://api.anthropic.com:443") && !again.knows("https://api.openai.com:443"))
+        #expect(again.latest { $0.contains("bedrock-runtime.") } == "https://bedrock-runtime.us-west-2.amazonaws.com:443")
+        let month = WarmOrigins(file: file, today: { start.addingTimeInterval(30 * day + 1) })
+        #expect(!month.knows("https://api.anthropic.com:443"), "30 days without a success")
+        #expect(month.knows("https://bedrock-runtime.us-west-2.amazonaws.com:443"))
     }
 
     #if canImport(Darwin)

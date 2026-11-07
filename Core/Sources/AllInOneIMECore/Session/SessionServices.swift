@@ -11,12 +11,10 @@ public struct SessionServices {
     /// Level two: the AI requests (one `Converter`, one cache, shared by every field).
     public var converter: Converter
     /// Whether a cloud provider's connection is opened ahead of a request, the draft an AI command or the first key in a
-    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's). Off by default: a test's
-    /// sessions send nothing they aren't asked to.
+    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's, only to a built-in
+    /// provider's own host a request succeeded at before). Off by default: a test's sessions send nothing they aren't
+    /// asked to.
     public var warmsConnections = false
-    /// Whether a provider is set up, so that its connection is worth opening (`ConnectionWarmth.isSetUp`: a key, an AWS
-    /// profile or keys). `@Sendable`: asked off the session's thread.
-    public var providerSetUp: @Sendable (Provider, Config) -> Bool = ConnectionWarmth.isSetUp
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
