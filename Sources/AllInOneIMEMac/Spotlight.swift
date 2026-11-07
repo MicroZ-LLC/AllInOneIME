@@ -210,7 +210,7 @@ public final class Spotlight: @unchecked Sendable {
         }
 
         /// The results Spotlight added since the last read (on `queue`, as it tells it found more), unless the query is
-        /// over for its waiter; `done`: that was all, and the waiter is told.
+        /// over for its waiter, also while they are read (`results`); `done`: that was all, and the waiter is told.
         private func gather(done: Bool) {
             guard !state.withLock({ $0.over }) else { return }
             MDQueryDisableUpdates(query)
@@ -221,19 +221,32 @@ public final class Spotlight: @unchecked Sendable {
                 return CFGetTypeID(object) == CFDateGetTypeID() ? unsafeDowncast(object, to: CFDate.self) as Date : nil
             }
             let (lastUsed, modified) = (Self.dates[0], Self.dates[1])
-            var found: [FileSearchRanking.Found] = []
-            for index in read..<max(read, count) {
+            let found = Self.results(read..<max(read, count), isOver: { state.withLock { $0.over } }) { index in
                 guard let item = MDQueryGetResultAtIndex(query, index),
                       let path = MDItemCopyAttribute(Unmanaged<MDItem>.fromOpaque(item).takeUnretainedValue(), kMDItemPath) as? String
-                else { continue }
-                found.append(FileSearchRanking.Found(path: path, lastUsed: date(lastUsed, index), modified: date(modified, index)))
+                else { return nil }
+                return FileSearchRanking.Found(path: path, lastUsed: date(lastUsed, index), modified: date(modified, index))
             }
             read = max(read, count)
             MDQueryEnableUpdates(query)
+            guard let found else { return }
             state.withLock { state in
                 if !state.over { state.found += found }
             }
             if done { ended.signal() }
+        }
+
+        /// The results at `indices`, each read by `result` (nil: none there), on the query's queue: asked before each
+        /// whether the query is over for its waiter (`isOver`: stopped, cancelled, past its time), and nothing more read
+        /// once it is (nil).
+        static func results(_ indices: Range<CFIndex>, isOver: () -> Bool,
+                            result: (CFIndex) -> FileSearchRanking.Found?) -> [FileSearchRanking.Found]? {
+            var found: [FileSearchRanking.Found] = []
+            for index in indices {
+                if isOver() { return nil }
+                if let one = result(index) { found.append(one) }
+            }
+            return found
         }
     }
 

@@ -366,6 +366,24 @@ struct InstantFilesTests {
         Task { await inBackground { (spotlight.names(keyword, in: scopes), Date()) } }
     }
 
+    /// A query over for its waiter (cancelled, stopped, past its time) while a batch of its results is read reads
+    /// nothing more of it, on its own queue: each result is read only while the query isn't over, and none of the batch
+    /// is kept.
+    @Test func aCancelledQueryReadsNothingMoreOfABatch() {
+        let over = Locked(initialState: false)
+        let asked = Locked<[CFIndex]>(initialState: [])
+        let found = Spotlight.Query.results(0..<2000, isOver: { over.withLock { $0 } }) { index in
+            asked.withLock { $0.append(index) }
+            if index == 2 { over.withLock { $0 = true } }  // the cancel comes as the third is read
+            return FileSearchRanking.Found(path: "/tmp/\(index)")
+        }
+        #expect(found == nil, "nothing of the batch kept")
+        #expect(asked.withLock { $0 } == [0, 1, 2], "nothing read after the cancel")
+        let all = Spotlight.Query.results(0..<3, isOver: { false }) { FileSearchRanking.Found(path: "/tmp/\($0)") }
+        #expect(all?.map(\.path) == ["/tmp/0", "/tmp/1", "/tmp/2"])
+        #expect(Spotlight.Query.results(0..<3, isOver: { true }) { _ in Issue.record("read"); return nil } == nil)
+    }
+
     @Test func aNameSearchEndsAtOnceWhenCancelledWhileSpotlightLooks() async throws {
         // Everything on the startup disk: some 440,000 items, 12 s on a Mac mini.
         let spotlight = Spotlight(until: .now() + 60)
