@@ -137,6 +137,9 @@ public final class InputSession {
     private var pageWaiters: [TaskID: (PageContext?) -> Void] = [:]
     /// `@reply`'s message as the composer sent it and with the web page added, for its refines.
     private var replyWithPage: (input: String, full: String)?
+    /// What the model was last made ready for (InputSession+Warming.swift): the AI command the draft is, or Translate as
+    /// You Type.
+    var modelWarmedFor: String?
     /// The interface language's own messages the agent is named in (`nameAgent`) and what a hand-off says
     /// (`applyChatSettings`), as last made, with the language and the terms they were made for: both run with each key
     /// with nothing composed, and these are made again only when those change, or the settings are taken over.
@@ -987,6 +990,7 @@ public final class InputSession {
     func perform(_ effects: [Composer.Effect]) {
         defer {
             wakePageIfAgent()
+            warmModelAhead()  // the draft an AI command: its model made ready by ⏎
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
         }
         for effect in effects {
