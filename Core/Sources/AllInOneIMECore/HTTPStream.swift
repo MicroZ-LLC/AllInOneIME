@@ -17,31 +17,84 @@ public enum HTTPStream {
     public static func bytes(for request: URLRequest, session: URLSession,
                              redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil,
                              refusesAuthentication: Bool = false) async throws -> (Body, URLResponse) {
+        let prepared = prepare(request, session: session, redirect: redirect, refusesAuthentication: refusesAuthentication)
+        prepared.start()
+        return try await prepared.response()
+    }
+
+    /// `request` on `session` made ready as `bytes` sends it, but not sent (`Prepared.start` sends it): what may stop it
+    /// can be checked right before the start, nothing scheduled between the two.
+    static func prepare(_ request: URLRequest, session: URLSession, redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil,
+                        refusesAuthentication: Bool = false) -> Prepared {
         let receiver = Receiver(redirect: redirect, refusesAuthentication: refusesAuthentication)
         #if canImport(Darwin)
         // On the caller's session, so that its connections are reused; the task has a delegate of its own.
         let task = session.dataTask(with: request)
         task.delegate = receiver
-        task.resume()
+        return Prepared(receiver: receiver, task: task)
         #else
         // Corelibs Foundation tells a task's data only to its session's delegate: a session of its own, with the
         // same configuration, that goes away when the task is done.
         let own = URLSession(configuration: session.configuration, delegate: receiver, delegateQueue: nil)
-        let task = own.dataTask(with: request)
-        task.resume()
-        own.finishTasksAndInvalidate()
+        return Prepared(receiver: receiver, task: own.dataTask(with: request), own: own)
         #endif
+    }
+
+    /// A request made ready (`prepare`), its task not resumed yet. One let go of before it is started is cancelled, having
+    /// sent nothing.
+    final class Prepared: @unchecked Sendable {
+        private let receiver: Receiver
+        private let task: URLSessionDataTask
+        #if !canImport(Darwin)
+        private let own: URLSession
+        #endif
+        private let started = Locked(initialState: false)
+
         #if canImport(Darwin)
-        let body = Body(reader: Reader(receiver: receiver, task: task))
-        #else
-        let body = Body(reader: Reader(receiver: receiver, task: task, delegateQueue: own.delegateQueue))
-        #endif
-        let response = try await withTaskCancellationHandler {
-            try await receiver.response()
-        } onCancel: {
-            body.reader.cancel()
+        init(receiver: Receiver, task: URLSessionDataTask) {
+            self.receiver = receiver
+            self.task = task
         }
-        return (body, response)
+        #else
+        init(receiver: Receiver, task: URLSessionDataTask, own: URLSession) {
+            self.receiver = receiver
+            self.task = task
+            self.own = own
+        }
+        #endif
+
+        deinit {
+            guard !started.withLock({ $0 }) else { return }
+            #if canImport(Darwin)
+            task.cancel()
+            #else
+            own.invalidateAndCancel()
+            #endif
+        }
+
+        /// Sends it now: its task resumed, which doesn't block or wait for anything.
+        func start() {
+            started.withLock { $0 = true }
+            task.resume()
+            #if !canImport(Darwin)
+            own.finishTasksAndInvalidate()
+            #endif
+        }
+
+        /// Its response once the headers are in, and its body as it arrives (once started): `bytes`'s.
+        func response() async throws -> (Body, URLResponse) {
+            #if canImport(Darwin)
+            let body = Body(reader: Reader(receiver: receiver, task: task))
+            #else
+            let body = Body(reader: Reader(receiver: receiver, task: task, delegateQueue: own.delegateQueue))
+            #endif
+            let response = try await withTaskCancellationHandler {
+                try await receiver.response()
+            } onCancel: {
+                body.reader.cancel()
+            }
+            return (body, response)
+        }
     }
 
     /// The response's body, as it arrives.

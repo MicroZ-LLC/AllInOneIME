@@ -5,7 +5,7 @@ import Foundation
 /// idle a new one takes 50 to 300 ms). Nothing of the user's is sent: the on-device model's loading sends nothing, and a
 /// built-in cloud provider at its own default base URL that a request succeeded at before gets a HEAD to its origin with
 /// no key and no body (`ConnectionWarmth`); never a base URL of the user's, never the hosted service. Whether it may is
-/// checked when it is asked for and again right before the HEAD starts (`warmDue`).
+/// checked when it is asked for and again as the HEAD starts, in one step (`warmDue`).
 extension InputSession {
     /// What the model would be asked for next, as the draft is now: the AI command it is (its name typed out or picked,
     /// "@improve …"), else one @'s highlighted row when it is the AI's and something was typed or selected (never "@"
@@ -56,7 +56,7 @@ extension InputSession {
     /// The model the AI commands go to made ready for a request: the on-device one loaded, once a minute at most
     /// (`AutocompleteStore.prewarmDue`), else (`connection`) the provider's connection opened where nothing went to it
     /// lately, it is at its own default base URL and a request succeeded there before (`Converter.warmTarget`, its HEAD
-    /// made ready off this thread, `Converter.warmHead`, and started once checked again, `warmDue`; where the shell does:
+    /// made ready off this thread, `Converter.warmHead`, and checked again as it starts, `warmDue`; where the shell does:
     /// `SessionServices.warmsConnections`). Nothing during secure input, nor in an app with no AI, nor for the hosted
     /// service.
     func warmModel(connection: Bool = true) {
@@ -77,13 +77,15 @@ extension InputSession {
         }
     }
 
-    /// The HEAD to `head` for `target` made ready (`TaskUpdate.warmDue`), in the field it was asked for in: checked again
-    /// right before it starts, as when it was asked for (`warmModel`): not during secure input, nor in an app with No AI,
-    /// and only for the provider and the address the settings still give. Else none goes.
-    func warmDue(_ head: URL, target: WarmTarget) {
+    /// The HEAD for `target` made ready off this thread (`TaskUpdate.warmDue`: its request and its task, not started),
+    /// checked again and started in one step, nothing scheduled between the two (starting it doesn't block). It goes only
+    /// in the field it was asked for in (`focus`) and, as when it was asked for (`warmModel`), not during secure input nor
+    /// in an app with No AI, and only for the provider and the address the settings still give. Else none goes: let go
+    /// of, it is cancelled unsent.
+    func warmDue(_ head: WarmHead, target: WarmTarget, focus: Int) {
         let config = services.loadSettings()
-        guard services.warmsConnections, !secureInputActive(), config.allowsAI(in: app),
+        guard focus == fieldSession, services.warmsConnections, !secureInputActive(), config.allowsAI(in: app),
               Converter.warmTarget(config.provider, config: config) == target else { return }
-        services.converter.startWarm(head)
+        head.start()
     }
 }

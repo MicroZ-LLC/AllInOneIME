@@ -73,9 +73,9 @@ public enum TaskUpdate: Sendable {
     case completionsAnswered
     /// The plugins were looked for again (`SessionServices.rescanPlugins`): what was found is to be taken in.
     case pluginsScanned
-    /// A provider's connection may be opened now, by a HEAD to `head` (`Converter.warmHead`), as asked for `target` in the
-    /// field's focus `focus`: checked again before it starts (`InputSession.warmDue`).
-    case warmDue(URL, target: WarmTarget, focus: Int)
+    /// A provider's connection may be opened now, by `head`, a HEAD made ready and not started (`Converter.warmHead`), as
+    /// asked for `target` in the field's focus `focus`: checked again and started in one step (`InputSession.warmDue`).
+    case warmDue(WarmHead, target: WarmTarget, focus: Int)
 }
 
 /// How a save to notes or Reminders went (`TaskUpdate.saved`): told where the user is when it comes back, even if the

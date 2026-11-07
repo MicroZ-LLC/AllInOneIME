@@ -1489,8 +1489,7 @@ public final class InputSession {
         case .completionsAnswered:
             suggestionsAnswered()
         case let .warmDue(head, target, focus):
-            // Asked for in this field: it is still the one being typed in.
-            if focus == fieldSession { warmDue(head, target: target) }
+            warmDue(head, target: target, focus: focus)
         case .pluginsScanned:
             pluginsScanned()
         }
