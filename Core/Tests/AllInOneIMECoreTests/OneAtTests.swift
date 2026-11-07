@@ -431,4 +431,22 @@ struct OneAtTests {
         let response = c.handleKeyDown(escKey)
         #expect(commits(response) == ["@nihao"] && !c.isComposing && c.draft.isEmpty, "\(commits(response)) \(c.draft)")
     }
+
+    /// In Chinese, a digit that goes on a command's name being composed (`@base64`) is part of the name, as in 0.6.9;
+    /// any other digit picks a candidate.
+    @Test func aDigitGoesOnANameWhilePinyinComposes() {
+        let folder = ScriptFolder()
+        folder.add("base64.sh", "#!/bin/sh\n# @allinoneime.schemaVersion 1\n# @allinoneime.title Encode Base64\necho hi\n")
+        let commands = Command.catalog([], scripts: folder.load().commands)
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.oneAtList = true
+        c.commands = commands
+        for key in [FakeHost.at] + "base64 ".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
+        #expect(c.draftCommand?.name == "base64" && c.draft == "@base64 ", "\(c.draft)")
+        let other = Composer(engine: FakeEngine(), actionKey: .enter)
+        other.oneAtList = true
+        other.commands = commands
+        for key in [FakeHost.at] + "nihao2".map({ k(String($0)) }) { _ = other.handleKeyDown(key) }
+        #expect(other.oneAt?.text == "拟好", "\(String(describing: other.oneAt))")
+    }
 }

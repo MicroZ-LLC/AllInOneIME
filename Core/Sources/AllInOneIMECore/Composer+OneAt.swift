@@ -147,7 +147,8 @@ extension Composer {
 
     /// Keys while one @ is written. ⏎ and the action key do the highlighted row (with a lone magic key and no selection
     /// ⏎ puts the key in, as before); Tab picks a command or does the row; ↑↓ move among the rows, also while pinyin is
-    /// composed; Esc leaves the text as typed (a selection as it is); → at the end of the text leaves it as typed and
+    /// composed; Esc leaves the text as typed, also while pinyin is composed (a selection as it is); a digit that goes on
+    /// a name composed after the key is part of it (`@base64`); → at the end of the text leaves it as typed and
     /// moves on in the app. Right after the magic key a space or a mark leaves it as typed (`@ ` is an at sign); letters,
     /// digits and "(" start the text. While the letters composed are a command's whole name, Space picks the command, as
     /// `@name ` writes it. Nil: the key acts as usual (into the text, the engine, ⌫).
@@ -187,6 +188,18 @@ extension Composer {
             return .consumed(doOneAt(.command(command), run: false))
         default:
             break
+        }
+        // A digit that goes on the name composed right after the key (`@base6`) is part of it, as in 0.6.9: the letters
+        // leave the engine, as typed; any other digit picks a candidate.
+        if composing, draft == commandTrigger, plain, let engine, let text = event.printableText, text.count == 1,
+           let c = text.first, c.isASCII, c.isNumber, case let name = engine.rawInput.lowercased() + text,
+           name.first?.isLetter == true, commands.contains(where: { $0.name.hasPrefix(name) }) {
+            let letters = engine.rawInput
+            engine.clearComposition()
+            engineState = engine.snapshot()
+            draft += letters + text
+            setLevelOnePhase()
+            return .consumed([.updateMarkedText, .showPanel])
         }
         guard lone else { return nil }
         // Right after the magic key: a space or a mark leaves it as typed, as before.
