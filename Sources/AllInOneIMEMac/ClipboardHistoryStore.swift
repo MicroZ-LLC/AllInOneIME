@@ -394,7 +394,8 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// already, and nothing changed.
     @discardableResult
     public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
-        preparing.remove(image.id)
+        // Being made ready until the list with it is written: a write left for later, of the list before it, keeps its files.
+        defer { preparing.remove(image.id) }
         guard items.first?.image?.id != image.id else { return false }
         items.removeAll { $0.image?.id == image.id }
         let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
