@@ -460,7 +460,7 @@ Folder"): local plugins, never overwritten by the library.
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
 (`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
 with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calculator that works offline,
-`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@calendar` does dates: `@calendar +10` →
+`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@days` does dates: `@days +10` →
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
