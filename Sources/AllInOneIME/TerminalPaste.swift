@@ -32,7 +32,7 @@ enum TerminalPaste {
 
     @MainActor private static var asked = false
 
-    /// Whether `event` is a ⌘V posted by `paste`, or a ⌃V by `postControlV`.
+    /// Whether `event` is a ⌘V posted by `paste`, a ⌃V by `postControlV`, or a key handed on by `post`.
     static func isOurs(_ event: NSEvent) -> Bool {
         event.cgEvent?.getIntegerValueField(.eventSourceUserData) == marker
     }
@@ -61,6 +61,24 @@ enum TerminalPaste {
         let held: CGEventFlags = [.maskCommand, .maskAlternate, .maskControl, .maskShift]
         for _ in 0..<50 where !CGEventSource.flagsState(.hidSystemState).intersection(held).isEmpty {
             try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+    }
+
+    /// `key` (its key code and modifiers) down and up, marked as ours (`isOurs`), so the input method lets it through to
+    /// the app: a key that waited for the selection read after the "@" key (`PlatformAction.passKey`).
+    @MainActor
+    static func post(_ key: KeyEvent) {
+        var flags: CGEventFlags = []
+        if key.modifiers.contains(.shift) { flags.insert(.maskShift) }
+        if key.modifiers.contains(.control) { flags.insert(.maskControl) }
+        if key.modifiers.contains(.option) { flags.insert(.maskAlternate) }
+        if key.modifiers.contains(.command) { flags.insert(.maskCommand) }
+        let source = CGEventSource(stateID: .privateState)
+        for down in [true, false] {
+            let event = CGEvent(keyboardEventSource: source, virtualKey: key.keyCode, keyDown: down)
+            event?.flags = flags
+            event?.setIntegerValueField(.eventSourceUserData, value: marker)
+            event?.post(tap: .cghidEventTap)
         }
     }
 

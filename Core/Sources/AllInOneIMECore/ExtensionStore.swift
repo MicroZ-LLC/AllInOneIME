@@ -278,6 +278,22 @@ public struct ExtensionIndex: Equatable, Sendable {
 
     public static let empty = ExtensionIndex()
 
+    /// This index, built off the main thread from `before`, numbered: `before`'s generation when it is the same, else
+    /// the next (compared there, not on the main thread).
+    public func numbered(after before: ExtensionIndex) -> ExtensionIndex {
+        var built = self
+        built.generation = built == before ? before.generation : before.generation &+ 1
+        return built
+    }
+
+    /// This index (`numbered(after: before)`) landing on the main thread where the index is `current` now: `taken`, the
+    /// index from now on, unless another build landed meanwhile (its is as new); `changed`, it changed what was there,
+    /// and an "@" list open then is told (`LiveExtensions.changed`). The same for every build in the background.
+    public func lands(on current: ExtensionIndex, builtFrom before: ExtensionIndex) -> (taken: Bool, changed: Bool) {
+        let taken = current.generation == before.generation
+        return (taken, taken && generation != before.generation)
+    }
+
     public func bundle(of command: ScriptCommand) -> ExtensionBundle? {
         command.source.bundleName.flatMap { name in bundles.first { $0.name == name } }
     }

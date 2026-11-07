@@ -225,6 +225,9 @@ func runServer(showSettings: Bool = false) -> Never {
     LivePlugins.changed = { MainActor.assumeIsolated { AllInOneIMEInputController.activeController?.commandsChanged() } }
     LiveExtensions.prepare(LiveConfig.current)
     LivePlugins.prepare()
+    // The script extensions' status lines kept from the last launch, read off the main thread now, not on the key that
+    // first shows one.
+    MainActor.assumeIsolated { ScriptStatus.shared.prepare() }
     // English words learned while the config file didn't parse (or couldn't be written): written once it parses again.
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.

@@ -161,6 +161,9 @@ public final class Composer {
         /// UTF-16 units from the end of that text, to the snippet's `{cursor}`. Only where the field says where its caret
         /// is and has that text before it; not in a terminal.
         case moveCaret(back: Int)
+        /// The key goes on to the app after all, posted by the shell as its own: it waited for the selection read after
+        /// the "@" key (`selectionPending`), and the composer didn't take it then (→ giving the keys back).
+        case passKey(KeyEvent)
     }
 
     public struct Response: Equatable, Sendable {
@@ -523,10 +526,13 @@ public final class Composer {
     /// highlighted one, and what the full search found for the texts typed last in this field's session (at most
     /// `recentLiveLimit`: coming back to one lists them at once). ↑↓ moved the highlight among them (back to the first
     /// counts too): it opens (`opensLiveResult`), and stays on its result as rows come and go.
-    var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, id: \.path)
+    var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, shown: Composer.liveRowLimit, id: \.path)
     public var liveResults: [SearchResult] { live.rows }
     public var liveHighlight: Int { live.highlight }
     static let recentLiveLimit = 32
+    /// The most rows `@open` lists as its text is typed: what its full search finds (`FileSearch.run`), and what is known at
+    /// once with the rows of the text before.
+    public static let liveRowLimit = 8
     /// What is known at once for an `@open` text, without searching (`SessionServices.instantResults`, given by the
     /// session): its first rows, on the key that changed it.
     public var instantResults: (String) -> [SearchResult] = { _ in [] }
@@ -539,8 +545,10 @@ public final class Composer {
     var oneAtCache: (key: OneAtKey, rows: [OneAt.Action])?
     /// The words the user's commands are found by, for the commands as they are (`commandsGeneration`).
     var oneAtWords: (generation: Int, words: [String: [String]]) = (-1, [:])
-    /// Whether the row ⏎ (rather than Tab) waited on for the selection is to run (`selectionRead`).
-    var oneAtRunsWhenRead = true
+    /// The keys (⏎, Esc, ⇧⏎, →, Tab, the action key, a row clicked) one @ was given while the selection was still being
+    /// read (`selectionPending`), and those after them: done in order once it is in (`selectionRead`), as they would have
+    /// been had the field told it with the key.
+    var waitingForSelection: [OneAtWaiting] = []
     /// The files Spotlight's names found for the one @ text (`SessionServices.searchFileNames`), as they come.
     var oneAtFiles = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, id: \.path)
     /// The app being typed in (its bundle id; the session sets it): what a command's use is counted for, and what the one @
@@ -555,7 +563,6 @@ public final class Composer {
     /// The selection is read after the "@" key (the field didn't tell it with the key): the draft stays out of the field
     /// meanwhile (`draftInPanel`), and the action key, or a row picked, waits for it (`selectionRead`).
     public internal(set) var selectionPending = false
-    var actsWhenSelectionRead = false
     /// Whether the field reads the selection after the key (set by the session for the key being handled): see
     /// `selectionPending`.
     public var selectionFollows: () -> Bool = { false }
@@ -885,9 +892,10 @@ public final class Composer {
         return cursorTail
     }
 
-    /// Where the text after the command starts (the cursor never goes into "@question ").
+    /// Where the text after the command starts (the cursor never goes into "@question "), or after the magic key while
+    /// one @ is written (never before the "@").
     private var textStart: Int {
-        guard let command = draftCommand else { return 0 }
+        guard let command = draftCommand else { return oneAtList && draft.hasPrefix(commandTrigger) ? commandTrigger.count : 0 }
         let header = "\(commandTrigger)\(command.name) "
         return draft.hasPrefix(header) ? header.count : 0
     }
@@ -1303,7 +1311,7 @@ public final class Composer {
         guard let query = liveQuery else { return [] }
         if live.query != query {
             let keywords = FileSearchRanking.keywords(in: query)
-            live.show(query, instant: live.knows(query) ? [] : instantResults(query), fits: { Self.stillMatches($0, keywords) })
+            live.show(query, instant: live.knows(query) ? [] : instantResults(query), fits: { Self.stillMatches($0, keywords, for: query) })
         }
         return live.rows
     }
@@ -1399,7 +1407,8 @@ public final class Composer {
         let current = liveQuery
         if let current, query != current { _ = currentLiveResults }  // the rows for the text now, before any are added
         let keywords = FileSearchRanking.keywords(in: current ?? "")
-        let changed = live.receive(results, for: query, current: current, isFinal: isFinal, fits: { Self.stillMatches($0, keywords) })
+        let changed = live.receive(results, for: query, current: current, isFinal: isFinal,
+                                   fits: { Self.stillMatches($0, keywords, for: current ?? "") })
         return changed ? [.showPanel] : []
     }
 
@@ -1411,11 +1420,22 @@ public final class Composer {
         lists.clear(everything: true)
     }
 
-    /// Whether a row listed for one `@open` text matches `keywords`, another's: each of them in its name, its other name
-    /// (`chineseName`) or its path (with the home folder as "~" too, as a path is typed), case and accents aside.
-    static func stillMatches(_ result: SearchResult, _ keywords: [String]) -> Bool {
-        let texts = [result.name, result.path, abbreviatingHome(result.path)] + (result.chineseName.map { [$0] } ?? [])
-        return !keywords.isEmpty && keywords.allSatisfy { keyword in texts.contains { FileSearchRanking.contains($0, keyword) } }
+    /// Whether a row listed for one `@open` text matches `keywords`, another's, as the full search would list it
+    /// (`FileSearchRanking.matches`): one of them at least in its name or its other name (`chineseName`), the others there
+    /// or in its folders, case and accents aside. A keyword only in its path ("wei" of /Users/weijianz/) is no match.
+    /// Never for a path being typed (`text` "~/Doc", "/Applications/"): its folder's listing alone, no row of another
+    /// folder.
+    static func stillMatches(_ result: SearchResult, _ keywords: [String], for text: String = "") -> Bool {
+        guard !keywords.isEmpty, !text.hasPrefix("/"), !text.hasPrefix("~") else { return false }
+        return FileSearchRanking.matches(result.path, names: [result.name] + (result.chineseName.map { [$0] } ?? []), keywords: keywords)
+    }
+
+    /// Opens `path` (`Effect.open`): what `@open` opened before ranks first from now on, so what was found for its texts
+    /// in this field's session (`live`, one @'s files) is forgotten, not listed again in the order from before.
+    func opening(_ path: String) -> Effect {
+        live.clear(everything: true)
+        oneAtFiles.clear(everything: true)
+        return .open(path: path)
     }
 
     /// What ⌘C copies: the highlighted result (a file's path), if one is shown.
@@ -1455,6 +1475,8 @@ public final class Composer {
     }
 
     private func keyDown(_ event: KeyEvent) -> Response {
+        // One @ while the selection is read after the "@" key: a key that acts waits for it (Composer+OneAt.swift).
+        if let response = waitForSelection(event) { return response }
         if let response = handleHangulKey(event) { return response }
         // Any other key finishes the syllable being typed first, then does what it does.
         let finished = finishHangul()
@@ -1609,7 +1631,7 @@ public final class Composer {
         }
         // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
         if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight,
-           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil {
+           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
             return .consumed(moveCursor(event))
         }
         // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
@@ -1796,7 +1818,7 @@ public final class Composer {
         if !live.isEmpty {
             guard live.indices.contains(index) else { return [] }
             let path = live[index].path  // before `finish` clears them
-            return finish(committing: "") + [.open(path: path)]
+            return finish(committing: "") + [opening(path)]
         }
         if recipientQuery != nil { return pickRecipient(at: index) }
         if !questionMatches.isEmpty { return showSavedAnswer(at: index) }
@@ -2125,7 +2147,7 @@ public final class Composer {
                     selection = readSelection().flatMap { $0.text.isEmpty ? nil : $0 }
                     selectionFits = (selection?.text.count ?? 0) <= Self.maxSelectionLength
                     selectionPending = selection == nil && selectionFollows()
-                    actsWhenSelectionRead = false
+                    waitingForSelection = []
                     draft = commandTrigger
                     paletteHighlight = 0
                     oneAtReset()
@@ -2624,7 +2646,7 @@ public final class Composer {
         if phase == .idle {
             selection = nil
             selectionPending = false
-            actsWhenSelectionRead = false
+            waitingForSelection = []
         }
         if messageRecipient != nil, draftCommand?.kind != .message { messageRecipient = nil }
         if recipients.query != nil, !pickingRecipient { clearRecipientResults() }
@@ -3521,7 +3543,7 @@ public final class Composer {
         if voice != .off { return actAfterVoice() }
         // The selection is still being read: the command runs once it is in (it may take it).
         if selectionPending {
-            actsWhenSelectionRead = true
+            waitingForSelection.append(.actionKey)
             return [.showPanel]
         }
         // A recent question picked with ↑↓: its saved answer.
@@ -3530,7 +3552,7 @@ public final class Composer {
         // to choose from, below).
         if opensLiveResult {
             let path = currentLiveResults[liveHighlight].path  // before `finish` clears them
-            return finish(committing: "") + [.open(path: path)]
+            return finish(committing: "") + [opening(path)]
         }
         let composing = engine.snapshot().isComposing
         let effects = composing ? convertComposition(engine) : []
@@ -3625,7 +3647,7 @@ public final class Composer {
         guard !all[index].text.isEmpty else { return [] }
         // Row 0 on the selection: it stays as it is (and selected), nothing inserted over it.
         if all[index].kind == .original, selection != nil { return finish(committing: "", selection: .kept) }
-        if case let .file(path) = all[index].kind { return finish(committing: "") + [.open(path: path)] }
+        if case let .file(path) = all[index].kind { return finish(committing: "") + [opening(path)] }
         // What a `show` script printed isn't inserted: picking it closes the panel.
         if all[index].kind == .shown { return finish(committing: "") }
         if case let .item(item) = all[index].kind, let command = activeCommand { return perform(item, of: command) }
@@ -3666,7 +3688,7 @@ public final class Composer {
         let selected = selection
         selection = nil
         selectionPending = false
-        actsWhenSelectionRead = false
+        waitingForSelection = []
         var effects: [Effect] = []
         if case let .translating(id) = phase {
             effects.append(leaving && activeCommand?.script?.output == .show ? .detachScript(id: id) : .cancelConversion)

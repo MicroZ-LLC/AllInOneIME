@@ -18,11 +18,14 @@ public struct LiveRows<Row> {
     private var recent: [(query: String, rows: [Row])] = []
     /// How many texts' answers are kept.
     public let limit: Int
+    /// The most rows listed at once (what a source answers, and what is merged with it).
+    public let shown: Int
     /// What tells a row apart from another.
     private let id: (Row) -> String
 
-    public init(limit: Int, id: @escaping (Row) -> String) {
+    public init(limit: Int, shown: Int = .max, id: @escaping (Row) -> String) {
         self.limit = limit
+        self.shown = shown
         self.id = id
     }
 
@@ -41,12 +44,14 @@ public struct LiveRows<Row> {
         list(instant + listed.filter { fits($0) && seen.insert(id($0)).inserted })
     }
 
-    /// The source answered `answer` for `query` (`isFinal` false: what it found so far, not kept). For the text listed
-    /// (`current`) it takes the rows' place; for one typed before, the rows that fit the text now (`fits`) are added after
-    /// those listed. Whether the rows changed.
+    /// The source answered `answer` for `query` (`isFinal` false: what it found so far, not kept; nothing found so far
+    /// changes nothing, the rows don't blink while it looks on). For the text listed (`current`) it takes the rows' place;
+    /// for one typed before, the rows that fit the text now (`fits`) are added after those listed, up to `shown`. Whether
+    /// the rows changed.
     @discardableResult
     public mutating func receive(_ answer: [Row], for query: String, current: String?, isFinal: Bool = true,
                                  fits: (Row) -> Bool) -> Bool {
+        guard isFinal || !answer.isEmpty else { return false }
         if isFinal { remember(answer, for: query) }
         guard let current else { return false }
         if query == current {
@@ -55,15 +60,17 @@ public struct LiveRows<Row> {
             return true
         }
         let listed = Set(rows.map(id))
-        let added = answer.filter { fits($0) && !listed.contains(id($0)) }
+        let added = answer.filter { fits($0) && !listed.contains(id($0)) }.prefix(max(shown - rows.count, 0))
         guard !added.isEmpty else { return false }
         rows += added
         return true
     }
 
-    /// `rows` listed: a highlight moved with ↑↓ stays on its row while it is there, else it's on the first.
+    /// `rows` listed (the first `shown`): a highlight moved with ↑↓ stays on its row while it is there, else it's on the
+    /// first.
     public mutating func list(_ new: [Row]) {
         let picked = highlightMoved && rows.indices.contains(highlight) ? id(rows[highlight]) : nil
+        let new = Array(new.prefix(shown))
         rows = new
         if let picked, let index = new.firstIndex(where: { id($0) == picked }) {
             highlight = index

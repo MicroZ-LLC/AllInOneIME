@@ -147,7 +147,8 @@ extension Composer {
 
     /// Keys while one @ is written. ⏎ and the action key do the highlighted row (with a lone magic key and no selection
     /// ⏎ puts the key in, as before); Tab picks a command or does the row; ↑↓ move among the rows, also while pinyin is
-    /// composed; Esc leaves the text as typed (a selection as it is); → at the end of the text leaves it as typed and
+    /// composed; Esc leaves the text as typed, also while pinyin is composed (a selection as it is); a digit that goes on
+    /// a name composed after the key is part of it (`@base64`); → at the end of the text leaves it as typed and
     /// moves on in the app. Right after the magic key a space or a mark leaves it as typed (`@ ` is an at sign); letters,
     /// digits and "(" start the text. While the letters composed are a command's whole name, Space picks the command, as
     /// `@name ` writes it. Nil: the key acts as usual (into the text, the engine, ⌫).
@@ -162,6 +163,8 @@ extension Composer {
             if modifiers == [.shift] { return .consumed(finishOneAsTyped()) }
             guard modifiers.isEmpty else { return nil }
             if lone, selection == nil, !selectionPending { return .consumed(finish(committing: draft, selection: .kept)) }
+            // No row at all (a text in an app with No AI): the text goes in as typed, never a dead end.
+            if oneAtRows.isEmpty, selection == nil { return .consumed(finishOneAsTyped()) }
             return .consumed(doHighlightedOneAt(run: true))
         case .tab where plain:
             guard !oneAtRows.isEmpty else { return lone ? commitPalette(then: event) : .consumed() }
@@ -170,9 +173,9 @@ extension Composer {
             guard plain else { return nil }
             moveOneAtHighlight(by: event.key == .arrow(.up) ? -1 : 1)
             return .consumed([.showPanel])
-        case .escape where !composing:
+        case .escape:
             if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
-            // The magic key alone is given up, as before; a text stays as typed.
+            // The magic key alone is given up, as before; a text stays as typed, pinyin composed as its letters.
             guard lone else { return .consumed(finishOneAsTyped()) }
             draft = ""
             setLevelOnePhase()
@@ -188,8 +191,22 @@ extension Composer {
         default:
             break
         }
+        // A digit that goes on the name composed right after the key (`@base6`) is part of it, as in 0.6.9: the letters
+        // leave the engine, as typed; any other digit picks a candidate.
+        if composing, draft == commandTrigger, plain, let engine, let text = event.printableText, text.count == 1,
+           let c = text.first, c.isASCII, c.isNumber, case let name = engine.rawInput.lowercased() + text,
+           name.first?.isLetter == true, commands.contains(where: { $0.name.hasPrefix(name) }) {
+            let letters = engine.rawInput
+            engine.clearComposition()
+            engineState = engine.snapshot()
+            draft += letters + text
+            setLevelOnePhase()
+            return .consumed([.updateMarkedText, .showPanel])
+        }
         guard lone else { return nil }
-        // Right after the magic key: a space or a mark leaves it as typed, as before.
+        // Right after the magic key: a key that isn't the list's (←, Home, End, Page Up…) puts the key in and goes to the
+        // app, as in 0.6.9; so does a space or a mark (`@ ` is an at sign).
+        if [Key.arrow(.left), .home, .end, .pageUp, .pageDown, .forwardDelete].contains(event.key) { return commitPalette(then: event) }
         if event.key == .space { return plain ? commitPalette(then: event) : nil }
         guard plain, let text = event.printableText, let c = text.first, text.count == 1 else { return nil }
         if c.isLetter || c.isNumber || c == "(" || !c.isASCII { return nil }
@@ -200,14 +217,23 @@ extension Composer {
     /// selection: nil, the key as before).
     func oneAtActionKey() -> [Effect]? {
         guard oneAt != nil else { return nil }
-        if draft == commandTrigger, !engineState.isComposing, selection == nil, !selectionPending { return nil }
+        if selectionPending {
+            waitingForSelection.append(.actionKey)
+            return [.showPanel]
+        }
+        if draft == commandTrigger, !engineState.isComposing, selection == nil { return nil }
+        if oneAtRows.isEmpty, selection == nil { return finishOneAsTyped() }
         return doHighlightedOneAt(run: true)
     }
 
-    /// A row clicked (`index` among those shown): done as ⏎ does it.
+    /// A row clicked (`index` among those shown): done as ⏎ does it (once the selection is in, if it is being read).
     func chooseOneAt(_ index: Int) -> [Effect] {
         let row = oneAtFirstVisible + index, rows = oneAtRows
         guard rows.indices.contains(row) else { return [] }
+        if selectionPending {
+            waitingForSelection.append(.row(rows[row]))
+            return [.showPanel]
+        }
         oneAtHighlight = row
         return doOneAt(rows[row], run: true)
     }
@@ -220,14 +246,8 @@ extension Composer {
     }
 
     /// The highlighted row done (`run`: ⏎ or the action key, which also runs a command that takes no text; Tab only
-    /// picks it). While the selection is still being read (`selectionPending`) it waits for it: a command that takes the
-    /// selection never runs without it.
+    /// picks it). Never while the selection is still being read (`selectionPending`): the key waits for it.
     func doHighlightedOneAt(run: Bool) -> [Effect] {
-        if selectionPending {
-            actsWhenSelectionRead = true
-            oneAtRunsWhenRead = run
-            return [.showPanel]
-        }
         let rows = oneAtRows
         guard rows.indices.contains(oneAtHighlighted) else { return [] }
         return doOneAt(rows[oneAtHighlighted], run: run)
@@ -251,7 +271,7 @@ extension Composer {
         case let .value(value):
             return finish(committing: value)
         case let .open(result):
-            return finish(committing: "") + [.open(path: result.path), used(.open)]
+            return finish(committing: "") + [opening(result.path), used(.open)]
         case let .reminder(reminder):
             let text = oneAt?.text.trimmingCharacters(in: .whitespaces) ?? ""
             return finish(committing: "") + [.addReminder(reminder, input: text), used(.reminder)]
@@ -301,11 +321,11 @@ extension Composer {
         let current = oneAtFileQuery
         if let current, oneAtFiles.query != current {
             let keywords = FileSearchRanking.keywords(in: current)
-            oneAtFiles.show(current, fits: { Self.stillMatches($0, keywords) })
+            oneAtFiles.show(current, fits: { Self.stillMatches($0, keywords, for: current) })
         }
         let keywords = FileSearchRanking.keywords(in: current ?? "")
         let changed = oneAtFiles.receive(results.filter { !$0.matchedContent }, for: query, current: current, isFinal: isFinal,
-                                         fits: { Self.stillMatches($0, keywords) })
+                                         fits: { Self.stillMatches($0, keywords, for: current ?? "") })
         return changed ? [.showPanel] : []
     }
 
@@ -313,25 +333,60 @@ extension Composer {
     func showOneAtFiles() {
         guard let query = oneAtFileQuery else { return }
         let keywords = FileSearchRanking.keywords(in: query)
-        oneAtFiles.show(query, fits: { Self.stillMatches($0, keywords) })
+        oneAtFiles.show(query, fits: { Self.stillMatches($0, keywords, for: query) })
     }
 
     // MARK: The selection, read after the key
 
+    /// What waits for the selection read after the "@" key (`waitingForSelection`).
+    enum OneAtWaiting: Equatable {
+        /// A key: handled again once the selection is in; one the composer doesn't take then goes on to the app
+        /// (`Effect.passKey`).
+        case key(KeyEvent)
+        /// A row clicked, done as it was shown.
+        case row(OneAt.Action)
+        /// The action key as a tap (`ActionKey.optionTap`): no key to hand on.
+        case actionKey
+    }
+
+    /// While the draft after the "@" key waits for the selection (`selectionPending`), a key that acts on it (⏎ ⇧⏎, Esc,
+    /// →, Tab, the action key) waits too, and so does every key after it, in order: with the selection or without it,
+    /// each does what it does when the field tells the selection with the key (⏎ on "@" alone puts the "@" in; Esc leaves
+    /// a selection alone), never what it would do in the meantime. Nil: the key acts now (letters, ⌫, ↑↓ on the rows).
+    func waitForSelection(_ event: KeyEvent) -> Response? {
+        guard selectionPending, draft.hasPrefix(commandTrigger) else { return nil }
+        let acts = [Key.enter, .keypadEnter, .escape, .tab, .arrow(.right)].contains(event.key) || isActionKey(event)
+        guard acts || !waitingForSelection.isEmpty else { return nil }
+        waitingForSelection.append(.key(event))
+        return .consumed([.showPanel])
+    }
+
     /// The selection the field reads after the key (`selectionPending`) arrived (nil: none): the list is for it from now
-    /// on, and a row ⏎ was pressed on meanwhile is done now.
+    /// on, and what waited for it (`waitingForSelection`) is done now, in order.
     public func selectionRead(_ selected: Selection?) -> [Effect] {
         guard selectionPending else { return [] }
         selectionPending = false
+        let waiting = waitingForSelection
+        waitingForSelection = []
         guard draft.hasPrefix(commandTrigger) else { return [] }
         if let selected, !selected.text.isEmpty {
             selection = selected
             selectionFits = selected.text.count <= Self.maxSelectionLength
         }
         oneAtCache = nil
-        guard actsWhenSelectionRead else { return forField([.updateMarkedText, .showPanel]) }
-        actsWhenSelectionRead = false
-        if oneAt != nil { return forField(doHighlightedOneAt(run: oneAtRunsWhenRead)) }
-        return forField(actionKeyPressed() ?? [.updateMarkedText, .showPanel])
+        var effects = forField([.updateMarkedText, .showPanel])
+        for item in waiting {
+            switch item {
+            case let .key(event):
+                let response = handleKeyDown(event)
+                effects += response.effects
+                if !response.handled { effects.append(.passKey(event)) }
+            case let .row(action):
+                if oneAt != nil { effects += forField(doOneAt(action, run: true)) }
+            case .actionKey:
+                effects += forField(actionKeyPressed() ?? [])
+            }
+        }
+        return effects
     }
 }

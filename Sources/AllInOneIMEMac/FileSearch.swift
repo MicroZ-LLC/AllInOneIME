@@ -16,7 +16,7 @@ public enum FileSearch {
     /// The best `limit` matches for `query`, off the main thread; what `@open` opened (`history`) first. `found` is told
     /// the matches by name before the full-text search starts, when one does (it takes longer). Cancelling the task stops
     /// the search and the Spotlight queries it started; it then returns nothing.
-    public static func run(_ query: String, history: OpenHistory, limit: Int = 8,
+    public static func run(_ query: String, history: OpenHistory, limit: Int = Composer.liveRowLimit,
                            found: (@Sendable ([SearchResult]) -> Void)? = nil) async -> [SearchResult] {
         // A web address comes first (opened in the browser), after a file named exactly like it
         // (`FileSearchRanking.placing`); "https://…" is nothing else. (No full-text search follows one.)

@@ -17,6 +17,12 @@ public struct StatusSchedule: Sendable {
         values = kept.mapValues { ($0.text, $0.at) }
     }
 
+    /// The values `kept` from an earlier launch, read after this one started (`StatusFile`, off the main thread): those of
+    /// the commands this launch has no value of yet.
+    public mutating func adopt(_ kept: [String: Kept]) {
+        for (id, value) in kept where values[id] == nil { values[id] = (value.text, value.at) }
+    }
+
     /// A status line's value and when it was had: what is kept for the next launch.
     public struct Kept: Codable, Equatable, Sendable {
         public var text: String

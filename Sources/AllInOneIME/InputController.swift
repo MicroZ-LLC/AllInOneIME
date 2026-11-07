@@ -1008,6 +1008,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { pass() }
             case let .platform(.pasteImage(id)):
                 pasteKeptImage(id, into: target)
+            case let .platform(.passKey(key)):
+                // A key that waited for the selection read after "@", not taken then: the app's after all.
+                DispatchQueue.main.async { TerminalPaste.post(key) }
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the

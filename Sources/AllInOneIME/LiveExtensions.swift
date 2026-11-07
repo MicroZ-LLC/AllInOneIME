@@ -36,8 +36,7 @@ enum LiveExtensions {
     /// The index built now, on this thread (the settings window, which shows what is there at once).
     static func load(_ config: Config) -> ExtensionIndex {
         let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
-        var built = ExtensionStore.load(folders, cache: cache)
-        built.generation = built == index ? index.generation : index.generation &+ 1
+        let built = ExtensionStore.load(folders, cache: cache).numbered(after: index)
         index = built
         indexed = folders
         return index
@@ -51,17 +50,15 @@ enum LiveExtensions {
         rebuilding = true
         let (cache, before) = (self.cache, index)
         DispatchQueue.global(qos: .utility).async {
-            var built = ExtensionStore.load(folders, cache: cache)
             // Compared here, off the main thread: the command list is built again only for a new generation.
-            let same = built == before
-            built.generation = same ? before.generation : before.generation &+ 1
+            let built = ExtensionStore.load(folders, cache: cache).numbered(after: before)
             DispatchQueue.main.async {
-                if !same, !built.commands.isEmpty || !built.skipped.isEmpty {
+                if built.generation != before.generation, !built.commands.isEmpty || !built.skipped.isEmpty {
                     log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped, \(built.identical.count) identical copies left out")
                 }
                 // Unless the settings read the folders meanwhile (`load`): theirs is as new.
-                let landed = index.generation == before.generation && !same
-                if index.generation == before.generation { index = built }
+                let (taken, landed) = built.lands(on: index, builtFrom: before)
+                if taken { index = built }
                 indexed = folders
                 rebuilding = false
                 if landed { changed() }
@@ -112,21 +109,23 @@ enum LiveExtensions {
     }
 
     /// `load`, the folders read off the main thread: `done` gets the index on the main thread once it is built (the
-    /// settings window shown, which shows the one it had meanwhile).
+    /// settings window shown, which shows the one it had meanwhile). Like a rebuild, one that changed the index is told
+    /// (`changed`: an "@" list open then shows it).
     static func loadInBackground(_ config: Config, done: @escaping @MainActor (ExtensionIndex) -> Void) {
         let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
         let (cache, before) = (self.cache, index)
         DispatchQueue.global(qos: .userInitiated).async {
-            var built = ExtensionStore.load(folders, cache: cache)
-            built.generation = built == before ? before.generation : before.generation &+ 1
+            let built = ExtensionStore.load(folders, cache: cache).numbered(after: before)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     // Another read meanwhile (`load`, a rebuild) is as new: its index stays.
-                    if index.generation == before.generation {
+                    let (taken, landed) = built.lands(on: index, builtFrom: before)
+                    if taken {
                         index = built
                         indexed = folders
                     }
                     done(built)
+                    if landed { changed() }
                 }
             }
         }
@@ -140,46 +139,5 @@ enum LiveExtensions {
                                                                                                              name: preference.name))
         }
         return bundle.values(stored)
-    }
-}
-
-/// The status lines of the commands that have one (`ScriptCommand.status`), shown beside their names in the
-/// command list: run in the background when the list shows them and they're due (`StatusSchedule`), a few at a
-/// time and stopped after `ScriptCommand.Status.timeout`. A slow one never holds the list up; one that ends,
-/// failed or not, lets the next due one start. Their last values are kept across launches (`StatusFile`): shown at
-/// once after one, until they're refreshed. Main thread only.
-@MainActor
-final class ScriptStatus {
-    static let shared = ScriptStatus()
-
-    private var schedule = StatusSchedule(kept: StatusFile.shared.read())
-    /// Where the values are written, off the main thread, one write after another.
-    private static let writes = DispatchQueue(label: "com.aipinyin.inputmethod.script-statuses", qos: .utility)
-
-    /// The last status line of `command`, if it has one.
-    func text(for command: ScriptCommand) -> String? { schedule.text(for: command.id) }
-
-    /// Runs the status of those of `commands` that are due (`environment` gives each its environment, nil: not
-    /// now); `ended` is called when one ends, to draw it and start the next due one.
-    func refresh(_ commands: [ScriptCommand], environment: @escaping (ScriptCommand) async -> [String: String]?,
-                 ended: @escaping () -> Void) {
-        for command in schedule.due(commands) {
-            Task { @MainActor [weak self] in
-                var line: String?
-                if let env = await environment(command) {
-                    do {
-                        for try await update in CommandRunner.run(command, arguments: [], environment: env, status: true) where update.isFinal {
-                            line = update.output.lines.first.map { String($0.prefix(40)) }
-                        }
-                    } catch {
-                        line = nil  // the value before stays until its next refresh time
-                    }
-                }
-                if self?.schedule.finished(command.id, line: line) == true, let kept = self?.schedule.kept {
-                    Self.writes.async { StatusFile.shared.write(kept) }
-                }
-                ended()
-            }
-        }
     }
 }

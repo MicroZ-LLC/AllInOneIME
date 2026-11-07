@@ -435,13 +435,17 @@ public struct PanelPresenter {
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter
-        if composer.engineState.isComposing {
+        if all.isEmpty, composer.selection == nil, composer.draft != composer.commandTrigger {
+            // Nothing to do with the text here (no AI in this app): ⏎ types it as it is.
+            model.footer = t.tr("\(enter) 原样输入 · Esc 原样输入", "\(enter) types it as typed · Esc as typed")
+        } else if composer.engineState.isComposing {
             model.footer = t.tr("空格 选词 · \(enter) 执行选中的一行 · ↑↓ 选择", "Space picks a word · \(enter) do the highlighted row · ↑↓ choose")
         } else if composer.selection != nil {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变", "\(enter) do it · ↑↓ choose · Esc cancel, the selection stays")
         } else if composer.draft == composer.commandTrigger {
-            model.footer = t.tr("打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 原样输入",
-                                "Type a command's name, or what you want · Tab picks · ↑↓ · Esc as typed")
+            // Esc gives the magic key up (nothing goes in), as before.
+            model.footer = t.tr("打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 取消",
+                                "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel")
         } else {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 原样输入", "\(enter) do it · ↑↓ choose · Esc as typed")
         }
@@ -465,8 +469,8 @@ public struct PanelPresenter {
             return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
                        kind: .candidate, icon: IconToken.command(.open))
         case let .reminder(reminder):
-            // When as read, as the spec's rows say it (「明天 15:00」), unless the clock is pinned.
-            let when = reminder.when(now: Platform.current.clock.now, language: language, clock24: UIText.clock24 ?? true)
+            // When as read, as the system shows times (「明天 15:00」 or 「明天 下午3:00」), as `@reminder`'s row says it.
+            let when = t.when(reminder)
             return Row(label: "", text: t.tr("提醒：\(when) \(reminder.title)", "Reminder: \(when) \(reminder.title)"),
                        comment: named(.reminder), kind: .candidate, icon: IconToken.command(.reminder))
         case let .write(command):

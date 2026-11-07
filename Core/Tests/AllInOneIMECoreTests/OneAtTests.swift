@@ -264,6 +264,39 @@ struct OneAtTests {
         }
     }
 
+    /// Keys pressed before the selection read after the "@" key is in wait for it, then do what they do where the field
+    /// tells the selection with the key: "@" alone and ⏎ with nothing selected puts the "@" in (not the most used
+    /// command); Esc on a text leaves a selection alone; → gives the keys back, the text going in only where nothing is
+    /// selected, and the → itself goes on to the app.
+    @Test func keysWaitForTheSelectionReadAfterTheKey() async {
+        await withInterfaceLanguage("en") {
+            func host(selected: Bool, typing text: String, then key: KeyEvent) -> FakeHost {
+                let host = field(ScriptFolder())
+                host.document = "hello there"
+                host.selection = selected ? 0..<11 : nil
+                host.selectionReadsWait = true
+                var told = host.context
+                told.selection = nil
+                told.selectionFollows = true
+                host.press(FakeHost.at, with: told)
+                host.type(text)
+                host.press(key)
+                #expect(host.document == "hello there" && !host.composer.isLevelTwo, "nothing done before it is in")
+                host.answerFieldReads()
+                return host
+            }
+            let enter = host(selected: false, typing: "", then: FakeHost.enter)
+            #expect(enter.document == "hello there@" && !enter.composer.isComposing, "\(enter.document) \(enter.composer.draft)")
+            let escape = host(selected: true, typing: "hello", then: FakeHost.escape)
+            #expect(escape.document == "hello there" && escape.selection == 0..<11 && !escape.composer.isComposing, "\(escape.document)")
+            let rightOnSelection = host(selected: true, typing: "hello", then: FakeHost.right)
+            #expect(rightOnSelection.document == "hello there" && !rightOnSelection.composer.isComposing)
+            #expect(rightOnSelection.platformActions == [.passKey(FakeHost.right)], "\(rightOnSelection.platformActions)")
+            let right = host(selected: false, typing: "hello", then: FakeHost.right)
+            #expect(right.document == "hello there@hello" && right.platformActions == [.passKey(FakeHost.right)], "\(right.document)")
+        }
+    }
+
     // MARK: - Commands that come while the list is open
 
     @Test func commandsThatArriveShowInTheOpenList() async {
@@ -289,6 +322,251 @@ struct OneAtTests {
             #expect(outputs.contains { if case .panel = $0 { true } else { false } })
             #expect(host.composer.commands.contains { $0.name == "hello" })
             #expect(host.composer.oneAtRows.first == .command(host.composer.commands.first { $0.name == "hello" }!))
+        }
+    }
+
+    /// Spotlight's files never take the first row nor move the highlight (rule 4 is what is known at once): they join
+    /// below the rows already shown, Ask AI still last, and are never listed alone.
+    @Test func spotlightsFilesJoinBelowTheRowsShown() {
+        let file = SearchResult(name: "Quarterly Report.pdf", path: "/Users/me/Documents/Quarterly Report.pdf")
+        func rows(_ noAI: Bool = false, files: [SearchResult]) -> [OneAt.Action] {
+            OneAt.actions(OneAt.Input(text: "quarterly report", commands: Command.builtins, noAI: noAI, mainLanguage: .chinese,
+                                      files: files))
+        }
+        let before = rows(files: [])
+        let after = rows(files: [file])
+        #expect(after.first == before.first && after.first != .open(file), "\(names(after))")
+        #expect(after.last == .write(.question) && after.dropLast().last == .open(file), "\(names(after))")
+        #expect(rows(true, files: [file]).isEmpty, "no row but a file: none")
+        // In the composer: the highlight stays on the first row as the files come.
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.oneAtList = true
+        c.commands = Command.builtins
+        for key in [FakeHost.at] + "quarterly report".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
+        let first = c.oneAtRows.first
+        _ = c.receiveOneAtFiles([file], for: "quarterly report")
+        #expect(c.oneAtRows.contains(.open(file)) && c.oneAtRows.first == first && c.oneAtHighlighted == 0, "\(names(c.oneAtRows))")
+    }
+
+    /// Only a prompt plugin is a writing action once used; a script plugin (like a `run` command) is found by its name or
+    /// summary only, never guessed for a sentence or a selection, also where there is no AI.
+    @Test func aScriptPluginIsNeverGuessed() {
+        let script = InstalledPlugin(manifest: PluginManifest(name: "shouty", version: "1.0.0", type: .script, script: "main.js"),
+                                     directory: URL(fileURLWithPath: "/tmp/shouty"), isLocal: true)
+        let prompt = InstalledPlugin(manifest: PluginManifest(name: "kindly", version: "1.0.0", type: .prompt, prompt: "Be kind."),
+                                     directory: URL(fileURLWithPath: "/tmp/kindly"), isLocal: true)
+        let commands = Command.catalog([], plugins: [script, prompt])
+        var usage = CommandUsage()
+        for _ in 0..<2 { usage.record("shouty"); usage.record("kindly") }
+        let sentence = OneAt.actions(input("这家店的菜很好吃", usage: usage, commands: commands))
+        #expect(!sentence.contains { $0.command?.name == "shouty" } && sentence.contains { $0.command?.name == "kindly" }, "\(names(sentence))")
+        let selection = OneAt.actions(input("", selection: "这家店的菜很好吃", usage: usage, commands: commands))
+        #expect(!selection.contains { $0.command?.name == "shouty" }, "\(names(selection))")
+        #expect(OneAt.actions(input("hello", noAI: true, usage: usage, commands: commands)).isEmpty)
+    }
+
+    /// No AI here: the rows one @ guesses (the writing actions, Ask AI, the AI commands in the list for "@" alone or a
+    /// selection) aren't offered; an AI command found by its name is listed as before, and when run gets the notice that
+    /// AI is off in this app.
+    @Test func withoutAIAnAICommandFoundByNameIsListedAndRefused() async {
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
+            var services = SessionServices(loadSettings: { config })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.type("hello")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.escape)
+            host.document = "the selected words"
+            host.selection = 0..<18
+            host.type("@")
+            #expect(!host.composer.oneAtRows.contains { $0.command?.usesAI == true }, "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.escape)
+            host.selection = nil
+            host.document = ""
+            host.type("@tr")
+            #expect(host.composer.oneAtRows.first == .command(.translate), "\(names(host.composer.oneAtRows))")
+            host.press(FakeHost.tab)
+            host.type("hello")
+            host.press(FakeHost.enter)
+            #expect(!host.composer.isLevelTwo && (host.noticeAlone ?? host.panel?.detail) == InputSession.aiRefusal,
+                    "\(host.noticeAlone ?? host.panel?.detail ?? "none")")
+        }
+    }
+
+    /// "At most 3 of the user's own": the three most used in this app, then overall for ties: one used only here counts
+    /// here even where others are used more elsewhere.
+    @Test func theUsersOwnAreTheMostUsedInThisApp() {
+        let prompts = ["pa", "pb", "pc", "pd"].map { CustomCommand(name: $0, type: .prompt, summary: "Mine \($0)", prompt: "Do \($0).") }
+        let commands = Command.catalog(prompts)
+        var usage = CommandUsage()
+        for (name, times) in [("pa", 10), ("pb", 9), ("pc", 8)] {
+            for _ in 0..<times { usage.record(name, in: "com.apple.mail") }
+        }
+        for _ in 0..<3 { usage.record("pd", in: "com.tinyspeck.slackmacgap") }
+        let own = { (app: String) -> [String] in
+            OneAt.actions(self.input("这家店的菜很好吃", app: app, usage: usage, commands: commands)).compactMap { action in
+                if case let .write(command) = action, command.custom != nil { return command.name }
+                return nil
+            }
+        }
+        #expect(own("com.tinyspeck.slackmacgap") == ["pd", "pa", "pb"], "\(own("com.tinyspeck.slackmacgap"))")
+        #expect(own("com.apple.mail") == ["pa", "pb", "pc"])
+    }
+
+    /// Esc while pinyin is composed after "@": the rows go and the text stays as typed, the letters as letters.
+    @Test func escWhilePinyinComposesLeavesTheLetters() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.oneAtList = true
+        c.commands = Command.builtins
+        for key in [FakeHost.at] + "nihao".map({ k(String($0)) }) { _ = c.handleKeyDown(key) }
+        #expect(c.engineState.isComposing)
+        let response = c.handleKeyDown(escKey)
+        #expect(commits(response) == ["@nihao"] && !c.isComposing && c.draft.isEmpty, "\(commits(response)) \(c.draft)")
+    }
+
+    /// In Chinese, a digit that goes on a command's name being composed (`@base64`) is part of the name, as in 0.6.9;
+    /// any other digit picks a candidate.
+    @Test func aDigitGoesOnANameWhilePinyinComposes() {
+        let folder = ScriptFolder()
+        folder.add("base64.sh", "#!/bin/sh\n# @allinoneime.schemaVersion 1\n# @allinoneime.title Encode Base64\necho hi\n")
+        let commands = Command.catalog([], scripts: folder.load().commands)
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.oneAtList = true
+        c.commands = commands
+        for key in [FakeHost.at] + "base64 ".map({ $0 == " " ? spaceKey : k(String($0)) }) { _ = c.handleKeyDown(key) }
+        #expect(c.draftCommand?.name == "base64" && c.draft == "@base64 ", "\(c.draft)")
+        let other = Composer(engine: FakeEngine(), actionKey: .enter)
+        other.oneAtList = true
+        other.commands = commands
+        for key in [FakeHost.at] + "nihao2".map({ k(String($0)) }) { _ = other.handleKeyDown(key) }
+        #expect(other.oneAt?.text == "拟好", "\(String(describing: other.oneAt))")
+    }
+
+    /// "@" alone, then ← (a key that isn't the list's): the "@" goes in and the key goes to the app, as in 0.6.9. With
+    /// text after "@", ← moves the caret in the text, never before the "@".
+    @Test func leftAfterTheMagicKey() {
+        let leftKey = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.setInputMode(.english)
+        c.oneAtList = true
+        _ = c.handleKeyDown(FakeHost.at)
+        let left = c.handleKeyDown(leftKey)
+        #expect(commits(left) == ["@"] && !left.handled && c.draft.isEmpty, "\(commits(left)) \(c.draft)")
+        for key in [FakeHost.at, k("h"), k("i"), leftKey, leftKey, leftKey, leftKey, k("x")] { _ = c.handleKeyDown(key) }
+        #expect(c.draft == "@xhi" && c.oneAt?.text == "xhi", "\(c.draft)")
+    }
+
+    /// No row at all ("@hello" in an app with No AI): ⏎ types the text as typed, the "@" with it, and the footer says
+    /// so, never "⏎ do it".
+    @Test func noRowsAndReturnTypesTheTextAsTyped() async {
+        await withInterfaceLanguage("en") {
+            var config = Config.default
+            config.uiLanguage = "en"
+            config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
+            var services = SessionServices(loadSettings: { config })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@hello")
+            #expect(host.composer.oneAtRows.isEmpty, "\(names(host.composer.oneAtRows))")
+            let footer = host.panel?.footer ?? ""
+            #expect(footer.contains("types it as typed") && !footer.contains("do it"), "\(footer)")
+            host.press(FakeHost.enter)
+            #expect(host.document == "@hello" && !host.composer.isComposing, "\(host.document)")
+        }
+    }
+
+    /// A text that is, as a whole, a date or a phone number is no sum ("2026-11-06" isn't 2009): the other rules take it.
+    /// In Chinese mode "……" after a number is "^", as "。" is ".".
+    @Test func aWholeDateOrPhoneNumberIsNoSum() {
+        struct Detector: DateDetector {
+            func dates(in text: String) -> [ReminderParser.Match] { [] }
+            func isWholeDateOrPhoneNumber(_ text: String) -> Bool { ["2026-11-06", "11/5", "010-12345678"].contains(text) }
+        }
+        for text in ["2026-11-06", "11/5", "010-12345678"] {
+            #expect(Arithmetic.value(of: text, dates: Detector()) == nil, "\(text)")
+            #expect(Arithmetic.value(of: text, dates: RulesOnlyDateDetector()) != nil, "\(text): a sum where nothing reads dates")
+        }
+        #expect(Arithmetic.value(of: "3*7+2", dates: Detector()) == 23)
+        #expect(Arithmetic.value(of: "2……10").map(Arithmetic.format) == "1024" && Arithmetic.value(of: "1。5*2") == 3)
+        // The system's detection, where there is one (Apple's).
+        if Available.systemDates {
+            for text in ["2026-11-06", "010-12345678", "11/5", " 9/11 "] {
+                #expect(Arithmetic.value(of: text) == nil, "\(text)")
+                #expect(OneAt.actions(input(text)).first.map { if case .value = $0 { true } else { false } } == false, "\(text)")
+            }
+            for (text, value) in [("7/2", "3.5"), ("3*7+2", "23"), ("200*15%", "30"), ("10-4*2", "2")] {
+                #expect(Arithmetic.value(of: text).map(Arithmetic.format) == value, "\(text)")
+            }
+        }
+    }
+
+    /// "@" alone: Esc gives the magic key up (nothing goes in), and the footer says so ("Esc cancel"), not "as typed".
+    @Test func theFooterOfTheMagicKeyAloneSaysEscCancels() async {
+        await withInterfaceLanguage("en") {
+            let host = field(ScriptFolder())
+            host.type("@")
+            let footer = host.panel?.footer ?? ""
+            #expect(footer.hasSuffix("Esc cancel") && !footer.contains("as typed"), "\(footer)")
+            host.press(FakeHost.escape)
+            #expect(host.document.isEmpty && !host.composer.isComposing)
+        }
+    }
+
+    /// Whether the app has AI is read once a turn of the session (a key, an answer), not on each read of one @'s rows (each
+    /// read of the settings looks at the config file); a change of the settings shows from the next key on.
+    @Test func whetherTheAppHasAIIsReadOnceAKey() async {
+        await withInterfaceLanguage("en") {
+            let config = Locked(initialState: Config.default)
+            let reads = Locked(initialState: 0)
+            var services = SessionServices(loadSettings: {
+                reads.withLock { $0 += 1 }
+                return config.withLock { $0 }
+            })
+            services.levelOne = { .engine(FakeEngine()) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@hello")
+            #expect(host.composer.oneAtRows.contains(.write(.question)))
+            reads.withLock { $0 = 0 }
+            for _ in 0..<5 { _ = host.composer.oneAtRows }
+            #expect(reads.withLock { $0 } == 0, "\(reads.withLock { $0 }) reads of the settings")
+            config.withLock { $0.appProfiles["com.example.editor"] = AppProfile(noAI: true) }
+            host.type("!")
+            #expect(!host.composer.oneAtRows.contains(.write(.question)), "\(names(host.composer.oneAtRows))")
+        }
+    }
+
+    /// The reminder row's time as the system shows times (12- or 24-hour: "3:00 PM" or "15:00"), with the same words
+    /// `@reminder`'s row has for it.
+    @Test func theReminderRowsTimeIsAsTheSystemShowsIt() async throws {
+        try await withInterfaceLanguage("en") {
+            let calendar = ReminderParser.localCalendar
+            let day = try #require(calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())))
+            var due = calendar.dateComponents([.year, .month, .day], from: day)
+            (due.hour, due.minute) = (15, 0)
+            let draft = ReminderDraft(title: "meeting", due: due, hasTime: true, date: calendar.date(from: due))
+            var services = SessionServices(loadSettings: { .default })
+            services.levelOne = { .engine(FakeEngine()) }
+            services.parseReminder = { $0.hasPrefix("meeting") ? draft : ReminderDraft(title: $0) }
+            let host = FakeHost(services: services)
+            host.focus()
+            host.composer.setInputMode(.english)
+            host.type("@meeting tomorrow 3pm")
+            let row = try #require(host.panel?.rows.first { $0.text.hasPrefix("Reminder: ") }, "\(host.panel?.rows.map(\.text) ?? [])")
+            #expect(row.text == "Reminder: " + InterfaceWords(language: "en").when(draft) + " meeting", "\(row.text)")
+            let clock = ReminderDraft.clock(hour: 15, minute: 0, language: "en", clock24: UIText.clock24 ?? ReminderDraft.systemUses24HourClock)
+            #expect(row.text.contains(clock), "\(row.text) \(clock)")
         }
     }
 }

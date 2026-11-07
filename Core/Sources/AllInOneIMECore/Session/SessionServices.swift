@@ -14,6 +14,9 @@ public struct SessionServices {
     /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's). Off by default: a test's
     /// sessions send nothing they aren't asked to.
     public var warmsConnections = false
+    /// Whether a provider is set up, so that its connection is worth opening (`ConnectionWarmth.isSetUp`: a key, an AWS
+    /// profile or keys). `@Sendable`: asked off the session's thread.
+    public var providerSetUp: @Sendable (Provider, Config) -> Bool = ConnectionWarmth.isSetUp
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 

@@ -59,6 +59,8 @@ public final class FakeHost: @unchecked Sendable {
     public var readsWhatIsWanted = false
     /// The field is read once the test says (`answerFieldReads`), not at once: keys may come before what it says.
     public var fieldReadsWait = false
+    /// The same for the selection read after the "@" key (`SessionOutput.readSelection`): a slow Accessibility read.
+    public var selectionReadsWait = false
 
     // MARK: What the session did
 
@@ -247,8 +249,8 @@ public final class FakeHost: @unchecked Sendable {
         return true
     }
 
-    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`), in order: the field as it was
-    /// when each was asked for.
+    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`, `selectionReadsWait`), in order:
+    /// the field as it was when each was asked for.
     public func answerFieldReads() {
         let reads = waitingReads
         waitingReads = []
@@ -347,7 +349,7 @@ public final class FakeHost: @unchecked Sendable {
             case let .readSelection(focus):
                 // Once the key is answered, as the Mac reads it with Accessibility: the field's selection.
                 let told = SessionEvent.selection(context.selection, focus: focus)
-                afterKey.append { [weak self] in self?.send(told) }
+                if selectionReadsWait { waitingReads.append(told) } else { afterKey.append { [weak self] in self?.send(told) } }
             case let .ghost(text):
                 ghost = text
             case let .platform(action):

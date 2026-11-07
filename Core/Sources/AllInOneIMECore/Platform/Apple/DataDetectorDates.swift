@@ -13,7 +13,16 @@ public struct DataDetectorDates: DateDetector {
         }
     }
 
+    public func isWholeDateOrPhoneNumber(_ text: String) -> Bool {
+        guard let detector = Self.datesAndPhoneNumbers else { return false }
+        let all = NSRange(text.startIndex..., in: text)
+        let matches = detector.matches(in: text, range: all)
+        return matches.count == 1 && matches[0].range == all
+    }
+
     /// Made once (that takes a few milliseconds) and shared: like any NSRegularExpression it is immutable.
     private static let shared = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue)
+    private static let datesAndPhoneNumbers = try? NSDataDetector(
+        types: NSTextCheckingResult.CheckingType.date.rawValue | NSTextCheckingResult.CheckingType.phoneNumber.rawValue)
 }
 #endif

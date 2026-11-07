@@ -159,17 +159,17 @@ public enum OneAt {
             add(.open(web))
             ruled = true
         }
-        // 4. An app, a folder, a file opened before: by the letters (an app's pinyin or initials), then by the text; the
-        // files Spotlight found join below.
+        // 4. An app, a folder, a file opened before (what is known at once): by the letters (an app's pinyin or
+        // initials), then by the text. Spotlight's files join below all the rows (`withFiles`).
+        var instant: ArraySlice<SearchResult> = []
         if web == nil, Arithmetic.value(of: text) == nil {
             var known: [SearchResult] = []
             for query in [input.letters, text].compactMap({ $0 }) where !query.isEmpty {
                 for result in input.instant(query) where !known.contains(where: { $0.path == result.path }) { known.append(result) }
             }
-            let instant = known.prefix(openLimit)
-            let files = input.files.filter { file in !instant.contains { $0.path == file.path } }.prefix(openLimit)
-            (instant + files).forEach { add(.open($0)) }
-            if !instant.isEmpty || !files.isEmpty { ruled = true }
+            instant = known.prefix(openLimit)
+            instant.forEach { add(.open($0)) }
+            if !instant.isEmpty { ruled = true }
         }
         // 5. A time: the reminder, the rest of the text its title.
         if let reminder = input.reminder(text), reminder.due != nil, !reminder.title.isEmpty {
@@ -194,21 +194,39 @@ public enum OneAt {
         let named = Set(input.named.map(\.name))
         writingActions(input, other: other).filter { !named.contains($0.name) }.forEach { add(.write($0)) }
         if ai, let ask = offered(.question), !named.contains(ask.name) { add(.write(ask)) }
-        return rows
+        let files = input.files.filter { file in !instant.contains { $0.path == file.path } }.prefix(openLimit)
+        return withFiles(rows, files.map(Action.open))
     }
 
-    /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used), by use in
-    /// this app, then overall; ties in the order the text gives (Translate first for another language, else Improve), the
-    /// user's after them in the catalog's. Without AI here, only the plugins that run a program.
+    /// `rows` with Spotlight's files: they come after the rows are shown, so they never take the first row nor move the
+    /// highlight (⏎ does the same whether Spotlight answered yet or not): below the rows, above Ask AI when it is the
+    /// last; none where there is no row of the rules (nothing to keep first).
+    static func withFiles(_ rows: [Action], _ files: [Action]) -> [Action] {
+        let files = files.filter { !rows.contains($0) }
+        guard !rows.isEmpty, !files.isEmpty else { return rows }
+        let ask = rows.count > 1 && rows.last == .write(.question) ? 1 : 0
+        return Array(rows.dropLast(ask)) + files + rows.suffix(ask)
+    }
+
+    /// Improve and Translate, and the user's own writing actions once used (at most `ownLimit`: the most used in this app,
+    /// then overall), by use in this app, then overall; ties in the order the text gives (Translate first for another
+    /// language, else Improve), the user's after them in the catalog's. Without AI here, none (each is the AI's).
     static func writingActions(_ input: Input, other: Bool) -> [Command] {
         let builtins = Set(input.commands.prefix { $0.custom == nil && $0.plugin == nil && $0.script == nil }.map(\.name))
         var actions: [Command] = []
         if !input.noAI {
             actions += (other ? [Command.translate, .improve] : [.improve, .translate]).filter { builtins.contains($0.name) }
         }
-        let own = input.commands.filter { command in
+        // The user's own used anywhere, the most used in this app first, then overall, then in the catalog's order.
+        let own = input.commands.enumerated().filter { _, command in
             takesText(command) && (!input.noAI || !command.usesAI) && input.usage.score(command.name) > 0
-        }.sorted { input.usage.score($0.name) > input.usage.score($1.name) }.prefix(ownLimit)
+        }.map { offset, command in
+            (command, here: input.usage.score(command.name, in: input.app), all: input.usage.score(command.name), offset)
+        }.sorted { a, b in
+            if a.here != b.here { return a.here > b.here }
+            if a.all != b.all { return a.all > b.all }
+            return a.3 < b.3
+        }.prefix(ownLimit).map(\.0)
         actions += own
         let order = Dictionary(actions.enumerated().map { ($0.element.name, $0.offset) }, uniquingKeysWith: { first, _ in first })
         return actions.sorted { a, b in
@@ -220,11 +238,12 @@ public enum OneAt {
         }
     }
 
-    /// Whether `command` is one of the user's own writing actions: a prompt command (an AI instruction), a plugin that
-    /// takes text (a prompt or a script). Never a `run`, `terminal` or `link` command, a snippet or a script extension:
-    /// those are offered only by what the text says of them (`found(byWords:)`).
+    /// Whether `command` is one of the user's own writing actions: a prompt command (an AI instruction), a prompt plugin
+    /// (one that sends the text to the AI with its instruction). Never a `run`, `terminal` or `link` command, a script or
+    /// link plugin, a snippet or a script extension: those are offered only by what the text says of them
+    /// (`found(byWords:)`).
     static func takesText(_ command: Command) -> Bool {
-        if let plugin = command.plugin { return plugin.manifest.type == .prompt || plugin.manifest.type == .script }
+        if let plugin = command.plugin { return plugin.manifest.type == .prompt }
         return command.custom?.type == .prompt && command.script == nil
     }
 
@@ -296,13 +315,14 @@ public enum OneAt {
 }
 
 /// Arithmetic for one @: a small evaluator of numbers and `+ - * / × ÷ ( ) % ^ .` only (their full-width forms too, as
-/// pinyin types them), never a script engine on the text. `%` after a number is percent ("200*15%" is 30), `^` a power,
-/// right to left. All of the text must be a sum with at least one operator ("3" alone is no sum).
+/// pinyin types them: "。" a point, "……" a power), never a script engine on the text. `%` after a number is percent
+/// ("200*15%" is 30), `^` a power, right to left. All of the text must be a sum with at least one operator ("3" alone is
+/// no sum), and not, as a whole, a date or a phone number ("2026-11-06", "11/5", "010-12345678": `DateDetector`).
 public enum Arithmetic {
     /// The value of `text`, or nil when it isn't all a sum (a letter, an unknown sign, unbalanced brackets, a division by
-    /// zero, a value too large).
-    public static func value(of text: String) -> Double? {
-        let normalized = text.unicodeScalars.map { scalar -> Character in
+    /// zero, a value too large), or all of it is one date or phone number as `dates` reads them.
+    public static func value(of text: String, dates: any DateDetector = Platform.current.dates) -> Double? {
+        let normalized = text.replacingOccurrences(of: "……", with: "^").unicodeScalars.map { scalar -> Character in
             // Full-width ASCII (＋－＊／（）％＾．０–９), as pinyin may type them.
             if (0xFF01...0xFF5E).contains(scalar.value), let ascii = Unicode.Scalar(scalar.value - 0xFEE0) { return Character(ascii) }
             switch scalar {
@@ -315,7 +335,8 @@ public enum Arithmetic {
         }
         guard normalized.count <= 200, normalized.contains(where: \.isNumber) else { return nil }
         var parser = Parser(characters: normalized.filter { !$0.isWhitespace })
-        guard let value = parser.sum(), parser.atEnd, parser.operators > 0, value.isFinite else { return nil }
+        guard let value = parser.sum(), parser.atEnd, parser.operators > 0, value.isFinite,
+              !dates.isWholeDateOrPhoneNumber(text.trimmingCharacters(in: .whitespaces)) else { return nil }
         return value
     }
 

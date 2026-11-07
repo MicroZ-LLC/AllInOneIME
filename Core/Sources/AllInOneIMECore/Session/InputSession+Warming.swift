@@ -3,13 +3,21 @@ import Foundation
 /// The model made ready before a request goes to it, so that ⏎ doesn't wait for it: the on-device model loaded (it takes
 /// about half a second after a short idle, up to 1.5 s), a cloud provider's connection opened (after two or three minutes
 /// idle a new one takes 50 to 300 ms). Nothing of the user's is sent: the on-device model's loading sends nothing, and a
-/// cloud provider gets a HEAD to its base URL with no key and no body (`ConnectionWarmth`), never the hosted service.
+/// cloud provider that is set up gets a HEAD to its origin with no key and no body (`ConnectionWarmth`), never the hosted
+/// service.
 extension InputSession {
     /// What the model would be asked for next, as the draft is now: the AI command it is (its name typed out or picked,
-    /// "@improve …"), else the AI command highlighted in the command list ("@imp"), else Translate as You Type, on in this
-    /// field. Nil: nothing that asks the model.
+    /// "@improve …"), else one @'s highlighted row when it is the AI's and something was typed or selected (never "@"
+    /// alone: it is often a mention, a sum, an app), else the AI command highlighted in a command list inside a text, else
+    /// Translate as You Type, on in this field. Nil: nothing that asks the model.
     var modelAhead: String? {
         if let command = composer.draftCommand, Self.asksTheModel(command) { return command.name }
+        if let (text, letters) = composer.oneAt {
+            guard !text.isEmpty || letters != nil || composer.selection != nil else { return nil }
+            let (rows, row) = (composer.oneAtRows, composer.oneAtHighlighted)
+            guard rows.indices.contains(row), let command = Self.asksTheModel(rows[row]) else { return nil }
+            return command.name
+        }
         if composer.paletteQuery != nil {
             let (matches, row) = (composer.paletteMatches, composer.paletteHighlighted)
             if matches.indices.contains(row), Self.asksTheModel(matches[row]) { return matches[row].name }
@@ -24,6 +32,16 @@ extension InputSession {
     /// and the custom commands that write with it (not `@agent`: the agent has its own).
     static func asksTheModel(_ command: Command) -> Bool { command.kind == .convert || command.kind == .generate }
 
+    /// The command one @'s `row` sends to the model on ⏎ (a writing action, a rewrite of the selection, an AI command
+    /// found by name); nil for the rows that send nothing (a value, an app, a reminder, the other commands).
+    static func asksTheModel(_ row: OneAt.Action) -> Command? {
+        switch row {
+        case let .command(command), let .write(command): return asksTheModel(command) ? command : nil
+        case .edit: return .improve
+        case .value, .open, .reminder: return nil
+        }
+    }
+
     /// After the composer answered: what the model would be asked for next changed (`modelAhead`) to something, so it is
     /// made ready now (`warmModel`), once while it stays the same. Translate as You Type loads the on-device model only:
     /// a cloud provider's connection is opened for an AI command and autocomplete, as the owner approved, not for it.
@@ -36,8 +54,9 @@ extension InputSession {
 
     /// The model the AI commands go to made ready for a request: the on-device one loaded, once a minute at most
     /// (`AutocompleteStore.prewarmDue`), else (`connection`) the provider's connection opened where nothing went to it
-    /// lately (`Converter.warmConnection`; where the shell does: `SessionServices.warmsConnections`). Nothing during secure
-    /// input, nor in an app with no AI, nor for the hosted service.
+    /// lately and it is set up (`Converter.warmConnection`, `SessionServices.providerSetUp`; where the shell does:
+    /// `SessionServices.warmsConnections`). Nothing during secure input, nor in an app with no AI, nor for the hosted
+    /// service.
     func warmModel(connection: Bool = true) {
         let config = services.loadSettings()
         guard !secureInputActive(), config.allowsAI(in: app) else { return }
@@ -48,7 +67,9 @@ extension InputSession {
         case .hosted:
             return
         case .bedrock, .anthropic, .gemini, .openai:
-            if connection, services.warmsConnections { services.converter.warmConnection(to: config.provider, config: config) }
+            if connection, services.warmsConnections {
+                services.converter.warmConnection(to: config.provider, config: config, isSetUp: services.providerSetUp)
+            }
         }
     }
 }

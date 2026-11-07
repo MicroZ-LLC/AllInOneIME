@@ -212,7 +212,7 @@ struct OpenAsYouTypeTests {
         #expect(c.liveQuery == "no" && c.currentLiveResults == [Self.notesFile, Self.notebook], "the rows of \"not\" match \"no\" too")
     }
 
-    @Test func rowsStillMatchByNameOtherNameOrPathCaseAndAccentsAside() {
+    @Test func rowsStillMatchByNameOtherNameOrFolderCaseAndAccentsAside() {
         let keywords = { FileSearchRanking.keywords(in: $0) }
         #expect(Composer.stillMatches(Self.settings, keywords("SYS set")))
         #expect(Composer.stillMatches(Self.settings, keywords("系统")), "its Chinese name")
@@ -220,8 +220,10 @@ struct OpenAsYouTypeTests {
         #expect(Composer.stillMatches(SearchResult(name: "Café.txt", path: "/tmp/Café.txt"), keywords("cafe")))
         #expect(!Composer.stillMatches(Self.notesFile, keywords("note x")) && !Composer.stillMatches(Self.notesFile, []))
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        #expect(Composer.stillMatches(SearchResult(name: "Documents", path: home + "/Documents", isFolder: true), keywords("~/Doc")),
-                "a path as typed, with the home folder as ~")
+        #expect(!Composer.stillMatches(SearchResult(name: "Documents", path: home + "/Documents", isFolder: true), keywords("~/Doc"),
+                                       for: "~/Doc"), "a path as typed: its folder's listing alone")
+        #expect(!Composer.stillMatches(SearchResult(name: "weekly.md", path: home + "/weekly.md"), [String(home.split(separator: "/").last ?? "")]),
+                "not by its path alone")
     }
 
     @Test func atLeastTheLastThirtyTwoTextsAreKept() {
@@ -258,5 +260,79 @@ struct OpenAsYouTypeTests {
         }
         #expect(updates == ["so far not: [\"notes.md\"]", "all not: [\"notes.md\", \"notebook.pdf\"]"], "\(updates)")
         #expect(FileSearchProgress.found == nil, "only while the search as you type runs")
+    }
+
+    /// A row of the text before stays for a new text only as the full search would list it: a keyword in its name (or
+    /// other name), not only in its path ("wei" is in /Users/weijianz/, not in weekly.md). An empty answer so far (the
+    /// names, before the content search) leaves the rows as they are.
+    @Test func aRowStaysByItsNameAndAnEmptyAnswerSoFarChangesNothing() async {
+        await withInterfaceLanguage("en") {
+            let weekly = SearchResult(name: "weekly.md", path: "/Users/weijianz/weekly.md")
+            let weird = SearchResult(name: "weird.txt", path: "/Users/weijianz/weird.txt")
+            #expect(!Composer.stillMatches(weekly, ["wei"]) && Composer.stillMatches(weird, ["wei"]))
+            #expect(Composer.stillMatches(Self.settings, ["系统"]) && Composer.stillMatches(Self.notesFile, ["me", "notes"]))
+            let stand = Stand(instant: [:], full: ["we": [weekly, weird]])
+            let host = open(stand)
+            host.type("we")
+            #expect(host.settle { rows(host).count == 2 })
+            host.type("i")
+            #expect(rows(host) == ["weird.txt"], "\(rows(host))")
+            _ = host.session.apply(host.composer.receiveLive([], for: "wei", isFinal: false))
+            #expect(rows(host) == ["weird.txt"], "an empty answer so far: \(rows(host))")
+        }
+    }
+
+    /// A path being typed lists its folder alone: the rows of the text before that aren't in it (a file deep in another
+    /// folder) don't join, where Tab would complete somewhere else.
+    @Test func aPathListsItsFolderAlone() async {
+        await withInterfaceLanguage("en") {
+            let home = FileManager.default.homeDirectoryForCurrentUser.path
+            let deep = SearchResult(name: "downloads plan.pdf", path: home + "/Downloads/sub/deep/downloads plan.pdf")
+            let folder = SearchResult(name: "Downloads", path: home + "/Downloads", isFolder: true)
+            let stand = Stand(instant: ["~/Downloads/": [SearchResult(name: "a.zip", path: home + "/Downloads/a.zip")]],
+                              full: ["downloads": [folder, deep]])
+            let host = open(stand)
+            host.type("downloads")
+            #expect(host.settle { rows(host).count == 2 })
+            for _ in "downloads" { host.press(backspaceKey) }
+            host.type("~/Downloads/")
+            #expect(rows(host) == ["a.zip"], "\(rows(host))")
+        }
+    }
+
+    /// The rows listed are at most `Composer.liveRowLimit` (8), also while what is known at once for a new text and the
+    /// rows of the text before are listed together.
+    @Test func theRowsMergedAreEightAtMost() async {
+        await withInterfaceLanguage("en") {
+            let instant = (0..<8).map { SearchResult(name: "sun \($0).txt", path: "/Users/me/sun \($0).txt") }
+            let older = (0..<8).map { SearchResult(name: "sa \($0).txt", path: "/Users/me/sa \($0).txt") }
+            let stand = Stand(instant: ["s": instant], full: ["sa": older])
+            let host = open(stand)
+            host.type("sa")
+            #expect(host.settle { rows(host).count == 8 })
+            host.press(backspaceKey)
+            #expect(rows(host).count == Composer.liveRowLimit && host.composer.currentLiveResults.count == 8, "\(rows(host))")
+        }
+    }
+
+    /// Once something is opened, what the full search found for the texts typed in this field is forgotten: what was
+    /// opened ranks first from now on, so a text typed again lists what is known at once, not the order from before.
+    @Test func whatWasFoundIsForgottenOnceSomethingIsOpened() async {
+        await withInterfaceLanguage("en") {
+            let stand = Stand(instant: ["no": [Self.notesApp]], full: ["no": [Self.notesFile, Self.notesApp]])
+            let host = open(stand)
+            host.type("no")
+            #expect(host.settle { rows(host) == ["notes.md", "Notes"] })
+            #expect(host.composer.live.knows("no"))
+            host.press(FakeHost.down)
+            host.press(FakeHost.enter)
+            #expect(host.opened == [Self.notesApp.path], "\(host.opened)")
+            #expect(!host.composer.live.knows("no"), "forgotten once opened")
+            host.press(FakeHost.at)
+            host.type("ope")
+            host.press(FakeHost.tab)
+            host.type("no")
+            #expect(rows(host) == ["Notes"], "what is known at once: \(rows(host))")
+        }
     }
 }

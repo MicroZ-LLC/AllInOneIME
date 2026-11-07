@@ -723,4 +723,20 @@ struct FoundScriptsTests {
         let runs = asked.withLock { $0 }
         #expect(!runs.isEmpty && runs.allSatisfy { $0 == ["translatelog"] }, "\(runs)")
     }
+
+    /// A build of the index in the background (a rebuild, the settings window's), back on the main thread: taken unless
+    /// another landed meanwhile, and one that changed the index tells an open "@" list; the same for every build.
+    @Test func aBuildInTheBackgroundLandsTheSameWayEverywhere() {
+        let folder = ScriptFolder()
+        folder.add("hello.sh", "#!/bin/sh\n# @allinoneime.schemaVersion 1\n# @allinoneime.title Hello there\necho hi\n")
+        let before = ExtensionIndex.empty
+        let built = folder.load().numbered(after: before)
+        #expect(built.generation == before.generation + 1)
+        #expect(built.lands(on: before, builtFrom: before) == (true, true), "changed: the open list is told")
+        let same = ExtensionIndex.empty.numbered(after: before)
+        #expect(same.generation == before.generation && same.lands(on: before, builtFrom: before) == (true, false))
+        var other = before
+        other.generation = 7
+        #expect(built.lands(on: other, builtFrom: before) == (false, false), "another build landed meanwhile")
+    }
 }
