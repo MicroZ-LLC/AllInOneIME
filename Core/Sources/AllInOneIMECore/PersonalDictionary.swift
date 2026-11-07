@@ -163,6 +163,10 @@ public struct PersonalDictionaryStore: Sendable {
     /// version (0.6.6) still takes the file as its own, and its fuzzy pinyin switch works (it writes the file without
     /// them, and this version adds them again); the second says what else it holds.
     private static let patchDictionaries = "# And the personal dictionaries (Settings → Input → Chinese)."
+    /// The line that says the patch has the filter of the candidates removed too (`withRemovedFilter`), and the filter,
+    /// appended to the schema's own (librime's "/+"), so it comes after rime-ice's: it sees the text as shown.
+    private static let patchRemoved = "# And the filter of the candidates removed (a right-click on one: Settings → Input → Chinese)."
+    private static let removedFilter = "  engine/filters/+:\n    - lua_filter@*\(RemovedCandidates.luaFilter)\n"
     /// The first line 0.6.7's first builds wrote instead, which 0.6.6 took for the user's: still this app's.
     private static let earlyPatchMarker = "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced."
     private var folder: URL { userDirectory.appendingPathComponent(Self.folderName, isDirectory: true) }
@@ -330,7 +334,7 @@ public struct PersonalDictionaryStore: Sendable {
         if state.dictionaries.isEmpty {
             let text = fuzzy == nil && traditional == nil ? nil
                 : (fuzzy ?? FuzzyPinyin.marker + "\npatch:\n") + (traditional ?? "")
-            changes.append(Change(url: patch, data: text.map { Data($0.utf8) }))
+            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
             let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
@@ -338,7 +342,7 @@ public struct PersonalDictionaryStore: Sendable {
             // The dictionary changes; the database of learned words deliberately keeps its old identity.
             text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
             text += traditional ?? ""
-            changes.append(Change(url: patch, data: Data(text.utf8)))
+            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper {
                 let base = try baseDictionary()
                 let tables = state.dictionaries.map { reference($0) } + base.tables
@@ -359,6 +363,19 @@ public struct PersonalDictionaryStore: Sendable {
             } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {}
         }
         return changes
+    }
+
+    /// `text`, the patch (nil: none), with AllInOneIME's filter of the candidates removed (`RemovedCandidates.luaFilter`)
+    /// last, when the shared data's Lua has it (`lua/` beside the schema: on the Mac the app's scripts, linked into the
+    /// pack); without a patch, one of the filter alone. Where it hasn't (Windows ships rime-ice's alone), the patch is as
+    /// it was, and `EnglishWordsEngine` leaves them out of what librime shows: a Lua filter librime can't load leaves no
+    /// candidate at all.
+    private func withRemovedFilter(_ text: String?) -> String? {
+        let script = schema.deletingLastPathComponent().appendingPathComponent("lua/\(RemovedCandidates.luaFilter).lua")
+        guard FileManager.default.fileExists(atPath: script.path) else { return text }
+        let text = text ?? FuzzyPinyin.marker + "\npatch:\n"
+        guard let start = text.range(of: "\npatch:\n") else { return text }
+        return String(text[..<start.lowerBound]) + "\n" + Self.patchRemoved + String(text[start.lowerBound...]) + Self.removedFilter
     }
 
     /// `import_tables` imports direct rows, not another dictionary's imports. Flatten the current

@@ -276,6 +276,7 @@ final class LockedRimeEngine: PinyinEngine {
     func snapshot() -> EngineSnapshot { locked { $0.snapshot() } }
     func selectCandidate(onPage index: Int) -> Bool { locked { $0.selectCandidate(onPage: index) } }
     func deleteCandidate(onPage index: Int) -> Bool { locked { $0.deleteCandidate(onPage: index) } }
+    func setRemovedCandidates(_ texts: [String]) { locked { $0.setRemovedCandidates(texts) } }
     func commitComposition() -> String? { locked { $0.commitComposition() } }
     var rawInput: String { locked { $0.rawInput } }
     func clearComposition() { locked { $0.clearComposition() } }

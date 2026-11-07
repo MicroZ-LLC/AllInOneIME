@@ -9,8 +9,11 @@ import Foundation
 /// or second when that is pinyin too ("xiaomi"); a longer one second, or after the page while what's typed may still be
 /// pinyin ("zhon", and up to four letters, which rime-ice reads as initials: "bed" b-e-d). At most `maxPerPage`, the
 /// shorter first. A candidate removed (`removedCandidates`) is left out of every page, librime's by its whole text, a word
-/// by its letters; a page with nothing left is skipped (`skipEmptyPages`; back from the last). One removed here leaves
-/// the page where it was, laid out anew without it (`deleteCandidate`).
+/// by its letters. librime is given them, and leaves its own out itself where the schema has AllInOneIME's filter
+/// (`PinyinEngine.setRemovedCandidates`): its pages laid out from what is left, each full. What it still shows of them
+/// (without the filter: the user's own patch file, Windows; a text the property can't hold) is left out here, and a page
+/// with nothing left is skipped (`skipEmptyPages`; back from the last). One removed here leaves the page where it was,
+/// laid out anew without it (`deleteCandidate`).
 ///
 /// While the page shown isn't librime's (words on it, candidates left out), ↑↓ (← → in a row), Space, the digits and a
 /// click pick by the place shown, numbered as shown; a punctuation key puts the word highlighted in before its mark; a
@@ -35,12 +38,13 @@ public final class EnglishWordsEngine: PinyinEngine {
     /// Their letters (`EnglishWords.key`): what is learned isn't one of them (`EnglishWords.learns`).
     public var keys: Set<String> { made.keys }
     /// The candidates the user removed (`Config.removedCandidates`), by their text as shown, oldest first: on no page.
-    /// One deleted here (`deleteCandidate`) goes on at once.
+    /// One deleted here (`deleteCandidate`) goes on at once. librime is given them too (`setRemovedCandidates`).
     public var removedCandidates: [String] {
         didSet {
             guard removedCandidates != oldValue else { return }
             removed = Set(removedCandidates)
             removedKeys = RemovedCandidates.keys(removedCandidates)
+            base.setRemovedCandidates(removedCandidates)
         }
     }
     /// The letters of those that are English words (`RemovedCandidates.keys`): what a word is left out by, and what is
@@ -86,6 +90,7 @@ public final class EnglishWordsEngine: PinyinEngine {
         self.removedCandidates = removedCandidates
         removed = Set(removedCandidates)
         removedKeys = RemovedCandidates.keys(removedCandidates)
+        base.setRemovedCandidates(removedCandidates)
     }
 
     /// The words offered, with what finding them takes: their index by their letters, and the letters themselves. Made
@@ -452,21 +457,26 @@ public final class EnglishWordsEngine: PinyinEngine {
     /// The candidate shown at `index` removed (a right-click, ⌃⌦): on `removedCandidates`, never shown again, and
     /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page stays the
     /// one the user is on (librime lays the composition out anew from its first page: `returnToPage`), laid out anew
-    /// without it, the highlight where it was; on the one removed, on the one shown after it, else the one before. A page
-    /// left with nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
+    /// without it, the highlight where it was; on the one removed, on its row (what moved up into its place: the one
+    /// shown after it, from the page after too where librime refills the page), else the one before. A page left with
+    /// nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
     /// page after, the last on one before. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
         let (snap, entries) = current()
         guard entries.indices.contains(index) else { return false }
         let shown = entries.map { Self.text(of: $0, in: snap) }
         let at = highlighted(snap, entries) ?? index
+        // Deleted by librime on the page it is on, then on the list (librime's too): its filter lays the composition out
+        // anew without it at once, each page full (`setRemovedCandidates`), whatever librime's delete did.
         if case let .base(i) = entries[index] { _ = base.deleteCandidate(onPage: i) }
         removedCandidates = RemovedCandidates.adding(shown[index], to: removedCandidates)
         let page = returnToPage(snap.pageNumber)
         pagedBack = false  // nothing shown on it now: on forward, else back from the last
         skipEmptyPages(from: page)
         let near = Array(shown[(index + 1)...]) + shown[..<index].reversed()
-        highlight(at == index ? near : [shown[at]] + near, orLast: base.snapshot().pageNumber < snap.pageNumber)
+        let now = base.snapshot().pageNumber
+        highlight(at == index ? near : [shown[at]] + near, row: at == index && now == snap.pageNumber ? index : nil,
+                  orLast: now < snap.pageNumber)
         return true
     }
 
@@ -484,17 +494,18 @@ public final class EnglishWordsEngine: PinyinEngine {
         return snap.pageNumber
     }
 
-    /// The page laid out anew, the highlight on the first of `texts` it shows (the one highlighted before a candidate was
-    /// removed, else the one after it, else the one before); none: on its last row shown with `last` (a page before the
-    /// one it was removed on: the one before it), else as on a page laid out anew (on a word that comes first, else
-    /// librime's).
-    private func highlight(_ texts: [String], orLast last: Bool) {
+    /// The page laid out anew, the highlight on `row` where the page has it (the removed one's, on the page it was on),
+    /// else on the first of `texts` it shows (the one highlighted before a candidate was removed, else the one after it,
+    /// else the one before); none: on its last row shown with `last` (a page before the one it was removed on: the one
+    /// before it), else as on a page laid out anew (on a word that comes first, else librime's).
+    private func highlight(_ texts: [String], row: Int? = nil, orLast last: Bool) {
         let snap = base.snapshot(), raw = base.rawInput
         let entries = layout(snap, raw: raw)
         laidOutFor = laidOutKey(snap, raw: raw)
         cursor = entries.first.map(Self.isWord) == true ? 0 : nil
         let shown = entries.map { Self.text(of: $0, in: snap) }
-        guard let place = texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first ?? (last ? shown.indices.last : nil)
+        guard let place = row.flatMap({ shown.indices.contains($0) ? $0 : nil })
+            ?? texts.lazy.compactMap({ shown.firstIndex(of: $0) }).first ?? (last ? shown.indices.last : nil)
         else { return }
         switch entries[place] {
         case .word:

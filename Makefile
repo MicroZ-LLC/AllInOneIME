@@ -162,9 +162,11 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	cp $(RIME_LIB) "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
-	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack.
+	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack. Beside them our own
+	# filter of the candidates removed (lua_filter@*allinoneime_removed, which rime_ice.custom.yaml adds).
 	cp -R $(RIME_DATA)/lua "$(APP)/Contents/SharedSupport/rime-lua"
 	cp $(RIME_DATA)/LICENSE "$(APP)/Contents/SharedSupport/rime-lua/LICENSE"
+	cp Resources/rime/lua/allinoneime_removed.lua "$(APP)/Contents/SharedSupport/rime-lua/"
 	# OpenCC's data for Traditional characters, with librime (its .ocd2 format is the linked OpenCC's), not in the pack;
 	# its Apache-2.0 notice is in THIRD_PARTY_NOTICES.md.
 	mkdir -p "$(APP)/Contents/SharedSupport/opencc"

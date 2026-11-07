@@ -90,8 +90,9 @@ enum RimeDirectories {
     }
 }
 
-/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, and for the
-/// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC).
+/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, for the
+/// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC), and for the filter of the
+/// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too.
 enum RimeFuzzy {
     /// The characters the patch was last written for (`follow`).
     static let written = ChineseCharacters.Written()

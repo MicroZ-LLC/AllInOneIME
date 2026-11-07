@@ -657,10 +657,29 @@ public final class RimeSession: PinyinEngine {
     }
 
     /// librime's `delete_candidate` (rime-ice's ⌃⌦): a word it learned (one made of characters picked one by one too)
-    /// is forgotten, one of its dictionary's goes back to where the dictionary puts it. The page is laid out anew.
+    /// is forgotten, one of its dictionary's goes back to where the dictionary puts it. The page is laid out anew then
+    /// (from the first), but for one of a translator without a user dictionary it writes: rime-ice's English words and
+    /// custom phrases, a Lua translator's (the date), whose page stays as it was until the next key.
     public func deleteCandidate(onPage index: Int) -> Bool {
         guard isCurrentGeneration, index >= 0 else { return false }
         return api.pointee.delete_candidate_on_current_page(id, index) != 0
+    }
+
+    /// The candidates removed, as librime's property holds them (`setRemovedCandidates`).
+    private var removedProperty = ""
+
+    /// The candidates the user removed, as the context property `RemovedCandidates.property`, one text per line, which
+    /// AllInOneIME's Lua filter reads where the schema has it (`RemovedCandidates.luaFilter`): librime leaves them out
+    /// and lays its pages out from what is left, what is being typed laid out anew at once (the filter does, on the
+    /// property's change: one just removed, whatever its delete did). A text with a line break or a NUL in it, which the
+    /// property can't hold, is left to `EnglishWordsEngine`.
+    /// Set only when it changes. A session made anew (librime deployed again, one it dropped) is a new one of these,
+    /// given them by the `EnglishWordsEngine` made on it.
+    public func setRemovedCandidates(_ texts: [String]) {
+        let value = texts.filter { !$0.utf8.contains { $0 == 0x0A || $0 == 0 } }.joined(separator: "\n")
+        guard value != removedProperty, isCurrentGeneration else { return }
+        removedProperty = value
+        api.pointee.set_property(id, RemovedCandidates.property, value)
     }
 
     public func commitComposition() -> String? {
