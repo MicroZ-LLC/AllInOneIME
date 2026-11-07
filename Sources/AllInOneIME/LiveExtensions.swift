@@ -36,8 +36,7 @@ enum LiveExtensions {
     /// The index built now, on this thread (the settings window, which shows what is there at once).
     static func load(_ config: Config) -> ExtensionIndex {
         let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
-        var built = ExtensionStore.load(folders, cache: cache)
-        built.generation = built == index ? index.generation : index.generation &+ 1
+        let built = ExtensionStore.load(folders, cache: cache).numbered(after: index)
         index = built
         indexed = folders
         return index
@@ -51,17 +50,15 @@ enum LiveExtensions {
         rebuilding = true
         let (cache, before) = (self.cache, index)
         DispatchQueue.global(qos: .utility).async {
-            var built = ExtensionStore.load(folders, cache: cache)
             // Compared here, off the main thread: the command list is built again only for a new generation.
-            let same = built == before
-            built.generation = same ? before.generation : before.generation &+ 1
+            let built = ExtensionStore.load(folders, cache: cache).numbered(after: before)
             DispatchQueue.main.async {
-                if !same, !built.commands.isEmpty || !built.skipped.isEmpty {
+                if built.generation != before.generation, !built.commands.isEmpty || !built.skipped.isEmpty {
                     log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped, \(built.identical.count) identical copies left out")
                 }
                 // Unless the settings read the folders meanwhile (`load`): theirs is as new.
-                let landed = index.generation == before.generation && !same
-                if index.generation == before.generation { index = built }
+                let (taken, landed) = built.lands(on: index, builtFrom: before)
+                if taken { index = built }
                 indexed = folders
                 rebuilding = false
                 if landed { changed() }
@@ -112,21 +109,23 @@ enum LiveExtensions {
     }
 
     /// `load`, the folders read off the main thread: `done` gets the index on the main thread once it is built (the
-    /// settings window shown, which shows the one it had meanwhile).
+    /// settings window shown, which shows the one it had meanwhile). Like a rebuild, one that changed the index is told
+    /// (`changed`: an "@" list open then shows it).
     static func loadInBackground(_ config: Config, done: @escaping @MainActor (ExtensionIndex) -> Void) {
         let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
         let (cache, before) = (self.cache, index)
         DispatchQueue.global(qos: .userInitiated).async {
-            var built = ExtensionStore.load(folders, cache: cache)
-            built.generation = built == before ? before.generation : before.generation &+ 1
+            let built = ExtensionStore.load(folders, cache: cache).numbered(after: before)
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
                     // Another read meanwhile (`load`, a rebuild) is as new: its index stays.
-                    if index.generation == before.generation {
+                    let (taken, landed) = built.lands(on: index, builtFrom: before)
+                    if taken {
                         index = built
                         indexed = folders
                     }
                     done(built)
+                    if landed { changed() }
                 }
             }
         }
