@@ -174,7 +174,7 @@ struct InstantFilesTests {
         let time = Timing.cpuSeconds { listed = FileSearch.complete(big + "/", limit: 8) }.seconds
         #expect(listed.map(\.name) == ["folder 0", "folder 1", "folder 10", "folder 11", "folder 12", "folder 13", "folder 14", "folder 15"],
                 "\(listed.map(\.name))")
-        // Naming them all took 0.3 s of CPU on a Mac mini.
+        // Naming them all took 0.15 s of CPU on a Mac mini (a debug build), this 2.3 ms.
         #expect(time < 0.05, "\(time) s")
         #expect(FileSearch.complete(big + "/file 29", limit: 8).map(\.name) == ["file 29.pdf", "file 290.pdf"] + (2900...2905).map { "file \($0).pdf" })
     }
