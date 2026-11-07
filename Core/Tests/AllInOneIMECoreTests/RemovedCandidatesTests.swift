@@ -820,6 +820,45 @@ struct RemovedCandidatesSessionTests {
         }
     }
 
+    /// One @, pinyin composed after the magic key: a right-click (or Control-click) on its third row removes nothing, the
+    /// pinyin's candidates on their line above the rows as they were, the shell told nothing; ⌃⌦ removes the line's
+    /// first, the one the rows are for. Without one @, a right-click on the third row removes its candidate.
+    @Test func aRightClickOnOneAtsRowRemovesNoCandidate() async {
+        await inEnglish {
+            let settings = Settings()
+            let engine = FakeEngine()
+            engine.dictionary["nihao"] = ["你好", "拟好", "泥好"]
+            let host = host(settings, engine: engine)
+            host.press(FakeHost.at)
+            host.type("nihao")
+            #expect(host.composer.oneAt?.text == "你好" && host.composer.engineState.isComposing)
+            let (shown, line) = (rows(host), host.panel?.candidates)
+            #expect(shown.count >= 3 && host.panel?.rows[2].choice == 2 && !shown.contains("泥好"), "\(shown)")
+            #expect(line?.contains("泥好") == true, "the line: \(line ?? "none")")
+            host.send(.delete(2))
+            #expect(settings.removed.isEmpty && engine.deleted.isEmpty && host.composer.removedCandidates.isEmpty,
+                    "\(settings.removed) \(engine.deleted)")
+            #expect(candidates(host) == ["你好", "拟好", "泥好"] && host.panel?.candidates == line && rows(host) == shown,
+                    "\(host.panel?.candidates ?? "none") \(rows(host))")
+            #expect(host.document.isEmpty && host.composer.oneAt?.text == "你好", "\(host.document)")
+            // ⌃⌦: the line's first.
+            #expect(host.press(DeleteKeys.controlForwardDelete))
+            #expect(settings.removed == ["你好"] && engine.deleted == [0], "\(settings.removed) \(engine.deleted)")
+            #expect(candidates(host) == ["拟好", "泥好"] && host.composer.oneAt?.text == "拟好" && host.document.isEmpty,
+                    "\(candidates(host)) \(host.document)")
+
+            let other = Settings()
+            let plain = FakeEngine()
+            plain.dictionary["nihao"] = ["你好", "拟好", "泥好"]
+            let field = self.host(other, engine: plain)
+            field.type("nihao")
+            #expect(rows(field) == ["你好", "拟好", "泥好"], "\(rows(field))")
+            field.send(.delete(2))
+            #expect(other.removed == ["泥好"] && plain.deleted == [2], "\(other.removed) \(plain.deleted)")
+            #expect(rows(field) == ["你好", "拟好"] && field.document.isEmpty && field.marked == "nihao", "\(rows(field))")
+        }
+    }
+
     @Test func theSettingsListReachesTheComposer() async {
         await inEnglish {
             let settings = Settings { $0.removedCandidates = ["你好"] }

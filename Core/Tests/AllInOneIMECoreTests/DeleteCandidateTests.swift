@@ -191,6 +191,36 @@ struct DeleteCandidateTests {
         #expect(engine.deleted.isEmpty, "\(engine.deleted)")
     }
 
+    /// One @'s rows, pinyin composed after the magic key: its candidates are on a line of their own above the rows, so a
+    /// right-click on the third row (`deleteCandidate(index: 2)`) removes nothing, never the third candidate; ⌃⌦ removes
+    /// the first, the one the rows are for. Without one @, the third row's candidate goes.
+    @Test func oneAtsRowsAreNone() {
+        let engine = FakeEngine()
+        engine.dictionary["nihao"] = ["你好", "拟好", "泥好"]
+        let c = Composer(engine: engine, actionKey: .enter)
+        type("@nihao", c)
+        #expect(c.oneAt?.text == "你好" && c.engineState.isComposing && c.oneAtRows.count >= 3,
+                "\(String(describing: c.oneAt)) \(c.oneAtRows.map(\.id))")
+        let draft = c.draft
+        let effects = c.deleteCandidate(index: 2)
+        #expect(effects.isEmpty, "\(effects)")
+        #expect(engine.deleted.isEmpty && c.removedCandidates.isEmpty, "\(engine.deleted) \(c.removedCandidates)")
+        #expect(texts(c) == ["你好", "拟好", "泥好"] && c.oneAt?.text == "你好" && c.draft == draft, "\(texts(c)) \(c.draft)")
+        // ⌃⌦: the first.
+        let key = c.handleKeyDown(DeleteKeys.controlForwardDelete)
+        #expect(key.handled && key.effects.contains(.candidateRemoved("你好")) && engine.deleted == [0], "\(engine.deleted)")
+        #expect(texts(c) == ["拟好", "泥好"] && c.oneAt?.text == "拟好" && c.removedCandidates == ["你好"], "\(texts(c))")
+        #expect(commits(key).isEmpty && c.engineState.isComposing && engine.input == "nihao")
+
+        let other = FakeEngine()
+        other.dictionary["nihao"] = ["你好", "拟好", "泥好"]
+        let d = Composer(engine: other, actionKey: .enter)
+        type("nihao", d)
+        #expect(d.oneAt == nil)
+        #expect(d.deleteCandidate(index: 2).contains(.candidateRemoved("泥好")) && other.deleted == [2], "\(other.deleted)")
+        #expect(texts(d) == ["你好", "拟好"] && d.removedCandidates == ["泥好"], "\(texts(d))")
+    }
+
     @Test func nothingWhileListening() {
         let engine = FakeEngine()
         let c = Composer(engine: engine, voiceEnabled: true, actionKey: .enter)  // as if voice input were on
