@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// `@open` as you type, instant (0.6.9): what is in memory (`SessionServices.instantResults`: the app index, what `@open`
+/// `@open` as you type, instant (0.7.0): what is in memory (`SessionServices.instantResults`: the app index, what `@open`
 /// opened before, a path's folder) answers on the key that changed the text, from the first letter; while Spotlight
 /// (`SessionServices.searchFiles`) searches the new text, the rows shown are those instant rows, then the rows shown
 /// before that still match it, so the list never blinks; the full results of the last texts come back at once with
