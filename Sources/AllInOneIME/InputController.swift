@@ -323,10 +323,11 @@ final class AllInOneIMEInputController: IMKInputController {
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
     private var caretAfterTyping: Int?
 
-    /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all
-    /// (`TerminalPaste`; the self-test supplies its own and never posts keys or touches the clipboard).
+    /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all,
+    /// nil where it was stopped and nothing goes in (another app frontmost now: `TerminalPaste.paste`; the self-test
+    /// supplies its own and never posts keys or touches the clipboard).
     var canPasteInTerminal: @MainActor () -> Bool = { TerminalPaste.isAllowed() }
-    var pasteInTerminal: @MainActor (String) async -> Bool = { await TerminalPaste.paste($0) }
+    var pasteInTerminal: @MainActor (String) async -> Bool? = { await TerminalPaste.paste($0) }
     /// ⌃V to the app, marked as ours: the app's own paste in a terminal or a code editor (clipboard history's image, ⌃V
     /// again: `TerminalPaste.postControlV`; the self-test counts it instead).
     var passPasteKey: @MainActor () -> Void = { TerminalPaste.postControlV() }
@@ -365,14 +366,16 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// Inserts `text` into `client`; into a terminal, text with line breaks goes in as a paste, so the
     /// line breaks don't run (or send) anything; on one line where it couldn't be pasted after all (what is on the
-    /// clipboard couldn't be kept: `TerminalPaste.paste`).
+    /// clipboard couldn't be kept: `TerminalPaste.paste`), while the field is still the one typed in. Nothing where the
+    /// paste was stopped (another app frontmost now).
     @MainActor
     private func insert(_ text: String, into client: IMKTextInput?, replacing range: NSRange = AllInOneIMEInputController.notFound) {
         commitRow()  // a row marked during the key goes in first: the text would take its place
         if text.contains(where: \.isNewline), Self.isTerminal(client), canPasteInTerminal() {
-            let paste = pasteInTerminal
-            Task { @MainActor in
-                if await !paste(text) { client?.insertText(Composer.oneLine(text), replacementRange: Self.notFound) }
+            let paste = pasteInTerminal, session = fieldSession
+            Task { @MainActor [weak self] in
+                guard await paste(text) == false, self?.fieldSession == session else { return }
+                client?.insertText(Composer.oneLine(text), replacementRange: Self.notFound)
             }
         } else {
             client?.insertText(text, replacementRange: range)
@@ -460,8 +463,13 @@ final class AllInOneIMEInputController: IMKInputController {
                     field.lineBreaks -= 1
                     // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line. Typing stopped
                     // meanwhile: nothing more, no space either (a ⌘V not posted by then never is: `TerminalPaste.paste`).
+                    // Another app frontmost now (⌘-Tab): the rest isn't typed, as once the field is left.
                     let pasted = await self.pasteInTerminal("\n")
                     guard !Task.isCancelled else { return }
+                    guard let pasted else {
+                        self.stopTyping(insertingRest: false)
+                        return
+                    }
                     if !pasted { field.type(" ") }
                 }
             }
