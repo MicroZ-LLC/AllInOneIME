@@ -25,9 +25,12 @@ extension SelfTest {
         }
         // The fake field is no password field: secure input off, whatever holds it on this Mac now (the lock screen), and
         // none as Accessibility would tell it (it isn't the one focused). That is told off the key, once its first letter
-        // is answered (`readPasswordField`): until then nothing is learned in it.
+        // is answered (`readPasswordField`): until then nothing is learned in it. A field is asked once, and the one before
+        // was, of Accessibility (this Mac's frontmost app, which can't tell: nothing learned there): a field of its own.
         controller.services.secureInputActive = { false }
         controller.passwordField = { false }
+        controller.commitComposition(client)
+        controller.activateServer(client)
         func toldNoPasswordField() { _ = pump(timeout: 0.2) { false } }
         func candidates() -> [String] { controller.composer.engineState.candidates.map(\.text) }
         // What was learned is written a moment later, off the main thread (`SessionServices.englishWordsWriter`).
