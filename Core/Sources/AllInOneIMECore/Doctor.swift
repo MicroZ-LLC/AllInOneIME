@@ -135,6 +135,9 @@ public enum Doctor {
         public var recentErrors: [String] = []
         /// Sync through iCloud (`ICloudSync`).
         public var iCloudSync = ICloudSyncFacts()
+        /// The areas whose checks haven't ended yet, where the shell tells the facts as each of its probes ends: their
+        /// findings are left out until they have (what isn't known yet isn't shown as fine). Empty: all checked.
+        public var unchecked: Set<Area> = []
 
         public init() {}
     }
@@ -185,7 +188,7 @@ public enum Doctor {
                                detail: logDetail))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
-        out = out.map { finding in
+        out = out.filter { !facts.unchecked.contains($0.area) }.map { finding in
             var finding = finding
             finding.title = scrub(finding.title)
             finding.detail = finding.detail.map { scrub($0) }
