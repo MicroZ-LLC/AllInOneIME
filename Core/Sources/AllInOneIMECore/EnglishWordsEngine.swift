@@ -455,12 +455,12 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// The candidate shown at `index` removed (a right-click, ⌃⌦): on `removedCandidates`, never shown again, and
-    /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten). The page stays the
-    /// one the user is on (librime lays the composition out anew from its first page: `returnToPage`), laid out anew
-    /// without it, the highlight where it was; on the one removed, on its row (what moved up into its place: the one
-    /// shown after it, from the page after too where librime refills the page), else the one before. A page left with
-    /// nothing shown is skipped, on forward, else (the last) back: the highlight on the first row shown on a
-    /// page after, the last on one before. Whether one was removed.
+    /// librime's deleted there too (`PinyinEngine.deleteCandidate`: what it learned of it forgotten; an emoji isn't, its
+    /// word stays as it was). The page stays the one the user is on (librime lays the composition out anew from its
+    /// first page: `returnToPage`), laid out anew without it, the highlight where it was; on the one removed, on its row
+    /// (what moved up into its place: the one shown after it, from the page after too where librime refills the page),
+    /// else the one before. A page left with nothing shown is skipped, on forward, else (the last) back: the highlight
+    /// on the first row shown on a page after, the last on one before. Whether one was removed.
     public func deleteCandidate(onPage index: Int) -> Bool {
         let (snap, entries) = current()
         guard entries.indices.contains(index) else { return false }

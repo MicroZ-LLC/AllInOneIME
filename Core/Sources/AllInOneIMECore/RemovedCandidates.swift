@@ -5,8 +5,9 @@ import Foundation
 /// candidate of its own, whatever is typed, until the user restores it in Settings (`EnglishWordsEngine`: librime's by
 /// its whole text, so a sentence or a longer phrase with it in it still comes; an English word put among them by its
 /// letters, `EnglishWords.key`, so "Bedrock" removes "bedrock" too); librime forgets what it learned of it as well (its
-/// `delete_candidate`). Removing one only leaves it out: an English word on the list is never learned again, but the
-/// user's own English words stay as they are, so one restored comes back as it was.
+/// `delete_candidate`), but one a filter made from a word and put beside it (an emoji: 👏 after 鼓掌) is only left out,
+/// the word as it was (`RimeSession.deleteCandidate`). Removing one only leaves it out: an English word on the list is
+/// never learned again, but the user's own English words stay as they are, so one restored comes back as it was.
 ///
 /// Kept by their text as they were shown (`Config.removedCandidates`), oldest first, at most `maxCount`: the engine's
 /// list changes at once, the file a moment later, off the key's thread (`EnglishWords.Writer`, only its key of them
@@ -22,6 +23,30 @@ public enum RemovedCandidates {
     /// schema's filters where the patch puts it (`PersonalDictionaryStore`): librime leaves them out itself, and lays its
     /// pages out from what is left, each full.
     public static let luaFilter = "allinoneime_removed"
+    /// The context properties librime's delete of a candidate is asked about by (`RimeSession.deleteCandidate`): its
+    /// place on the page put on `askedProperty`, the filter answers on `derivedProperty` at once, "1" for one a filter
+    /// made from a word and put beside it (rime-ice's emoji: 👏 after 鼓掌), whose delete would forget that word, "0"
+    /// for any other; nothing where the schema hasn't the filter.
+    public static let askedProperty = "allinoneime_delete_asked"
+    public static let derivedProperty = "allinoneime_derived"
+
+    /// Whether a candidate shown as `text` may be a word librime's delete is asked for, where the filter can't tell
+    /// (`derivedProperty`: the user's own patch file, Windows; the text alone is all librime gives then). One with no
+    /// letter or digit of any script in it (an emoji, a symbol: 👏, ⺁) is no word of a pinyin dictionary but one rime-ice's
+    /// emoji filter made from the word before it, and its delete would forget that word. The narrowest rule the text
+    /// allows: what that filter makes of letters (January after 一月, 亻 after 单人旁) is taken for a word, as before; so
+    /// is a character this Mac doesn't know yet (a new CJK extension's).
+    public static func mayBeAWord(_ text: String) -> Bool {
+        text.unicodeScalars.contains { scalar in
+            switch scalar.properties.generalCategory {
+            case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter,
+                 .decimalNumber, .letterNumber, .otherNumber, .unassigned, .privateUse:
+                return true
+            default:
+                return false
+            }
+        }
+    }
 
     /// `list` with `text` removed too: at the end, once, within `maxCount`.
     public static func adding(_ text: String, to list: [String]) -> [String] {
