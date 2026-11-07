@@ -201,16 +201,22 @@ struct InstantFilesTests {
 
     // MARK: - Spotlight's names
 
-    /// What `names` finds for `keyword` in /System/Applications (at most `limit`), on a thread of its own, or nil when
-    /// Spotlight didn't answer by the time limit. It answers on dispatch's threads, which the tests that wait for a child
-    /// process may all take for seconds (`SpotlightTests.inBackground`): then there is nothing to compare.
-    func names(_ keyword: String, limit: Int) async -> [FileSearchRanking.Found]? {
-        let seconds = 30.0, started = Date()
+    /// What `names` finds for `keyword` in /System/Applications (at most `limit`), on a thread of its own. It answers on
+    /// dispatch's threads, which the tests that wait for a child process may all take for seconds
+    /// (`SpotlightTests.inBackground`): it is given a minute, and not answering by then is a failure.
+    func names(_ keyword: String, limit: Int) async -> [FileSearchRanking.Found] {
+        let seconds = 60.0, started = Date()
         let found = await withCheckedContinuation { continuation in
             Thread { continuation.resume(returning: Spotlight(until: .now() + seconds).names(keyword, in: ["/System/Applications"], limit: limit)) }
                 .start()
         }
-        return Date().timeIntervalSince(started) < seconds ? found : nil
+        if Date().timeIntervalSince(started) >= seconds { Issue.record("Spotlight didn't answer \(keyword) in \(seconds) s") }
+        return found ?? []
+    }
+
+    /// `body` on a thread of its own (it blocks), awaited.
+    func inBackground<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in Thread { continuation.resume(returning: body()) }.start() }
     }
 
     /// What `mdfind -name keyword -onlyin folder` prints, the paths.
@@ -229,7 +235,7 @@ struct InstantFilesTests {
 
     @Test func namesAreFoundAsMdfindFindsThemNewestFirst() async throws {
         for keyword in ["calc", "Ca", "system"] {
-            guard let found = await names(keyword, limit: 1000) else { continue }
+            let found = await names(keyword, limit: 1000)
             #expect(Set(found.map(\.path)) == (try mdfind(keyword, in: "/System/Applications")), "\(keyword): \(found.map(\.path))")
             // The most recently used first, then the most recently changed.
             let keys = found.map { ($0.lastUsed ?? .distantPast, $0.modified ?? .distantPast) }
@@ -237,14 +243,35 @@ struct InstantFilesTests {
         }
     }
 
-    @Test func aNameSearchStopsAtItsLimitAndOnceCancelled() async {
-        if let all = await names("a", limit: 1000), let some = await names("a", limit: 2) {
-            #expect(some.count == min(2, all.count), "\(some.count) of \(all.count)")
-        }
+    @Test func aNameSearchStopsAtItsLimit() async {
+        let (all, some) = (await names("a", limit: 1000), await names("a", limit: 2))
+        #expect(some.count == min(2, all.count), "\(some.count) of \(all.count)")
+    }
+
+    @Test func aNameSearchEndsAtOnceWhenCancelledWhileSpotlightLooks() async throws {
+        // Everything on the startup disk: some 440,000 items, 12 s on a Mac mini.
+        let spotlight = Spotlight(until: .now() + 60)
+        let found = Task { await inBackground { spotlight.names("", in: ["/"], limit: 1_000_000) } }
+        #expect(await Timing.eventually { spotlight.isAsking })
+        try await Task.sleep(for: .milliseconds(5))
+        let cancelling = Date()
+        spotlight.cancel()
+        #expect(await found.value == nil)
+        #expect(Date().timeIntervalSince(cancelling) < 1, "\(Date().timeIntervalSince(cancelling)) s")
+        #expect(!spotlight.isAsking)
+        // Not started once cancelled.
         let cancelled = Spotlight(until: .now() + 10)
         cancelled.cancel()
         #expect(cancelled.names("a", in: ["/System/Applications"], limit: 10) == nil)
         #expect(cancelled.names(each: ["a", "b"], in: ["/System/Applications"], limit: { _ in 10 }) == nil)
+    }
+
+    @Test func aNameSearchEndsAtTheTimeLimitWithWhatItFound() async {
+        let started = Date()
+        let found = await inBackground { Spotlight(until: .now() + 0.5).names("", in: ["/"], limit: 1_000_000) }
+        #expect(found != nil)
+        #expect(Date().timeIntervalSince(started) < 6, "\(Date().timeIntervalSince(started)) s")
+        #expect(await inBackground { Spotlight(until: .now()).names("calc", in: ["/System/Applications"], limit: 10) } == [], "no time left")
     }
 
     @Test func shortKeywordsListFewerAndOnlyWhereOpenLooks() {
