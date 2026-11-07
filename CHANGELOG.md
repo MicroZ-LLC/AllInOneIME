@@ -77,6 +77,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - A multi-line answer typed into a terminal no longer pastes what you had copied before when the terminal is slow to take it: your clipboard is put back once the terminal has read the text (or after 5 seconds, if it never does).
 - Updates inside the app accept only an app signed by AllInOneIME's own developer team.
 - Typing no longer stalls on a key that learns an English word (config.json is written in the background), or when a field takes the focus (plugins are rescanned in the background).
+- An Amazon Bedrock Region or Model ID pasted into Settings with a space or line break around it is now saved without it, as the other providers' fields are (they now drop a pasted line break too). Before, it was saved as pasted, and every Bedrock request failed ("Invalid region: us-west-2 ").
 
 ## 0.6.8.2 (2026-10-28)
 

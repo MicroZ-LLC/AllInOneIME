@@ -465,11 +465,11 @@ struct SettingsSchema {
             var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), value: .string(config.modelId))
             model.choices = SuggestedModel.all.map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { value in
-                let id = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
+                let id = SettingsStore.typed(value.string ?? "")
                 guard !id.isEmpty else {
                     throw SettingsProblem(.badValue, field: "bedrock.modelId", message: SettingsService.badValue)
                 }
-                store.config.modelId = id
+                store.setBedrockModelId(id)
             }
             var profiles = AWSSharedConfig.profileNames()
             if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
@@ -480,8 +480,7 @@ struct SettingsSchema {
             let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
             add(text("bedrock.region", tr("区域", "Region"), value: config.region,
                      placeholder: tr("留空用 profile 的区域（\(region)）", "Empty: the profile's region (\(region))")), to: &fields) { value in
-                let region = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
-                store.config.region = region.isEmpty ? nil : region
+                store.setBedrockRegion(value.string ?? "")
             }
         case .hosted, .apple:
             break  // the Mac's: the sign-in, the system's model

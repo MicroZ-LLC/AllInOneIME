@@ -2790,7 +2790,7 @@ struct SettingsView: View {
             Text(tr("自定义…", "Custom…")).tag("custom")
         }
         if customModel || !SuggestedModel.all.contains(where: { $0.id == model.config.modelId }) {
-            TextField(tr("模型 ID", "Model ID"), text: $model.config.modelId,
+            TextField(tr("模型 ID", "Model ID"), text: modelIdBinding,
                       prompt: Text(tr("例如 ", "e.g. ") + "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
                 .onSubmit { model.save() }
         }
@@ -3116,9 +3116,14 @@ struct SettingsView: View {
             })
     }
 
+    /// Bedrock's model ID and region as typed, trimmed (`SettingsStore.setBedrockModelId`, `setBedrockRegion`): a space or
+    /// line break pasted with them would break every request.
+    private var modelIdBinding: Binding<String> {
+        Binding(get: { model.config.modelId }, set: { model.store.setBedrockModelId($0) })
+    }
+
     private var regionBinding: Binding<String> {
-        Binding(get: { model.config.region ?? "" },
-                set: { model.config.region = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 })
+        Binding(get: { model.config.region ?? "" }, set: { model.store.setBedrockRegion($0) })
     }
 }
 

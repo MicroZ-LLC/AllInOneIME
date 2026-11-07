@@ -212,6 +212,11 @@ struct SettingsServiceTests {
         #expect(config.provider == .bedrock && config.temperature == nil)
         #expect((try? service.set("bedrock.region", to: .string("  ")).get()) != nil)
         #expect(try Config.load(from: url).region == nil)
+        // Pasted with a line break: saved without it, as the Mac's window saves it (GitHub #65).
+        #expect((try? service.set("bedrock.region", to: .string("us-west-2\n")).get()) != nil)
+        #expect((try? service.set("bedrock.modelId", to: .string("us.anthropic.claude-haiku-4-5-20251001-v1:0\r\n")).get()) != nil)
+        config = try Config.load(from: url)
+        #expect(config.region == "us-west-2" && config.modelId == "us.anthropic.claude-haiku-4-5-20251001-v1:0")
         // The Cloud's sign-in and Apple's model aren't Windows' choices.
         let providers = service.document().field("provider")?.choices?.compactMap(\.value.string) ?? []
         #expect(!providers.contains("apple") && !providers.contains("hosted") && providers.contains("anthropic"))
