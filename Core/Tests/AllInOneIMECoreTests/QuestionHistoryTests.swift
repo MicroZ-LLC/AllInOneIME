@@ -83,7 +83,7 @@ struct QuestionHistoryTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("recent-questions.json")
-        try Data("{}".utf8).write(to: url)
+        try Data(#"{"entries":[]}"#.utf8).write(to: url)
         try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
         let before = try FileManager.default.attributesOfItem(atPath: url.path)[.systemFileNumber] as? Int
         try QuestionHistory(entries: [entry("secret question")]).write(to: url)
@@ -95,6 +95,26 @@ struct QuestionHistoryTests {
         try QuestionHistory(entries: [entry("another")]).write(to: url)
         #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int == 0o600)
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["recent-questions.json"])
+    }
+
+    /// #59: a file that can't be read is set aside and marked for the sync, never written over; a readable one is neither.
+    @Test func anUnreadableFileIsSetAsideNotWrittenOver() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("recent-questions.json")
+        let mark = QuestionHistory.setAsideMark(of: url)
+        #expect(mark.lastPathComponent == "recent-questions-set-aside")
+        #expect(try QuestionHistory(entries: [entry("first")]).write(to: url) == nil)
+        #expect(try QuestionHistory(entries: [entry("second")]).write(to: url) == nil)
+        #expect(!FileManager.default.fileExists(atPath: mark.path))
+
+        try Data(#"{"entries":[{"question":"lost"#.utf8).write(to: url)
+        let aside = try #require(try QuestionHistory(entries: [entry("third")]).write(to: url))
+        #expect(aside.hasPrefix("recent-questions (unreadable ") && aside.hasSuffix(").json"))
+        #expect(try Data(contentsOf: folder.appendingPathComponent(aside)) == Data(#"{"entries":[{"question":"lost"#.utf8))
+        #expect(FileManager.default.fileExists(atPath: mark.path))
+        #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["third"])
     }
 
     @Test func theSettingIsOnByDefaultAndKept() throws {

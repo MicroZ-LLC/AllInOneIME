@@ -33,7 +33,9 @@ enum QuestionHistoryStore {
 
     private static func save(_ history: QuestionHistory) {
         do {
-            try history.write(to: url)
+            if let aside = try history.write(to: url) {
+                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
+            }
         } catch {
             log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
         }

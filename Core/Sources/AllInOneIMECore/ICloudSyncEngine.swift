@@ -438,7 +438,8 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
     /// A Clear is recorded when the user clears them (`recordQuestionsClear`); one made while the input method wasn't
     /// running is told from this Mac's record (`State.questionsSeen`): questions it had when it last synced that are gone
     /// now, not pushed out by newer ones, dated by the newest of them. Questions deleted because "Remember recent
-    /// questions" was turned off are no Clear (`forgetQuestionsSeen`). A file here that can't be read is set aside and
+    /// questions" was turned off are no Clear (`forgetQuestionsSeen`), nor those of a file set aside unreadable when a
+    /// question was saved (`QuestionHistory.write`, which marks it). A file here that can't be read is set aside and
     /// nothing is merged this time (it is never taken as no questions); one in iCloud that can't be read is set aside as
     /// `settings.json` is. iCloud's file, readable, is merged whatever its entry says (two Macs' files may have met), and
     /// the merge goes up; one stamped but not here is waited for.
@@ -454,10 +455,13 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
             }
             history = read.history
         }
-        // Deleted without a Clear (the mark is read after the file, so a deletion this run saw is always marked).
-        if let mark = try? Data(contentsOf: forgottenURL) {
-            state.questionsSeen = [:]
-            if (try? Data(contentsOf: forgottenURL)) == mark { try? FileManager.default.removeItem(at: forgottenURL) }
+        // Deleted without a Clear, or set aside unreadable when a question was saved (`QuestionHistory.write`): the marks
+        // are read after the file, so a deletion this run saw is always marked.
+        for url in [forgottenURL, QuestionHistory.setAsideMark(of: questionsURL)] {
+            if let mark = try? Data(contentsOf: url) {
+                state.questionsSeen = [:]
+                if (try? Data(contentsOf: url)) == mark { try? FileManager.default.removeItem(at: url) }
+            }
         }
         let mine = Dictionary(history.entries.map { (Self.questionHash($0.question), $0.date) }, uniquingKeysWith: max)
         var cleared = state.questionsCleared

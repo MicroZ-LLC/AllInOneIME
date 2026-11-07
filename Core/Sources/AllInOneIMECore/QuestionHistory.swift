@@ -90,7 +90,8 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
         CorePaths.dataDir.appendingPathComponent("recent-questions.json")
     }
 
-    /// What `url` holds: nothing when there's no file or it can't be read (it's only a convenience).
+    /// What `url` holds: nothing when there's no file or it can't be read (it's only a convenience; `write` sets such a
+    /// file aside).
     public static func load(from url: URL = defaultURL) -> QuestionHistory {
         guard let data = try? Data(contentsOf: url), let history = try? decoder.decode(QuestionHistory.self, from: data) else {
             return QuestionHistory()
@@ -98,16 +99,42 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
         return QuestionHistory(entries: history.entries)
     }
 
-    /// Writes the questions to `url`, readable only by the user; none: the file goes.
-    public func write(to url: URL = defaultURL) throws {
+    /// Writes the questions to `url`, readable only by the user; none: the file goes. A file there that can't be read
+    /// (truncated, one entry bad) is set aside first, never written over: "recent-questions (unreadable 2026-11-06
+    /// 120000).json" beside it, as the iCloud sync sets one aside. Its new name, if one was set aside.
+    @discardableResult
+    public func write(to url: URL = defaultURL) throws -> String? {
         let files = FileManager.default
         guard !entries.isEmpty else {
             if files.fileExists(atPath: url.path) { try files.removeItem(at: url) }
-            return
+            return nil
         }
         let folder = url.deletingLastPathComponent()
         try files.createDirectory(at: folder, withIntermediateDirectories: true)
+        let aside = try Self.setAsideIfUnreadable(url)
         try Self.replace(url, with: Self.encoder.encode(self))
+        return aside
+    }
+
+    /// Moves the file at `url` aside if it is there and can't be read, marked first (`setAsideMark`) so that a sync
+    /// running meanwhile never takes the questions it held for a Clear; its new name.
+    static func setAsideIfUnreadable(_ url: URL) throws -> String? {
+        let files = FileManager.default
+        guard files.fileExists(atPath: url.path),
+              (try? Data(contentsOf: url)).flatMap({ try? decoder.decode(QuestionHistory.self, from: $0) }) == nil else { return nil }
+        try? Data(ICloudSync.dateText(Platform.current.clock.now).utf8).write(to: setAsideMark(of: url), options: .atomic)
+        do {
+            return try ICloudSyncFolder(url: url.deletingLastPathComponent()).setAside(url.lastPathComponent)
+        } catch {
+            if files.fileExists(atPath: url.path) { throw error }
+            return nil  // set aside meanwhile (by a sync)
+        }
+    }
+
+    /// The mark left beside the file at `url` when `write` set it aside: the questions it held went without a Clear, and
+    /// the iCloud sync forgets them as it does after `ICloudSyncEngine.forgetQuestionsSeen` ("recent-questions-set-aside").
+    public static func setAsideMark(of url: URL) -> URL {
+        url.deletingLastPathComponent().appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-set-aside")
     }
 
     /// Writes `data` to a new file in `url`'s folder that is the user's only from the start (0600), then renames it over
