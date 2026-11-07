@@ -509,4 +509,16 @@ struct OneAtTests {
             }
         }
     }
+
+    /// "@" alone: Esc gives the magic key up (nothing goes in), and the footer says so ("Esc cancel"), not "as typed".
+    @Test func theFooterOfTheMagicKeyAloneSaysEscCancels() async {
+        await withInterfaceLanguage("en") {
+            let host = field(ScriptFolder())
+            host.type("@")
+            let footer = host.panel?.footer ?? ""
+            #expect(footer.hasSuffix("Esc cancel") && !footer.contains("as typed"), "\(footer)")
+            host.press(FakeHost.escape)
+            #expect(host.document.isEmpty && !host.composer.isComposing)
+        }
+    }
 }

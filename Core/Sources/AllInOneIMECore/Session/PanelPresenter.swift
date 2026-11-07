@@ -443,8 +443,9 @@ public struct PanelPresenter {
         } else if composer.selection != nil {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变", "\(enter) do it · ↑↓ choose · Esc cancel, the selection stays")
         } else if composer.draft == composer.commandTrigger {
-            model.footer = t.tr("打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 原样输入",
-                                "Type a command's name, or what you want · Tab picks · ↑↓ · Esc as typed")
+            // Esc gives the magic key up (nothing goes in), as before.
+            model.footer = t.tr("打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 取消",
+                                "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel")
         } else {
             model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 原样输入", "\(enter) do it · ↑↓ choose · Esc as typed")
         }

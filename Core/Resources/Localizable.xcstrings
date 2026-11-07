@@ -50508,6 +50508,7 @@
     },
     "Type a command's name, or what you want · Tab picks · ↑↓ · Esc as typed" : {
       "comment" : "打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -50549,6 +50550,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "打命令名，或者想做的事 · Tab 選擇 · ↑↓ · Esc 原樣輸入"
+          }
+        }
+      }
+    },
+    "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel" : {
+      "comment" : "打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einen Befehlsnamen eingeben oder was du möchtest · Tab wählt · ↑↓ · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe el nombre de un comando o lo que quieras · Tab elige · ↑↓ · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez le nom d'une commande, ou ce que vous voulez · Tab choisit · ↑↓ · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド名か、したいことを入力 · Tab 選択 · ↑↓ · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 이름이나 원하는 것을 입력 · Tab 선택 · ↑↓ · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite o nome de um comando ou o que quiser · Tab escolhe · ↑↓ · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打命令名，或者想做的事 · Tab 選擇 · ↑↓ · Esc 取消"
           }
         }
       }
