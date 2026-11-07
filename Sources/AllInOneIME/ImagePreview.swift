@@ -11,7 +11,8 @@ import QuartzCore
 /// than the image itself, on the panel's right 8 pt from it with its top at the row's, smaller there where the room up
 /// to the screen's edge is less (160 pt at least on its longer side), on the panel's left only where even that doesn't
 /// fit, none without room on either side; never over the panel. It follows the pointer and the keys, moves with the
-/// panel and the row, and goes as the panel goes. Pointing at a row changes nothing (the choice, the text).
+/// panel and the row, and goes as the panel goes. Pointing at a row changes nothing (the choice, the text). What it
+/// shows and how long its image took are logged (never the image or its file: `tell`).
 /// Never in the way: its window takes no clicks and never becomes key, and no key waits for it: it follows the panel a
 /// turn of the run loop later (`update`), the row's thumbnail drawn larger until the image is decoded off the main thread
 /// at the size drawn (`ImagePreviewImages`; a few kept while the panel shows, dropped as it hides). It looks as the panel
@@ -32,6 +33,8 @@ final class ImagePreview {
     private(set) var shown: (layout: ImagePreviewLayout.Shown, file: URL)?
     /// An update asked for and not made yet (`update`).
     private var updating = false
+    /// What the log said last (`tell`).
+    private var told: String?
 
     /// Shows beside `panel` from now on.
     func attach(to panel: CandidatePanel) {
@@ -77,15 +80,25 @@ final class ImagePreview {
             files[index] = (kept.file, path)
             return ImagePreviewLayout.ImageRow(pixels: CGSize(width: kept.image.width, height: kept.image.height), top: row.maxY)
         }
-        guard let next, let found = files[next.row] else { return hide() }
+        guard let next, let found = files[next.row] else {
+            // An image row pointed at or chosen, and why none shows for it.
+            let index = ImagePreviewLayout.row(hovered: state.hovered, chosen: state.chosen) { Self.thumbnail(of: model, $0) != nil }
+            tell(index.map { "row \($0 + 1) of \(model.rows.count): \(files[$0] == nil ? "no kept image found" : "no room beside the panel")" })
+            return hide()
+        }
         let (file, thumbnail) = found
         let appearing = shown == nil
         shown = (next, file)
         let side = max(next.imageSize.width, next.imageSize.height) * screen.backingScaleFactor
         let key = ImagePreviewImages.Key(file: file, pixels: Int(side.rounded(.up)))
+        tell("row \(next.row + 1) of \(model.rows.count): kept image found, on the panel's "
+             + "\(next.frame.minX >= panel.frame.maxX ? "right" : "left") at \(Int(next.imageSize.width)) × \(Int(next.imageSize.height)) pt")
         if view.decoded != key {
             // Drawn once decoded if it is still what shows (`images` hands over only the one asked for last).
+            let asked = CACurrentMediaTime()
             let decoded: @MainActor @Sendable (CGImage) -> Void = { [weak self] image in
+                let took = Int((CACurrentMediaTime() - asked) * 1000)
+                log.notice("image preview: decoded at \(key.pixels, privacy: .public) px in \(took, privacy: .public) ms")
                 guard let self, self.shown?.file == key.file else { return }
                 self.view.show(image, for: key)
             }
@@ -109,7 +122,10 @@ final class ImagePreview {
     /// window put away after the key (ordering a window out during one can hold the app up on the window server, as the
     /// panel's comment says). The images decoded are dropped once the panel is hidden.
     func hide() {
-        if panel?.isShowing != true { images.clear() }
+        if panel?.isShowing != true {
+            images.clear()
+            told = nil
+        }
         guard shown != nil else { return }
         shown = nil
         window.contentView?.layer?.removeAnimation(forKey: "appear")
@@ -121,6 +137,14 @@ final class ImagePreview {
                 self.window.orderOut(nil)
             }
         }
+    }
+
+    /// `line` in the log (nil: nothing to say), once each time what it says changes: which row, whether its kept image was
+    /// found, where and how large it shows, or why it doesn't; never the image, its file or the row's text.
+    private func tell(_ line: String?) {
+        guard line != told else { return }
+        told = line
+        if let line { log.notice("image preview: \(line, privacy: .public)") }
     }
 
     /// The file row `index`'s icon draws (clipboard history's thumbnail of a kept image); nil: no such row, or another icon.

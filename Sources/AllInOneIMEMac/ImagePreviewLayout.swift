@@ -1,3 +1,4 @@
+import AllInOneIMECore
 import CoreGraphics
 import Foundation
 import ImageIO
@@ -197,7 +198,13 @@ public final class ImagePreviewImages {
         underway.remove(key)
         // Left for another, and wanted again since: asked again.
         if skipped, wanted?.key == key { return ask(key) }
-        guard let image else { return }
+        guard let image else {
+            if !skipped, wanted?.key == key {
+                CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+                    .notice("image preview: the image couldn't be decoded at \(key.pixels) px; the row's thumbnail stays")
+            }
+            return
+        }
         cache.removeAll { $0.key == key }
         cache.append((key, image))
         if cache.count > Self.kept { cache.removeFirst(cache.count - Self.kept) }
