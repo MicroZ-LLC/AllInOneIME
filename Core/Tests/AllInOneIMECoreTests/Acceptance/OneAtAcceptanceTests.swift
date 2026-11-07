@@ -344,7 +344,7 @@ struct OneAtAcceptanceTests {
                     if firstPicked {
                         if english { first.type("hello") } else { first.write(pinyin: "nihao") }
                         first.press(FakeHost.enter)
-                        let input = english ? "hello" : "你好"
+                        let input = english ? "hello" : "nihao"
                         #expect(first.host.settle(timeout: 5) { world.programs.withLock { $0 } == [input] },
                                 "\(trigger), English \(english): \(world.programs.withLock { $0 })")
                     }
