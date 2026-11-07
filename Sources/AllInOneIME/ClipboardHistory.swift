@@ -100,6 +100,12 @@ enum ClipboardHistoryShared {
             clipboardIsNewest: { MainActor.assumeIsolated { recorder.clipboardIsNewest } })
     }
 
+    /// The kept image a panel row's thumbnail stands for, and its file (`ImagePreview`, the panel's larger picture of it);
+    /// none in the self-test's isolation, whose checks give their own.
+    static func keptImage(thumbnail path: String) -> (image: ClipboardHistoryImage, file: URL)? {
+        isolated ? nil : recorder.store.image(thumbnail: path)
+    }
+
     /// Paste from Other Apps, in System Settings.
     static func openPrivacyPage() {
         NSWorkspace.shared.open(privacyPage)
