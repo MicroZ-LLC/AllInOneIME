@@ -955,10 +955,9 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .notice(text):
                 // Its own small panel, under Translate as You Type's chip if it's on here.
                 if !showTranslateChip(target), let target {
+                    // The wheel over it is this field's: no pointer use in it (GitHub #66).
                     let panel = CandidatePanel.shared
-                    panel.owner = self
-                    panel.onSelect = nil
-                    panel.onDelete = nil
+                    panel.take(by: self, .session({ [weak self] in self?.received($0) }))
                     panel.show(.notice(text), anchor: anchor(target))
                 }
             case let .noticeElsewhere(text, long, progress):
@@ -1504,11 +1503,8 @@ final class AllInOneIMEInputController: IMKInputController {
             return
         }
         let panel = CandidatePanel.shared
-        panel.owner = self
-        panel.onSelect = { [weak self] index in self?.received(.pick(index)) }
-        panel.onDelete = { [weak self] index in self?.received(.delete(index)) }
-        panel.onScroll = { [weak self] steps in self?.received(.scroll(steps)) }
-        panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
+        panel.take(by: self, .session({ [weak self] in self?.received($0) }, rows: true,
+                                      chip: { [weak self] part in self?.translateChipClicked(part) }))
         panel.show(model, anchor: anchor(client))
         hideGhostBehindRows()
     }
@@ -1573,9 +1569,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     static func showLooseNotice(_ text: String, long: Bool) {
         let panel = CandidatePanel.shared
-        panel.owner = looseNoticeOwner
-        panel.onSelect = nil
-        panel.onDelete = nil
+        panel.take(by: looseNoticeOwner, .none)  // no text field's
         panel.show(.notice(text), anchor: .zero)  // an empty anchor: at the mouse pointer
         DispatchQueue.main.asyncAfter(deadline: .now() + SessionText.noticeDuration(text, long: long)) {
             if panel.owner === looseNoticeOwner { panel.hide() }

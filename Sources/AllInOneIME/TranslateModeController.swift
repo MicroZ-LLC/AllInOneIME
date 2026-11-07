@@ -240,14 +240,15 @@ extension AllInOneIMEInputController {
         guard let client, let chip = translateChip() else { return false }
         let model = PanelPresenter.chipModel(chip, notice: notice, language: UIText.language)
         let panel = CandidatePanel.shared
-        panel.owner = self
-        // A click picks the clicked row's choice (`PanelModel.Row.choice`): its language's place in the chip's list.
-        panel.onSelect = { [weak self] index in
-            guard model.rows.indices.contains(index), let choice = model.rows[index].choice else { return }
-            self?.pickTranslateTarget(choice)
-        }
-        panel.onDelete = nil  // its languages are no candidates
-        panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
+        panel.take(by: self, CandidatePanel.Handlers(
+            // A click picks the clicked row's choice (`PanelModel.Row.choice`): its language's place in the chip's list.
+            select: { [weak self] index in
+                guard model.rows.indices.contains(index), let choice = model.rows[index].choice else { return }
+                self?.pickTranslateTarget(choice)
+            },
+            delete: nil,  // its languages are no candidates
+            scroll: { [weak self] steps in self?.received(.scroll(steps)) },  // this field's: no pointer use in it
+            chip: { [weak self] part in self?.translateChipClicked(part) }))
         let anchor = anchor(client)
         if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is
         return true

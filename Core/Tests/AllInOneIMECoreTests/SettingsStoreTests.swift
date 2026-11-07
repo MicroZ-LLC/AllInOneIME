@@ -81,6 +81,29 @@ struct SettingsStoreTests {
         #expect(store.config.openai.effort == "")
     }
 
+    /// A provider's text pasted with spaces or a line break around it (from a console, a table in the docs): saved
+    /// without them, Amazon Bedrock's model ID and region as the other providers' fields; a blank region unset (the
+    /// profile's applies). GitHub #65: the Mac's window saved Bedrock's as pasted, and every request failed ("Invalid
+    /// region: us-west-2 ", the space unseen).
+    @Test func aPastedProviderFieldIsSavedTrimmed() throws {
+        let url = try file(Self.handWritten)
+        let store = SettingsStore(configURL: url)
+        store.setBedrockRegion(" us-west-2 \n")
+        store.setBedrockModelId("\tus.anthropic.claude-haiku-4-5-20251001-v1:0 \r\n")
+        store.save()
+        var saved = try Config.load(from: url)
+        #expect(saved.region == "us-west-2", "\(saved.region ?? "nil")")
+        #expect(saved.modelId == "us.anthropic.claude-haiku-4-5-20251001-v1:0", "\(saved.modelId)")
+        store.setProviderField(.openai, \.baseURL, to: "https://api.deepseek.com/v1\n")
+        store.setProviderField(.anthropic, \.model, to: " claude-sonnet-5-5\n")
+        saved = try Config.load(from: url)
+        #expect(saved.openai.baseURL == "https://api.deepseek.com/v1" && saved.anthropic.model == "claude-sonnet-5-5",
+                "\(saved.openai.baseURL ?? "nil") \(saved.anthropic.model ?? "nil")")
+        store.setBedrockRegion(" \n")
+        store.save()
+        #expect(try Config.load(from: url).region == nil)
+    }
+
     /// Without a file the settings are a new user's (`fresh`, when given), and the first save writes the whole file, as
     /// `Config.write` does.
     @Test func noFileYet() throws {

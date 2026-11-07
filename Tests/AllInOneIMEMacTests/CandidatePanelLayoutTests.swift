@@ -176,7 +176,7 @@ private enum LayoutChild {
         /// What a click at `point` picks.
         static func click(_ panel: CandidatePanel, at point: NSPoint) -> [Int] {
             var picked: [Int] = []
-            panel.onSelect = { picked.append($0) }
+            panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil))
             panel.view.mouseDown(with: event(.leftMouseDown, panel, at: point))
             return picked
         }
@@ -253,7 +253,7 @@ private enum LayoutChild {
 
             // The wheel over the candidates' line moves the list as anywhere on the panel.
             var steps: [Int] = []
-            panel.onScroll = { steps.append($0) }
+            panel.take(by: panel, .init(select: nil, delete: nil, scroll: { steps.append($0) }, chip: nil))
             if let wheel = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0),
                let event = NSEvent(cgEvent: wheel) {
                 view.scrollWheel(with: event)

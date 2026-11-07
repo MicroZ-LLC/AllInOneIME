@@ -284,7 +284,7 @@ extension SelfTest {
         check(listed.map(\.text) == names && listed.map(\.label) == ["✓", "", ""]
               && chip() == zhEn, "a click on 「英」 lists the output languages, English checked: \(listed.map { $0.label + $0.text })")
         snapshot("translate-mode-chip-list", in: snapshotDirectory)
-        panel.onSelect?(1)
+        panel.view.pointer.clicked(1)
         check(controller.composer.translateMode?.target == japanese && chip() == zhJa && panel.view.model.rows.isEmpty
               && client.marked == "你好" && TranslateModeShared.defaults.string(forKey: "translateModeTarget") == "ja",
               "Japanese clicked: the target at once, the chip \(chip()), the draft '\(client.marked)', kept as the last pick")

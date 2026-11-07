@@ -249,6 +249,64 @@ struct OneAtTests {
         }
     }
 
+    /// A password field secure input isn't on in, known as one (the Mac's Accessibility told an `AXSecureTextField`), its
+    /// text selected: "@" never reads the selection nor works on it, as with secure input on, whether the field tells it
+    /// with the key or only Accessibility reads it after; a read under way as the field is told one is dropped. A field
+    /// that couldn't be told reads it as before, and no key waits to tell it.
+    @Test func aKnownPasswordFieldsSelectionIsNeverRead() async {
+        await withInterfaceLanguage("en") {
+            /// "hunter2@pw" in the field, all of it selected; told a password field or not (nil: it couldn't tell).
+            func passwordField(_ told: Bool?) -> FakeHost {
+                let host = field(ScriptFolder())
+                host.document = "hunter2@pw"
+                host.selection = 0..<10
+                host.cannotTellPasswordField = told == nil
+                host.send(.passwordField(told, focus: host.session.fieldSession))
+                return host
+            }
+            /// Whether "@" asks the field for its selection, once secure input is read off.
+            func selectionWanted(_ host: FakeHost) -> Bool {
+                var read = FieldContext()
+                read.read = [.secure]
+                return !host.session.fieldWants(for: FakeHost.at, given: read).isDisjoint(with: [.selection, .selectedRange])
+            }
+            func shown(_ host: FakeHost) -> String { String(describing: host.panel) }
+
+            // The field tells it with the key.
+            let withTheKey = passwordField(true)
+            #expect(!selectionWanted(withTheKey), "not read")
+            withTheKey.press(FakeHost.at)
+            #expect(withTheKey.composer.isComposing && withTheKey.composer.selection == nil, "the list, on nothing")
+            #expect(withTheKey.panel != nil && !shown(withTheKey).contains("hunter2"), "\(shown(withTheKey))")
+            // Only Accessibility can read it, after the key.
+            let after = passwordField(true)
+            var told = after.context
+            told.selection = nil
+            told.selectionFollows = true
+            after.press(FakeHost.at, with: told)
+            #expect(after.selectionReads.isEmpty && !after.composer.selectionPending && after.composer.selection == nil,
+                    "\(after.selectionReads)")
+            #expect(!shown(after).contains("hunter2"), "\(shown(after))")
+            // A read under way as the field is told one.
+            let late = passwordField(false)
+            late.selectionReadsWait = true
+            var lateTold = late.context
+            lateTold.selection = nil
+            lateTold.selectionFollows = true
+            late.press(FakeHost.at, with: lateTold)
+            #expect(late.selectionReads.count == 1 && late.composer.selectionPending)
+            late.send(.passwordField(true, focus: late.session.fieldSession))
+            late.answerFieldReads()
+            #expect(!late.composer.selectionPending && late.composer.selection == nil && !shown(late).contains("hunter2"), "\(shown(late))")
+
+            // A field that couldn't be told: as before.
+            let untold = passwordField(nil)
+            #expect(selectionWanted(untold))
+            untold.press(FakeHost.at)
+            #expect(untold.composer.selection?.text == "hunter2@pw")
+        }
+    }
+
     /// A field (English) with "hello there", all of it selected or nothing, that tells no selection with "@" and reads it
     /// after the key (the Mac's Accessibility: `selectionFollows`): "@" typed, then `text`, the read still in flight, landed
     /// only when the test says (`answerFieldReads`, `selectionReadsGiveUp`). Letters only edit the draft: nothing is

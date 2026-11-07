@@ -187,7 +187,7 @@ public final class InputSession {
         composer.parseReminder = { [weak self] text in self?.services.parseReminder(text) }
         composer.selectionFollows = { [weak self] in
             guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
-            return services.loadSettings().useSelection && !secureInputActive() && !terminal
+            return selectionMayBeRead()
         }
         // The recipients in the address book as last read, on the key.
         composer.instantRecipients = { [weak self] query in
@@ -835,8 +835,8 @@ public final class InputSession {
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
     /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
-    /// field all the same; the selection, unless that "@" comes right after a word). A shell where reading is cheap reads
-    /// it all.
+    /// field all the same; the selection, unless that "@" comes right after a word or the field is known as a password
+    /// field). A shell where reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
@@ -845,7 +845,8 @@ public final class InputSession {
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
-        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
+        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
+        // as a password field (`selectionMayBeRead`).
         let config = services.loadSettings()
         if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
@@ -854,7 +855,7 @@ public final class InputSession {
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               config.useSelection, !secureInputActive() {
+               config.useSelection, !secureInputActive(), passwordField != .yes {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
@@ -1028,12 +1029,18 @@ public final class InputSession {
 
     // MARK: - What the composer asks of the field
 
-    /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key: with the setting on
-    /// (`useSelection`), never during secure input, nor in a terminal (its selection is no text being edited: what goes
-    /// back would be typed at the prompt).
+    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`), never during
+    /// secure input, nor in a field known as a password field where it isn't on (`passwordField`: unknown is read as
+    /// before, no key waiting to tell it), nor in a terminal (its selection is no text being edited: what goes back would
+    /// be typed at the prompt).
+    private func selectionMayBeRead() -> Bool {
+        services.loadSettings().useSelection && !secureInputActive() && passwordField != .yes && !terminal
+    }
+
+    /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key, where it may be read
+    /// (`selectionMayBeRead`).
     private func readSelection() -> Composer.Selection? {
-        guard let context = keyContext, context.read.contains(.selection), services.loadSettings().useSelection,
-              !secureInputActive(), !terminal else { return nil }
+        guard let context = keyContext, context.read.contains(.selection), selectionMayBeRead() else { return nil }
         guard let selection = context.selection else {
             // Read after the key (`selectionFollows`): where the field's selection is now, as it reports it.
             if context.selectionFollows { selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : nil) }
@@ -1043,11 +1050,10 @@ public final class InputSession {
         return selection
     }
 
-    /// `selected`, read after the "@" key, where the draft may take it: with the setting on (`useSelection`), never during
-    /// secure input, nor in a terminal (as `readSelection`).
+    /// `selected`, read after the "@" key, where the draft may take it (`selectionMayBeRead`: a field told a password field
+    /// meanwhile too).
     private func usable(_ selected: Composer.Selection?) -> Composer.Selection? {
-        guard let selected, !selected.text.isEmpty, services.loadSettings().useSelection, !secureInputActive(), !terminal
-        else { return nil }
+        guard let selected, !selected.text.isEmpty, selectionMayBeRead() else { return nil }
         return selected
     }
 

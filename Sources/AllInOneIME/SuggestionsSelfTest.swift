@@ -391,7 +391,7 @@ extension SelfTest {
         let again = pump(timeout: 5) { shown().rows == ["#7021"] + numbers(7001...7004) }
         wheel(7)
         let clicked = shown()
-        panel.view.onSelect?(1)
+        panel.view.pointer.clicked(1)
         _ = pump(timeout: 0.2) { false }
         check(again && clicked.rows == numbers(7003...7007) && client.inserted.last == "04" && controller.session.panelModel().rows.isEmpty,
               "\" #70\" (#7021, picked, first), the wheel to #7007 (\(clicked.rows)), a click on the second row shown puts #7004 in "

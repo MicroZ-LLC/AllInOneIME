@@ -11,8 +11,12 @@ final class CandidatePanel: NSPanel {
         case below, above
     }
 
-    /// The input controller currently showing the panel.
-    weak var owner: AnyObject?
+    /// The input controller currently showing the panel (`take`). Set alone, it takes the panel with nothing for the
+    /// pointer to do: no handler outlives the owner it was given for.
+    var owner: AnyObject? {
+        get { view.pointer.owner }
+        set { view.pointer.take(by: newValue, .none) }
+    }
     let view = CandidateView()
     private var pendingHide: DispatchWorkItem?
     private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
@@ -24,27 +28,14 @@ final class CandidatePanel: NSPanel {
     /// Hidden immediately between words, even while its window is kept ordered for the next word.
     var isShowing: Bool { isVisible && pendingHide == nil }
 
-    var onSelect: ((Int) -> Void)? {
-        get { view.onSelect }
-        set { view.onSelect = newValue }
-    }
+    typealias Handlers = PanelPointer<CandidateView.ChipPart>.Handlers
 
-    /// A row right-clicked: its index in `model.rows` (`SessionEvent.delete`).
-    var onDelete: ((Int) -> Void)? {
-        get { view.onDelete }
-        set { view.onDelete = newValue }
-    }
-
-    /// The scroll wheel or trackpad over the panel: rows to move (down is positive).
-    var onScroll: ((Int) -> Void)? {
-        get { view.onScroll }
-        set { view.onScroll = newValue }
-    }
-
-    /// A part of Translate as You Type's chip clicked (`PanelModel.chip`).
-    var onChip: ((CandidateView.ChipPart) -> Void)? {
-        get { view.onChip }
-        set { view.onChip = newValue }
+    /// Taken by `owner` to show something: what the pointer does over the panel (a row clicked or right-clicked, the
+    /// wheel, the chip clicked) is its own from now on, every handler at once, nil for one it has none of
+    /// (`PanelPointer`): none is left to whoever showed the panel before. The image preview's (`onPresent`, the view's
+    /// `onHover`) stay as they are.
+    func take(by owner: AnyObject, _ handlers: Handlers) {
+        view.pointer.take(by: owner, handlers)
     }
 
     /// Told after each `show` and as it hides: what shows beside it follows it (`ImagePreview`, clipboard history's larger
@@ -433,12 +424,9 @@ final class CandidateView: NSView {
     private var rowsClip: NSRect?
     private var scrolled: CGFloat?
 
-    /// A row clicked: its index in `model.rows`.
-    var onSelect: ((Int) -> Void)?
-    /// A row right-clicked: its index in `model.rows`.
-    var onDelete: ((Int) -> Void)?
-    var onScroll: ((Int) -> Void)?
-    var onChip: ((ChipPart) -> Void)?
+    /// What a click on a row (its index in `model.rows`), a right-click, the wheel and a click on the chip do, and whose
+    /// they are (`CandidatePanel.take`).
+    let pointer = PanelPointer<ChipPart>()
     /// The row under the pointer, drawn lightly highlighted: what a click would pick.
     private(set) var hovered: Int? {
         didSet {
@@ -659,8 +647,8 @@ final class CandidateView: NSView {
         updateShimmer()
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now (the pointer asked once, for both).
-        let pointer = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
-        (hovered, hoveredChip) = (pointer.flatMap(row(at:)), pointer.flatMap(chipPart(at:)))
+        let location = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
+        (hovered, hoveredChip) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)))
     }
 
     /// The chip at the top left: its source and target parts, the arrow between them, one line.
@@ -1383,7 +1371,7 @@ final class CandidateView: NSView {
             let points = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 24
             scrolled = min(max((scrolled ?? rowsShift) - points, 0), overflow)
             relayout()
-            onScroll?(0)  // the pointer on the panel all the same, not in the field (`SessionEvent.scroll`)
+            pointer.scrolled(0)  // the pointer on the panel all the same, not in the field (`SessionEvent.scroll`)
             return
         }
         // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points). Every event is told,
@@ -1393,7 +1381,7 @@ final class CandidateView: NSView {
         pendingScroll -= delta  // content up = further down the list
         let rows = Int(pendingScroll.rounded(.towardZero))
         pendingScroll -= CGFloat(rows)
-        onScroll?(rows)
+        pointer.scrolled(rows)
     }
 
     /// Row `index`'s place, from the view's top left (the highlight's, not sliding); nil: no such row.
@@ -1430,22 +1418,22 @@ final class CandidateView: NSView {
     override func mouseEntered(with event: NSEvent) { hover(event) }
     override func mouseExited(with event: NSEvent) { (hovered, hoveredChip) = (nil, nil) }
 
-    /// A click picks the row as its digit would (`Composer.choose`), or a part of the chip (`onChip`); the text field
+    /// A click picks the row as its digit would (`Composer.choose`), or a part of the chip (`pointer`); the text field
     /// keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {
-            onChip?(part)
+            pointer.chipClicked(part)
         } else if let index = row(at: point) {
             // A Control-click is a right-click.
-            if event.modifierFlags.contains(.control) { onDelete?(index) } else { onSelect?(index) }
+            if event.modifierFlags.contains(.control) { pointer.rightClicked(index) } else { pointer.clicked(index) }
         }
     }
 
-    /// A right-click deletes the row's candidate (`onDelete`), as ⌃⌦ deletes the highlighted one.
+    /// A right-click deletes the row's candidate (`pointer`), as ⌃⌦ deletes the highlighted one.
     override func rightMouseDown(with event: NSEvent) {
         guard let index = row(at: convert(event.locationInWindow, from: nil)) else { return }
-        onDelete?(index)
+        pointer.rightClicked(index)
     }
 }
 

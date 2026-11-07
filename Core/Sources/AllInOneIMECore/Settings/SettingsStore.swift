@@ -424,16 +424,35 @@ public final class SettingsStore {
         save()
     }
 
-    /// One string setting of a provider, as typed: trimmed, and an empty one stored as `empty` (nil: unset, so that the
-    /// default applies and is never written as if typed). Nothing is written unless the value changes.
+    /// One string setting of a provider, as typed: trimmed (`typed`), and an empty one stored as `empty` (nil: unset, so
+    /// that the default applies and is never written as if typed). Nothing is written unless the value changes.
     public func setProviderField(_ provider: Provider, _ key: WritableKeyPath<ProviderSettings, String?>, to value: String,
                                  empty: String? = nil) {
         var settings = providerSettings(provider)
-        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        let trimmed = Self.typed(value)
         let new = trimmed.isEmpty ? empty : trimmed
         guard settings[keyPath: key] != new else { return }
         settings[keyPath: key] = new
         setProviderSettings(settings, for: provider)
+    }
+
+    /// Amazon Bedrock's model ID, as typed: trimmed (`typed`); empty as the field shows it. Saved as the window saves.
+    public func setBedrockModelId(_ value: String) {
+        config.modelId = Self.typed(value)
+    }
+
+    /// Amazon Bedrock's region, as typed: trimmed (`typed`), and an empty one unset (the AWS profile's region applies).
+    /// Saved as the window saves.
+    public func setBedrockRegion(_ value: String) {
+        let region = Self.typed(value)
+        config.region = region.isEmpty ? nil : region
+    }
+
+    /// A provider's text setting (a model ID, a base URL, a region) without the spaces and line breaks around it: pasted
+    /// with it, they would go into every request's address, which then fails ("Invalid region: us-west-2 ", the space
+    /// unseen).
+    static func typed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: Keys

@@ -3033,7 +3033,7 @@ enum SelfTest {
         // today's date ("rq", rime-ice's Lua): a word picked would be learned, and move up in the checks below.
         type("rq", controller, client)
         let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
-        panel.onSelect?(1)
+        panel.view.pointer.clicked(1)
         check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
         testHorizontalCandidates(controller, client, snapshotDirectory: snapshotDirectory)
 
