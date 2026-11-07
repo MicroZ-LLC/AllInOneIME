@@ -146,9 +146,10 @@ extension Composer {
         oneAtHighlightedID = rows[oneAtHighlight].id
     }
 
-    /// Keys while one @ is written. ⏎ and the action key do the highlighted row (with a lone magic key and no selection
-    /// ⏎ puts the key in, as before); Tab picks a command or does the row; ↑↓ move among the rows, also while pinyin is
-    /// composed; Esc leaves the text as typed, also while pinyin is composed (a selection as it is); a digit that goes on
+    /// Keys while one @ is written. ⏎ and the action key do the highlighted row, right after the magic key too (a command
+    /// is picked, one that takes no input runs; no row at all: the text as typed, the key alone too); Tab picks a command
+    /// or does the row; ↑↓ move among the rows, also while pinyin is composed; Esc leaves the text as typed, also while
+    /// pinyin is composed (a selection as it is), and gives the magic key alone up; a digit that goes on
     /// a name composed after the key is part of it (`@base64`); → at the end of the text leaves it as typed and
     /// moves on in the app. Right after the magic key a space or a mark leaves it as typed (`@ ` is an at sign); letters,
     /// digits and "(" start the text. While the letters composed are a command's whole name, Space picks the command, as
@@ -163,8 +164,8 @@ extension Composer {
             // ⇧⏎: as typed.
             if modifiers == [.shift] { return .consumed(finishOneAsTyped()) }
             guard modifiers.isEmpty else { return nil }
-            if lone, selection == nil { return .consumed(finish(committing: draft, selection: .kept)) }
-            // No row at all (a text in an app with No AI): the text goes in as typed, never a dead end.
+            // No row at all (a text in an app with No AI, nothing offered for the key alone): the text goes in as typed,
+            // never a dead end.
             if oneAtRows.isEmpty, selection == nil { return .consumed(finishOneAsTyped()) }
             return .consumed(doHighlightedOneAt(run: true))
         case .tab where plain:
@@ -215,11 +216,9 @@ extension Composer {
         return commitPalette(then: event)
     }
 
-    /// The action key on one @ (nil: not written): the highlighted row, as ⏎ does it (a lone magic key without a
-    /// selection: nil, the key as before).
+    /// The action key on one @ (nil: not written): the highlighted row, as ⏎ does it, right after the magic key too.
     func oneAtActionKey() -> [Effect]? {
         guard oneAt != nil else { return nil }
-        if draft == commandTrigger, !engineState.isComposing, selection == nil { return nil }
         if oneAtRows.isEmpty, selection == nil { return finishOneAsTyped() }
         return doHighlightedOneAt(run: true)
     }
@@ -372,8 +371,8 @@ extension Composer {
 
     /// How `event` goes while the selection after the "@" key is being read (nil: none is). Draft edits are the letters
     /// and digits typed into it, ⌫ and ↑↓. Parked: ⏎, ⇧⏎, Esc, the action key, and Tab, each where the list takes it
-    /// with a selection and without one; right after the magic key the action key or Tab may not be the list's without a
-    /// selection (the key went on to the app), and then it settles the read instead.
+    /// with a selection and without one; right after the magic key Tab isn't the list's where it has no rows without a
+    /// selection (the key goes on to the app), and then it settles the read instead.
     func whileSelectionIsRead(_ event: KeyEvent) -> SelectionReadKey? {
         guard selectionPending, draft.hasPrefix(commandTrigger) else { return nil }
         guard oneAt != nil, parkedForSelection == nil else { return .settles }
@@ -388,9 +387,8 @@ extension Composer {
         case .arrow(.up), .arrow(.down): listsKey = modifiers.isEmpty
         default: listsKey = false
         }
-        // The action key does the highlighted row, with a selection or text typed; right after the magic key with nothing
-        // selected it is the list's only if it is one of its keys (⏎).
-        if isActionKey(event) { return !lone || listsKey ? .parks : .settles }
+        // The action key does the highlighted row, with a selection or without one, right after the magic key too.
+        if isActionKey(event) { return .parks }
         switch event.key {
         case .backspace, .arrow(.up), .arrow(.down):
             return modifiers.isEmpty ? .edits : .settles
@@ -429,8 +427,7 @@ extension Composer {
         case let .key(event)?:
             return effects + doParked(on: row, doesRow: parkedKeyDoesRow(event)) { handleKeyDown(event).effects }
         case .actionKeyTap?:
-            let lone = draft == commandTrigger && !engineState.isComposing
-            return effects + doParked(on: row, doesRow: !lone) { forField(actionKeyPressed() ?? []) }
+            return effects + doParked(on: row, doesRow: true) { forField(actionKeyPressed() ?? []) }
         case let .row(action)?:
             guard oneAt != nil else { return effects }
             return effects + doParked(on: action, doesRow: true) {
@@ -446,7 +443,8 @@ extension Composer {
     /// it with the key. With nothing selected (none, the read gave up, a key, the field's leaving, secure input), one that
     /// does a row (`doesRow`) does the row it was taken on (`row`) if that is still listed under the rules that hold now
     /// (secure input, No AI: no AI row); if not, the text goes in as typed. So `@3*7` ⏎ is "21" whatever settles it, and
-    /// no AI row runs once secure input is on. Those that do no row (Esc, ⇧⏎, ⏎ right after the magic key) do what they do.
+    /// no AI row runs once secure input is on; "@" alone ⏎ picks the command it was pressed on. Those that do no row (Esc,
+    /// ⇧⏎) do what they do.
     private func doParked(on row: OneAt.Action?, doesRow: Bool, _ done: () -> [Effect]) -> [Effect] {
         guard selection == nil, oneAt != nil, doesRow else { return done() }
         guard let row, let listed = oneAtRows.firstIndex(of: row) else { return forField(finishOneAsTyped()) }
@@ -454,13 +452,12 @@ extension Composer {
         return done()
     }
 
-    /// Whether `event`, parked for the selection read, does the highlighted row with nothing selected: ⏎ and the action key
-    /// once something follows the magic key (right after it, ⏎ types the key), and Tab.
+    /// Whether `event`, parked for the selection read, does the highlighted row with nothing selected: ⏎, the action key
+    /// and Tab, right after the magic key too.
     private func parkedKeyDoesRow(_ event: KeyEvent) -> Bool {
         let modifiers = event.modifiers.subtracting(.capsLock)
         if event.key == .tab { return modifiers.subtracting(.shift).isEmpty }
-        let lone = draft == commandTrigger && !engineState.isComposing
         let enter = (event.key == .enter || event.key == .keypadEnter) && modifiers.isEmpty
-        return (enter || isActionKey(event)) && !lone
+        return enter || isActionKey(event)
     }
 }

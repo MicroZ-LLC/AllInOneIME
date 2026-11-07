@@ -3,8 +3,8 @@ import AppKit
 
 /// The icons of the command list, like the colored squares of iOS Settings, as the Mac draws them: the core's tokens
 /// (`IconToken`: one for each built-in command, one for each kind of custom command, a plugin's own or a puzzle piece,
-/// a script extension's own emoji, image or symbol, each with the built-in one it falls back to), and the settings
-/// window's sections.
+/// a script extension's own emoji, image or symbol, an app's, a folder's or a file's own icon as Finder shows it, each
+/// with the built-in one it falls back to), and the settings window's sections.
 enum CommandIcons {
     static func icon(for command: Command) -> CandidateView.Icon { CandidateView.Icon(IconToken.command(command)) }
 
@@ -55,7 +55,8 @@ enum CommandIcons {
 extension CandidateView.Icon {
     /// `token` as the Mac draws it: a built-in icon as its SF Symbol; a symbol the Mac doesn't have (one a custom command,
     /// a plugin or a script extension named) as the token's fallback; an emoji instead of the square; an image file, or
-    /// the fallback when it can't be read.
+    /// the fallback when it can't be read; an app's, a folder's or a file's own icon (`CandidateView.itemIcon`), the
+    /// fallback until it is in.
     init(_ token: IconToken) {
         let color = NSColor.icon(token.color), fallback = token.fallback.appleSymbol
         switch token.glyph {
@@ -67,6 +68,8 @@ extension CandidateView.Icon {
             self.init(symbol: fallback, color: color, emoji: emoji)
         case let .image(path, _):
             self.init(symbol: fallback, color: color, image: CommandIcons.image(path) != nil ? path : nil)
+        case let .item(path, _):
+            self.init(symbol: fallback, color: color, item: path)
         }
     }
 }

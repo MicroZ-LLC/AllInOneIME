@@ -1276,14 +1276,15 @@ struct ComposerTests {
         let r3 = o.handleKeyDown(k("w"))  // in no command's name ("j" is in @js, "k" in @tasks)
         #expect(commits(r3).isEmpty && o.draft == "@w")
         #expect(commits(o.handleKeyDown(escKey)) == ["@w"])
-        // "@ " is just an at sign and a space; Return inserts "@" alone as typed and picks a command being typed; Esc
+        // "@ " is just an at sign and a space; Return picks the highlighted command, after "@" alone too (the first); Esc
         // leaves "@…" as typed; ⌫ removes it.
         let (s, _) = palette()
         #expect(commits(s.handleKeyDown(spaceKey)) == ["@"])
         let (n, _) = palette("que")
         #expect(commits(n.handleKeyDown(enterKey)).isEmpty && n.draft == "@question ")  // Return picks, like Tab
         let (lone, _) = palette()
-        #expect(commits(lone.handleKeyDown(enterKey)) == ["@"])
+        let first = lone.oneAtRows.first?.command?.name ?? "-"
+        #expect(commits(lone.handleKeyDown(enterKey)).isEmpty && lone.draft == "@\(first) ", "\(lone.draft)")
         let (x, _) = palette("que", english: true)
         #expect(commits(x.handleKeyDown(escKey)) == ["@que"] && x.draft.isEmpty)
         let (b, _) = palette("q")

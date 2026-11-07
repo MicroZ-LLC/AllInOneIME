@@ -36,6 +36,9 @@ struct PanelDrawingTests {
         #expect(emoji.kind == PanelIcons.emojiKind && emoji.text == "🍅" && emoji.fallback == PanelIcons.glyph(.scriptShow))
         let image = PanelIcons.flat(IconToken(.image(path: #"C:\icons\a.png"#, fallback: .scriptList), color: .teal))
         #expect(image.kind == PanelIcons.imageKind && image.text == #"C:\icons\a.png"#)
+        // An app's, a folder's or a file's own icon: `@open`'s glyph, on its gray square, as before.
+        let item = PanelIcons.flat(IconToken(.item(path: #"C:\Users\me\Documents"#, fallback: .open), color: .gray))
+        #expect(item == PanelIcons.flat(IconToken.command(.open)), "\(item)")
         #expect(PanelIcons.rgb(.blue) == 0x007AFF && PanelIcons.rgb(.grayscale(0.25)) == 0x404040)
         #expect(PanelIcons.rgb(.rgb(red: 0x34, green: 0xC7, blue: 0x59)) == 0x34C759)
         // The C side's kinds.

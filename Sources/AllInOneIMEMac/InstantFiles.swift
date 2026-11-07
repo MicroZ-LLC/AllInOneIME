@@ -57,6 +57,15 @@ public final class InstantFiles: @unchecked Sendable {
     private var looked: Set<String> = []
     private var made: Date?
     private var making = false
+    private var keptHook: (@Sendable ([String]) -> Void)?
+
+    /// Told the paths of what is kept, on the thread that keeps it, never the key's: what `@open` opened before and the
+    /// index's apps and places (`make`), a folder's entries (`list`). The Mac loads their icons then, off the main thread,
+    /// as they are found (`ItemIcons.prefetch`).
+    public var onKept: (@Sendable ([String]) -> Void)? {
+        get { lock.withLock { keptHook } }
+        set { lock.withLock { keptHook = newValue } }
+    }
 
     public init(index: AppIndex = .shared, recheckInterval: TimeInterval = 30,
                 list: @escaping @Sendable (_ query: String, _ limit: Int) -> [SearchResult] = { FileSearch.complete($0, limit: $1) }) {
@@ -100,6 +109,7 @@ public final class InstantFiles: @unchecked Sendable {
             listings = listings.filter { now.timeIntervalSince($0.value.listed) < Self.listingKept }
             listings[folder] = Listing(prefix: prefix, rows: rows, listed: now)
         }
+        onKept?(rows.map(\.path))
         return Array(rows.prefix(limit))
     }
 
@@ -150,6 +160,8 @@ public final class InstantFiles: @unchecked Sendable {
             (self.apps, self.opened, self.placeNames, looked, made, making) = (apps, opened, placeNames,
                                                                                 Set(history.entries.map(\.path)), now, false)
         }
+        // What was opened before first: it is likelier to be opened again.
+        onKept?(history.entries.map(\.path).filter { indexed.contains($0) || opened[$0] != nil } + apps.map(\.found.path))
     }
 
     /// `FileSearchRanking.search` over what is kept: the apps and places that match `query`, and what was opened before

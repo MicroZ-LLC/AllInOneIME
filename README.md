@@ -122,9 +122,11 @@ Type the magic key (`@` by default) and whatever you want; the list shows what c
 does, with its command's name dimmed on the right (so the command names are there to learn as you go, but you don't
 have to). The first row is highlighted; ⏎ does it, ↑↓ pick another, a click does that one, Esc leaves the text as typed.
 Nothing is sent, run or read before ⏎: the rows come from what is on this Mac, worked out on the key you type.
+A row that opens an app, a folder or a file shows its own icon, as Finder shows it (in `@open`'s list too).
 
 | You type | First row |
 |---|---|
+| `@` alone | Your commands, the most used first: ⏎ picks the highlighted one, as after its name (one that needs nothing typed, such as a snippet, runs) |
 | `@tr`, `@no` | The commands those letters start: `@translate`, `@note` (⏎ picks it, as before; the ones you use in this app first) |
 | `@3*7+2` | `= 23`: ⏎ puts 23 in place of what you typed. Numbers and `+ - * / × ÷ ( ) % ^ .` only (`200*15%` is 30); a whole date or phone number (`2026-11-06`, `11/5`) is no sum |
 | `@github.com/apple/swift` | Open it in the browser |

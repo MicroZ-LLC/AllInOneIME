@@ -194,6 +194,8 @@ final class CandidateView: NSView {
         /// Drawn instead of the symbol on its square: a script extension's own emoji, or image file.
         var emoji: String? = nil
         var image: String? = nil
+        /// Drawn instead of the square once its icon is in (`itemIcon`): the app, folder or file a row opens (its path).
+        var item: String? = nil
     }
 
     /// Translate as You Type's chip (「中 → 英」): the language typed and the one it translates into, each a part to click.
@@ -322,12 +324,34 @@ final class CandidateView: NSView {
     private var inputFrame: NSRect?
     private var footerY: CGFloat = 0
 
+    /// The icon of the app, folder or file a row opens (`Icon.item`), from memory; nil: not in yet (it is asked for, and
+    /// `itemIconsCameIn` says when it is), or none. The input method's reads `ItemIcons`; without it, the symbol.
+    static var itemIcon: (String) -> NSImage? = { _ in nil }
+    static let itemIconsLoaded = Notification.Name("AllInOneIMEItemIconsLoaded")
+    private var itemIconsLoaded: NSObjectProtocol?
+
+    /// The icons of `paths` came in for rows drawn with the symbol: every panel showing one draws it again.
+    static func itemIconsCameIn(_ paths: Set<String>) {
+        NotificationCenter.default.post(name: itemIconsLoaded, object: nil, userInfo: ["paths": paths])
+    }
+
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
         relayout()
+        // An app's, a folder's or a file's icon that came in after its row was drawn with the symbol: drawn now.
+        itemIconsLoaded = NotificationCenter.default.addObserver(forName: Self.itemIconsLoaded, object: nil, queue: .main) {
+            [weak self] note in
+            guard let self, let paths = note.userInfo?["paths"] as? Set<String>,
+                  icons.contains(where: { $0?.item.map(paths.contains) == true }) else { return }
+            needsDisplay = true
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    deinit {
+        if let itemIconsLoaded { NotificationCenter.default.removeObserver(itemIconsLoaded) }
+    }
 
     override var isFlipped: Bool { true }
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -689,8 +713,13 @@ final class CandidateView: NSView {
         }
     }
 
-    /// A white symbol on a colored rounded square (a missing symbol: a generic one), or an emoji.
+    /// A white symbol on a colored rounded square (a missing symbol: a generic one), an emoji, an image, or the icon of the
+    /// app, folder or file a row opens, from memory (`itemIcon`: until it is in, the symbol, and it is asked for).
     static func draw(_ icon: Icon, in frame: NSRect) {
+        if let path = icon.item, let image = itemIcon(path) {
+            image.draw(in: frame, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+            return
+        }
         if let path = icon.image, let image = CommandIcons.image(path) {
             // Kept as it is shaped (clipboard history's thumbnails: a screenshot is wide), centered in the square.
             let size = image.size
