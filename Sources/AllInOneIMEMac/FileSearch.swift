@@ -28,16 +28,23 @@ public enum FileSearch {
         return await files(query, history: history, limit: limit, found: found)
     }
 
-    /// Files, folders and apps for `query` (`run` without the web address).
+    /// One @'s files (`SessionServices.searchFileNames`): what `run` finds by name for `query`, without what the files
+    /// contain, nor a web address (one @ lists that itself). Off the main thread; cancelling the task stops it.
+    public static func names(_ query: String, history: OpenHistory, limit: Int = 8) async -> [SearchResult] {
+        guard SearchResult.web(query) == nil, !query.hasPrefix("/"), !query.hasPrefix("~") else { return [] }
+        return await files(query, history: history, limit: limit, found: nil, content: false)
+    }
+
+    /// Files, folders and apps for `query` (`run` without the web address); by name only without `content`.
     private static func files(_ query: String, history: OpenHistory, limit: Int,
-                              found: (@Sendable ([SearchResult]) -> Void)?) async -> [SearchResult] {
+                              found: (@Sendable ([SearchResult]) -> Void)?, content: Bool = true) async -> [SearchResult] {
         let spotlight = Spotlight(until: .now() + timeLimit)
         return await withTaskCancellationHandler {
             await withCheckedContinuation { continuation in
                 DispatchQueue.global(qos: .userInitiated).async {
                     let isPath = query.hasPrefix("/") || query.hasPrefix("~")
                     let results = isPath ? complete(query, limit: limit)
-                        : search(query, limit: limit, history: history, with: spotlight, found: found)
+                        : search(query, limit: limit, history: history, with: spotlight, found: found, content: content)
                     continuation.resume(returning: spotlight.isCancelled ? [] : results)
                 }
             }
@@ -74,7 +81,7 @@ public enum FileSearch {
     /// `FileSearchRanking.search`. `found` is told the matches by name before the content search starts. Nothing once
     /// cancelled: what was found until then isn't even read.
     static func search(_ query: String, limit: Int, history: OpenHistory, with spotlight: Spotlight,
-                       found: (@Sendable ([SearchResult]) -> Void)? = nil) -> [SearchResult] {
+                       found: (@Sendable ([SearchResult]) -> Void)? = nil, content: Bool = true) -> [SearchResult] {
         let index = AppIndex.shared.apps()
         let keywords = FileSearchRanking.keywords(in: query)
         let entries = index.map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) }
@@ -95,7 +102,7 @@ public enum FileSearch {
                 return found.flatMap { $0 } + opened
             },
             byContent: { predicate in
-                guard spotlight.hasTimeLeft,
+                guard content, spotlight.hasTimeLeft,
                       let output = spotlight.mdfind(["-onlyin", home] + FileSearchRanking.attributes + [predicate]) else { return [] }
                 return FileSearchRanking.parse(output)
             },

@@ -96,6 +96,8 @@ extension SessionServices {
         services.searchFiles = { await FileSearch.run($0, history: $1, found: FileSearchProgress.found) }
         InstantFiles.shared.prepare(history: OpenHistoryStore.history)
         services.instantResults = { InstantFiles.shared.results($0, history: $1) }
+        // One @: Spotlight's names for its text, below what is known at once.
+        services.searchFileNames = { await FileSearch.names($0, history: $1) }
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
         services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }
@@ -144,6 +146,7 @@ extension SessionServices {
             if case let .contacts(contacts) = await ContactBook.load() { return contacts }
             return nil
         }
+        services.cachedContacts = { ContactBook.cached() }
         services.messageSender = AppleScriptMessageSender()
         return services
     }
