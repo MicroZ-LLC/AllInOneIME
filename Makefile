@@ -359,6 +359,12 @@ update-manifest:
 # The tests never read this Mac's AWS files: a test whose settings pick Bedrock (the default provider, which autocomplete
 # now asks) without stubbing the credentials would otherwise send a real, billed request.
 TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+# The tests run on Swift's plain global queues instead of its cooperative pool. That pool has one thread per core and
+# adds none when one waits, and many tests wait on theirs: for a session's work (`FakeHost.settle`), for a child process,
+# for the input method compiled into one (this package's issue suites, eight of them, each for the whole compile), so the
+# other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
+# thread when one waits.
+TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
 test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
@@ -368,8 +374,8 @@ test: deps strings-check check-ios
 	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
-	$(TEST_AWS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
 	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac

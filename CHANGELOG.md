@@ -35,6 +35,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - With Traditional characters (Characters set to Traditional, or left unpicked on a Mac in Traditional Chinese), an app that learns to start in Chinese now says "starts in Chinese (pinyin, Traditional) from now on", as the input menu names it, and so do Privacy → Learned…, the app's row and "Starts in" in the per-app settings, and Previous per-app settings. Before, they all said "Chinese (pinyin)".
 - A plugin whose script is a link to a file elsewhere (its `main.js` linked to a copy you edit) now has its suggestions turned off when you edit that file, as for a plugin update, and turning them on again in Settings → Commands → Plugins runs the edited script. Before, the edit wasn't noticed, and once you turned them on again they stayed off, with no rows, until the input method restarted.
 - Searching the settings for "english words" no longer lists "Your English words" when no input language shows them (French, Korean or Hindi, with neither English nor Chinese). Before, picking the result outlined the input languages, and there was no English words section on the page.
+- A word typed in Settings → Privacy → Words to hide without pressing ⏎ is now saved, and hidden from the AI, as soon as the field loses focus (Tab, a click elsewhere), and when the input method ends (logging out, `make install`). Before, it was saved only on ⏎ or when you left the Privacy page: until then `@improve` and the other AI requests sent it as typed, and if the input method ended meanwhile it was lost.
 
 ## 0.6.8.3 (2026-11-02)
 

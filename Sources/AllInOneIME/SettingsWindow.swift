@@ -110,8 +110,12 @@ final class SettingsModel: ObservableObject {
     var canSave: Bool { store.canSave }
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
-    /// (`SettingsStore.save`). Nothing is written when nothing changed. The window then shows the file as it now is.
-    func save() { store.save() }
+    /// (`SettingsStore.save`), Words to hide typed in without ⏎ too (`flushWords`). Nothing is written when nothing
+    /// changed. The window then shows the file as it now is.
+    func save() {
+        flushWords()
+        store.save()
+    }
 
     /// Reads the config file again if something else changed it, so the window shows it and its next save
     /// doesn't put back what was there before.
@@ -123,9 +127,48 @@ final class SettingsModel: ObservableObject {
     // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first, and edits
     // the list by name, never by an index the page showed (`SettingsStore`).
 
-    /// The hidden-words field saved (Return, or leaving the page). The list to show.
+    /// The hidden-words field saved (`commitWords`, `flushWords`). The list to show.
     @discardableResult
     func saveWords(field text: String, shown: [String]) -> [String] { store.saveWords(field: text, shown: shown) }
+
+    /// Settings → Privacy's Words to hide as typed (`PrivacySection`), kept here so that every save has it (the window
+    /// closing, the input method ending), not only the field's own. `wordsShown`: the words it showed, or held when last
+    /// saved, which an edit is measured against; `wordsEdited`: typed in since it last showed the list. Not being
+    /// edited, it follows the list.
+    @Published private(set) var wordsField = ""
+    private var wordsShown: [String] = []
+    private(set) var wordsEdited = false
+
+    /// The words field showing `list`, not edited.
+    func showWords(_ list: [String]) {
+        wordsField = list.joined(separator: ", ")
+        wordsShown = list
+        wordsEdited = false
+    }
+
+    /// The words field typed in.
+    func editWords(_ text: String) {
+        guard text != wordsField else { return }
+        wordsField = text
+        wordsEdited = true
+    }
+
+    /// Return, the focus leaving the field or the window, the page going: the field's edit, if there was one, applied to
+    /// the list as the file has it now (`saveWords`): the words taken out of the field go, the words put in are added;
+    /// the others, a word added elsewhere since included, stay. The field then shows the list.
+    func commitWords() {
+        guard wordsEdited else { return }
+        showWords(saveWords(field: wordsField, shown: wordsShown))
+    }
+
+    /// Any other save (`save`): the field's edit applied as `commitWords` applies it, the field left as typed (it may
+    /// still be typed in) and measured from now on against what it holds: a word typed halfway and saved goes once
+    /// the rest of it is typed.
+    private func flushWords() {
+        guard wordsEdited else { return }
+        saveWords(field: wordsField, shown: wordsShown)
+        wordsShown = RedactionSettings.words(from: wordsField)
+    }
 
     /// Settings → Input → English Words' Add (`SettingsStore.addEnglishWords`): those added, and those refused as what
     /// hiding sensitive information hides.
