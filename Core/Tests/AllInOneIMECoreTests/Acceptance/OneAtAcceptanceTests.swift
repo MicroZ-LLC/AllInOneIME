@@ -263,7 +263,8 @@ struct OneAtAcceptanceTests {
         /// All the panel says.
         var panelText: String {
             guard let panel = host.panel else { return "" }
-            return (panel.rows.flatMap { [$0.text, $0.comment] } + panel.header + [panel.input?.text ?? "", panel.footer]).joined(separator: " ")
+            return (panel.rows.flatMap { [$0.text, $0.comment] } + panel.header
+                    + [panel.input?.text ?? "", panel.candidates ?? "", panel.footer]).joined(separator: " ")
         }
 
         func type(_ text: String) { host.type(text) }
@@ -927,6 +928,30 @@ struct OneAtAcceptanceTests {
             #expect(!field.host.composer.engineState.isComposing && field.host.composer.draft.contains("你吃饭了吗"),
                     "\(field.host.composer.draft)")
             #expect(field.kinds.first == "question" && field.firstIsHighlighted, "\(field.texts)")
+        }
+    }
+
+    /// With either magic key, one @'s action rows stay above a separate pinyin line; plain pinyin has no such line.
+    @Test func pinyinCandidatesHaveTheirOwnLineOnlyWithMagicKeyRows() async {
+        await inEnglish {
+            for trigger in ["@", "~"] {
+                let world = World(trigger: trigger)
+                let action = world.field()
+                action.type(trigger + "nichifanlema")
+                #expect(action.host.composer.engineState.isComposing, "\(trigger): \(action.host.composer.draft)")
+                #expect(action.kinds.first == "question", "\(trigger): \(action.texts)")
+                #expect(action.host.panel?.candidates?.contains("你吃饭了吗") == true,
+                        "\(trigger): \(String(describing: action.host.panel?.candidates))")
+                #expect(action.host.panel?.header.contains { $0.contains("你吃饭了吗") } == false,
+                        "\(trigger): \(String(describing: action.host.panel?.header))")
+
+                let plain = world.field()
+                plain.type("nichifanlema")
+                #expect(plain.host.composer.engineState.isComposing && plain.host.panel != nil,
+                        "\(trigger): \(plain.host.composer.draft)")
+                #expect(plain.host.panel?.candidates == nil,
+                        "\(trigger): \(String(describing: plain.host.panel?.candidates))")
+            }
         }
     }
 
