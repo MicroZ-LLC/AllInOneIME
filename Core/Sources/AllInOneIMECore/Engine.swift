@@ -56,8 +56,9 @@ public protocol PinyinEngine: AnyObject {
     func snapshot() -> EngineSnapshot
     /// Selects a candidate on the current page (mouse click). Returns true if it was selected.
     func selectCandidate(onPage index: Int) -> Bool
-    /// Deletes a candidate on the current page (a right-click, ⌃⌦): what the engine learned of it is forgotten. Returns
-    /// true if it was one the engine could delete.
+    /// Deletes a candidate on the current page (a right-click, ⌃⌦): what the engine learned of it is forgotten. One made
+    /// from a word and put beside it (an emoji: 👏 after 鼓掌) isn't deleted, the word stays as it was. Returns true if it
+    /// was one the engine could delete.
     func deleteCandidate(onPage index: Int) -> Bool
     /// The candidates the user removed (`EnglishWordsEngine.removedCandidates`), by their text as shown: an engine that
     /// can leave them out itself does (librime, with AllInOneIME's filter: `RemovedCandidates.property`), its pages laid

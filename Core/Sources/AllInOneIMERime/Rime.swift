@@ -659,10 +659,27 @@ public final class RimeSession: PinyinEngine {
     /// librime's `delete_candidate` (rime-ice's ⌃⌦): a word it learned (one made of characters picked one by one too)
     /// is forgotten, one of its dictionary's goes back to where the dictionary puts it. The page is laid out anew then
     /// (from the first), but for one of a translator without a user dictionary it writes: rime-ice's English words and
-    /// custom phrases, a Lua translator's (the date), whose page stays as it was until the next key.
+    /// custom phrases, a Lua translator's (the date), whose page stays as it was until the next key. Not asked for one a
+    /// filter made from a word and put beside it (`isDerived`: rime-ice's emoji, 👏 after 鼓掌), which librime's delete
+    /// takes for that word (its genuine candidate) and would forget it: false, nothing deleted.
     public func deleteCandidate(onPage index: Int) -> Bool {
-        guard isCurrentGeneration, index >= 0 else { return false }
+        guard isCurrentGeneration, index >= 0, !isDerived(onPage: index) else { return false }
         return api.pointee.delete_candidate_on_current_page(id, index) != 0
+    }
+
+    /// Whether the candidate at `index` on the page is one a filter made from a word and put beside it. AllInOneIME's Lua
+    /// filter tells, where the schema has it, from what librime has of the candidate (asked on
+    /// `RemovedCandidates.askedProperty`, it answers on `derivedProperty` at once); where it can't, the text tells
+    /// (`RemovedCandidates.mayBeAWord`).
+    private func isDerived(onPage index: Int) -> Bool {
+        api.pointee.set_property(id, RemovedCandidates.derivedProperty, "")
+        api.pointee.set_property(id, RemovedCandidates.askedProperty, String(index))
+        var answer = [CChar](repeating: 0, count: 8)
+        if api.pointee.get_property(id, RemovedCandidates.derivedProperty, &answer, answer.count - 1) != 0 {
+            return String(cString: answer) == "1"
+        }
+        let page = snapshot().candidates
+        return page.indices.contains(index) && !RemovedCandidates.mayBeAWord(page[index].text)
     }
 
     /// The candidates removed, as librime's property holds them (`setRemovedCandidates`).
