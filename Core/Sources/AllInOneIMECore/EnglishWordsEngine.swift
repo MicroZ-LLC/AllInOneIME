@@ -11,9 +11,9 @@ import Foundation
 /// shorter first. A candidate removed (`removedCandidates`) is left out of every page, librime's by its whole text, a word
 /// by its letters. librime is given them, and leaves its own out itself where the schema has AllInOneIME's filter
 /// (`PinyinEngine.setRemovedCandidates`): its pages laid out from what is left, each full. What it still shows of them
-/// (without the filter, or until it lays the page out again) is left out here, and a page with nothing left is skipped
-/// (`skipEmptyPages`; back from the last). One removed here leaves the page where it was, laid out anew without it
-/// (`deleteCandidate`).
+/// (without the filter: the user's own patch file, Windows; a text the property can't hold) is left out here, and a page
+/// with nothing left is skipped (`skipEmptyPages`; back from the last). One removed here leaves the page where it was,
+/// laid out anew without it (`deleteCandidate`).
 ///
 /// While the page shown isn't librime's (words on it, candidates left out), ↑↓ (← → in a row), Space, the digits and a
 /// click pick by the place shown, numbered as shown; a punctuation key puts the word highlighted in before its mark; a
@@ -466,9 +466,10 @@ public final class EnglishWordsEngine: PinyinEngine {
         guard entries.indices.contains(index) else { return false }
         let shown = entries.map { Self.text(of: $0, in: snap) }
         let at = highlighted(snap, entries) ?? index
-        // On the list (librime's too) before librime deletes it: the pages it lays out anew then leave it out, each full.
-        removedCandidates = RemovedCandidates.adding(shown[index], to: removedCandidates)
+        // Deleted by librime on the page it is on, then on the list (librime's too): its filter lays the composition out
+        // anew without it at once, each page full (`setRemovedCandidates`), whatever librime's delete did.
         if case let .base(i) = entries[index] { _ = base.deleteCandidate(onPage: i) }
+        removedCandidates = RemovedCandidates.adding(shown[index], to: removedCandidates)
         let page = returnToPage(snap.pageNumber)
         pagedBack = false  // nothing shown on it now: on forward, else back from the last
         skipEmptyPages(from: page)

@@ -670,8 +670,9 @@ public final class RimeSession: PinyinEngine {
 
     /// The candidates the user removed, as the context property `RemovedCandidates.property`, one text per line, which
     /// AllInOneIME's Lua filter reads where the schema has it (`RemovedCandidates.luaFilter`): librime leaves them out
-    /// and lays its pages out from what is left, from its next refresh on (the next key; a delete lays the page out
-    /// anew). A text with a line break or a NUL in it, which the property can't hold, is left to `EnglishWordsEngine`.
+    /// and lays its pages out from what is left, what is being typed laid out anew at once (the filter does, on the
+    /// property's change: one just removed, whatever its delete did). A text with a line break or a NUL in it, which the
+    /// property can't hold, is left to `EnglishWordsEngine`.
     /// Set only when it changes. A session made anew (librime deployed again, one it dropped) is a new one of these,
     /// given them by the `EnglishWordsEngine` made on it.
     public func setRemovedCandidates(_ texts: [String]) {
