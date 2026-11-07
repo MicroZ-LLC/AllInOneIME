@@ -275,7 +275,10 @@ public final class InputSession {
         return outputs
     }
 
-    func emit(_ output: SessionOutput) { outputs.append(output) }
+    func emit(_ output: SessionOutput) {
+        outputs.append(output)
+        autocompleteFollow(output)  // what goes into the field, for a kept suggestion on the key
+    }
 
     /// The app of the key being handled, else the field's.
     var app: String? { keyContext?.field?.app ?? field.app }
@@ -832,6 +835,7 @@ public final class InputSession {
         // nothing in the field: there's nothing for the app to take.)
         if composer.isComposing, !composer.draftInPanel, context.markedTextTaken {
             log.notice("the app took the marked text: starting over")
+            autocomplete.known = nil  // the field has text the session didn't put in
             perform(composer.appTookMarkedText())
             lastTyped.forget()
             return true
