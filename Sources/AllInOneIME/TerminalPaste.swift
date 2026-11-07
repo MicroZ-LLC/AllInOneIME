@@ -12,8 +12,9 @@ import ApplicationServices
 /// `ClipboardSnapshot`), it couldn't be put back: an answer goes in on one line then too, and an image is pasted and left
 /// on the clipboard.
 enum TerminalPaste {
-    /// Marks the ⌘V posted here, so the input method lets it through (`isOurs`).
-    static let marker: Int64 = 0x4149_4F49  // "AIOI"
+    /// The V keys posted here, each remembered as it is posted, so the input method lets it through at the key tap
+    /// (`passesTap`) and as the app hands it over (`isOurs`), where its mark is gone (`PostedKeys`).
+    @MainActor private static var posted = PostedKeys()
 
     /// Whether text can be pasted: the clipboard can be read without macOS asking, to be put back after (Paste from Other
     /// Apps: Allow, told without asking; not a copy from an iPhone or another Mac: `ClipboardSnapshot.canTake`), and
@@ -32,10 +33,26 @@ enum TerminalPaste {
 
     @MainActor private static var asked = false
 
-    /// Whether `event` is a ⌘V posted by `paste`, or a ⌃V by `postControlV`.
+    /// Whether `event`, a key down the app handed over, is a V posted here (`postV`: a paste's ⌘V, ⌃V again, an image's
+    /// paste key): it goes on to the app, never answered. Its mark doesn't come with it from the app's process: the one the
+    /// key tap saw, by its time, else the first posted like it (`PostedKeys.handedOver`).
+    @MainActor
     static func isOurs(_ event: NSEvent) -> Bool {
-        event.cgEvent?.getIntegerValueField(.eventSourceUserData) == marker
+        let marked = event.cgEvent.map(PostedKeys.isMarked) ?? false
+        return posted.handedOver(PostedKeys.Key(event), marked: marked, now: ProcessInfo.processInfo.systemUptime)
     }
+
+    /// Whether `event` at the key tap is a key posted here (marked: `PostedKeys.isMarked`), to go on untouched; a key down
+    /// so is known by its time when the app hands it over (`isOurs`).
+    @MainActor
+    static func passesTap(_ type: CGEventType, _ event: CGEvent) -> Bool {
+        guard PostedKeys.isMarked(event) else { return false }
+        if type == .keyDown, let key = NSEvent(cgEvent: event) {  // its time as the app's NSEvent has it
+            _ = posted.atTap(PostedKeys.Key(key), marked: true, now: ProcessInfo.processInfo.systemUptime)
+        }
+        return true
+    }
+
     /// ⌃V to the app, marked as ours (`isOurs`), once no modifier is held: the app's own paste in a terminal or a code
     /// editor (clipboard history's image, ⌃V again).
     @MainActor
@@ -64,14 +81,16 @@ enum TerminalPaste {
         }
     }
 
-    /// V with `flags` down and up, marked as ours (`isOurs`).
+    /// V with `flags` down and up, marked as ours and remembered (`posted`), so that neither the key tap nor the input
+    /// method as the app hands it over answers it (`passesTap`, `isOurs`).
     @MainActor
     private static func postV(_ flags: CGEventFlags) {
         let source = CGEventSource(stateID: .privateState)
+        posted.posting(keyCode: 0x09, modifiers: UInt64(flags.rawValue), now: ProcessInfo.processInfo.systemUptime)
         for down in [true, false] {
             let event = CGEvent(keyboardEventSource: source, virtualKey: 0x09, keyDown: down)  // V
             event?.flags = flags
-            event?.setIntegerValueField(.eventSourceUserData, value: marker)
+            event?.setIntegerValueField(.eventSourceUserData, value: PostedKeys.marker)
             event?.post(tap: .cghidEventTap)
         }
     }
