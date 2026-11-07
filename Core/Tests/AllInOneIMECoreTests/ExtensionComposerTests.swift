@@ -90,11 +90,15 @@ struct ExtensionComposerTests {
         let d = composer(folder)
         typeKeys("@uu", d)
         #expect(started(d.handleKeyDown(enterKey).effects) != nil && d.draft == "@uuid ")
-        // With another action key, ⏎ in the list only picks.
+        // With another action key, ⏎ does the highlighted row too (one @: ⏎ does it); Tab only picks.
         let e = composer(folder)
         e.actionKey = .optionTap
         typeKeys("@uu", e)
-        #expect(started(e.handleKeyDown(enterKey).effects) == nil && e.draft == "@uuid ")
+        #expect(started(e.handleKeyDown(enterKey).effects) != nil && e.draft == "@uuid ")
+        let t = composer(folder)
+        t.actionKey = .optionTap
+        typeKeys("@uu", t)
+        #expect(started(t.handleKeyDown(tab).effects) == nil && t.draft == "@uuid ")
     }
 
     @Test func argumentsComeFromTheText() async throws {
@@ -357,10 +361,15 @@ struct ExtensionComposerTests {
         let e = composer(folder)
         typeKeys("@enc", e)
         #expect(e.paletteMatches.map(\.name) == ["base64"])
-        // Another digit picks a row.
+        // Another digit is text (one @); ↓ and Tab pick the second row.
         let f = composer(folder)
         typeKeys("@base", f)
         _ = f.handleKeyDown(k("2"))
-        #expect(f.draft == "@bases ")
+        #expect(f.draft == "@base2" && f.draftCommand == nil)
+        let g = composer(folder)
+        typeKeys("@base", g)
+        _ = g.handleKeyDown(downKey)
+        _ = g.handleKeyDown(tab)
+        #expect(g.draft == "@bases ")
     }
 }

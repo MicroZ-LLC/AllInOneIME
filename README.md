@@ -39,7 +39,7 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 A macOS input method with AI commands in every text field. Start a sentence with `@` and press ⏎ when done:
 `@improve` polishes what you wrote and offers a few rewrites, `@translate` translates it into the languages you pick,
 `@question` asks a question, `@agent` hands it to a coding agent (Claude Code, Gemini CLI, Kiro CLI …), and `@open` finds files and apps or opens a web
-address. There's nothing else to learn: type `@` and whatever you want (`@saf`, `@3*7+2`, `@明天下午3点开会`, a sentence),
+address. There's nothing else to learn: type the magic key (`@` by default) and whatever you want (`@saf`, `@3*7+2`, `@明天下午3点开会`, a sentence),
 and the list says what can be done with it, the likeliest first ([One @](#one--say-what-you-want-new)). Without `@`, your keys go to the app as usual. It also types Chinese
 (pinyin, built on Rime and rime-ice), French, Korean (Hangul) and Hindi (Devanagari from Latin letters), and runs
 your own scripts as commands.
@@ -59,7 +59,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
-| `@` (at the start of a sentence) | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Digits are text there; while pinyin is typed they pick its words |
+| The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Digits are text there; while pinyin is typed they pick its words |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a follow-up half typed (it's dropped) |
 | ⇧⏎ | With a follow-up typed after AI results: sends it (the next question of an `@question` conversation, or a refine). While a command is typed, or on AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
@@ -110,14 +110,15 @@ Not the other way round: the code of `@py` and `@js` always runs exactly as you 
 ![@open finds apps as you type; starting with /, it's a path: the folder is listed, Tab completes](docs/en/open.png)
 
 When `@` isn't followed by a command, as in `@john`, the list offers what can be done with the text; Esc or → puts it in
-as typed, so @-mentioning people in chat apps still works.
+as typed. If you often @-mention people in chat apps, change the magic key to another key, such as `~`, in Settings →
+General → Magic key.
 Typed right after a letter, a digit, `.`, `_` or `-`, as in `bob@example.com` or `ssh user@host`, `@` is just text: no
 list opens, in every app, terminals included. Right after `@`, a space or a mark (`.`, `:`, `/`) closes the list and
 leaves the `@` as it is; in a terminal ← → on a lone `@` only close the list.
 
 ### One @: say what you want (new)
 
-Type `@` and whatever you want; the list shows what can be done with it, the likeliest first, each row saying what ⏎
+Type the magic key (`@` by default) and whatever you want; the list shows what can be done with it, the likeliest first, each row saying what ⏎
 does, with its command's name dimmed on the right (so the command names are there to learn as you go, but you don't
 have to). The first row is highlighted; ⏎ does it, ↑↓ pick another, a click does that one, Esc leaves the text as typed.
 Nothing is sent, run or read before ⏎: the rows come from what is on this Mac, worked out on the key you type.
@@ -140,7 +141,8 @@ picks one), and the rows are for the sentence as it would be with the first cand
 lists what to do with it: Reply first in a chat app, else Translate (another language) or Improve, Ask AI about it last;
 text typed then is an instruction for the selection ("more formal"). In an app with No AI there are no AI rows: an AI
 command typed by its name (`@tr`) is still listed, and says AI is off there when run; with no row at all, ⏎ types what
-you wrote as it is.
+you wrote as it is. The same while secure input is on (a password field, the lock screen, another app's Secure Keyboard
+Entry): no AI rows, and an AI command typed by its name says secure input is on when run.
 `@name text` works exactly as before, for every command, yours and plugins' included; your own commands, plugins and
 script extensions are also found by the words of their summary, title or keywords (`@email` finds a snippet whose
 summary is "Email signature"), but `run`, `terminal` and `link` commands, snippets and script extensions are never

@@ -55,17 +55,17 @@ struct PanelPresenterTests {
         _ = c.handleKeyDown(at)
         let model = en.model(for: c)
         try #require(!model.rows.isEmpty)
-        #expect(model.rows.count <= Composer.paletteRows)
+        #expect(model.rows.count <= Composer.oneAtRowsShown)
         #expect(model.rows.allSatisfy { !$0.text.hasPrefix("@") && $0.icon != nil })  // the name alone
-        #expect(model.rows.map(\.label) == (1...model.rows.count).map(String.init))
+        #expect(model.rows.allSatisfy { $0.label.isEmpty })  // one @: no numbers, digits are text there
         let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
         #expect(zh.model(for: c).rows.first { $0.text == "improve" }?.comment == "润色，再给几种改写（不翻译）")
-        #expect(model.footer == "⏎ / Tab / Space choose · Esc cancel")
+        #expect(model.footer == "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel")
         // More commands than rows: where the list is.
-        try #require(c.paletteMatches.count > Composer.paletteRows)
-        #expect(model.detail == "1–\(model.rows.count) / \(c.paletteMatches.count)")
+        try #require(c.oneAtRows.count > Composer.oneAtRowsShown)
+        #expect(model.detail == "1–\(model.rows.count) / \(c.oneAtRows.count)")
     }
 
     @Test func aScriptStatusLineIsBesideItsName() {

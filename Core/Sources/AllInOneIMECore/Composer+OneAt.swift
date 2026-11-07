@@ -14,7 +14,7 @@ extension Composer {
     /// pinyin's first candidate, and the letters right after the key: a name being typed (letters and digits only), or
     /// pinyin being composed there. Nil otherwise (level two, dictation, a command written).
     public var oneAt: (text: String, letters: String?)? {
-        guard oneAtList, !isLevelTwo, voice == .off, draft.hasPrefix(commandTrigger), !draftHasCommand else { return nil }
+        guard !isLevelTwo, voice == .off, draft.hasPrefix(commandTrigger), !draftHasCommand else { return nil }
         let after = draft.dropFirst(commandTrigger.count)
         guard engineState.isComposing, let engine else {
             let name = after.first?.isLetter == true && after.allSatisfy { $0.isASCII && ($0.isLetter || $0.isNumber) }
@@ -29,10 +29,11 @@ extension Composer {
     }
 
     /// The rows of the one @ list (`OneAt.actions`), worked out once for what they come from (the text, the selection,
-    /// the commands, their use, the app, Spotlight's files so far).
+    /// the commands, their use, the app, Spotlight's files so far). While secure input is on (`secureInputActive`) it is
+    /// as in an app with No AI: no AI row is guessed (an AI command typed by its name is listed, and refused when run).
     public var oneAtRows: [OneAt.Action] {
         guard let (text, letters) = oneAt else { return [] }
-        let app = appInUse(), noAI = !aiAllowed()
+        let app = appInUse(), noAI = !aiAllowed() || secureInputActive()
         // Spotlight's files for the text: those found for it, else those for the text before that still match it.
         let fileQuery = oneAtFileQuery
         if fileQuery != nil, oneAtFiles.query != fileQuery { showOneAtFiles() }
@@ -204,9 +205,10 @@ extension Composer {
             return .consumed([.updateMarkedText, .showPanel])
         }
         guard lone else { return nil }
-        // Right after the magic key: a key that isn't the list's (←, Home, End, Page Up…) puts the key in and goes to the
-        // app, as in 0.6.9; so does a space or a mark (`@ ` is an at sign).
-        if [Key.arrow(.left), .home, .end, .pageUp, .pageDown, .forwardDelete].contains(event.key) { return commitPalette(then: event) }
+        // Right after the magic key: a key that isn't the list's (←, Home, End, Page Up…, a shortcut such as ⌃V) puts the
+        // key in and goes to the app, as in 0.6.9; so does a space or a mark (`@ ` is an at sign).
+        if [Key.arrow(.left), .home, .end, .pageUp, .pageDown, .forwardDelete].contains(event.key)
+            || !modifiers.isDisjoint(with: [.control, .command]) { return commitPalette(then: event) }
         if event.key == .space { return plain ? commitPalette(then: event) : nil }
         guard plain, let text = event.printableText, let c = text.first, text.count == 1 else { return nil }
         if c.isLetter || c.isNumber || c == "(" || !c.isASCII { return nil }
@@ -295,11 +297,12 @@ extension Composer {
         return effects + (isLevelTwo || phase == .idle ? started : [.updateMarkedText, .showPanel] + started)
     }
 
-    /// Esc, ⇧⏎: the text goes in as typed, the magic key and any pinyin letters with it.
+    /// Esc, ⇧⏎: the text goes in as typed, the magic key and any pinyin letters with it. With a selection nothing goes in,
+    /// as typed elsewhere (`finishAsTyped`): no "@…" over it.
     private func finishOneAsTyped() -> [Effect] {
         var text = draft
         if let engine, engine.snapshot().isComposing { text += engine.rawInput }
-        return finish(committing: text)
+        return finish(committing: text, selection: .kept)
     }
 
     // MARK: Spotlight's files

@@ -1167,9 +1167,9 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        // The commands by name alone: the trigger was just typed.
-        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open"],
-              "@ opens the command palette (\(commands))")
+        // One @'s list for the key alone: the commands by name alone (the trigger was just typed), seven shown.
+        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open", "reply", "note"],
+              "@ opens one @'s list, the commands first (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
         _ = enter(controller, client)
@@ -1190,9 +1190,10 @@ enum SelfTest {
         controller.commitComposition(client)
         needing(.composing)
 
+        // A name's start and Tab pick the command (Space after a part of a name is a space: one @).
         at()
         type("ag", controller, client)
-        _ = space(controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
         type("bangwoxiegeshellxiaojiaoben", controller, client)  // 帮我写个shell小脚本: write me a small shell script
         let insertedBefore = client.inserted
         _ = enter(controller, client)
@@ -1203,8 +1204,9 @@ enum SelfTest {
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
         let secureInput = controller.services.secureInputActive
         controller.services.secureInputActive = { true }
+        // The whole name and Space write it, as "@agent " always did.
         at()
-        type("ag", controller, client)
+        type("agent", controller, client)
         _ = space(controller, client)
         type("nihao", controller, client)
         _ = enter(controller, client)
@@ -1375,11 +1377,15 @@ enum SelfTest {
         (controller.services.searchFiles, controller.services.instantResults) = (searchFiles, instantResults)
         check(client.marked.isEmpty, "…Esc twice: nothing left")
 
-        // "@" with a letter no command starts with is a mention: it goes in as typed.
+        // "@" with a letter no command starts with is one @'s text (a mention, say): Esc puts it in as typed.
         at()
+        let insertedBeforeMention = client.inserted
         type("z", controller, client)
-        check(client.inserted.last == "@" && controller.composer.engineState.isComposing, "@z: '@' goes in, z is pinyin")
+        check(client.inserted == insertedBeforeMention && controller.composer.draft == "@" && controller.composer.engineState.isComposing,
+              "@z: z is pinyin after the '@', nothing goes in yet (\(client.inserted.suffix(2)))")
         _ = escape(controller, client)
+        check(client.inserted.last == "@z" && client.marked.isEmpty && !controller.composer.isComposing,
+              "…Esc puts '@z' in as typed (\(client.inserted.suffix(2)))")
         controller.commitComposition(client)
     }
 
@@ -1496,8 +1502,10 @@ enum SelfTest {
         check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
-        check(rows.map(\.text) == ["reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
-              "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
+        // The command its letters start comes first; one @'s other rows for the text follow it.
+        check(rows.first?.text == "reminder" && rows.first?.comment == "加到提醒事项，时间直接写在里面"
+              && controller.panelModel().highlighted == 0,
+              "@rem offers @reminder first (\(rows.map(\.text)), \(rows.first?.comment ?? "-"))")
         tab()
         controller.readClipboard = { .text("明天下午3点给张三打电话") }
         check(press(controller, client, "v", code: 0x09, flags: .command)
@@ -3242,7 +3250,13 @@ enum SelfTest {
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
-        testAtAfterAWord(controller, client)
+        // One @ and the magic key after a word, with "@" and with another magic key, put back after.
+        for key in ["@", "~"] {
+            withMagicKey(key, controller) {
+                testOneAtList(controller, client)
+                testAtAfterAWord(controller, client)
+            }
+        }
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)

@@ -85,11 +85,11 @@ struct PinyinTests {
     @Test func aCommandWithPinyinInIt() throws {
         let (client, folder) = try client(#"{"inputLanguages": ["zh", "en"], "defaultInput": "zh"}"#)
         defer { try? FileManager.default.removeItem(at: folder) }
-        // "@" then a command's name: the command list, numbered.
+        // "@" then a command's name: one @'s list, the command first, no numbers (digits are text after the key).
         client.type("@impro")
         let palette = try #require(client.panel.model)
         #expect(palette.rows.first?.text == "@improve")
-        #expect(palette.rows.first?.label == "1")
+        #expect(palette.rows.first?.label == "")
     }
 
     @Test func withoutLibrimeTheEngineTypesLatinLetters() throws {
