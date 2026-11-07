@@ -114,12 +114,15 @@ enum LiveExtensions {
 /// The status lines of the commands that have one (`ScriptCommand.status`), shown beside their names in the
 /// command list: run in the background when the list shows them and they're due (`StatusSchedule`), a few at a
 /// time and stopped after `ScriptCommand.Status.timeout`. A slow one never holds the list up; one that ends,
-/// failed or not, lets the next due one start. Main thread only.
+/// failed or not, lets the next due one start. Their last values are kept across launches (`StatusFile`): shown at
+/// once after one, until they're refreshed. Main thread only.
 @MainActor
 final class ScriptStatus {
     static let shared = ScriptStatus()
 
-    private var schedule = StatusSchedule()
+    private var schedule = StatusSchedule(kept: StatusFile.shared.read())
+    /// Where the values are written, off the main thread, one write after another.
+    private static let writes = DispatchQueue(label: "com.aipinyin.inputmethod.script-statuses", qos: .utility)
 
     /// The last status line of `command`, if it has one.
     func text(for command: ScriptCommand) -> String? { schedule.text(for: command.id) }
@@ -140,7 +143,9 @@ final class ScriptStatus {
                         line = nil  // the value before stays until its next refresh time
                     }
                 }
-                self?.schedule.finished(command.id, line: line)
+                if self?.schedule.finished(command.id, line: line) == true, let kept = self?.schedule.kept {
+                    Self.writes.async { StatusFile.shared.write(kept) }
+                }
                 ended()
             }
         }

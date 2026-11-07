@@ -11,6 +11,29 @@ public struct StatusSchedule: Sendable {
 
     public init() {}
 
+    /// With the values `kept` from an earlier launch (`StatusFile`): shown until they're refreshed, due as their refresh
+    /// time says.
+    public init(kept: [String: Kept]) {
+        values = kept.mapValues { ($0.text, $0.at) }
+    }
+
+    /// A status line's value and when it was had: what is kept for the next launch.
+    public struct Kept: Codable, Equatable, Sendable {
+        public var text: String
+        public var at: Date
+
+        public init(text: String, at: Date) {
+            self.text = text
+            self.at = at
+        }
+    }
+
+    /// The values had so far, the newest `StatusFile.limit`, to keep for the next launch.
+    public var kept: [String: Kept] {
+        let had = values.compactMap { id, value in value.text.map { (id, Kept(text: $0, at: value.at)) } }
+        return Dictionary(uniqueKeysWithValues: had.sorted { $0.1.at > $1.1.at }.prefix(StatusFile.limit).map { $0 })
+    }
+
     /// The last status line of the command with `id`.
     public func text(for id: String) -> String? { values[id]?.text ?? nil }
 
@@ -35,6 +58,44 @@ public struct StatusSchedule: Sendable {
         let old = values[id]?.text ?? nil
         values[id] = (line ?? old, now)
         return (line ?? old) != old
+    }
+}
+
+/// The status lines' last values kept across launches (`StatusSchedule.kept`), so the command list shows them at once
+/// after a launch, as it does within one, until they're refreshed: one file among the caches (`CorePaths.cacheDir`),
+/// readable by the user only, written whole after each run that changed a value. A file that can't be read is none.
+public struct StatusFile: Sendable {
+    /// The app's own.
+    public static let shared = StatusFile(url: CorePaths.cacheDir.appendingPathComponent("script-statuses.json"))
+    /// The most values kept: the newest.
+    public static let limit = 200
+
+    public let url: URL
+
+    public init(url: URL) {
+        self.url = url
+    }
+
+    public func read() -> [String: StatusSchedule.Kept] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        guard let data = try? Data(contentsOf: url), let kept = try? decoder.decode([String: StatusSchedule.Kept].self, from: data)
+        else { return [:] }
+        return kept
+    }
+
+    /// `kept` written in place of what the file had (none: the file deleted). A cache: nothing when it can't be written.
+    public func write(_ kept: [String: StatusSchedule.Kept]) {
+        guard !kept.isEmpty else {
+            try? FileManager.default.removeItem(at: url)
+            return
+        }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .secondsSince1970
+        encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        guard let data = try? encoder.encode(kept) else { return }
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? Platform.current.files.writePrivate(data, to: url)
     }
 }
 
