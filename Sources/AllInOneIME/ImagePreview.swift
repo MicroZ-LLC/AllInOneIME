@@ -3,15 +3,15 @@ import AllInOneIMEMac
 import AppKit
 import QuartzCore
 
-/// Clipboard history's larger picture of an image (0.7.0, owner): beside the candidate panel, the image of the row under the
-/// pointer, else of the chosen row (↑↓), when that row is a kept image's (its thumbnail stands for one the history keeps:
-/// `keptImage`). "Image on the clipboard" has none: ⌃V's panel looks only at the clipboard's types, never reads its image,
-/// and nothing more is read for this. Which, how large and where are `ImagePreviewLayout`'s: up to 360 pt on its longer
-/// side and never larger than the image itself, on the panel's right 8 pt from it with its top at the row's, smaller
-/// there where the room up to the screen's edge is less (160 pt at least on its longer side), on the panel's left only
-/// where even that doesn't fit, none without room on either side; never over the panel. It follows the pointer and the
-/// keys, moves with the panel and the row, and goes as the panel goes. Pointing at a row changes nothing (the choice, the
-/// text).
+/// Clipboard history's larger picture of an image (0.7.0, owner): beside the candidate panel, the image of the row
+/// under the pointer, else of the chosen row (↑↓), when that row is a kept image's (its thumbnail stands for one the
+/// history keeps: `keptImage`). "Image on the clipboard" has none: an image not kept yet (⌃V's look keeps one copied
+/// just before, unless that takes longer than a moment: `ClipboardRecorder.poll(limit:quick:)`), and nothing more is
+/// read for it. Which, how large and where are `ImagePreviewLayout`'s: up to 360 pt on its longer side and never larger
+/// than the image itself, on the panel's right 8 pt from it with its top at the row's, smaller there where the room up
+/// to the screen's edge is less (160 pt at least on its longer side), on the panel's left only where even that doesn't
+/// fit, none without room on either side; never over the panel. It follows the pointer and the keys, moves with the
+/// panel and the row, and goes as the panel goes. Pointing at a row changes nothing (the choice, the text).
 /// Never in the way: its window takes no clicks and never becomes key, and no key waits for it: it follows the panel a
 /// turn of the run loop later (`update`), the row's thumbnail drawn larger until the image is decoded off the main thread
 /// at the size drawn (`ImagePreviewImages`; a few kept while the panel shows, dropped as it hides). It looks as the panel
