@@ -41,8 +41,10 @@ enum LivePlugins {
             DispatchQueue.main.async {
                 // Unless the settings scanned meanwhile (`current(rescan: true)`): theirs is as new.
                 if (cached?.at ?? .distantPast) < started {
+                    let before = cached?.result.plugins
                     cached = (Date(), result)
                     found(result.plugins)
+                    if before != result.plugins { changed() }
                 }
                 scanning = false
                 if scanAgain {
@@ -60,6 +62,14 @@ enum LivePlugins {
     /// Told the plugins each scan finds, on the main thread: the input method's `SuggestionsShared.pluginsFound` (one
     /// found here for the first time has its completion sources turned on); nothing by default.
     static var found: ([InstalledPlugin]) -> Void = { _ in }
+    /// Told on the main thread when a scan in the background found other plugins than before (the first one at launch
+    /// too): the field's "@" list, if one is open, shows them at once.
+    static var changed: () -> Void = {}
+
+    /// The plugins scanned in the background now, at launch: the first "@" has them.
+    static func prepare() {
+        _ = current()
+    }
 }
 
 /// How much each @ command is used (the order of the command list), shared by every text field and kept

@@ -219,6 +219,12 @@ func runServer(showSettings: Bool = false) -> Never {
     // A plugin found for the first time (installed, put in the plugins folder, or there before 0.6.7.2): its completion
     // sources on, as each scan of the plugins folder finds it.
     LivePlugins.found = { plugins in MainActor.assumeIsolated { SuggestionsShared.pluginsFound(plugins) } }
+    // The extensions and plugins found in the background now, not at the first field's focus: the first "@" has them; a
+    // rebuild that lands while an "@" list is open shows them there at once.
+    LiveExtensions.changed = { MainActor.assumeIsolated { AllInOneIMEInputController.activeController?.commandsChanged() } }
+    LivePlugins.changed = { MainActor.assumeIsolated { AllInOneIMEInputController.activeController?.commandsChanged() } }
+    LiveExtensions.prepare(LiveConfig.current)
+    LivePlugins.prepare()
     // English words learned while the config file didn't parse (or couldn't be written): written once it parses again.
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
