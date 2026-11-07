@@ -48,8 +48,8 @@ typedef struct AioPanelRow {
 enum { AIO_STATUS_NONE = 0, AIO_STATUS_HINT = 1, AIO_STATUS_LOADING = 2, AIO_STATUS_ERROR = 3, AIO_STATUS_LIST = 4 };
 
 /// The core's PanelModel, flat. From top to bottom: where a conversation can go on (the hand-off: its title, then a chip
-/// per destination), the line of input, the header's lines, the rows, the status, and the footer with the detail on its
-/// right.
+/// per destination), the line of input, the header's lines, the rows, the status, the pinyin candidates shown with the
+/// rows, and the footer with the detail on its right.
 typedef struct AioPanelModel {
     const AioPanelRow *rows;
     int32_t rowCount;
@@ -64,6 +64,9 @@ typedef struct AioPanelModel {
     const uint16_t *status;
     const uint16_t *const *statusItems;
     int32_t statusItemCount;
+    /// The pinyin candidates on one line, while they are composed with rows that aren't them (one @'s): under the rows
+    /// and the status, just above the footer. Nil: none.
+    const uint16_t *candidates;
     /// The line of input (a command written on the selection, a refine instruction, the next question): nil for none.
     /// Its prompt is drawn dimmed before its text; the caret is at `inputCaret` in the text, in UTF-16 units (-1: none,
     /// the text only shown).

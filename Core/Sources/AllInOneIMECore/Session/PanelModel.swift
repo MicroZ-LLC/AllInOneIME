@@ -2,9 +2,9 @@ import Foundation
 
 /// The candidate panel as data, the same on every platform: what `PanelPresenter` makes of the composer, and what each
 /// shell draws (the Mac: `CandidateView`). From top to bottom: Translate as You Type's chip, where a conversation can go
-/// on (`handoff`), the input line, the header's lines, the rows, the status, and the footer with the detail on its
-/// right. Its text is in the language and with the key names it was made with; what is structure (a caret, a list of
-/// choices, lines) is data, for each shell to draw its own way.
+/// on (`handoff`), the input line, the header's lines, the rows, the status, the pinyin candidates shown with the rows
+/// (`candidates`), and the footer with the detail on its right. Its text is in the language and with the key names it
+/// was made with; what is structure (a caret, a list of choices, lines) is data, for each shell to draw its own way.
 public struct PanelModel: Equatable, Sendable {
     public struct Row: Equatable, Sendable {
         /// How a row is drawn.
@@ -138,6 +138,11 @@ public struct PanelModel: Equatable, Sendable {
     /// The lines above the rows, each its own: what the panel works on (the text selected in the field), what the draft
     /// has attached (a screenshot's two), the refinements so far.
     public var header: [String]
+    /// The pinyin candidates on one line ("1 你好   2 拟好 …"), while they are composed with rows that aren't them (one @'s
+    /// after the magic key): under the rows and the status, just above the footer, whichever side of the caret the panel
+    /// is on, so the rows stay where they are as pinyin starts and ends. Nil: none (plain typing's candidates are the
+    /// rows).
+    public var candidates: String?
     public var footer: String
     /// On the footer's right: the page, the time a result took, a notice.
     public var detail: String?
@@ -150,14 +155,15 @@ public struct PanelModel: Equatable, Sendable {
     public var chip: Chip?
 
     public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil,
-                handoff: Handoff? = nil, header: [String] = [], footer: String = "", detail: String? = nil, horizontal: Bool = false,
-                transcript: Bool = false, chip: Chip? = nil) {
+                handoff: Handoff? = nil, header: [String] = [], candidates: String? = nil, footer: String = "", detail: String? = nil,
+                horizontal: Bool = false, transcript: Bool = false, chip: Chip? = nil) {
         self.rows = rows
         self.highlighted = highlighted
         self.status = status
         self.input = input
         self.handoff = handoff
         self.header = header
+        self.candidates = candidates
         self.footer = footer
         self.detail = detail
         self.horizontal = horizontal

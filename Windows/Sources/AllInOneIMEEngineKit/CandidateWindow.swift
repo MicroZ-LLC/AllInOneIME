@@ -203,8 +203,8 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
     }
 
     /// `model` as `AioPanelModel`, its strings alive for `body`: the input's prompt, text and caret (in UTF-16 units),
-    /// the header's lines, the hand-off's title and chips, the status (a list's items), each row's icon
-    /// (`PanelIcons`), and whether the rows are a conversation. A row's `choice` stays with the engine
+    /// the header's lines, the hand-off's title and chips, the status (a list's items), the candidates' line, each row's
+    /// icon (`PanelIcons`), and whether the rows are a conversation. A row's `choice` stays with the engine
     /// (`PanelOwner.choose`); Translate as You Type's chip is the Mac's.
     static func withModel(_ model: PanelModel, _ body: (UnsafePointer<AioPanelModel>) -> Void) {
         var strings: [UnsafeMutablePointer<UInt16>] = []
@@ -251,7 +251,7 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
                 rows: UnsafePointer(buffer.baseAddress), rowCount: Int32(buffer.count),
                 highlighted: Int32(model.highlighted ?? -1), horizontal: model.horizontal ? 1 : 0,
                 transcript: model.transcript ? 1 : 0, statusKind: kind, status: status.flatMap(some),
-                statusItems: all(items), statusItemCount: Int32(items.count),
+                statusItems: all(items), statusItemCount: Int32(items.count), candidates: model.candidates.flatMap(some),
                 inputPrompt: model.input.flatMap { some($0.prompt) }, inputText: model.input.flatMap { c($0.text) },
                 inputCaret: Int32(model.input?.utf16Caret ?? -1),
                 headerLines: all(model.header), headerCount: Int32(model.header.count),

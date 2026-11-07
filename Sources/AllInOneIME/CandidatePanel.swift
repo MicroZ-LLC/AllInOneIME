@@ -321,8 +321,11 @@ final class CandidateView: NSView {
     private var icons: [Icon?] = []
     private var statusFrame: NSRect?
     private var headerFrame: NSRect?
+    /// Where the pinyin candidates shown with the rows are (`PanelModel.candidates`): under the rows and the status.
+    private(set) var candidatesFrame: NSRect?
     private var inputFrame: NSRect?
-    private var footerY: CGFloat = 0
+    /// Where the footer's line is, from the top.
+    private(set) var footerY: CGFloat = 0
 
     /// The icon of the app, folder or file a row opens (`Icon.item`), from memory; nil: not in yet (it is asked for, and
     /// `itemIconsCameIn` says when it is), or none. The input method's reads `ItemIcons`; without it, the symbol.
@@ -374,6 +377,7 @@ final class CandidateView: NSView {
             chipFrames = frames
             widest = max(widest, frames.whole.maxX - inset - Metrics.rowInsetX)
             let alone = model.rows.isEmpty && model.status == .none && model.footer.isEmpty && model.inputText == nil && model.header.isEmpty
+                && model.candidates == nil
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
         inputFrame = nil
@@ -429,6 +433,15 @@ final class CandidateView: NSView {
             statusFrame = NSRect(x: statusX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
+        // The pinyin candidates shown with the rows: under them, just above the footer, so the rows stay where they are
+        // as pinyin starts and ends (a header's line would move them down).
+        candidatesFrame = nil
+        if let candidates = candidatesString() {
+            let size = Self.measure(candidates, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
+            candidatesFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            y += size.height + 2 * Metrics.rowInsetY
+        }
 
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
         var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
@@ -467,8 +480,8 @@ final class CandidateView: NSView {
 
     /// A conversation taller than `maxHeight`: its rows are shown between `rowsTop` and what is left above the status
     /// and footer, moved up to show the bottom of the last one, or the highlighted one when it is above (an earlier
-    /// answer picked with ↑), or as far as the wheel moved them; the status and the footer move up with the bottom of
-    /// the panel.
+    /// answer picked with ↑), or as far as the wheel moved them; the status, the candidates and the footer move up with
+    /// the bottom of the panel.
     private func fitTranscript(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
         rowsShift = 0
         rowsClip = nil
@@ -492,6 +505,7 @@ final class CandidateView: NSView {
             rowLayouts[i].iconFrame?.origin.y -= shift
         }
         statusFrame?.origin.y -= overflow
+        candidatesFrame?.origin.y -= overflow
         footerY -= overflow
     }
 
@@ -600,6 +614,13 @@ final class CandidateView: NSView {
         }
     }
 
+    /// The candidates' line, as the header's lines look.
+    private func candidatesString() -> NSAttributedString? {
+        model.candidates.map {
+            NSAttributedString(string: $0, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
+        }
+    }
+
     private func statusString() -> NSAttributedString? {
         switch model.status {
         case .none:
@@ -698,6 +719,9 @@ final class CandidateView: NSView {
 
         if let statusFrame, let status = statusString() {
             status.draw(with: statusFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        }
+        if let candidatesFrame, let candidates = candidatesString() {
+            candidates.draw(with: candidatesFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
 
         if !model.footer.isEmpty {

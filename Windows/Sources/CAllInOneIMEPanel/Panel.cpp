@@ -91,6 +91,7 @@ struct Model {
     int statusKind = AIO_STATUS_NONE;
     std::wstring status;
     std::vector<std::wstring> statusItems;
+    std::wstring candidates;  // the pinyin candidates shown with the rows, on a line under them
     bool hasInput = false;
     std::wstring inputPrompt, inputText;
     int inputCaret = -1;  // in inputText, UTF-16
@@ -100,7 +101,7 @@ struct Model {
     std::wstring footer, detail;
     bool empty() const {
         return rows.empty() && statusKind == AIO_STATUS_NONE && !hasInput && header.empty() && handoffTitle.empty() &&
-               handoff.empty() && footer.empty() && detail.empty();
+               handoff.empty() && candidates.empty() && footer.empty() && detail.empty();
     }
 };
 
@@ -128,6 +129,7 @@ Model CopyModel(const AioPanelModel *m) {
     model.statusKind = m->statusKind;
     model.status = Copy(m->status);
     model.statusItems = CopyAll(m->statusItems, m->statusItemCount);
+    model.candidates = Copy(m->candidates);
     model.hasInput = m->inputText != nullptr;
     model.inputPrompt = Copy(m->inputPrompt);
     model.inputText = Copy(m->inputText);
@@ -881,7 +883,7 @@ void DrawIcon(AioPanel *p, const Icon &icon, D2D1_RECT_F box, const D2D1_COLOR_F
 // rows' rectangles (clicks), where the first row's text starts (the caret goes under it), where the input's caret was
 // drawn and how far a conversation's rows are scrolled. A conversation (`transcript`) is no taller than `maxHeight`
 // pixels (0: no limit). From top to bottom: the hand-off, the input, the header's lines, the rows, the status, the
-// footer.
+// pinyin candidates shown with the rows, the footer.
 bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
     MakeFormats(p);
     const float s = Scale(p);
@@ -1035,6 +1037,14 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
             if (!items.empty()) y += lineGap;
         }
     }
+    // The pinyin candidates shown with the rows: under them, just above the footer, so the rows stay where they are as
+    // pinyin starts and ends (a header's line would move them down).
+    float candidatesY = -1;
+    if (!model.candidates.empty()) {
+        widen(Measure(p, model.candidates, p->statusFormat, maxRow).width + 2 * insetX);
+        candidatesY = y;
+        y += statusHeight + lineGap;
+    }
     // The footer, the detail on its right.
     float footerY = -1;
     const bool footerRule = y > padding;
@@ -1046,7 +1056,7 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         footerY = y;
         y += footerHeight + insetY;
     }
-    float height = y + padding - (footerY < 0 && statusY < 0 && items.empty() && !model.rows.empty() ? lineGap : 0);
+    float height = y + padding - (footerY < 0 && statusY < 0 && items.empty() && candidatesY < 0 && !model.rows.empty() ? lineGap : 0);
 
     // A conversation no taller than `maxHeight`: its rows scrolled to show the last one, or the highlighted one when it
     // is above; what comes after the rows moves up.
@@ -1062,6 +1072,7 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         height -= cut;
         if (statusY >= 0) statusY -= cut;
         for (float &v : itemY) v -= cut;
+        if (candidatesY >= 0) candidatesY -= cut;
         if (footerY >= 0) footerY -= cut;
     }
 
@@ -1192,6 +1203,9 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         DrawLayout(p, status, left + insetX, statusY, color, model.statusKind != AIO_STATUS_ERROR);
     }
     for (size_t i = 0; i < items.size(); ++i) DrawLayout(p, items[i], left + insetX + bulletIndent, itemY[i], colors.secondary);
+    if (candidatesY >= 0) {
+        DrawText(p, model.candidates, p->statusFormat, left + insetX, candidatesY, inner - 2 * insetX, statusHeight, colors.secondary);
+    }
     if (footerY >= 0) {
         if (footerRule) {
             float ruleY = std::round(footerY - std::round(3 * s)) + 0.5f;

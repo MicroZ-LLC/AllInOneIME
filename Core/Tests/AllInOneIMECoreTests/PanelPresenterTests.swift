@@ -42,6 +42,8 @@ struct PanelPresenterTests {
         #expect(zh.footer == "空格 选词 · 开头打 @ 用命令")
         #expect(en.footer == "Space picks · type @ first for commands")
         #expect(zh.status == .none && zh.input == nil && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
+        // The candidates are the rows: no line of them besides (`candidates`, one @'s).
+        #expect(zh.candidates == nil)
         // A click on a row picks what its number would.
         #expect(zh.rows.map(\.choice) == [0, 1])
     }
@@ -66,6 +68,64 @@ struct PanelPresenterTests {
         // More commands than rows: where the list is.
         try #require(c.oneAtRows.count > Composer.oneAtRowsShown)
         #expect(model.detail == "1–\(model.rows.count) / \(c.oneAtRows.count)")
+    }
+
+    // MARK: - One @ while pinyin composes
+
+    /// Pinyin composed after the magic key: one @'s rows first, at the top, for the text with the first candidate, and
+    /// the candidates on their own line under them (`candidates`, just above the footer), never a header line above
+    /// them. The rows are what they'd be with the candidate picked, so as pinyin ends only that line goes.
+    @Test func oneAtsRowsComeFirstAndThePinyinCandidatesUnderThem() throws {
+        let c = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("nihao", c)
+        try #require(c.engineState.isComposing && c.oneAt?.text == "你好")
+        for presenter in [zh, en] {
+            let model = presenter.model(for: c)
+            #expect(model.candidates == "1 你好   2 拟好")
+            #expect(model.header.isEmpty && model.input == nil && model.status == .none)
+            // The rows are one @'s (what can be done with 你好), none of them a candidate; the first highlighted, each
+            // clicked by its own index.
+            try #require(!model.rows.isEmpty)
+            #expect(!model.rows.contains { ["你好", "拟好"].contains($0.text) }, "\(model.rows.map(\.text))")
+            #expect(model.rows.allSatisfy { $0.label.isEmpty && $0.pickable })
+            #expect(model.highlighted == 0 && model.rows.map(\.choice) == model.rows.indices.map { Optional($0) })
+        }
+        #expect(en.model(for: c).footer == "Space picks a word · ⏎ do the highlighted row · ↑↓ choose")
+        let composing = en.model(for: c)
+        // Space picks 你好: the candidates' line goes; the rows above it stay as they were.
+        _ = c.handleKeyDown(spaceKey)
+        try #require(!c.engineState.isComposing && c.draft == "@你好", "\(c.draft)")
+        let picked = en.model(for: c)
+        #expect(picked.candidates == nil && picked.header.isEmpty)
+        #expect(picked.rows == composing.rows && picked.highlighted == composing.highlighted)
+        // Typing pinyin again in the text: the line is back, under the same kind of rows.
+        type("nihao", c)
+        try #require(c.engineState.isComposing)
+        #expect(en.model(for: c).candidates == "1 你好   2 拟好" && en.model(for: c).header.isEmpty)
+    }
+
+    /// With text selected, the line of what the panel works on stays above the rows (the header), the candidates of the
+    /// instruction being typed under them.
+    @Test func withASelectionTheHeaderIsAboveTheRowsAndTheCandidatesUnder() throws {
+        let c = composer(key: .enter)
+        c.readSelection = { Composer.Selection(text: "hello there", range: 0..<11) }
+        _ = c.handleKeyDown(at)
+        type("nihao", c)
+        try #require(c.engineState.isComposing && c.selection != nil)
+        let model = en.model(for: c)
+        #expect(model.header == [try #require(SessionText.selectionHeader(c, language: "en"))])
+        #expect(model.candidates == "1 你好   2 拟好")
+        #expect(!model.rows.isEmpty && !model.rows.contains { ["你好", "拟好"].contains($0.text) })
+    }
+
+    /// A command's text composed (`@improve nihao`): its candidates are the rows, as in plain typing; no line besides.
+    @Test func aCommandsComposedTextHasItsCandidatesAsTheRows() {
+        let c = composer()
+        improveDraft(c)
+        type("nihao", c)
+        let model = en.model(for: c)
+        #expect(model.rows.map(\.text) == ["你好", "拟好"] && model.candidates == nil && model.header.isEmpty)
     }
 
     @Test func aScriptStatusLineIsBesideItsName() {
