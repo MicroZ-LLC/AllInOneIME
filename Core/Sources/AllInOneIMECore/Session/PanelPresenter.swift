@@ -300,6 +300,9 @@ public struct PanelPresenter {
                     : t.tr("识别中… · Esc 取消", "Recognizing… · Esc cancel")
             }
             model.detail = composer.messages.mode(composer.inputLanguage)
+        } else if composer.oneAt != nil {
+            // One @: what can be done with the text, the likeliest first; while pinyin is composed, its candidates on top.
+            oneAtPanel(composer, into: &model)
         } else if composer.engineState.isComposing {
             let state = composer.engineState
             model.rows = state.candidates.map {
@@ -410,12 +413,89 @@ public struct PanelPresenter {
         model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
             + SessionText.attachmentHeader(composer, language: language, terms: terms)
             + [SessionText.refineHeader(composer, language: language)].compactMap { $0 }
+        // One @ with pinyin composed: its candidates are the top line, as while typing (Space picks the first).
+        if composer.oneAt != nil, composer.engineState.isComposing {
+            model.header.insert(composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   "), at: 0)
+        }
         // A click on a row picks what its number would.
         for index in model.rows.indices { model.rows[index].choice = index }
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.
         if composer.inModeComposition { model.chip = chip().map { PanelModel.Chip($0, language: language) } }
         return model
+    }
+
+    // MARK: - One @
+
+    /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
+    /// found by name: the name, and what it does), no numbers (digits are text there); the first highlighted, ↑↓ move.
+    private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
+        let all = composer.oneAtRows, first = composer.oneAtFirstVisible
+        model.rows = composer.oneAtVisible.map { oneAtRow($0, composer) }
+        model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
+        if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
+        let enter = terms.enter
+        if composer.engineState.isComposing {
+            model.footer = t.tr("空格 选词 · \(enter) 执行选中的一行 · ↑↓ 选择", "Space picks a word · \(enter) do the highlighted row · ↑↓ choose")
+        } else if composer.selection != nil {
+            model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变", "\(enter) do it · ↑↓ choose · Esc cancel, the selection stays")
+        } else if composer.draft == composer.commandTrigger {
+            model.footer = t.tr("打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 原样输入",
+                                "Type a command's name, or what you want · Tab picks · ↑↓ · Esc as typed")
+        } else {
+            model.footer = t.tr("\(enter) 执行 · ↑↓ 选择 · Esc 原样输入", "\(enter) do it · ↑↓ choose · Esc as typed")
+        }
+    }
+
+    /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
+    private func oneAtRow(_ action: OneAt.Action, _ composer: Composer) -> PanelModel.Row {
+        typealias Row = PanelModel.Row
+        let trigger = composer.commandTrigger
+        func named(_ command: Command) -> String { trigger + command.name }
+        switch action {
+        case let .command(command):
+            // The name alone, as the command list shows it; its summary's examples written with the trigger in use.
+            return Row(label: "", text: command.name,
+                       comment: Self.withTrigger(t.summary(command, status: command.script.flatMap(scriptStatus), terms: terms), trigger),
+                       kind: .candidate, icon: IconToken.command(command))
+        case let .value(value):
+            return Row(label: "", text: "= " + value, comment: t.tr("上屏", "insert"), kind: .candidate)
+        case let .open(result):
+            let row = SessionText.openRow(result, language: language, terms: terms)
+            return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
+                       kind: .candidate, icon: IconToken.command(.open))
+        case let .reminder(reminder):
+            // When as read, as the spec's rows say it (「明天 15:00」), unless the clock is pinned.
+            let when = reminder.when(now: Platform.current.clock.now, language: language, clock24: UIText.clock24 ?? true)
+            return Row(label: "", text: t.tr("提醒：\(when) \(reminder.title)", "Reminder: \(when) \(reminder.title)"),
+                       comment: named(.reminder), kind: .candidate, icon: IconToken.command(.reminder))
+        case let .write(command):
+            return Row(label: "", text: oneAtWriting(command, composer), comment: named(command), kind: .candidate,
+                       icon: IconToken.command(command))
+        case .edit:
+            return Row(label: "", text: t.tr("按这句话改选中的文字", "Rewrite the selection as it says"), comment: named(.improve),
+                       kind: .candidate, icon: IconToken.command(.improve))
+        }
+    }
+
+    /// What a writing action does, in a few words: 「改写」, 「翻译成英文」 (the languages `@translate` would translate the
+    /// text into), 「问 AI」, 「回复」; one of the user's by its summary.
+    private func oneAtWriting(_ command: Command, _ composer: Composer) -> String {
+        switch command {
+        case .improve: return t.tr("改写", "Improve")
+        case .translate:
+            let text = composer.selection?.text ?? composer.oneAt?.text ?? ""
+            let plan = WritingPlan.make(.translate, text: text, config: config)
+            let targets = ([plan.versions].compactMap { $0 }.filter { $0 != plan.input }) + plan.translations
+            guard !targets.isEmpty else { return t.tr("翻译", "Translate") }
+            let names = targets.map { t.name($0, typing: config.typedChinese) }.joined(separator: t.tr("、", ", "))
+            return t.tr("翻译成\(names)", "Translate into \(names)")
+        case .question: return t.tr("问 AI", "Ask AI")
+        case .reply: return t.tr("回复", "Reply")
+        default:
+            let summary = t.summary(command, terms: terms)
+            return summary.isEmpty ? command.name : summary
+        }
     }
 
     /// Whether a list row can be picked (a click, the pointer over it): not a row of information.

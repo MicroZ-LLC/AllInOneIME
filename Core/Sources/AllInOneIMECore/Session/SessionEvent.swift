@@ -30,6 +30,9 @@ public enum SessionEvent: Sendable {
     /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
     /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
     case passwordField(Bool?, focus: Int)
+    /// The selection read after the "@" key (`SessionOutput.readSelection`) in the field that had the focus then
+    /// (`focus`); nil: none. One for a field that has lost the focus since is dropped.
+    case selection(Composer.Selection?, focus: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
     /// A timer the session started (`SessionOutput.startTimer`) went off.
@@ -119,6 +122,9 @@ public enum SessionOutput: Equatable, Sendable {
     /// thread (the Mac asks Accessibility, which may take a quarter of a second: no key waits for it), and hand it back
     /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
     case readPasswordField(focus: Int)
+    /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
+    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `focus`.
+    case readSelection(focus: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
     case ghost(String?)
@@ -285,6 +291,9 @@ public struct FieldContext: Equatable, Sendable {
     /// Asked whether the field is a password field (`Parts.passwordField`), the shell couldn't tell (the Mac: no
     /// Accessibility, nothing focused, no answer in time, the read failed): unknown, never none.
     public var passwordFieldUnknown: Bool
+    /// Asked for the selection (`Parts.selection`), the field didn't tell one, and the shell reads it after the key
+    /// instead (the Mac: with Accessibility, which may take a while): the draft waits for it (`Composer.selectionPending`).
+    public var selectionFollows: Bool
 
     public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false, markedTextTaken: Bool = false,
                 selectedRange: Range<Int>? = nil, selection: Composer.Selection? = nil, beforeCaret: BeforeCaret = .unknown,
@@ -298,5 +307,6 @@ public struct FieldContext: Equatable, Sendable {
         self.beforeCaret = beforeCaret
         self.text = text
         self.passwordFieldUnknown = passwordFieldUnknown
+        selectionFollows = false
     }
 }

@@ -231,6 +231,26 @@ final class AllInOneIMEInputController: IMKInputController {
         apply(session.handle(event).outputs, client: nil)
     }
 
+    /// The selection only Accessibility tells (`SessionOutput.readSelection`), read off the main thread once the "@" key is
+    /// answered, and handed back for the focus it was asked in (`SessionEvent.selection`). Only how long it is is logged.
+    @MainActor
+    func readSelectionAfterKey(focus: Int) {
+        let box = WeakBox(self)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let text = SelectedText.readWithAccessibility()
+            if let text { log.notice("selection read (AX, after the key, \(text.count) characters)") }
+            let selection = text.map { Composer.Selection(text: $0) }
+            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.selection(selection, focus: focus)) } }
+        }
+    }
+
+    /// The extensions or plugins changed in the background (`LiveExtensions.changed`, `LivePlugins.changed`): an "@" list
+    /// open in this field shows them at once (`InputSession.commandsChanged`).
+    @MainActor
+    func commandsChanged() {
+        apply(session.commandsChanged(), client: nil)
+    }
+
     /// What the session's work answered once this controller was gone: a save's outcome (its text on the clipboard if it
     /// failed) and a notice, told in the field being typed in now, else near the pointer (a save's).
     @MainActor
@@ -758,9 +778,15 @@ final class AllInOneIMEInputController: IMKInputController {
             context.markedTextTaken = markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target))
         }
         if parts.contains(.selectedRange) { context.selectedRange = target.flatMap { Self.range($0.selectedRange()) } }
-        if parts.contains(.selection), let read = SelectedText.read(from: target, accessibility: selectionByAccessibility) {
-            log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
-            context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+        if parts.contains(.selection) {
+            // What the field tells, at once; what only Accessibility can tell is read after the key, off this thread
+            // (`readSelectionAfterKey`): the "@" list shows on the key meanwhile.
+            if let read = SelectedText.read(from: target, accessibility: false) {
+                log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
+                context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
+            } else if selectionByAccessibility {
+                context.selectionFollows = SelectedText.mayBeUntold(in: target, chromium: chromiumApp(context.field?.app))
+            }
         }
         if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
         if parts.contains(.text) {
@@ -955,6 +981,8 @@ final class AllInOneIMEInputController: IMKInputController {
                 readFieldAfterPause(id: id, in: target)
             case let .readPasswordField(focus):
                 readPasswordField(focus: focus)
+            case let .readSelection(focus):
+                readSelectionAfterKey(focus: focus)
             case let .ghost(text):
                 showGhost(text, in: target)
             case let .startTimer(.notice(token), seconds):

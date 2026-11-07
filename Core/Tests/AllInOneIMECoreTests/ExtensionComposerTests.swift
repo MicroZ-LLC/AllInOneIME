@@ -271,9 +271,10 @@ struct ExtensionComposerTests {
         let list = try #require(c.currentList)
         #expect(list.items.map(\.title) == ["Jane j", "Open her page", "Copy her id", "More about her", "Information only"])
         #expect(c.listItem?.title == "Jane j" && c.handleKeyDown(copyKey).effects.first == .copy("jdoe"))
-        // Another key: the list belongs to the text before (the controller runs it again after `queryDelay`).
+        // Another key: the rows of the text before stay until its run answers (the controller runs it again after
+        // `queryDelay`), and no row of theirs is picked meanwhile.
         typeKeys("a", c)
-        #expect(c.currentList == nil && c.listQuery == "ja")
+        #expect(c.currentList?.items.first?.title == "Jane j" && c.listQuery == "ja" && c.listItem == nil)
         _ = try await runList(c)
         // ↑↓ skip rows of information; Tab completes the text.
         _ = c.handleKeyDown(upKey)

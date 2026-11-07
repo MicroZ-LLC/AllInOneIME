@@ -52,6 +52,8 @@ struct OpenAsYouTypeTests {
         host.press(FakeHost.at)
         host.type("ope")
         host.press(FakeHost.tab)
+        // What one @ asked for its letters before @open was picked isn't @open's.
+        stand.asked.withLock { $0 = [] }
         return host
     }
 

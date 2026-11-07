@@ -94,6 +94,10 @@ public struct SessionServices {
     /// index, what `@open` opened before, a path's folder), ranked as `searchFiles` ranks them. Nothing that waits: no
     /// search, no more of the disk than a path's folder.
     public var instantResults: (_ query: String, _ history: OpenHistory) -> [SearchResult]
+    /// One @ as its text is typed: the files and folders whose names Spotlight has for it (the Mac's: what `searchFiles`
+    /// finds by name, without what the files contain), listed below what is known at once as they come. None by default:
+    /// the rows simply don't appear.
+    public var searchFileNames: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
     /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in a terminal window.
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void
     /// An `@question` conversation going on in a coding agent (`ChatHandoff`): its arguments with the conversation.
@@ -171,6 +175,9 @@ public struct SessionServices {
     public var addReminder: @Sendable (ReminderDraft) async throws -> Void
     /// `@imessage`: the address book (nil: no access), and sending.
     public var loadContacts: @Sendable () async -> [Contact]?
+    /// The address book as last read, at once (nil: not read yet, or no access): the recipients are found in it on the key
+    /// that changed the text. One read a while ago is used as it is (the shell reads it again in the background).
+    public var cachedContacts: () -> [Contact]?
     public var messageSender: any MessageSender
 
     // MARK: Suggestions
@@ -227,6 +234,7 @@ public struct SessionServices {
         recognizeText = Platform.current.text
         searchFiles = { _, _ in [] }
         instantResults = { _, _ in [] }
+        searchFileNames = { _, _ in [] }
         runInTerminal = { _, _ in throw SessionServicesError.unsupported }
         continueInAgent = { _, _ in throw SessionServicesError.unsupported }
         agentInstalled = { _, _ in false }
@@ -248,6 +256,7 @@ public struct SessionServices {
         parseReminder = { ReminderParser().parse($0, now: Platform.current.clock.now) }
         addReminder = { _ in throw SessionServicesError.unsupported }
         loadContacts = { nil }
+        cachedContacts = { nil }
         messageSender = NoMessageSender()
         suggestions = SuggestionsServices()
         clipboardHistory = ClipboardHistoryServices()

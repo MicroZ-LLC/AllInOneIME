@@ -3,9 +3,10 @@ import AllInOneIMEMac
 import Foundation
 
 /// The script extensions the command list offers (`ExtensionStore`, docs/extensions.md; only reviewed extension sources:
-/// `ExtensionSourceGate`). The index is rebuilt
+/// `ExtensionSourceGate`). The index is built in the background at launch (`prepare`), and rebuilt
 /// in the background, when a text field becomes active and when the settings name other folders, reading only
-/// the files that changed (`ExtensionCache`); a keystroke only ever reads the last one. The folders Spotlight
+/// the files that changed (`ExtensionCache`); a keystroke only ever reads the last one, and a rebuild that changed it
+/// is told (`changed`: an "@" list open then shows it at once). The folders Spotlight
 /// finds holding Raycast scripts are looked for in the background too, at most every few minutes
 /// (`discoverIfDue`), and kept across launches. Main thread only.
 enum LiveExtensions {
@@ -15,6 +16,14 @@ enum LiveExtensions {
     private static var rebuilding = false
     private static var rebuildAgain = false
     private static let cache = ExtensionCache()
+    /// Told on the main thread when a rebuild in the background changed the index: the input method's field (its "@"
+    /// list, if one is open, shows the commands at once).
+    static var changed: () -> Void = {}
+
+    /// The index built in the background now, at launch: the first "@" has the extensions.
+    static func prepare(_ config: Config) {
+        _ = current(config)
+    }
 
     /// The index as last built. `rescan`: build it again in the background (a text field became active), its folders
     /// worked out again (`ExtensionSourceGate`'s `recheck`); it is rebuilt too when `config` names other folders.
@@ -51,9 +60,11 @@ enum LiveExtensions {
                     log.notice("extensions: \(built.commands.count) commands, \(built.bundles.count) bundles, \(built.skipped.count) skipped, \(built.identical.count) identical copies left out")
                 }
                 // Unless the settings read the folders meanwhile (`load`): theirs is as new.
+                let landed = index.generation == before.generation && !same
                 if index.generation == before.generation { index = built }
                 indexed = folders
                 rebuilding = false
+                if landed { changed() }
                 if rebuildAgain {
                     rebuildAgain = false
                     rebuild(ExtensionSourceGate.folders(LiveConfig.current, found: found))
