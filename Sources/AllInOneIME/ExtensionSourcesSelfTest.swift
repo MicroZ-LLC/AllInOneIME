@@ -240,8 +240,10 @@ extension SelfTest {
               && saved().contains(#""trustUpdates" : true"#), "pressed: on, saved with its source (\(stored?.extensionSources.map(\.trustUpdates) ?? []))")
         _ = pump(timeout: 1) { value(switches().first) == 1 }
         check(value(switches().first) == 1, "…and the switch shows it on")
+        // Off, what the source pins is read off the main thread first, then saved (`SettingsModel.setTrustUpdates`): waited
+        // for as the other sections wait for such a read, since a full run's other work can hold it up past 2 s.
         pressFirst()
-        _ = pump(timeout: 2) { model.config.extensionSources.first?.trustUpdates == false }
+        _ = pump(timeout: 15) { model.extensionWork == 0 && model.config.extensionSources.first?.trustUpdates == false }
         check((try? Config.load(from: configURL)) == loaded && !saved().contains("trustUpdates"), "pressed again: off, the key gone")
         check(SettingsSpot.search("trust its updates", trigger: "@", config: fresh).contains(.extensionSources)
               && SettingsSpot.search("信任", trigger: "@", config: fresh).contains(.extensionSources),
