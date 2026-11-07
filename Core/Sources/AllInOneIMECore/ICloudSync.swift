@@ -23,8 +23,9 @@ public enum ICloudSync {
         case settings
         /// The jargon list and `customCommands`.
         case jargon
-        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`); and the
-        /// English words pinyin offers (`englishWordsKey`), learned or added (`addedEnglishWordsKey`).
+        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`); the
+        /// English words pinyin offers (`englishWordsKey`), learned or added (`addedEnglishWordsKey`); and the candidates
+        /// the user removed (`removedCandidatesKey`).
         case learnedWords
         /// `redaction.customWords`: off by default (iCloud Drive is end-to-end encrypted only with Advanced Data Protection).
         case hiddenWords
@@ -55,6 +56,8 @@ public enum ICloudSync {
     /// (`Config.addedEnglishWords`): with the words it learned.
     public static let englishWordsKey = "englishWords"
     public static let addedEnglishWordsKey = "addedEnglishWords"
+    /// The candidates the user removed (`Config.removedCandidates`): with the words learned, what pinyin no longer offers.
+    public static let removedCandidatesKey = "removedCandidates"
     /// The jargon list and the recent questions: entries of `settings.json` that stamp a file next to it (`jargonFile`,
     /// `questionsFile`), their value its SHA-256 (`fileValue`).
     public static let jargonKey = "file:jargon"
@@ -92,7 +95,7 @@ public enum ICloudSync {
         switch key {
         case commandsKey, jargonKey: return .jargon
         case hiddenWordsKey: return .hiddenWords
-        case englishWordsKey, addedEnglishWordsKey: return .learnedWords
+        case englishWordsKey, addedEnglishWordsKey, removedCandidatesKey: return .learnedWords
         case questionsKey: return .recentQuestions
         default: return nil
         }
@@ -399,7 +402,7 @@ public enum ICloudSync {
             out[hiddenWordsKey] = redaction["customWords"] ?? .array([])
         }
         if categories.contains(.learnedWords) {
-            for key in [englishWordsKey, addedEnglishWordsKey] { out[key] = encoded[key] ?? .array([]) }
+            for key in [englishWordsKey, addedEnglishWordsKey, removedCandidatesKey] { out[key] = encoded[key] ?? .array([]) }
         }
         return out
     }
@@ -426,9 +429,10 @@ public enum ICloudSync {
     }
 
     /// The collections a joining (or rejoining) Mac merges with iCloud's rather than taking iCloud's: its custom
-    /// commands (by name, iCloud's on a clash), hidden words, English words (those added too) and jargon lines (each
-    /// once). Recent questions are always merged (`ICloudSyncEngine`).
-    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, englishWordsKey, addedEnglishWordsKey, jargonKey]
+    /// commands (by name, iCloud's on a clash), hidden words, English words (those added too), the candidates removed
+    /// and jargon lines (each once). Recent questions are always merged (`ICloudSyncEngine`).
+    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, englishWordsKey, addedEnglishWordsKey,
+                                                   removedCandidatesKey, jargonKey]
 
     /// What one run does with the keys: what comes into this Mac's config, what goes into `settings.json`, and this Mac's
     /// record afterwards.
@@ -793,7 +797,7 @@ public enum ICloudSync {
     }
 
     /// Hidden words merged: iCloud's, then this Mac's that iCloud's lack, as they are matched (`key`: ignoring case; the
-    /// English words added by their letters, `EnglishWords.key`).
+    /// English words added by their letters, `EnglishWords.key`; the candidates removed by their whole text, as shown).
     public static func mergedWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue,
                                    key: (String) -> String = { $0.lowercased() }) -> AIConfig.JSONValue {
         let icloud = theirs.strings ?? [], local = mine.strings ?? []
@@ -1049,7 +1053,7 @@ public enum ICloudSync {
                 return .wrongType
             }
             return nil
-        case hiddenWordsKey, englishWordsKey, addedEnglishWordsKey:
+        case hiddenWordsKey, englishWordsKey, addedEnglishWordsKey, removedCandidatesKey:
             return strings() == nil ? .wrongType : nil
         case commandsKey:
             // An entry of a type this version doesn't know (a later one's) is kept as the config file keeps it; its name

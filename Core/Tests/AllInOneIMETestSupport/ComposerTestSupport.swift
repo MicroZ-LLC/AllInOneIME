@@ -25,6 +25,8 @@ public final class FakeEngine: PinyinEngine {
     public var ascii = false
     /// Every key librime would have been given, in order.
     public var keys: [(keycode: Int32, mask: Int32)] = []
+    /// Every candidate deleted (`deleteCandidate`), by its place on the page, in order.
+    public var deleted: [Int] = []
     private var pendingCommit: String?
 
     public init() {}
@@ -101,6 +103,19 @@ public final class FakeEngine: PinyinEngine {
     public func selectCandidate(onPage index: Int) -> Bool {
         guard !input.isEmpty, candidates().indices.contains(index) else { return false }
         return select(index)
+    }
+
+    /// Like librime's `delete_candidate`: recorded, and a whole-input entry goes last (where a word learned goes back
+    /// to); nothing is committed, the letters stay.
+    public func deleteCandidate(onPage index: Int) -> Bool {
+        deleted.append(index)
+        guard !input.isEmpty, candidates().indices.contains(index) else { return false }
+        if var words = dictionary[input] {
+            words.append(words.remove(at: index))
+            dictionary[input] = words
+        }
+        highlighted = 0
+        return true
     }
 
     /// Like librime: the highlighted candidate, then any letters it doesn't cover, as typed.

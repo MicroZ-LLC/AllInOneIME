@@ -19,6 +19,10 @@ public enum SessionEvent: Sendable {
     /// (`InputSession.caretMayHaveMoved`).
     case pick(Int)
     case scroll(Int)
+    /// A row of the candidate panel right-clicked (its index in `PanelModel.rows`): its candidate deleted, as ⌃⌦ deletes
+    /// the highlighted one (`Composer.deleteCandidate`). Nothing on clipboard history's rows, suggestions', or a row that
+    /// isn't a candidate.
+    case delete(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
     /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)

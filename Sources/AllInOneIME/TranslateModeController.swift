@@ -246,6 +246,7 @@ extension AllInOneIMEInputController {
             guard model.rows.indices.contains(index), let choice = model.rows[index].choice else { return }
             self?.pickTranslateTarget(choice)
         }
+        panel.onDelete = nil  // its languages are no candidates
         panel.onChip = { [weak self] part in self?.translateChipClicked(part) }
         let anchor = anchor(client)
         if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is

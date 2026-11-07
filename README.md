@@ -70,6 +70,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Letters, once AI results are up | A follow-up: after `@question` the next question (see [Conversations](#conversations-with-question-new)), after `@improve` or a prompt command an instruction such as `shorter` (see [Refining the results](#refining-the-results-new)); ⇧⏎ sends it. After `@translate` letters continue the sentence, and ⏎ translates it again |
 | ⌘⏎, ⌘1–⌘9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌘1, ⌘2 … pick one |
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
+| Right-click a candidate, ⌃⌦ | While you type pinyin: removes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), for good: any candidate, the dictionary's words and emoji too, and the English words among the candidates (by their letters); it no longer comes up as a candidate, whatever you type (a longer phrase or a sentence with it in it still does), and what pinyin learned of it from your choices is forgotten. An English word stays on your list of English words. Nothing is put in. Settings → Input → Chinese (pinyin) → Removed candidates brings one back (✕), and so does adding an English word again in English Words; they sync through iCloud with the learned words |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
 
 ## Commands
@@ -397,9 +398,10 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 - Write `@sig` inside another command's text to include it: `@question summarize this @zoom` sends the link itself. Only
   snippets with no `{clipboard}`, `{selection}` or blanks work there; with `{input}`, it's one word or a quoted phrase:
   `@meet「Friday 3pm」`.
-- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines goes in as one
-  paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back after), else on
-  one line (a line break typed there would run the line), as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
+- Plain text only (line breaks kept), at most 20,000 characters. In a terminal a snippet of several lines or with a tab
+  goes in as one paste with Accessibility allowed and Paste from Other Apps set to Allow (your clipboard is put back
+  after), else on one line with tabs as spaces (a line break typed there would run the line, a tab would complete it),
+  as clipboard history's rows and the AI's answers do. Snippets stay on this Mac, so they work during secure
   input and in apps set to No AI. Extension bundles can ship them too (`snippets` in `extension.json`, see
   [docs/extensions.md](docs/extensions.md)).
 
@@ -500,7 +502,7 @@ Folder"): local plugins, never overwritten by the library.
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
 (`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
 with the date of the rate (rates by ExchangeRate-API). `@calculator` is a calculator that works offline,
-`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@calendar` does dates: `@calendar +10` →
+`@calculator 23*17` → `391` (the built-in `@calculate` before 0.6.5), and `@days` does dates: `@days +10` →
 "Tue, Oct 27 · in 10 days". Writing one: [docs/plugins.md](docs/plugins.md).
 
 Plugins can also complete what you type (new): `@github`'s issues come up as rows as soon as you type `#12`, and Tab
@@ -691,7 +693,7 @@ Hidden words and recent questions.
 | --- | --- | --- |
 | Settings | the settings in `config.json`: languages, rewrite styles, the action key, the magic key, typing out, per-app settings, hiding sensitive information (its switches), the AI provider and model (never a key) … | on |
 | Jargon and custom commands | your jargon list and `customCommands` | on |
-| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync), words picked from a personal dictionary too, and your English words, added or learned (`englishWords`); your own Rime files, such as custom phrases, and the personal dictionaries themselves stay on the Mac | on |
+| Learned words | what pinyin learned from your choices (Rime's user dictionary, through librime's user-dictionary sync), words picked from a personal dictionary too, and your English words, added or learned (`englishWords`), and the candidates you removed (`removedCandidates`); your own Rime files, such as custom phrases, and the personal dictionaries themselves stay on the Mac | on |
 | Hidden words and recent questions (one switch) | the words you hide from the AI, and `@question`'s recent questions and answers (while "Remember recent questions" is on); iCloud Drive is end-to-end encrypted only with Advanced Data Protection | off |
 | API keys and passwords (in the ⋯ menu) | your API keys and extensions' passwords, through iCloud Keychain, which is always end-to-end encrypted (needs Passwords & Keychain on in System Settings → Apple Account → iCloud) | off |
 
@@ -1078,8 +1080,10 @@ suggestions use, and puts in the one you choose.
   in, one per line, in the order you copied them (oldest first).
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so
   ⏎ in Slack, Chrome and other apps built on Chromium or Electron doesn't send the message. In a terminal, text of more
-  than one line goes in as one paste (with Accessibility allowed, and Paste from Other Apps set to Allow so that your
-  clipboard can be put back), never line by line; without them, on one line, and your clipboard is left alone. The
+  than one line or with a tab (a Makefile line, cells copied from a spreadsheet) goes in as one paste (with
+  Accessibility allowed, and Paste from Other Apps set to Allow so that your clipboard can be put back), never typed in,
+  so the shell neither runs a line nor completes on a tab; without them, on one line with tabs as spaces, and your
+  clipboard is left alone. The
   same when your clipboard holds a copy from another device (Universal Clipboard) or one its app is slow to hand over:
   typing never waits for it.
 - **The keys stay with the panel, in every app (0.6.8.1):** with Accessibility allowed, the input method takes the keys
@@ -1106,8 +1110,8 @@ suggestions use, and puts in the one you choose.
   nothing), ⌃V in a terminal or a code editor (VS Code, Cursor, JetBrains, Xcode…), so ⌃V ⌃V is still vim's block
   selection and the shell's "type the next key as is"; without Accessibility, ⌃V as it is. In a command, ⌃V ⌃V appends the clipboard at once.
 - **Text and images:** the plain text of what you copy (rich text's too), or the image when an image is what you copied;
-  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never an image copied on another
-  device (Universal Clipboard), never what a password
+  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never text or an image copied on
+  another device (Universal Clipboard: ⌃V shows its text as the first row, "on the clipboard"), never what a password
   manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (a
   password field; checked once a second: a copy is dropped when secure input was on at the check that finds it or the
   one before, so secure input turned on and off again between two checks can go unseen), nothing blank, nothing over
@@ -1309,6 +1313,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |
 | `englishWords` | Your English words among pinyin's candidates, as written: `["Bedrock", "OpenRouter Chat"]` (added in Settings or learned) | `[]` |
 | `addedEnglishWords` | Those of `englishWords` you added in Settings (the others were learned): past 2,000 words the oldest learned go first | `[]` |
+| `removedCandidates` | The candidates you removed (a right-click or ⌃⌦ while typing pinyin), as shown, the oldest first: none comes up again as a candidate until removed from here (Settings → Input → Chinese (pinyin) → Removed candidates, ✕). At most 5,000, the oldest go first. Syncs with the learned words | `[]` |
 | `learnsEnglishWords` | The same letters put in as typed twice while typing pinyin (bedrock ⏎), or a word typed twice in English mode, are learned as an English word | `true` |
 | `useSelection` | Commands work on the text selected in the field (see On the selected text) | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |

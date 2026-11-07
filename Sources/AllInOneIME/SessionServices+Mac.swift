@@ -9,10 +9,11 @@ extension SessionServices {
     @MainActor
     private static let lettersTypedOnce = EnglishWords.TypedOnce()
 
-    /// Where the English words learned are written into the config file, off the main thread (`EnglishWords.Writer`):
-    /// every field's, in order. The file as it is then is read there too, so the next key finds it read
-    /// (`LiveConfig.take`) and doesn't parse it again. Words it couldn't write yet are tried again once the file reads
-    /// anew and parses (`LiveConfig.parsedAnew`), and drained before the input method ends (`main.swift`): any thread.
+    /// Where the English words learned, and the candidates removed, are written into the config file, off the main
+    /// thread (`EnglishWords.Writer`): every field's, in order. The file as it is then is read there too, so the next key
+    /// finds it read (`LiveConfig.take`) and doesn't parse it again. What it couldn't write yet is tried again once the
+    /// file reads anew and parses (`LiveConfig.parsedAnew`), and drained before the input method ends (`main.swift`):
+    /// any thread.
     static let englishWordsWriter = EnglishWords.Writer { url in
         guard let read = LiveConfig.read(url) else { return }
         DispatchQueue.main.async { LiveConfig.take(read) }
@@ -31,11 +32,15 @@ extension SessionServices {
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
-        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it
-        // runs) a moment later, never while the key is handled.
+        // English words among pinyin's candidates; a word learned, and a candidate removed, go into the config file (the
+        // self-test's own while it runs) a moment later, never while the key is handled.
         services.englishDictionary = { RimeService.shared.englishDictionary }
         services.englishTypedOnce = lettersTypedOnce
         services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
+        services.removeCandidate = { englishWordsWriter.remove($0, at: Config.defaultURL) }
+        // Until it is in the file every field leaves it out; once it is, the file's list has the say (a restore there
+        // reaches every field).
+        services.unwrittenRemovals = { englishWordsWriter.unwrittenRemovals(at: Config.defaultURL) }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }
