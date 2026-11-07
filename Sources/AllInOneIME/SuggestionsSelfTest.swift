@@ -487,9 +487,10 @@ extension SelfTest {
             check(false, "the Python pack from Core/CodingPacks")
         }
 
-        // "@tk": no @ command (a Suggestions command is used by its prefix alone): never in the list, and "@tk" ⏎ ⏎ does
-        // what "@tz" ⏎ ⏎ does (no command has that name; "@t" is the start of others' as with "@tk"): what reaches the app
-        // (put in, or the keys it gets) is the same, nothing runs, nothing is said.
+        // "@tk": no @ command (a Suggestions command is used by its prefix alone): never in the list, and "@tk" Esc does
+        // what "@tz" Esc does (no command has that name; "@t" is the start of others' as with "@tk"): what reaches the app
+        // (put in, or the keys it gets) is the same, nothing runs, nothing is said. (One @: ⏎ would do the first row, an
+        // AI one for a word; Esc leaves it as typed.)
         func typedAfterTheMagicKey(_ name: String) -> (listed: Bool, app: String, said: String) {
             controller.commitComposition(client)
             controller.activateServer(client)
@@ -502,11 +503,11 @@ extension SelfTest {
                 let handled = press(controller, client, characters, code: code, flags: flags)
                 app += client.inserted.dropFirst(count).joined() + (handled ? "" : characters)
                 listed = listed || controller.composer.paletteMatches.contains { $0.name == "tk" }
+                    || controller.composer.oneAtRows.contains { $0.command?.name == "tk" }
             }
             key("@", code: 0x13, flags: .shift)
             for letter in name { key(String(letter), code: keyCodes[letter] ?? 0) }
-            key("\r", code: VirtualKey.returnKey)
-            key("\r", code: VirtualKey.returnKey)
+            key("\u{1B}", code: VirtualKey.escape)
             let said = controller.notice ?? ""
             controller.commitComposition(client)
             return (listed, app, said)
@@ -515,7 +516,7 @@ extension SelfTest {
         let tk = typedAfterTheMagicKey("tk"), tz = typedAfterTheMagicKey("tz")
         check(!tk.listed && tk.app.hasPrefix("@tk") && tk.app == tz.app.replacingOccurrences(of: "tz", with: "tk") && tk.said == tz.said
               && calls().count == before,
-              "\"@tk\" ⏎ ⏎ is not in the list and does what \"@tz\" does: \(tk.app.debugDescription) (\(tz.app.debugDescription)), "
+              "\"@tk\" Esc is not in the list and does what \"@tz\" does: \(tk.app.debugDescription) (\(tz.app.debugDescription)), "
                   + "said \(tk.said.debugDescription), nothing run (\(calls().count - before))")
         for _ in 0..<3 { press(controller, client, "\u{1B}", code: VirtualKey.escape) }
     }
