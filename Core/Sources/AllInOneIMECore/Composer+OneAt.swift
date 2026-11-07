@@ -344,7 +344,7 @@ extension Composer {
     /// What waits for the selection read after the "@" key (`waitingForSelection`).
     enum OneAtWaiting: Equatable {
         /// A key: handled again once the selection is in; one the composer doesn't take then goes on to the app
-        /// (`Effect.passKey`).
+        /// (`Effect.passKey`), and the keys after it go behind it (`Effect.replayKey`).
         case key(KeyEvent)
         /// A row clicked, done as it was shown.
         case row(OneAt.Action)
@@ -365,7 +365,10 @@ extension Composer {
     }
 
     /// The selection the field reads after the key (`selectionPending`) arrived (nil: none): the list is for it from now
-    /// on, and what waited for it (`waitingForSelection`) is done now, in order.
+    /// on, and what waited for it (`waitingForSelection`) is done now, in order. A key not taken then goes on to the app
+    /// (`passKey`), and every key after it goes behind it (`replayKey`: the shell hands it back once the app has the one
+    /// before), so that the app has them in the order typed. A click or the action key's tap after it isn't done: it
+    /// can't go behind the key, and was for the list the key given back closed.
     public func selectionRead(_ selected: Selection?) -> [Effect] {
         guard selectionPending else { return [] }
         selectionPending = false
@@ -378,12 +381,20 @@ extension Composer {
         }
         oneAtCache = nil
         var effects = forField([.updateMarkedText, .showPanel])
+        var passed = false
         for item in waiting {
             switch item {
+            case let .key(event) where passed:
+                effects.append(.replayKey(event))
             case let .key(event):
                 let response = handleKeyDown(event)
                 effects += response.effects
-                if !response.handled { effects.append(.passKey(event)) }
+                if !response.handled {
+                    effects.append(.passKey(event))
+                    passed = true
+                }
+            case .row where passed, .actionKey where passed:
+                continue
             case let .row(action):
                 if oneAt != nil { effects += forField(doOneAt(action, run: true)) }
             case .actionKey:

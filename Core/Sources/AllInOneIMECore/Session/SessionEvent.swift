@@ -177,8 +177,12 @@ public enum PlatformAction: Equatable, Sendable {
     case pasteImage(id: String)
     /// `key` to the app, posted marked as the input method's own so it goes through: a key that waited for the selection
     /// read after the "@" key and that the input method didn't take then (`Composer.Effect.passKey`). A shell that can't
-    /// post one drops it.
+    /// post one drops it. Until the app has it, every key typed goes behind it (`KeysOnTheWay`), never ahead.
     case passKey(KeyEvent)
+    /// `key` to the input method again, behind the keys posted before it (`passKey`): one that waited for the selection
+    /// read after one given to the app (`Composer.Effect.replayKey`), posted marked as replayed so that it comes back as
+    /// typed, at its place (`KeysOnTheWay`). A shell that can't post one hands it to the session at once.
+    case replayKey(KeyEvent)
 }
 
 /// Dictation `id`, as the platform hears it.

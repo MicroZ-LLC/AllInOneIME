@@ -164,6 +164,9 @@ public final class Composer {
         /// The key goes on to the app after all, posted by the shell as its own: it waited for the selection read after
         /// the "@" key (`selectionPending`), and the composer didn't take it then (→ giving the keys back).
         case passKey(KeyEvent)
+        /// A key that waited behind one given to the app (`passKey`): handed to the input method again once that one is
+        /// the app's, as typed then, never ahead of it.
+        case replayKey(KeyEvent)
     }
 
     public struct Response: Equatable, Sendable {

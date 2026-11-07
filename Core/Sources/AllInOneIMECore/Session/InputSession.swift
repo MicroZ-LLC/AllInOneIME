@@ -1107,6 +1107,8 @@ public final class InputSession {
                 emit(.moveCaret(back: back, after: lastInserted))
             case let .passKey(key):
                 emit(.platform(.passKey(key)))
+            case let .replayKey(key):
+                emit(.platform(.replayKey(key)))
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
