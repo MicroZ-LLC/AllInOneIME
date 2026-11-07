@@ -137,6 +137,9 @@ public final class InputSession {
     private var pageWaiters: [TaskID: (PageContext?) -> Void] = [:]
     /// `@reply`'s message as the composer sent it and with the web page added, for its refines.
     private var replyWithPage: (input: String, full: String)?
+    /// What the model was last made ready for (InputSession+Warming.swift): the AI command the draft is, or Translate as
+    /// You Type.
+    var modelWarmedFor: String?
     /// The interface language's own messages the agent is named in (`nameAgent`) and what a hand-off says
     /// (`applyChatSettings`), as last made, with the language and the terms they were made for: both run with each key
     /// with nothing composed, and these are made again only when those change, or the settings are taken over.
@@ -295,7 +298,10 @@ public final class InputSession {
         return outputs
     }
 
-    func emit(_ output: SessionOutput) { outputs.append(output) }
+    func emit(_ output: SessionOutput) {
+        outputs.append(output)
+        autocompleteFollow(output)  // what goes into the field, for a kept suggestion on the key
+    }
 
     /// The app of the key being handled, else the field's.
     var app: String? { keyContext?.field?.app ?? field.app }
@@ -570,10 +576,11 @@ public final class InputSession {
         if let englishWords {
             englishWords.fuzzyPinyin = config.fuzzyPinyin
             let jargon = services.jargon(config)
-            let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
+            let madeOf = EnglishWordsEngine.Words.madeOf(config, jargon: jargon)
             if madeOf != englishWordsMadeOf {
                 englishWordsMadeOf = madeOf
-                englishWords.words = EnglishWords.offered(config, jargon: jargon)
+                // As the shell made them ahead for these (at launch, off the main thread), else now.
+                englishWords.made = EnglishWordsEngine.Words.ahead(for: madeOf) ?? EnglishWordsEngine.Words(EnglishWords.offered(config, jargon: jargon))
             }
         }
         composer.outputLanguages = config.outputLanguages
@@ -867,6 +874,7 @@ public final class InputSession {
         // nothing in the field: there's nothing for the app to take.)
         if composer.isComposing, !composer.draftInPanel, context.markedTextTaken {
             log.notice("the app took the marked text: starting over")
+            autocomplete.known = nil  // the field has text the session didn't put in
             perform(composer.appTookMarkedText())
             lastTyped.forget()
             return true
@@ -1033,6 +1041,7 @@ public final class InputSession {
     func perform(_ effects: [Composer.Effect]) {
         defer {
             wakePageIfAgent()
+            warmModelAhead()  // the draft an AI command: its model made ready by ⏎
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
         }
         for effect in effects {
@@ -1163,6 +1172,10 @@ public final class InputSession {
                 // ⏎ on a failure put right there (nothing to translate into): the sentence went in as typed before.
                 emit(.openSettings(place))
             case let .listAgents(id):
+                // The list as last seen, at once; the one asked for now replaces it as it comes.
+                if let last = services.lastAgents(), !last.isEmpty {
+                    perform(composer.receiveSearch(SessionTasks.agentRows(last), id: id, ahead: true))
+                }
                 tasks.listAgents(id: id, with: services.listAgents)
             case let .runInTerminal(prompt):
                 // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.

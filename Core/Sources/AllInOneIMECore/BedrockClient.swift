@@ -86,6 +86,9 @@ public struct BedrockClient: Sendable {
     public let session: URLSession
     /// The models that refused a temperature, here and for the other providers of `ChatClient`.
     let temperatureSupport: TemperatureSupport
+    /// When something last went to each service on `session`, and the HEADs that open its connection ahead of a request
+    /// (`Converter.warmConnection`), here and for the other providers of `ChatClient`.
+    let warmth = ConnectionWarmth()
 
     /// The app's own client: a session of its own (`makeSession`), the models that refuse a temperature kept in the caches
     /// (`TemperatureSupport.shared`).
@@ -118,14 +121,19 @@ public struct BedrockClient: Sendable {
     }
 
     public static func endpoint(region: String, modelId: String) throws -> URL {
-        guard !region.isEmpty,
-              region.unicodeScalars.allSatisfy({ CharacterSet.lowercaseLetters.contains($0) && $0.isASCII
-                  || CharacterSet.decimalDigits.contains($0) && $0.isASCII || $0 == "-" })
-        else {
+        let model = SigV4Signer.uriEncode(modelId)
+        guard let url = URL(string: try origin(region: region).absoluteString + "/model/\(model)/converse-stream") else {
             throw BedrockError.invalidRegion(region)
         }
-        let model = SigV4Signer.uriEncode(modelId)
-        guard let url = URL(string: "https://bedrock-runtime.\(region).amazonaws.com/model/\(model)/converse-stream")
+        return url
+    }
+
+    /// bedrock-runtime's address in `region`, without a path: what the requests there go to.
+    public static func origin(region: String) throws -> URL {
+        guard !region.isEmpty,
+              region.unicodeScalars.allSatisfy({ CharacterSet.lowercaseLetters.contains($0) && $0.isASCII
+                  || CharacterSet.decimalDigits.contains($0) && $0.isASCII || $0 == "-" }),
+              let url = URL(string: "https://bedrock-runtime.\(region).amazonaws.com")
         else {
             throw BedrockError.invalidRegion(region)
         }
@@ -158,6 +166,7 @@ public struct BedrockClient: Sendable {
         credentials: AWSCredentials, timeout: TimeInterval
     ) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         let session = session
+        warmth.sending(to: try? Self.origin(region: region))
         guard body.inferenceConfig.temperature != nil else {
             return Self.converseStream(body, modelId: modelId, region: region, credentials: credentials, timeout: timeout,
                                        session: session)

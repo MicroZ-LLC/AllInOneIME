@@ -111,6 +111,27 @@ enum LiveExtensions {
         }
     }
 
+    /// `load`, the folders read off the main thread: `done` gets the index on the main thread once it is built (the
+    /// settings window shown, which shows the one it had meanwhile).
+    static func loadInBackground(_ config: Config, done: @escaping @MainActor (ExtensionIndex) -> Void) {
+        let folders = ExtensionSourceGate.folders(config, found: found, recheck: true)
+        let (cache, before) = (self.cache, index)
+        DispatchQueue.global(qos: .userInitiated).async {
+            var built = ExtensionStore.load(folders, cache: cache)
+            built.generation = built == before ? before.generation : before.generation &+ 1
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    // Another read meanwhile (`load`, a rebuild) is as new: its index stays.
+                    if index.generation == before.generation {
+                        index = built
+                        indexed = folders
+                    }
+                    done(built)
+                }
+            }
+        }
+    }
+
     /// The values `bundle`'s commands get: what the settings saved, passwords from the keychain, else the defaults.
     static func preferences(of bundle: ExtensionBundle, config: Config) -> [String: String] {
         var stored = config.extensionPreferences[bundle.name] ?? [:]
@@ -125,12 +146,15 @@ enum LiveExtensions {
 /// The status lines of the commands that have one (`ScriptCommand.status`), shown beside their names in the
 /// command list: run in the background when the list shows them and they're due (`StatusSchedule`), a few at a
 /// time and stopped after `ScriptCommand.Status.timeout`. A slow one never holds the list up; one that ends,
-/// failed or not, lets the next due one start. Main thread only.
+/// failed or not, lets the next due one start. Their last values are kept across launches (`StatusFile`): shown at
+/// once after one, until they're refreshed. Main thread only.
 @MainActor
 final class ScriptStatus {
     static let shared = ScriptStatus()
 
-    private var schedule = StatusSchedule()
+    private var schedule = StatusSchedule(kept: StatusFile.shared.read())
+    /// Where the values are written, off the main thread, one write after another.
+    private static let writes = DispatchQueue(label: "com.aipinyin.inputmethod.script-statuses", qos: .utility)
 
     /// The last status line of `command`, if it has one.
     func text(for command: ScriptCommand) -> String? { schedule.text(for: command.id) }
@@ -151,7 +175,9 @@ final class ScriptStatus {
                         line = nil  // the value before stays until its next refresh time
                     }
                 }
-                self?.schedule.finished(command.id, line: line)
+                if self?.schedule.finished(command.id, line: line) == true, let kept = self?.schedule.kept {
+                    Self.writes.async { StatusFile.shared.write(kept) }
+                }
                 ended()
             }
         }

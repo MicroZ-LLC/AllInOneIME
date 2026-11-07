@@ -128,7 +128,7 @@ extension SelfTest {
                 return (true, "0.8 s: Hello")
             }
             DoctorSession.perform = { [unowned self] in performed.append($0) }
-            DoctorSession.probe = { [unowned self] in
+            DoctorSession.probe = { [unowned self] _ in
                 probed += 1
                 return facts(url)
             }

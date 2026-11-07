@@ -233,6 +233,11 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { ICloudSyncController.shared.start() }
     // Clipboard history: a look at the clipboard's change count each second (⌃V lists what was copied).
     MainActor.assumeIsolated { ClipboardHistoryShared.start() }
+    // Without librime (no Chinese pack), what the first key and panel would wait for is made ready a moment after launch;
+    // with it, once it is ready (`RimeReadinessLogger`).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        MainActor.assumeIsolated { if !RimeService.shared.isStarted { LaunchWarmUp.run() } }
+    }
     // The system's languages changed (System Settings → General → Language & Region): with no characters picked, the
     // candidates follow them as the rest does (a text field focused checks too).
     let localeChanged = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil,
@@ -257,6 +262,7 @@ final class RimeReadinessLogger: NSObject {
         if RimeService.shared.isReady {
             timer.invalidate()
             log.info("Rime ready \(elapsed, format: .fixed(precision: 2))s after launch")
+            MainActor.assumeIsolated { LaunchWarmUp.run() }
         } else if elapsed > 300 {
             timer.invalidate()
             log.error("Rime still deploying after 300s")

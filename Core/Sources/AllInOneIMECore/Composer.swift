@@ -1869,16 +1869,39 @@ public final class Composer {
     }
 
     /// Files and apps found for `@open` (`.search`): shown to pick from, or "nothing found".
-    public func receiveSearch(_ results: [SearchResult], id: Int) -> [Effect] {
-        guard phase == .translating(id: id) else { return [] }
+    /// `results` for request `id`. `ahead`: the last ones known, listed while the request runs (`@tasks`' last list): its
+    /// answer replaces them, the row picked with the arrows staying picked where it is still listed (by its path), else the
+    /// first.
+    public func receiveSearch(_ results: [SearchResult], id: Int, ahead: Bool = false) -> [Effect] {
+        let replacing = listsAhead(id)
+        guard phase == .translating(id: id) || replacing else { return [] }
+        if replacing, let picked = highlightOverride {
+            let path = searchResults.indices.contains(picked) ? searchResults[picked].path : nil
+            highlightOverride = results.prefix(9).firstIndex { $0.path == path }
+        }
+        listedAhead = ahead ? id : nil
         searchResults = results
         phase = results.isEmpty ? .failed(messages.nothingFound) : .choosing
         return [.showPanel]
     }
 
+    /// The request whose rows were listed ahead of its answer (`receiveSearch(_:id:ahead:)`).
+    private var listedAhead: Int?
+
+    /// Whether request `id`'s rows, listed ahead of its answer, still show: the same request, its command's list up (not
+    /// another command's, after Esc).
+    private func listsAhead(_ id: Int) -> Bool {
+        listedAhead == id && phase == .choosing && activeCommand?.kind == .agents
+    }
+
     /// `place`: where in the settings it is put right (no language to translate into): ⏎ opens them there
     /// (`failureFixedIn`) instead of trying again, which would only fail the same way.
     public func fail(_ message: String, id: Int, fixedIn place: SettingsPlace? = nil) -> [Effect] {
+        // The rows listed ahead of it stay, and why they weren't brought up to date is said.
+        if listsAhead(id) {
+            listedAhead = nil
+            return [.notice(message)]
+        }
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }

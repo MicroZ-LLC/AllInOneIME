@@ -117,6 +117,46 @@ final class SettingsModel: ObservableObject {
     /// doesn't put back what was there before.
     func reloadIfChanged() { store.reloadIfChanged() }
 
+    // MARK: The window shown
+
+    /// When the pages' facts were last read as the window showed (`windowShown`).
+    private var shownAt: Date?
+
+    /// The window shown, opened or opened again with these settings (`SettingsWindow.show`): what its pages show of this
+    /// Mac read again, the plugins folder, the extensions' folders, the keychain items' attributes, the jargon list and
+    /// the rest off the main thread, each page brought up to date as its part comes in (meanwhile it shows what it showed
+    /// last). Not twice within a second (the window opened again and its view appearing). `discoverExtensions`:
+    /// Spotlight looks for Raycast script folders too (the Commands page shown first).
+    func windowShown(discoverExtensions: Bool) {
+        if let shownAt, Date().timeIntervalSince(shownAt) < 1 { return }
+        shownAt = Date()
+        refreshPluginsInBackground { [weak self] in self?.refreshExtensionsInBackground(discover: discoverExtensions) }
+        refreshKeys()
+        refreshSearchKey()
+        refreshNotionTokenInBackground()
+        refreshNotesFolder()
+        refreshAccount()
+        refreshVoice()
+        refreshJargonInBackground()
+    }
+
+    /// The window opened again with these settings, kept since it was closed: the file read again if something else
+    /// changed it, the AWS profiles listed again (off the main thread), and what a new window wouldn't show is gone: a
+    /// test's result, the errors of before, a link pasted and not tested, the control pointed at.
+    func reopened() {
+        reloadIfChanged()
+        (testStatus, searchTestStatus, notesTestStatus) = (.idle, .idle, .idle)
+        (keyError, searchKeyError, notionTokenError, accountError) = (nil, nil, nil, nil)
+        (pluginError, extensionError, voiceError) = (nil, nil, nil)
+        notionLink = ""
+        spot = nil
+        Task { [weak self] in
+            let names = await Task.detached(priority: .userInitiated) { AWSSharedConfig.profileNames() }.value
+            guard let self else { return }
+            self.profiles = names.contains(self.config.awsProfile) ? names : [self.config.awsProfile] + names
+        }
+    }
+
     // MARK: Lists edited while sync may change them
 
     // The window may not have read the file again yet when one of these saves (its reload waits while a slider is dragged
@@ -387,6 +427,18 @@ final class SettingsModel: ObservableObject {
         notionTokenEnding = APIKeys.keyEnding(account: NotionAPI.keyAccount)
     }
 
+    /// `refreshNotionToken`, the keychain asked off the main thread (the window shown).
+    func refreshNotionTokenInBackground() {
+        guard persists, Self.looksUpKeys else { return refreshNotionToken() }
+        Task { [weak self] in
+            let (source, ending) = await Task.detached(priority: .userInitiated) {
+                (APIKeys.source(account: NotionAPI.keyAccount, variables: []), APIKeys.keyEnding(account: NotionAPI.keyAccount))
+            }.value
+            self?.notionTokenSource = source
+            self?.notionTokenEnding = ending
+        }
+    }
+
     var notionTokenState: KeyState { KeyState(notionTokenSource, ending: notionTokenEnding) }
 
     /// Stores the Notion token in the keychain, sent to api.notion.com only, never in the config; an empty one does
@@ -560,7 +612,24 @@ final class SettingsModel: ObservableObject {
     var pluginsFolder = PluginStore.directory
 
     func refreshPlugins() {
-        (plugins, skippedPlugins) = PluginStore.load(from: pluginsFolder)
+        let (plugins, skipped) = PluginStore.load(from: pluginsFolder)
+        take(plugins: plugins, skipped: skipped)
+    }
+
+    /// `refreshPlugins`, the folder read off the main thread (the window shown); `then` once they're in.
+    func refreshPluginsInBackground(then: @escaping @MainActor () -> Void = {}) {
+        let folder = pluginsFolder
+        Task { [weak self] in
+            let (plugins, skipped) = await Task.detached(priority: .userInitiated) { PluginStore.load(from: folder) }.value
+            guard let self else { return }
+            self.take(plugins: plugins, skipped: skipped)
+            then()
+        }
+    }
+
+    /// The plugins as the folder has them now.
+    private func take(plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]) {
+        (self.plugins, skippedPlugins) = (plugins, skipped)
         updateLibraryStatus()
         // A plugin not found on this Mac before (just installed, put in the folder, or there before 0.6.7.2): its
         // completion sources on, approved as they are now; the field being typed in takes them at once.
@@ -622,7 +691,21 @@ final class SettingsModel: ObservableObject {
     /// (not for a preview), and the list follows when it's done.
     func refreshExtensions(discover: Bool = false) {
         extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
-        let index = LiveExtensions.load(config)
+        show(LiveExtensions.load(config), passwordsOffMain: false)
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
+    }
+
+    /// `refreshExtensions`, the folders and the keychain read off the main thread (the window shown): the page shows what
+    /// it had until they're in.
+    func refreshExtensionsInBackground(discover: Bool = false) {
+        extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
+        LiveExtensions.loadInBackground(config) { [weak self] index in self?.show(index, passwordsOffMain: true) }
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensionsInBackground() } }
+    }
+
+    /// `index` as the pages show it: the names each command got, what was left out, the passwords saved (asked off the
+    /// main thread where `passwordsOffMain`).
+    private func show(_ index: ExtensionIndex, passwordsOffMain: Bool) {
         extensionIndex = index
         let enabled = index.enabled(config.disabledExtensions)
         let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
@@ -639,21 +722,32 @@ final class SettingsModel: ObservableObject {
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
-        passwordsSaved = persists ? Set(index.bundles.flatMap { bundle in
-            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.hasKeychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
-                    ? bundle.name + "/" + preference.name : nil
+        let bundles = persists ? index.bundles : []
+        if passwordsOffMain {
+            Task { [weak self] in
+                let (saved, endings) = await Task.detached(priority: .userInitiated) { Self.passwords(of: bundles) }.value
+                guard let self else { return }
+                (self.passwordsSaved, self.passwordEndings) = (saved, endings)
             }
-        }) : []
-        passwordEndings = persists ? Dictionary(index.bundles.flatMap { bundle in
-            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.keyEnding(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
-                    .map { (bundle.name + "/" + preference.name, $0) }
-            }
-        }, uniquingKeysWith: { first, _ in first }) : [:]
+        } else {
+            (passwordsSaved, passwordEndings) = Self.passwords(of: bundles)
+        }
         // What the suggestions' switches show, read again off the main thread.
         readExtensionDigests()
-        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
+    }
+
+    /// The password preferences of `bundles` saved in the keychain ("bundle/name"), and their last 4 characters where
+    /// kept: from the items' attributes, never their value.
+    nonisolated static func passwords(of bundles: [ExtensionBundle]) -> (saved: Set<String>, endings: [String: String]) {
+        let preferences = bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.map {
+                (bundle.name + "/" + $0.name, ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: $0.name))
+            }
+        }
+        let saved = Set(preferences.compactMap { APIKeys.hasKeychainKey(account: $0.1) ? $0.0 : nil })
+        let endings = Dictionary(preferences.compactMap { name, account in APIKeys.keyEnding(account: account).map { (name, $0) } },
+                                 uniquingKeysWith: { first, _ in first })
+        return (saved, endings)
     }
 
     /// Adds a folder of extensions (asked with an open panel); one Spotlight found and was hidden is shown again.
@@ -853,6 +947,19 @@ final class SettingsModel: ObservableObject {
         jargonCount = jargonExists ? JargonLibrary.load(from: url).count : 0
     }
 
+    /// `refreshJargon`, the file read off the main thread (the window shown, or back in front).
+    func refreshJargonInBackground() {
+        let url = config.jargonURL
+        Task { [weak self] in
+            let (exists, count) = await Task.detached(priority: .userInitiated) { () -> (Bool, Int) in
+                let exists = FileManager.default.fileExists(atPath: url.path)
+                return (exists, exists ? JargonLibrary.load(from: url).count : 0)
+            }.value
+            guard let self, self.config.jargonURL == url else { return }
+            (self.jargonExists, self.jargonCount) = (exists, count)
+        }
+    }
+
     /// Uses a text file the user already has (e.g. the team's list) where it is.
     func chooseJargonFile() {
         let panel = NSOpenPanel()
@@ -975,6 +1082,16 @@ struct SettingsView: View {
 
     /// The page Settings opens on when none is asked for.
     static let firstPage = SettingsPage.general
+
+    /// The window shown (opened, or opened again): the checks behind the banners (quick, local: never a permission asked,
+    /// a key read or the AI called), and the pages' facts read again off the main thread (`SettingsModel.windowShown`).
+    private func shown() {
+        UIText.commandTrigger = model.config.commandTrigger
+        assistant.expireUndo()
+        assistant.dropStalePreview()
+        assistant.probe()
+        model.windowShown(discoverExtensions: page == .commands)
+    }
 
     @ViewBuilder private var loadErrorSection: some View {
         if let loadError = model.loadError {
@@ -2393,29 +2510,25 @@ struct SettingsView: View {
             model.refreshExtensions(discover: model.config.findRaycastScripts)
         }
         .onChange(of: page) {
-            if page == .commands { model.refreshExtensions(discover: true) }
+            if page == .commands { model.refreshExtensionsInBackground(discover: true) }  // the page shows at once
             if let spot = model.spot, spot.page != page { model.spot = nil }  // pointed at on a page no longer shown
         }
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
-        .onAppear {
-            UIText.commandTrigger = model.config.commandTrigger
-            // The checks behind the banners: quick, local (never a permission asked, a key read or the AI called).
-            assistant.expireUndo()
-            assistant.dropStalePreview()
-            assistant.probe()
-            model.refreshPlugins()
-            model.refreshExtensions(discover: page == .commands)
-            model.refreshKeys()
-            model.refreshSearchKey()
-            model.refreshNotionToken()
-            model.refreshNotesFolder()
-            model.refreshAccount()
-            model.refreshVoice()
-            model.refreshJargon()
+        .onAppear { shown() }
+        // Opened again, the window and its settings kept: as a new one starts (`page`, else General; nothing searched, no
+        // sheet or dialog up), its pages brought up to date as they come in.
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { note in
+            page = (note.userInfo?["page"] as? String).flatMap(SettingsPage.init(rawValue:)) ?? Self.firstPage
+            (query, chosen, openChip) = ("", 0, nil)
+            (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
+            (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
+            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders) = (false, false, false, false, false)
+            (packToRemove, packToDelete) = (nil, nil)
+            shown()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            model.refreshJargon()  // the list may have been edited in the text editor
+            model.refreshJargonInBackground()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.readExtensionDigests()  // and an extension source's files, which its suggestions' switch shows
             model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
@@ -2989,8 +3102,19 @@ final class SettingsWindow {
 
     private func show(opening page: SettingsPage?) {
         AgentAvailability.forget()  // an agent may have been installed meanwhile
-        if window?.isVisible != true {
-            // (Re)build so the window reflects the config file as it is now.
+        if let window, let model, !window.isVisible, model.configURL == Config.defaultURL {
+            // Opened again: the window and its settings as they were kept since it was closed (building them again took
+            // longer than showing them), the file read again if something else changed it, the page asked for (else
+            // General, as a new window starts), its facts read again off the main thread.
+            model.reopened()
+            UIText.choice = model.config.uiLanguage
+            AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
+            window.title = Self.title
+            NotificationCenter.default.post(name: .allInOneIMESettingsReopened, object: nil,
+                                            userInfo: page.map { ["page": $0.rawValue] } ?? [:])
+        } else if window?.isVisible != true {
+            // The first time (or the settings in another file now: the self-test's): built with the config file as it is
+            // now, and kept once closed.
             window?.close()
             let model = SettingsModel()
             self.model = model

@@ -463,16 +463,21 @@ public final class SessionTasks {
         start(.request) { post in
             let results: [SearchResult]
             do {
-                results = try await list().map { session, reply in
-                    let mark = session.progress == .done ? "✓" : session.progress == .needsYou ? "⚠︎" : "…"
-                    return SearchResult(name: "\(mark) \(session.name ?? session.shortID)",
-                                        path: SearchResult.agentPrefix + session.shortID, detail: reply)
-                }
+                results = Self.agentRows(try await list())
             } catch {
                 post(.failed(DescribedError(message: UIText.describe(error)), request: id))
                 return
             }
             post(.searched(results, request: id))
+        }
+    }
+
+    /// `@tasks`' rows for `agents` (newest first): each one's state and name, its last reply.
+    public static func agentRows(_ agents: [(session: AgentSession, reply: String?)]) -> [SearchResult] {
+        agents.map { session, reply in
+            let mark = session.progress == .done ? "✓" : session.progress == .needsYou ? "⚠︎" : "…"
+            return SearchResult(name: "\(mark) \(session.name ?? session.shortID)", path: SearchResult.agentPrefix + session.shortID,
+                                detail: reply)
         }
     }
 

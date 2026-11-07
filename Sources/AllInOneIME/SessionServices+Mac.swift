@@ -23,6 +23,8 @@ extension SessionServices {
     @MainActor
     static var mac: SessionServices {
         var services = SessionServices(converter: sharedConverter, loadSettings: { LiveConfig.current })
+        // The connection to the user's cloud provider opened as an AI command is written, after a pause.
+        services.warmsConnections = true
         // librime's session once it has deployed; without the Chinese pack it never starts (Latin letters).
         services.levelOne = {
             if let session = RimeService.shared.makeSession() { return .engine(session) }
@@ -110,6 +112,7 @@ extension SessionServices {
         }
         services.startAgent = { try await AgentMonitor.shared.start($0) }
         services.listAgents = { try await AgentMonitor.shared.list() }
+        services.lastAgents = { MainActor.assumeIsolated { AgentMonitor.shared.lastListed } }
         services.runProgram = { CommandRunner.run($0, input: $1) }
         // The plugin's preferences (`ctx.preferences`, as its completions get them), read once it runs: passwords from the
         // keychain.

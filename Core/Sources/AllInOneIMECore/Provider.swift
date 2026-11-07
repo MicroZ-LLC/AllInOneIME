@@ -220,6 +220,7 @@ public struct ChatClient: Sendable {
                 let maxTokens = body.inferenceConfig.maxTokens ?? config.maxTokens
                 let request = try HTTPProviders.makeRequest(body, provider: provider, settings: settings, key: key,
                                                             maxTokens: maxTokens, timeout: config.timeoutSeconds)
+                bedrock.warmth.sending(to: request.url)
                 // The Claude API and OpenAI-compatible services: without the temperature for a model that refuses one
                 // (`TemperatureSupport`). Gemini and the hosted service send theirs as they are.
                 guard provider == .anthropic || provider == .openai, settings.temperature != nil else {

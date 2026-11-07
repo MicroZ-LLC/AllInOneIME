@@ -100,6 +100,29 @@ final class CandidatePanel: NSPanel {
         }
     }
 
+    /// Its window, the glass behind the rows and their first drawing made now, unseen (no alpha, no clicks), and put away a
+    /// moment later as `hide` puts it away: the first panel a key shows after launch doesn't wait for them (a cold first
+    /// show took 30 ms on an M4, 5.9 ms after this). Once, at launch (`LaunchWarmUp`); only while it has never shown (one
+    /// shown and hidden since has what it would make, and keeps how it shows: `hiddenPresentation`).
+    func prewarm() {
+        guard !isVisible, hiddenPresentation == nil else { return }
+        view.model = PanelModel(rows: [PanelModel.Row(label: "1", text: "你好 AllInOneIME", kind: .candidate)])
+        setFrame(NSRect(origin: frame.origin, size: view.contentSize), display: false)
+        hiddenPresentation = (alphaValue, ignoresMouseEvents)
+        alphaValue = 0
+        ignoresMouseEvents = true
+        orderFrontRegardless()
+        display()
+        view.model = PanelModel()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, !self.isShowing else { return }
+            self.orderOut(nil)
+            self.pendingHide = nil
+        }
+        pendingHide = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+    }
+
     /// Our other windows on screen where the panel is: none while it shows rows (spec 0: one thing at the caret at a
     /// time; a notice is the panel's own, on its footer then), which the self-test checks.
     var overlapping: [NSWindow] {

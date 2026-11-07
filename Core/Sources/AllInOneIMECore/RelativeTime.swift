@@ -55,19 +55,21 @@ public enum RelativeTime {
     /// `ago` in words where there is no RelativeDateTimeFormatter with a units style (swift-corelibs-foundation: Linux,
     /// Windows, Android): swift-foundation's format style, the same ICU words, made to count as Apple's formatter does,
     /// in the largest calendar unit between the two and whole ones (90 seconds is "1 minute ago", not 2; 4 weeks is
-    /// "4 weeks ago", not "1 month ago"). The style counts from the present, so it is given the date as far before it as
-    /// those units are before `now`. On Apple platforms too (macOS 15), where the tests hold it to the formatter.
+    /// "4 weeks ago", not "1 month ago"). The style counts from the present, so it is given the date as many of those
+    /// units before the present, counted in the calendar (5 days before it are 5 days, a clock change between them or
+    /// not). On Apple platforms too (macOS 15), where the tests hold it to the formatter.
     @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
     static func countedWords(_ date: Date, now: Date, language: String) -> String {
         let calendar = Calendar.current
         let parts = calendar.dateComponents(Set(units.map(\.0)), from: date, to: now)
-        var (back, field) = (now, Date.RelativeFormatStyle.Field.second)
+        let present = Date()
+        var (shown, field) = (present, Date.RelativeFormatStyle.Field.second)
         if let (unit, unitField) = units.first(where: { (parts.value(for: $0.0) ?? 0) != 0 }), let count = parts.value(for: unit) {
-            back = calendar.date(byAdding: unit, value: -count, to: now) ?? now
+            shown = calendar.date(byAdding: unit, value: -count, to: present) ?? present
             field = unitField
         }
         let style = Date.RelativeFormatStyle(allowedFields: [field], presentation: .numeric, unitsStyle: .wide,
                                              locale: Locale(identifier: language), calendar: calendar)
-        return Date().addingTimeInterval(-now.timeIntervalSince(back)).formatted(style)
+        return shown.formatted(style)
     }
 }

@@ -384,13 +384,17 @@ final class AssistantModel: ObservableObject {
             }
         }
         let question = connection ? self.question.trimmingCharacters(in: .whitespacesAndNewlines) : ""
+        let run = probes
         checkTask = Task { @MainActor [weak self] in
-            var facts = await DoctorSession.probe()
-            guard let self, !Task.isCancelled else { return }
             let language = UIText.language
-            if let tested = self.tested, tested.config == facts.config, tested.keySaved == facts.keySaved {
-                facts.connection = tested.connection
+            // Each check's findings as it ends, the local ones first (what isn't checked yet shows as the last check found
+            // it, or not at all the first time); the connection test last.
+            var facts = await DoctorSession.probe { [weak self] partial in
+                guard let self, !Task.isCancelled, self.probes == run else { return }
+                self.findings = Doctor.findings(self.withTested(partial), language: language, keeping: self.findings)
             }
+            guard let self, !Task.isCancelled else { return }
+            facts = self.withTested(facts)
             if connection, Doctor.canTestConnection(facts) {
                 facts.connection = .running
                 self.findings = Doctor.findings(facts, language: language)
@@ -429,6 +433,14 @@ final class AssistantModel: ObservableObject {
                 self.run(connection: false)
             }
         }
+    }
+
+    /// `facts` with the last connection test's result while the config and the keys are as they were then.
+    private func withTested(_ facts: Doctor.Facts) -> Doctor.Facts {
+        guard let tested, let config = facts.config, tested.config == config, tested.keySaved == facts.keySaved else { return facts }
+        var facts = facts
+        facts.connection = tested.connection
+        return facts
     }
 
     /// Every finding is fine: the folded line says "Everything looks good" (else "N more look good").

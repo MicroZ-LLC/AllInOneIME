@@ -18,14 +18,16 @@ public final class EnglishWordsEngine: PinyinEngine {
     public let dictionary: EnglishDictionary
     /// The words offered (`EnglishWords.offered`), as they are written; the first of two with the same letters counts.
     public var words: [String] {
-        didSet {
-            guard words != oldValue else { return }
-            index = Self.index(words)
-            keys = Set(index.map(\.key))
+        get { made.words }
+        set {
+            guard newValue != made.words else { return }
+            made = Words(newValue)
         }
     }
+    /// The words with their index, as made (`Words`): given whole, made ahead off the main thread (`Words.ahead`).
+    public var made: Words
     /// Their letters (`EnglishWords.key`): what is learned isn't one of them (`EnglishWords.learns`).
-    public private(set) var keys: Set<String>
+    public var keys: Set<String> { made.keys }
     /// Letters librime committed exactly as they were typed, the whole composition (⏎, a tap of Shift).
     public var rawCommitted: ((String) -> Void)?
     /// The user's fuzzy pinyin (`Config.fuzzyPinyin`): what librime reads as pinyin with it is pinyin here too.
@@ -34,7 +36,7 @@ public final class EnglishWordsEngine: PinyinEngine {
     public static let maxPerPage = 3
 
     /// The words by their letters (`EnglishWords.key`), sorted: those a prefix begins are side by side.
-    private var index: [(key: String, word: String)]
+    private var index: [(key: String, word: String)] { made.index }
     /// A place on the page as shown: librime's candidate (its place on librime's page), or a word.
     private enum Entry: Equatable {
         case base(Int)
@@ -52,14 +54,42 @@ public final class EnglishWordsEngine: PinyinEngine {
     public init(base: PinyinEngine, dictionary: EnglishDictionary, words: [String] = []) {
         self.base = base
         self.dictionary = dictionary
-        self.words = words
-        index = Self.index(words)
-        keys = Set(index.map(\.key))
+        made = Words(words)
     }
 
-    private static func index(_ words: [String]) -> [(key: String, word: String)] {
-        var seen = Set<String>()
-        return words.map { (EnglishWords.key($0), $0) }.filter { !$0.0.isEmpty && seen.insert($0.0).inserted }.sorted { $0.key < $1.key }
+    /// The words offered, with what finding them takes: their index by their letters, and the letters themselves. Made
+    /// where they are given (`words`), or ahead, off the main thread (`ahead`), for what they are made of.
+    public struct Words: Sendable {
+        public let words: [String]
+        let index: [(key: String, word: String)]
+        let keys: Set<String>
+
+        public init(_ words: [String]) {
+            var seen = Set<String>()
+            self.words = words
+            index = words.map { (EnglishWords.key($0), $0) }.filter { !$0.0.isEmpty && seen.insert($0.0).inserted }.sorted { $0.key < $1.key }
+            keys = Set(index.map(\.key))
+        }
+
+        /// The words `EnglishWords.offered` gives for `config` and `jargon`, made now on the caller's thread and kept for
+        /// what they are made of (`madeOf`): the first field's session takes them instead of making them (`ahead`). The
+        /// shell makes them once librime is ready, off the main thread.
+        public static func prepare(_ config: Config, jargon: [JargonEntry]) {
+            let words = Words(EnglishWords.offered(config, jargon: jargon))
+            prepared.withLock { $0 = (madeOf(config, jargon: jargon), words) }
+        }
+
+        /// The words made ahead for what `madeOf` says they are made of (`prepare`); nil: none made for it.
+        public static func ahead(for madeOf: [String]) -> Words? {
+            prepared.withLock { $0.flatMap { $0.madeOf == madeOf ? $0.words : nil } }
+        }
+
+        /// What the words offered are made of: the user's, then the jargon list's terms.
+        public static func madeOf(_ config: Config, jargon: [JargonEntry]) -> [String] {
+            config.englishWords + ["\u{0}"] + jargon.map(\.term)
+        }
+
+        private static let prepared = Locked<(madeOf: [String], words: Words)?>(initialState: nil)
     }
 
     public var language: Language { base.language }

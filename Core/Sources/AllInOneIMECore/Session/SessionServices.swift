@@ -10,6 +10,10 @@ import Foundation
 public struct SessionServices {
     /// Level two: the AI requests (one `Converter`, one cache, shared by every field).
     public var converter: Converter
+    /// Whether a cloud provider's connection is opened ahead of a request, the draft an AI command or the first key in a
+    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's). Off by default: a test's
+    /// sessions send nothing they aren't asked to.
+    public var warmsConnections = false
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
@@ -111,6 +115,9 @@ public struct SessionServices {
     /// `@agent` in the background (Claude Code's): starting one (its id back), and the list (`@tasks`).
     public var startAgent: @Sendable (String) async throws -> String
     public var listAgents: @Sendable () async throws -> [(session: AgentSession, reply: String?)]
+    /// The list as last seen, newest first (the last `@tasks`, or the shell's last look at the tasks), at once: what ⏎ on
+    /// `@tasks` shows while `listAgents` runs. Nil: none seen yet.
+    public var lastAgents: () -> [(session: AgentSession, reply: String?)]?
     /// A custom `run` command's program (and `@py`, `@js`), and a script plugin told the interface language.
     public var runProgram: @Sendable (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error>
     public var runPlugin: @Sendable (InstalledPlugin, String, Language) -> AsyncThrowingStream<ConversionUpdate, Error>
@@ -242,6 +249,7 @@ public struct SessionServices {
         programInstalled = { _ in false }
         startAgent = { _ in throw SessionServicesError.unsupported }
         listAgents = { [] }
+        lastAgents = { nil }
         runProgram = { command, input in CommandRunner.run(command, input: input) }
         runPlugin = { _, _, _ in AsyncThrowingStream { $0.finish(throwing: SessionServicesError.unsupported) } }
         loadExtensions = { _, _ in .empty }

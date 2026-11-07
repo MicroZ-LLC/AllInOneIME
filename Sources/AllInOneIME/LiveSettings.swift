@@ -154,6 +154,13 @@ enum LiveJargon {
         cached = (url, date, entries)
         return entries
     }
+
+    /// What was read of the list at `url` elsewhere (`date`: the file's modification date then; off the main thread at
+    /// launch, `LaunchWarmUp`), as the list now, unless the file changed since: the first key doesn't read it again.
+    static func take(url: URL, date: Date?, entries: [JargonEntry]) {
+        guard LiveConfig.modificationDate(url) == date else { return }
+        cached = (url, date, entries)
+    }
 }
 
 /// A file's modification date as `FileManager.attributesOfItem` gives it (a symbolic link's own, not its target's), from
