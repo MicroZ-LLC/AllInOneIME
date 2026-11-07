@@ -59,6 +59,10 @@ public protocol PinyinEngine: AnyObject {
     /// Deletes a candidate on the current page (a right-click, ⌃⌦): what the engine learned of it is forgotten. Returns
     /// true if it was one the engine could delete.
     func deleteCandidate(onPage index: Int) -> Bool
+    /// The candidates the user removed (`EnglishWordsEngine.removedCandidates`), by their text as shown: an engine that
+    /// can leave them out itself does (librime, with AllInOneIME's filter: `RemovedCandidates.property`), its pages laid
+    /// out from what is left, each full.
+    func setRemovedCandidates(_ texts: [String])
     /// Commits the current composition as converted text and returns it.
     func commitComposition() -> String?
     /// The typed letters of the current composition.
@@ -73,6 +77,8 @@ extension PinyinEngine {
     public var language: Language { .chinese }
     /// An engine that learns nothing has nothing to forget.
     public func deleteCandidate(onPage index: Int) -> Bool { false }
+    /// One that can't leaves it to `EnglishWordsEngine`, which leaves them out of what it shows.
+    public func setRemovedCandidates(_ texts: [String]) {}
 }
 
 extension String {
