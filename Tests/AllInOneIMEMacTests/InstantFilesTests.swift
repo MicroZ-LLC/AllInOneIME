@@ -179,7 +179,8 @@ struct InstantFilesTests {
         #expect(FileSearch.complete(big + "/file 29", limit: 8).map(\.name) == ["file 29.pdf", "file 290.pdf"] + (2900...2905).map { "file \($0).pdf" })
     }
 
-    @Test func theFullSearchFindsWhatWasOpenedByItsName() {
+    @Test func theFullSearchFindsWhatWasOpenedByItsName() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
         var history = OpenHistory()
         history.record("/System/Applications/Calculator.app")
         history.record("/Applications/No Such Calculator.app")
@@ -188,6 +189,14 @@ struct InstantFilesTests {
         #expect(FileSearch.openedFiles(history, keywords: ["applications"], places: [], apps: [:]).isEmpty, "a folder isn't its name")
         let indexed = ["/System/Applications/Calculator.app": AppIndex.App(path: "/System/Applications/Calculator.app", names: [])]
         #expect(FileSearch.openedFiles(history, keywords: ["calc"], places: [], apps: indexed).isEmpty, "an app of the index by its names only")
+        // What is on a server isn't looked for: it counts as gone.
+        let (share, mounts) = try server()
+        try Data().write(to: URL(fileURLWithPath: share + "/sub/calculations.numbers"))
+        history.record(share + "/sub/calculations.numbers")
+        #expect(FileSearch.openedFiles(history, keywords: ["calc"], places: [], apps: [:]).count == 2)
+        #expect(FileSearch.openedFiles(history, keywords: ["calc"], places: [], apps: [:], mounts: mounts).map(\.path)
+            == ["/System/Applications/Calculator.app"])
+        #expect(FileSearch.isThere(share + "/sub", mounts: Mounts()) && !FileSearch.isThere(share + "/sub", mounts: mounts))
     }
 
     // MARK: - Spotlight's names
@@ -247,5 +256,8 @@ struct InstantFilesTests {
         #expect(scopes.allSatisfy { FileSearch.isCandidate($0 + "/x") }, "only where `isCandidate` lists files from")
         // The startup disk's link in /Volumes leads to "/": Spotlight would look everywhere.
         #expect(!scopes.contains { (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) != nil })
+        // A server's volume isn't searched.
+        let volumes = ((try? FileManager.default.contentsOfDirectory(atPath: "/Volumes")) ?? []).map { ("/Volumes/" + $0, false) }
+        #expect(FileSearch.scopes(mounts: Mounts(points: [("/", true)] + volumes)) == Array(scopes.prefix(3)))
     }
 }

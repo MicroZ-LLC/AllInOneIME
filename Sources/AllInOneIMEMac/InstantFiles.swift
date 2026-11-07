@@ -84,7 +84,8 @@ public final class InstantFiles: @unchecked Sendable {
         }
         let indexed = Set(index.map(\.path))
         var opened: [String: Kept] = [:]
-        for path in history.entries.map(\.path) where !indexed.contains(path) && FileManager.default.fileExists(atPath: path) {
+        let mounts = Mounts()
+        for path in history.entries.map(\.path) where !indexed.contains(path) && FileSearch.isThere(path, mounts: mounts) {
             opened[path] = known[path] ?? Kept(found: FileSearchRanking.Found(path: path), result: FileSearch.result(for: path))
         }
         let placeNames = Set(FileSearchRanking.scopingPlaces(apps.map(\.found)).flatMap(\.names).map(Self.folded))

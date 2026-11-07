@@ -138,25 +138,31 @@ public enum FileSearch {
     }
 
     /// The folders Spotlight searches by name for `@open`: those `isCandidate` keeps files from (the home folder, the
-    /// folders apps are installed in, the volumes mounted besides the startup disk). What it would find anywhere else
-    /// is skipped, and looking there is most of its time: two letters took up to 2 s on a Mac mini, some 50 ms in these.
-    public static func scopes() -> [String] {
+    /// folders apps are installed in, this Mac's volumes mounted besides the startup disk, not a server's: `mdfind -name`
+    /// didn't look there either, and a server would make every search wait for it). What it would find anywhere else is
+    /// skipped, and looking there is most of its time: two letters took up to 2 s on a Mac mini, some 50 ms in these.
+    public static func scopes(mounts: Mounts = Mounts()) -> [String] {
         let volumes = ((try? FileManager.default.contentsOfDirectory(atPath: "/Volumes")) ?? [])
             .filter { !$0.hasPrefix(".") }
             .map { "/Volumes/" + $0 }
-            .filter { (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) == nil }  // the startup disk's link to "/"
+            .filter { mounts.isLocal($0) && (try? FileManager.default.destinationOfSymbolicLink(atPath: $0)) == nil }  // the startup disk's link to "/"
         return [home, "/Applications", "/System/Applications"] + volumes
     }
 
-    /// What `@open` opened before (`history`) that `keywords` name (`FileSearchRanking.matches`) and is still there, but
-    /// not an app or place of the index (`apps`: found by its names): it is found by name even where Spotlight doesn't
-    /// look (a folder kept out of its index), as it is listed while the text is typed (`InstantFiles`).
+    /// What `@open` opened before (`history`) that `keywords` name (`FileSearchRanking.matches`) and is still there
+    /// (`isThere`), but not an app or place of the index (`apps`: found by its names): it is found by name even where
+    /// Spotlight doesn't look (a folder kept out of its index), as it is listed while the text is typed (`InstantFiles`).
     static func openedFiles(_ history: OpenHistory, keywords: [String], places: [FileSearchRanking.Found],
-                            apps: [String: AppIndex.App]) -> [FileSearchRanking.Found] {
+                            apps: [String: AppIndex.App], mounts: Mounts = Mounts()) -> [FileSearchRanking.Found] {
         history.entries.map(\.path).filter { path in
-            apps[path] == nil && FileSearchRanking.matches(path, keywords: keywords, places: places)
-                && FileManager.default.fileExists(atPath: path)
+            apps[path] == nil && FileSearchRanking.matches(path, keywords: keywords, places: places) && isThere(path, mounts: mounts)
         }.map { FileSearchRanking.Found(path: $0) }
+    }
+
+    /// Whether `path` is still there, asked of this Mac's volumes only (`Mounts.isLocal`): what is on a server isn't
+    /// looked for, and counts as gone (one that doesn't answer would hold the search until the system gives up on it).
+    static func isThere(_ path: String, mounts: Mounts) -> Bool {
+        mounts.isLocal(path) && FileManager.default.fileExists(atPath: path)
     }
 
     /// `app` (or a place) with when it was last used and changed, as Spotlight keeps them. Its name search
