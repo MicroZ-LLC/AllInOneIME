@@ -427,6 +427,13 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return try? Data(contentsOf: imageURL(id))
     }
 
+    /// The kept image whose thumbnail is the file at `path` (a panel row's icon: `ClipboardHistoryImage.thumbnail`), and its
+    /// PNG's file: what the panel's larger picture of it shows (the input method's ImagePreview). Nil: none kept (any more).
+    public func image(thumbnail path: String) -> (image: ClipboardHistoryImage, file: URL)? {
+        guard let image = items.lazy.compactMap(\.image).first(where: { $0.thumbnail == path }) else { return nil }
+        return (image, imageURL(image.id))
+    }
+
     /// The oldest dropped beyond `limit` (a lower one set), at once.
     public func trim(to limit: Int) {
         guard items.count > max(limit, 1) else { return }

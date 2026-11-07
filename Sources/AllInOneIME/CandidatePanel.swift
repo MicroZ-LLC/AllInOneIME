@@ -47,6 +47,10 @@ final class CandidatePanel: NSPanel {
         set { view.onChip = newValue }
     }
 
+    /// Told after each `show` and as it hides: what shows beside it follows it (`ImagePreview`, clipboard history's larger
+    /// picture of an image).
+    var onPresent: (() -> Void)?
+
     init() {
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 80),
@@ -71,7 +75,7 @@ final class CandidatePanel: NSPanel {
     /// The system's own material behind the rows, so the panel looks like the system's menus and follows
     /// its settings: Liquid Glass on macOS 26 (Clear or Tinted, as set in Appearance), the menu material
     /// before; both turn solid with Reduce Transparency (Accessibility → Display).
-    private static func glass(around view: NSView) -> NSView {
+    static func glass(around view: NSView) -> NSView {
         view.autoresizingMask = [.width, .height]
         if #available(macOS 26.0, *) {
             let glass = NSGlassEffectView()
@@ -122,6 +126,7 @@ final class CandidatePanel: NSPanel {
             hiddenPresentation = nil
         }
         if appearing, alphaValue > 0 { animateAppearance(from: side) }
+        onPresent?()
     }
 
     /// As it comes up: a quick fade, growing to its size from 98% toward the caret, 120 ms, no bounce; none with Reduce
@@ -201,6 +206,7 @@ final class CandidatePanel: NSPanel {
         }
         pendingHide = work
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
+        onPresent?()
     }
 
     /// Where the panel goes for `anchor` as the view is laid out now, and on which side of the caret (the side it is on
@@ -435,8 +441,15 @@ final class CandidateView: NSView {
     var onChip: ((ChipPart) -> Void)?
     /// The row under the pointer, drawn lightly highlighted: what a click would pick.
     private(set) var hovered: Int? {
-        didSet { if hovered != oldValue { needsDisplay = true } }
+        didSet {
+            guard hovered != oldValue else { return }
+            needsDisplay = true
+            onHover?(hovered)
+        }
     }
+    /// The pointer onto another row, or off the rows (nil): for what shows beside the panel only (`ImagePreview`); the
+    /// choice and the text stay as they are.
+    var onHover: ((Int?) -> Void)?
     /// The part of the chip under the pointer, drawn highlighted.
     private(set) var hoveredChip: ChipPart? {
         didSet { if hoveredChip != oldValue { needsDisplay = true } }
@@ -1381,6 +1394,11 @@ final class CandidateView: NSView {
         let rows = Int(pendingScroll.rounded(.towardZero))
         pendingScroll -= CGFloat(rows)
         onScroll?(rows)
+    }
+
+    /// Row `index`'s place, from the view's top left (the highlight's, not sliding); nil: no such row.
+    func rowFrame(_ index: Int) -> NSRect? {
+        rowLayouts.indices.contains(index) ? rowLayouts[index].frame : nil
     }
 
     /// The row a click at `point` picks (`CandidateLayout.row`).
