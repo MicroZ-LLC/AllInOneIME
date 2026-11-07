@@ -1060,8 +1060,8 @@ suggestions use, and puts in the one you choose.
   nothing), ⌃V in a terminal or a code editor (VS Code, Cursor, JetBrains, Xcode…), so ⌃V ⌃V is still vim's block
   selection and the shell's "type the next key as is"; without Accessibility, ⌃V as it is. In a command, ⌃V ⌃V appends the clipboard at once.
 - **Text and images:** the plain text of what you copy (rich text's too), or the image when an image is what you copied;
-  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never an image copied on another
-  device (Universal Clipboard), never what a password
+  never files or colours, never an image over 10 MB (as PNG) or 40 million pixels, never text or an image copied on
+  another device (Universal Clipboard: ⌃V shows its text as the first row, "on the clipboard"), never what a password
   manager or clipboard tool marks as concealed, transient or auto-generated, nothing copied during secure input (a
   password field; checked once a second: a copy is dropped when secure input was on at the check that finds it or the
   one before, so secure input turned on and off again between two checks can go unseen), nothing blank, nothing over
