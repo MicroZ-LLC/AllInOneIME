@@ -5,11 +5,12 @@ import FoundationNetworking
 
 /// A cloud provider's connection opened ahead of a request (`Converter.warmConnection`). The shared session's connection
 /// to a service closes after two or three minutes idle, and the request after the pause would wait for a new one: DNS,
-/// TCP and TLS, 50 to 300 ms. Where nothing went to the service in the last `idle`, a HEAD goes to its base URL on the
-/// same session, with no key, no credentials and no body, so that the connection is open when the request goes. One an
-/// idle period: a HEAD, or a request, counts as something sent there. Only to a host on the internet (`isPublic`): never
-/// to the hosted service (a HEAD there would run it), by provider or by its host, nor to this Mac or the local network.
-/// One for each session (`BedrockClient`).
+/// TCP and TLS, 50 to 300 ms. Where nothing went to the service in the last `idle`, a HEAD goes to its origin
+/// ("https://host:port/": no user or password, path or query of the base URL) on the same session, with no key, no
+/// credentials and no body, any authentication asked of it refused, so that the connection is open when the request
+/// goes. One an idle period: a HEAD, or a request, counts as something sent there. Only to a host on the internet
+/// (`isPublic`): never to the hosted service (a HEAD there would run it), by provider or by its host, nor to this Mac or
+/// the local network. One for each session (`BedrockClient`).
 public final class ConnectionWarmth: Sendable {
     /// A service nothing went to for this long is idle: its connection may be gone by the time the request goes.
     public static let idle: TimeInterval = 90
@@ -31,11 +32,10 @@ public final class ConnectionWarmth: Sendable {
         sent.withLock { $0[origin] = time }
     }
 
-    /// Whether a HEAD goes to `url` now: an https address on the internet (`isPublic`) nothing went to in the last
-    /// `idle`, not the hosted service's. True marks it sent.
+    /// Whether a HEAD goes to `url` now: an https address on the internet nothing went to in the last `idle`, not the
+    /// hosted service's. True marks it sent.
     func due(_ url: URL) -> Bool {
-        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), Self.isPublic(host),
-              host != HostedService.host, let origin = Self.origin(url) else { return false }
+        guard let origin = Self.headURL(url).flatMap(Self.origin) else { return false }
         let time = now()
         return sent.withLock { sent in
             if let last = sent[origin], time - last < Self.idle { return false }
@@ -44,20 +44,34 @@ public final class ConnectionWarmth: Sendable {
         }
     }
 
-    /// The HEAD to `url` on `session`, where it is due (`due`), off the caller's thread: never redirected (as no request
-    /// to a provider is), its answer taken to its end, so that the connection stays open, and not looked at. True if it
-    /// went.
+    /// The HEAD to `url`'s origin on `session`, where it is due (`due`), off the caller's thread: never redirected (as no
+    /// request to a provider is), any authentication challenge refused, its answer taken to its end, so that the
+    /// connection stays open, and not looked at. True if it went.
     @discardableResult
     func warm(_ url: URL, session: URLSession) -> Bool {
-        guard due(url) else { return false }
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.timeout)
+        guard due(url), let head = Self.headURL(url) else { return false }
+        var request = URLRequest(url: head, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: Self.timeout)
         request.httpMethod = "HEAD"
         request.httpShouldHandleCookies = false
         Task.detached(priority: .utility) {
-            guard let (body, _) = try? await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil }) else { return }
+            guard let (body, _) = try? await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil },
+                                                              refusesAuthentication: true) else { return }
             do { for try await _ in body {} } catch {}
         }
         return true
+    }
+
+    /// Where the HEAD for a base URL goes: "https://host:port/", lowercased, nothing else of it (no user or password, no
+    /// path, no query). Nil where none goes: not https, not a host on the internet (`isPublic`), the hosted service's.
+    static func headURL(_ url: URL) -> URL? {
+        guard url.scheme?.lowercased() == "https", let host = url.host?.lowercased(), isPublic(host),
+              host != HostedService.host else { return nil }
+        var parts = URLComponents()
+        parts.scheme = "https"
+        parts.host = host
+        parts.port = url.port
+        parts.path = "/"
+        return parts.url
     }
 
     /// The names no host on the internet ends with: this computer, the local network, a VPN's own names (Tailscale's),

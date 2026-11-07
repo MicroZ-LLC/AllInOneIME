@@ -11,10 +11,13 @@ import FoundationNetworking
 public enum HTTPStream {
     /// Sends `request` on `session` and returns when the response's headers are in. `redirect` decides each
     /// redirect: the request to send instead, or nil to refuse it (the redirect itself is then the response);
-    /// without it, redirects are followed.
+    /// without it, redirects are followed. `refusesAuthentication`: any authentication the server asks for (Basic, Digest,
+    /// NTLM, a client certificate) is refused, nothing answered from the credentials the system keeps; where Foundation
+    /// tells the request's own delegate (Apple's).
     public static func bytes(for request: URLRequest, session: URLSession,
-                             redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil) async throws -> (Body, URLResponse) {
-        let receiver = Receiver(redirect: redirect)
+                             redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil,
+                             refusesAuthentication: Bool = false) async throws -> (Body, URLResponse) {
+        let receiver = Receiver(redirect: redirect, refusesAuthentication: refusesAuthentication)
         #if canImport(Darwin)
         // On the caller's session, so that its connections are reused; the task has a delegate of its own.
         let task = session.dataTask(with: request)
@@ -203,7 +206,7 @@ public enum HTTPStream {
     }
 
     /// The task's delegate: keeps what arrives until it's read.
-    fileprivate final class Receiver: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    final class Receiver: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         private struct State {
             var response: URLResponse?
             var data = Data()
@@ -214,9 +217,11 @@ public enum HTTPStream {
 
         private let state = Locked(initialState: State())
         private let redirect: (@Sendable (URLRequest) -> URLRequest?)?
+        private let refusesAuthentication: Bool
 
-        init(redirect: (@Sendable (URLRequest) -> URLRequest?)?) {
+        init(redirect: (@Sendable (URLRequest) -> URLRequest?)?, refusesAuthentication: Bool) {
             self.redirect = redirect
+            self.refusesAuthentication = refusesAuthentication
         }
 
         /// Whether the task told it it completed (`didCompleteWithError`).
@@ -282,6 +287,15 @@ public enum HTTPStream {
                         newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
             completionHandler(redirect.map { $0(request) } ?? request)
         }
+
+        #if canImport(Darwin)
+        /// A challenge: the server's certificate checked as usual; any other refused where `refusesAuthentication`.
+        func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            let serverTrust = challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
+            completionHandler(refusesAuthentication && !serverTrust ? .cancelAuthenticationChallenge : .performDefaultHandling, nil)
+        }
+        #endif
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
             update {

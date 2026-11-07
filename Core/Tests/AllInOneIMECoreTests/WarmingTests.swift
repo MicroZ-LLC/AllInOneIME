@@ -114,7 +114,7 @@ struct WarmingTests {
 
     // MARK: - A cloud provider's connection
 
-    /// The draft an AI command: one HEAD to the provider's base URL, with no key, no credentials, no body, on the requests'
+    /// The draft an AI command: one HEAD to the provider's origin, with no key, no credentials, no body, on the requests'
     /// own session; none again while the draft stays one, nor within `ConnectionWarmth.idle` of it.
     @Test func anAICommandOpensTheProvidersConnection() async throws {
         try await withInterfaceLanguage("en") {
@@ -127,7 +127,7 @@ struct WarmingTests {
             host.press(FakeHost.at)
             #expect(settled { StubURLProtocol.requests(host: server).count == 1 })
             let head = try #require(StubURLProtocol.requests(host: server).first)
-            #expect(head.httpMethod == "HEAD" && head.url?.absoluteString == "https://\(server)")
+            #expect(head.httpMethod == "HEAD" && head.url?.absoluteString == "https://\(server)/", "\(head.url?.absoluteString ?? "")")
             #expect(head.value(forHTTPHeaderField: "x-api-key") == nil && head.value(forHTTPHeaderField: "Authorization") == nil)
             #expect((head.httpBody ?? Data()).isEmpty)
             host.type("i")
@@ -241,12 +241,51 @@ struct WarmingTests {
                      HostedService.baseURL + "/v1"]
         for address in local {
             let url = try #require(URL(string: address), "\(address)")
+            #expect(ConnectionWarmth.headURL(url) == nil, "\(address)")
             #expect(!ConnectionWarmth(now: { 0 }).due(url), "\(address)")
         }
         for address in ["https://api.openai.com/v1", "https://api.deepseek.com", "https://dashscope.aliyuncs.com/compatible-mode/v1",
                         "https://bedrock-runtime.us-east-1.amazonaws.com"] {
-            #expect(ConnectionWarmth(now: { 0 }).due(try #require(URL(string: address))), "\(address)")
+            #expect(ConnectionWarmth.headURL(try #require(URL(string: address))) != nil, "\(address)")
         }
     }
 
+    /// The HEAD goes to the origin alone: no user or password, path or query of the base URL.
+    @Test func aHEADGoesToTheOriginAlone() throws {
+        let url = try #require(URL(string: "https://user:pass@llm.example.com:8443/v1/chat?key=secret"))
+        #expect(ConnectionWarmth.headURL(url)?.absoluteString == "https://llm.example.com:8443/")
+        #expect(ConnectionWarmth.headURL(try #require(URL(string: "https://API.Example.com/v1")))?.absoluteString == "https://api.example.com/")
+    }
+
+    #if canImport(Darwin)
+    /// A server asking the HEAD to authenticate (Basic, a client certificate): refused, never answered with a credential
+    /// the system keeps; the server's certificate is still checked as usual. Other requests leave it to the system.
+    @Test func aHEADRefusesEveryAuthentication() throws {
+        let session = URLSession(configuration: .ephemeral)
+        let task = session.dataTask(with: try #require(URL(string: "https://warm-auth.example.com/")))
+        func disposition(_ method: String, refusing: Bool) -> URLSession.AuthChallengeDisposition? {
+            let space = URLProtectionSpace(host: "warm-auth.example.com", port: 443, protocol: "https", realm: "relay",
+                                           authenticationMethod: method)
+            let challenge = URLAuthenticationChallenge(protectionSpace: space, proposedCredential: nil, previousFailureCount: 0,
+                                                       failureResponse: nil, error: nil, sender: Sender())
+            let told = Locked<URLSession.AuthChallengeDisposition?>(initialState: nil)
+            HTTPStream.Receiver(redirect: nil, refusesAuthentication: refusing)
+                .urlSession(session, task: task, didReceive: challenge) { answer, _ in told.withLock { $0 = answer } }
+            return told.withLock { $0 }
+        }
+        for method in [NSURLAuthenticationMethodHTTPBasic, NSURLAuthenticationMethodHTTPDigest, NSURLAuthenticationMethodNTLM,
+                       NSURLAuthenticationMethodClientCertificate, NSURLAuthenticationMethodDefault] {
+            #expect(disposition(method, refusing: true) == .cancelAuthenticationChallenge, "\(method)")
+            #expect(disposition(method, refusing: false) == .performDefaultHandling, "\(method)")
+        }
+        #expect(disposition(NSURLAuthenticationMethodServerTrust, refusing: true) == .performDefaultHandling)
+        task.cancel()
+    }
+
+    final class Sender: NSObject, URLAuthenticationChallengeSender {
+        func use(_ credential: URLCredential, for challenge: URLAuthenticationChallenge) {}
+        func continueWithoutCredential(for challenge: URLAuthenticationChallenge) {}
+        func cancel(_ challenge: URLAuthenticationChallenge) {}
+    }
+    #endif
 }
