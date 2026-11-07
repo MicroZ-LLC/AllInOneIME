@@ -62,7 +62,7 @@ struct PanelPresenterTests {
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
         #expect(zh.model(for: c).rows.first { $0.text == "improve" }?.comment == "润色，再给几种改写（不翻译）")
-        #expect(model.footer == "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel")
+        #expect(model.footer == "Type a command's name, or what you want · ⏎ / Tab picks · ↑↓ · Esc cancel")
         // More commands than rows: where the list is.
         try #require(c.oneAtRows.count > Composer.oneAtRowsShown)
         #expect(model.detail == "1–\(model.rows.count) / \(c.oneAtRows.count)")

@@ -271,8 +271,8 @@ struct OneAtTests {
 
     /// ⏎ while the selection read after "@" is in flight is taken at once and parked: nothing happens on the key, nothing
     /// waits. When the read lands it is done as where the field tells the selection with the key: with the selection, the
-    /// selection's first row runs; with none, the "@" is typed. A read that gives up counts as none ("@" typed, as over any
-    /// selection). No key is posted, ever.
+    /// selection's first row runs; with none, the row it was pressed on, as ⏎ on "@" alone (the first command picked). A
+    /// read that gives up counts as none (the command picked, nothing typed over the selection). No key is posted, ever.
     @Test func returnIsParkedUntilTheSelectionIsRead() async {
         await withInterfaceLanguage("en") {
             let host = reading(selected: true)
@@ -285,16 +285,19 @@ struct OneAtTests {
             #expect(host.document == "hello there" && host.composer.parkedForSelection == nil && host.platformActions.isEmpty)
 
             let none = reading(selected: false)
+            #expect(none.composer.oneAtRows.first == .command(.improve), "\(names(none.composer.oneAtRows))")
             #expect(none.press(FakeHost.enter))
-            #expect(none.document == "hello there" && none.composer.isComposing, "parked: \(none.document)")
+            #expect(none.document == "hello there" && none.composer.isComposing && none.composer.draftCommand == nil, "parked: \(none.document)")
             none.answerFieldReads()
-            #expect(none.document == "hello there@" && !none.composer.isComposing, "\(none.document) \(none.composer.draft)")
+            #expect(none.document == "hello there" && none.composer.draftCommand == .improve && none.composer.draft == "@improve ",
+                    "\(none.document) \(none.composer.draft)")
             #expect(none.platformActions.isEmpty)
 
             let givesUp = reading(selected: true)
             #expect(givesUp.press(FakeHost.enter))
             givesUp.selectionReadsGiveUp()
-            #expect(givesUp.document == "@" && !givesUp.composer.isComposing && !givesUp.composer.isLevelTwo, "\(givesUp.document)")
+            #expect(givesUp.document == "hello there" && givesUp.composer.draftCommand == .improve && !givesUp.composer.isLevelTwo,
+                    "\(givesUp.document) \(givesUp.composer.draft)")
             #expect(givesUp.composer.selection == nil && givesUp.platformActions.isEmpty)
         }
     }
@@ -378,17 +381,26 @@ struct OneAtTests {
     }
 
     /// A key while one is parked: the parked one is done first, as if nothing were selected, then this one, at once, in
-    /// the order typed. "@" ⏎ x: the "@" goes in, then the app's x; the read's late answer is dropped. A modifier pressed
-    /// (a shortcut, a tap, a hold starting) and the field left do the parked key first the same way.
+    /// the order typed. "@" ⏎ x: the first command is picked, then x is its text; the read's late answer is dropped. "@"
+    /// ⇧⏎ x: the "@" goes in, then the app's x. A modifier pressed (a shortcut, a tap, a hold starting) and the field left
+    /// do the parked key first the same way.
     @Test func aKeyBehindAParkedOneComesAfterIt() async {
         await withInterfaceLanguage("en") {
             let host = reading(selected: true)
             host.appTypesKeys = true
             #expect(host.press(FakeHost.enter))
-            #expect(!host.press(k("x")), "x is the app's")
-            #expect(host.document == "@x" && !host.composer.isComposing && !host.composer.isLevelTwo, "\(host.document)")
+            #expect(host.press(k("x")), "x is the command's text")
+            #expect(host.composer.draft == "@improve x" && host.document == "hello there" && !host.composer.isLevelTwo, "\(host.composer.draft)")
             host.answerFieldReads()
-            #expect(host.document == "@x" && !host.composer.isLevelTwo && host.composer.selection == nil, "dropped: \(host.document)")
+            #expect(host.composer.draft == "@improve x" && !host.composer.isLevelTwo && host.composer.selection == nil, "dropped: \(host.document)")
+
+            let asTyped = reading(selected: true)
+            asTyped.appTypesKeys = true
+            #expect(asTyped.press(shiftEnterKey))
+            #expect(!asTyped.press(k("x")), "x is the app's")
+            #expect(asTyped.document == "@x" && !asTyped.composer.isComposing && !asTyped.composer.isLevelTwo, "\(asTyped.document)")
+            asTyped.answerFieldReads()
+            #expect(asTyped.document == "@x" && asTyped.composer.selection == nil, "dropped: \(asTyped.document)")
 
             let letter = reading(selected: false, typing: "hello")
             letter.press(FakeHost.escape)
@@ -400,20 +412,22 @@ struct OneAtTests {
             let modifier = reading(selected: false)
             modifier.press(FakeHost.enter)
             modifier.modifiers(ModifierChange(key: .modifier(.shift, .left), modifiers: [.shift, .leftShift], timestamp: 100))
-            #expect(modifier.document == "hello there@" && !modifier.composer.selectionPending, "\(modifier.document)")
+            #expect(modifier.composer.draft == "@improve " && modifier.document == "hello there" && !modifier.composer.selectionPending,
+                    "\(modifier.composer.draft)")
 
             let left = reading(selected: true, typing: "hi")
             left.press(FakeHost.escape)
             left.send(.blur)
             #expect(left.document == "@hi" && !left.composer.isComposing, "the parked Esc done before the field goes: \(left.document)")
             #expect(left.composer.parkedForSelection == nil && !left.composer.selectionPending)
-            for host in [host, letter, modifier, left] { #expect(host.platformActions.isEmpty) }
+            for host in [host, asTyped, letter, modifier, left] { #expect(host.platformActions.isEmpty) }
         }
     }
 
     /// A row clicked while the read is in flight is parked too, the row shown done with what it found: "@improve"'s
     /// Improve picked for the selection (the draft stays in the panel, the selection as it is), which ⏎ then runs it on.
-    /// The action key's tap is parked the same way. Where nothing is read after the key, nothing is ever parked.
+    /// The action key's tap is parked the same way. Where nothing is read after the key, nothing is ever parked: "@" ⏎
+    /// picks the first command at once.
     @Test func aRowClickedOrTheActionKeysTapIsParked() async {
         await withInterfaceLanguage("en") {
             let host = reading(selected: true, typing: "improve")
@@ -441,7 +455,8 @@ struct OneAtTests {
             told.press(FakeHost.at)
             #expect(!told.composer.selectionPending)
             told.press(FakeHost.enter)
-            #expect(told.composer.parkedForSelection == nil && told.document == "hello there@", "\(told.document)")
+            #expect(told.composer.parkedForSelection == nil && told.composer.draft == "@improve " && told.document == "hello there",
+                    "\(told.document) \(told.composer.draft)")
         }
     }
 
@@ -461,7 +476,7 @@ struct OneAtTests {
 
             let parked = reading(selected: false)
             let old = parked.selectionReads.first
-            parked.press(FakeHost.enter)
+            parked.press(shiftEnterKey)
             var again = parked.context
             again.selectionFollows = true
             parked.press(FakeHost.at, with: again)
@@ -489,10 +504,9 @@ struct OneAtTests {
                 for key in edits { #expect(composer.whileSelectionIsRead(key) == .edits, "\(typing): \(key)") }
                 for key in parks { #expect(composer.whileSelectionIsRead(key) == .parks, "\(typing): \(key)") }
                 for key in settles { #expect(composer.whileSelectionIsRead(key) == .settles, "\(typing): \(key)") }
-                // The action key: ⌥Space does the highlighted row once a text is typed; right after the magic key with
-                // nothing selected it isn't the list's (it goes on to the app), so it settles the read there.
+                // The action key: ⌥Space does the highlighted row, right after the magic key too: parked.
                 composer.actionKey = .optionSpace
-                #expect(composer.whileSelectionIsRead(optionSpace) == (typing.isEmpty ? .settles : .parks), "\(typing)")
+                #expect(composer.whileSelectionIsRead(optionSpace) == .parks, "\(typing)")
                 composer.actionKey = .enter
                 host.press(FakeHost.enter)
                 for key in edits + parks { #expect(composer.whileSelectionIsRead(key) == .settles, "parked: \(key)") }
