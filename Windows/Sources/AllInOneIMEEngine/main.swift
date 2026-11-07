@@ -195,7 +195,7 @@ func renderPanels(_ arguments: [String]) -> Int32 {
                 let name = String(format: "%02d-", index + 1) + "\(sample.name)-\(theme)-\(dpi).png"
                 let maxHeight = sample.maxHeight * dpi / 96
                 guard let state = CandidateWindow.renderPNG(sample.model, dpi: dpi, dark: dark, maxHeight: maxHeight,
-                                                             to: out.appendingPathComponent(name)) else {
+                                                             above: sample.above, to: out.appendingPathComponent(name)) else {
                     print("\(name): not drawn")
                     failures += 1
                     continue

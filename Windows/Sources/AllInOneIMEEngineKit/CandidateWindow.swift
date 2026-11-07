@@ -178,14 +178,18 @@ public final class CandidateWindow: PanelWindow, @unchecked Sendable {
     }
 
     /// `model` drawn as the window draws it, at `dpi`, in the dark or light theme, a conversation no taller than
-    /// `maxHeight` pixels (0: no limit), into a PNG file, without a window (`aio_panel_render_png`): what was drawn (its
-    /// size, the input's caret, the scroll), or nil.
-    public static func renderPNG(_ model: PanelModel, dpi: Int = 96, dark: Bool = false, maxHeight: Int = 0, to url: URL) -> AioPanelState? {
+    /// `maxHeight` pixels (0: no limit), as `above` the caret (the pinyin candidates' line just above the footer) or below
+    /// it (that line at the top), into a PNG file, without a window (`aio_panel_render_png`): what was drawn (its size,
+    /// the input's caret, the scroll, the candidates' line), or nil.
+    public static func renderPNG(_ model: PanelModel, dpi: Int = 96, dark: Bool = false, maxHeight: Int = 0, above: Bool = false,
+                                 to url: URL) -> AioPanelState? {
         var state = AioPanelState()
         var ok: Int32 = 0
         let path = url.withUnsafeFileSystemRepresentation { String(cString: $0!) }.replacingOccurrences(of: "/", with: "\\")
         withUTF16(path) { path in
-            withModel(model) { flat in ok = aio_panel_render_png(flat, Int32(dpi), dark ? 1 : 0, Int32(maxHeight), path, &state) }
+            withModel(model) { flat in
+                ok = aio_panel_render_png(flat, Int32(dpi), dark ? 1 : 0, Int32(maxHeight), above ? 1 : 0, path, &state)
+            }
         }
         return ok != 0 ? state : nil
     }

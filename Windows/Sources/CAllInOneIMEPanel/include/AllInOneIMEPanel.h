@@ -48,8 +48,8 @@ typedef struct AioPanelRow {
 enum { AIO_STATUS_NONE = 0, AIO_STATUS_HINT = 1, AIO_STATUS_LOADING = 2, AIO_STATUS_ERROR = 3, AIO_STATUS_LIST = 4 };
 
 /// The core's PanelModel, flat. From top to bottom: where a conversation can go on (the hand-off: its title, then a chip
-/// per destination), the line of input, the header's lines, the rows, the status, the pinyin candidates shown with the
-/// rows, and the footer with the detail on its right.
+/// per destination), the line of input, the header's lines, the rows, the status, and the footer with the detail on its
+/// right; the pinyin candidates shown with the rows on the side nearest the caret.
 typedef struct AioPanelModel {
     const AioPanelRow *rows;
     int32_t rowCount;
@@ -64,8 +64,10 @@ typedef struct AioPanelModel {
     const uint16_t *status;
     const uint16_t *const *statusItems;
     int32_t statusItemCount;
-    /// The pinyin candidates on one line, while they are composed with rows that aren't them (one @'s): under the rows
-    /// and the status, just above the footer. Nil: none.
+    /// The pinyin candidates on one line, while they are composed with rows that aren't them (one @'s), on the side
+    /// nearest the caret, the rows on the far side: at the top, under the input, when the panel is below the caret (a
+    /// selection's header still just above the rows); under the rows and the status, just above the footer, when it is
+    /// above. Nil: none.
     const uint16_t *candidates;
     /// The line of input (a command written on the selection, a refine instruction, the next question): nil for none.
     /// Its prompt is drawn dimmed before its text; the caret is at `inputCaret` in the text, in UTF-16 units (-1: none,
@@ -119,6 +121,11 @@ typedef struct AioPanelState {
     int32_t scrolled;
     /// The rows' images kept, those being read too: kMaxImages (64) at most.
     int32_t images;
+    /// The side of the caret it was last placed on: 1 above it (the pinyin candidates' line just above the footer), 0
+    /// below it (that line at the top).
+    int32_t above;
+    /// Where the pinyin candidates' line was drawn, in the window's pixels (its top); -1: none.
+    int32_t candidatesY;
 } AioPanelState;
 
 /// Starts the window's thread and creates the window there (hidden). Nil if it couldn't (no desktop, no Direct2D).
@@ -147,10 +154,11 @@ int32_t aio_panel_row_rect(AioPanel *panel, int32_t row, int32_t *x, int32_t *y,
 /// Writes what was drawn last to a PNG file. 0 if it couldn't.
 int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path);
 /// Draws `model` as the window would at `dpi`, in the dark or light theme, no taller than `maxHeight` pixels for a
-/// conversation (0: no limit), into a PNG file, without a window (any thread, any session); `state`, if given, says
-/// what was drawn (its size, the input's caret, the scroll). 0 if it couldn't.
-int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t dark, int32_t maxHeight, const uint16_t *path,
-                             AioPanelState *state);
+/// conversation (0: no limit), `above` the caret (1: the pinyin candidates' line just above the footer) or below it (0:
+/// that line at the top), into a PNG file, without a window (any thread, any session); `state`, if given, says what was
+/// drawn (its size, the input's caret, the scroll, the candidates' line). 0 if it couldn't.
+int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t dark, int32_t maxHeight, int32_t above,
+                             const uint16_t *path, AioPanelState *state);
 /// Closes the window and ends its thread.
 void aio_panel_destroy(AioPanel *panel);
 

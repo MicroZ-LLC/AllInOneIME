@@ -1,15 +1,24 @@
 import AllInOneIMECore
 import AppKit
 
-/// Borderless, non-activating floating panel shown under the insertion point.
+/// Borderless, non-activating floating panel shown under the insertion point (above it when there's no room below).
 final class CandidatePanel: NSPanel {
     static let shared = CandidatePanel()
+
+    /// Which side of the caret the panel is on.
+    enum Side: Equatable {
+        case below, above
+    }
 
     /// The input controller currently showing the panel.
     weak var owner: AnyObject?
     let view = CandidateView()
     private var pendingHide: DispatchWorkItem?
     private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
+    /// The side the panel is on while it shows, and the caret line it went there for: kept while typing on that line, as
+    /// long as it fits there (`placement`), so a panel that grows and shrinks with the keys (the pinyin candidates' line
+    /// coming and going) doesn't flip from one side of the caret to the other. Forgotten as it hides.
+    private var placed: (side: Side, anchor: NSRect)?
 
     /// Hidden immediately between words, even while its window is kept ordered for the next word.
     var isShowing: Bool { isVisible && pendingHide == nil }
@@ -86,8 +95,11 @@ final class CandidatePanel: NSPanel {
         // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
         view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
         view.model = model
-        let size = view.contentSize
-        let nextFrame = NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
+        let (nextFrame, side) = placement(at: anchor)
+        // The pinyin candidates' line on the side nearest the caret, laid out for that side before anything is drawn: the
+        // rows are never seen where the other side would have them.
+        view.side = side
+        placed = (side, anchor)
         if frame != nextFrame {
             setFrame(nextFrame, display: true)
             invalidateShadow()
@@ -132,12 +144,13 @@ final class CandidatePanel: NSPanel {
     /// Whether `show(model, anchor:)` would change nothing: up already, with this model, where `anchor` puts it.
     func shows(_ model: PanelModel, anchor: NSRect) -> Bool {
         guard isShowing, view.model == model else { return false }
-        let size = view.contentSize
-        return frame == NSRect(origin: Self.origin(for: size, anchor: anchor, textInset: view.textInset), size: size)
+        let (nextFrame, side) = placement(at: anchor)
+        return frame == nextFrame && view.side == side
     }
 
     func hide() {
         guard isShowing else { return }
+        placed = nil
         // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
         // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
         hiddenPresentation = (alphaValue, ignoresMouseEvents)
@@ -152,21 +165,40 @@ final class CandidatePanel: NSPanel {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: work)
     }
 
-    /// Places the panel's top-left just below the line rect, flipping above when there is no room,
-    /// and keeps it on the anchor's screen. The first candidate's text starts under the caret (`textInset` from the
-    /// panel's left edge).
-    static func origin(for size: NSSize, anchor rawAnchor: NSRect,
-                       textInset: CGFloat = CandidateView.Metrics.textInsetX) -> NSPoint {
+    /// Where the panel goes for `anchor` as the view is laid out now, and on which side of the caret (the side it is on
+    /// kept while `anchor` is on the same line: `placed`).
+    private func placement(at anchor: NSRect) -> (frame: NSRect, side: Side) {
+        let size = view.contentSize
+        let kept = placed.flatMap { Self.onTheSameLine($0.anchor, anchor) ? $0.side : nil }
+        let (origin, side) = Self.placement(for: size, anchor: anchor, textInset: view.textInset, keeping: kept)
+        return (NSRect(origin: origin, size: size), side)
+    }
+
+    /// Places the panel's top-left just below the line rect, or its bottom-left just above it when there is no room
+    /// below (`keeping` `.above`, the side it is on while typing on that line: above as long as it fits there), and keeps
+    /// it on the anchor's screen; with room on neither side, on the side with more, moved onto the screen. The first
+    /// candidate's text starts under the caret (`textInset` from the panel's left edge).
+    static func placement(for size: NSSize, anchor rawAnchor: NSRect, textInset: CGFloat = CandidateView.Metrics.textInsetX,
+                          keeping kept: Side? = nil) -> (origin: NSPoint, side: Side) {
         let anchor = usable(rawAnchor)
         let screen = screen(for: anchor)
         let visible = screen?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
         let gap: CGFloat = 4
-        var x = anchor.minX - textInset
-        var y = anchor.minY - gap - size.height
-        if y < visible.minY { y = anchor.maxY + gap }
-        x = min(max(x, visible.minX), visible.maxX - size.width)
-        y = min(max(y, visible.minY), visible.maxY - size.height)
-        return NSPoint(x: x, y: y)
+        let below = anchor.minY - gap - size.height, above = anchor.maxY + gap
+        let roomBelow = below >= visible.minY, roomAbove = above + size.height <= visible.maxY
+        let side: Side = kept == .above && roomAbove ? .above
+            : roomBelow ? .below
+            : roomAbove ? .above
+            : anchor.minY - visible.minY >= visible.maxY - anchor.maxY ? .below : .above
+        let x = min(max(anchor.minX - textInset, visible.minX), visible.maxX - size.width)
+        let y = min(max(side == .below ? below : above, visible.minY), visible.maxY - size.height)
+        return (NSPoint(x: x, y: y), side)
+    }
+
+    /// Whether two caret rects are on the same line: the middle of one within the other's height.
+    static func onTheSameLine(_ a: NSRect, _ b: NSRect) -> Bool {
+        let (a, b) = (usable(a), usable(b))
+        return b.midY >= a.minY - 1 && b.midY <= a.maxY + 1
     }
 
     /// `anchor`, or where the mouse is when a client reports an empty rect at the origin.
@@ -286,6 +318,14 @@ final class CandidateView: NSView {
         return model.rows.count == old.rows.count && model.highlighted == old.highlighted
     }
 
+    /// The side of the caret the panel is on (`CandidatePanel.placement`): the pinyin candidates shown with the rows
+    /// (`PanelModel.candidates`) go on the side nearest it, the rows on the far side, so the word is picked first, then
+    /// what to do with it: at the top below the caret (under the input line; a selection's header stays just above the
+    /// rows), just above the footer above it. The panel is as big either way.
+    var side: CandidatePanel.Side = .below {
+        didSet { if side != oldValue, model.candidates != nil { relayout() } }
+    }
+
     /// The tallest a conversation's panel gets (`PanelModel.transcript`); nil: no limit.
     var maxHeight: CGFloat? {
         didSet { if maxHeight != oldValue, model.transcript { relayout() } }
@@ -320,8 +360,9 @@ final class CandidateView: NSView {
     /// not on each draw.
     private var icons: [Icon?] = []
     private var statusFrame: NSRect?
-    private var headerFrame: NSRect?
-    /// Where the pinyin candidates shown with the rows are (`PanelModel.candidates`): under the rows and the status.
+    private(set) var headerFrame: NSRect?
+    /// Where the pinyin candidates shown with the rows are (`PanelModel.candidates`): on the side nearest the caret
+    /// (`side`).
     private(set) var candidatesFrame: NSRect?
     private var inputFrame: NSRect?
     /// Where the footer's line is, from the top.
@@ -387,6 +428,18 @@ final class CandidateView: NSView {
             inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
+        // The pinyin candidates shown with the rows, on the side nearest the caret (`side`): a line as the header's, the y
+        // under it.
+        candidatesFrame = nil
+        let candidates = candidatesString()
+        func layoutCandidates(_ candidates: NSAttributedString, top: CGFloat) -> CGFloat {
+            let size = Self.measure(candidates, minHeight: 0)
+            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
+            candidatesFrame = NSRect(x: p + Metrics.rowInsetX, y: top + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
+            return top + size.height + 2 * Metrics.rowInsetY
+        }
+        // Below the caret: at the top, under the input line.
+        if side == .below, let candidates { y = layoutCandidates(candidates, top: y) }
         headerFrame = nil
         if let header = headerString() {
             let size = Self.measure(header, minHeight: 0)
@@ -433,15 +486,8 @@ final class CandidateView: NSView {
             statusFrame = NSRect(x: statusX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
-        // The pinyin candidates shown with the rows: under them, just above the footer, so the rows stay where they are
-        // as pinyin starts and ends (a header's line would move them down).
-        candidatesFrame = nil
-        if let candidates = candidatesString() {
-            let size = Self.measure(candidates, minHeight: 0)
-            widest = max(widest, size.width + p + Metrics.rowInsetX - inset)
-            candidatesFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
-            y += size.height + 2 * Metrics.rowInsetY
-        }
+        // Above the caret: under the rows and the status, just above the footer.
+        if side == .above, let candidates { y = layoutCandidates(candidates, top: y) }
 
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
         var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
@@ -480,8 +526,8 @@ final class CandidateView: NSView {
 
     /// A conversation taller than `maxHeight`: its rows are shown between `rowsTop` and what is left above the status
     /// and footer, moved up to show the bottom of the last one, or the highlighted one when it is above (an earlier
-    /// answer picked with ↑), or as far as the wheel moved them; the status, the candidates and the footer move up with
-    /// the bottom of the panel.
+    /// answer picked with ↑), or as far as the wheel moved them; the status, the candidates' line under them (above the
+    /// caret) and the footer move up with the bottom of the panel.
     private func fitTranscript(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
         rowsShift = 0
         rowsClip = nil
@@ -505,7 +551,7 @@ final class CandidateView: NSView {
             rowLayouts[i].iconFrame?.origin.y -= shift
         }
         statusFrame?.origin.y -= overflow
-        candidatesFrame?.origin.y -= overflow
+        if side == .above { candidatesFrame?.origin.y -= overflow }
         footerY -= overflow
     }
 
