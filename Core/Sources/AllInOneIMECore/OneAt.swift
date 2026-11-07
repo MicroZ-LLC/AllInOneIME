@@ -317,11 +317,12 @@ public enum OneAt {
 /// Arithmetic for one @: a small evaluator of numbers and `+ - * / × ÷ ( ) % ^ .` only (their full-width forms too, as
 /// pinyin types them: "。" a point, "……" a power), never a script engine on the text. `%` after a number is percent
 /// ("200*15%" is 30), `^` a power, right to left. All of the text must be a sum with at least one operator ("3" alone is
-/// no sum), and not, as a whole, a date or a phone number ("2026-11-06", "11/5", "010-12345678": `DateDetector`).
+/// no sum), and not, as a whole, a date or a phone number ("2026-11-06", "010-12345678": `isDateOrPhoneNumber`, one rule
+/// on every platform).
 public enum Arithmetic {
     /// The value of `text`, or nil when it isn't all a sum (a letter, an unknown sign, unbalanced brackets, a division by
-    /// zero, a value too large), or all of it is one date or phone number as `dates` reads them.
-    public static func value(of text: String, dates: any DateDetector = Platform.current.dates) -> Double? {
+    /// zero, a value too large), or all of it is one date or phone number (`isDateOrPhoneNumber`).
+    public static func value(of text: String) -> Double? {
         let normalized = text.replacingOccurrences(of: "……", with: "^").unicodeScalars.map { scalar -> Character in
             // Full-width ASCII (＋－＊／（）％＾．０–９), as pinyin may type them.
             if (0xFF01...0xFF5E).contains(scalar.value), let ascii = Unicode.Scalar(scalar.value - 0xFEE0) { return Character(ascii) }
@@ -336,8 +337,45 @@ public enum Arithmetic {
         guard normalized.count <= 200, normalized.contains(where: \.isNumber) else { return nil }
         var parser = Parser(characters: normalized.filter { !$0.isWhitespace })
         guard let value = parser.sum(), parser.atEnd, parser.operators > 0, value.isFinite,
-              !dates.isWholeDateOrPhoneNumber(text.trimmingCharacters(in: .whitespaces)) else { return nil }
+              !isDateOrPhoneNumber(String(normalized)) else { return nil }
         return value
+    }
+
+    /// Whether all of `text` (its digits ASCII) is one date or one phone number as they are written, by the same rule on
+    /// every platform. A date: three numbers with the same "-", "/" or "." between them, a year of four digits first or
+    /// last, and a month and a day that can be ("2026-11-06", "2026/11/06", "11/06/2026", "2026.11.06"). A phone number:
+    /// groups of digits split by "-" or spaces, 7 to 15 digits in all, either after a "+" ("+86 138 0013 8000"), or two
+    /// groups or more, the last of 4 digits or more and the first of 3 or starting with 0 ("010-12345678", "555-1234",
+    /// "138-0013-8000"). Two numbers ("7/2", "3/4", "11/5", "100-20", "12-3") are neither: a sum.
+    static func isDateOrPhoneNumber(_ text: String) -> Bool {
+        let text = text.trimmingCharacters(in: .whitespaces)
+        return isDate(text) || isPhoneNumber(text)
+    }
+
+    private static func isDigits(_ part: Substring) -> Bool { !part.isEmpty && part.allSatisfy { $0.isASCII && $0.isNumber } }
+
+    private static func isDate(_ text: String) -> Bool {
+        func month(_ part: Substring) -> Bool { part.count <= 2 && Int(part).map { (1...12).contains($0) } == true }
+        func day(_ part: Substring) -> Bool { part.count <= 2 && Int(part).map { (1...31).contains($0) } == true }
+        for separator: Character in ["-", "/", "."] {
+            let parts = text.split(separator: separator, omittingEmptySubsequences: false)
+            guard parts.count == 3, parts.allSatisfy(isDigits) else { continue }
+            let (a, b, c) = (parts[0], parts[1], parts[2])
+            if a.count == 4, month(b), day(c) { return true }
+            if c.count == 4, month(a) && day(b) || day(a) && month(b) { return true }
+        }
+        return false
+    }
+
+    private static func isPhoneNumber(_ text: String) -> Bool {
+        let international = text.hasPrefix("+")
+        let rest = international ? text.dropFirst() : Substring(text)
+        guard rest.allSatisfy({ $0.isASCII && $0.isNumber || $0 == "-" || $0 == " " }) else { return false }
+        let groups = rest.split(omittingEmptySubsequences: false) { $0 == "-" || $0 == " " }
+        guard groups.allSatisfy(isDigits), (7...15).contains(groups.reduce(0) { $0 + $1.count }) else { return false }
+        if international { return true }
+        guard groups.count >= 2, let first = groups.first, let last = groups.last, last.count >= 4 else { return false }
+        return first.hasPrefix("0") || first.count == 3
     }
 
     /// `value` as it goes in: an integer without a point ("23"), else up to 12 significant digits, no trailing zeros
