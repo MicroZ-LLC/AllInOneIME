@@ -66,6 +66,17 @@ extension SelfTest {
             if FileManager.default.fileExists(atPath: url.path) { rendered += 1 }
         }
         check(rendered == states.count, "the About page's Updates card renders in each state (\(rendered)/\(states.count))")
+        // Moved, the input source not added yet (macOS leaves it to the user): the step to add it first, then the notice.
+        let status = InputSourceStatus.shared
+        let needed = status.needsAdding
+        status.needsAdding = true
+        updates.state = .upToDate
+        updates.lastResult = UpdateResult(from: "0.7.1", to: SystemIdentity.since, ok: true)
+        let step = snapshotDirectory.appendingPathComponent("settings-about-input-source-step.png")
+        try? FileManager.default.removeItem(at: step)
+        SettingsImage.render(model, page: .about, to: step) { _ = pump(timeout: $0) { false } }
+        status.needsAdding = needed
+        check(FileManager.default.fileExists(atPath: step.path), "the About page puts the step to add the input source first")
         // Checking off: the notification's switch goes with it (the model saves nothing).
         model.config.checkForUpdates = false
         updates.state = .available(sample)

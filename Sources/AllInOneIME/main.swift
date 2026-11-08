@@ -216,6 +216,8 @@ func runServer(showSettings: Bool = false) -> Never {
     }
     // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
+    // Whether the input source is enabled (the user adds a new one in System Settings): About shows the step until it is.
+    MainActor.assumeIsolated { InputSourceStatus.shared.start() }
     // What the last update did, and a look for the next one if a day has passed (in the background).
     MainActor.assumeIsolated { UpdateController.shared.start() }
     // What the move to this system identity left (`IdentityFinish`): the login keychain's keys handed over imported, the

@@ -20,11 +20,19 @@ private let savedAt = Date(timeIntervalSince1970: 1_790_000_000.25)
 struct IdentityFinishTests {
     /// What the record's steps find and do.
     final class FakeActions: IdentityCleanupActions {
-        var enabledSources: Set<String> = [oldIME], domains: Set<String> = [oldIME, oldSettings]
-        var apps: [String: String] = [:], agents: Set<String> = [], items: Set<CleanupRecord.KeychainItem> = []
+        var enabledSources: Set<String> = [oldIME, Updater.bundleID], domains: Set<String> = [oldIME, oldSettings]
+        var apps: [String: String] = [:], agents: Set<String> = [], items: Set<CleanupRecord.KeychainItem> = [], caches: Set<String> = []
         var entitled: Set<String> = [oldGroup]
         var failing: Set<String> = []
         var calls: [String] = []
+
+        func isInputSourceEnabled(_ id: String) -> Bool { enabledSources.contains(id) }
+        func isInputSourceAdded(_ id: String) -> Bool { enabledSources.contains(id) }
+        func removeCache(at path: String) -> Bool {
+            calls.append("cache \(path)")
+            caches.remove(path)
+            return true
+        }
 
         func disableInputSource(_ id: String) -> Bool {
             calls.append("disable \(id)")
@@ -128,7 +136,14 @@ struct IdentityFinishTests {
             }
             keys.unreadable = [claude.account, hosted.account]  // the identity before saved them
             record.loginKeys = [claude, hosted]
+            actions.caches = [cachePath]
+            record.caches = [cachePath]
             try record.write(to: self.record)
+        }
+
+        /// The old input method's cache folder in the user's caches.
+        var cachePath: String {
+            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches/\(oldIME)").path
         }
 
         func finish() -> IdentityFinish {
@@ -194,8 +209,8 @@ struct IdentityFinishTests {
         try mac.leaveRecord()
         #expect(mac.run() == .done(left: false))
         #expect(!FileManager.default.fileExists(atPath: mac.record.path))
-        #expect(mac.actions.enabledSources.isEmpty && mac.actions.domains.isEmpty && mac.actions.apps.isEmpty)
-        #expect(mac.actions.agents.isEmpty && mac.actions.items.isEmpty)
+        #expect(mac.actions.enabledSources == [Updater.bundleID] && mac.actions.domains.isEmpty && mac.actions.apps.isEmpty)
+        #expect(mac.actions.agents.isEmpty && mac.actions.items.isEmpty && mac.actions.caches.isEmpty)
         mac.keys.unreadable = []
         for (key, value) in [(claude, secrets[0]), (hosted, secrets[1]), (replacedOpenAI, secrets[2])] {
             #expect(mac.imported(key) == value && mac.handedOver(key) == nil, "\(key)")
@@ -212,7 +227,84 @@ struct IdentityFinishTests {
         // That version stopped: after a while the record is this one's.
         mac.now = Date().addingTimeInterval(CleanupRecord.staleAfter + 60)
         #expect(mac.run() == .done(left: false))
-        #expect(!FileManager.default.fileExists(atPath: mac.record.path) && mac.actions.enabledSources.isEmpty)
+        #expect(!FileManager.default.fileExists(atPath: mac.record.path) && mac.actions.enabledSources == [Updater.bundleID])
+    }
+
+    /// The input source before this one goes only once this one is enabled (the user adds it in System Settings): until
+    /// then its entry may be what this one is filed under, and the step stays in the record while the rest is done; the
+    /// next run after it is enabled does it.
+    @Test func theOldInputSourceGoesOnlyOnceThisOneIsEnabled() throws {
+        let mac = Mac()
+        try mac.leaveRecord()
+        mac.actions.enabledSources = [oldIME]  // this one not added yet
+        #expect(mac.run() == .done(left: true))
+        #expect(!mac.actions.calls.contains("disable \(oldIME)") && mac.actions.enabledSources == [oldIME])
+        let record = try #require(try CleanupRecord.read(at: mac.record))
+        #expect(record.inputSource == oldIME && record.handedOver)
+        var rest = record
+        rest.inputSource = nil
+        #expect(rest.isEmpty && mac.actions.domains.isEmpty && mac.actions.caches.isEmpty)
+        #expect(mac.lines.contains { $0.contains("stays until this one is added") })
+        #expect(mac.finish().waitsForInputSource)
+        // The keys don't wait for it.
+        mac.keys.unreadable = []
+        #expect(mac.imported(claude) == secrets[0] && mac.imported(hosted) == secrets[1])
+
+        // Added: the next run takes the old one out and deletes the record.
+        mac.actions.enabledSources.insert(Updater.bundleID)
+        #expect(mac.run() == .done(left: false))
+        #expect(mac.actions.calls.contains("disable \(oldIME)") && mac.actions.enabledSources == [Updater.bundleID])
+        #expect(!FileManager.default.fileExists(atPath: mac.record.path) && !mac.finish().waitsForInputSource)
+    }
+
+    /// One the user didn't have (not enabled, not listed) has no entry to keep: taken out whether this one is enabled or
+    /// not.
+    @Test func anOldInputSourceTheUserDidntHaveDoesntWait() throws {
+        let mac = Mac()
+        try mac.leaveRecord()
+        mac.actions.enabledSources = []
+        #expect(mac.run() == .done(left: false))
+        #expect(mac.actions.calls.contains("disable \(oldIME)") && !FileManager.default.fileExists(atPath: mac.record.path))
+    }
+
+    /// A cache folder goes only when it is the user's named after one of the record's bundle IDs.
+    @Test func onlyTheRecordsAppsCachesGo() throws {
+        let mac = Mac()
+        var record = CleanupRecord()
+        record.handedOver = true
+        record.bundleIDs = [oldIME]
+        let caches = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches")
+        record.caches = [caches.appendingPathComponent(oldIME).path, caches.appendingPathComponent("com.apple.Safari").path,
+                         "/tmp/Caches/\(oldIME)", caches.appendingPathComponent(Updater.bundleID).path]
+        try record.write(to: mac.record)
+        #expect(mac.run() == .done(left: false))
+        #expect(mac.actions.calls == ["cache \(caches.appendingPathComponent(oldIME).path)"], "\(mac.actions.calls)")
+        #expect(!FileManager.default.fileExists(atPath: mac.record.path))
+    }
+
+    // MARK: This identity's input source
+
+    /// Enabled as itself: a source Text Input Sources doesn't list, or files under another bundle ID (its cache keeping
+    /// the identity before's for this path), is registered again first, which files it under its own.
+    @Test func theInputSourceIsCheckedAsItself() {
+        var state = InputSourceState(registered: true, enabled: true, bundleID: oldIME)
+        var registered = 0
+        let check = InputSourceCheck(id: Updater.bundleID, state: { state }, register: {
+            registered += 1
+            state.bundleID = Updater.bundleID
+            state.enabled = false  // the old one's entry no longer counts: the user adds this one
+        })
+        #expect(!check.isEnabled() && registered == 1)
+        state.enabled = true  // added in System Settings
+        #expect(check.isEnabled() && registered == 1)
+        state = InputSourceState()
+        #expect(!check.isEnabled() && registered == 2)
+        // Enabled as the old bundle ID's even after registering: not enabled as itself.
+        let stuck = InputSourceCheck(id: Updater.bundleID, state: { InputSourceState(registered: true, enabled: true, bundleID: oldIME) },
+                                     register: {})
+        #expect(!stuck.isEnabled())
+        #expect(InputSourceState(registered: true, enabled: false, listed: true).added)
+        #expect(InputSourceState(registered: true, enabled: true).isEnabled(as: Updater.bundleID))
     }
 
     /// A step that fails stays in the record (the others out of it) for the next launch, and a key whose original can't

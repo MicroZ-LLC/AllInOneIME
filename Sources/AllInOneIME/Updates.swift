@@ -562,10 +562,17 @@ final class UpdateController: ObservableObject {
         Task { await notifier.restarted(after: result) }
         // Moved to this system identity (from a version before it, by its update or the installer): macOS asks again for
         // the permissions it keeps by bundle ID. Said once: About, its update row saying which (`UpdateText.moved`), with
-        // Troubleshoot outlined, which lists those still to allow. Once the input method has started.
+        // Troubleshoot outlined, which lists those still to allow. Once the input method has started. Its input source not
+        // added yet (macOS leaves that to the user): About from its top, that step first (`InputSourceStepSection`), and
+        // Troubleshoot outlined once it is added.
         if let result, SystemIdentity.moved(result) {
             log.notice("moved to this system identity: the permissions are told on the About page")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+                let status = InputSourceStatus.shared
+                guard status.needsAdding else { return SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+                SettingsWindow.shared.show(page: .about)
+                status.whenAdded = { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+            }
         }
         clearLeftovers()
         lastChecked = defaults.object(forKey: Self.successKey) as? Date

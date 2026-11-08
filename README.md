@@ -1175,7 +1175,9 @@ reading the selection and keeping a panel's keys from apps use, needs one step t
 Updating from 0.7.1 or earlier: since 0.7.2, AllInOneIME has its own system identity (the bundle IDs macOS knows it by).
 0.7.1 moves to it and carries your settings and saved API keys over, whether it updates itself (Settings → About → Update)
 or the installer asks it to. An earlier version can't: update it to 0.7.1 first, or install anyway and enter your API keys
-again. Either way, macOS asks again for the permissions you gave AllInOneIME, and AllInOneIME tells you which once.
+again. Either way, macOS lets only you add the new input method: AllInOneIME shows that step first (System Settings →
+Keyboard → Input Sources → + → English → AllInOneIME). macOS also asks again for the permissions you gave AllInOneIME,
+and AllInOneIME tells you which once.
 
 To uninstall, open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 
@@ -1509,8 +1511,11 @@ version's access group: at launch the input method imports each into the login k
 asks to allow it) and deletes the handover item; and what 0.7.1's cleanup couldn't remove is listed in
 `~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which the input method finishes at launch with the
 identifiers listed there, never anything of this identity's (`Sources/AllInOneIMEMac/IdentityHandover.swift`,
-`IdentityFinish.swift`). After the move, the input method says once which permissions to allow again (About, with
-Troubleshoot).
+`IdentityFinish.swift`). macOS lets only the user add a new input method: while this one's input source isn't enabled,
+the About page shows that step first (System Settings → Keyboard → Input Sources → + → English → AllInOneIME, with a
+button to Keyboard settings; `Sources/AllInOneIME/InputSourceStep.swift`), looked at again when the app becomes active
+and when a text field activates it; the earlier input source in the record is taken out only once this one is enabled.
+After the move, the input method says once which permissions to allow again (About, with Troubleshoot).
 
 ## License
 

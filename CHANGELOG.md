@@ -8,7 +8,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - AllInOneIME has its own system identity: new bundle IDs, the names macOS knows the input method and AllInOneIME Settings by, and a keychain access group of its own. Updating from 0.7.1 carries your settings and the API keys saved in AllInOneIME over (0.7.1 does it before it installs this version). From an earlier version, update to 0.7.1 first (Settings → About → Update); or the installer installs anyway, and you enter your API keys again. Keys synced through iCloud Keychain move too: another Mac reads them once it has updated as well.
 - macOS keeps permissions by bundle ID, so it asks again for those you gave AllInOneIME: Accessibility, Paste from Other Apps, Automation (Terminal, Notes, Messages), Contacts, Reminders and Notifications. After the update, AllInOneIME says once which, on its About page, and Troubleshoot lists those still to allow. The API keys kept in the login keychain (key sync off) come over without macOS asking for your login password: 0.7.1 hands them over, and this version takes them in when it starts. Whatever of the earlier identity 0.7.1 couldn't remove right away, this version removes when it starts.
-- In your input sources, AllInOneIME is listed under English.
+- macOS lets only you add the new input method: until you have, Settings → About shows that one step first (System Settings → Keyboard → Input Sources → + → English → AllInOneIME, with a button that opens Keyboard settings), then the permissions to allow again. It goes away once AllInOneIME is in your input sources, and the input source of the earlier identity is taken out only then. In your input sources, AllInOneIME is listed under English.
 
 ## 0.7.1 (unreleased)
 

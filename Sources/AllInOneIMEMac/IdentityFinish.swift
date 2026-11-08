@@ -8,21 +8,30 @@ import Security
 // 1. the cleanup record (`CleanupRecord`), once the version that moved has handed it over (or stopped): each step it
 //    lists done with the identifiers it lists, those that succeed taken out of it, the record deleted once it is empty.
 //    The login keychain's originals first (each only when its handover item is there and it is the key handed over),
-//    then the input source, the defaults domains, the apps, the launch agents and the old group's keychain items;
-//    nothing of this identity's is ever touched (`ownBundleIDs`, `KeySync.accessGroup`), an app only when its bundle ID
-//    is one of the record's, a launch agent only when its label is under theirs;
+//    then the input source, the defaults domains, the apps, the launch agents, the old group's keychain items and the
+//    caches; nothing of this identity's is ever touched (`ownBundleIDs`, `KeySync.accessGroup`), an app only when its
+//    bundle ID is one of the record's, a launch agent only when its label is under theirs, a cache folder only when it is
+//    the user's named after one of them. The input source (by its ID) only once this identity's own is enabled: macOS
+//    lets only the user add a new input method, and until then the one before's entry in the user's input sources may be
+//    what Text Input Sources files this one under; that step waits, and runs when the input method finds its source
+//    enabled (`InputSourceCheck`: the app active again, a text field activating it);
 // 2. the login keychain's keys handed over: each handover item imported into the login keychain, where the item is
 //    created by this identity (its own access list: macOS never asks for it), read back, then the handover item deleted.
 //    A key whose original the record still lists waits for it to go; an item there already that this identity reads is
 //    its own (a key saved since, or an earlier import), kept, and the handover item deleted.
 //
-// While the version that moved is still at it (the record not handed over), nothing is done: tried again shortly. The
-// code never names the identity before: everything it removes is the record's. Logged by service and account, never
-// with a key.
+// While the version that moved is still at it (the record not handed over), nothing is done: tried again shortly. Runs
+// one at a time (`queue`). The code never names the identity before: everything it removes is the record's. Logged by
+// service and account, never with a key.
 
 /// What the record's steps do on this Mac (`SystemIdentityCleanup`; tests have their own), by the record's identifiers.
 public protocol IdentityCleanupActions {
-    /// `id` disabled and out of the user's input sources; true when it is neither afterwards.
+    /// Whether the input source `id` is enabled as itself (`InputSourceState.isEnabled(as:)`): the user added it.
+    func isInputSourceEnabled(_ id: String) -> Bool
+    /// Whether the input source `id` is enabled or in the user's input sources.
+    func isInputSourceAdded(_ id: String) -> Bool
+    /// `id` disabled and out of the user's input sources, by its input source ID (never an entry Text Input Sources files
+    /// another source under); true when it is neither afterwards.
     func disableInputSource(_ id: String) -> Bool
     /// The domain removed, and its file deleted once cfprefsd has emptied it; true when nothing is left in it.
     func removeDefaultsDomain(_ name: String) -> Bool
@@ -36,6 +45,8 @@ public protocol IdentityCleanupActions {
     func isEntitled(to group: String) -> Bool
     /// The item deleted from `group`; true when it is gone.
     func deleteKeychainItem(_ item: CleanupRecord.KeychainItem, from group: String) -> Bool
+    /// The folder at `path` deleted; true when it is gone.
+    func removeCache(at path: String) -> Bool
 }
 
 /// The move's leftovers finished at launch (see above): `run`, or `start` in the background.
@@ -51,6 +62,10 @@ public struct IdentityFinish {
     /// This identity's bundle IDs and keychain access group: never removed, whatever a record says.
     public var ownBundleIDs = [Updater.bundleID, Updater.settingsBundleID]
     public var ownKeychainGroup = KeySync.accessGroup
+    /// This identity's input source (its ID is the input method's bundle ID): the record's goes only once it is enabled.
+    public var ownInputSource = Updater.bundleID
+    /// The user's caches folder: a cache the record lists goes only when it is in it, named after one of its bundle IDs.
+    public var caches = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Caches", isDirectory: true)
     public var say: (String) -> Void
     public var now: () -> Date = { Date() }
 
@@ -67,7 +82,8 @@ public struct IdentityFinish {
     /// The Mac's: the record in Application Support, the user's defaults, Text Input Sources, Launch Services, launchd,
     /// the login keychain and this identity's access group.
     public static func system(say: @escaping (String) -> Void) -> IdentityFinish {
-        IdentityFinish(record: CleanupRecord.defaultURL, actions: SystemIdentityCleanup(), login: IdentityHandover.loginStore(service:),
+        IdentityFinish(record: CleanupRecord.defaultURL, actions: SystemIdentityCleanup(bundle: Bundle.main.bundleURL),
+                       login: IdentityHandover.loginStore(service:),
                        handover: { IdentityHandover.handoverStore(group: KeySync.accessGroup, service: $0) },
                        handoverAvailable: APIKeys.Keychain.processIsEntitled, say: say)
     }
@@ -101,15 +117,25 @@ public struct IdentityFinish {
         return .done(left: left)
     }
 
+    /// Where the runs go, one at a time (the one at launch, and those once the input source is enabled).
+    public static let queue = DispatchQueue(label: "com.allinoneime.identity-finish", qos: .utility)
+
     /// At launch, in the background: `run`, and while it is `waiting`, again every `interval` seconds, `attempts` times
     /// at most; then it waits for the next launch.
-    public func start(queue: DispatchQueue = .global(qos: .utility), attempts: Int = 18, interval: TimeInterval = 10) {
+    public func start(queue: DispatchQueue = IdentityFinish.queue, attempts: Int = 18, interval: TimeInterval = 10) {
         queue.async {
             for attempt in 1...max(attempts, 1) {
                 guard run() == .waiting, attempt < attempts else { return }
                 Thread.sleep(forTimeInterval: interval)
             }
         }
+    }
+
+    /// Whether the record, handed over, still lists an input source to take out: the step that waits for this identity's
+    /// own to be enabled.
+    public var waitsForInputSource: Bool {
+        guard case let .handedOver(record) = readRecord() else { return false }
+        return record.inputSource != nil
     }
 
     // MARK: - The record
@@ -153,6 +179,9 @@ public struct IdentityFinish {
             if !ids.contains(id) {
                 say("cleanup: the input source \(id) isn't one of the record's apps; left")
                 record.inputSource = nil
+            } else if actions.isInputSourceAdded(id), !actions.isInputSourceEnabled(ownInputSource) {
+                // Not before the user has added this one: the entry of the one before may be what it is filed under.
+                say("cleanup: the input source \(id) stays until this one is added (System Settings → Keyboard → Input Sources)")
             } else if actions.disableInputSource(id) {
                 say("cleanup: \(id) disabled and out of the input sources")
                 record.inputSource = nil
@@ -207,6 +236,18 @@ public struct IdentityFinish {
             }
         }
 
+        record.caches = record.caches.filter { path in
+            let folder = URL(fileURLWithPath: path).standardizedFileURL
+            guard ids.contains(folder.lastPathComponent),
+                  folder.deletingLastPathComponent().path == caches.standardizedFileURL.path else {
+                say("cleanup: \(path) isn't the caches of one of the record's apps; left")
+                return false
+            }
+            guard actions.removeCache(at: folder.path) else { return true }
+            say("cleanup: removed \(folder.path)")
+            return false
+        }
+
         guard !record.isEmpty else {
             if CleanupRecord.remove(at: self.record) {
                 say("cleanup: done; the move's record is deleted")
@@ -224,7 +265,8 @@ public struct IdentityFinish {
                                                       record.apps.isEmpty ? nil : "\(record.apps.count) app(s)",
                                                       record.launchAgents.isEmpty ? nil : "\(record.launchAgents.count) launch agent(s)",
                                                       record.keychainItems.isEmpty ? nil : "\(record.keychainItems.count) keychain item(s)",
-                                                      record.loginKeys.isEmpty ? nil : "\(record.loginKeys.count) login keychain key(s)"]
+                                                      record.loginKeys.isEmpty ? nil : "\(record.loginKeys.count) login keychain key(s)",
+                                                      record.caches.isEmpty ? nil : "\(record.caches.count) cache folder(s)"]
             .compactMap { $0 }.joined(separator: ", "))
         return record
     }
@@ -317,11 +359,31 @@ public struct IdentityFinish {
 // MARK: - The Mac's
 
 /// The record's steps on this Mac: Text Input Sources (on the main thread), the user's defaults, Launch Services and
-/// launchd, the data protection keychain.
+/// launchd, the data protection keychain, the caches.
 public struct SystemIdentityCleanup: IdentityCleanupActions, Sendable {
     public var preferences = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Preferences", isDirectory: true)
+    /// This input method's bundle, registered again when Text Input Sources files its source under another bundle ID
+    /// (`InputSourceCheck`); nil: never.
+    public var bundle: URL?
 
-    public init() {}
+    public init(bundle: URL? = nil) {
+        self.bundle = bundle
+    }
+
+    public func isInputSourceEnabled(_ id: String) -> Bool {
+        guard Thread.isMainThread else { return DispatchQueue.main.sync { isInputSourceEnabled(id) } }
+        return InputSourceCheck.system(id: id, bundle: bundle).isEnabled()
+    }
+
+    public func isInputSourceAdded(_ id: String) -> Bool {
+        guard Thread.isMainThread else { return DispatchQueue.main.sync { isInputSourceAdded(id) } }
+        return InputSourceCheck.state(of: id).added
+    }
+
+    public func removeCache(at path: String) -> Bool {
+        try? FileManager.default.removeItem(atPath: path)
+        return (try? FileManager.default.attributesOfItem(atPath: path)) == nil
+    }
 
     static let lsregister =
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
@@ -336,16 +398,18 @@ public struct SystemIdentityCleanup: IdentityCleanupActions, Sendable {
             done = TISDisableInputSource(source) == noErr && done
         }
         let domain = InputSourceList.domain as CFString
-        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
-        let list = CFPreferencesCopyValue(InputSourceList.key as CFString, domain, kCFPreferencesCurrentUser,
-                                          kCFPreferencesAnyHost) as? [[String: Any]]
-        if let updated = InputSourceList.removing(id, from: list) {
+        switch InputSourceList.removingSource(id, from: InputSourceCheck.userList(), filed: InputSourceCheck.filed()) {
+        case .unlisted:
+            return done
+        case .filedUnder:
+            return false
+        case let .removed(updated):
             CFPreferencesSetValue(InputSourceList.key as CFString, updated as CFArray, domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
             done = CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost) && done
             DistributedNotificationCenter.default().postNotificationName(
                 Notification.Name(kTISNotifyEnabledKeyboardInputSourcesChanged as String), object: nil, userInfo: nil, deliverImmediately: true)
+            return done
         }
-        return done
     }
 
     /// Removed with `removePersistentDomain`; its file, which cfprefsd empties a few seconds later, deleted once it is
@@ -411,5 +475,109 @@ public struct SystemIdentityCleanup: IdentityCleanupActions, Sendable {
         do { try process.run() } catch { return -1 }
         process.waitUntilExit()
         return process.terminationStatus
+    }
+}
+
+// MARK: - This identity's input source
+
+/// An input source as Text Input Sources and the user's input sources have it.
+public struct InputSourceState: Equatable, Sendable {
+    public var registered = false
+    /// Enabled, as Text Input Sources says (`kTISPropertyInputSourceIsEnabled`).
+    public var enabled = false
+    /// In the user's input sources (`InputSourceList`), by its bundle ID.
+    public var listed = false
+    /// The bundle ID Text Input Sources files it under (nil: it doesn't say): its cache can keep the one the app at the
+    /// same path had before (the identity before this one's), and then enabled means that one's entry.
+    public var bundleID: String?
+
+    public init(registered: Bool = false, enabled: Bool = false, listed: Bool = false, bundleID: String? = nil) {
+        self.registered = registered
+        self.enabled = enabled
+        self.listed = listed
+        self.bundleID = bundleID
+    }
+
+    /// Enabled, or in the user's input sources.
+    public var added: Bool { enabled || listed }
+
+    /// Enabled as itself: filed under `bundleID` (an AllInOneIME input source's ID is its bundle ID), not another's.
+    public func isEnabled(as bundleID: String) -> Bool {
+        registered && enabled && (self.bundleID == nil || self.bundleID == bundleID)
+    }
+}
+
+/// Whether this input method's own input source is enabled: macOS lets only the user add a new input method (System
+/// Settings → Keyboard → Input Sources), so after an install or the move to this identity it may not be yet; the
+/// settings show that step until it is. A source Text Input Sources doesn't list, or files under another bundle ID, is
+/// registered again first (that files it under its own: the move left the cache with the identity before's). Main
+/// thread (Text Input Sources).
+public struct InputSourceCheck {
+    public var id: String
+    public var state: () -> InputSourceState
+    /// Registers this input method's bundle again.
+    public var register: () -> Void
+
+    public init(id: String, state: @escaping () -> InputSourceState, register: @escaping () -> Void) {
+        self.id = id
+        self.state = state
+        self.register = register
+    }
+
+    public func isEnabled() -> Bool {
+        var now = state()
+        if !now.registered || (now.bundleID != nil && now.bundleID != id) {
+            register()
+            now = state()
+        }
+        return now.isEnabled(as: id)
+    }
+
+    /// The Mac's: Text Input Sources and the user's input sources; `bundle` registered again when needed (nil: never).
+    public static func system(id: String, bundle: URL?) -> InputSourceCheck {
+        InputSourceCheck(id: id, state: { state(of: id) }, register: {
+            guard let bundle, TISRegisterInputSource(bundle as CFURL) == noErr else { return }
+            // Registration is asynchronous inside the text input server.
+            let deadline = Date().addingTimeInterval(2)
+            while source(id) == nil, Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+        })
+    }
+
+    static func source(_ id: String) -> TISInputSource? {
+        let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
+        return (TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource])?.first
+    }
+
+    static func bool(_ source: TISInputSource, _ key: CFString) -> Bool {
+        guard let pointer = TISGetInputSourceProperty(source, key) else { return false }
+        return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
+    }
+
+    static func string(_ source: TISInputSource, _ key: CFString) -> String? {
+        guard let pointer = TISGetInputSourceProperty(source, key) else { return nil }
+        return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String
+    }
+
+    /// The user's input sources (`InputSourceList`), read again.
+    static func userList() -> [[String: Any]]? {
+        let domain = InputSourceList.domain as CFString
+        CFPreferencesSynchronize(domain, kCFPreferencesCurrentUser, kCFPreferencesAnyHost)
+        return CFPreferencesCopyValue(InputSourceList.key as CFString, domain, kCFPreferencesCurrentUser,
+                                      kCFPreferencesAnyHost) as? [[String: Any]]
+    }
+
+    /// Every input source installed: its ID and the bundle ID it is filed under.
+    static func filed() -> [InputSourceList.Filed] {
+        ((TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource]) ?? []).compactMap { source in
+            string(source, kTISPropertyInputSourceID).map { InputSourceList.Filed(id: $0, bundleID: string(source, kTISPropertyBundleID)) }
+        }
+    }
+
+    /// `id` as Text Input Sources and the user's input sources have it now.
+    public static func state(of id: String) -> InputSourceState {
+        let source = source(id)
+        return InputSourceState(registered: source != nil, enabled: source.map { bool($0, kTISPropertyInputSourceIsEnabled) } == true,
+                                listed: userList().map { InputSourceList.contains($0, bundleID: id) } ?? false,
+                                bundleID: source.flatMap { string($0, kTISPropertyBundleID) })
     }
 }

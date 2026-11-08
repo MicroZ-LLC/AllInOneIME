@@ -319,6 +319,8 @@ final class AllInOneIMEInputController: IMKInputController {
             apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
+            // The step to add the input source, while it's shown: this text field says it is added now.
+            InputSourceStatus.shared.textFieldActivated()
         }
     }
 
