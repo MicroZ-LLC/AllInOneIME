@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.1 (unreleased)
+
+### Changed
+
+- Updates (Settings → About → Update) can now bring the next version, which moves AllInOneIME to its new system identity: the bundle IDs macOS knows it by. The update carries your settings and the API keys saved in AllInOneIME over to the new identity first, then installs the new version, and only once it starts removes what was left under the old one; if anything fails before that, everything is put back as it was. Keys synced through iCloud Keychain move too: another Mac reads them once it has updated as well. AllInOneIME now looks for updates at https://allinoneime.com/update-v2.json (earlier versions read update.json, which brings them this version).
+
 ## 0.7.0 (2026-11-07)
 
 ### Added

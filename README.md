@@ -1386,7 +1386,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac (unless you choose to sync them through iCloud, see above), in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → Privacy deletes them too; turning it off through the search's Change: … (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Forget" deletes them.
 - To list your notes, the menu bar panel keeps the id (the note's in Notes, the file's path, or the Notion page's address) and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off. Opening the panel never asks Notion anything.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
-- Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
+- Update check: once a day (unless "Check for updates automatically" is off), AllInOneIME downloads https://allinoneime.com/update-v2.json and its signature; the request carries no identifiers and nothing you typed. An update is downloaded, from the GitHub release, only when you click Update.
 - Extension sources: git runs on your Mac, as you, only for the sources you added: a fetch once a day for those that
   check by themselves (none for a pinned one), and when you click Check Now, Update or Re-clone. It talks only to the
   repository's host, signed in by your own git and SSH setup; nothing you type goes with it.
@@ -1458,7 +1458,7 @@ from the keychain (`allinoneime-languages-signing`). The app reads https://langu
 the signature, then the archive's size and SHA-256. To try a pack from a local server: `--test-key` signs with a test key, and
 `AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`.
 
-Releasing a version (the in-app updater reads https://allinoneime.com/update.json, signed with the releases' own key):
+Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.json, signed with the releases' own key):
 
 1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree) and the changelogs.
 2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
@@ -1474,9 +1474,12 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update.jso
    the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists it, and commit it.
 3. Upload both to the GitHub release `v<version>` and publish it.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
-   `site/public/update.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
-   the release notes' address and the summary) and signs it into `update.json.sig` with the key from the login keychain
-   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both.
+   `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
+   the release notes' address and the summary) and signs it into `update-v2.json.sig` with the key from the login keychain
+   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both. 0.7.1 and later read update-v2.json;
+   `update.json` (and its `.sig`), which 0.7.0 and earlier read, is written as well only for a release whose apps still
+   have the old system identity, 0.7.1 (the last version those can install), and is left as it is from 0.7.2 on: it names
+   0.7.1 for good, which moves AllInOneIME to the new identity.
 5. Deploy the site (`cd site && npx wrangler@4 deploy`), only once the release's assets download: the apps check once a day,
    and `AllInOneIME --check-update` shows what they see.
 
@@ -1486,9 +1489,15 @@ archive only once its size and SHA-256 match the manifest, both apps' bundle IDs
 the new input method starts. The input method then hands over to its own executable as a helper (`--apply-update`), which
 waits for it to quit, swaps the apps the way the installer does (the old ones moved aside, put back if anything fails) and
 registers the new one. To try it against a local server: `make update-test`, or `--test-key` with
-`Scripts/build-update-manifest.swift` and `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`.
+`Scripts/build-update-manifest.swift` and `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`.
 
-The bundle ID is still `com.aipinyin.inputmethod.AIPinyin`: macOS uses it to remember the added input source and the permissions granted to it, so changing it would mean adding the input method and granting them again.
+The bundle ID is still `com.aipinyin.inputmethod.AIPinyin` in 0.7.1, the last version with it: 0.7.2 has AllInOneIME's own
+system identity (`com.allinoneime.inputmethod.AllInOneIME`, AllInOneIME Settings `com.allinoneime.settings`, the keychain
+access group `9SR8N3UD5Y.com.allinoneime.shared`). 0.7.1's updater installs it: it copies the preferences and the keychain
+group's items over to the new identity first, swaps the apps, switches the input source (enabled and selected if the old
+one was), and only then removes the old identity's (`Sources/AllInOneIMEMac/Migration.swift`); any failure before the new
+input method starts puts everything back. The 0.7.2 installer asks an installed 0.7.1 to do the same
+(`AllInOneIME --migrate-identity <the new AllInOneIME.app>`). macOS asks again for the permissions it keeps by bundle ID.
 
 ## License
 

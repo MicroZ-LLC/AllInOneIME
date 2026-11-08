@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.md) | 中文
 
+## 0.7.1（未发布）
+
+### 变更
+
+- 更新（设置 →「关于」→「更新」）现在可以装上下一个版本，它把 AllInOneIME 换到新的系统身份，也就是 macOS 用来认它的 bundle ID。更新时先把你的设置和存在 AllInOneIME 里的 API 密钥搬到新身份下，再装新版本，等它能启动了，才删掉旧身份下留下的东西；在这之前出了任何问题，都会全部恢复原样。通过 iCloud 钥匙串同步的密钥也一起搬：另一台 Mac 也更新以后才能读到它们。AllInOneIME 现在从 https://allinoneime.com/update-v2.json 查更新（以前的版本读 update.json，它会把它们带到这个版本）。
+
 ## 0.7.0（2026-11-07）
 
 ### 新增

@@ -1097,7 +1097,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - `@question` 记着最近 5 个问题、答案和提问时间，只存在这台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的用户能读；除非你选了通过 iCloud 同步它们，见上面），用来在 `@question` 下面列出来；看保存的答案不联网。系统安全输入时什么都不存；对选中文字的提问一律不存（答案说的是选中的文字，存下来就会把那段文字写到磁盘上）。在设置 →「隐私」里关掉「记住最近的问题」会删掉已存的；用搜索里的「修改：…」关掉（配置里的 `rememberQuestions`）时保留，这样能原样撤销。「忘掉」删掉已存的。
 - 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号（备忘录里的编号、文件的路径或 Notion 页面的地址）和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。打开面板从不访问 Notion。
 - `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
-- 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。
+- 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update-v2.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。
 - 扩展来源：git 在你的 Mac 上以你的身份运行，只针对你加的来源：自动检查的来源每天拉取一次（固定的不拉取），以及你点「立即检查」「更新」「重新克隆」时。
   它只连仓库所在的主机，用你自己的 git 和 SSH 设置登录；你打的字不会带上。
 - 通过 iCloud 同步（默认关）：只放进你自己的 iCloud 云盘 `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`，由 Apple
@@ -1148,7 +1148,7 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 - `Sources/AllInOneIMESettings`：「AllInOneIME 设置」启动器
 - `Sources/AllInOneIMEInstaller`：DMG 里的「安装 AllInOneIME」：安装、更新和卸载
 
-发布新版本（应用内更新读 https://allinoneime.com/update.json，用发布专用的密钥签名）：
+发布新版本（应用内更新读 https://allinoneime.com/update-v2.json，用发布专用的密钥签名）：
 
 1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
 2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
@@ -1158,18 +1158,25 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
    签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
    新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
-4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update.json`
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update-v2.json`
    （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥
-   （`allinoneime-releases-signing`，macOS 可能会问是否允许）签名成 `update.json.sig`。两个文件都提交。
+   （`allinoneime-releases-signing`，macOS 可能会问是否允许）签名成 `update-v2.json.sig`。两个文件都提交。0.7.1 及以后读
+   update-v2.json；0.7.0 及以前读的 `update.json`（和它的 `.sig`）只在 App 还是旧系统身份的版本（0.7.1，它们能装的最后一个版本）
+   时一起写出，从 0.7.2 起不再动：它一直指向 0.7.1，由 0.7.1 把 AllInOneIME 换到新身份。
 5. 等 release 的文件能下载了，再部署网站（`cd site && npx wrangler@4 deploy`）：App 每天看一次，`AllInOneIME --check-update` 能看到它们看到的。
 
-App 先用内置的公钥核对签名再读 update.json，不会装不比现在新的版本，只通过 https 从 allinoneime.com 或本仓库的 GitHub release 下载；
+App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现在新的版本，只通过 https 从 allinoneime.com 或本仓库的 GitHub release 下载；
 压缩包的大小和 SHA-256 都对上、两个 App 的 bundle ID、版本和代码签名都没问题、新输入法能启动，才会安装。之后输入法把活交给
 自己的可执行文件（`--apply-update`）：它等输入法退出，像安装程序一样换 App（旧的先挪开，出错就放回去），再注册新的。
 在本机试：`make update-test`，或者用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再
-`AllInOneIME --install-update --manifest-url http://127.0.0.1:<端口>/update.json --key <测试公钥> --target-dir <目录>`。
+`AllInOneIME --install-update --manifest-url http://127.0.0.1:<端口>/update-v2.json --key <测试公钥> --target-dir <目录>`。
 
-Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 按它记住已添加的输入法和给它的权限，改了就要重新添加和授权。
+0.7.1 的 Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`，它是用这个 ID 的最后一个版本：0.7.2 换成 AllInOneIME 自己的系统身份
+（`com.allinoneime.inputmethod.AllInOneIME`，AllInOneIME 设置是 `com.allinoneime.settings`，钥匙串访问组是
+`9SR8N3UD5Y.com.allinoneime.shared`）。由 0.7.1 的更新程序安装它：先把偏好设置和钥匙串访问组里的项目复制到新身份下，再换 App、
+切换输入法（旧的启用、选中了，新的也启用、选中），之后才删掉旧身份的东西（`Sources/AllInOneIMEMac/Migration.swift`）；新输入法
+启动之前出任何问题都会全部恢复原样。0.7.2 的安装程序会请已安装的 0.7.1 做同样的事（`AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）。
+macOS 按 bundle ID 记的权限要重新允许。
 
 ## 许可证
 
