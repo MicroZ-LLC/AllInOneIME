@@ -82,8 +82,8 @@ final class InputSourceStatus: ObservableObject {
     }
 
     static var steps: String {
-        tr("加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。加好以后用 Ctrl+空格 或 🌐 键切换到它。",
-           "AllInOneIME can't type until it's added, and only you can add it. Then switch to it with Ctrl+Space or the 🌐 key.")
+        tr("加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。英语下面找不到它的话，先退出登录或重启 Mac 再加。加好以后用 Ctrl+空格 或 🌐 键切换到它。",
+           "AllInOneIME can't type until it's added, and only you can add it. If it isn't listed under English, log out or restart your Mac first. Then switch to it with Ctrl+Space or the 🌐 key.")
     }
 
     static var button: String { tr("打开键盘设置", "Open Keyboard Settings") }

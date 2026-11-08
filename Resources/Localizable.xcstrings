@@ -5140,49 +5140,49 @@
         }
       }
     },
-    "AllInOneIME can't type until it's added, and only you can add it. Then switch to it with Ctrl+Space or the 🌐 key." : {
-      "comment" : "加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。加好以后用 Ctrl+空格 或 🌐 键切换到它。 — Sources/AllInOneIME/InputSourceStep.swift",
+    "AllInOneIME can't type until it's added, and only you can add it. If it isn't listed under English, log out or restart your Mac first. Then switch to it with Ctrl+Space or the 🌐 key." : {
+      "comment" : "加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。英语下面找不到它的话，先退出登录或重启 Mac 再加。加好以后用 Ctrl+空格 或 🌐 键切换到它。 — Sources/AllInOneIME/InputSourceStep.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bis dahin kann AllInOneIME nicht schreiben, und hinzufügen kannst nur du es. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
+            "value" : "Bis dahin kann AllInOneIME nicht schreiben, und hinzufügen kannst nur du es. Wird es unter Englisch nicht angezeigt, melde dich zuerst ab oder starte den Mac neu. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hasta que lo añadas, AllInOneIME no puede escribir, y solo tú puedes añadirlo. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
+            "value" : "Hasta que lo añadas, AllInOneIME no puede escribir, y solo tú puedes añadirlo. Si no aparece en Inglés, cierra la sesión o reinicia el Mac primero. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tant qu’il n’est pas ajouté, AllInOneIME ne peut pas écrire, et vous seul pouvez l’ajouter. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
+            "value" : "Tant qu’il n’est pas ajouté, AllInOneIME ne peut pas écrire, et vous seul pouvez l’ajouter. S'il n'apparaît pas sous Anglais, fermez d'abord la session ou redémarrez le Mac. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加するまで AllInOneIME で入力できません。追加できるのはあなただけです。その後、Control+スペースまたは 🌐 キーで切り替えます。"
+            "value" : "追加するまで AllInOneIME で入力できません。追加できるのはあなただけです。「英語」に表示されない場合は、先にログアウトするか Mac を再起動してください。その後、Control+スペースまたは 🌐 キーで切り替えます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "추가하기 전에는 AllInOneIME로 입력할 수 없으며, 추가는 사용자만 할 수 있습니다. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
+            "value" : "추가하기 전에는 AllInOneIME로 입력할 수 없으며, 추가는 사용자만 할 수 있습니다. 영어 아래에 보이지 않으면 먼저 로그아웃하거나 Mac을 재시동하세요. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Até ser adicionado, o AllInOneIME não consegue digitar, e só você pode adicioná-lo. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
+            "value" : "Até ser adicionado, o AllInOneIME não consegue digitar, e só você pode adicioná-lo. Se não aparecer em Inglês, encerre a sessão ou reinicie o Mac primeiro. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入之前無法用 AllInOneIME 打字，而新的輸入法只能由你自己加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
+            "value" : "加入之前無法用 AllInOneIME 打字，而新的輸入法只能由你自己加入。英文底下找不到的話，先登出或重新啟動 Mac 再加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
           }
         }
       }
