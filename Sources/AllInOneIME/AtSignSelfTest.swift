@@ -246,4 +246,83 @@ extension SelfTest {
         check(!press(controller, field, "\u{F703}", code: VirtualKey.right) && field.inserted.last == t && field.marked.isEmpty
               && !controller.composer.isComposing, "→ on a lone \(t) in a text view inserts it and the app moves the caret (\(field.inserted))")
     }
+
+    /// One @ for the site (`make-readme-images.swift`'s `one-at.png`): the rows for a sum, an app's name, a time and a
+    /// question, the likeliest first. Nothing is picked: nothing is sent or run. Only apps that ship with macOS are listed
+    /// (no file Spotlight finds, no @open history): the images are public. English (`en-oneat-*`: typed in English, the
+    /// English interface, a 12-hour clock) or Chinese (`oneat-*`: the app by its pinyin initials, the time and the question
+    /// in pinyin, the Chinese interface, a 24-hour clock). Each panel as it comes up with its text, and the text line above
+    /// it (`<name>.marked.txt`).
+    static func oneAtScenes(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, in directory: URL, english: Bool) {
+        section("One @ for the site (\(english ? "English" : "Chinese"))", needs: .composing)
+        let field = FakeTextClient()
+        let (settingsBefore, clockBefore) = (settings, UIText.clock24)
+        let services = (instant: controller.services.instantResults, files: controller.services.searchFileNames,
+                        history: controller.services.loadOpenHistory, settings: controller.services.loadSettings)
+        controller.services.instantResults = { query, _ in
+            services.instant(query, OpenHistory()).filter { $0.path.hasPrefix("/System/Applications/") }
+        }
+        controller.services.searchFileNames = { _, _ in [] }
+        controller.services.loadOpenHistory = { OpenHistory() }
+        settings.uiLanguage = english ? "en" : "zh"
+        settings.setOrder(english ? [Language.english] : [Language.chinese, .english])
+        controller.services.loadSettings = { SelfTest.settings }
+        UIText.clock24 = !english
+        controller.applySettings()
+        controller.activateServer(field)
+        defer {
+            controller.commitComposition(field)
+            controller.activateServer(client)
+            (controller.services.instantResults, controller.services.searchFileNames, controller.services.loadOpenHistory,
+             controller.services.loadSettings) = (services.instant, services.files, services.history, services.settings)
+            (settings, UIText.clock24) = (settingsBefore, clockBefore)
+            controller.applySettings()
+            controller.composer.setInputMode(settings.defaultInput)
+        }
+        _ = pump(timeout: 6) { controller.panelModel().detail == nil }  // a notice from before isn't in the images
+        // The app index is made off the key's thread the first time it's asked for (`InstantFiles`): made before the keys.
+        _ = pump(timeout: 15) { !services.instant("calculator", OpenHistory()).isEmpty }
+        /// Each character with its key on a US layout, capitals and the sum's signs with Shift.
+        func typeText(_ text: String) {
+            let shifted: [Character: UInt16] = ["*": 0x1C, "+": 0x18, "?": 0x2C]
+            for ch in text {
+                if let code = shifted[ch] {
+                    press(controller, field, String(ch), code: code, flags: .shift)
+                } else if ch.isUppercase, let code = keyCodes[Character(ch.lowercased())] {
+                    press(controller, field, String(ch), code: code, flags: .shift)
+                } else {
+                    press(controller, field, String(ch), code: keyCodes[ch] ?? 0)
+                }
+            }
+        }
+        /// The magic key and `text` in an empty field, in English or pinyin; the panel once its first row is `first`.
+        func scene(_ name: String, _ text: String, pinyin: Bool = false, first: (OneAt.Action) -> Bool) {
+            controller.commitComposition(field)
+            (field.document, field.marked, field.inserted) = ("", "", [])
+            controller.composer.setInputMode(pinyin ? .chinese : .english)
+            magicKey(controller, field)
+            typeText(text)
+            let ready = pump(timeout: 5) { controller.composer.oneAtRows.first.map(first) == true }
+            check(ready, "\(name): one @'s first row (\(controller.composer.oneAtRows.prefix(4).map(\.id)))")
+            _ = pump(timeout: 1) { false }  // an app's own icon, read in the background (`ItemIcons`)
+            let panel = CandidatePanel.shared
+            panel.hide()  // as wide as its own rows
+            panel.show(controller.panelModel(), anchor: field.caretRect)
+            snapshot(name, in: directory)
+            try? Data(field.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
+            _ = escape(controller, field)
+            _ = escape(controller, field)
+        }
+        let prefix = english ? "en-oneat-" : "oneat-"
+        scene(prefix + "sum", "3*7+2") { $0 == .value("23") }
+        if english {
+            scene(prefix + "app", "cal") { if case let .open(app) = $0 { return app.path.hasSuffix(".app") } else { return false } }
+            scene(prefix + "reminder", "call Bob tomorrow at 3pm") { if case .reminder = $0 { return true } else { return false } }
+            scene(prefix + "question", "why is the sky blue?") { $0 == .write(.question) }
+        } else {
+            scene(prefix + "app", "xtsz", pinyin: true) { if case let .open(app) = $0 { return app.path.hasSuffix(".app") } else { return false } }
+            scene(prefix + "reminder", "mingtianxiawusandiankaihui", pinyin: true) { if case .reminder = $0 { return true } else { return false } }
+            scene(prefix + "question", "weishenmetiankongshilansede", pinyin: true) { $0 == .write(.question) }
+        }
+    }
 }
