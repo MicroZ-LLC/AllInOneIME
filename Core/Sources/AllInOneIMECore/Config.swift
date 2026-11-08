@@ -249,6 +249,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
     /// installed when the user clicks Update. On by default.
     public var checkForUpdates: Bool
+    /// A newer version found by that check (one this Mac can install) is told once in a macOS notification, with Update
+    /// and Don't Show Again, which turns this off (Settings → About turns it on again). Only while `checkForUpdates` is
+    /// on. On by default, also for a file from before the setting; written into the file only when off.
+    public var notifiesUpdates: Bool
     /// An @ command started with text selected in the field works on that text, which stays selected and as it is
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
@@ -397,6 +401,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutMistakes = false
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
+        self.notifiesUpdates = true
         self.useSelection = true
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
@@ -426,7 +431,7 @@ public struct Config: Codable, Equatable, Sendable {
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
-        case checkForUpdates, useSelection, appProfiles
+        case checkForUpdates, notifiesUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case autocomplete
@@ -535,6 +540,7 @@ public struct Config: Codable, Equatable, Sendable {
         // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
+        notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
@@ -726,6 +732,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
+        // Only once turned off: a file from before the switch doesn't gain the key.
+        if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
         try c.encode(useSelection, forKey: .useSelection)
         // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
         let profiles = appProfiles.filter { !$0.value.isEmpty }

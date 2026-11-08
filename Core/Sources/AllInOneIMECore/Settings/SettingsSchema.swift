@@ -287,6 +287,13 @@ struct SettingsSchema {
                    tr("每天在后台看一次有没有新版本，有就在这里和菜单栏面板里提一句；只有你点「更新」才会安装。",
                       "Once a day, in the background; a new version is mentioned here and in the menu bar panel, and only installed when you click Update."),
                    config.checkForUpdates, platforms: [.mac]), to: &fields) { store.config.checkForUpdates = Self.bool($0) }
+        // A new version's notification, while checking is on.
+        if config.checkForUpdates {
+            add(toggle("notifiesUpdates", tr("有新版本时通知我", "Notify me when a new version is out"),
+                       tr("每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。",
+                          "One notification per new version, with Update and Don't Show Again; never a window."),
+                       config.notifiesUpdates, platforms: [.mac]), to: &fields) { store.config.notifiesUpdates = Self.bool($0) }
+        }
         return fields
     }
 

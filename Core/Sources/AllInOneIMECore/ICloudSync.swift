@@ -46,7 +46,7 @@ public enum ICloudSync {
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
+        "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
@@ -384,6 +384,7 @@ public enum ICloudSync {
             for key in settingsKeys { out[key] = encoded[key] }
             // Written into the file only when off (the trigger: when it isn't @); synced either way.
             out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
+            out["notifiesUpdates"] = .bool(config.notifiesUpdates)
             out["commandTrigger"] = .string(config.commandTrigger)
             if case var .object(redaction)? = encoded["redaction"] {
                 redaction["customWords"] = nil
@@ -971,7 +972,7 @@ public enum ICloudSync {
         }
         switch key {
         case "improveTranslates", "voiceInput", "claudeInBackground", "rememberQuestions", "menuBarIcon", "typeOut",
-             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "useSelection", "learnsEnglishWords":
+             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "notifiesUpdates", "useSelection", "learnsEnglishWords":
             if case .bool = value { return nil }
             return .wrongType
         case "provider":

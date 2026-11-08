@@ -622,7 +622,7 @@ given and sends back what the user did. It opens no sessions.
   in use, the typing speed while typing out is on, fuzzy pinyin and the English words with Chinese among the input
   languages. After a change, draw the new document: fields come and go.
 - **Which platform:** a document is made for the client's platform (the engine's: `windows`). The Mac's own fields
-  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `voiceInput` (while voice input is
+  aren't in Windows' document: `iCloudSync`, `menuBarIcon`, `checkForUpdates`, `notifiesUpdates`, `voiceInput` (while voice input is
   on: off for now, `Features.voiceInput`, so in neither), `agentPageContext` (Chrome's page). Nor are the Mac's choices: the action keys `optionTap` and `optionSpace`, Apple Notes
   (`notes.destination` `notes`), the providers `apple` (Apple Intelligence) and `hosted` (its sign-in is the Mac's). A
   choice only the other platform has is shown, `disabled`, when it is the value now (Apple Notes, a new user's
@@ -637,7 +637,7 @@ given and sends back what the user did. It opens no sessions.
 
 | Section | Fields |
 |---|---|
-| `general` | `actionKey`, `commandTrigger` (the magic key), `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `suggestions`, `suggestionsInsert` (what a suggestion row inserts, under the Suggestions switch), `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates` |
+| `general` | `actionKey`, `commandTrigger` (the magic key), `typeOut`, `typeOutRate`, `typeOutVaries`, `typeOutMistakes`, `useSelection`, `rememberQuestions`, `suggestions`, `suggestionsInsert` (what a suggestion row inserts, under the Suggestions switch), `uiLanguage`; the Mac's: `menuBarIcon`, `iCloudSync`, `checkForUpdates`, `notifiesUpdates` (a new version's notification, while `checkForUpdates` is on) |
 | `input` | `inputLanguages`, `codingLanguage` (Code), `code.installed`, `code.library` (the coding packs), `candidateLayout`, `chineseCharacters`, `fuzzyPinyin`, `learnsEnglishWords`, `englishWords`; the Mac's: `voiceInput` (while voice input is on) |
 | `writing` | `outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile` |
 | `provider` | `provider`; `<p>.model`, `<p>.key`, `<p>.baseURL`, `<p>.effort` for `anthropic`, `gemini`, `openai`; `bedrock.modelId`, `bedrock.awsProfile`, `bedrock.region`; `provider.test` |
@@ -662,7 +662,7 @@ given and sends back what the user did. It opens no sessions.
   one isn't its default. Privacy: `privacy`'s fields (a kind set off only then), each app's `.noAI` (Apps without AI),
   `agentPageContext`, `rememberQuestions`, `learnsEnglishWords`. Commands: `commands`, `agent`, `questionContinueIn`,
   `notes`, `search`, `plugins`, `extensions`, the extension sources. Advanced: `typeOut` and its rate, variation and
-  typos, `candidateLayout`, `useSelection`, `configFile`. About: `checkForUpdates`. The ids above stay as they are:
+  typos, `candidateLayout`, `useSelection`, `configFile`. About: `checkForUpdates`, `notifiesUpdates`. The ids above stay as they are:
   they are the wire's.
 - **What is learned isn't a setting** (`LearnedStore`, Learned.swift: the starting input each app learned and the
   streaks toward one, the apps where typos couldn't be fixed, the suggestion rows picked, and through it what
