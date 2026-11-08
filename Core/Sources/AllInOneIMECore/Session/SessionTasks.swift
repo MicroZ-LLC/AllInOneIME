@@ -339,9 +339,9 @@ public final class SessionTasks {
             let (replyContext, replyPage) = (request.replyContext, request.replyPage)
             // The commands inside the text first (together), then this one on the text with their outputs.
             stream = CommandPipeline.run(plan, inner: { command, argument in
-                // Its errors (no key, say) in the interface language.
-                command == .webSearch ? described(WebSearch.stream(argument, output: innerSearch, backend: search, loadKey: loadSearchKey))
-                    : streamFor(command, argument)
+                // Its errors (@search's missing key, a program that ran too long) in the interface language.
+                described(command == .webSearch ? WebSearch.stream(argument, output: innerSearch, backend: search, loadKey: loadSearchKey)
+                    : streamFor(command, argument))
             }, outer: { text in
                 // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the
                 // rest of its context, and the page if it goes along.
