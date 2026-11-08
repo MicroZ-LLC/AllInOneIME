@@ -1065,7 +1065,8 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   follows its prefix (sent to the hosts it lists). The lists, what you type and the lookups are never logged, sent to the
   AI, learned as English words or synced; the lists are cached in `~/Library/Caches/AllInOneIME/suggestions/` (readable
   only by you) and deleted when you turn their source off. The rows you pick are remembered on this Mac only, without
-  the field's own words. Never in password fields or during secure input.
+  the field's own words. Never during secure input or in a password field AllInOneIME can tell (without Accessibility a
+  few aren't told: see Troubleshoot).
 
 ## Clipboard history (new)
 
@@ -1358,7 +1359,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
 - Hide sensitive information (Settings → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be left out in the config (`"phones": false`). Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Autocomplete (off by default) reads the text around the caret after each pause (up to 1,500 characters before it and
-  200 after it, never during secure input, in a password field or in the apps it never runs in) and sends of it the
+  200 after it, never during secure input, in a password field it can tell (without Accessibility a few aren't told:
+  Troubleshoot says so) or in the apps it never runs in) and sends of it the
   caret's line, up to 200 characters before it in the same language and up to 200 after it to the AI provider you
   picked in Settings, the one commands use, with sensitive information hidden as for any request;
   with Apple Intelligence or AllInOneIME Cloud picked, it stays on this Mac (Apple Intelligence; never AllInOneIME Cloud).
