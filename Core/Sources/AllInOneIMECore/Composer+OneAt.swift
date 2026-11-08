@@ -29,8 +29,9 @@ extension Composer {
     }
 
     /// The rows of the one @ list (`OneAt.actions`), worked out once for what they come from (the text, the selection,
-    /// the commands, their use, the app, Spotlight's files so far). While secure input is on (`secureInputActive`) it is
-    /// as in an app with No AI: no AI row is guessed (an AI command typed by its name is listed, and refused when run).
+    /// the commands, their use, the app, Spotlight's files so far). While secure input is on, or in a field known as a
+    /// password field (`secureInputActive`), it is as in an app with No AI: no AI row is guessed (an AI command typed by its
+    /// name is listed, and refused when run).
     public var oneAtRows: [OneAt.Action] {
         guard let (text, letters) = oneAt else { return [] }
         let app = appInUse(), noAI = !aiAllowed() || secureInputActive()

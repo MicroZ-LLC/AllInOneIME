@@ -780,7 +780,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// (`passwordFieldByAccessibility`, unknown where it can't tell), asked only when the session wants it: once a field,
     /// where suggestions may show (for the English words learned it's asked off the key, `readPasswordField`). The selection is read with Accessibility where the field doesn't tell it (only how
     /// it was read and how long it is are logged); the character before the caret, where "@" is typed; the text around the
-    /// caret for `@reply`, or a snippet of more than one line put in (`readFieldText`).
+    /// caret for `@reply`, or a snippet of more than one line put in (`readFieldText`), never in a field told to be a
+    /// password field (the session doesn't ask for it in one it knows: `InputSession.nothingLeavesDevice`).
     @MainActor
     private func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
         if parts.contains(.secure) { context.secure = SecureInput.blocksComposing(target) }
@@ -804,7 +805,7 @@ final class AllInOneIMEInputController: IMKInputController {
             }
         }
         if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
-        if parts.contains(.text) {
+        if parts.contains(.text), context.field?.secure != true {
             context.text = readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
                                          purpose: "a key (@reply, a snippet's indentation)")
         }

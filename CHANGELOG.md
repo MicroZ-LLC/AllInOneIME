@@ -9,6 +9,11 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Updates (Settings → About → Update) can now bring the next version, which moves AllInOneIME to its new system identity: the bundle IDs macOS knows it by. The update carries your settings and the API keys saved in AllInOneIME over to the new identity first, then installs the new version, and only once it starts removes what was left under the old one; if anything fails before that, everything is put back as it was. Keys synced through iCloud Keychain move too: another Mac reads them once it has updated as well. Keys kept in the login keychain (key sync off) are handed over to the new version, so macOS doesn't ask for your login password to use them. Anything of the old identity that can't be removed right away is written down, and the new version removes it when it starts. macOS lets only you add the new version's input source (System Settings → Keyboard → Input Sources → + → English → AllInOneIME), and until you do, AllInOneIME can't be typed with: the new version shows you this step first. The old input source's entry stays in your input sources until then only so that it can be removed once you have; it no longer works. AllInOneIME now looks for updates at https://allinoneime.com/update-v2.json (earlier versions read update.json, which brings them this version).
 - The installer (and `make install`) no longer replaces a newer AllInOneIME that already has the new system identity: it says the installed version is newer and leaves it as it is.
 
+### Fixed
+
+- `@reply` no longer sends what you typed into a password field that secure input doesn't cover (some web and Electron ones) to the AI. Nothing in such a field is read for a command now, as when secure input is on.
+- Such a password field now keeps to secure input's rules: no AI rows after "@" (a password like `Qwerty!@abc123` no longer sends `abc123` to the AI when you press ⏎), AI commands and scripts don't get what you type there, and Translate as You Type puts it in as typed. An AI command typed there by its name goes in as typed, and ⏎ goes to the field.
+
 ## 0.7.0 (2026-11-07)
 
 ### Added

@@ -604,7 +604,8 @@ public final class Composer {
     /// whatever the input method does (terminals): the text would be pasted twice. There ⌃V takes the
     /// clipboard instead.
     public var pastesIntoDraft = true
-    /// Whether secure input is on anywhere (set by the input controller). Nothing is sent to a model
+    /// Whether secure input is on anywhere (set by the input controller), or the field is known as a password field where
+    /// it isn't (the session's `InputSession.nothingLeavesDevice`): the same rules. Nothing is sent to a model
     /// then: a terminal command doesn't start its agent or program, and its text stays in the draft. (The other
     /// commands are refused by the controller, which sends their requests; `@note` and `@reminder`
     /// stay on this Mac and go ahead, but for `@note` to Notion: `noteLeavesDevice`.)

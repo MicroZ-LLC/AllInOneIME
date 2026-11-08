@@ -106,6 +106,9 @@ public final class InputSession {
     private var secureNoticeShown = false
     /// The key being handled says secure input is on in the field's app (`FieldContext.secure`): on for everything it does.
     private var secureKey = false
+    /// Why a request the key being handled ran was refused in a field known as a password field
+    /// (`refusedForSecureInput`): the key then goes on to the field, as where secure input is on in it (`key`).
+    private var passwordFieldRefusal: String?
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     private var keyContext: FieldContext?
     private var fieldText: FieldText?
@@ -169,7 +172,8 @@ public final class InputSession {
         self.composer = composer
         self.services = services
         tasks = SessionTasks(deliver: deliver)
-        composer.secureInputActive = { [weak self] in self?.secureInputActive() ?? false }
+        // Secure input as the composer goes by it: a field known as a password field as well (`nothingLeavesDevice`).
+        composer.secureInputActive = { [weak self] in self?.nothingLeavesDevice() ?? false }
         composer.readSelection = { [weak self] in self?.readSelection() }
         composer.characterBeforeCaret = { [weak self] in self?.characterBeforeCaret() }
         composer.aiRefusal = { [weak self] in self?.aiRefusal() }
@@ -345,6 +349,13 @@ public final class InputSession {
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
     /// field here, or in the field's app as the key being handled tells it.
     public func secureInputActive() -> Bool { field.secure || secureKey || services.secureInputActive() }
+
+    /// Whether nothing of this field may leave the device: secure input on (`secureInputActive`), or a field told to be a
+    /// password field where it isn't (`passwordField`), as if it were. Then no AI row is listed, an AI command, a message
+    /// or a note to Notion is refused, a script isn't given what is typed, Translate as You Type collects nothing, and
+    /// neither the selection nor the text around the caret is read for a command. A field not told yet, or one the shell
+    /// couldn't tell, is as any other. The one check for all of these: the composer's (`Composer.secureInputActive`) too.
+    public func nothingLeavesDevice() -> Bool { secureInputActive() || passwordField == .yes }
 
     /// What the shell told of the field that has the focus being a password field where secure input isn't on
     /// (`passwordField`).
@@ -855,12 +866,12 @@ public final class InputSession {
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               config.useSelection, !secureInputActive(), passwordField != .yes {
+               config.useSelection, !nothingLeavesDevice() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
-        // `@reply` sends the text around the caret: read with the key that may run it.
-        if composer.draftCommand == .reply,
+        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device).
+        if composer.draftCommand == .reply, !nothingLeavesDevice(),
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
@@ -873,7 +884,7 @@ public final class InputSession {
     /// Option runs it.
     public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
         guard context.read.contains(.secure), !context.secure, !field.secure else { return [.secure] }
-        return composer.draftCommand == .reply && composer.actionKey == .optionTap ? [.secure, .text] : [.secure]
+        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice() ? [.secure, .text] : [.secure]
     }
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
@@ -971,7 +982,7 @@ public final class InputSession {
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
         let pending = composer.selectionPending
-        let response = composer.handleKeyDown(key)
+        var response = composer.handleKeyDown(key)
         keyContext = nil
         // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
         if composer.selectionPending, !pending {
@@ -980,7 +991,17 @@ public final class InputSession {
             emit(.readSelection(id: selectionReads))
         }
         if composer.pendingAccent == nil { deadKeys.reset() }
+        passwordFieldRefusal = nil
         perform(response.effects)
+        if let refusal = passwordFieldRefusal {
+            // A request refused in a field known as a password field: as where secure input is on in it, what was typed
+            // goes in as typed and the key goes on to the field (⏎ signs in). The notice says why.
+            passwordFieldRefusal = nil
+            let typed = composer.commitAsTyped()
+            perform(typed)
+            say(refusal)
+            response = Composer.Response(effects: response.effects + typed, handled: false)
+        }
         followEnglishTyping(key, english: english, passedOn: !response.handled)
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { intoField(text) } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
@@ -1034,7 +1055,7 @@ public final class InputSession {
     /// before, no key waiting to tell it), nor in a terminal (its selection is no text being edited: what goes back would
     /// be typed at the prompt).
     private func selectionMayBeRead() -> Bool {
-        services.loadSettings().useSelection && !secureInputActive() && passwordField != .yes && !terminal
+        services.loadSettings().useSelection && !nothingLeavesDevice() && !terminal
     }
 
     /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key, where it may be read
@@ -1077,9 +1098,10 @@ public final class InputSession {
     }
 
     /// The text around the caret, for `@reply` (`Composer.readFieldText`): as the field told it with the key that runs it
-    /// (or last: after dictation). None during secure input, nor in a terminal.
+    /// (or last: after dictation). None during secure input or in a field known as a password field
+    /// (`nothingLeavesDevice`), nor in a terminal.
     private func readFieldText() -> FieldText? {
-        guard !secureInputActive(), !terminal else { return nil }
+        guard !nothingLeavesDevice(), !terminal else { return nil }
         if let context = keyContext, context.read.contains(.text) { return context.text }
         return fieldText
     }
@@ -1280,8 +1302,8 @@ public final class InputSession {
                 services.removeCandidate(text)
                 log.notice("removed a candidate (\(text.count) characters)")
             case let .rememberQuestion(entry):
-                // Kept only on this device, never while secure input is on (the composer checks too).
-                guard services.loadSettings().rememberQuestions, !secureInputActive() else { break }
+                // Kept only on this device, never while secure input is on, nor in a password field (the composer checks too).
+                guard services.loadSettings().rememberQuestions, !nothingLeavesDevice() else { break }
                 services.recordQuestion(entry)
             case let .launchInTerminal(argv):
                 do {
@@ -1381,17 +1403,20 @@ public final class InputSession {
 
     // MARK: - Level two
 
-    /// While secure input is on anywhere (a password field or prompt may be active), nothing is sent off the device: the
-    /// request fails at once. True if refused.
+    /// While secure input is on anywhere (a password field or prompt may be active), or in a field known as a password
+    /// field where it isn't (`nothingLeavesDevice`), nothing is sent off the device: the request fails at once. True if
+    /// refused. In a field known as a password field, the key that ran it then ends it as where secure input is on in the
+    /// field itself (`passwordFieldRefusal`): what was typed goes in as typed, and the key goes on to the field.
     private func refusedForSecureInput(id: Int, running: Bool = false) -> Bool {
-        guard secureInputActive() else { return false }
-        log.info("conversion \(id) not sent: secure input")
+        guard nothingLeavesDevice() else { return false }
+        log.info("conversion \(id) not sent: secure input or a password field")
         let message = running
             ? tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
                  "Secure input is on (a password field or the lock screen): the command was not run")
             : tr("系统安全输入已开启（密码框或锁屏），未发送给 AI",
                  "Secure input is on (a password field or the lock screen): nothing was sent to the AI")
         perform(composer.fail(message, id: id))
+        if !secureInputActive() { passwordFieldRefusal = message }
         return true
     }
 
@@ -1605,10 +1630,10 @@ public final class InputSession {
     }
 
     /// A `background` script extension: started on its own (the shell lists it, and says how it went). Not during secure
-    /// input (nothing runs then), nor twice at once, nor more than four.
+    /// input or in a password field (`nothingLeavesDevice`: nothing runs then), nor twice at once, nor more than four.
     private func startInBackground(_ command: Command, arguments: [String], query: String) {
         guard let script = command.script else { return }
-        guard !secureInputActive() else {
+        guard !nothingLeavesDevice() else {
             say(tr("系统安全输入已开启（密码框或锁屏），没有运行命令",
                           "Secure input is on (a password field or the lock screen): the command was not run"))
             return
@@ -1621,7 +1646,7 @@ public final class InputSession {
 
     /// A `list` command as it's typed (`SessionTasks.runList`). `now`: without the delay.
     private func scheduleListRun(now: Bool = false) {
-        tasks.runList(composer.listQuery, command: composer.draftCommand, now: now, secureInput: secureInputActive()) { script, query in
+        tasks.runList(composer.listQuery, command: composer.draftCommand, now: now, secureInput: nothingLeavesDevice()) { script, query in
             environmentMaker(script, query: query)
         }
     }
@@ -1640,7 +1665,7 @@ public final class InputSession {
             return
         }
         let shown = listed.compactMap(\.script).filter(\.runsStatus)
-        guard !shown.isEmpty, !secureInputActive() else { return }
+        guard !shown.isEmpty, !nothingLeavesDevice() else { return }
         let config = services.loadSettings()
         let (index, context, preferences) = (services.loadExtensions(config, false), scriptContext(query: ""), services.extensionPreferences)
         let post = tasks.poster()
@@ -1671,7 +1696,7 @@ public final class InputSession {
 
     /// Sends a confirmed message (`SessionTasks.send`); a notice says how it went.
     private func sendMessage(_ text: String, to recipient: Recipient, command: Command) {
-        guard !secureInputActive() else {
+        guard !nothingLeavesDevice() else {
             say(tr("系统安全输入已开启（密码框或锁屏），没有发送", "Secure input is on (a password field or the lock screen): nothing was sent"))
             return
         }
@@ -1738,7 +1763,7 @@ public final class InputSession {
         let destination = services.noteDestination(services.loadSettings().notes)
         let name = destination.name
         // The composer refuses it already; the setting may have changed since it was told.
-        if destination.leavesDevice, secureInputActive() {
+        if destination.leavesDevice, nothingLeavesDevice() {
             log.notice("@note: not sent to Notion while secure input is on")
             if let effects = composer.restoreDraft(.note, text: text) { perform(effects) } else { emit(.copy(text)) }
             say(composer.messages.secureInputNote)
