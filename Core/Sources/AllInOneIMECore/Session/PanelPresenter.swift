@@ -603,7 +603,8 @@ public struct PanelPresenter {
                 : t.tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")
             model.handoff = PanelModel.Handoff(title: title, choices: composer.handoffChoices.enumerated().map {
                 PanelModel.Handoff.Choice(shortcut: terms.pick($0.offset + 1),
-                                          name: SessionText.shortName($0.element, picked: agent, custom: agentCommand, language: language))
+                                          name: SessionText.shortName($0.element, picked: agent, custom: agentCommand,
+                                                                      session: composer.questionSessionAgent, language: language))
             })
             model.input = composer.refineLine.map { PanelModel.Input(prompt: t.tr("接着说 › ", "then › "), text: $0, caret: $0.count) }
         } else if composer.typesRefine, composer.questionSession {

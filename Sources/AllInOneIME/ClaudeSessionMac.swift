@@ -84,12 +84,17 @@ enum ClaudeSessionMac {
         }
     }
 
-    /// Opens the session of @agent's agent in a Terminal window: our process ends, the agent resumes it in the
+    /// The agent whose session `@question` goes to with `config` (`Config.questionSessionAgent`, as the converter
+    /// decides it), nil: the provider.
+    static func sessionAgent(_ config: Config) -> AgentKind? {
+        config.questionSessionAgent(availability: { managers[$0]?.availability ?? .notInstalled })
+    }
+
+    /// Opens the session the questions go to in a Terminal window: our process ends, the agent resumes it in the
     /// session's folder, the next question typed (if any) as its first message. The script writes its process id first
     /// (`exec` keeps it).
     static func handOff(followUp: String) throws {
-        let agent = (try? Config.load())?.agent ?? .claude
-        let session = manager(agent)
+        let session = manager((try? Config.load()).flatMap(sessionAgent) ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
         let (arguments, directory) = try session.handOff(program: program.path)
         let pidFile = session.store.terminalPIDFile.path

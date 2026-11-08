@@ -208,8 +208,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
     /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
-    /// Where `@question` is answered (`QuestionBackend`): the input method's own Claude Code session or the AI provider;
-    /// nil: the session when `claude` is installed and signed in, else the provider. This Mac's own (never synced).
+    /// Where `@question` is answered (`QuestionBackend`): the input method's own Claude Code or Kiro CLI session, or the
+    /// AI provider; nil: Automatic (`questionSessionAgent`). This Mac's own (never synced).
     public var questionBackend: QuestionBackend?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool

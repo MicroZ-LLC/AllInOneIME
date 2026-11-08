@@ -738,9 +738,11 @@ public final class InputSession {
         let installed = services.agentInstalled
         let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
         // The questions go to the input method's Claude session: no round limit, going on in it offered first.
-        questionSessionManager = services.converter.questionSession(config)
+        let sessionAgent = services.converter.questionSessionAgent(config)
+        questionSessionManager = sessionAgent.flatMap { services.converter.questionSessions[$0] }
         composer.questionSession = questionSessionManager != nil
-        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: config.agent) : choices
+        composer.questionSessionAgent = sessionAgent ?? .claude
+        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: sessionAgent ?? .claude) : choices
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         let language = UIText.language
         if let made = chatMessages, made.language == language {

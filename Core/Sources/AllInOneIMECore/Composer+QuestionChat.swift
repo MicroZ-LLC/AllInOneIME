@@ -157,7 +157,7 @@ extension Composer {
         if destination == .claudeSession {
             let followUp = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
             return finish(committing: "", selection: .kept) + [.continueClaudeSession(followUp: followUp),
-                                                                 .notice(pickedAgent == .kiro ? chatMessages.openedKiroSession : chatMessages.openedSession)]
+                                                                 .notice(questionSessionAgent == .kiro ? chatMessages.openedKiroSession : chatMessages.openedSession)]
         }
         // A question about the selection or a screenshot: the selected text and the screenshot's text as blocks of their
         // own, the question as the panel shows it (not the prompt it was sent in: `Prompt.withScreenshot`).

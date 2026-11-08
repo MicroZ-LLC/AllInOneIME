@@ -34,16 +34,21 @@ public final class Converter: Sendable {
     let loadKey: ChatClient.KeyLoader
     private let loadJargon: JargonLoader
     let cache = Locked(initialState: LRUCache(capacity: 64))
-    /// The input method's own sessions (`ClaudeSessionManager`), one per agent: `@question` goes to the one of the agent
-    /// `@agent` hands to (`Config.agent`) when it answers questions (`answersQuestions`); none for that agent (Gemini
-    /// CLI, a custom one): every question to the provider.
+    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Kiro CLI): `@question`
+    /// goes to the one `questionSession` says.
     public let questionSessions: [AgentKind: ClaudeSessionManager]
     /// The Claude Code session, if any.
     public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
 
-    /// The session `@question` goes to with `config`: its agent's, when that answers questions; nil: the provider.
+    /// The session `@question` goes to with `config` (`Config.questionSessionAgent`, with each session's availability);
+    /// nil: the provider.
     public func questionSession(_ config: Config) -> ClaudeSessionManager? {
-        questionSessions[config.agent].flatMap { $0.answersQuestions(config) ? $0 : nil }
+        questionSessionAgent(config).flatMap { questionSessions[$0] }
+    }
+
+    /// The agent of that session.
+    public func questionSessionAgent(_ config: Config) -> AgentKind? {
+        config.questionSessionAgent(availability: { questionSessions[$0]?.availability ?? .notInstalled })
     }
 
     public init(

@@ -1,14 +1,39 @@
 import Crypto
 import Foundation
 
-/// Where `@question` is answered (`Config.questionBackend`): the dedicated session of the agent `@agent` hands to
-/// (`Config.agent`: Claude Code on the user's Claude subscription, Kiro CLI on their Kiro account; `ClaudeSessionManager`),
-/// or the AI provider. Unset: the session when that agent is installed and signed in, else the provider. An agent with
-/// no session (Gemini CLI, a custom one): the provider. `claudeSession` is the value's name in the file for either agent.
-/// Every other request (writing, autocomplete, translating …) always goes to the provider.
+/// Where `@question` is answered (`Config.questionBackend`): the input method's own Claude Code session
+/// (`claudeSession`, its name in the file from before Kiro), its own Kiro CLI session (`kiroSession`), each a
+/// `ClaudeSessionManager`, or the AI provider. Unset (Automatic): see `Config.questionSessionAgent`. Every other request
+/// (writing, autocomplete, translating …) always goes to the provider.
 public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
     case claudeSession
+    case kiroSession
     case provider
+
+    /// The agent whose session it is; nil for the provider.
+    public var agent: AgentKind? {
+        switch self {
+        case .claudeSession: return .claude
+        case .kiroSession: return .kiro
+        case .provider: return nil
+        }
+    }
+
+    /// The agents that have a question session, in the order Automatic tries them.
+    public static let sessionAgents: [AgentKind] = [.claude, .kiro]
+}
+
+extension Config {
+    /// The agent whose session `@question` goes to, nil: the provider. The one place that decides it (the converter,
+    /// the prewarm, the hand-off, the panel's and the settings' labels, Start Over all ask it). Picked
+    /// (`questionBackend`): that one, whatever its `availability` (it is tried; the provider answers with why when it
+    /// can't). Automatic (nil): the session of `@agent`'s agent (`agent`) when it has one and it is ready, else another
+    /// one that is ready (Claude Code first), else the provider. `availability`: each agent's, as last found.
+    public func questionSessionAgent(availability: (AgentKind) -> ClaudeSession.Availability) -> AgentKind? {
+        if let questionBackend { return questionBackend.agent }
+        if QuestionBackend.sessionAgents.contains(agent), availability(agent) == .ready { return agent }
+        return QuestionBackend.sessionAgents.first { availability($0) == .ready }
+    }
 }
 
 /// The input method's own long-running Claude Code session (`ClaudeSessionManager` keeps its process): one session id,

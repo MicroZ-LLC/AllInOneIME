@@ -95,6 +95,147 @@
         }
       }
     },
+    " — claude isn't installed" : {
+      "comment" : " — 没装 claude — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude ist nicht installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude no está instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude n’est pas installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude がインストールされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude가 설치되어 있지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — claude não está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 沒裝 claude"
+          }
+        }
+      }
+    },
+    " — kiro-cli isn't installed" : {
+      "comment" : " — 没装 kiro-cli — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli ist nicht installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli no está instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli n’est pas installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli がインストールされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli가 설치되어 있지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — kiro-cli não está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 沒裝 kiro-cli"
+          }
+        }
+      }
+    },
+    " — not signed in" : {
+      "comment" : " — 没登录 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — nicht angemeldet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — sin sesión iniciada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — non connecté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — サインインしていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 로그인되지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — não conectado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 沒登入"
+          }
+        }
+      }
+    },
     " · AI is off in this app, text goes in as typed" : {
       "comment" : " · 这个 App 里关了 AI，照原样上屏 — Sources/AllInOneIME/TranslateModeController.swift",
       "localizations" : {
@@ -3865,7 +4006,51 @@
       }
     },
     "A new session: it no longer remembers the earlier questions (the old one stays in Kiro CLI's history)." : {
-      "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 Kiro CLI 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 Kiro CLI 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neue Sitzung: Sie erinnert sich nicht mehr an frühere Fragen (die alte bleibt im Verlauf von Kiro CLI)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una sesión nueva: ya no recuerda las preguntas anteriores (la antigua queda en el historial de Kiro CLI)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une nouvelle session : elle ne se souvient plus des questions précédentes (l’ancienne reste dans l’historique de Kiro CLI)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいセッション：以前の質問は覚えていません（古いセッションは Kiro CLI の履歴に残ります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 세션: 이전 질문을 더 이상 기억하지 않습니다(이전 세션은 Kiro CLI 기록에 남습니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma nova sessão: ela não lembra mais das perguntas anteriores (a antiga fica no histórico do Kiro CLI)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始一個新工作階段：之前的問題它就不記得了（舊工作階段還在 Kiro CLI 的歷史裡）。"
+          }
+        }
+      }
     },
     "A notification says when it's done and opens it in Terminal; @tasks and the menu bar panel list these tasks." : {
       "comment" : "做完弹通知，点通知在终端里接着聊；@tasks 和菜单栏面板列出这些任务。 — Sources/AllInOneIME/AgentSettings.swift",
@@ -7615,8 +7800,56 @@
         }
       }
     },
+    "Automatic (now: %@)" : {
+      "comment" : "自动（现在：%@） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch (jetzt: %@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático (ahora: %@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatique (actuellement : %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動（現在：%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동(현재: %@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático (agora: %@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動（現在：%@）"
+          }
+        }
+      }
+    },
     "Automatic (now: the AI provider; claude isn't installed)" : {
       "comment" : "自动（现在：AI 服务，没装 claude） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7664,6 +7897,7 @@
     },
     "Automatic (now: the AI provider; claude isn't signed in)" : {
       "comment" : "自动（现在：AI 服务，claude 没登录） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7710,13 +7944,16 @@
       }
     },
     "Automatic (now: the AI provider; kiro-cli isn't installed)" : {
-      "comment" : "自动（现在：AI 服务，没装 kiro-cli） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "自动（现在：AI 服务，没装 kiro-cli） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale"
     },
     "Automatic (now: the AI provider; kiro-cli isn't signed in)" : {
-      "comment" : "自动（现在：AI 服务，kiro-cli 没登录） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "自动（现在：AI 服务，kiro-cli 没登录） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale"
     },
     "Automatic (now: the Claude session)" : {
       "comment" : "自动（现在：Claude 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7763,7 +8000,8 @@
       }
     },
     "Automatic (now: the Kiro session)" : {
-      "comment" : "自动（现在：Kiro 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "自动（现在：Kiro 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale"
     },
     "Available" : {
       "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
@@ -9320,6 +9558,7 @@
     },
     "Claude session" : {
       "comment" : "Claude 会话 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9367,6 +9606,7 @@
     },
     "Claude session: the input method's own Claude Code session, on your Claude subscription, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
       "comment" : "Claude 会话：输入法自己的一个 Claude Code 会话，用你的 Claude 订阅，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17121,10 +17361,12 @@
       }
     },
     "Kiro session" : {
-      "comment" : "Kiro 会话 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "Kiro 会话 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale"
     },
     "Kiro session: the input method's own Kiro CLI session (@agent's agent is Kiro CLI), on your Kiro account, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
-      "comment" : "Kiro 会话：输入法自己的一个 Kiro CLI 会话（@agent 选的是 Kiro CLI），用你的 Kiro 账号，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+      "comment" : "Kiro 会话：输入法自己的一个 Kiro CLI 会话（@agent 选的是 Kiro CLI），用你的 Kiro 账号，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale"
     },
     "Language pack" : {
       "comment" : "语言包 — Sources/AllInOneIME/SettingsWindow.swift",

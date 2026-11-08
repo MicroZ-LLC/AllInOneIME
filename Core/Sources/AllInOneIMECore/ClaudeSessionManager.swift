@@ -140,14 +140,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         set { state.withLock { $0.availability = newValue } }
     }
 
-    /// Whether `@question` goes to the session with `config`: picked in the settings, or (not picked) when `claude` is
-    /// installed and signed in.
+    /// Whether `@question` goes to this session with `config` as far as this session can tell (`Config
+    /// .questionSessionAgent`, the other agents' sessions taken as not ready); the converter asks with all of them.
     public func answersQuestions(_ config: Config) -> Bool {
-        switch config.questionBackend {
-        case .claudeSession?: return true
-        case .provider?: return false
-        case nil: return availability == .ready
-        }
+        let own = availability
+        return config.questionSessionAgent(availability: { $0 == backend.agent ? own : .unknown }) == backend.agent
     }
 
     /// Whether the process runs now.
