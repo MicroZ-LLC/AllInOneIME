@@ -51,6 +51,12 @@ public final class AIConfigService: Sendable {
                 default: return false
                 }
             case is AWSConfigError: return true
+            case let error as AWSCredentialError:
+                // No such profile, or one with nothing that gives credentials; an SSO sign-in and the rest say what to do.
+                switch error {
+                case .profileNotFound, .noCredentials: return true
+                default: return false
+                }
             default: return false
             }
         }

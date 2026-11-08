@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.1 (unreleased)
+
+### Fixed
+
+- When a request in Settings → Assistant is too long for Apple Intelligence and Amazon Bedrock is your provider but its AWS profile isn't on this Mac (or has no credentials in it), the page now says Bedrock isn't set up and to try a shorter request or set it up in Settings → AI, as for every other provider. Before, it said Bedrock couldn't answer instead. A missing or expired SSO sign-in still says to run `aws sso login`.
+
 ## 0.7.0 (2026-11-07)
 
 ### Added
