@@ -24,26 +24,51 @@ public protocol ClaudeSessionLauncher: Sendable {
 /// is answered waits for it; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the process stays.
 /// Handing the session to Terminal (`handOff`) ends the process; while the Terminal one runs (its id in
 /// `ClaudeSessionStore.terminalPIDFile`), no process starts here and questions fail with `.openInTerminal`.
+/// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
+/// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends.
+/// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
+/// never stands for two values, and which answers the session saw (`missing`, `remember`).
 public final class ClaudeSessionManager: @unchecked Sendable {
     /// Without a question for this long, the process ends.
     public static let idleTimeout: Duration = .seconds(15 * 60)
+    /// A question's longest wait for the first sign of its answer (the model's message starting; a web search after
+    /// that may take longer).
+    public static let firstAnswerTimeout: Duration = .seconds(30)
 
     public let store: ClaudeSessionStore
     private let launcher: any ClaudeSessionLauncher
     private let idleTimeout: Duration
     private let clock: any Clock<Duration>
+    private let firstAnswerTimeout: Duration
+    private let answerClock: any Clock<Duration>
     private let isAlive: @Sendable (Int32) -> Bool
+    private let userSettings: @Sendable () -> URL?
     private let state = Locked(initialState: State())
+    private let kept = Locked<Kept?>(initialState: nil)
 
-    /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one).
+    /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one). `userSettings`: the user's
+    /// Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
+    /// `answerClock`: what `firstAnswerTimeout` is timed with.
     public init(launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore = ClaudeSessionStore(),
                 idleTimeout: Duration = ClaudeSessionManager.idleTimeout, clock: any Clock<Duration> = ContinuousClock(),
-                isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false }) {
+                firstAnswerTimeout: Duration = ClaudeSessionManager.firstAnswerTimeout,
+                answerClock: any Clock<Duration> = ContinuousClock(),
+                isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false },
+                userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() }) {
         self.launcher = launcher
         self.store = store
         self.idleTimeout = idleTimeout
         self.clock = clock
+        self.firstAnswerTimeout = firstAnswerTimeout
+        self.answerClock = answerClock
         self.isAlive = isAlive
+        self.userSettings = userSettings
+    }
+
+    /// What is kept of the session `session`: `memory` as saved, and the values hidden so far (in memory only).
+    private struct Kept {
+        var memory: ClaudeSessionStore.Memory
+        var known: [Redaction.Hidden] = []
     }
 
     /// A question being answered, or waiting for the one before it.
@@ -61,6 +86,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var done = false
         /// Started again once already after the process couldn't start the session.
         var retried = false
+        /// Some sign of the answer came (the model's message started, text, the turn's end): no `firstAnswerTimeout`.
+        var answering = false
+        /// Ends it after `firstAnswerTimeout` without a sign of the answer; one per time it is written.
+        var watchdog: Task<Void, Never>?
+        var attempt = 0
 
         init(id: Int, message: Data, continuation: AsyncThrowingStream<String, Error>.Continuation) {
             self.id = id
@@ -174,6 +204,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.idle = nil
             let turns = state.turns
             state.turns = []
+            for turn in turns { turn.watchdog?.cancel() }
             let process = state.running?.process
             state.running = nil  // what it still says, its exit too, is of no session now
             return turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) } + (process.map { [.terminate($0)] } ?? [])
@@ -184,7 +215,87 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// A new session from now on ("start over" in the settings): the process ends, a new id is made.
     public func startOver() throws {
         stop()
-        try store.startOver()
+        try kept.withLock { kept in
+            kept = nil
+            try store.startOver()
+        }
+    }
+
+    /// The arguments for `claude auth status` that say what the session will find (`ClaudeSession.authStatusArguments`),
+    /// run in `store.directory`; the folder and its provider settings are written first.
+    public func authStatusArguments() -> [String] {
+        try? store.prepare()
+        return ClaudeSession.authStatusArguments(settings: providerSettings())
+    }
+
+    /// The user's provider settings written into the session's folder, nil when there are none.
+    private func providerSettings() -> URL? {
+        userSettings().flatMap { store.writeProviderSettings(from: $0) }
+    }
+
+    // MARK: - What the session was told
+
+    /// Runs `body` (the hiding of a question's texts, `Redaction.hide`) with a `Redaction` for `settings` that goes on
+    /// from the session's earlier questions: a value hidden before keeps its placeholder, a new one gets a number none
+    /// had, and the answers put back the earlier values too. One question's hiding at a time; what it hid is kept for the
+    /// next (the numbers on disk, the values in memory). Hiding off: `body` gets nil.
+    public func redacting<T>(_ settings: RedactionSettings, _ body: (inout Redaction?) -> T) -> (redaction: Redaction?, result: T) {
+        kept.withLock { kept in
+            guard settings.enabled, let id = try? store.sessionID() else {
+                var none = Redaction(settings)
+                let result = body(&none)
+                return (none, result)
+            }
+            var current = load(&kept, id: id)
+            let numbers = Dictionary(uniqueKeysWithValues: current.memory.numbers.compactMap { key, value in
+                Redaction.Kind(rawValue: key).map { ($0, value) }
+            })
+            var redaction = Redaction(settings, known: current.known, numbers: numbers)
+            let result = body(&redaction)
+            if let redaction {
+                current.known = redaction.hidden
+                let saved = Dictionary(uniqueKeysWithValues: redaction.numbers.map { ($0.rawValue, $1) })
+                if saved != current.memory.numbers {
+                    current.memory.numbers = saved
+                    store.save(current.memory)
+                }
+            }
+            kept = current
+            return (redaction, result)
+        }
+    }
+
+    /// Of a conversation's `rounds` (before the question asked now), the ones whose answer the session neither gave nor
+    /// was told (`remember`): the provider answered them, or they came from the saved history.
+    public func missing(_ rounds: [QuestionChat.Round]) -> [QuestionChat.Round] {
+        guard !rounds.isEmpty else { return [] }
+        return kept.withLock { kept in
+            guard let id = try? store.sessionID() else { return rounds }
+            let answered = Set(load(&kept, id: id).memory.answered)
+            return rounds.filter { !answered.contains(ClaudeSession.fingerprint($0.answer)) }
+        }
+    }
+
+    /// `answers` are in the session now: it gave them, or was told them as context.
+    public func remember(answers: [String]) {
+        let prints = answers.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(ClaudeSession.fingerprint)
+        guard !prints.isEmpty else { return }
+        kept.withLock { kept in
+            guard let id = try? store.sessionID() else { return }
+            var current = load(&kept, id: id)
+            current.memory.answered = current.memory.answered.filter { !prints.contains($0) } + prints
+            current.memory.answered = Array(current.memory.answered.suffix(ClaudeSessionStore.Memory.maxAnswered))
+            store.save(current.memory)
+            kept = current
+        }
+    }
+
+    /// What is kept of the session `id`: read from disk the first time (and after "start over").
+    private func load(_ kept: inout Kept?, id: String) -> Kept {
+        if let current = kept, current.memory.session == id { return current }
+        let loaded = Kept(memory: store.memory(of: id))
+        kept = loaded
+        return loaded
     }
 
     // MARK: - The process
@@ -207,7 +318,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let resume = store.resumable
             state.generation += 1
             let generation = state.generation
-            let process = try launcher.start(ClaudeSession.arguments(sessionID: id, resume: resume), in: store.directory,
+            let arguments = ClaudeSession.arguments(sessionID: id, resume: resume, settings: providerSettings())
+            let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
                                              exited: { [weak self] in self?.exited(generation: generation, status: $0, message: $1) })
             let running = Running(process: process, generation: generation, resume: resume)
@@ -235,7 +347,37 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle?.cancel()
         state.idle = nil
         turn.sent = true
+        watch(turn)
         return [.send(running.process, generation: running.generation, turn.message)]
+    }
+
+    /// `turn`, just written, fails with `.noResponse` unless a sign of its answer comes within `firstAnswerTimeout`.
+    private func watch(_ turn: Turn) {
+        turn.watchdog?.cancel()
+        turn.answering = false
+        turn.attempt += 1
+        let (id, attempt, clock, timeout) = (turn.id, turn.attempt, answerClock, firstAnswerTimeout)
+        turn.watchdog = Task { [weak self] in
+            do { try await clock.sleep(for: timeout) } catch { return }
+            self?.noResponse(id, attempt: attempt)
+        }
+    }
+
+    /// No sign of the answer to the turn `id` in time: it fails (falling back) and the process ends; the next question
+    /// starts one again.
+    private func noResponse(_ id: Int, attempt: Int) {
+        let actions = state.withLock { state -> [Action] in
+            guard let turn = state.turns.first, turn.id == id, turn.attempt == attempt, turn.sent, !turn.answering,
+                  let running = state.running else { return [] }
+            state.turns.removeFirst()
+            state.running = nil  // its exit is of no session now
+            state.idle?.cancel()
+            state.idle = nil
+            let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, ClaudeSessionError.noResponse)]
+            turn.done = true
+            return failure + [.terminate(running.process)] + pump(&state)
+        }
+        perform(actions)
     }
 
     /// The process ends after `idleTimeout` unless a question comes first.
@@ -288,6 +430,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             guard let running = state.running, running.generation == generation else { return [] }
             let turn = state.turns.first.flatMap { $0.sent ? $0 : nil }
             switch event {
+            case .messageStarted, .text, .apiError, .result:
+                turn?.answering = true
+                turn?.watchdog?.cancel()
+            default:
+                break
+            }
+            switch event {
             case .started:
                 // The session has its conversation from here on (the question is in its transcript): resumed from now on.
                 state.running?.started = true
@@ -316,7 +465,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                     if interrupted {
                         actions.append(.finish(turn.continuation, CancellationError()))
                     } else if isError {
-                        let error = turn.error ?? ClaudeSessionError.from(code: nil, status: status, message: text)
+                        // The result's text may say more than the error line did (an AWS credential error).
+                        let ended = ClaudeSessionError.from(code: nil, status: status, message: text)
+                        let error = ended == .awsSignInExpired ? ended : turn.error ?? ended
                         if error == .signedOut { state.availability = .signedOut }
                         actions.append(.finish(turn.continuation, error))
                     } else {
@@ -342,6 +493,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.idle?.cancel()
             state.idle = nil
             guard let turn = state.turns.first, turn.sent else { return pump(&state) }
+            turn.watchdog?.cancel()
             // It couldn't start the session (no "init"): once more the other way, `--session-id` ↔ `--resume` (the id in
             // use already, or with no conversation after all).
             if !running.started, !turn.retried, !turn.done {
@@ -351,7 +503,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 return pump(&state)
             }
             state.turns.removeFirst()
-            let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, ClaudeSessionError.exited(status, message))]
+            // Credentials Claude Code couldn't get (an `awsCredentialExport` that failed) end it before it answers.
+            let error = ClaudeSessionError.isAWSCredentialError(message) ? ClaudeSessionError.awsSignInExpired : .exited(status, message)
+            let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, error)]
             return failure + pump(&state)
         }
         perform(actions)

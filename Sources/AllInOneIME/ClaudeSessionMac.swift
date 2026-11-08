@@ -4,14 +4,17 @@ import Foundation
 
 /// The input method's own Claude Code session on the Mac (`ClaudeSessionManager`, `ClaudeSession`): one process for every
 /// text field, `claude` where Terminal finds it (`TerminalLauncher.claudePath`) or on the login shell's PATH, run with the
-/// login shell's environment. At launch `claude auth status` says whether it can answer (the default for `@question`).
+/// login shell's environment, with the provider settings of the user's Claude Code settings (CLAUDE_CONFIG_DIR as that
+/// environment says). At launch `claude auth status`, with the session's own flags and in its folder, says whether it can
+/// answer (the default for `@question`).
 /// Handing it to Terminal (⌘⏎ in an @question conversation) ends our process and runs `claude --resume <id>` in the
 /// session's folder; that Claude Code's process id goes in `ClaudeSessionStore.terminalPIDFile`, so that no process of
 /// ours starts on the session while it runs.
 enum ClaudeSessionMac {
     static let manager = ClaudeSessionManager(
         launcher: ProcessClaudeSessionLauncher(executable: { claudeURL }, environment: { ShellEnvironment.current }),
-        isAlive: { kill($0, 0) == 0 })
+        isAlive: { kill($0, 0) == 0 },
+        userSettings: { ClaudeSession.userSettingsFile(environment: ShellEnvironment.current) })
 
     /// Where `claude` is, nil when it isn't installed.
     static var claudeURL: URL? {
@@ -36,15 +39,16 @@ enum ClaudeSessionMac {
         }
     }
 
-    /// What `claude auth status` prints (JSON), signed in or not; nil when it can't run.
+    /// What `claude auth status` prints (JSON), signed in or not, as the session would be (its settings, its folder);
+    /// nil when it can't run.
     private static func authStatus(_ claude: URL) async -> Data? {
         await withCheckedContinuation { continuation in
             DispatchQueue.global().async {
                 let process = Process()
                 process.executableURL = claude
-                process.arguments = ["auth", "status", "--json"]
+                process.arguments = manager.authStatusArguments()
                 process.environment = ShellEnvironment.current
-                process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
+                process.currentDirectoryURL = manager.store.directory
                 let out = Pipe()
                 process.standardOutput = out
                 process.standardError = FileHandle.nullDevice

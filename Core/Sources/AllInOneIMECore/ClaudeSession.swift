@@ -1,3 +1,4 @@
+import Crypto
 import Foundation
 
 /// Where `@question` is answered (`Config.questionBackend`): the dedicated Claude Code session on the user's Claude
@@ -23,28 +24,115 @@ public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
 ///   dontAsk`: those run without asking and anything else is denied (without `--allowedTools`, dontAsk denies them too).
 /// - `--setting-sources project`: the session folder's settings and CLAUDE.md only (not ~/.claude/CLAUDE.md or the
 ///   user's settings and hooks); `--strict-mcp-config`: no MCP servers.
+/// - `--settings <file>`: what of the user's own settings says how Claude Code reaches a model and signs in
+///   (`providerSettingKeys`: Amazon Bedrock, Vertex, a gateway, an API key helper …), copied into the session's folder
+///   before each start (`providerSettings`). Without it a Claude Code set up for Bedrock in ~/.claude/settings.json
+///   says "Not logged in" here, while `claude auth status` (which reads the user's settings) says signed in. Nothing to
+///   copy: no flag. Managed settings (/Library/Application Support/ClaudeCode/managed-settings.json, MDM) apply whatever
+///   the flags say; ~/.claude/settings.local.json is no user setting (only a project's, when Claude Code runs in ~), so
+///   it isn't read. Since the user settings are left out, the availability check runs with the same flags in the same
+///   folder (`authStatusArguments`), so that it says what the session will find.
 public enum ClaudeSession {
     /// The session's folder: ~/Library/Application Support/AllInOneIME/claude-session on the Mac.
     public static var directory: URL { CorePaths.dataDir.appendingPathComponent("claude-session", isDirectory: true) }
 
-    /// The CLAUDE.md written into the session's folder when it has none (the user may edit it).
+    /// The CLAUDE.md written into the session's folder when it has none (the user may edit it). Web search isn't
+    /// promised: on Amazon Bedrock Claude Code offers WebFetch only.
     public static let instructions = """
+        You are the assistant inside an input method. Answer short, ready to paste, in the language of the question.
+        Earlier messages in this session are earlier questions from the same user.
+        Write plain text: your answer is inserted at the user's cursor as it is, so no Markdown (no headings, bold, tables \
+        or code fences) and no preamble. When a question needs current facts, you may read web pages, or search the web \
+        when you have a tool for it; without one, answer from what you know and say it may be out of date.
+
+        """
+
+    /// Earlier CLAUDE.md texts written as `instructions`: a folder still holding one as written gets the new one.
+    static let earlierInstructions = ["""
         You are the assistant inside an input method. Answer short, ready to paste, in the language of the question.
         Earlier messages in this session are earlier questions from the same user.
         Write plain text: your answer is inserted at the user's cursor as it is, so no Markdown (no headings, bold, tables \
         or code fences) and no preamble. When a question needs current facts, you may search the web (WebSearch, WebFetch).
 
-        """
+        """]
 
-    /// The tools the session has: reading the web, nothing else.
+    /// The tools the session may have: reading the web, nothing else (Claude Code leaves out what its provider lacks:
+    /// WebSearch on Bedrock).
     public static let tools = "WebSearch,WebFetch"
 
-    /// The arguments after `claude` that start (or resume) the session's process.
-    public static func arguments(sessionID: String, resume: Bool) -> [String] {
+    /// The arguments after `claude` that start (or resume) the session's process; `settings`: the provider settings
+    /// file (`providerSettings`), nil when there is none.
+    public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil) -> [String] {
         ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
             + (resume ? ["--resume", sessionID] : ["--session-id", sessionID])
             + ["--tools", tools, "--allowedTools", tools, "--permission-mode", "dontAsk",
-               "--setting-sources", "project", "--strict-mcp-config"]
+               "--setting-sources", "project"] + settingsArguments(settings) + ["--strict-mcp-config"]
+    }
+
+    /// `claude auth status` as the session would see it (run in the session's folder): the same settings.
+    public static func authStatusArguments(settings: URL? = nil) -> [String] {
+        ["--setting-sources", "project"] + settingsArguments(settings) + ["auth", "status", "--json"]
+    }
+
+    static func settingsArguments(_ settings: URL?) -> [String] {
+        settings.map { ["--settings", $0.path] } ?? []
+    }
+
+    // MARK: - The provider's settings
+
+    /// The keys of the user's Claude Code settings copied into the session (Claude Code 2.1.319's settings schema):
+    /// how it reaches a model and signs in, nothing else (no hooks, permissions, MCP servers, status line, plugins).
+    /// - `env`: CLAUDE_CODE_USE_BEDROCK / _VERTEX / _FOUNDRY, AWS_PROFILE, AWS_REGION, ANTHROPIC_BASE_URL, ANTHROPIC_MODEL …
+    /// - `apiKeyHelper`: a script that prints the API key or token; `proxyAuthHelper`: a corporate proxy's header.
+    /// - `awsCredentialExport`, `awsAuthRefresh`: a script that exports AWS credentials, or refreshes the login (SSO).
+    /// - `gcpAuthRefresh`: the same for Vertex.
+    /// - `model`, `modelOverrides`: which model, and its provider's id for it (a Bedrock inference profile ARN).
+    /// - `forceLoginMethod`, `forceLoginOrgUUID`, `forceLoginGatewayUrl`: the sign-in a company requires.
+    public static let providerSettingKeys = [
+        "env", "apiKeyHelper", "proxyAuthHelper", "awsCredentialExport", "awsAuthRefresh", "gcpAuthRefresh",
+        "model", "modelOverrides", "forceLoginMethod", "forceLoginOrgUUID", "forceLoginGatewayUrl",
+    ]
+
+    /// The user's Claude Code settings file: settings.json in `CLAUDE_CONFIG_DIR` when the environment the session runs
+    /// with sets it, else in ~/.claude.
+    public static func userSettingsFile(environment: [String: String] = ProcessInfo.processInfo.environment,
+                                        home: URL = FileManager.default.homeDirectoryForCurrentUser) -> URL {
+        let configured = environment["CLAUDE_CONFIG_DIR"].map { ($0 as NSString).expandingTildeInPath } ?? ""
+        let directory = configured.isEmpty ? home.appendingPathComponent(".claude", isDirectory: true)
+            : URL(fileURLWithPath: configured, isDirectory: true)
+        return directory.appendingPathComponent("settings.json")
+    }
+
+    /// `settings` (a settings.json's content) with only `providerSettingKeys`, as JSON; nil when it isn't a JSON
+    /// object or holds none of them (an empty `env` counts as none).
+    public static func providerSettings(_ settings: Data) -> Data? {
+        guard let object = try? JSONSerialization.jsonObject(with: settings) as? [String: Any] else { return nil }
+        var kept: [String: Any] = [:]
+        for key in providerSettingKeys {
+            guard let value = object[key], !(value is NSNull) else { continue }
+            if let env = value as? [String: Any], env.isEmpty { continue }
+            kept[key] = value
+        }
+        guard !kept.isEmpty else { return nil }
+        return try? JSONSerialization.data(withJSONObject: kept, options: [.sortedKeys, .prettyPrinted])
+    }
+
+    // MARK: - Rounds the session didn't see
+
+    /// The message for `question` when the conversation had rounds the session didn't answer (the provider did, or
+    /// they came from the saved history): those rounds first, as context, then the question.
+    public static func message(_ question: String, after missing: [QuestionChat.Round]) -> String {
+        guard !missing.isEmpty else { return question }
+        let rounds = missing.map { "Question: \($0.question)\nAnswer: \($0.answer)" }.joined(separator: "\n\n")
+        return "Earlier in this conversation, answered outside this session (for context):\n\n" + rounds
+            + "\n\nThe question now:\n" + question
+    }
+
+    /// What stands for an answer the session gave or was told (`ClaudeSessionStore.Memory.answered`): a short hash of
+    /// its text, trimmed.
+    public static func fingerprint(_ answer: String) -> String {
+        let digest = SHA256.hash(data: Data(answer.trimmingCharacters(in: .whitespacesAndNewlines).utf8))
+        return digest.prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
     /// What Terminal runs to go on in the session (the hand-off): Claude Code, interactive, on the same session, with all
@@ -159,6 +247,12 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     case signedOut
     /// The subscription's usage limit is reached (Claude Code's own message, which says until when).
     case limitReached(String)
+    /// Claude Code is set up for Amazon Bedrock and the AWS sign-in (SSO) or its credentials have expired, or none
+    /// were found (`isAWSCredentialError`).
+    case awsSignInExpired
+    /// No sign of an answer within `ClaudeSessionManager.firstAnswerTimeout` (Claude Code stuck starting, a sign-in
+    /// waiting in a browser): the process is ended.
+    case noResponse
     /// The session is open in Terminal (handed off): never two processes on one session.
     case openInTerminal
     /// The process ended while it answered (status, what it last said on stderr).
@@ -168,7 +262,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 
     public var fallsBack: Bool {
         switch self {
-        case .notInstalled, .signedOut, .limitReached, .openInTerminal: return true
+        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .openInTerminal: return true
         case .exited, .failed: return false
         }
     }
@@ -181,6 +275,10 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
             return tr("Claude Code 没有登录：在终端运行 claude 并 /login", "Claude Code isn't signed in: run claude in Terminal and /login")
         case let .limitReached(message):
             return tr("Claude 订阅的用量到了上限", "The Claude subscription's usage limit is reached") + (message.isEmpty ? "" : ": \(message)")
+        case .awsSignInExpired:
+            return tr("AWS 登录已过期：在终端运行 aws sso login", "The AWS sign-in has expired: run aws sso login in Terminal")
+        case .noResponse:
+            return tr("Claude 会话没有回应", "The Claude session didn't respond")
         case .openInTerminal:
             return tr("输入法的 Claude 会话正在终端里打开着", "The input method's Claude session is open in Terminal")
         case let .exited(status, message):
@@ -196,18 +294,36 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     }
 
     /// The error for an `assistant` line's `error` code and text, or a failed `result` (`status`: its HTTP status).
+    /// AWS's own credential errors first: they may come as 400, 403 or `authentication_failed`, and /login wouldn't help.
     static func from(code: String?, status: Int?, message: String) -> ClaudeSessionError {
+        if isAWSCredentialError(message) { return .awsSignInExpired }
         switch (code, status) {
         case ("authentication_failed", _), (_, 401?), (_, 403?): return .signedOut
         case ("rate_limit", _), ("billing_error", _), (_, 429?): return .limitReached(message)
         default: return .failed(message)
         }
     }
+
+    /// What AWS (or the AWS SDK in Claude Code) says when the credentials have expired or can't be had: an SSO login
+    /// to do again. Not "Access to Bedrock models is not allowed" (the account's, not the sign-in's).
+    static let awsCredentialPhrases = [
+        "expiredtoken", "security token included in the request is expired", "security token included in the request is invalid",
+        "unrecognizedclientexception", "invalidclienttokenid", "the sso session", "sso session associated with this profile",
+        "token has expired and refresh failed", "error loading sso token", "could not load credentials",
+        "credentialsprovidererror", "credential provider", "unable to locate credentials", "aws sso login",
+    ]
+
+    static func isAWSCredentialError(_ message: String) -> Bool {
+        let text = message.lowercased()
+        return awsCredentialPhrases.contains { text.contains($0) }
+    }
 }
 
 /// The session's id and folder on disk: `id` holds the id, made once; `resumable` is there once the session has a
 /// conversation (Claude Code started it on a question), so the process starts with `--resume`. "Start over" (Settings → AI) makes a
-/// new id. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none.
+/// new id. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none; `provider-settings.json`, the
+/// user's provider settings (`ClaudeSession.providerSettings`), before each start; `context.json`, what the input method
+/// keeps of the session (`Memory`).
 public struct ClaudeSessionStore: Sendable {
     public let directory: URL
 
@@ -217,6 +333,8 @@ public struct ClaudeSessionStore: Sendable {
 
     var idFile: URL { directory.appendingPathComponent("id") }
     var resumableFile: URL { directory.appendingPathComponent("resumable") }
+    var providerSettingsFile: URL { directory.appendingPathComponent("provider-settings.json") }
+    var memoryFile: URL { directory.appendingPathComponent("context.json") }
     /// The process id of the Claude Code a hand-off started in Terminal, written by the script that starts it.
     public var terminalPIDFile: URL { directory.appendingPathComponent("terminal.pid") }
 
@@ -225,9 +343,53 @@ public struct ClaudeSessionStore: Sendable {
         let files = FileManager.default
         try files.createDirectory(at: directory, withIntermediateDirectories: true)
         let instructions = directory.appendingPathComponent("CLAUDE.md")
-        if !files.fileExists(atPath: instructions.path) {
+        let written = try? String(contentsOf: instructions, encoding: .utf8)
+        if written == nil || ClaudeSession.earlierInstructions.contains(written!) {
             try Data(ClaudeSession.instructions.utf8).write(to: instructions, options: .atomic)
         }
+    }
+
+    /// The provider settings in `user` (the user's settings.json) written for `--settings`, readable by the user only
+    /// (an `env` may hold a key); nil, and no file, when there are none or `user` can't be read.
+    public func writeProviderSettings(from user: URL) -> URL? {
+        guard let settings = (try? Data(contentsOf: user)).flatMap(ClaudeSession.providerSettings),
+              (try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)) != nil else {
+            try? FileManager.default.removeItem(at: providerSettingsFile)
+            return nil
+        }
+        if (try? Data(contentsOf: providerSettingsFile)) != settings {
+            guard (try? settings.write(to: providerSettingsFile, options: .atomic)) != nil else { return nil }
+        }
+        try? FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: providerSettingsFile.path)
+        return providerSettingsFile
+    }
+
+    /// What the input method keeps of a session besides its id: the highest placeholder number given out per kind
+    /// (`Redaction.Kind`), so that a value hidden in a later question never gets a placeholder an earlier one had (the
+    /// values themselves are kept in memory only, `ClaudeSessionManager`), and the answers the session gave or was told
+    /// (`ClaudeSession.fingerprint`), so that the rounds it didn't see are told once (`ClaudeSession.message`).
+    public struct Memory: Codable, Equatable, Sendable {
+        public var session: String
+        public var numbers: [String: Int] = [:]
+        public var answered: [String] = []
+
+        /// The answers kept, the latest.
+        static let maxAnswered = 500
+    }
+
+    /// The memory of the session `id`; empty when the file is of another session (or none).
+    public func memory(of id: String) -> Memory {
+        guard let data = try? Data(contentsOf: memoryFile),
+              let memory = try? JSONDecoder().decode(Memory.self, from: data), memory.session == id else { return Memory(session: id) }
+        return memory
+    }
+
+    public func save(_ memory: Memory) {
+        var memory = memory
+        memory.answered = Array(memory.answered.suffix(Memory.maxAnswered))
+        guard let data = try? JSONEncoder().encode(memory) else { return }
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? data.write(to: memoryFile, options: .atomic)
     }
 
     /// The session's id, made (and kept) the first time.
@@ -258,6 +420,7 @@ public struct ClaudeSessionStore: Sendable {
     public func startOver() throws -> String {
         try? FileManager.default.removeItem(at: idFile)
         try? FileManager.default.removeItem(at: resumableFile)
+        try? FileManager.default.removeItem(at: memoryFile)
         return try sessionID()
     }
 

@@ -171,11 +171,32 @@ public final class Converter: Sendable {
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
+        // The dedicated Claude session answers, unless it can't (below).
+        let session = command == .question ? claudeSession.flatMap { $0.answersQuestions(config) ? $0 : nil } : nil
+        // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
+        // history), told it with the question.
+        let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
-        // a refine's turns (as for `convert`).
-        var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
-        let lastMessage = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
+        // a refine's turns (as for `convert`). For the session, numbered on from its earlier questions (one long
+        // conversation: a placeholder never stands for two values), and the rounds it didn't see too.
+        func hide(_ redaction: inout Redaction?) -> (sent: String, last: String, missing: [QuestionChat.Round]) {
+            let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
+            let last = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
+            let rounds = missing.map { round in
+                QuestionChat.Round(question: redaction?.hide(round.question) ?? round.question,
+                                   answer: redaction?.hide(round.answer) ?? round.answer)
+            }
+            return (sent, last, rounds)
+        }
+        var redaction: Redaction?
+        let texts: (sent: String, last: String, missing: [QuestionChat.Round])
+        if let session {
+            (redaction, texts) = session.redacting(config.redaction, hide)
+        } else {
+            redaction = Redaction(config.redaction)
+            texts = hide(&redaction)
+        }
+        let (sent, lastMessage) = (texts.sent, texts.last)
         let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
@@ -184,13 +205,14 @@ public final class Converter: Sendable {
         // would be for the provider; not cached (the session's earlier questions are part of the answer). Should it not
         // answer at all (no `claude`, signed out, its limit, open in Terminal), the provider does, and the panel says why.
         var note: String?
-        if command == .question, let session = claudeSession, session.answersQuestions(config) {
+        if let session {
             // The question typed last (`lastMessage` is the first one when nothing is hidden).
-            let question = turns.last.map { redaction == nil ? $0.instruction : lastMessage } ?? sent
+            let question = ClaudeSession.message(turns.last.map { redaction == nil ? $0.instruction : lastMessage } ?? sent,
+                                                 after: texts.missing)
             let message = hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question
             do {
                 try await runInSession(session, message: message, redaction: redaction, hidden: hidden, started: started,
-                                       continuation: continuation)
+                                       told: missing.map(\.answer), continuation: continuation)
                 return
             } catch let error as ClaudeSessionError where error.fallsBack {
                 note = error.fallbackNote
@@ -241,9 +263,10 @@ public final class Converter: Sendable {
 
     /// `@question` answered by the dedicated Claude session (`ClaudeSessionManager.ask`): `message` is the question as
     /// sent (redacted); the answer streams in as the provider's does, its placeholders put back. Throws what the session
-    /// failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came.
+    /// failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came. Answered, the answer and
+    /// `told` (the earlier rounds' answers sent with the question) are in the session (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, message: String, redaction: Redaction?, hidden: Int,
-                              started: ContinuousClock.Instant,
+                              started: ContinuousClock.Instant, told: [String],
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
         func answer(_ text: String, complete: Bool) -> ConversionResult {
@@ -266,6 +289,7 @@ public final class Converter: Sendable {
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
+        session.remember(answers: told + [final.versions.first?.text ?? ""])
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
             hidden: hidden))

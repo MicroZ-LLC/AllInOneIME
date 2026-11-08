@@ -86,7 +86,8 @@ struct ClaudeSessionTests {
 
     func manager(_ fake: FakeClaude, clock: any Clock<Duration> = ContinuousClock(),
                  alive: @escaping @Sendable (Int32) -> Bool = { _ in false }) -> ClaudeSessionManager {
-        ClaudeSessionManager(launcher: fake, store: store, clock: clock, isAlive: alive)
+        // Not the user's real Claude Code settings (ClaudeSessionProviderTests has those).
+        ClaudeSessionManager(launcher: fake, store: store, clock: clock, isAlive: alive, userSettings: { nil })
     }
 
     /// Everything `stream` gives, and how it ended.

@@ -46589,6 +46589,53 @@
         }
       }
     },
+    "The AWS sign-in has expired: run aws sso login in Terminal" : {
+      "comment" : "AWS 登录已过期：在终端运行 aws sso login — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die AWS-Anmeldung ist abgelaufen: Führe im Terminal aws sso login aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El inicio de sesión de AWS ha caducado: ejecuta aws sso login en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion AWS a expiré : exécutez aws sso login dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS のサインインが期限切れです：ターミナルで aws sso login を実行してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS 로그인이 만료되었습니다: 터미널에서 aws sso login을 실행하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O login da AWS expirou: execute aws sso login no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS 登入已過期：在終端機執行 aws sso login"
+          }
+        }
+      }
+    },
     "The bundle's name must be letters, digits, - or _" : {
       "comment" : "扩展包的 name 只能用字母、数字、- 和 _ — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -46679,6 +46726,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到 claude 指令（Claude Code）"
+          }
+        }
+      }
+    },
+    "The Claude session didn't respond" : {
+      "comment" : "Claude 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Claude-Sitzung hat nicht geantwortet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Claude no respondió"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Claude n'a pas répondu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッションが応答しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션이 응답하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude não respondeu"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段沒有回應"
           }
         }
       }
