@@ -117,12 +117,13 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
     }
 
     /// Moves the file at `url` aside if it is there and can't be read, marked first (`setAsideMark`) so that a sync
-    /// running meanwhile never takes the questions it held for a Clear; its new name.
+    /// running meanwhile never takes the questions it held for a Clear; its new name. A mark that can't be written (a
+    /// full disk) throws with the file left where it is, never moved unmarked: the sync then sets it aside itself.
     static func setAsideIfUnreadable(_ url: URL) throws -> String? {
         let files = FileManager.default
         guard files.fileExists(atPath: url.path),
               (try? Data(contentsOf: url)).flatMap({ try? decoder.decode(QuestionHistory.self, from: $0) }) == nil else { return nil }
-        try? Data(ICloudSync.dateText(Platform.current.clock.now).utf8).write(to: setAsideMark(of: url), options: .atomic)
+        try Data(ICloudSync.dateText(Platform.current.clock.now).utf8).write(to: setAsideMark(of: url), options: .atomic)
         do {
             return try ICloudSyncFolder(url: url.deletingLastPathComponent()).setAside(url.lastPathComponent)
         } catch {

@@ -117,6 +117,23 @@ struct QuestionHistoryTests {
         #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["third"])
     }
 
+    /// #59: a mark that can't be written (a full disk) leaves the unreadable file where it is, for the sync to set aside:
+    /// moved unmarked, with the new file not written either, the sync would take its questions for a Clear.
+    @Test func anUnreadableFileIsNotSetAsideUnmarked() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("recent-questions.json")
+        let mark = QuestionHistory.setAsideMark(of: url)
+        try FileManager.default.createDirectory(at: mark, withIntermediateDirectories: true)  // the mark can't go there
+        try Data().write(to: mark.appendingPathComponent("in the way"))
+        let damaged = Data(#"{"entries":[{"question":"kept"#.utf8)
+        try damaged.write(to: url)
+        #expect(throws: (any Error).self) { try QuestionHistory(entries: [entry("new")]).write(to: url) }
+        #expect(try Data(contentsOf: url) == damaged)
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).sorted()
+                == ["recent-questions-set-aside", "recent-questions.json"])
+    }
+
     @Test func theSettingIsOnByDefaultAndKept() throws {
         #expect(Config.default.rememberQuestions)
         let old = try JSONDecoder().decode(Config.self, from: Data("{}".utf8))
