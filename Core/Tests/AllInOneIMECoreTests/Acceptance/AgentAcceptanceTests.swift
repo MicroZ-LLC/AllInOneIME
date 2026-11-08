@@ -27,6 +27,7 @@ struct AgentAcceptanceTests {
         c.setInputMode(.english)
         c.claudeInBackground = config.claudeInBackground && config.agent == .claude
         c.secureInputActive = { secureInput }
+        c.aiAllowed = { !aiOff }
         c.aiRefusal = { aiOff ? Self.refusal : nil }
         return c
     }
@@ -136,9 +137,9 @@ struct AgentAcceptanceTests {
         #expect(all == catalog)
     }
 
-    /// Types `text` into a field and presses ⏎, as the app sees it: what ends up in the field (text committed, and
-    /// keys the composer passes on to the app), the draft left, and every effect.
-    func typeIntoField(_ text: String, _ c: Composer) -> (field: String, effects: [Composer.Effect]) {
+    /// Types `text` into a field and presses ⏎ (or `finish`), as the app sees it: what ends up in the field (text
+    /// committed, and keys the composer passes on to the app), the draft left, and every effect.
+    func typeIntoField(_ text: String, _ c: Composer, then finish: KeyEvent = enterKey) -> (field: String, effects: [Composer.Effect]) {
         var field = "", effects: [Composer.Effect] = []
         for ch in text {
             let response = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch)))
@@ -146,30 +147,45 @@ struct AgentAcceptanceTests {
             field += inserted(response.effects).joined()
             if !response.handled { field.append(ch) }
         }
-        let enter = c.handleKeyDown(enterKey)
+        let enter = c.handleKeyDown(finish)
         effects += enter.effects
         field += inserted(enter.effects).joined()
         return (field + c.draft, effects)
     }
 
     @Test func s1_typedClaudeIsPlainText() {
-        // Like any word after "@" that isn't a command: nothing starts, the text is the user's, as typed.
-        let typed = typeIntoField("@claude fix the bug", field())
+        // Like any word after "@" that isn't a command: with Esc nothing starts, the text is the user's, as typed; ⏎ does
+        // what it does after such a word (one @, 0.7.0: the list's first row for the text), never the agent.
+        let typed = typeIntoField("@claude fix the bug", field(), then: escKey)
         #expect(!startsAnything(typed.effects), "\(typed.effects)")
         #expect(typed.field == "@claude fix the bug", "\(typed.effects)")
-        let unknown = typeIntoField("@zzqx fix the bug", field())
+        let unknown = typeIntoField("@zzqx fix the bug", field(), then: escKey)
         #expect(!startsAnything(unknown.effects))
         #expect(unknown.field == "@zzqx fix the bug")
         #expect(notices(typed.effects).allSatisfy { !$0.contains("Claude Code") }, "\(typed.effects)")
+        let entered = typeIntoField("@claude fix the bug", field()), unknownEntered = typeIntoField("@zzqx fix the bug", field())
+        #expect(terminal(entered.effects).isEmpty && background(entered.effects).isEmpty && launched(entered.effects).isEmpty,
+                "\(entered.effects)")
+        #expect(entered.field.replacingOccurrences(of: "claude", with: "NAME")
+                    == unknownEntered.field.replacingOccurrences(of: "zzqx", with: "NAME")
+                    && startsAnything(entered.effects) == startsAnything(unknownEntered.effects),
+                "\(entered.field) / \(unknownEntered.field)")
+        #expect(notices(entered.effects).allSatisfy { !$0.contains("Claude Code") }, "\(entered.effects)")
     }
 
     @Test func s1_typedClaudeIsPlainTextEvenWithAIOffOrSecureInput() {
-        // Not an AI command any more: the per-app "no AI" rule doesn't refuse it, nor does secure input hold it.
+        // Not an AI command any more: the per-app "no AI" rule doesn't refuse it, nor does secure input hold it; Esc leaves
+        // it as typed (one @, 0.7.0: with AI off no AI row is offered, so nothing is refused on ⏎ either).
         let off = typeIntoField("@claude fix the bug", field(aiOff: true))
         #expect(!notices(off.effects).contains(Self.refusal), "\(off.effects)")
-        #expect(!startsAnything(off.effects) && off.field == "@claude fix the bug")
-        let secure = typeIntoField("@claude fix the bug", field(secureInput: true))
+        let offLeft = typeIntoField("@claude fix the bug", field(aiOff: true), then: escKey)
+        #expect(!notices(offLeft.effects).contains(Self.refusal), "\(offLeft.effects)")
+        #expect(!startsAnything(offLeft.effects) && offLeft.field == "@claude fix the bug")
+        let secure = typeIntoField("@claude fix the bug", field(secureInput: true), then: escKey)
         #expect(!startsAnything(secure.effects) && secure.field == "@claude fix the bug", "\(secure.effects)")
+        let secureEntered = typeIntoField("@claude fix the bug", field(secureInput: true))
+        #expect(terminal(secureEntered.effects).isEmpty && background(secureEntered.effects).isEmpty
+                    && launched(secureEntered.effects).isEmpty, "\(secureEntered.effects)")
     }
 
     @Test func s1_aCustomCommandNamedClaudeIsAllowedAndRuns() throws {

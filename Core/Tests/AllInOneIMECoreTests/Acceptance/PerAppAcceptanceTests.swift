@@ -242,6 +242,7 @@ struct PerAppAcceptanceTests {
         c.inputLanguages = usable
         c.setInputMode(config.startingInput(in: app, among: usable))
         c.typesResults = config.applying(app: app).typeOut
+        c.aiAllowed = { config.allowsAI(in: app) }
         c.aiRefusal = { config.allowsAI(in: app) ? nil : Self.refusalNotice }
         return (c, engine)
     }
@@ -511,7 +512,8 @@ struct PerAppAcceptanceTests {
         #expect(!sendsToAI(effects) && notices(effects).contains(Self.refusalNotice) && c.draft == "@agent fix the bug")
     }
 
-    /// 0.6.5: `@claude` became `@agent`; "@claude …" is plain text now, not an AI command to refuse.
+    /// 0.6.5: `@claude` became `@agent`; "@claude …" is plain text now, not an AI command to refuse (0.7.0, one @: no AI
+    /// row is offered in an app with no AI, so ⏎ sends nothing and nothing is refused).
     @Test func claudeIsNoLongerAnAICommandToRefuse() {
         let config = base([Self.bank: AppProfile(noAI: true)])
         let (c, _) = field(Self.bank, config)

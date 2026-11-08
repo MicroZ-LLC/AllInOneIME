@@ -139,7 +139,7 @@ extension SelfTest {
         // A terminal: the lines go in as a paste, and the caret isn't moved there (keys go to the shell).
         var pasted: [String] = []
         controller.canPasteInTerminal = { true }
-        controller.pasteInTerminal = { pasted.append($0) }
+        controller.pasteInTerminal = { pasted.append($0); return true }
         let terminal = FakeTextClient()
         terminal.bundleIDOverride = "com.apple.Terminal"
         insert("selftestaddr", into: terminal)

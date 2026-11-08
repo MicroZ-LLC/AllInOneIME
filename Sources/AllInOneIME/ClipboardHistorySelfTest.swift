@@ -8,7 +8,7 @@ import InputMethodKit
 /// shows on ⌃V, and ⏎ puts a two-line row in through IMK, into an NSTextView and into Slack's composer in the Electron
 /// harness (where `ALLINONEIME_ELECTRON_HARNESS` names it), nothing sent; over a selection there it takes the selection's
 /// place, and with an emoji before the caret the keys the panel takes leave the text as it was; where the page tells no
-/// caret, ⌃V is the app's. The history is the self-test's own, and so is what ⌃V reads of the clipboard: the user's
+/// caret, ⌃V is the app's. A kept image chosen shows its larger picture beside the panel (`ImagePreview`), gone with it. The history is the self-test's own, and so is what ⌃V reads of the clipboard: the user's
 /// clipboard and history file are never read or written.
 extension SelfTest {
     /// The run of `--clipboard-only`, from `run` once the controller is made: this step only, the user's config checked
@@ -244,7 +244,7 @@ extension SelfTest {
         let savedPaste = (can: controller.canPasteInTerminal, paste: controller.pasteInTerminal)
         var pasted: [String] = []
         controller.canPasteInTerminal = { true }
-        controller.pasteInTerminal = { pasted.append($0) }
+        controller.pasteInTerminal = { pasted.append($0); return true }
         controller.activateServer(terminal)
         controller.composer.setInputMode(.english)
         controller.clientOverride = terminal
@@ -290,7 +290,14 @@ extension SelfTest {
         var imagesPasted: [(Data, Bool)] = []
         let savedImagePaste = controller.pasteImage
         controller.pasteImage = { imagesPasted.append(($0, $1)) }
-        /// ⌃V, the image's row (the first), ⏎ in `field`: the row as shown.
+        // Its larger picture beside the panel (0.7.0), from the self-test's history.
+        let preview = ImagePreview.shared
+        let savedKeptImage = preview.keptImage
+        preview.keptImage = { keptImages.image(thumbnail: $0) }
+        var previewed: (frame: NSRect, panel: NSRect, rowTop: CGFloat, visible: NSRect, scale: CGFloat, drawn: NSSize?, over: [NSWindow])?
+        var previewGone = false
+        /// ⌃V, the image's row (the first), ⏎ in `field`: the row as shown. `snapshotting`: its images, and the preview as
+        /// it showed (`previewed`) and whether it went with the panel (`previewGone`).
         func pasteKeptImage(into field: IMKTextInput, snapshotting: Bool = false) -> PanelModel.Row? {
             controller.activateServer(field)
             controller.composer.setInputMode(.english)
@@ -298,9 +305,24 @@ extension SelfTest {
             _ = controller.handle(controlV, client: field)
             _ = pump(timeout: 3) { panel.isShowing && panel.view.model.rows.first?.text.hasPrefix(tr("图片", "Image")) == true }
             let row = panel.view.model.rows.first
-            if snapshotting { snapshot("clipboard-history-image", in: snapshotDirectory) }
+            if snapshotting {
+                snapshot("clipboard-history-image", in: snapshotDirectory)
+                // The row chosen is the kept image's: its preview, the image decoded off the main thread meanwhile.
+                _ = pump(timeout: 3) { preview.shown != nil && preview.view.decoded != nil }
+                if preview.shown != nil, let screen = panel.screen ?? NSScreen.main, let frame = panel.view.rowFrame(0) {
+                    let rowTop = panel.convertToScreen(panel.view.convert(frame, to: nil)).maxY
+                    // Made from a CGImage at its size: its size is in pixels.
+                    previewed = (preview.window.frame, panel.frame, rowTop, screen.visibleFrame, screen.backingScaleFactor,
+                                 preview.view.decoded == nil ? nil : preview.view.image?.size, panel.overlapping)
+                }
+                if let png = preview.snapshot()?.representation(using: .png, properties: [:]) {
+                    let url = snapshotDirectory.appendingPathComponent("clipboard-history-preview.png")
+                    if (try? png.write(to: url)) != nil { print("  snapshot \(url.path)") }
+                }
+            }
             _ = controller.handle(event("\r", code: VirtualKey.returnKey), client: field)
             _ = pump(timeout: 1) { false }
+            if snapshotting { previewGone = preview.shown == nil && (!preview.window.isVisible || preview.window.alphaValue == 0) }
             controller.deactivateServer(field)
             return row
         }
@@ -311,12 +333,36 @@ extension SelfTest {
         imageTerminal.bundleIDOverride = "com.mitchellh.ghostty"
         _ = pasteKeptImage(into: imageTerminal)
         controller.pasteImage = savedImagePaste
+        preview.keptImage = savedKeptImage
         keptImages.clear()
         let thumbnailShown = imageRow?.icon.flatMap { icon -> String? in if case let .image(path, _) = icon.glyph { path } else { nil } } != nil
         check(imageRow?.text == tr("图片 400 × 200", "Image 400 × 200") && thumbnailShown
               && imagesPasted.map(\.0) == [shot.data, shot.data] && imagesPasted.map(\.1) == [false, true],
               "a kept image: its row (\(imageRow?.text ?? "none"), thumbnail \(thumbnailShown)), ⏎ pastes it "
               + "(\(imagesPasted.map { $0.1 ? "terminal ⌃V" : "⌘V" }))")
+        // Chosen, its larger picture: its own size in points up to 360 (the 400 × 200 image's, with the panel's inset around
+        // it), on the panel's right 8 pt from it (smaller there where the room is less, 160 pt at least; on the left only
+        // where even that doesn't fit), its top at the row's unless moved onto the screen, never over the panel; drawn from
+        // the image decoded at the size it shows; gone once ⏎ hid the panel.
+        let inset = CandidateView.Metrics.padding
+        let previewRight = previewed.map { seen -> Bool in
+            let own = ImagePreviewLayout.size(pixels: CGSize(width: 400, height: 200), scale: seen.scale)
+            guard let placed = ImagePreviewLayout.frame(image: own, inset: inset, panel: seen.panel, rowTop: seen.rowTop, visible: seen.visible)
+            else { return false }
+            let pixels = (max(placed.image.width, placed.image.height) * seen.scale).rounded(.up)
+            let roomRight = seen.visible.maxX - seen.panel.maxX - ImagePreviewLayout.gap - 2 * inset
+            let side = roomRight >= min(ImagePreviewLayout.minSide, max(own.width, own.height))
+                ? seen.frame.minX == seen.panel.maxX + ImagePreviewLayout.gap : seen.frame.maxX == seen.panel.minX - ImagePreviewLayout.gap
+            let top = abs(seen.frame.maxY - seen.rowTop) < 0.5 || seen.frame.minY == seen.visible.minY || seen.frame.maxY == seen.visible.maxY
+            return seen.frame == placed.frame && side && top
+                && !seen.frame.intersects(seen.panel) && seen.visible.contains(seen.frame) && !seen.over.contains { $0 === preview.window }
+                && seen.drawn.map { max($0.width, $0.height) == pixels } == true
+        } ?? false
+        check(previewRight && previewGone,
+              "a kept image chosen: its preview on the panel's right (smaller to fit, on its left only without room for that), not over it ("
+              + (previewed.map { "\(NSStringFromRect($0.frame)) by the panel's \(NSStringFromRect($0.panel)), the row's top \($0.rowTop), "
+                  + "drawn \($0.drawn.map { NSStringFromSize($0) } ?? "not yet"), over it: \($0.over.map { "\(Swift.type(of: $0))" })" } ?? "none")
+              + "), \(previewGone ? "gone" : "still shown") once ⏎ hid the panel")
 
         // In the Electron harness's composer, that answer to ⏎ (the input method's as above; as it answers where the keys
         // couldn't be composed here, a locked screen): the text in, the key the input method's, nothing sent. The harness

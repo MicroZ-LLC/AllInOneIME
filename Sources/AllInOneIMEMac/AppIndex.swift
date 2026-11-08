@@ -18,13 +18,28 @@ public final class AppIndex: @unchecked Sendable {
         public var names: [String]
         /// One of the folders of `places`, not an app: listed like one.
         public var isPlace: Bool
+        /// Its Chinese names spelled in pinyin, whole and by their initials, lowercased ("weixin", "wx" for 微信;
+        /// `spellings`): letters typed find it by them as they start one.
+        public var spelled: [String]
 
         public init(path: String, chinese: String? = nil, names: [String], isPlace: Bool = false) {
             self.path = path
             self.chinese = chinese
             self.names = names
             self.isPlace = isPlace
+            spelled = names.filter(\.containsHan).flatMap(AppIndex.spellings).reduce(into: []) { if !$0.contains($1) { $0.append($1) } }
         }
+    }
+
+    /// `name`'s pinyin, without tones, spaces or anything but its letters and digits, and its syllables' first letters
+    /// ("系统设置": "xitongshezhi", "xtsz"); nothing for a name without Chinese.
+    public static func spellings(_ name: String) -> [String] {
+        guard name.containsHan, let latin = name.applyingTransform(.mandarinToLatin, reverse: false)?
+            .applyingTransform(.stripDiacritics, reverse: false)?.lowercased() else { return [] }
+        let syllables = latin.split { !($0.isASCII && ($0.isLetter || $0.isNumber)) }
+        guard !syllables.isEmpty else { return [] }
+        let whole = syllables.joined(), initials = String(syllables.compactMap(\.first))
+        return whole == initials ? [whole] : [whole, initials]
     }
 
     /// Where apps are installed. The folders directly inside these are looked in too ("Chrome Apps.localized").

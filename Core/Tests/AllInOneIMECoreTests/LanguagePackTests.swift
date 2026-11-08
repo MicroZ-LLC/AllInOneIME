@@ -127,7 +127,8 @@ struct LanguagePackTests {
 
     // MARK: Installing
 
-    @Test func installsWithProgressThenUpdatesInPlace() async throws {
+    @Test(.enabled(if: Available.packArchives, "no language packs on Linux yet"))
+    func installsWithProgressThenUpdatesInPlace() async throws {
         let lib = TestPackLibrary()
         defer { lib.cleanUp() }
         try lib.serveIndex([lib.publish(try lib.archive())])
@@ -151,7 +152,8 @@ struct LanguagePackTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: lib.store.directory.path).isEmpty)
     }
 
-    @Test func aDownloadThatDoesntMatchTheIndexChangesNothing() async throws {
+    @Test(.enabled(if: Available.packArchives, "no language packs on Linux yet"))
+    func aDownloadThatDoesntMatchTheIndexChangesNothing() async throws {
         let lib = TestPackLibrary()
         defer { lib.cleanUp() }
         try lib.serveIndex([lib.publish(try lib.archive())])
@@ -177,7 +179,8 @@ struct LanguagePackTests {
         #expect(try FileManager.default.contentsOfDirectory(atPath: lib.store.directory.path) == ["zh-pinyin"])
     }
 
-    @Test func aPackIsDataOnly() async throws {
+    @Test(.enabled(if: Available.packArchives, "no language packs on Linux yet"))
+    func aPackIsDataOnly() async throws {
         let lib = TestPackLibrary()
         defer { lib.cleanUp() }
         let base = ["default.yaml": "1", "rime_ice.schema.yaml": "1", "build/rime_ice.table.bin": "1"]
@@ -195,7 +198,8 @@ struct LanguagePackTests {
     @Test func onlyHTTPSOrThisMac() async throws {
         let lib = TestPackLibrary()
         defer { lib.cleanUp() }
-        let archive = try lib.archive()
+        // Never downloaded (refused before): any bytes stand in for the archive, which a Linux can't make (`packArchives`).
+        let archive = Data("an archive".utf8)
         try lib.serveIndex([lib.publish(archive, url: "http://example.com/zh.tar.xz")])
         await #expect(throws: LanguagePackError.invalidEntry("http://example.com/zh.tar.xz")) {
             try await lib.library(allowsLocalHTTP: true).install(.chinesePinyin)

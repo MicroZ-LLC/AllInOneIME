@@ -106,7 +106,14 @@ struct ExtensionPerformanceTests {
     @Test func typingStaysFast() {
         let small = Self.perKey(300), large = Self.perKey(1000)
         print(String(format: "command list per key: 300 extensions %.3f ms, 1000 extensions %.3f ms", small, large))
-        #expect(large < 5, "per key at 1000 extensions: \(large) ms")  // a debug build on a slow machine has room
+        // 31 ms in release before the command list kept its matches (more in a debug build): room for a debug build on a
+        // slow machine busy with the rest of the run, whose CPU time per key a core shared with the other tests stretches
+        // (Linux's runners: 10 ms); a Mac keeps the 5 ms it had, so a twofold slowdown there still fails.
+        #if os(Linux)
+        #expect(large < 10, "per key at 1000 extensions: \(large) ms")
+        #else
+        #expect(large < 5, "per key at 1000 extensions: \(large) ms")
+        #endif
         let (insideSmall, insideLarge) = (Self.perKeyInside(300), Self.perKeyInside(1000))
         print(String(format: "command list inside a text per key: 300 extensions %.3f ms, 1000 extensions %.3f ms", insideSmall, insideLarge))
         #expect(insideLarge < 5)

@@ -204,14 +204,11 @@ public final class SuggestionsStore: @unchecked Sendable {
         state.withLock { $0.listeners[session] = deliver }
     }
 
-    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), those a query answered,
-    /// and those whose list came from the disk cache (`cached`).
+    /// What changed with a commit: the sources whose list or status changed (`statusChanged`), and those whose list came
+    /// from the disk cache (`cached`).
     struct Committed {
         var statusChanged: [CompletionSourceKey] = []
-        var listsChanged: [CompletionSourceKey] = []
-        var answered: [CompletionSourceKey] = []
         var cached: [CompletionSourceKey] = []
-        var isEmpty: Bool { statusChanged.isEmpty && answered.isEmpty && cached.isEmpty }
     }
 
     /// The results the tasks left, taken in at `now` (the session's thread): a good list replaces the old one (and is
@@ -236,7 +233,6 @@ public final class SuggestionsStore: @unchecked Sendable {
                             source.loadedAt = now
                             source.madeAt = list.fetchedAt.map { Date(timeIntervalSince1970: $0) }.map { min($0, now) } ?? now
                             (source.failures, source.failedAt, source.error, source.pausedAt) = (0, nil, nil, nil)
-                            committed.listsChanged.append(key)
                             writes.append((key, source))
                         case let .failure(failure):
                             source.failures += 1
@@ -265,7 +261,6 @@ public final class SuggestionsStore: @unchecked Sendable {
                            let oldest = source.answers.min(by: { $0.value.at < $1.value.at })?.key {
                             source.answers[oldest] = nil
                         }
-                        committed.answered.append(key)
                     case let .cache(cached):
                         // Read for this source as it is (not one forgotten meanwhile, a disabled one's), and still none
                         // loaded.
@@ -549,7 +544,7 @@ final class SuggestionsExecutor: TaskExecutor {
 /// file each time.
 public final class FileHashes: @unchecked Sendable {
     /// What tells a file changed, as the file system has it: its size and date (to the nanosecond where it says), which a
-    /// program can set back after changing it, and where there is `lstat` its inode (another file put in its place) and
+    /// program can set back after changing it, and where there is `stat` its inode (another file put in its place) and
     /// the time its status last changed (`st_ctimespec`: set by every write, rename and change of date, and never back).
     struct Stamp: Equatable {
         var size: Int
@@ -566,27 +561,37 @@ public final class FileHashes: @unchecked Sendable {
 
     /// The SHA-256 of the file at `url` (nil: none, or it can't be read).
     public func sha256(of url: URL) -> String? {
-        guard let stamp = Self.stamp(url.path) else { return nil }
-        if let had = kept.withLock({ $0[url.path] }), had.stamp == stamp { return had.sha }
+        let path = url.path
+        guard let stamp = Self.stamp(path) else { return nil }
+        if let had = kept.withLock({ $0[path] }), had.stamp == stamp { return had.sha }
         guard let data = try? Data(contentsOf: url) else { return nil }
         let sha = SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
-        kept.withLock { $0[url.path] = (stamp, sha) }
+        kept.withLock { $0[path] = (stamp, sha) }
         return sha
     }
 
-    /// `path`'s stamp now, never a value kept (a URL keeps those it read): the item itself, a link not followed. Where
-    /// there is `lstat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a
-    /// repository of 2,000 files read as a field takes the focus would feel), with the inode and status-change time;
-    /// elsewhere its size, date and file number as the file manager has them.
+    /// `path`'s stamp now, never a value kept (a URL keeps those it read): of the file that is read, a link followed (a
+    /// link's own stamp doesn't change when its target is edited, so the hash first read would be kept). Where there is
+    /// `stat`, by it (a few microseconds; the file manager's attributes take ten times as long, which a repository of
+    /// 2,000 files read as a field takes the focus would feel), with the inode and status-change time; elsewhere
+    /// (Windows) its size, date and file number as the file manager has them, the link resolved first.
     static func stamp(_ path: String) -> Stamp? {
         #if canImport(Darwin)
         var info = stat()
-        guard lstat(path, &info) == 0 else { return nil }
+        guard stat(path, &info) == 0 else { return nil }
         return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtimespec.tv_sec), nanoseconds: Int(info.st_mtimespec.tv_nsec),
                      inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctimespec.tv_sec),
                      changedNanoseconds: Int(info.st_ctimespec.tv_nsec))
+        #elseif canImport(Glibc) || canImport(Musl)
+        // The same on Linux, whose stat names its times st_mtim and st_ctim.
+        var info = stat()
+        guard stat(path, &info) == 0 else { return nil }
+        return Stamp(size: Int(info.st_size), seconds: Int(info.st_mtim.tv_sec), nanoseconds: Int(info.st_mtim.tv_nsec),
+                     inode: UInt64(info.st_ino), changedSeconds: Int(info.st_ctim.tv_sec),
+                     changedNanoseconds: Int(info.st_ctim.tv_nsec))
         #else
-        let attributes = try? FileManager.default.attributesOfItem(atPath: path)
+        let resolved = URL(fileURLWithPath: path).resolvingSymlinksInPath().path
+        let attributes = try? FileManager.default.attributesOfItem(atPath: resolved)
         guard let size = (attributes?[.size] as? NSNumber)?.intValue else { return nil }
         let time = (attributes?[.modificationDate] as? Date)?.timeIntervalSince1970 ?? 0
         return Stamp(size: size, seconds: Int(time.rounded(.down)), nanoseconds: Int((time - time.rounded(.down)) * 1_000_000_000),

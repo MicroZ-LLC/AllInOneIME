@@ -237,15 +237,36 @@ struct SourceBusy: LocalizedError {
 /// bundle folder that came to lead out of its clone otherwise. Main thread only, as `LiveExtensions`.
 enum ExtensionSourceGate {
     nonisolated(unsafe) private static var cachedStatuses: (url: URL, date: Date?, statuses: [String: ExtensionSourceStatus])?
-    nonisolated(unsafe) private static var cachedFolders: (key: [String], folders: [ExtensionStore.Folder])?
+    nonisolated(unsafe) private static var cachedFolders: (key: FoldersKey, folders: [ExtensionStore.Folder])?
     /// The sources folder (`ExtensionSourceController.root`, which sets it).
     nonisolated(unsafe) static var root = ExtensionSources.directory
 
+    /// What the folders are worked out from: they are worked out again once one of these is another. Made with each call
+    /// (each key): it holds the config's own lists, not copies, and those of the config read before (the same storage)
+    /// compare equal at once.
+    private struct FoldersKey: Equatable {
+        var root: URL
+        var statusesDate: Date?
+        var findRaycastScripts: Bool
+        var extensionFolders: [String]
+        var hiddenExtensionFolders: [String]
+        var found: [String]
+        /// The sources, by their repository and their bundle's folder alone.
+        var sources: [ExtensionSource]
+
+        static func == (a: FoldersKey, b: FoldersKey) -> Bool {
+            a.root == b.root && a.statusesDate == b.statusesDate && a.findRaycastScripts == b.findRaycastScripts
+                && a.extensionFolders == b.extensionFolders && a.hiddenExtensionFolders == b.hiddenExtensionFolders
+                && a.found == b.found
+                && a.sources.elementsEqual(b.sources) { $0.url == $1.url && ($0.path ?? "") == ($1.path ?? "") }
+        }
+    }
+
     static func folders(_ config: Config, found: [String], recheck: Bool = false) -> [ExtensionStore.Folder] {
         let statuses = statuses(root)
-        let key = [root.path, String(describing: cachedStatuses?.date), String(config.findRaycastScripts)]
-            + config.extensionFolders + ["|"] + config.hiddenExtensionFolders + ["|"] + found
-            + config.extensionSources.map { $0.url + "\u{0}" + ($0.path ?? "") }
+        let key = FoldersKey(root: root, statusesDate: cachedStatuses?.date, findRaycastScripts: config.findRaycastScripts,
+                             extensionFolders: config.extensionFolders, hiddenExtensionFolders: config.hiddenExtensionFolders,
+                             found: found, sources: config.extensionSources)
         if !recheck, let cachedFolders, cachedFolders.key == key { return cachedFolders.folders }
         let folders = ExtensionSources.loadFolders(config, found: found, statuses: statuses, root: root)
         cachedFolders = (key, folders)
@@ -254,7 +275,7 @@ enum ExtensionSourceGate {
 
     private static func statuses(_ root: URL) -> [String: ExtensionSourceStatus] {
         let file = root.appendingPathComponent(ExtensionSources.statusFileName)
-        let date = (try? FileManager.default.attributesOfItem(atPath: file.path))?[.modificationDate] as? Date
+        let date = FileDate.own(file.path)
         if let cachedStatuses, cachedStatuses.url == file, cachedStatuses.date == date { return cachedStatuses.statuses }
         let statuses = ExtensionSourceStatus.load(from: file)
         cachedStatuses = (file, date, statuses)

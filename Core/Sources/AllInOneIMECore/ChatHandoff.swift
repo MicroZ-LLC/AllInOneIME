@@ -110,29 +110,38 @@ public enum ChatHandoff {
 
     /// The conversation in Markdown: "**Q:** …" and "**A:** …" paragraphs, oldest first (rounds without an answer
     /// yet have only their question). `selection`: the text selected in the field that the first question was about, as
-    /// a quoted block before them ("**Selected text:**", then each of its lines after "> ").
-    public static func markdown(_ rounds: [QuestionChat.Round], selection: String? = nil) -> String {
-        let quoted = selection.map { $0.trimmingCharacters(in: .newlines) }.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }.map {
-            "**Selected text:**\n\n" + $0.components(separatedBy: "\n").map { $0.isEmpty ? ">" : "> " + $0 }.joined(separator: "\n")
-        }
-        return ([quoted].compactMap { $0 } + rounds.flatMap { round -> [String] in
+    /// a quoted block before them ("**Selected text:**", then each of its lines after "> "); `screenshot`: the text read
+    /// in a screenshot it was about, likewise ("**Screenshot text:**"), as it was read.
+    public static func markdown(_ rounds: [QuestionChat.Round], selection: String? = nil, screenshot: String? = nil) -> String {
+        let blocks = [quoted("Selected text", selection), quoted("Screenshot text", screenshot)].compactMap { $0 }
+        return (blocks + rounds.flatMap { round -> [String] in
             let answer = round.answer.trimmingCharacters(in: .whitespacesAndNewlines)
             return ["**Q:** " + round.question.trimmingCharacters(in: .whitespacesAndNewlines)] + (answer.isEmpty ? [] : ["**A:** " + answer])
         }).joined(separator: "\n\n")
     }
 
-    /// The first message of the conversation where it goes on: the selected text it was about (if any), the rounds,
-    /// "Let's continue this discussion.", and the follow-up typed, if any.
-    public static func prompt(_ rounds: [QuestionChat.Round], followUp: String = "", selection: String? = nil) -> String {
-        let next = followUp.trimmingCharacters(in: .whitespacesAndNewlines)
-        return markdown(rounds, selection: selection) + "\n\n" + continuation + (next.isEmpty ? "" : "\n\n" + next)
+    /// `text` as a quoted block after "**`title`:**" (nil: none, or nothing but spaces).
+    static func quoted(_ title: String, _ text: String?) -> String? {
+        text.map { $0.trimmingCharacters(in: .newlines) }.flatMap { $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 }.map {
+            "**\(title):**\n\n" + $0.components(separatedBy: "\n").map { $0.isEmpty ? ">" : "> " + $0 }.joined(separator: "\n")
+        }
     }
 
-    /// What "copy" puts on the clipboard: the selected text (if any), the rounds, and the follow-up typed as the next
-    /// question.
-    public static func copied(_ rounds: [QuestionChat.Round], followUp: String = "", selection: String? = nil) -> String {
+    /// The first message of the conversation where it goes on: the selected text and the screenshot's text it was about
+    /// (if any), the rounds, "Let's continue this discussion.", and the follow-up typed, if any.
+    public static func prompt(_ rounds: [QuestionChat.Round], followUp: String = "", selection: String? = nil,
+                              screenshot: String? = nil) -> String {
         let next = followUp.trimmingCharacters(in: .whitespacesAndNewlines)
-        return markdown(rounds + (next.isEmpty ? [] : [QuestionChat.Round(question: next, answer: "")]), selection: selection)
+        return markdown(rounds, selection: selection, screenshot: screenshot) + "\n\n" + continuation + (next.isEmpty ? "" : "\n\n" + next)
+    }
+
+    /// What "copy" puts on the clipboard: the selected text and the screenshot's text (if any), the rounds, and the
+    /// follow-up typed as the next question.
+    public static func copied(_ rounds: [QuestionChat.Round], followUp: String = "", selection: String? = nil,
+                              screenshot: String? = nil) -> String {
+        let next = followUp.trimmingCharacters(in: .whitespacesAndNewlines)
+        return markdown(rounds + (next.isEmpty ? [] : [QuestionChat.Round(question: next, answer: "")]), selection: selection,
+                        screenshot: screenshot)
     }
 
     // MARK: - Where it goes

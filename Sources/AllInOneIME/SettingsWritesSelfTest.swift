@@ -3,10 +3,11 @@ import AppKit
 import SwiftUI
 
 extension SelfTest {
-    /// Settings writes the config file only when something in it was changed. Each page is opened (AI for each provider),
-    /// every text field is entered, ⏎ pressed on it as it is, and left; the window is closed: the file wasn't
-    /// written at all. Then a letter is typed after each field's text and deleted: the file ends as it was, with no default
-    /// put in where nothing was set (a default a field isn't set to is only its placeholder).
+    /// Settings writes the config file only when something in it was changed. Each page is opened (AI for each provider)
+    /// on a config that has found this Mac's plugins, every text field is entered, ⏎ pressed on it as it is, and left; the
+    /// window is closed: the file wasn't written at all. Then a letter is typed after each field's text and deleted: the
+    /// file ends as it was, with no default put in where nothing was set (a default a field isn't set to is only its
+    /// placeholder).
     static func testSettingsWritesNothingUnasked(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("untouched-config.json")
         let looksUp = SettingsModel.looksUpKeys
@@ -48,6 +49,9 @@ extension SelfTest {
             window.close()
             _ = pump(timeout: 0.3) { false }
         }
+        // The plugins installed on this Mac, found before as the user's own config has them: Settings writes a plugin it
+        // finds for the first time, its suggestions approved (`Config.approveNewPlugins`, 0.6.7.2), a change of its own.
+        let installed = PluginStore.load(from: PluginStore.directory).plugins
         var written: [String] = []
         var entered = 0
         for provider in [Provider.bedrock, .anthropic, .gemini, .openai] {
@@ -56,6 +60,7 @@ extension SelfTest {
                 config.provider = provider
                 config.modelId = "us.example.custom-model-v1:0"  // Bedrock's Model ID field shown too
                 config.redaction.enabled = true  // and the words to hide
+                config.approveNewPlugins(installed)
                 try? config.write(to: url)
                 try? FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(-60)], ofItemAtPath: url.path)
                 let before = stamp()

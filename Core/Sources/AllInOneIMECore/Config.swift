@@ -47,7 +47,24 @@ public struct Config: Codable, Equatable, Sendable {
     /// languages (text already in the language goes in as it is). A new user whose Mac has English alone has none until
     /// one is added: English typed, English out.
     public var hasLanguageToTranslateInto: Bool {
-        outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output) } }
+        let chinese = typedChinese  // read once, not for each pair (it may read the system's languages)
+        return outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: chinese) } }
+    }
+
+    /// The characters Chinese is typed in: the ones picked (`chineseCharacters`), else those of the system's preferred
+    /// languages (`Platform.userLanguages`, `ChineseCharacters.preferred`), read each time: a Mac whose language changes
+    /// follows it.
+    public var typedChinese: ChineseCharacters {
+        chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
+    }
+
+    /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
+    public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
+
+    /// The output language `text` is written in: Chinese by its own characters when they tell, else in the characters
+    /// typed (`OutputLanguage.of`). What decides whether it is translated into an output language or is in it already.
+    public func writtenLanguage(of text: String) -> OutputLanguage {
+        OutputLanguage.of(text, language: language(of: text), chinese: typedChinese)
     }
 
     /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
@@ -195,6 +212,10 @@ public struct Config: Codable, Equatable, Sendable {
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
     public var fuzzyPinyin: [String]
+    /// The characters Chinese is typed in (`ChineseCharacters`: Simplified, or Traditional as Taiwan or Hong Kong write
+    /// it), for pinyin's candidates and whatever reasons about the language typed (`typedChinese`); nil: as the system's
+    /// languages say, read each time, until one is picked (Settings → Input → Chinese).
+    public var chineseCharacters: ChineseCharacters?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
@@ -206,6 +227,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// never during secure input, in a terminal, a remote desktop or a virtual machine, in an app with no AI, or for what
     /// looks like a secret. On by default.
     public var learnsEnglishWords: Bool
+    /// The candidates the user removed (`RemovedCandidates`: a right-click on a candidate, ⌃⌦ on the highlighted one),
+    /// as they were shown ("鸡虎", "Bedrock"), oldest first: never offered again (an English word by its letters), until
+    /// restored in Settings. At most `RemovedCandidates.maxCount`, the oldest going first; none by default.
+    public var removedCandidates: [String]
     /// The keyboard layout each input language types with, by language code ("fr": "com.apple.keylayout.French"),
     /// where it isn't the language's default (`Language.defaultKeyboardLayout`).
     public var keyboardLayouts: [String: String]
@@ -224,6 +249,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
     /// installed when the user clicks Update. On by default.
     public var checkForUpdates: Bool
+    /// A newer version found by that check (one this Mac can install) is told once in a macOS notification, with Update
+    /// and Don't Show Again, which turns this off (Settings → About turns it on again). Only while `checkForUpdates` is
+    /// on. On by default, also for a file from before the setting; written into the file only when off.
+    public var notifiesUpdates: Bool
     /// An @ command started with text selected in the field works on that text, which stays selected and as it is
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
@@ -297,6 +326,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// The config file's key of `englishWords` (`EnglishWords.learn` writes it alone), and of `addedEnglishWords`.
     public static let englishWordsKey = CodingKeys.englishWords.rawValue
     public static let addedEnglishWordsKey = CodingKeys.addedEnglishWords.rawValue
+    /// The config file's key of `removedCandidates` (`RemovedCandidates.remove` writes it alone).
+    public static let removedCandidatesKey = CodingKeys.removedCandidates.rawValue
 
     /// `jargonFile` with "~" expanded (on Windows its `%NAME%`s too, as Windows' settings window shows the default file:
     /// "%APPDATA%\AllInOneIME\jargon.txt"), or `JargonLibrary.defaultURL`.
@@ -362,6 +393,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.englishWords = []
         self.addedEnglishWords = []
         self.learnsEnglishWords = true
+        self.removedCandidates = []
         self.keyboardLayouts = [:]
         self.typeOut = false
         self.typeOutRate = TypeOut.defaultRate
@@ -369,6 +401,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutMistakes = false
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
+        self.notifiesUpdates = true
         self.useSelection = true
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
@@ -396,9 +429,9 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, keyboardLayouts, candidateLayout
-        case englishWords, addedEnglishWords, learnsEnglishWords
-        case checkForUpdates, useSelection, appProfiles
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, keyboardLayouts, candidateLayout
+        case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
+        case checkForUpdates, notifiesUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case autocomplete
@@ -486,10 +519,16 @@ public struct Config: Codable, Equatable, Sendable {
             .compactMap(ChatHandoff.Destination.init(rawValue:))
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
+        // One this version doesn't know (a later one's) follows the system, not an error.
+        chineseCharacters = (try? c.decodeIfPresent(String.self, forKey: .chineseCharacters)).flatMap { $0 }
+            .flatMap(ChineseCharacters.init(rawValue:))
         // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
         learnsEnglishWords = try c.decodeIfPresent(Bool.self, forKey: .learnsEnglishWords) ?? d.learnsEnglishWords
+        // The same, within the limit (the newest kept).
+        removedCandidates = Array(((try? c.decodeIfPresent([String].self, forKey: .removedCandidates)).flatMap { $0 }
+            ?? d.removedCandidates).suffix(RemovedCandidates.maxCount))
         keyboardLayouts = (try? c.decodeIfPresent([String: String].self, forKey: .keyboardLayouts)).flatMap { $0 } ?? [:]
         typeOut = try c.decodeIfPresent(Bool.self, forKey: .typeOut) ?? d.typeOut
         // A file from before the slider: "slow", "normal", "fast" or "random" (normal, varying).
@@ -501,6 +540,7 @@ public struct Config: Codable, Equatable, Sendable {
         // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
+        notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
@@ -677,10 +717,14 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
-        // Only once there are words, and learning only when it's off: a file from before them doesn't gain the keys.
+        // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
+        try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
+        // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
+        // doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }
         if !addedEnglishWords.isEmpty { try c.encode(addedEnglishWords, forKey: .addedEnglishWords) }
         if !learnsEnglishWords { try c.encode(learnsEnglishWords, forKey: .learnsEnglishWords) }
+        if !removedCandidates.isEmpty { try c.encode(removedCandidates, forKey: .removedCandidates) }
         try c.encode(keyboardLayouts, forKey: .keyboardLayouts)
         try c.encode(typeOut, forKey: .typeOut)
         try c.encode(typeOutRate, forKey: .typeOutRate)
@@ -688,6 +732,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
+        // Only once turned off: a file from before the switch doesn't gain the key.
+        if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
         try c.encode(useSelection, forKey: .useSelection)
         // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
         let profiles = appProfiles.filter { !$0.value.isEmpty }
@@ -762,11 +808,23 @@ public struct Config: Codable, Equatable, Sendable {
     }
 
     public func write(to url: URL = defaultURL) throws {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }  // not between another writer's read and write
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         try FileManager.default.createDirectory(
             at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try encoder.encode(self).write(to: url, options: .atomic)
+    }
+
+    /// `self` written whole (`write`) where there is no file at `url` yet, decided under `AIConfig.fileLock` with the
+    /// write: a file another writer of this process made meanwhile (an English word learned on a fresh install,
+    /// `EnglishWords.Writer`) stays as it is. Whether it was written.
+    @discardableResult
+    public func writeIfMissing(to url: URL = defaultURL) throws -> Bool {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
+        guard !FileManager.default.fileExists(atPath: url.path) else { return false }
+        try write(to: url)
+        return true
     }
 
     /// The config file at `url` changed by `change`, written as Settings saves (`SettingsStore.save`, `AIConfig.writing`):
@@ -778,6 +836,7 @@ public struct Config: Codable, Equatable, Sendable {
     /// changed.
     @discardableResult
     public static func change(at url: URL = defaultURL, _ change: (inout Config) throws -> Void) throws -> Config {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         let old = try load(from: url)
         var new = old
         try change(&new)

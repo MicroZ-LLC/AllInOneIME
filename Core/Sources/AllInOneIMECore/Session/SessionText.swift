@@ -66,10 +66,11 @@ public enum SessionText {
         long ? 12 : min(5, 1.2 + Double(text.count) * 0.06)
     }
 
-    /// Whether `config` has a language to translate `input` into other than its own.
+    /// Whether `config` has a language to translate `input` into other than its own (Chinese in the characters it is
+    /// written in, `Config.writtenLanguage`).
     public static func hasTranslationTarget(for input: String, config: Config) -> Bool {
-        let own = OutputLanguage(config.language(of: input))
-        return config.outputLanguages.contains { $0 != own }
+        let own = config.writtenLanguage(of: input)
+        return config.outputLanguages.contains { !$0.isSame(as: own) }
     }
 
     // MARK: - The panel's lines
@@ -91,7 +92,8 @@ public enum SessionText {
                 return "\(how) → " + t.tr("按你写的要求改选中的文字", "rewrite the selection as you asked")
             }
             let text = composer.sentText.isEmpty ? selected : composer.sentText
-            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft, terms: terms)
+            return "\(how) → " + t.action(command, input: config.language(of: text), config: config, draft: composer.draft, terms: terms,
+                                          text: text)
         }
         // @reply with nothing to reply to yet: what it takes.
         if command == .reply, composer.sentText.isEmpty, composer.attachment == nil {
@@ -217,16 +219,18 @@ public enum SessionText {
 
     // MARK: - Menus and settings
 
-    /// An input language as the menu and the settings name it: "中文（拼音）", "英文".
-    public static func inputName(_ input: Language, language: String) -> String {
+    /// An input language as the menu and the settings name it: "中文（拼音）", "英文"; Chinese typed in Traditional
+    /// characters (`chinese`, `Config.typedChinese`) "中文（拼音·繁體）".
+    public static func inputName(_ input: Language, language: String, chinese: ChineseCharacters = .simplified) -> String {
         let t = InterfaceWords(language: language)
-        return input == .chinese ? t.tr("中文（拼音）", "Chinese (pinyin)") : t.name(input)
+        guard input == .chinese else { return t.name(input) }
+        return chinese.isTraditional ? t.tr("中文（拼音·繁體）", "Chinese (pinyin, Traditional)") : t.tr("中文（拼音）", "Chinese (pinyin)")
     }
 
-    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:)`), or Code's with
-    /// its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
-    public static func inputName(_ input: Input, language: String, coding: String?) -> String {
-        guard input == .code else { return input.language.map { inputName($0, language: language) } ?? "" }
+    /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:chinese:)`), or Code's
+    /// with its coding language (`coding`, the pack's title: "Code (Python)"; nil: "Code").
+    public static func inputName(_ input: Input, language: String, coding: String?, chinese: ChineseCharacters = .simplified) -> String {
+        guard input == .code else { return input.language.map { inputName($0, language: language, chinese: chinese) } ?? "" }
         let t = InterfaceWords(language: language)
         return coding.map { t.tr("代码（\($0)）", "Code (\($0))") } ?? t.tr("代码", "Code")
     }

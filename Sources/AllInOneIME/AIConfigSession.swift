@@ -37,9 +37,13 @@ enum AIConfigSession {
     /// all ask here, off the main thread; the self-test gives its own (the user's keychain is never asked).
     static var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
 
-    /// The providers with a key, by `lookup` (`keySource`, taken on the main thread).
-    nonisolated static func providersWithKey(_ lookup: @Sendable (Provider) -> APIKeys.Source) -> Set<Provider> {
-        Set(Provider.allCases.filter { $0 != .bedrock && $0 != .apple && lookup($0) != .none })
+    /// The providers with a key, by `lookup` (`keySource`, taken on the main thread), for `config`'s base URLs: one in
+    /// the shell only where it is sent (`APIKeys.shellKeyGoes`), as Settings shows it.
+    nonisolated static func providersWithKey(_ lookup: @Sendable (Provider) -> APIKeys.Source, config: Config) -> Set<Provider> {
+        Set(Provider.allCases.filter { provider in
+            provider != .bedrock && provider != .apple
+                && lookup(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider))) != .none
+        })
     }
 
     private static var prewarmed: Date?
@@ -67,12 +71,13 @@ enum AIConfigSession {
         let offered = Provider.offered
         let language = UIText.language
         let hosts = AIConfig.compatibleHosts.union(CompatibleService.all.compactMap { URL(string: $0.baseURL)?.host?.lowercased() })
-        let others = RecentApps.apps + Array(((try? Config.load(from: url)) ?? .default).appProfiles.keys)
+        let config = (try? Config.load(from: url)) ?? .default
+        let others = RecentApps.apps + Array(config.appProfiles.keys)
         let cached = cachedApps.flatMap { Date().timeIntervalSince($0.date) < 60 && $0.language == language ? $0.catalog : nil }
         // Off it: the keychain items' attributes and the login shell's variables (`keySource`), the apps on disk.
         let lookup = keySource
         let (keyed, apps) = await Task.detached(priority: .userInitiated) {
-            (providersWithKey(lookup), cached ?? scanApps(adding: others, language: language))
+            (providersWithKey(lookup, config: config), cached ?? scanApps(adding: others, language: language))
         }.value
         if cached == nil { cachedApps = (Date(), language, apps) }
         let drive = ICloudSyncController.shared.engine.folder

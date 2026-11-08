@@ -1,7 +1,8 @@
 import Foundation
 
 /// How much each @ command is used, for the order of the command list: every run adds 1 to its
-/// score, and scores halve every week, so both how often and how lately count ("frecency").
+/// score, and scores halve every week, so both how often and how lately count ("frecency"). Kept overall and per app
+/// (the bundle id of the app it ran in): the one @ list puts what is used in the app being typed in first.
 public struct CommandUsage: Codable, Equatable, Sendable {
     struct Entry: Codable, Equatable, Sendable {
         var score: Double
@@ -9,28 +10,60 @@ public struct CommandUsage: Codable, Equatable, Sendable {
     }
 
     var entries: [String: Entry] = [:]
+    /// The same, for each app a command ran in (by its bundle id, lowercased).
+    var apps: [String: [String: Entry]] = [:]
     public static let halfLife: TimeInterval = 7 * 86400
 
     public init() {}
 
+    private enum CodingKeys: String, CodingKey {
+        case entries, apps
+    }
+
+    /// A file kept before the scores per app has none.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        entries = try container.decodeIfPresent([String: Entry].self, forKey: .entries) ?? [:]
+        apps = try container.decodeIfPresent([String: [String: Entry]].self, forKey: .apps) ?? [:]
+    }
+
     /// The command's score as of `now`.
     public func score(_ name: String, now: Date = Platform.current.clock.now) -> Double {
-        guard let entry = entries[name] else { return 0 }
-        return entry.score * pow(0.5, max(now.timeIntervalSince(entry.last), 0) / Self.halfLife)
+        Self.score(entries[name], now: now)
+    }
+
+    /// The command's score in `app` as of `now` (0 without an app).
+    public func score(_ name: String, in app: String?, now: Date = Platform.current.clock.now) -> Double {
+        guard let app = app?.lowercased() else { return 0 }
+        return Self.score(apps[app]?[name], now: now)
+    }
+
+    private static func score(_ entry: Entry?, now: Date) -> Double {
+        guard let entry else { return 0 }
+        return entry.score * pow(0.5, max(now.timeIntervalSince(entry.last), 0) / halfLife)
     }
 
     /// A built-in command took a new name (`@claude` → `@agent`): its use counts under the new one, once (a score
     /// already kept under `to` stays as it is).
     public mutating func migrateRenamed(from old: String, to new: String) {
-        guard let entry = entries.removeValue(forKey: old), entries[new] == nil else { return }
-        entries[new] = entry
+        if let entry = entries.removeValue(forKey: old), entries[new] == nil { entries[new] = entry }
+        for app in Array(apps.keys) {
+            guard let entry = apps[app]?.removeValue(forKey: old), apps[app]?[new] == nil else { continue }
+            apps[app]?[new] = entry
+        }
     }
 
-    /// The command was run.
-    public mutating func record(_ name: String, now: Date = Platform.current.clock.now) {
+    /// The command was run (in `app`, when it's known).
+    public mutating func record(_ name: String, in app: String? = nil, now: Date = Platform.current.clock.now) {
         entries[name] = Entry(score: score(name, now: now) + 1, last: now)
         // Forget the long unused (a score under 0.01: about 7 weeks after a single use).
-        entries = entries.filter { score($0.key, now: now) >= 0.01 || $0.key == name }
+        entries = entries.filter { Self.score($0.value, now: now) >= 0.01 || $0.key == name }
+        if let app = app?.lowercased(), !app.isEmpty {
+            var used = apps[app] ?? [:]
+            used[name] = Entry(score: Self.score(used[name], now: now) + 1, last: now)
+            apps[app] = used.filter { Self.score($0.value, now: now) >= 0.01 || $0.key == name }
+        }
+        apps = apps.filter { !$0.value.isEmpty }
     }
 }
 
@@ -42,16 +75,17 @@ extension Command {
     /// typed: the most used, then the rest in catalog order. Letters: the command named exactly that first (`@rep`
     /// lists a command named "rep" before `@reportissue` and `@reply`), then names starting with them, then
     /// names containing them, then script extensions with a word of their title or a keyword starting with
-    /// them (`ScriptCommand.searchTerms`), each by use. Every match counts for `matching`; only these are shown.
-    public static func palette(_ query: String, in commands: [Command], usage: CommandUsage,
+    /// them (`ScriptCommand.searchTerms`), each by use (in `app` first, then overall). Every match counts for
+    /// `matching`; only these are shown.
+    public static func palette(_ query: String, in commands: [Command], usage: CommandUsage, app: String? = nil,
                                limit: Int = paletteLimit, now: Date = Platform.current.clock.now) -> [Command] {
-        paletteIndices(query, in: commands, usage: usage, now: now).prefix(limit).map { commands[$0] }
+        paletteIndices(query, in: commands, usage: usage, app: app, now: now).prefix(limit).map { commands[$0] }
     }
 
     /// `palette`, as positions in `commands`, looking only at `candidates` (positions, in catalog order) when
     /// given: what matched a shorter query this one goes on (a longer query matches no command it didn't).
     static func paletteIndices(_ query: String, in commands: [Command], candidates: [Int]? = nil, usage: CommandUsage,
-                               now: Date = Platform.current.clock.now) -> [Int] {
+                               app: String? = nil, now: Date = Platform.current.clock.now) -> [Int] {
         let query = Array(query.lowercased().utf8)
         func starts(_ text: String.UTF8View, _ prefix: [UInt8]) -> Bool { text.starts(with: prefix) }
         // Names and terms are ASCII: compared as bytes.
@@ -60,7 +94,7 @@ extension Command {
             guard bytes.count >= part.count else { return false }
             return (0...(bytes.count - part.count)).contains { start in bytes[start..<start + part.count].elementsEqual(part) }
         }
-        let ranked = (candidates ?? Array(commands.indices)).compactMap { index -> (group: Int, score: Double, index: Int)? in
+        let ranked = (candidates ?? Array(commands.indices)).compactMap { index -> (group: Int, inApp: Double, score: Double, index: Int)? in
             let command = commands[index]
             let group: Int
             if query.isEmpty || starts(command.name.utf8, query) {
@@ -73,8 +107,8 @@ extension Command {
             } else {
                 return nil
             }
-            return (group, usage.score(command.name, now: now), index)
+            return (group, usage.score(command.name, in: app, now: now), usage.score(command.name, now: now), index)
         }
-        return ranked.sorted { ($0.group, -$0.score, $0.index) < ($1.group, -$1.score, $1.index) }.map(\.index)
+        return ranked.sorted { ($0.group, -$0.inApp, -$0.score, $0.index) < ($1.group, -$1.inApp, -$1.score, $1.index) }.map(\.index)
     }
 }

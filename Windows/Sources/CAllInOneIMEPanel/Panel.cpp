@@ -8,7 +8,8 @@
 //   Simplified Chinese glyphs).
 // - Per monitor DPI: the process is per-monitor aware (the engine sets it), the caret comes in physical pixels, and the
 //   panel is laid out at the DPI of the monitor the caret is on, inside that monitor's work area: below the caret, or
-//   above it when there is no room.
+//   above it when there is no room (and, while it stays up on the same line, above as long as it fits there), the pinyin
+//   candidates shown with the rows on the side nearest the caret.
 // - It is drawn only while its owner's process is the app in front (its window, a classic console's window for its
 //   conhost, the focus or a window inside the foreground window: InFront), and hides when another app takes the
 //   foreground (EVENT_SYSTEM_FOREGROUND): a background or sandboxed client can't put it, with its text, over another app.
@@ -91,6 +92,7 @@ struct Model {
     int statusKind = AIO_STATUS_NONE;
     std::wstring status;
     std::vector<std::wstring> statusItems;
+    std::wstring candidates;  // the pinyin candidates shown with the rows, on a line on the side nearest the caret
     bool hasInput = false;
     std::wstring inputPrompt, inputText;
     int inputCaret = -1;  // in inputText, UTF-16
@@ -100,7 +102,7 @@ struct Model {
     std::wstring footer, detail;
     bool empty() const {
         return rows.empty() && statusKind == AIO_STATUS_NONE && !hasInput && header.empty() && handoffTitle.empty() &&
-               handoff.empty() && footer.empty() && detail.empty();
+               handoff.empty() && candidates.empty() && footer.empty() && detail.empty();
     }
 };
 
@@ -128,6 +130,7 @@ Model CopyModel(const AioPanelModel *m) {
     model.statusKind = m->statusKind;
     model.status = Copy(m->status);
     model.statusItems = CopyAll(m->statusItems, m->statusItemCount);
+    model.candidates = Copy(m->candidates);
     model.hasInput = m->inputText != nullptr;
     model.inputPrompt = Copy(m->inputPrompt);
     model.inputText = Copy(m->inputText);
@@ -271,10 +274,15 @@ struct AioPanel {
     bool noticeAlone = false;  // the notice is all there is
     std::vector<RECT> rowRects;
     std::vector<bool> rowPickable;
-    // Where the first row's text starts (placed under the caret), the input's caret was drawn, the rows are scrolled.
+    // Where the first row's text starts (placed under the caret), the input's caret was drawn, the rows are scrolled,
+    // the pinyin candidates' line was drawn.
     float textInset = 0;
     POINT caretDrawn = {-1, -1};
     int scrolled = 0;
+    int candidatesY = -1;
+    // The side of the caret it is on, and the caret it was put there for (`Above`).
+    bool above = false;
+    AioCaret placedCaret = {};
     POINT position = {};
     SIZE size = {};
     bool visible = false;
@@ -581,6 +589,8 @@ void PublishState(AioPanel *p) {
     p->state.caretX = p->caretDrawn.x;
     p->state.caretY = p->caretDrawn.y;
     p->state.scrolled = p->scrolled;
+    p->state.above = p->above ? 1 : 0;
+    p->state.candidatesY = p->candidatesY;
     if (p->images) {
         std::lock_guard<std::mutex> images(p->images->lock);
         p->state.images = (int32_t)p->images->entries.size();
@@ -881,8 +891,10 @@ void DrawIcon(AioPanel *p, const Icon &icon, D2D1_RECT_F box, const D2D1_COLOR_F
 // rows' rectangles (clicks), where the first row's text starts (the caret goes under it), where the input's caret was
 // drawn and how far a conversation's rows are scrolled. A conversation (`transcript`) is no taller than `maxHeight`
 // pixels (0: no limit). From top to bottom: the hand-off, the input, the header's lines, the rows, the status, the
-// footer.
-bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
+// footer; the pinyin candidates shown with the rows on the side nearest the caret, the rows on the far side (the word is
+// picked first, then what to do with it): under the input below the caret, just above the footer `above` it. The panel
+// is as big either way.
+bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight, bool above) {
     MakeFormats(p);
     const float s = Scale(p);
     const Colors colors = ThemeColors(dark);
@@ -951,6 +963,15 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
             y += std::max(size.height, textHeight) + lineGap;
         }
     }
+    // The pinyin candidates shown with the rows, a line as the header's: below the caret at the top, under the input (a
+    // selection's header still just above the rows); above it under the rows and the status, just above the footer.
+    float candidatesY = -1;
+    auto placeCandidates = [&]() {
+        widen(Measure(p, model.candidates, p->statusFormat, maxRow).width + 2 * insetX);
+        candidatesY = y;
+        y += statusHeight + lineGap;
+    };
+    if (!model.candidates.empty() && !above) placeCandidates();
     // The header's lines, each its own.
     std::vector<float> headerY;
     for (const std::wstring &line : model.header) {
@@ -1035,6 +1056,7 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
             if (!items.empty()) y += lineGap;
         }
     }
+    if (!model.candidates.empty() && above) placeCandidates();
     // The footer, the detail on its right.
     float footerY = -1;
     const bool footerRule = y > padding;
@@ -1046,10 +1068,10 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         footerY = y;
         y += footerHeight + insetY;
     }
-    float height = y + padding - (footerY < 0 && statusY < 0 && items.empty() && !model.rows.empty() ? lineGap : 0);
+    float height = y + padding - (footerY < 0 && statusY < 0 && items.empty() && candidatesY < 0 && !model.rows.empty() ? lineGap : 0);
 
     // A conversation no taller than `maxHeight`: its rows scrolled to show the last one, or the highlighted one when it
-    // is above; what comes after the rows moves up.
+    // is above; what comes after the rows moves up (the candidates' line too, under them above the caret).
     float scroll = 0, rowsView = rowsHeight;
     if (model.transcript && maxHeight > 0 && height > maxHeight && rowsHeight > 0) {
         rowsView = std::max(rowHeight, rowsHeight - (height - maxHeight));
@@ -1062,6 +1084,7 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         height -= cut;
         if (statusY >= 0) statusY -= cut;
         for (float &v : itemY) v -= cut;
+        if (candidatesY >= 0 && above) candidatesY -= cut;
         if (footerY >= 0) footerY -= cut;
     }
 
@@ -1192,6 +1215,9 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
         DrawLayout(p, status, left + insetX, statusY, color, model.statusKind != AIO_STATUS_ERROR);
     }
     for (size_t i = 0; i < items.size(); ++i) DrawLayout(p, items[i], left + insetX + bulletIndent, itemY[i], colors.secondary);
+    if (candidatesY >= 0) {
+        DrawText(p, model.candidates, p->statusFormat, left + insetX, candidatesY, inner - 2 * insetX, statusHeight, colors.secondary);
+    }
     if (footerY >= 0) {
         if (footerRule) {
             float ruleY = std::round(footerY - std::round(3 * s)) + 0.5f;
@@ -1211,8 +1237,28 @@ bool Paint(AioPanel *p, const Model &model, bool dark, float maxHeight) {
 
     p->textInset = padding + insetX + (model.horizontal ? 0 : labelWidth + labelGap + iconColumn);
     p->scrolled = (int)std::round(scroll);
+    p->candidatesY = candidatesY >= 0 ? (int)std::round(candidatesY) : -1;
     p->size = {w, h};
     return true;
+}
+
+// Whether two carets are on the same line: the middle of one within the other's height.
+bool SameLine(const AioCaret &a, const AioCaret &b) {
+    const int middle = b.y + b.height / 2;
+    return middle >= a.y - 1 && middle <= a.y + a.height + 1;
+}
+
+// Whether a panel `h` pixels high goes above `caret` (`gap` from it) rather than below, inside `work`: below when there
+// is room, else above; above as long as it fits there when it is (`keep`), so a panel that grows and shrinks with the
+// keys (the pinyin candidates' line coming and going) doesn't flip from one side of the caret to the other. With room on
+// neither side, the side with more.
+bool Above(const AioCaret &caret, int h, int gap, const RECT &work, bool keep) {
+    const bool roomBelow = caret.y + caret.height + gap + h <= work.bottom;
+    const bool roomAbove = caret.y - gap - h >= work.top;
+    if (keep && roomAbove) return true;
+    if (roomBelow) return false;
+    if (roomAbove) return true;
+    return caret.y - work.top > work.bottom - (caret.y + caret.height);
 }
 
 // Lays the panel out at the caret's monitor's DPI, draws it and puts it on screen: only while its owner owns the
@@ -1239,18 +1285,27 @@ void Render(AioPanel *p) {
     RECT work = {};
     POINT anchor = {p->caret.x, p->caret.y + p->caret.height};
     p->dpi = DpiAt(anchor, &work);
-    if (!Paint(p, model, DarkTheme(), (work.bottom - work.top) / 2.0f)) return;
+    const bool dark = DarkTheme();
+    const float maxHeight = (work.bottom - work.top) / 2.0f;
+    // Drawn for the side it is on; drawn again, before it is shown, if it goes to the other side with a line of pinyin
+    // candidates (nearest the caret): the rows are never seen where the other side would have them. As big either way.
+    const bool wasAbove = p->visible && p->above;
+    if (!Paint(p, model, dark, maxHeight, wasAbove)) return;
     const float s = Scale(p);
+    const int gap = (int)std::round(4 * s);
+    const bool above = Above(p->caret, p->size.cy, gap, work, wasAbove && SameLine(p->placedCaret, p->caret));
+    if (above != wasAbove && !model.candidates.empty() && !Paint(p, model, dark, maxHeight, above)) return;
     const int w = p->size.cx, h = p->size.cy;
 
-    // Place it: the first row's text under the caret, below the caret line, or above it when there is no room; inside
-    // the monitor's work area.
+    // Place it: the first row's text under the caret, below the caret line or above it (`Above`); inside the monitor's
+    // work area.
     int x = p->caret.x - (int)p->textInset;
-    int top = p->caret.y + p->caret.height + (int)std::round(4 * s);
-    if (top + h > work.bottom) top = p->caret.y - h - (int)std::round(4 * s);
+    int top = above ? p->caret.y - h - gap : p->caret.y + p->caret.height + gap;
     x = std::max<int>(work.left, std::min<int>(x, work.right - w));
     top = std::max<int>(work.top, std::min<int>(top, work.bottom - h));
     p->position = {x, top};
+    p->above = above;
+    p->placedCaret = p->caret;
 
     POINT source = {0, 0};
     BLENDFUNCTION blend = {AC_SRC_OVER, 0, 255, AC_SRC_ALPHA};
@@ -1681,8 +1736,8 @@ int32_t aio_panel_save_png(AioPanel *panel, const uint16_t *path) {
     return ok ? 1 : 0;
 }
 
-int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t dark, int32_t maxHeight, const uint16_t *path,
-                             AioPanelState *state) {
+int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t dark, int32_t maxHeight, int32_t above,
+                             const uint16_t *path, AioPanelState *state) {
     if (!path) return 0;
     const HRESULT init = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     AioPanel panel;
@@ -1693,9 +1748,10 @@ int32_t aio_panel_render_png(const AioPanelModel *model, int32_t dpi, int32_t da
         panel.dpi = dpi > 0 ? (UINT)dpi : 96;
         panel.readImagesNow = true;  // no window to draw again once they are read
         panel.model = CopyModel(model);
-        if (Paint(&panel, panel.model, dark != 0, (float)std::max(maxHeight, 0))) {
+        if (Paint(&panel, panel.model, dark != 0, (float)std::max(maxHeight, 0), above != 0)) {
             ok = SavePng(&panel, reinterpret_cast<const wchar_t *>(path));
             panel.visible = true;
+            panel.above = above != 0;
             PublishState(&panel);
             if (state) *state = panel.state;
         }

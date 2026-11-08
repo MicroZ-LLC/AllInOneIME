@@ -10,6 +10,11 @@ import Foundation
 public struct SessionServices {
     /// Level two: the AI requests (one `Converter`, one cache, shared by every field).
     public var converter: Converter
+    /// Whether a cloud provider's connection is opened ahead of a request, the draft an AI command or the first key in a
+    /// field with cloud autocomplete (`Converter.warmConnection`: a HEAD, nothing of the user's, only to a built-in
+    /// provider's own host a request succeeded at before). Off by default: a test's sessions send nothing they aren't
+    /// asked to.
+    public var warmsConnections = false
     /// The settings as they are now (re-read when the file changed).
     public var loadSettings: () -> Config
 
@@ -33,8 +38,20 @@ public struct SessionServices {
     /// none are (no Chinese pack, a test's engine).
     public var englishDictionary: () -> EnglishDictionary?
     /// An English word learned from letters put in as typed (`EnglishWords.learnable`): kept in the settings
-    /// (`EnglishWords.learn`, `Config.englishWords`).
+    /// (`EnglishWords.learn`, `Config.englishWords`) off the session's thread (`EnglishWords.Writer`), as it is told
+    /// while a key is handled; the session offers the word at once.
     public var learnEnglishWord: (String) -> Void
+    /// A candidate the user removed (`Composer.Effect.candidateRemoved`): kept on the list of those removed in the
+    /// settings (`RemovedCandidates.remove`, `Config.removedCandidates`), off the session's thread
+    /// (`EnglishWords.Writer`), as it is told while a key (or a click) is handled; the session's engine leaves it out at
+    /// once.
+    public var removeCandidate: (String) -> Void
+    /// The candidates removed (`removeCandidate`), in any field, not in the settings yet (`EnglishWords.Writer`: being
+    /// written, or kept since their write failed), oldest first: level one leaves them out besides the settings' list,
+    /// and one written is the list's from then on, which a restore there brings back (`RemovedCandidates.Given`). Asked
+    /// just before the settings are read; never waits for a write. Nil: the shell can't tell (a test's): one removed in a
+    /// field stays out there until the settings list it.
+    public var unwrittenRemovals: (() -> [String])?
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.
     public var englishTypedOnce: EnglishWords.TypedOnce
@@ -59,8 +76,14 @@ public struct SessionServices {
     /// Whether secure input is on anywhere (a password field, the lock screen): nothing is sent to a model or run then.
     public var secureInputActive: () -> Bool
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`, anywhere: a Shift-click is no
-    /// tap of Shift.
+    /// tap of Shift. On the session's own panels too (what may have moved the caret leaves their wheel out:
+    /// `InputSession.caretMayHaveMoved`).
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool
+    /// Whether a mouse button or a drag was used in the last `seconds`, anywhere: `pointerUsedWithin` without the wheel,
+    /// so that the wheel over the session's own panels doesn't hide a click in the field before it
+    /// (`InputSession.caretMayHaveMoved`). A shell that can't tell them apart leaves it false: `pointerUsedWithin` then
+    /// tells the clicks too.
+    public var buttonUsedWithin: (_ seconds: TimeInterval) -> Bool
     /// Whether the voice key is still held with no mouse button down, when its hold timer fires.
     public var isVoiceKeyHeld: () -> Bool
     /// What reads a screenshot's text on the device (`Platform.current.text` by default).
@@ -80,8 +103,18 @@ public struct SessionServices {
 
     // MARK: Commands
 
-    /// `@open`: the files and apps named like the query, what it opened before first.
+    /// `@open`: the files and apps named like the query, what it opened before first. As the text is typed, what it has
+    /// found so far may be told before it is done (`FileSearchProgress`).
     public var searchFiles: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
+    /// `@open` as its text is typed, on the key that changed it: what is known at once, without searching (the Mac's app
+    /// index, what `@open` opened before, a path's folder as it was listed a moment ago), ranked as `searchFiles` ranks
+    /// them. Nothing that waits: no search, nothing read from the disk (a path's folder is listed by `searchFiles` and
+    /// `searchFileNames`, off the key's thread).
+    public var instantResults: (_ query: String, _ history: OpenHistory) -> [SearchResult]
+    /// One @ as its text is typed: the files and folders whose names Spotlight has for it (the Mac's: what `searchFiles`
+    /// finds by name, without what the files contain; for a path, its folder's entries), listed below what is known at
+    /// once as they come. None by default: the rows simply don't appear.
+    public var searchFileNames: @Sendable (_ query: String, _ history: OpenHistory) async -> [SearchResult]
     /// `@agent`: starts the agent's arguments (`AgentKind.terminalArguments`) with the prompt in a terminal window.
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void
     /// An `@question` conversation going on in a coding agent (`ChatHandoff`): its arguments with the conversation.
@@ -95,6 +128,9 @@ public struct SessionServices {
     /// `@agent` in the background (Claude Code's): starting one (its id back), and the list (`@tasks`).
     public var startAgent: @Sendable (String) async throws -> String
     public var listAgents: @Sendable () async throws -> [(session: AgentSession, reply: String?)]
+    /// The list as last seen, newest first (the last `@tasks`, or the shell's last look at the tasks), at once: what ⏎ on
+    /// `@tasks` shows while `listAgents` runs. Nil: none seen yet.
+    public var lastAgents: () -> [(session: AgentSession, reply: String?)]?
     /// A custom `run` command's program (and `@py`, `@js`), and a script plugin told the interface language.
     public var runProgram: @Sendable (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error>
     public var runPlugin: @Sendable (InstalledPlugin, String, Language) -> AsyncThrowingStream<ConversionUpdate, Error>
@@ -117,6 +153,10 @@ public struct SessionServices {
                                          _ say: @escaping (String) -> Void) -> Void
     /// The installed plugins (`rescan`: a text field became active: looked for again).
     public var plugins: (_ rescan: Bool) -> [InstalledPlugin]
+    /// The plugins looked for again off the session's thread (a text field became active: one installed or removed shows
+    /// up there; looking hashes their files), `scanned` told from any thread once they are: `plugins(false)` gives them
+    /// then. Nil: the session asks `plugins(true)` (a shell where that's quick, a test's).
+    public var rescanPlugins: ((_ scanned: @escaping @Sendable () -> Void) -> Void)?
     /// The status line of a script extension the command list shows (`ScriptCommand.status`), and running those that are
     /// due: `environment` gives each its environment, `ended` (from any thread) says one ended.
     public var scriptStatus: (ScriptCommand) -> String?
@@ -155,6 +195,9 @@ public struct SessionServices {
     public var addReminder: @Sendable (ReminderDraft) async throws -> Void
     /// `@imessage`: the address book (nil: no access), and sending.
     public var loadContacts: @Sendable () async -> [Contact]?
+    /// The address book as last read, at once (nil: not read yet, or no access): the recipients are found in it on the key
+    /// that changed the text. One read a while ago is used as it is (the shell reads it again in the background).
+    public var cachedContacts: () -> [Contact]?
     public var messageSender: any MessageSender
 
     // MARK: Suggestions
@@ -177,6 +220,7 @@ public struct SessionServices {
         voiceSupported = { false }
         englishDictionary = { nil }
         learnEnglishWord = { _ in }
+        removeCandidate = { _ in }
         englishTypedOnce = EnglishWords.TypedOnce()
         page = { _ in nil }
         pastesInTerminal = { false }
@@ -206,9 +250,12 @@ public struct SessionServices {
         saveRecentHandles = { _ in }
         secureInputActive = { false }
         pointerUsedWithin = { _ in false }
+        buttonUsedWithin = { _ in false }
         isVoiceKeyHeld = { false }
         recognizeText = Platform.current.text
         searchFiles = { _, _ in [] }
+        instantResults = { _, _ in [] }
+        searchFileNames = { _, _ in [] }
         runInTerminal = { _, _ in throw SessionServicesError.unsupported }
         continueInAgent = { _, _ in throw SessionServicesError.unsupported }
         agentInstalled = { _, _ in false }
@@ -216,6 +263,7 @@ public struct SessionServices {
         programInstalled = { _ in false }
         startAgent = { _ in throw SessionServicesError.unsupported }
         listAgents = { [] }
+        lastAgents = { nil }
         runProgram = { command, input in CommandRunner.run(command, input: input) }
         runPlugin = { _, _, _ in AsyncThrowingStream { $0.finish(throwing: SessionServicesError.unsupported) } }
         loadExtensions = { _, _ in .empty }
@@ -230,6 +278,7 @@ public struct SessionServices {
         parseReminder = { ReminderParser().parse($0, now: Platform.current.clock.now) }
         addReminder = { _ in throw SessionServicesError.unsupported }
         loadContacts = { nil }
+        cachedContacts = { nil }
         messageSender = NoMessageSender()
         suggestions = SuggestionsServices()
         clipboardHistory = ClipboardHistoryServices()
@@ -270,6 +319,14 @@ public struct PageSource {
         self.release = release
         self.reader = reader
     }
+}
+
+/// What `@open`'s search as you type has found so far: a shell's `searchFiles` that searches in stages (the Mac's: the
+/// names Spotlight found, then what the files contain) tells it a stage's rows before the next one starts, and the session
+/// lists them meanwhile. Set while `SessionTasks.searchAsTyped` waits for the search; nil otherwise (⏎'s search lists what
+/// it found once it is done). Called from any thread.
+public enum FileSearchProgress {
+    @TaskLocal public static var found: (@Sendable ([SearchResult]) -> Void)?
 }
 
 /// What a default service says when it is asked to do something its shell gave it no way to do.

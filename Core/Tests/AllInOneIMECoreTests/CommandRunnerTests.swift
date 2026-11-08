@@ -29,6 +29,24 @@ struct CommandRunnerTests {
         #expect(try await run(multi, "printf 'a\\n\\033[31mb\\033[0m\\n\\n'").get() == "a\nb")  // colors and trailing lines dropped
     }
 
+    /// Blank lines before and after what was printed go; its first line's indentation stays (#44).
+    @Test func cleanOutputKeepsTheFirstLinesIndentation() {
+        #expect(CommandRunner.cleanOutput(Data("  a\n  b\n".utf8)) == "  a\n  b")
+        #expect(CommandRunner.cleanOutput(Data("\n \n\t  a\n\n  b  \n \n".utf8)) == "\t  a\n\n  b")
+        #expect(CommandRunner.cleanOutput(Data(" \n\t\n".utf8)) == "")
+    }
+
+    /// One number on its own goes without its padding (a count `wc` right-aligns), once all of it came; one line of
+    /// text keeps its indentation (#56).
+    @Test func cleanOutputTrimsOneNumber() {
+        #expect(CommandRunner.cleanOutput(Data("      17\n".utf8)) == "17")
+        #expect(CommandRunner.cleanOutput(Data("\n \t4.0K\t.  \n\n".utf8)) == "4.0K\t.")
+        #expect(CommandRunner.cleanOutput(Data("  -42".utf8)) == "-42")
+        #expect(CommandRunner.cleanOutput(Data("      17\n".utf8), isFinal: false) == "      17")
+        #expect(CommandRunner.cleanOutput(Data("  x\n\n".utf8)) == "  x")
+        #expect(CommandRunner.cleanOutput(Data(" M Sources/a.swift\n".utf8)) == " M Sources/a.swift")
+    }
+
     /// What goes into a terminal (it runs every line): one line, nothing that would run or complete.
     @Test func oneLineForATerminal() {
         let result = ConversionResult(versions: [CandidateLine("0\n1\n2"), CandidateLine("a\tb\u{2028}c", isComplete: false),
@@ -44,7 +62,10 @@ struct CommandRunnerTests {
         // Git for Windows has no rev: its perl reverses the line.
         let rev = CustomCommand(name: "rev", type: .run, argv: ["perl", "-nle", "print scalar reverse"], stdin: "{input}\n")
         #else
-        let rev = CustomCommand(name: "rev", type: .run, argv: ["rev"], stdin: "{input}\n")
+        // tr, which every system has (a minimal Linux, swift:6.4's image, has no rev), turns "abc" around as rev would;
+        // a time limit no busy test run reaches (`Timing`), as what it's given is checked, not how long it takes.
+        let rev = CustomCommand(name: "rev", type: .run, argv: ["tr", "abc", "cba"], stdin: "{input}\n",
+                                timeoutSeconds: Double(Timing.longSleep))
         #endif
         #expect(try await run(rev, "abc").get() == "cba")
     }
@@ -74,7 +95,7 @@ struct CommandRunnerTests {
     }
 
     @Test func slowProgramsAreStopped() async {
-        // Stopped at the 0.3 s limit, well before the minute it would sleep (`Timing`: the bound holds under load).
+        // Stopped at the 0.3 s limit, well before the five minutes it would sleep (`Timing`: the bound holds under load).
         let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "{input}"], timeoutSeconds: 0.3)
         let started = Date()
         #expect(await run(sleep, "\(Timing.longSleep)").error == .timedOut(0.3))
@@ -87,7 +108,7 @@ struct CommandRunnerTests {
     }
 
     @Test func cancellingStopsTheProgram() async throws {
-        // A minute's sleep with a limit past it: only the cancel can stop it well before.
+        // Five minutes of sleep with a limit past it: only the cancel can stop it well before.
         let sleep = CustomCommand(name: "sleep", type: .run, argv: ["sleep", "\(Timing.longSleep)"],
                                   timeoutSeconds: Double(Timing.longSleep * 2))
         let started = Date()

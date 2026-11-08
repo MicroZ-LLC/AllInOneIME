@@ -65,7 +65,7 @@ extension SettingsSchema {
             }
         }
         let prefix = "apps." + app + "."
-        let everywhere = Self.inputName(config.defaultInput)
+        let everywhere = Self.inputName(.language(config.defaultInput), config)
         // The inputs: the languages, then Code where it's among them (decision 22).
         var starts = choice(prefix + "inputLanguage", tr("开始的输入语言", "Starts in"),
                             value: profile.startingInput.map { .string($0.rawValue) } ?? .null,
@@ -143,12 +143,11 @@ extension SettingsSchema {
         return parts.isEmpty ? tr("和全局设置一样", "Same as everywhere", key: "appProfile.sameAsEverywhere") : parts.joined(separator: " · ")
     }
 
-    /// An input language as the settings name it, in the document's language: "中文（拼音）", "English".
-    static func inputName(_ input: Language) -> String { SessionText.inputName(input, language: UIText.language) }
-
-    /// An input as the settings name it: a language's name, or Code with `config`'s coding language ("Code (Python)").
+    /// An input as the settings name it, in the document's language: a language's name, Chinese with `config`'s characters
+    /// ("中文（拼音·繁體）"), or Code with `config`'s coding language ("Code (Python)").
     static func inputName(_ input: Input, _ config: Config) -> String {
-        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) })
+        SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) },
+                              chinese: config.typedChinese)
     }
 
     /// An app as a person reads it: Windows' program name ("notepad.exe") or packaged app, a Mac app's bundle id.

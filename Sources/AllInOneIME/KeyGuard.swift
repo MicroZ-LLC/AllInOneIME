@@ -10,16 +10,17 @@ import os
 ///
 /// So the keys are taken before any app sees them: a session event tap (`CGEvent.tapCreate`), on while this input
 /// method is the one in use (`AllInOneIMEInputController.activeController`), hands each key down to the input
-/// controller itself (`keyAtTap`) while a panel shows with nothing marked, and ⌃V always; the key goes no further when
-/// the controller took it (and its key up neither), and on as usual when it didn't (the controller answers the same key
-/// handed over again by the app as it did here: `KeyEchoes`). Every app, whatever it's built with, the same.
+/// controller itself (`keyAtTap`) while a panel or its field's autocomplete suggestion (Esc, Tab) shows with nothing
+/// marked, and ⌃V always; the key goes no further when the controller took it (and its key up neither), and on as usual
+/// when it didn't (the controller answers the same key handed over again by the app as it did here: `KeyEchoes`). Every
+/// app, whatever it's built with, the same.
 ///
 /// The tap is on only while this input method is in use (a field of its own attached): with another input method no key
 /// of any app waits on this process.
 ///
 /// The tap needs the Accessibility permission (as terminal paste does). Without it there is none, and what keeps the
 /// keys is the marked text of 0.6.7.3 and 0.6.8.1 (Chromium and Electron apps: `ChromiumApps`; terminals:
-/// `keepFromTerminal`). Keys we post ourselves (`TerminalPaste.marker`) pass untouched.
+/// `keepFromTerminal`). Keys we post ourselves (marked: `TerminalPaste.passesTap`) pass untouched.
 @MainActor
 final class KeyGuard {
     static let shared = KeyGuard()
@@ -30,18 +31,15 @@ final class KeyGuard {
     private var takenKeys: Set<Int64> = []
     /// Asked for each key down: nil, not one for the input method now (it goes on untouched); true, the input method took
     /// it (it goes no further); false, the input method had it and left it to the app.
-    private var handler: ((NSEvent) -> Bool?)?
+    private var handler: ((CGEvent) -> Bool?)?
     private var saidUntrusted = false
     private weak var owner: AnyObject?
-
-    /// Whether keys are taken at the tap now (the permission given and the tap made).
-    var isOn: Bool { tap != nil && handler != nil }
 
     /// Off for the self-test: its controller drives fake fields, and the user's real keys meanwhile are no keys for it.
     var disabled = false
 
     /// `owner`'s handler, from its field's activation: the tap made first if it isn't yet and Accessibility allows it.
-    func attach(_ owner: AnyObject, handler: @escaping (NSEvent) -> Bool?) {
+    func attach(_ owner: AnyObject, handler: @escaping (CGEvent) -> Bool?) {
         guard !disabled else { return }
         self.owner = owner
         self.handler = handler
@@ -104,11 +102,11 @@ final class KeyGuard {
 
     /// Whether the tap takes `event` (true: it goes no further).
     fileprivate func takes(_ type: CGEventType, _ event: CGEvent) -> Bool {
+        if TerminalPaste.passesTap(type, event) { return false }
         guard let handler else { return false }
-        if event.getIntegerValueField(.eventSourceUserData) == TerminalPaste.marker { return false }
         let code = event.getIntegerValueField(.keyboardEventKeycode)
         if type == .keyUp { return takenKeys.remove(code) != nil }
-        guard type == .keyDown, let key = NSEvent(cgEvent: event), let took = handler(key) else { return false }
+        guard type == .keyDown, let took = handler(event) else { return false }
         if took { takenKeys.insert(code) }
         return took
     }

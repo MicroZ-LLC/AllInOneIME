@@ -7,7 +7,7 @@ import SwiftUI
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
     // General
-    case inputLanguages, fuzzyPinyin, personalDictionaries, englishWords, codingLanguage
+    case inputLanguages, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
@@ -25,7 +25,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The page it's on.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .fuzzyPinyin, .personalDictionaries, .englishWords, .codingLanguage: return .input
+        case .inputLanguages, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
@@ -48,7 +48,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The input whose chip holds it.
     var chip: Input? {
         switch self {
-        case .fuzzyPinyin, .personalDictionaries: return .language(.chinese)
+        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -59,8 +59,10 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
+        case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
+        case .removedCandidates: return tr("删掉的候选词", "Removed candidates")
         case .englishWords: return tr("你的英文词", "Your English words")
         case .codingLanguage: return tr("代码", "Code")
         case .outputLanguages: return tr("翻译成", "Translate to")
@@ -113,6 +115,7 @@ enum SettingsSpot: String, CaseIterable {
     /// What its row says, where that doesn't depend on the settings: one sentence, also searched.
     var note: String? {
         switch self {
+        case .chineseCharacters: return UIText.chineseCharactersHelp
         case .fuzzyPinyin: return tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之")
         case .personalDictionaries: return tr("UTF-8 Rime .dict.yaml，最多 32 MiB", "UTF-8 Rime .dict.yaml, up to 32 MiB")
         case .autocomplete: return tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
@@ -152,8 +155,10 @@ enum SettingsSpot: String, CaseIterable {
     private var keywords: String {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
+        case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
+        case .removedCandidates: return "removed candidates delete remove right-click ⌃⌦ control delete restore 删掉 删除 候选词 右键 恢复 不再出现"
         // Not "learn": learning them is Privacy's switch (`learnEnglishWords`), which the search would otherwise rank
         // after this chip in a Chinese interface.
         case .englishWords: return "english words dictionary bedrock 英文词 词典"
@@ -199,7 +204,7 @@ enum SettingsSpot: String, CaseIterable {
         case .useSelection: return "selection selected text 选中 文字"
         case .configFile: return "config file json 配置文件"
         case .rimeFolder: return "rime folder 目录"
-        case .updates: return "updates version check automatically 更新 版本 自动检查"
+        case .updates: return "updates version check automatically notify notification 更新 版本 自动检查 通知"
         case .troubleshoot: return "doctor check problems fix diagnose troubleshoot 检查 问题 修复 诊断"
         case .reportIssue: return "report issue bug feedback github 报告 问题 反馈"
         }
@@ -208,7 +213,11 @@ enum SettingsSpot: String, CaseIterable {
     /// Whether every word of `query` is in its title, what it says or its words; a command named with the command trigger
     /// (`trigger`: "~agent") as its words name it ("@agent").
     func matches(_ query: String, trigger: String = "@") -> Bool {
-        let words = Self.words(query, trigger: trigger)
+        matches(Self.words(query, trigger: trigger), trigger: trigger)
+    }
+
+    /// `matches` with the query's words (`words`) split already: the search splits them once for every row.
+    private func matches(_ words: [Substring], trigger: String) -> Bool {
         guard !words.isEmpty else { return false }
         let text = [title, note ?? "", keywords, page.title].joined(separator: " ").lowercased()
             .replacingOccurrences(of: trigger, with: "@")
@@ -231,15 +240,15 @@ enum SettingsSpot: String, CaseIterable {
             if has(spot.title) { return (0, spot.title.count) }
             return has(spot.title + " " + spot.keywords) ? (1, 0) : (2, 0)
         }
-        let found = allCases.enumerated().filter { $0.element.isShown(config) && $0.element.matches(query, trigger: trigger) }
-        return found.sorted { a, b in
-            let (x, y) = (rank(a.element), rank(b.element))
-            return x != y ? x < y : a.offset < b.offset
-        }.map(\.element)
+        // Each row found ranked once, not again at each comparison of the sort.
+        let found = allCases.enumerated().filter { $0.element.isShown(config) && $0.element.matches(words, trigger: trigger) }
+            .map { (spot: $0.element, offset: $0.offset, rank: rank($0.element)) }
+        return found.sorted { a, b in a.rank != b.rank ? a.rank < b.rank : a.offset < b.offset }.map(\.spot)
     }
 
     /// Whether its row is there with `config`: a provider's own rows only with that provider, the jargon list with its
-    /// style or file, the previous per-app settings only while an app has one.
+    /// style or file, the English words under an input that shows them, the previous per-app settings only while an app
+    /// has one.
     func isShown(_ config: Config) -> Bool {
         switch self {
         case .apiKey, .baseURL: return config.provider.needsKey && config.provider != .bedrock
@@ -247,7 +256,8 @@ enum SettingsSpot: String, CaseIterable {
         case .model: return config.provider != .hosted && config.provider != .apple
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
-        case .fuzzyPinyin, .personalDictionaries: return config.inputLanguages.contains(.chinese)
+        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return config.inputLanguages.contains(.chinese)
+        case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
         case .webSearch: return Command.webSearchOffered
         default: return true
         }
@@ -271,8 +281,8 @@ enum SettingsSpot: String, CaseIterable {
     }
 
     static var learnEnglishWordsNote: String {
-        tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。",
-           "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI.")
+        tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
+           "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
     }
 
     static var typeOutNote: String {

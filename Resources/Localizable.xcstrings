@@ -3112,6 +3112,53 @@
         }
       }
     },
+    "%@: its folder (%@) goes to the Trash, so you can still put it back." : {
+      "comment" : "%@：它的文件夹（%@）会移到废纸篓，还可以从那里放回来。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: Der Ordner (%2$@) wird in den Papierkorb gelegt, du kannst ihn also noch zurücklegen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: su carpeta (%2$@) va a la Papelera, así que aún puedes recuperarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ : son dossier (%2$@) est placé dans la Corbeille, vous pouvez donc encore le remettre en place."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@：フォルダ（%2$@）はゴミ箱に移動されるので、あとで元に戻せます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: 폴더(%2$@)가 휴지통으로 이동하므로 나중에 다시 되돌릴 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@: a pasta (%2$@) vai para o Lixo, então você ainda pode recuperá-la."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@：它的檔案夾（%2$@）會移到垃圾桶，還可以從那裡放回來。"
+          }
+        }
+      }
+    },
     "%@%% downloaded" : {
       "comment" : "已下载 %@%% — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -9401,6 +9448,53 @@
         }
       }
     },
+    "Click to see why in Settings → About." : {
+      "comment" : "点这里在 设置 →「关于」里看原因。 — Sources/AllInOneIMEMac/UpdateNotice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke, um unter Einstellungen → Über den Grund zu sehen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic para ver el motivo en Ajustes → Acerca de."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez pour voir pourquoi dans Réglages → À propos."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリックすると、設定 →「情報」で理由を確認できます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클릭하면 설정 → 정보에서 이유를 볼 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clique para ver o motivo em Ajustes → Sobre."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按一下以在設定 → 關於中查看原因。"
+          }
+        }
+      }
+    },
     "Click, then press the new key" : {
       "comment" : "点一下，再按新的键 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -11853,6 +11947,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網址中不要包含使用者名稱、密碼或權杖：交給 git 的憑證輔助程式儲存（git help credential）。"
+          }
+        }
+      }
+    },
+    "Don't Show Again" : {
+      "comment" : "不再提示 — Sources/AllInOneIME/Updates.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht mehr anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No volver a mostrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne plus afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今後表示しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다시 보지 않기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não mostrar novamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不再提示"
           }
         }
       }
@@ -26279,6 +26420,53 @@
         }
       }
     },
+    "Removed candidates" : {
+      "comment" : "删掉的候选词 — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entfernte Kandidaten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos eliminados"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidats supprimés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除した候補"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "삭제한 후보"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Candidatos removidos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪掉的候選詞"
+          }
+        }
+      }
+    },
     "Replace…" : {
       "comment" : "替换… — Sources/AllInOneIME/KeyRow.swift",
       "localizations" : {
@@ -26417,6 +26605,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "重設後會重新傳給它們；仍不接受的會再次去掉重送，並再記住。"
+          }
+        }
+      }
+    },
+    "Restore %@" : {
+      "comment" : "恢复%@ — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ wiederherstellen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurar %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rétablir %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@を復元"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 복원"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Restaurar %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "恢復%@"
           }
         }
       }
@@ -26700,6 +26935,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "改寫風格（@improve）"
+          }
+        }
+      }
+    },
+    "Right-click a candidate (or press ⌃⌦ for the highlighted one) and it no longer comes up; what was learned of it is forgotten too. ✕ brings it back." : {
+      "comment" : "在候选词上点右键（或按 ⌃⌦ 删除高亮的那个），它就不会再出现，学到的也一并忘掉。点 ✕ 恢复。 — Sources/AllInOneIME/RemovedCandidatesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klicke mit der rechten Maustaste auf einen Kandidaten (oder drücke ⌃⌦ für den markierten), und er erscheint nicht mehr; was davon gelernt wurde, wird ebenfalls vergessen. ✕ holt ihn zurück."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Haz clic derecho en un candidato (o pulsa ⌃⌦ para el resaltado) y ya no aparecerá; lo aprendido de él también se olvida. ✕ lo recupera."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cliquez avec le bouton droit sur un candidat (ou appuyez sur ⌃⌦ pour celui en surbrillance) et il n’apparaît plus ; ce qui en avait été appris est oublié aussi. ✕ le rétablit."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補を右クリックする（またはハイライト中の候補で ⌃⌦ を押す）と、その候補はもう出なくなり、学習した内容も忘れます。✕ で元に戻せます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "후보를 마우스 오른쪽 버튼으로 클릭하면(또는 강조된 후보에서 ⌃⌦를 누르면) 더 이상 나타나지 않으며, 그에 대해 학습한 내용도 잊습니다. ✕를 누르면 되돌립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clique com o botão direito em um candidato (ou pressione ⌃⌦ no destacado) e ele não aparece mais; o que foi aprendido dele também é esquecido. ✕ o traz de volta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在候選詞上按右鍵（或按 ⌃⌦ 刪除反白的那個），它就不會再出現，學到的也一併忘掉。按一下 ✕ 恢復。"
           }
         }
       }
@@ -31056,8 +31338,56 @@
         }
       }
     },
+    "The Rime user folder has your own %@: it was left as is, so fuzzy pinyin and the characters aren't applied." : {
+      "comment" : "Rime 用户目录里有你自己的 %@，没有改动它，模糊音和字形没有生效。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Rime-Benutzerordner enthält deine eigene Datei %@: Sie blieb unverändert, daher sind unscharfes Pinyin und die Schriftzeichen nicht angewendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La carpeta de usuario de Rime tiene tu propio %@: se ha dejado como estaba, así que el pinyin aproximado y los caracteres no se aplican."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le dossier utilisateur de Rime contient votre propre %@ : il a été laissé tel quel, le pinyin approximatif et les caractères ne sont donc pas appliqués."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rimeユーザフォルダに独自の%@があるため変更しませんでした。そのため、あいまいピンインと字体は適用されていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 사용자 폴더에 직접 만든 %@이(가) 있어 그대로 두었으므로 퍼지 병음과 자형이 적용되지 않았습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A pasta de usuário do Rime tem o seu próprio %@: ele foi mantido como está, então o pinyin aproximado e os caracteres não foram aplicados."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime 使用者檔案夾中有你自己的 %@：未做更改，因此模糊音和字形沒有生效。"
+          }
+        }
+      }
+    },
     "The Rime user folder has your own %@: it was left as is, so fuzzy pinyin isn't on." : {
       "comment" : "Rime 用户目录里有你自己的 %@，没有改动它，模糊音没有生效。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -33688,6 +34018,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要將 AllInOneIME%@ 更新到 %@ 嗎？"
+          }
+        }
+      }
+    },
+    "Update now to get the latest fixes." : {
+      "comment" : "现在更新，获得最新的修正。 — Sources/AllInOneIMEMac/UpdateNotice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jetzt aktualisieren und die neuesten Korrekturen erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiza ahora para tener las últimas correcciones."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettez à jour maintenant pour profiter des dernières corrections."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "今すぐアップデートして、最新の修正を入手しましょう。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 업데이트하고 최신 수정 사항을 받으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualize agora para receber as correções mais recentes."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在更新，取得最新的修正。"
           }
         }
       }

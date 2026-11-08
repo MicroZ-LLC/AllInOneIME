@@ -3,11 +3,11 @@ import Foundation
 /// An icon of the command list and the panel's rows, like the colored squares of iOS Settings, as data: a glyph drawn
 /// white on a color. Each shell draws it its own way (the Mac: an SF Symbol on a rounded square, `CandidateView.Icon`).
 ///
-/// The glyph is one of four (`Glyph`): one of the core's own icons, named for what it stands for (`Builtin`, a list a
+/// The glyph is one of five (`Glyph`): one of the core's own icons, named for what it stands for (`Builtin`, a list a
 /// shell maps to its icon set); a symbol a custom command, a plugin or a script extension named, in SF Symbols'
 /// vocabulary (`CustomCommand.icon`, `PluginManifest.icon`, `ScriptCommand.Icon.symbol`); a script extension's emoji or
-/// image file. The last three carry the built-in icon for what they are (`fallback`), drawn where the platform has no
-/// such symbol or can't read the image.
+/// image file; the own icon of an app, a folder or a file a row opens (`item`). The last four carry the built-in icon for
+/// what they are (`fallback`), drawn where the platform has no such symbol, can't read the image or gives no icon.
 public struct IconToken: Equatable, Sendable {
     /// The core's own icons, by what they stand for. A shell maps each to its icon set; on Apple platforms they are SF
     /// Symbols (`appleSymbol`). The names (`rawValue`) are the list a shell's mapping goes by:
@@ -78,6 +78,9 @@ public struct IconToken: Equatable, Sendable {
         case emoji(String, fallback: Builtin)
         /// A script extension's image file (a path), drawn instead of the square; where it can't be read, `fallback`.
         case image(path: String, fallback: Builtin)
+        /// The app, folder or file a row opens (its path), drawn with its own icon as the platform shows it (the Mac:
+        /// Finder's) instead of the square; where the platform gives none (Windows, Linux), or not yet, `fallback`.
+        case item(path: String, fallback: Builtin)
     }
 
     /// The square's color: the system's named colors (each shell's own shade of them), a gray by its brightness, or an
@@ -95,14 +98,17 @@ public struct IconToken: Equatable, Sendable {
             if name.hasPrefix("#"), name.count == 7, let value = Int(name.dropFirst(), radix: 16) {
                 return .rgb(red: UInt8((value >> 16) & 0xFF), green: UInt8((value >> 8) & 0xFF), blue: UInt8(value & 0xFF))
             }
-            let named: [String: Color] = [
-                "red": .red, "orange": .orange, "yellow": .yellow, "green": .green,
-                "mint": .mint, "teal": .teal, "cyan": .cyan, "blue": .blue,
-                "indigo": .indigo, "purple": .purple, "pink": .pink, "brown": .brown,
-                "gray": .gray, "grey": .gray, "black": .grayscale(0.15),
-            ]
-            return named[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
+            return byName[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
         }
+
+        /// The colors `named` knows by name, made once: each row of the command list with a plugin's or a custom command's
+        /// color asks, with each key.
+        private static let byName: [String: Color] = [
+            "red": .red, "orange": .orange, "yellow": .yellow, "green": .green,
+            "mint": .mint, "teal": .teal, "cyan": .cyan, "blue": .blue,
+            "indigo": .indigo, "purple": .purple, "pink": .pink, "brown": .brown,
+            "gray": .gray, "grey": .gray, "black": .grayscale(0.15),
+        ]
     }
 
     public var glyph: Glyph
@@ -120,7 +126,7 @@ public struct IconToken: Equatable, Sendable {
     public var fallback: Builtin {
         switch glyph {
         case let .builtin(builtin): return builtin
-        case let .symbol(_, fallback), let .emoji(_, fallback), let .image(_, fallback): return fallback
+        case let .symbol(_, fallback), let .emoji(_, fallback), let .image(_, fallback), let .item(_, fallback): return fallback
         }
     }
 }
@@ -153,6 +159,12 @@ extension IconToken {
         case .reportIssue: return IconToken(.reportIssue, color: .orange)
         default: return IconToken(.command, color: .gray)
         }
+    }
+
+    /// The icon of a row that opens `result`: an app, a folder or a file shows its own (`Glyph.item`; where the platform
+    /// gives none, `@open`'s, as before); nil for a web address, which has none of its own.
+    public static func item(_ result: SearchResult) -> IconToken? {
+        result.webURL != nil ? nil : IconToken(.item(path: result.path, fallback: .open), color: .gray)
     }
 
     /// A plugin's own icon, or a puzzle piece (a chain link for a link plugin), which its own falls back to.

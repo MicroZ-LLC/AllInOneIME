@@ -946,7 +946,8 @@ struct SuggestionsCustomCommandsAcceptanceTests {
 
     /// Typed after the magic key (`~jira` with the magic key ~, `@jira` with @), its name is no command's (0.6.8: a
     /// Suggestions command is no @ command, used by its prefix): never in the command list, and the field ends up as it does
-    /// with no such command (a name no command has); its summary isn't said, nothing runs.
+    /// with no such command (a name no command has; 0.7.0, one @: Esc leaves it as typed); its summary isn't said, nothing
+    /// runs.
     @Test(arguments: ["~", "@"])
     func typingTheCommandIsTypingAName(_ trigger: String) async throws {
         try await inEnglish {
@@ -973,10 +974,7 @@ struct SuggestionsCustomCommandsAcceptanceTests {
                     field.press(SuggestionKeys.key(character))
                     look()
                 }
-                field.press(SuggestionKeys.enter)
-                field.idle(0.3)
-                look()
-                field.press(SuggestionKeys.enter)
+                field.press(SuggestionKeys.escape)
                 field.idle(0.5)
                 look()
                 let ran = program.calls.count != calls || !program.calls.allSatisfy { $0.isEmpty }
@@ -987,7 +985,7 @@ struct SuggestionsCustomCommandsAcceptanceTests {
             #expect(!with.said.contains { $0.contains("Jira issues") }, "its summary isn't said: \(with.said)")
             #expect(with.document == without.document && with.said == without.said,
                     "as with no such command: \(with.document.debugDescription) / \(without.document.debugDescription)")
-            #expect(with.document.hasPrefix("\(trigger)jira"), "the name goes in as typed: \(with.document)")
+            #expect(with.document == "\(trigger)jira", "the name goes in as typed: \(with.document)")
             #expect(!with.acted)
             #expect(!with.ran, "nothing runs: \(program.calls)")
         }

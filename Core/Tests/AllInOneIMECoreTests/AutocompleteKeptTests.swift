@@ -75,7 +75,7 @@ struct AutocompleteKeptTests {
     func pauseEnds(_ host: FakeHost, _ clock: Uptime) {
         clock.advance(1)
         host.fireTimers { if case .autocomplete = $0 { true } else { false } }
-        host.settle(timeout: 5) { host.session.autocomplete.asked == nil }
+        host.settle(timeout: 5) { host.session.autocomplete.reading == nil && host.session.autocomplete.asked == nil }
     }
 
     /// Esc on a suggestion typed along: deleted back and typed again, or typed on, it isn't shown again, though the

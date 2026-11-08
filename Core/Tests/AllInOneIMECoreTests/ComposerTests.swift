@@ -525,10 +525,10 @@ struct ComposerTests {
         #expect(c.draft == "@improve oké!")
         for _ in 0..<4 { _ = c.handleKeyDown(backspaceKey) }
         #expect(c.draft == "@improve " && c.phase == .drafting)
-        // Deleting into the command's name brings the palette back; Esc then removes it all.
+        // Deleting into the command's name brings the list back (one @); Esc then leaves it as typed.
         _ = c.handleKeyDown(backspaceKey)
         #expect(c.paletteQuery == "improve" && c.paletteMatches == [.improve])
-        #expect(c.handleKeyDown(escKey).effects == [.updateMarkedText, .hidePanel] && c.phase == .idle)
+        #expect(commits(c.handleKeyDown(escKey)) == ["@improve"] && c.phase == .idle)
         #expect(c.handleKeyDown(backspaceKey) == .passThrough)
     }
 
@@ -1227,26 +1227,32 @@ struct ComposerTests {
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
         #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 16)
+        // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
-        #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@q")
+        #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
+        #expect(c.oneAtRows.first == .command(.question))
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
         #expect(c.draft == "@question " && c.paletteQuery == nil && c.draftCommand == .question)
-        // Space, a digit or the action key pick too; ↑↓ move the highlight.
-        let (s, _) = palette("ag")
+        // The action key picks too; the whole name and Space write it, as "@name "; ↑↓ move the highlight.
+        let (s, _) = palette("agent")
         _ = s.handleKeyDown(spaceKey)
         #expect(s.draft == "@agent ")
+        // A space after a part of a name is a space, and a digit is text (one @): neither picks a command.
+        let (p, _) = palette("ag", english: true)
+        _ = p.handleKeyDown(spaceKey)
+        #expect(p.draft == "@ag " && p.draftCommand == nil)
         let (d, _) = palette()
         _ = d.handleKeyDown(k("5"))
-        #expect(d.draft == "@open ")
+        #expect(d.draft == "@5" && d.draftCommand == nil)
         let (t, _) = palette("o")
         _ = tapOption(t)
         #expect(t.draft == "@open " && t.phase == .drafting)
         let (a, _) = palette()
         _ = a.handleKeyDown(downKey)
-        #expect(a.paletteHighlighted == 1)
+        #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.paletteHighlighted == 15 && a.paletteFirstVisible == 11)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 15 && a.oneAtFirstVisible == 9)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1255,26 +1261,32 @@ struct ComposerTests {
     }
 
     @Test func atMentionsStillReachTheApp() {
-        // A letter no command starts with: "@" goes in as typed, and the letter is pinyin as usual.
+        // A letter no command starts with is one @'s text (pinyin as usual); a mention is the name then Esc, which puts
+        // it in as typed, the "@" with it.
         let (c, e) = palette()
         let r = c.handleKeyDown(k("z"))
-        #expect(commits(r) == ["@"] && r.handled && e.input == "z" && c.draft.isEmpty)
-        // In English mode the letter then goes to the app.
+        #expect(commits(r).isEmpty && r.handled && e.input == "z" && c.draft == "@")
+        #expect(commits(c.handleKeyDown(escKey)) == ["@z"] && c.draft.isEmpty && e.input.isEmpty)
+        // In English mode the letters stay in the text as typed, and go in with Esc.
         let (d, _) = palette("ag", english: true)
         let r2 = d.handleKeyDown(k("x"))
-        #expect(commits(r2) == ["@ag"] && !r2.handled && d.draft.isEmpty)
+        #expect(commits(r2).isEmpty && r2.handled && d.draft == "@agx")
+        #expect(commits(d.handleKeyDown(escKey)) == ["@agx"] && d.draft.isEmpty)
         let (o, _) = palette(english: true)
         let r3 = o.handleKeyDown(k("w"))  // in no command's name ("j" is in @js, "k" in @tasks)
-        #expect(commits(r3) == ["@"] && !r3.handled)
-        // "@ " is just an at sign and a space; Return inserts "@…" as typed; Esc and ⌫ remove it.
+        #expect(commits(r3).isEmpty && o.draft == "@w")
+        #expect(commits(o.handleKeyDown(escKey)) == ["@w"])
+        // "@ " is just an at sign and a space; Return picks the highlighted command, after "@" alone too (the first); Esc
+        // leaves "@…" as typed; ⌫ removes it.
         let (s, _) = palette()
         #expect(commits(s.handleKeyDown(spaceKey)) == ["@"])
         let (n, _) = palette("que")
         #expect(commits(n.handleKeyDown(enterKey)).isEmpty && n.draft == "@question ")  // Return picks, like Tab
         let (lone, _) = palette()
-        #expect(commits(lone.handleKeyDown(enterKey)) == ["@"])
-        let (x, _) = palette("que")
-        #expect(x.handleKeyDown(escKey).effects == [.updateMarkedText, .hidePanel] && x.draft.isEmpty)
+        let first = lone.oneAtRows.first?.command?.name ?? "-"
+        #expect(commits(lone.handleKeyDown(enterKey)).isEmpty && lone.draft == "@\(first) ", "\(lone.draft)")
+        let (x, _) = palette("que", english: true)
+        #expect(commits(x.handleKeyDown(escKey)) == ["@que"] && x.draft.isEmpty)
         let (b, _) = palette("q")
         _ = b.handleKeyDown(backspaceKey)
         #expect(b.draft == "@")
@@ -1288,15 +1300,20 @@ struct ComposerTests {
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == "")
         type("x", m)
         #expect(m.draft == "@improve 你好@" && m.paletteQuery == nil && me.input == "x")
-        // A name after "@" in Chinese mode (「@lisi」 for @李四): the "@" goes in, the letters are pinyin.
+        // A name after "@" in Chinese mode (「@lisi」 for @李四): the letters are pinyin after the "@"; picked, then Esc,
+        // the name goes in with the "@".
         let (name, ne) = palette("l")
         #expect(name.paletteQuery == "l")
-        #expect(commits(name.handleKeyDown(k("i")).effects) == ["@"])
+        #expect(commits(name.handleKeyDown(k("i")).effects).isEmpty)
         type("si", name)
-        #expect(name.paletteQuery == nil && ne.input == "lisi")
+        #expect(name.draft == "@" && ne.input == "lisi")
+        ne.dictionary["lisi"] = ["李四"]
+        _ = name.handleKeyDown(spaceKey)
+        #expect(name.draft == "@李四" && commits(name.handleKeyDown(escKey)) == ["@李四"])
         // In English mode it stays "@li…" as typed.
         let (en, _) = palette("l", english: true)
-        #expect(commits(en.handleKeyDown(k("i")).effects) == ["@l"])
+        #expect(commits(en.handleKeyDown(k("i")).effects).isEmpty && en.draft == "@li")
+        #expect(commits(en.handleKeyDown(escKey)) == ["@li"])
         let (w, _) = composer(key: .optionTap)
         type("nihao", w)
         #expect(commits(w.handleKeyDown(spaceKey)) == ["你好"])
@@ -1389,13 +1406,13 @@ struct ComposerTests {
         type("nihao", c)
         #expect(tapOption(c, at: 5).contains(.commandUsed("py")))
         #expect(c.commandUsage.score("py") > 0)
-        // Next time "@" lists it first; the digit picks from what's shown.
+        // Next time "@" lists it first, highlighted: Tab picks it.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.paletteVisible.map(\.name) == ["py", "improve", "translate", "question", "agent"])
-        _ = d.handleKeyDown(k("1"))
+        #expect(d.oneAtVisible.prefix(5).map { $0.command?.name } == ["py", "improve", "translate", "question", "agent"])
+        _ = d.handleKeyDown(tab)
         #expect(d.draft == "@py ")
         // A command beyond the five is found by its letters.
         let (e, _) = composer(key: .optionTap)
@@ -1505,27 +1522,28 @@ struct ComposerTests {
         #expect(t.appTookMarkedText() == [.cancelConversion, .hidePanel] && t.phase == .idle)
     }
 
-    /// All the commands are in the list, five shown at a time: the highlight scrolls the rest into view.
+    /// All the commands are in the list, seven shown at a time (one @): the highlight scrolls the rest into view.
     @Test func theListScrolls() {
         let catalog = Command.catalog(["alpha", "bravo", "charlie"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
+        func names(_ rows: some Sequence<OneAt.Action>) -> [String?] { rows.map { $0.command?.name } }
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.count == 17 && c.paletteVisible.count == 5 && c.paletteFirstVisible == 0)
-        for _ in 0..<5 { _ = c.handleKeyDown(downKey) }  // past the fifth: scrolls by one
-        #expect(c.paletteHighlighted == 5 && c.paletteFirstVisible == 1)
-        #expect(c.paletteVisible.map(\.name) == ["translate", "question", "agent", "open", "reply"])
-        _ = c.handleKeyDown(k("2"))  // the second row shown, not the second command
+        #expect(c.oneAtRows.count == 17 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
+        for _ in 0..<7 { _ = c.handleKeyDown(downKey) }  // past the seventh: scrolls by one
+        #expect(c.oneAtHighlighted == 7 && c.oneAtFirstVisible == 1)
+        #expect(names(c.oneAtVisible) == ["translate", "question", "agent", "open", "reply", "note", "reminder"])
+        _ = c.choose(index: 1)  // the second row shown, not the second command
         #expect(c.draft == "@question ")
         // The wheel stops at the ends; a click picks among the rows shown.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.paletteHighlighted == 16 && d.paletteFirstVisible == 12)
-        #expect(d.paletteVisible.map(\.name) == ["imessage", "reportissue", "alpha", "bravo", "charlie"])
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 16 && d.oneAtFirstVisible == 10)
+        #expect(names(d.oneAtVisible) == ["tasks", "settings", "imessage", "reportissue", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.paletteHighlighted == 14 && d.paletteFirstVisible == 12)  // still in view: no scrolling
-        _ = d.choose(index: 2)
+        #expect(d.oneAtHighlighted == 14 && d.oneAtFirstVisible == 10)  // still in view: no scrolling
+        _ = d.choose(index: 4)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
         let (e, _) = composer(key: .optionTap)
@@ -1533,7 +1551,7 @@ struct ComposerTests {
         _ = e.handleKeyDown(at)
         for _ in 0..<8 { _ = e.handleKeyDown(downKey) }
         type("a", e)
-        #expect(e.paletteHighlighted == 0 && e.paletteFirstVisible == 0 && e.paletteMatches.first?.name == "agent")
+        #expect(e.oneAtHighlighted == 0 && e.oneAtFirstVisible == 0 && e.oneAtRows.first == .command(.agent))
     }
 
     @Test func claudeIsNotStartedWhileSecureInputIsOn() {
@@ -1700,11 +1718,15 @@ struct ComposerTests {
         let e = contentMatches()
         _ = e.handleKeyDown(upKey)
         #expect(e.liveHighlight == 1 && e.opensLiveResult && e.handleKeyDown(enterKey).effects.last == .open(path: todo.path))
-        // New results, or a change to the text: the highlight starts again at the first, not picked.
+        // New results: the highlight stays on the result moved to while that is listed, else it starts again at the
+        // first, not picked. A change to the text: at the first too.
         let f = contentMatches()
         _ = f.handleKeyDown(downKey)
-        _ = f.receiveLive([notes, todo], for: "xyz")
+        _ = f.receiveLive([todo, notes], for: "xyz")
+        #expect(f.liveHighlight == 0 && f.currentLiveResults.first == todo && f.opensLiveResult)
+        _ = f.receiveLive([notes], for: "xyz")
         #expect(f.liveHighlight == 0 && !f.opensLiveResult)
+        _ = f.receiveLive([notes, todo], for: "xyz")
         _ = f.handleKeyDown(downKey)
         type("a", f)
         _ = f.handleKeyDown(backspaceKey)  // the same text again: its results show, as they were before the "a"

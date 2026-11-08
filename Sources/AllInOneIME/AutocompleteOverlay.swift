@@ -116,9 +116,12 @@ final class GhostView: NSView {
 
     override var isFlipped: Bool { false }
 
-    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top.
-    static func lineHeight(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultLineHeight(for: font) }
-    static func baselineOffset(_ font: NSFont) -> CGFloat { NSLayoutManager().defaultBaselineOffset(for: font) }
+    /// A line of `font`, as AppKit lays it out: how tall, and how far its baseline is from its top. One layout manager
+    /// answers every time (it keeps nothing of a font), not a new one each: a suggestion placed and drawn asked up to
+    /// seven.
+    static func lineHeight(_ font: NSFont) -> CGFloat { layoutManager.defaultLineHeight(for: font) }
+    static func baselineOffset(_ font: NSFont) -> CGFloat { layoutManager.defaultBaselineOffset(for: font) }
+    private static let layoutManager = NSLayoutManager()
 
     /// The font's line below its baseline, and above it.
     var descent: CGFloat { Self.lineHeight(font) - Self.baselineOffset(font) }
@@ -302,9 +305,9 @@ extension AllInOneIMEInputController {
             return
         }
         GhostOverlay.shared.hide()
+        // The wheel over the line is this field's: no pointer use in it, so Tab and Esc stay the line's (GitHub #66).
         let panel = CandidatePanel.shared
-        panel.owner = self
-        panel.onSelect = nil
+        panel.take(by: self, .session({ [weak self] in self?.received($0) }))
         panel.show(.autocomplete(text, language: UIText.language), anchor: anchor(client))
         ghostInPanel = true
     }
@@ -324,16 +327,34 @@ extension AllInOneIMEInputController {
     }
 
     /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`; the self-test's
-    /// harness field, which isn't the one focused, is told by the self-test).
+    /// harness field, which isn't the one focused, is told by the self-test). Nil: it can't tell (no Accessibility,
+    /// nothing focused, no answer in time), which the session counts as unknown, never as none.
     @MainActor
-    func passwordFieldByAccessibility() -> Bool {
-        passwordField?() ?? (FocusedField.isSecure() == true)
+    func passwordFieldByAccessibility() -> Bool? {
+        passwordField.map { $0() } ?? FocusedField.isSecure()
+    }
+
+    /// `passwordFieldByAccessibility` asked off the main thread, once the key that asks it is answered
+    /// (`SessionOutput.readPasswordField`: Accessibility may wait a quarter of a second for each of its two calls, more
+    /// than a key may), and handed back for the focus it was asked in (`SessionEvent.passwordField`).
+    @MainActor
+    func readPasswordField(focus: Int) {
+        let box = WeakBox(self)
+        let told: @Sendable (Bool?) -> Void = { answer in
+            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.passwordField(answer, focus: focus)) } }
+        }
+        if let harness = passwordField { return told(harness()) }
+        DispatchQueue.global(qos: .userInitiated).async { told(FocusedField.isSecure()) }
     }
 
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
     /// where it tells none (no caret, an empty rect, off every screen).
     static func caretRect(_ client: IMKTextInput) -> NSRect? {
-        let selected = client.selectedRange()
+        caretRect(client, selected: client.selectedRange())
+    }
+
+    /// `caretRect` for `selected`, the selection `client` told.
+    private static func caretRect(_ client: IMKTextInput, selected: NSRange) -> NSRect? {
         guard selected.location != NSNotFound else { return nil }
         return onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location, length: 0), actualRange: nil))
     }
@@ -349,8 +370,9 @@ extension AllInOneIMEInputController {
     }
 
     static func caretRects(_ client: IMKTextInput) -> CaretRects {
-        var rects = CaretRects(caret: caretRect(client))
+        // The selection asked once, for the caret and the character before it.
         let selected = client.selectedRange()
+        var rects = CaretRects(caret: caretRect(client, selected: selected))
         if selected.location != NSNotFound, selected.location > 0 {
             rects.previous = onScreen(client.firstRect(forCharacterRange: NSRange(location: selected.location - 1, length: 1), actualRange: nil))
         }
@@ -395,7 +417,9 @@ extension AllInOneIMEInputController {
             context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
             if !context.secure {
                 // Told for suggestions too (`FieldContext.Parts.passwordField`): both go by the same answer.
-                context.field?.secure = self.passwordFieldByAccessibility()
+                let told = self.passwordFieldByAccessibility()
+                context.field?.secure = told == true
+                context.passwordFieldUnknown = told == nil
                 context.read.insert(.passwordField)
             }
             if !context.secure, context.field?.secure != true {

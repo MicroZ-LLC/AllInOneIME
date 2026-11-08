@@ -208,3 +208,108 @@ struct KeyRemovalTests {
         #expect(store.read("gemini") == "sk-test-two" && store.attributes("gemini")?.created == created)
     }
 }
+
+/// A key set in the login shell (OPENAI_API_KEY, …) goes only to its provider's own service and to this computer
+/// (`APIKeys.shellKeyGoes`): a base URL changed to another service (DeepSeek, a relay) gets a key saved for it in
+/// Settings, never the user's OpenAI one, and Settings doesn't show it as set there. In memory, with the shell's
+/// variables given (`MemorySecrets`): the user's keychain and shell are never read.
+@Suite(MemorySecrets(environment: ["OPENAI_API_KEY": "sk-proj-shell-0000-a1b2", "ANTHROPIC_API_KEY": "sk-ant-shell-0000-c3d4",
+                                   "GOOGLE_API_KEY": "AIza-shell-0000-e5f6"]))
+struct ShellKeyHostTests {
+    let openAI = "sk-proj-shell-0000-a1b2"
+
+    @Test func aShellKeyGoesToItsOwnServiceAndThisComputer() throws {
+        #expect(try APIKeys.load(.openai, for: "api.openai.com") == openAI)
+        #expect(try APIKeys.load(.openai, for: "API.OpenAI.com") == openAI)
+        for local in ["localhost", "127.0.0.1", "127.1.2.3", "::1", "[::1]"] {
+            #expect(try APIKeys.load(.openai, for: local) == openAI, "\(local)")
+        }
+        #expect(try APIKeys.load(.anthropic, for: "api.anthropic.com") == "sk-ant-shell-0000-c3d4")
+        #expect(try APIKeys.load(.gemini, for: "generativelanguage.googleapis.com") == "AIza-shell-0000-e5f6")
+    }
+
+    @Test func anotherHostGetsAClearErrorNotTheKey() {
+        let others = ["api.deepseek.com", "openrouter.ai", "relay.example", "api.openai.com.relay.example", "api.anthropic.com",
+                      "192.168.1.20", "10.0.0.2", "printer.local", "localhost.relay.example", "127.0.0.1.nip.io", "127.0.0", ""]
+        for host in others {
+            #expect(throws: ProviderError.shellKeyForAnotherHost(.openai, variable: "OPENAI_API_KEY"), "\(host)") {
+                try APIKeys.load(.openai, for: host)
+            }
+        }
+        #expect(throws: ProviderError.shellKeyForAnotherHost(.anthropic, variable: "ANTHROPIC_API_KEY")) {
+            try APIKeys.load(.anthropic, for: "claude-relay.example")
+        }
+        #expect(throws: ProviderError.shellKeyForAnotherHost(.gemini, variable: "GOOGLE_API_KEY")) {
+            try APIKeys.load(.gemini, for: "gemini-proxy.example")
+        }
+        // What the user reads: where that key goes, and to save one for this service.
+        let error = ProviderError.shellKeyForAnotherHost(.openai, variable: "OPENAI_API_KEY")
+        #expect(error.errorDescription == "$OPENAI_API_KEY is sent only to api.openai.com, not this base URL: save a key for this service in the settings")
+        UIText.$scopedLanguage.withValue("en") {
+            #expect(UIText.describe(error) == error.errorDescription)
+        }
+        #expect(AIConfigService.TooLong(provider: .openai, providerError: error).providerNotSetUp)
+    }
+
+    /// Settings shows a key in the shell as set only for a base URL it is sent to (the same rule as the request's).
+    @Test func settingsShowAShellKeyOnlyWhereItIsSent() {
+        let shell = APIKeys.source(.openai)
+        #expect(shell == .environment("OPENAI_API_KEY"))
+        #expect(shell.sent(by: .openai, to: "api.openai.com") == shell && shell.sent(by: .openai, to: "localhost") == shell)
+        #expect(shell.sent(by: .openai, to: "api.deepseek.com") == .none && shell.sent(by: .openai, to: nil) == .none)
+        #expect(APIKeys.Source.keychain.sent(by: .openai, to: "api.deepseek.com") == .keychain)
+        #expect(APIKeys.Source.none.sent(by: .openai, to: "api.openai.com") == .none)
+        let deepseek = HTTPProviders.host(of: ProviderSettings(baseURL: "https://api.deepseek.com/v1").resolved(for: .openai))
+        #expect(!KeyState(shell.sent(by: .openai, to: deepseek), ending: nil).isSet)
+        #expect(KeyState(shell.sent(by: .openai, to: HTTPProviders.host(of: .defaults(for: .openai))), ending: nil).isSet)
+    }
+
+    /// A keychain item that couldn't be read (its password prompt denied) is asked for once per request, not again on
+    /// the way to the shell's key.
+    @Test func aDeniedKeychainReadIsNotAskedAgain() throws {
+        final class Reads: @unchecked Sendable {
+            let lock = NSLock()
+            var count = 0
+        }
+        let reads = Reads()
+        let stamp = Date(timeIntervalSince1970: 1_234_567.891)
+        let denied = APIKeys.Keychain(
+            attributes: { $0 == "openai" ? APIKeys.ItemAttributes(created: stamp, modified: stamp, comment: nil) : nil },
+            read: { _ in reads.lock.withLock { reads.count += 1 }; return nil },
+            write: { _, _, _, _, _, _ in .failed(-1) }, setComment: { _, _ in .failed(-1) }, delete: { _ in .failed(-1) })
+        var platform = Platform.current
+        platform.secrets = denied
+        try Platform.$override.withValue(platform) { () throws -> Void in
+            #expect(try APIKeys.load(.openai, for: "api.openai.com") == openAI)
+            #expect(reads.lock.withLock { reads.count } == 1)
+            #expect(throws: ProviderError.shellKeyForAnotherHost(.openai, variable: "OPENAI_API_KEY")) {
+                try APIKeys.load(.openai, for: "api.deepseek.com")
+            }
+            #expect(reads.lock.withLock { reads.count } == 2)
+        }
+    }
+
+    /// The whole way through the converter, with its own key lookup: nothing is sent to another host with the shell's
+    /// key; to a model on this computer it goes.
+    @Test func noRequestGoesToAnotherHostWithTheShellKey() async throws {
+        let relay = "relay.shell-key.test", local = "127.0.0.2"
+        let sse = #"data: {"choices":[{"delta":{"content":"EN: Hi\n"}}]}"# + "\n\ndata: [DONE]\n\n"
+        StubURLProtocol.register(host: relay, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data(sse.utf8)]))
+        StubURLProtocol.register(host: local, .init(status: 200, headers: ["Content-Type": "text/event-stream"], chunks: [Data(sse.utf8)]))
+        func converter(_ base: String) -> Converter {
+            var config = Config.default
+            config.provider = .openai
+            config.openai.baseURL = base
+            config.openai.model = "deepseek-chat"
+            config.rewriteStyles = []
+            let fixed = config
+            return Converter(client: BedrockClient(session: StubURLProtocol.session()), loadConfig: { fixed })
+        }
+        await #expect(throws: ProviderError.shellKeyForAnotherHost(.openai, variable: "OPENAI_API_KEY")) {
+            for try await _ in converter("https://\(relay)/v1").convert("你好") {}
+        }
+        #expect(StubURLProtocol.requests(host: relay).isEmpty)
+        for try await _ in converter("http://\(local):11434/v1").convert("你好") {}
+        #expect(StubURLProtocol.lastRequest(host: local)?.value(forHTTPHeaderField: "Authorization") == "Bearer \(openAI)")
+    }
+}

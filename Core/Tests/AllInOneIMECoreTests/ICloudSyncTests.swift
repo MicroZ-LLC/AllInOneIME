@@ -326,6 +326,32 @@ struct ICloudSyncTests {
         #expect(try b.config().provider == .anthropic && b.state.rejected.isEmpty)
     }
 
+    /// A key set in the login shell counts for a provider that comes in only where it goes (`APIKeys.Source.sent(by:to:)`,
+    /// as Settings shows it): to the provider's own service and to this Mac, not to the DeepSeek base URL that comes in
+    /// with it, nor to the one this Mac has. A key saved for it does.
+    @Test func aShellKeyCountsOnlyForTheBaseURLItGoesTo() {
+        let shell = ICloudSync.Environment(keySource: { $0 == .openai ? .environment("OPENAI_API_KEY") : .none })
+        let config = Config.default
+        func incoming(_ base: String?) -> [String: AIConfig.JSONValue?] {
+            var openai: [String: AIConfig.JSONValue] = ["model": .string("deepseek-chat")]
+            if let base { openai["baseURL"] = .string(base) }
+            return ["provider": .string("openai"), "openai": .object(openai)]
+        }
+        let relay = ICloudSync.applying(incoming("https://api.deepseek.com/v1"), to: config, environment: shell)
+        #expect(relay.rejected == ["provider": .noKey] && relay.config.provider == config.provider, "\(relay.rejected)")
+        for base in [nil, "https://api.openai.com/v1", "http://localhost:11434/v1"] {
+            let own = ICloudSync.applying(incoming(base), to: config, environment: shell)
+            #expect(own.rejected.isEmpty && own.config.provider == .openai, "\(base ?? "default"): \(own.rejected)")
+        }
+        let saved = ICloudSync.applying(incoming("https://api.deepseek.com/v1"), to: config,
+                                        environment: .init(keySource: { _ in .keychain }))
+        #expect(saved.rejected.isEmpty && saved.config.provider == .openai)
+        // DeepSeek's base URL on this Mac already, the provider coming in alone.
+        var deepSeek = config
+        deepSeek.openai.baseURL = "https://api.deepseek.com/v1"
+        #expect(ICloudSync.applying(["provider": .string("openai")], to: deepSeek, environment: shell).rejected == ["provider": .noKey])
+    }
+
     final class KeyBox: @unchecked Sendable { var saved = false }
 
     @Test func theRulesSettingsKeeps() {

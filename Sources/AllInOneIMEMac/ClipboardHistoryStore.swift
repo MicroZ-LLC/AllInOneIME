@@ -27,7 +27,8 @@ public protocol ClipboardSource: AnyObject {
     var changeCount: Int { get }
     var access: ClipboardAccess { get }
     var types: [String] { get }
-    /// Its plain text (rich text's too); nil: no text (an image, a colour).
+    /// Its plain text (rich text's too); nil: no text (an image, a colour), or none read (`SystemClipboard`: a copy made
+    /// on an iPhone or another Mac).
     func text() -> String?
     /// The image on it, as PNG, where an image is what was copied (its first type an image's: a screenshot, Copy Image);
     /// nil otherwise (0.6.8.2).
@@ -93,14 +94,15 @@ public final class SystemClipboard: ClipboardSource {
 
     public func text() -> String? {
         let pasteboard = NSPasteboard.general
+        guard !(pasteboard.types ?? []).contains(where: { $0.rawValue == Self.remoteType }) else { return nil }
         if let text = pasteboard.string(forType: .string) { return text }
         // Rich text without its plain text alongside: its plain text.
         if let rtf = pasteboard.data(forType: .rtf) { return NSAttributedString(rtf: rtf, documentAttributes: nil)?.string }
         return nil
     }
 
-    /// Universal Clipboard's marker: an image copied on an iPhone or another Mac, its data fetched from there when read
-    /// (the main thread would wait on the network): never read for the history.
+    /// Universal Clipboard's marker: a copy made on an iPhone or another Mac, its data fetched from there when read (the
+    /// main thread would wait on the network): never read for the history, its text nor its image.
     public static let remoteType = "com.apple.is-remote-clipboard"
 
     public func image() -> ClipboardImage? {
@@ -121,6 +123,41 @@ private final class PreparingIDs: @unchecked Sendable {
     func remove(_ id: String) { _ = lock.withLock { set.remove(id) } }
 }
 
+/// An image being made ready off the main thread (`ClipboardRecorder.imageWork`): what that came to, told from any thread,
+/// and its adding to the store, on the main thread once: at its turn there, or earlier, as ⌃V's look waits for it.
+// Unchecked: `result` is behind the lock; `add` and `outcome` are used on the main thread only.
+private final class PreparingImage: @unchecked Sendable {
+    private let lock = NSLock()
+    private let ready = DispatchSemaphore(value: 0)
+    private var value: ClipboardHistoryStore.Prepared?
+    /// Adds it to the store; nil once it has.
+    var add: ((ClipboardHistoryStore.Prepared) -> ClipboardRecorder.Outcome)?
+    /// What adding it came to (`imageQueued` until it has).
+    private(set) var outcome = ClipboardRecorder.Outcome.imageQueued
+
+    /// What making it ready came to; nil: not yet.
+    var result: ClipboardHistoryStore.Prepared? { lock.withLock { value } }
+
+    /// Made ready (on any thread): `prepared` kept, and handed on.
+    func prepared(_ prepared: ClipboardHistoryStore.Prepared) -> ClipboardHistoryStore.Prepared {
+        lock.withLock { value = prepared }
+        ready.signal()
+        return prepared
+    }
+
+    /// Whether it is ready, waiting `seconds` at most for it.
+    func wait(_ seconds: TimeInterval) -> Bool {
+        result != nil || ready.wait(timeout: .now() + seconds) == .success
+    }
+
+    /// Added to the store, once (main thread).
+    func added(_ prepared: ClipboardHistoryStore.Prepared) {
+        guard let add else { return }
+        self.add = nil
+        outcome = add(prepared)
+    }
+}
+
 /// A value handed back to the main thread it came from (unchecked: it is only ever used there).
 private struct MainThreadOnly<Value>: @unchecked Sendable {
     let value: Value
@@ -132,8 +169,10 @@ private struct MainThreadOnly<Value>: @unchecked Sendable {
 /// reading it would ask the user (`access` not `.allowed`: nothing is read then, only the change count and the access,
 /// which never ask), it was copied during secure input (a password field had the keys when it changed, or at the look
 /// before), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
-/// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour), it is blank, or it is longer than
-/// `ClipboardHistoryItem.maxLength`. Used on one thread (the input method's main one).
+/// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour) or was copied on an iPhone or
+/// another Mac (Universal Clipboard: never read, `SystemClipboard.remoteType`), it is blank, or it is longer than
+/// `ClipboardHistoryItem.maxLength`; nor the clipboard TerminalPaste puts back after its paste (`putBack`). Used on one
+/// thread (the input method's main one).
 public final class ClipboardRecorder {
     /// Why a change wasn't recorded.
     public enum Outcome: Equatable, Sendable {
@@ -143,7 +182,7 @@ public final class ClipboardRecorder {
         case imageQueued
         /// It couldn't be written (a full disk): nothing kept.
         case notSaved
-        /// The newest kept already (a copy of it again, the clipboard put back after a paste of ours).
+        /// The newest kept already (a copy of it again).
         case same
     }
 
@@ -158,8 +197,9 @@ public final class ClipboardRecorder {
 
     public let store: ClipboardHistoryStore
     let source: ClipboardSource
-    /// Where images are made ready, one at a time (a later copy never overtakes an earlier one).
-    static let imageQueue = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-images", qos: .utility)
+    /// Where images are made ready, one at a time (a later copy never overtakes an earlier one); as soon as the system can,
+    /// as ⌃V's look may be waiting for one (`quickImageWait`: a wait on the main thread lends the queue no priority).
+    static let imageQueue = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-images", qos: .userInitiated)
     /// Runs an image's preparation (its PNG, id, thumbnail and files: `ClipboardHistoryStore.prepare`) and hands its result
     /// to the second closure on the main thread: off the main thread by default, so a large copy never holds typing up;
     /// a test's runs it at once.
@@ -171,6 +211,11 @@ public final class ClipboardRecorder {
             DispatchQueue.main.async { main.value(prepared) }
         }
     }
+    /// The longest ⌃V's look waits for an image to be made ready (`poll(limit:quick:)`): a screenshot's takes 15–35 ms on
+    /// an M4 (2560 × 1664 pixels; a 6K one's 120 ms); one taking longer is kept as it is ready, after the panel.
+    public static let quickImageWait: TimeInterval = 0.15
+    /// The images being made ready, in the order copied, until each is added on the main thread.
+    private var preparing: [PreparingImage] = []
     let secureInput: () -> Bool
     let now: () -> Date
     /// The change count last looked at (nil: none yet: what's on the clipboard is recorded at the first look, at launch),
@@ -193,13 +238,21 @@ public final class ClipboardRecorder {
         access = source.access
     }
 
-    /// A look at the clipboard: a change since the last recorded (`limit`: how many are kept).
+    /// A look at the clipboard: a change since the last recorded (`limit`: how many are kept). `quick`: the look of a
+    /// panel about to show (⌃V), which waits for it: a text copied is kept in memory at once and its file written off the
+    /// main thread (`ClipboardHistoryStore.record(_:at:limit:savingLater:)`); an image copied just before, made ready off
+    /// the main thread as any is, is waited for (`quickImageWait` at most) and kept at once, as is one a look before
+    /// found, still being made ready: the panel has its kept row (its thumbnail, its preview), not the image on the
+    /// clipboard. ⌃V is the user asking for the history, the clipboard's image with it.
     @discardableResult
-    public func poll(limit: Int) -> Outcome {
+    public func poll(limit: Int, quick: Bool = false) -> Outcome {
         let secure = secureInput()
         defer { wasSecure = secure }
         let count = source.changeCount
-        guard count != seen else { return .unchanged }
+        guard count != seen else {
+            if quick { waitForImages() }
+            return .unchanged
+        }
         seen = count
         access = source.access
         guard access == .allowed else { return .notAllowed }
@@ -207,32 +260,45 @@ public final class ClipboardRecorder {
         guard Set(source.types).isDisjoint(with: Self.neverRecorded) else { return .marked }
         if let image = source.image() {
             let (store, date, generation) = (store, now(), store.generation)
-            var outcome = Outcome.imageQueued
-            imageWork({ store.prepare(image) }) { [weak self] prepared in
-                guard let self else { return }
+            let preparing = PreparingImage()
+            preparing.add = { [weak self] prepared in
+                guard let self else { return .imageQueued }
+                self.preparing.removeAll { $0 === preparing }
                 // Cleared or turned off meanwhile: not kept.
                 if case let .ready(ready) = prepared, store.generation != generation {
                     store.discard(ready)
-                    return
+                    return .imageQueued
                 }
                 switch prepared {
                 case let .ready(ready):
-                    outcome = store.add(ready, at: date, limit: limit) ? .recorded : .same
                     // The newest still on the clipboard only if nothing was copied since.
                     if source.changeCount == count { newestSeen = count }
+                    return store.add(ready, at: date, limit: limit) ? .recorded : .same
                 case .tooLarge:
-                    outcome = .tooLong
+                    return .tooLong
                 case .notSaved:
-                    outcome = .notSaved
+                    return .notSaved
                 }
             }
-            return outcome
+            self.preparing.append(preparing)
+            imageWork({ preparing.prepared(store.prepare(image)) }) { preparing.added($0) }
+            if quick { waitForImages() }
+            return preparing.outcome
         }
         guard let text = source.text() else { return .notText }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .blank }
         guard text.utf16.count <= ClipboardHistoryItem.maxLength * 4, text.count <= ClipboardHistoryItem.maxLength else { return .tooLong }
         newestSeen = count
-        return store.record(text, at: now(), limit: limit) ? .recorded : .same
+        return store.record(text, at: now(), limit: limit, savingLater: quick) ? .recorded : .same
+    }
+
+    /// The images being made ready waited for, `quickImageWait` at most (the last of them: they are made ready one after
+    /// another), and those ready by then added now, in the order copied, not at their turn on the main thread.
+    private func waitForImages() {
+        guard let last = preparing.last, last.wait(Self.quickImageWait) else { return }
+        for image in preparing {
+            if let prepared = image.result { image.added(prepared) }
+        }
     }
 
     /// What's on the clipboard now is never recorded, only a copy made after it (Clear History, the history turned off
@@ -241,15 +307,25 @@ public final class ClipboardRecorder {
         seen = source.changeCount
         newestSeen = nil
     }
+
+    /// The clipboard put back at change count `count` as it was at `was`, after a paste of ours (`TerminalPaste`): never
+    /// recorded as a new copy, where `was` was looked at already (recorded, or skipped: copied during secure input, before
+    /// Clear History); the store's newest still, if it was. Not looked at yet: the next look takes it as it would have.
+    public func putBack(at count: Int, asAt was: Int) {
+        guard let seen, seen >= was else { return }
+        self.seen = count
+        if newestSeen == was { newestSeen = count }
+    }
 }
 
 /// Clipboard history's copies, newest first, as kept on this Mac: one file (`url`) for the list, and beside it a folder
 /// (`imagesURL`) with each kept image's PNG and its thumbnail (0.6.8.2), all readable by the user only (0600), in
 /// Application Support, excluded from backups, written whole (the list atomically) with each change; an image no longer
 /// in the list is deleted with it; `clear` deletes them all (Clear History, the history turned off). Read once, as it is
-/// made. Never synced, never sent anywhere.
+/// made. Never synced, never sent anywhere. Its files are written one change after another (`writes`): at once, or, for
+/// a copy recorded as ⌃V's panel is about to show, after it, off the main thread.
 // Unchecked: `prepare` runs off the main thread and touches only the images folder (by `url`, which never changes); the
-// list itself is read and changed on the main thread only.
+// list itself is read and changed on the main thread only, and written from a copy of it on `writes`.
 public final class ClipboardHistoryStore: @unchecked Sendable {
     /// ~/Library/Application Support/AllInOneIME/clipboard-history.json.
     public static var defaultURL: URL { CorePaths.dataDir.appendingPathComponent("clipboard-history.json") }
@@ -259,6 +335,8 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public let url: URL
     /// Counts the clears: an image made ready before one isn't added after it (`ClipboardRecorder.poll`).
     public private(set) var generation = 0
+    /// Where the list's file is written and the images no longer in it deleted, in the order the changes were made.
+    private let writes = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-history", qos: .userInitiated)
     /// The ids of the images being made ready (`prepare` until `add` or `discard`): their files are never removed meanwhile.
     private let preparing = PreparingIDs()
     /// The kept images' folder, beside the list and named after it (clipboard-history-images for the user's): two stores
@@ -301,14 +379,20 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     }
 
     /// `text` copied at `date`: first, once (the same text further down moves up), `limit` kept at most. False: it was
-    /// the newest already, and nothing changed.
+    /// the newest already, and nothing changed. `savingLater`: in the list at once, its file written off the main thread
+    /// after (`waitForWrites` waits for it).
     @discardableResult
-    public func record(_ text: String, at date: Date, limit: Int) -> Bool {
+    public func record(_ text: String, at date: Date, limit: Int, savingLater: Bool = false) -> Bool {
         guard items.first.map({ $0.image != nil || $0.text != text }) ?? true else { return false }
         items.removeAll { $0.image == nil && $0.text == text }
         items.insert(ClipboardHistoryItem(text: text, copiedAt: date), at: 0)
-        keep(limit)
+        keep(limit, later: savingLater)
         return true
+    }
+
+    /// Once what was to be written is (`record(_:at:limit:savingLater:)`).
+    public func waitForWrites() {
+        writes.sync {}
     }
 
     /// An image made ready to keep (`prepare`): its id (its PNG's SHA-256), size and PNG's length, its files written.
@@ -356,7 +440,8 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// already, and nothing changed.
     @discardableResult
     public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
-        preparing.remove(image.id)
+        // Being made ready until the list with it is written: a write left for later, of the list before it, keeps its files.
+        defer { preparing.remove(image.id) }
         guard items.first?.image?.id != image.id else { return false }
         items.removeAll { $0.image?.id == image.id }
         let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
@@ -385,25 +470,40 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return try? Data(contentsOf: imageURL(id))
     }
 
+    /// The kept image whose thumbnail is the file at `path` (a panel row's icon: `ClipboardHistoryImage.thumbnail`), and its
+    /// PNG's file: what the panel's larger picture of it shows (the input method's ImagePreview). Nil: none kept (any more).
+    public func image(thumbnail path: String) -> (image: ClipboardHistoryImage, file: URL)? {
+        guard let image = items.lazy.compactMap(\.image).first(where: { $0.thumbnail == path }) else { return nil }
+        return (image, imageURL(image.id))
+    }
+
     /// The oldest dropped beyond `limit` (a lower one set), at once.
     public func trim(to limit: Int) {
         guard items.count > max(limit, 1) else { return }
         keep(limit)
     }
 
-    /// Everything forgotten: the list's file and the images deleted.
+    /// Everything forgotten: the list's file and the images deleted (after what was to be written before).
     public func clear() {
         generation += 1
         items = []
-        try? FileManager.default.removeItem(at: url)
-        try? FileManager.default.removeItem(at: imagesURL)
+        writes.sync {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: imagesURL)
+        }
     }
 
-    /// `limit` kept at most, saved; images no longer in the list deleted.
-    private func keep(_ limit: Int) {
+    /// `limit` kept at most, saved; images no longer in the list deleted: before it returns, or (`later`) off the main
+    /// thread after.
+    private func keep(_ limit: Int, later: Bool = false) {
         items = Array(items.prefix(max(limit, 1)))
-        save()
-        removeUnlisted()
+        guard !items.isEmpty else { return clear() }
+        let items = self.items
+        let write = { [self] in
+            save(items)
+            removeUnlisted(listing: items)
+        }
+        if later { writes.async(execute: write) } else { writes.sync(execute: write) }
     }
 
     func imageURL(_ id: String) -> URL { imagesURL.appendingPathComponent("\(id).png") }
@@ -426,6 +526,11 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// Image files whose image is no longer in the list deleted.
     private func removeUnlisted() {
+        writes.sync { removeUnlisted(listing: items) }
+    }
+
+    /// Image files whose image isn't among `items`, nor being made ready, deleted.
+    private func removeUnlisted(listing items: [ClipboardHistoryItem]) {
         let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids)
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: imagesURL.path) else { return }
         for name in files {
@@ -442,8 +547,8 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         try? target.setResourceValues(values)
     }
 
-    private func save() {
-        guard !items.isEmpty else { return clear() }
+    /// `items` written as the list's file (on `writes`).
+    private func save(_ items: [ClipboardHistoryItem]) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let file = File(items: items.map { item in

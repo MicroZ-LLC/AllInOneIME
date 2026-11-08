@@ -5,16 +5,21 @@ import Speech
 
 /// Voice input: hold the right Option key, speak, release. Speech is recognized on the Mac by
 /// Apple's SpeechAnalyzer (macOS 26+); audio never leaves the machine. The language follows the
-/// input mode: Chinese (pinyin) → zh_CN, English → en_US.
+/// input mode: Chinese (pinyin) → zh_CN (zh_TW, zh_HK in Taiwan's and Hong Kong's characters), English → en_US.
 enum VoiceInput {
     static var isSupported: Bool {
         if #available(macOS 26.0, *) { return SpeechTranscriber.isAvailable }
         return false
     }
 
-    static func locale(for language: Language) -> Locale {
+    static func locale(for language: Language, chinese: ChineseCharacters = LiveConfig.current.typedChinese) -> Locale {
         switch language {
-        case .chinese: return Locale(identifier: "zh_CN")
+        case .chinese:
+            switch chinese {
+            case .simplified: return Locale(identifier: "zh_CN")
+            case .taiwan: return Locale(identifier: "zh_TW")
+            case .hongkong: return Locale(identifier: "zh_HK")
+            }
         case .english: return Locale(identifier: "en_US")
         case .french: return Locale(identifier: "fr_FR")
         case .korean: return Locale(identifier: "ko_KR")
@@ -180,10 +185,6 @@ final class DictationSession: @unchecked Sendable {
         self.onFinish = onFinish
     }
 
-    /// Whether the file source has delivered all of its audio (self-test).
-    var isFileFed: Bool { lock.withLock { fileFed } }
-    private var fileFed = false
-
     func start(source: Source) {
         let (stream, continuation) = AsyncStream<AnalyzerInput>.makeStream()
         self.continuation = continuation
@@ -324,8 +325,6 @@ final class DictationSession: @unchecked Sendable {
                 let seconds = Double(buffer.frameLength) / file.processingFormat.sampleRate / max(speed, 0.1)
                 try? await Task.sleep(for: .seconds(seconds))
             }
-            guard let self else { return }
-            self.lock.withLock { self.fileFed = true }
         }
         lock.withLock { feeder = task }
     }

@@ -2,13 +2,16 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import AppKit
 import SwiftUI
+import UserNotifications
 
 // AllInOneIME's own updates, from Settings → About (and the input menu's "Check for Updates…"):
 //
 // 1. Checking (`UpdateController.check`): update.json and its signature from allinoneime.com, checked with the
 //    releases' key built into the app (`Updater`). By itself once a day, at launch or when a text field is
 //    activated, in the background (`UpdateSchedule`; never on a keystroke); turned off in About. A newer version
-//    is a quiet line on the About page and in the menu bar panel, never a dialog.
+//    is a quiet line on the About page and in the menu bar panel, never a dialog; one this Mac can install, found by
+//    a check in the background, is told once in a macOS notification too (0.7.0: `UpdateNotifier`), with Update (step
+//    2 on) and Don't Show Again (`notifiesUpdates`, under the switch in About).
 // 2. Update (`UpdateController.install`): the archive is downloaded and checked against the manifest's size and
 //    sha256, unpacked into a folder of its own (`UpdateLocations.work`), and both apps are checked (bundle IDs,
 //    version and build, code signatures, and the new input method has to start: `--version`) — all before
@@ -190,14 +193,11 @@ enum UpdateHelper {
     }
 
     static func run(_ arguments: [String]) -> Int32 {
-        func option(_ name: String) -> String? {
-            arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-        }
         guard let path = arguments.first, !path.hasPrefix("--") else {
             printError("usage: --apply-update STAGED [--wait-pid PID] [--target-dir DIR] [--reopen-settings] [--simulate-failure after-swap]")
             return 2
         }
-        let locations = option("--target-dir").map { UpdateLocations.test(root: URL(fileURLWithPath: $0)) } ?? .real
+        let locations = option("--target-dir", in: arguments).map { UpdateLocations.test(root: URL(fileURLWithPath: $0)) } ?? .real
         let staged = URL(fileURLWithPath: path).standardizedFileURL
         // Only an update staged where the input method stages them (a folder of the user's, not any folder).
         guard staged.deletingLastPathComponent().resolvingSymlinksInPath().path == locations.work.resolvingSymlinksInPath().path,
@@ -206,8 +206,8 @@ enum UpdateHelper {
             return 2
         }
         // A failure on purpose, for the tests' rollback: never on the user's own install.
-        let simulate = locations.isTest ? option("--simulate-failure") : nil
-        return apply(staged: staged, locations: locations, waitPID: option("--wait-pid").flatMap { pid_t($0) },
+        let simulate = locations.isTest ? option("--simulate-failure", in: arguments) : nil
+        return apply(staged: staged, locations: locations, waitPID: option("--wait-pid", in: arguments).flatMap { pid_t($0) },
                      reopenSettings: arguments.contains("--reopen-settings"), simulateFailure: simulate)
     }
 
@@ -242,13 +242,14 @@ enum UpdateHelper {
         if let waitPID { waitForExit(waitPID) }
         if !locations.isTest { stopInputMethod(locations, staged: staged) }
 
-        // Checked again: they waited in a folder of the user's since the input method checked them.
+        // Checked again: they waited in a folder of the user's since the input method checked them. Signed by this app's
+        // team, as the installer checks them (none for an ad-hoc signed build, a developer's).
         do {
             for (app, id) in [(new.inputMethod, Updater.bundleID), (new.settingsApp, Updater.settingsBundleID)] {
                 guard NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
                     throw UpdateError.invalidApp("\(app.lastPathComponent) is missing")
                 }
-                try CodeSignature.check(app, identifier: id, team: nil)
+                try CodeSignature.check(app, identifier: id, team: CodeSignature.ownTeamID)
             }
         } catch {
             return finish("the staged update doesn't check out (\(error)); nothing was changed")
@@ -273,9 +274,7 @@ enum UpdateHelper {
             try UpdateStaging.launchCheck(locations.inputMethod, version: to)
             if !locations.isTest {
                 stopInputMethod(locations, staged: staged)  // in case macOS started the previous one again meanwhile
-                _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
-                let register = UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
-                                                 ["--register"], timeout: 300)
+                let register = registerInstalled(locations)
                 say("--register (\(register.status)):\n\(register.output)")
                 guard register.status == 0 else { throw UpdateError.invalidApp("registering \(to) failed (\(register.status))") }
             }
@@ -293,15 +292,20 @@ enum UpdateHelper {
                 return finish(error.localizedDescription)
             }
             if !locations.isTest {
-                _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
-                let register = UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
-                                                 ["--register"], timeout: 300)
-                say("previous version registered again (\(register.status))")
+                say("previous version registered again (\(registerInstalled(locations).status))")
             }
             return finish("\(reason); AllInOneIME \(from) is back")
         }
         swap.commit()
         return finish(nil)
+    }
+
+    /// The apps installed now registered with Launch Services, and the input method with the text input system by its own
+    /// `--register`: what that said.
+    static func registerInstalled(_ locations: UpdateLocations) -> UpdateProcess.Result {
+        _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
+        return UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
+                                 ["--register"], timeout: 300)
     }
 
     /// Waits for the input method that started this helper to quit (it does once the helper runs); ends it
@@ -347,10 +351,6 @@ enum UpdateHelper {
 /// `--check-update` and `--install-update`: what About does, from a terminal, and against a test server (another
 /// key, plain http to this Mac) and a test install (`--target-dir`).
 enum UpdateCommands {
-    static func option(_ name: String, in arguments: [String]) -> String? {
-        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-    }
-
     static func updater(_ arguments: [String], currentVersion: String) -> Updater? {
         var updater = Updater(manifestURL: Updater.defaultManifestURL, currentVersion: currentVersion, allowsLocalHTTP: true)
         if let url = option("--manifest-url", in: arguments) {
@@ -448,6 +448,8 @@ enum UpdateCommands {
     }
 }
 
+/// The outcome of work in the background, polled by the main thread (a developer command's: `UpdateCommands.wait`,
+/// `installPack`).
 final class ResultBox<T>: @unchecked Sendable {
     private let lock = NSLock()
     private var value: Result<T, Error>?
@@ -504,6 +506,20 @@ final class UpdateController: ObservableObject {
     var updatesInPlace = UpdateLocations.runningIsInstalled
     var now: () -> Date = Date.init
     private var task: Task<Void, Never>?
+    /// A new version's notification and its buttons (`UpdateNotifier`): macOS's notification center, the settings as the
+    /// input method reads them, the defaults the rest of this state is in.
+    lazy var notifier: UpdateNotifier = {
+        let notifier = UpdateNotifier(poster: SystemUpdateNotices.shared, defaults: defaults)
+        notifier.config = { LiveConfig.currentIfValid }
+        notifier.turnOff = {
+            try Config.change { $0.notifiesUpdates = false }
+            NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+            log.notice("update notifications turned off (Don't Show Again)")
+        }
+        notifier.install = { [unowned self] in self.install() }
+        notifier.openAbout = { SettingsWindow.shared.show(page: .about) }
+        return notifier
+    }()
 
     static let releasesPage = URL(string: "https://github.com/MicroZ-LLC/AllInOneIME/releases/latest")!
     private static let manifestKey = "updateManifest", signatureKey = "updateManifestSignature"
@@ -517,14 +533,16 @@ final class UpdateController: ObservableObject {
         return nil
     }
 
-    /// At launch: what the last update did, the update known from the last check (its signature checked
-    /// again), and a check soon if one is due.
+    /// At launch: what the last update did (a notification if one started it and it didn't go in), the update known
+    /// from the last check (its signature checked again), and a check soon if one is due.
     func start() {
         if let result = UpdateResult.read(locations.result) {
             lastResult = result
             try? FileManager.default.removeItem(at: locations.result)
             log.notice("update \(result.from, privacy: .public) → \(result.to, privacy: .public): \(result.ok ? "installed" : (result.error ?? "failed"), privacy: .public)")
         }
+        let result = lastResult
+        Task { await notifier.restarted(after: result) }
         clearLeftovers()
         lastChecked = defaults.object(forKey: Self.successKey) as? Date
         if let data = defaults.data(forKey: Self.manifestKey), let signature = defaults.data(forKey: Self.signatureKey),
@@ -558,7 +576,8 @@ final class UpdateController: ObservableObject {
     }
 
     /// Asks allinoneime.com. A check the user asked for shows its progress and its errors; one in the background
-    /// changes nothing on screen unless it finds something.
+    /// changes nothing on screen unless it finds something, and a newer version it finds gets its notification
+    /// (`UpdateNotifier.found`; one the user's check showed on the About page counts as told).
     func check(userInitiated: Bool) {
         guard task == nil else { return }
         let before = state
@@ -577,6 +596,11 @@ final class UpdateController: ObservableObject {
                 self.defaults.set(found.signature, forKey: Self.signatureKey)
                 self.show(found.manifest)
                 log.notice("update check: \(found.manifest.version, privacy: .public) (\(String(describing: found.availability), privacy: .public))")
+                if userInitiated {
+                    self.notifier.shown(found.manifest, availability: found.availability)
+                } else {
+                    await self.notifier.found(found.manifest, availability: found.availability, installable: self.updatesInPlace)
+                }
             case let .failure(error):
                 log.error("update check failed: \(String(describing: error), privacy: .public)")
                 self.state = userInitiated ? .failed(UpdateText.describe(error), before.manifest) : before
@@ -592,13 +616,15 @@ final class UpdateController: ObservableObject {
         }
     }
 
-    /// The Update button: downloads, checks and stages the update, hands it to the helper and quits; the input
-    /// method starts again as the new version (or, if anything fails, as this one).
-    func install() {
-        guard task == nil, let manifest = state.manifest, updater.availability(of: manifest) == .available else { return }
+    /// The Update button (and a notification's): downloads, checks and stages the update, hands it to the helper and
+    /// quits; the input method starts again as the new version (or, if anything fails, as this one). The version it is
+    /// installing; nil when it started nothing (busy, nothing to install, or the download page opened instead).
+    @discardableResult
+    func install() -> String? {
+        guard task == nil, let manifest = state.manifest, updater.availability(of: manifest) == .available else { return nil }
         guard updatesInPlace else {
             NSWorkspace.shared.open(Self.releasesPage)
-            return
+            return nil
         }
         state = .downloading(manifest, nil)
         let (updater, locations) = (updater, locations)
@@ -627,13 +653,82 @@ final class UpdateController: ObservableObject {
                     try? FileManager.default.removeItem(at: staged.folder)
                     self.state = .failed(UpdateText.describe(error), manifest)
                     self.task = nil
+                    await self.notifier.installFailed(manifest.version)
                 }
             case let .failure(error):
                 log.error("update failed: \(String(describing: error), privacy: .public)")
                 self.state = .failed(UpdateText.describe(error), manifest)
                 self.task = nil
+                await self.notifier.installFailed(manifest.version)
             }
         }
+        return manifest.version
+    }
+
+    /// What the user did with one of the updater's notifications (`AgentMonitor` hands it over).
+    func respond(_ action: UpdateNoticeAction) {
+        do {
+            try notifier.respond(action)
+        } catch {
+            log.error("could not turn update notifications off: \(String(describing: error), privacy: .public)")
+        }
+    }
+}
+
+// MARK: - Notifications
+
+/// macOS's notification center for the updater's notifications (`UpdateNotifier`). A new version's has Update and Don't
+/// Show Again, neither of which brings anything to the front (no `.foreground`): the app being typed in keeps its keys.
+/// What the user does with them comes back through the input method's one delegate of the notification center
+/// (`AgentMonitor`).
+@MainActor
+final class SystemUpdateNotices: UpdateNoticePoster {
+    static let shared = SystemUpdateNotices()
+    /// A new version's category (its buttons); a failure's has none: clicking it is all.
+    nonisolated static let category = "update-available"
+    /// In a notification's userInfo: which of the updater's it is (`UpdateNotice.Kind`).
+    nonisolated static let userInfoKey = "update"
+
+    func permission() async -> UpdateNoticePermission {
+        switch await UNUserNotificationCenter.current().notificationSettings().authorizationStatus {
+        case .notDetermined: return .notAsked
+        case .authorized, .provisional, .ephemeral: return .allowed
+        case .denied: return .denied
+        @unknown default: return .denied
+        }
+    }
+
+    func askPermission() async -> Bool {
+        (try? await UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound])) ?? false
+    }
+
+    func post(_ notice: UpdateNotice) async {
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = notice.title
+        content.body = String(notice.body.prefix(240))
+        content.sound = .default
+        content.userInfo = [Self.userInfoKey: notice.kind.rawValue]
+        if notice.kind == .available {
+            // The buttons in the interface language of now.
+            center.setNotificationCategories([UNNotificationCategory(identifier: Self.category, actions: [
+                UNNotificationAction(identifier: UpdateNoticeAction.update.rawValue, title: tr("更新", "Update"), options: []),
+                UNNotificationAction(identifier: UpdateNoticeAction.dontShowAgain.rawValue, title: tr("不再提示", "Don't Show Again"), options: []),
+            ], intentIdentifiers: [])])
+            content.categoryIdentifier = Self.category
+        }
+        do {
+            try await center.add(UNNotificationRequest(identifier: "update-\(notice.kind.rawValue)-\(notice.version)", content: content, trigger: nil))
+            log.notice("update notification: \(notice.kind.rawValue, privacy: .public) \(notice.version, privacy: .public)")
+        } catch {
+            log.error("could not post the update notification: \(String(describing: error), privacy: .public)")
+        }
+    }
+
+    /// The action of a response to one of these (nil: dismissed, nothing to do).
+    nonisolated static func action(_ identifier: String) -> UpdateNoticeAction? {
+        if identifier == UNNotificationDefaultActionIdentifier { return .open }
+        return UpdateNoticeAction(rawValue: identifier).flatMap { $0 == .open ? nil : $0 }
     }
 }
 
@@ -692,6 +787,15 @@ struct UpdateSection: View {
                           "Once a day, in the background; a new version is mentioned here and in the menu bar panel, and only installed when you click Update."))
             }
             .disabled(!model.canSave)
+            // A new version's notification (`UpdateNotifier`), while checking is on.
+            if model.config.checkForUpdates {
+                Toggle(isOn: Binding(get: { model.config.notifiesUpdates }, set: { model.config.notifiesUpdates = $0; model.save() })) {
+                    titled(tr("有新版本时通知我", "Notify me when a new version is out"),
+                           tr("每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。",
+                              "One notification per new version, with Update and Don't Show Again; never a window."))
+                }
+                .disabled(!model.canSave)
+            }
         } header: {
             Text(tr("更新", "Updates")).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
         }

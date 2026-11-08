@@ -24,6 +24,10 @@ struct SettingsSchema {
     let tests: [String: SettingsStore.TestStatus]
     let libraryEntries: [PluginIndex.Entry]?
     let library: PluginLibrary
+    /// The settings the document is made from: the store's as the schema is made, read once rather than copied out of
+    /// the store by each field (nothing changes them while the document is made; the setters and handlers change the
+    /// store's, later).
+    let config: Config
     /// How each changeable field is set.
     private(set) var setters: [String: (JSON) throws -> Void] = [:]
     /// The actions done here, by field.
@@ -51,9 +55,8 @@ struct SettingsSchema {
         self.tests = tests
         self.libraryEntries = libraryEntries
         self.library = library
+        config = store.config
     }
-
-    var config: Config { store.config }
 
     /// What the document's platform calls its keys and places (Enter, a terminal window, this PC on Windows).
     var terms: PlatformTerms { platform == .mac ? .mac : .windows }
@@ -284,6 +287,13 @@ struct SettingsSchema {
                    tr("每天在后台看一次有没有新版本，有就在这里和菜单栏面板里提一句；只有你点「更新」才会安装。",
                       "Once a day, in the background; a new version is mentioned here and in the menu bar panel, and only installed when you click Update."),
                    config.checkForUpdates, platforms: [.mac]), to: &fields) { store.config.checkForUpdates = Self.bool($0) }
+        // A new version's notification, while checking is on.
+        if config.checkForUpdates {
+            add(toggle("notifiesUpdates", tr("有新版本时通知我", "Notify me when a new version is out"),
+                       tr("每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。",
+                          "One notification per new version, with Update and Don't Show Again; never a window."),
+                       config.notifiesUpdates, platforms: [.mac]), to: &fields) { store.config.notifiesUpdates = Self.bool($0) }
+        }
         return fields
     }
 
@@ -296,7 +306,11 @@ struct SettingsSchema {
                               help: config.inputLanguages.count > 1 ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
                                   : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
                               value: .array(config.inputLanguages.map { .string($0.rawValue) }))
-        languages.choices = Language.allCases.map { Choice($0.rawValue, SessionText.inputName($0, language: UIText.language)) }
+        // The characters Chinese is typed in (`Config.typedChinese`, which may read the system's languages): read once.
+        let chinese = config.typedChinese
+        languages.choices = Language.allCases.map {
+            Choice($0.rawValue, SessionText.inputName($0, language: UIText.language, chinese: chinese))
+        }
         (languages.ordered, languages.minCount, languages.maxCount) = (true, 1, Config.maxInputLanguages)
         add(languages, to: &fields) { value in
             store.config.setOrder(Self.strings(value).compactMap(Language.init(rawValue:)))
@@ -315,6 +329,13 @@ struct SettingsSchema {
             store.config.candidateLayout = value.string.flatMap(CandidateArrangement.init(rawValue:)) ?? store.config.candidateLayout
         }
         if config.inputLanguages.contains(.chinese) {
+            // As the system's languages say until one is picked (`Config.typedChinese`).
+            add(choice("chineseCharacters", UIText.chineseCharactersLabel, UIText.chineseCharactersHelp,
+                       value: .string(chinese.rawValue),
+                       choices: ChineseCharacters.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }),
+                to: &fields) { value in
+                store.setChineseCharacters(value.string.flatMap(ChineseCharacters.init(rawValue:)) ?? store.config.typedChinese)
+            }
             var fuzzy = Field(id: "fuzzyPinyin", kind: .choices, label: tr("模糊音", "Fuzzy pinyin"),
                               help: tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"),
                               value: .array(config.fuzzyPinyin.map(JSON.string)))
@@ -338,8 +359,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
                    terms.device == .mac
-                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。",
-                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI.")
+                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
+                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
                        : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
                             "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
@@ -379,7 +400,10 @@ struct SettingsSchema {
         var languages = Field(id: "outputLanguages", kind: .choices, label: tr("翻译成", "Translate to"),
                               help: tr("每种一行，拖动排序", "A line in each; drag to reorder"),
                               value: .array(codes.map(JSON.string)))
-        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0)) }
+        // "zh" is Simplified Chinese by name for someone typing Traditional characters: into it is a translation. The
+        // characters typed are read once, not for each language of the catalog (`Config.typedChinese`).
+        let chinese = config.typedChinese
+        languages.choices = OutputLanguage.catalog.map { Choice($0.code, UIText.name($0, typing: chinese)) }
             + config.outputLanguages.filter { !inCatalog($0.code) }.map { Choice(value: .string($0.code), label: UIText.name($0), disabled: true) }
         (languages.ordered, languages.minCount) = (true, 1)
         add(languages, to: &fields) { value in
@@ -433,7 +457,8 @@ struct SettingsSchema {
             var model = text("\(provider.rawValue).model", tr("模型", "Model"), value: stored.model, placeholder: defaults.model)
             model.choices = SuggestedModel.suggested(for: provider).map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { store.setProviderField(provider, \.model, to: $0.string ?? "") }
-            let source = keySource(provider)
+            // A key in the shell only where it is sent (`APIKeys.shellKeyGoes`): another base URL needs one saved here.
+            let source = keySource(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider)))
             add(secret("\(provider.rawValue).key", "API key", state: KeyState(source, ending: APIKeys.keyEnding(account: provider.rawValue)),
                        missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain), to: &fields)
             add(text("\(provider.rawValue).baseURL", tr("Base URL", "Base URL"), value: stored.baseURL, placeholder: defaults.baseURL),
@@ -447,11 +472,11 @@ struct SettingsSchema {
             var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), value: .string(config.modelId))
             model.choices = SuggestedModel.all.map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { value in
-                let id = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
+                let id = SettingsStore.typed(value.string ?? "")
                 guard !id.isEmpty else {
                     throw SettingsProblem(.badValue, field: "bedrock.modelId", message: SettingsService.badValue)
                 }
-                store.config.modelId = id
+                store.setBedrockModelId(id)
             }
             var profiles = AWSSharedConfig.profileNames()
             if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
@@ -462,8 +487,7 @@ struct SettingsSchema {
             let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
             add(text("bedrock.region", tr("区域", "Region"), value: config.region,
                      placeholder: tr("留空用 profile 的区域（\(region)）", "Empty: the profile's region (\(region))")), to: &fields) { value in
-                let region = value.string?.trimmingCharacters(in: .whitespaces) ?? ""
-                store.config.region = region.isEmpty ? nil : region
+                store.setBedrockRegion(value.string ?? "")
             }
         case .hosted, .apple:
             break  // the Mac's: the sign-in, the system's model

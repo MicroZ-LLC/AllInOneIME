@@ -60,6 +60,11 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
+    /// The candidates removed level one is given (`Composer.removedCandidates`): the settings' list, given again only when
+    /// it changes, with those removed it doesn't have yet (left out at once, written a moment later: in this field, and
+    /// in any the shell tells aren't written yet), so that neither a new engine nor a list read before they were written
+    /// brings one back; one written is the list's (`RemovedCandidates.Given`).
+    private var removedCandidates = RemovedCandidates.Given()
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
     private var englishModeWords = EnglishModeWords()
     /// The default input last applied (applied again when the setting changes, or what the app learned).
@@ -82,24 +87,37 @@ public final class InputSession {
     /// Electron page that tells no caret, or doesn't read back what is before it, where nothing can be marked during
     /// them). False: ⌃V is as before 0.6.8 there (`clipboardOpensIn`).
     public var clipboardPanelAllowed = true
-    /// The field that has the focus is a password field where secure input isn't on, as the shell told it
-    /// (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field, and with each read autocomplete's
-    /// pause makes); nil until told. Autocomplete and suggestions both go by it; one told stays one until another field
-    /// takes the focus.
-    var passwordField: Bool?
+    /// Whether the field that has the focus is a password field where secure input isn't on, as the shell told it: with
+    /// a key where suggestions may show (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field), off
+    /// the key's thread where English words may be learned (`SessionOutput.readPasswordField`), and with each read
+    /// autocomplete's pause makes; nil until told. Autocomplete, suggestions and the English words learned all go by it
+    /// (`fieldIsPrivate`); one told stays one until another field takes the focus.
+    var passwordField: PasswordField?
+    /// The focus (`fieldSession`) the shell was last asked in off the key's thread (`SessionOutput.readPasswordField`):
+    /// once a field.
+    private var passwordFieldAsked = -1
+    /// When the wheel was last over one of the session's own panels (`SessionServices.uptime`): suggestions' rows, the
+    /// command list or clipboard history (`SessionEvent.scroll`). It moved no caret (`caretMayHaveMoved`).
+    private var panelWheelAt: TimeInterval?
     lazy var shiftHold = TranslateMode.ShiftHold(now: { [weak self] in self?.services.uptime() ?? 0 },
                                                  pointer: { [weak self] in self?.services.suggestions.pointer() ?? .zero },
                                                  stickyKeys: { [weak self] in self?.services.suggestions.stickyKeys() ?? false })
     /// Shown once each time composing is paused for secure input.
     private var secureNoticeShown = false
+    /// The key being handled says secure input is on in the field's app (`FieldContext.secure`): on for everything it does.
+    private var secureKey = false
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     private var keyContext: FieldContext?
     private var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
     /// app's own keys) gives the command up (`Composer.selectionMoved`).
     private var selectionReported: Range<Int>??
+    /// The selection read after the "@" key that the draft waits for (`SessionOutput.readSelection`, its id), and the
+    /// reads asked for so far: what a read no longer waited for answers is dropped.
+    private var selectionReading: Int?
+    private var selectionReads = 0
     /// Counts the focus coming and going: a save that comes back to another count is no longer in the field it came from.
-    private var fieldSession = 0
+    private(set) var fieldSession = 0
     /// The latest notice's timer, and the voice key's (older ones do nothing).
     private var noticeToken = 0
     private var voiceArmToken = 0
@@ -107,6 +125,10 @@ public final class InputSession {
     private var lastInserted: String?
     /// The command list as last built from the settings and the extensions.
     private var catalog = CatalogCache()
+    /// The focus count the plugins were last looked for again in (`pluginsRescanned`), and the plugins the session had
+    /// then.
+    private var pluginsRescannedIn = -1
+    private var pluginsTaken: [InstalledPlugin] = []
     /// The commands whose programs were last checked (`setCommands`), and those whose program is missing; a check that
     /// ended while a command was being written applies once it's done; the latest check.
     private var checkedCommands: [Command] = []
@@ -126,9 +148,22 @@ public final class InputSession {
     private var pageWaiters: [TaskID: (PageContext?) -> Void] = [:]
     /// `@reply`'s message as the composer sent it and with the web page added, for its refines.
     private var replyWithPage: (input: String, full: String)?
+    /// What the model was last made ready for (InputSession+Warming.swift): the AI command the draft is, or Translate as
+    /// You Type.
+    var modelWarmedFor: String?
+    /// The interface language's own messages the agent is named in (`nameAgent`) and what a hand-off says
+    /// (`applyChatSettings`), as last made, with the language and the terms they were made for: both run with each key
+    /// with nothing composed, and these are made again only when those change, or the settings are taken over.
+    private var agentMessages: (language: String, terms: PlatformTerms, openedTerminal: String, secureInputTerminal: String)?
+    private var chatMessages: (language: String, messages: Composer.ChatMessages)?
     /// What the shell is to do, gathered while an event is handled.
     private var outputs: [SessionOutput] = []
     private var depth = 0
+    /// Counts what the session is handed (each `collect` from the outside: a key, an answer, a change of the settings):
+    /// what is read once for each (`aiAllowedNow`).
+    private var turn = 0
+    /// Whether AI may run in the app, as read in a turn (`aiAllowedNow`).
+    private var aiAllowedRead: (turn: Int, app: String?, allowed: Bool)?
 
     public init(composer: Composer = Composer(), services: SessionServices, deliver: @escaping @Sendable (SessionEvent) -> Void) {
         self.composer = composer
@@ -142,6 +177,24 @@ public final class InputSession {
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
         composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
+        composer.instantResults = { [weak self] query in
+            guard let services = self?.services else { return [] }
+            return services.instantResults(query, services.loadOpenHistory())
+        }
+        // One @: the app counted for, whether it has AI, a time read as `@reminder` reads it.
+        composer.appInUse = { [weak self] in self?.app }
+        composer.aiAllowed = { [weak self] in self?.aiAllowedNow() ?? true }
+        composer.parseReminder = { [weak self] text in self?.services.parseReminder(text) }
+        composer.selectionFollows = { [weak self] in
+            guard let self, let context = keyContext, context.read.contains(.selection), context.selectionFollows else { return false }
+            return selectionMayBeRead()
+        }
+        // The recipients in the address book as last read, on the key.
+        composer.instantRecipients = { [weak self] query in
+            guard let self, let contacts = services.cachedContacts() else { return nil }
+            let found = RecipientSearch.results(query, contacts: contacts, recent: services.loadRecentHandles())
+            return (found, SessionTasks.recipientNote(found, query: query, contacts: contacts, language: UIText.language))
+        }
     }
 
     // MARK: - Events
@@ -167,6 +220,9 @@ public final class InputSession {
                 suggestionsLeft()
                 perform(composer.commitAll())
                 learnTypedInEnglish(englishModeWords.leftField())
+                // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
+                let unwritten = services.unwrittenRemovals?()
+                takeRemovedCandidates(services.loadSettings().removedCandidates, unwritten: unwritten)
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
@@ -183,7 +239,16 @@ public final class InputSession {
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.choose(index: choice))
+            case let .delete(row):
+                // Clipboard history's rows and suggestions' are none of the engine's.
+                guard !clipboard.shown, !suggesting.shown else { return }
+                let rows = panelModel().rows
+                guard rows.indices.contains(row), let choice = rows[row].choice else { return }
+                perform(composer.deleteCandidate(index: choice))
             case let .scroll(steps):
+                panelWheelAt = services.uptime()
+                // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.
+                guard steps != 0 else { return }
                 // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
                 if clipboardScroll(steps) || suggestionsScroll(steps) { return }
                 perform(composer.scrollPalette(by: steps))
@@ -195,6 +260,16 @@ public final class InputSession {
                 takePasswordField(context)
                 // Below 0: Code's read of the field's words; else autocomplete's.
                 if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
+            case let .passwordField(told, focus):
+                // Asked in a field that has lost the focus since: not this one's.
+                guard focus == fieldSession else { return }
+                takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
+            case let .selection(selected, id):
+                // Read after the "@" key (`SessionOutput.readSelection`), the read the draft waits for: it takes it, and a key
+                // parked for it is done now, outside any key. One a key settled as none, or of a draft that's gone, is dropped.
+                guard id == selectionReading, composer.selectionPending else { return }
+                selectionReading = nil
+                perform(composer.selectionRead(usable(selected)))
             case let .task(id, update):
                 guard tasks.isCurrent(id) else { return }
                 received(update, from: id)
@@ -217,10 +292,9 @@ public final class InputSession {
                 suggestionsLeft()
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
+                composer.forgetRecentLive()  // `@open`'s results kept for its texts go with the field's session
                 noticeToken += 1  // its timer does nothing now
-                composer.engine = nil
-                engine = nil
-                englishWords = nil
+                dropEngine()
                 fieldSession += 1  // a save still on its way tells its outcome elsewhere
             }
         }
@@ -238,6 +312,7 @@ public final class InputSession {
 
     /// Runs `body`, gathering what it has the shell do: returned by the outermost call.
     func collect(_ body: () -> Void) -> [SessionOutput] {
+        if depth == 0 { turn &+= 1 }
         depth += 1
         body()
         depth -= 1
@@ -246,24 +321,80 @@ public final class InputSession {
         return outputs
     }
 
-    func emit(_ output: SessionOutput) { outputs.append(output) }
+    func emit(_ output: SessionOutput) {
+        outputs.append(output)
+        autocompleteFollow(output)  // what goes into the field, for a kept suggestion on the key
+    }
 
     /// The app of the key being handled, else the field's.
     var app: String? { keyContext?.field?.app ?? field.app }
     var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
 
+    /// `text` as it goes into the field: into a terminal, line breaks, tabs and other control characters only as a paste
+    /// (`Composer.actsInTerminal`: a line break typed there is Return, the shell runs the line; a tab is completion, ^D
+    /// the end of input), so where the paste key can't be posted (`SessionServices.pastesInTerminal`: no Accessibility)
+    /// on one line, tabs as spaces (`Composer.oneLine`). Whatever put it there: a snippet, clipboard history, an answer
+    /// (the AI's and a program's are one line already: `SessionTasks.stream`), typed out or in at once. A pasted CR (a
+    /// CRLF's, classic Mac line endings) becomes "\n": the Mac pastes by "\n", and a CR typed is Return.
+    func intoField(_ text: String) -> String {
+        guard terminal, Composer.actsInTerminal(text) else { return text }
+        guard services.pastesInTerminal() else { return Composer.oneLine(text) }
+        return text.replacingOccurrences(of: "\r\n", with: "\n").replacingOccurrences(of: "\r", with: "\n")
+    }
+
     /// Whether secure input is on (nothing is sent to a model or run then): anywhere (`SessionServices`), or a password
-    /// field here.
-    public func secureInputActive() -> Bool { field.secure || services.secureInputActive() }
+    /// field here, or in the field's app as the key being handled tells it.
+    public func secureInputActive() -> Bool { field.secure || secureKey || services.secureInputActive() }
+
+    /// What the shell told of the field that has the focus being a password field where secure input isn't on
+    /// (`passwordField`).
+    enum PasswordField: Equatable {
+        /// One (the Mac: Accessibility tells an `AXSecureTextField`).
+        case yes
+        /// None.
+        case no
+        /// The shell was asked and couldn't tell (the Mac: no Accessibility, nothing focused, no answer in time, the read
+        /// failed): not asked again in this field.
+        case unknown
+    }
+
+    /// Whether nothing of this field may be read, sent or learned from: secure input on (`secureInputActive`), or a
+    /// password field where it isn't (`passwordField`), as if it were. `unknown` is what a field not told yet counts as
+    /// (true where nothing is done until it's known: suggestions' rows, Code's reads of the field, the English words
+    /// learned; false for autocomplete, whose read of the field once its pause is over tells it); `untold` what one the
+    /// shell couldn't tell counts as (`PasswordField.unknown`): true for the English words learned, so that without
+    /// Accessibility nothing is learned in a field secure input isn't on in (a password field can't be told apart there);
+    /// false for autocomplete and suggestions, which have always taken it as none. The one check learning, autocomplete
+    /// and suggestions go by.
+    func fieldIsPrivate(unknown: Bool, untold: Bool = false) -> Bool {
+        guard !secureInputActive() else { return true }
+        switch passwordField {
+        case .yes?: return true
+        case .no?: return false
+        case .unknown?: return untold
+        case nil: return unknown
+        }
+    }
 
     /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
-    /// (`field`'s `secure`) stays one until another field takes the focus; asked (`.passwordField`) and not, it's none.
+    /// (`field`'s `secure`), else asked (`.passwordField`) none or, where the shell couldn't tell
+    /// (`passwordFieldUnknown`), unknown (`takePasswordField(_:)`).
     func takePasswordField(_ context: FieldContext) {
         guard context.read.contains(.secure), !context.secure else { return }
         if context.field?.secure == true {
-            passwordField = true
-        } else if context.read.contains(.passwordField), passwordField == nil {
-            passwordField = false
+            takePasswordField(.yes)
+        } else if context.read.contains(.passwordField) {
+            takePasswordField(context.passwordFieldUnknown ? .unknown : .no)
+        }
+    }
+
+    /// `told` of the field that has the focus: one stays one until another field takes the focus; none is taken over
+    /// one not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told
+    /// yet.
+    func takePasswordField(_ told: PasswordField) {
+        switch (told, passwordField) {
+        case (.yes, _), (_, nil), (.no, .unknown?): passwordField = told
+        default: break
         }
     }
 
@@ -277,6 +408,7 @@ public final class InputSession {
         field = info
         passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
+        composer.forgetRecentLive()  // a session of the field starts: `@open` searches its texts afresh
         clipboard = ClipboardHistoryField(reads: clipboard.reads)
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
@@ -320,9 +452,7 @@ public final class InputSession {
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
         case .starting:
-            engine = nil
-            englishWords = nil
-            composer.engine = nil
+            dropEngine()
         case .none:
             engine = nil
             englishWords = nil
@@ -353,14 +483,17 @@ public final class InputSession {
 
     /// Letters put in as they were typed while typing pinyin ("bedrock" and ⏎), learned as an English word the second time
     /// when they may be one, as every shell learns them (`EnglishWords.learns`; the first time they are only remembered,
-    /// in memory: `SessionServices.englishTypedOnce`): never during secure input, in a terminal, in a remote desktop, a
-    /// virtual machine or an SSH client, in a password manager, in an app with no AI, or with learning off. Offered in this
-    /// field at once; kept for every field (`SessionServices.learnEnglishWord`).
+    /// in memory: `SessionServices.englishTypedOnce`): never during secure input or in a password field where it isn't
+    /// on, nor in a field not known to be none (`fieldIsPrivate`: not told yet, `learningAsksPasswordField`, or told the
+    /// shell couldn't tell: the Mac without Accessibility learns nothing in a field secure input isn't on in), in a
+    /// terminal, in a remote desktop, a virtual machine or an SSH client, in a password manager, in an app with no AI, or
+    /// with learning off. Offered in this field at once; kept for every field (`SessionServices.learnEnglishWord`).
     private func learnEnglishWord(_ typed: String) {
         guard let englishWords,
               EnglishWords.learns(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
-                                  secureInput: secureInputActive(), config: services.loadSettings, offered: englishWords.words,
-                                  dictionary: englishWords.dictionary, typedOnce: services.englishTypedOnce) else { return }
+                                  secureInput: fieldIsPrivate(unknown: true, untold: true), config: services.loadSettings,
+                                  known: englishWords.keys, dictionary: englishWords.dictionary,
+                                  removed: englishWords.removedKeys, typedOnce: services.englishTypedOnce) else { return }
         learned(typed, englishWords)
         log.notice("learned an English word (\(typed.count) letters)")
     }
@@ -375,12 +508,26 @@ public final class InputSession {
             if suggestionsKeepFromLearning(typed) { continue }
             guard let englishWords,
                   EnglishWords.learnsTypedInEnglish(typed, in: FieldInfo(app: app, terminal: terminal, secure: field.secure),
-                                                    secureInput: secureInputActive(), config: services.loadSettings,
-                                                    offered: englishWords.words, dictionary: englishWords.dictionary,
+                                                    secureInput: fieldIsPrivate(unknown: true, untold: true),
+                                                    config: services.loadSettings,
+                                                    known: englishWords.keys, dictionary: englishWords.dictionary,
+                                                    removed: englishWords.removedKeys,
                                                     typedOnce: services.englishTypedOnce) else { continue }
             learned(typed, englishWords)
             log.notice("learned an English word typed in English mode (\(typed.count) letters)")
         }
+    }
+
+    /// Whether `key` has the shell asked, off the key's thread (`SessionOutput.readPasswordField`), if the field is a
+    /// password field, for the English words learned in `field` (the key's): not told yet, not asked yet in this field,
+    /// a key that types a Latin letter (what a word learned is made of), and words may be learned there
+    /// (`EnglishWords.mayLearn`). So it's asked once a field before anything can be learned in it, also where nothing
+    /// else asks (autocomplete and suggestions off), and no key waits for the answer; until it comes, nothing is learned.
+    private func learningAsksPasswordField(for key: KeyEvent, in field: FieldInfo) -> Bool {
+        guard passwordField == nil, passwordFieldAsked != fieldSession, englishWords != nil,
+              key.printableText?.contains(where: { $0.isASCII && $0.isLetter }) == true else { return false }
+        return EnglishWords.mayLearn(in: FieldInfo(app: field.app, terminal: field.terminal, secure: self.field.secure),
+                                     secureInput: secureInputActive(), config: services.loadSettings)
     }
 
     /// `typed` offered in this field at once, kept for every field (`SessionServices.learnEnglishWord`).
@@ -413,10 +560,22 @@ public final class InputSession {
     }
 
     /// Whether the mouse or trackpad was used since a time, as of `now` (`ProcessInfo.systemUptime`): a click may have
-    /// moved the caret. Asked once or twice a word, not for each key.
+    /// moved the caret (`caretMayHaveMoved`). Asked once or twice a word, not for each key.
     private func pointerUsedSince(now: TimeInterval) -> (TimeInterval) -> Bool {
-        let pointer = services.pointerUsedWithin
-        return { pointer(now - $0) }
+        { self.caretMayHaveMoved(within: now - $0) }
+    }
+
+    /// Whether the pointer was used in the last `seconds` where it may have moved the caret: a mouse button or a drag
+    /// anywhere (`SessionServices.buttonUsedWithin`: a click in the field before the wheel over a panel too), and the
+    /// wheel but not over the session's own panels: of the rest (`SessionServices.pointerUsedWithin`, which tells any use
+    /// of the pointer) only what came after the wheel was last over one of them (`panelWheelAt`) counts. A click on a
+    /// row of one of them is a click all the same: the system tells only the latest, so a click in the field just before
+    /// it couldn't be told apart (and what the row puts in starts the token and the character before the caret anew).
+    /// What the token, autocomplete's suggestion, the character before the caret and the words typed in English mode go
+    /// by; a Shift-click is told by any use of the pointer.
+    func caretMayHaveMoved(within seconds: TimeInterval) -> Bool {
+        services.buttonUsedWithin(seconds)
+            || services.pointerUsedWithin(panelWheelAt.map { min(seconds, services.uptime() - $0) } ?? seconds)
     }
 
     // MARK: - Settings
@@ -427,6 +586,8 @@ public final class InputSession {
     public func applySettings(app: String? = nil) -> [SessionOutput] { collect { settings(app: app) } }
 
     private func settings(app: String?) {
+        // Before the settings are read: a candidate removed that is written in between is in what is read.
+        let unwritten = services.unwrittenRemovals?()
         let config = services.loadSettings()
         // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over. Whether
         // it may run in this field now (what a key looks at first).
@@ -442,13 +603,17 @@ public final class InputSession {
         if let englishWords {
             englishWords.fuzzyPinyin = config.fuzzyPinyin
             let jargon = services.jargon(config)
-            let madeOf = config.englishWords + ["\u{0}"] + jargon.map(\.term)
+            let madeOf = EnglishWordsEngine.Words.madeOf(config, jargon: jargon)
             if madeOf != englishWordsMadeOf {
                 englishWordsMadeOf = madeOf
-                englishWords.words = EnglishWords.offered(config, jargon: jargon)
+                // As the shell made them ahead for these (at launch, off the main thread), else now.
+                englishWords.made = EnglishWordsEngine.Words.ahead(for: madeOf) ?? EnglishWordsEngine.Words(EnglishWords.offered(config, jargon: jargon))
             }
         }
+        // The candidates the user removed, left out by level one whatever its engine.
+        takeRemovedCandidates(config.removedCandidates, unwritten: unwritten)
         composer.outputLanguages = config.outputLanguages
+        composer.chineseCharacters = config.typedChinese
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         let fallback = services
@@ -459,11 +624,12 @@ public final class InputSession {
         }
         (typeOutRate, typeOutVaries, typeOutMistakes) = (config.typeOutRate, config.typeOutVaries, config.typeOutMistakes)
         applyAgent(config)  // before the program check: it's the agent's program `@agent` needs
-        setCommandList(catalog.catalog(config.customCommands, plugins: services.plugins(true), index: services.loadExtensions(config, true),
+        setCommandList(catalog.catalog(config.customCommands, plugins: pluginsRescanned(), index: services.loadExtensions(config, true),
                                        disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList).commands, recheck: true)
         // The interface language (config `uiLanguage`, else the system's) for the panel, notices and menu.
         UIText.choice = config.uiLanguage
         composer.messages = .make(language: UIText.language, terms: terms)
+        (agentMessages, chatMessages) = (nil, nil)  // made again with them (below)
         composer.messages.startedInBackground = composer.messages.startedInBackground
             .replacingOccurrences(of: "@", with: config.commandTrigger)
         composer.messages.codeNotRun = composer.messages.codeNotRun
@@ -511,6 +677,13 @@ public final class InputSession {
         return services.suggestions.codingPacks().first { $0.language == language }
     }
 
+    /// The candidates the user removed as the settings list them now (`listed`) given to level one when that changed,
+    /// with those removed it doesn't have yet: in this field, and those the shell told weren't written yet just before
+    /// the list was read (`unwritten`, `SessionServices.unwrittenRemovals`; `RemovedCandidates.Given`).
+    private func takeRemovedCandidates(_ listed: [String], unwritten: [String]?) {
+        if let list = removedCandidates.taking(listed, unwritten: unwritten) { composer.removedCandidates = list }
+    }
+
     /// What the keys and places are called here (`Platform.terms`), the keys by the roles the composer acts on
     /// (`Composer.modifierRoles`), as the panel names them (`PanelPresenter.model(for:)`).
     private var terms: PlatformTerms {
@@ -532,12 +705,24 @@ public final class InputSession {
     /// "已在终端打开 Claude Code": the agent picked, by name, in the messages; a custom agent by its program's name in a
     /// hand-off's.
     private func nameAgent() {
-        let base = Composer.Messages.make(language: UIText.language, terms: terms)
+        let base = agentBaseMessages()
         composer.messages.openedTerminal = base.openedTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         composer.messages.secureInputTerminal = base.secureInputTerminal.replacingOccurrences(of: "Claude Code", with: UIText.agentName)
         // Only once it has a command: otherwise the messages stay the language's own.
         composer.messages.agentNames = AgentKind.custom.program(custom: agentCommand) == nil
             ? [:] : [.custom: AgentKind.custom.displayName(custom: agentCommand)]
+    }
+
+    /// The messages `nameAgent` names the agent in, as the interface language has them with the terms
+    /// (`Composer.Messages.make`, some fifty texts): made again only when either changed (`agentMessages`).
+    private func agentBaseMessages() -> (openedTerminal: String, secureInputTerminal: String) {
+        let (language, terms) = (UIText.language, terms)
+        if let made = agentMessages, made.language == language, made.terms == terms {
+            return (made.openedTerminal, made.secureInputTerminal)
+        }
+        let base = Composer.Messages.make(language: language, terms: terms)
+        agentMessages = (language, terms, base.openedTerminal, base.secureInputTerminal)
+        return (base.openedTerminal, base.secureInputTerminal)
     }
 
     /// An `@question` conversation's settings: the rounds, and where it can go on (`ChatHandoff`): the agents installed,
@@ -548,7 +733,61 @@ public final class InputSession {
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
-        composer.chatMessages = .make(language: UIText.language)
+        let language = UIText.language
+        if let made = chatMessages, made.language == language {
+            composer.chatMessages = made.messages
+        } else {
+            let messages = Composer.ChatMessages.make(language: language)
+            chatMessages = (language, messages)
+            composer.chatMessages = messages
+        }
+    }
+
+    /// The plugins as last looked for; looked for again once a field takes the focus (one installed or removed shows up
+    /// there): in the background where the shell can (`SessionServices.rescanPlugins`, once a focus), what it found taken
+    /// in once it's done (`pluginsScanned`): the keys meanwhile have the commands as they were.
+    private func pluginsRescanned() -> [InstalledPlugin] {
+        guard let rescan = services.rescanPlugins else { return services.plugins(true) }
+        if pluginsRescannedIn != fieldSession {
+            pluginsRescannedIn = fieldSession
+            let post = tasks.poster()
+            rescan { post(.pluginsScanned) }
+        }
+        pluginsTaken = services.plugins(false)
+        return pluginsTaken
+    }
+
+    /// The plugins were looked for again (`pluginsRescanned`): what changed taken in as the focus would have: the command
+    /// list made again (unless something is composed: the next key after it makes it), suggestions' sources (a plugin
+    /// updated is turned on again, `suggestionsSettingsChanged`).
+    private func pluginsScanned() {
+        let plugins = services.plugins(false)
+        guard plugins != pluginsTaken else { return }
+        pluginsTaken = plugins
+        takeChangedCommands()
+        log.notice("plugins looked for again: \(plugins.count)")
+        suggestionsSettingsChanged()
+    }
+
+    /// The commands changed under the field (the shell's extensions rebuilt in the background, its plugins scanned): the
+    /// command list made again (`takeChangedCommands`), what the shell is to do then.
+    public func commandsChanged() -> [SessionOutput] {
+        collect { takeChangedCommands() }
+    }
+
+    /// The command list made again when what it is made of changed: with nothing composed, or while an "@" list is open
+    /// with no command written yet (it shows them at once, its highlight on the row it was on); while a command is
+    /// written, the next key after it makes it.
+    private func takeChangedCommands() {
+        let listOpen = composer.oneAt != nil || composer.paletteQuery != nil
+        guard !composer.isComposing || listOpen else { return }
+        let config = services.loadSettings()
+        let (commands, changed) = catalog.catalog(config.customCommands, plugins: services.plugins(false),
+                                                  index: services.loadExtensions(config, false),
+                                                  disabled: config.disabledExtensions, hidden: config.hiddenFromCommandList)
+        guard changed else { return }
+        setCommandList(commands, recheck: false)
+        if listOpen { showPanel() }
     }
 
     /// Whether the agent changed since its program was last checked (`setCommands`).
@@ -596,8 +835,8 @@ public final class InputSession {
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
     /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
-    /// field all the same; the selection, unless that "@" comes right after a word). A shell where reading is cheap reads
-    /// it all.
+    /// field all the same; the selection, unless that "@" comes right after a word or the field is known as a password
+    /// field). A shell where reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
@@ -606,15 +845,17 @@ public final class InputSession {
         if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
-        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com").
-        if key.printableText == services.loadSettings().commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
+        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
+        // as a password field (`selectionMayBeRead`).
+        let config = services.loadSettings()
+        if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let terminal = (context.field ?? field).terminal
             if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               services.loadSettings().useSelection, !secureInputActive() {
+               config.useSelection, !secureInputActive(), passwordField != .yes {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
@@ -641,6 +882,12 @@ public final class InputSession {
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
+            // On as this key tells it, whatever the shell reads of it elsewhere (`secureInputActive`).
+            secureKey = true
+            defer { secureKey = false }
+            // A key parked for the selection read after the "@" key is done first, as if nothing were selected, under
+            // secure input's rules: its row if it is still listed (no AI row is), else the text as typed.
+            perform(composer.selectionRead(nil))
             autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.commitAsTyped()
@@ -659,15 +906,25 @@ public final class InputSession {
             return false
         }
         secureNoticeShown = false
+        // Whether the field is a password field, for the English words learned in it: read once this key is answered,
+        // off its thread (no key waits for Accessibility), and told later.
+        if learningAsksPasswordField(for: event, in: context.field ?? field) {
+            passwordFieldAsked = fieldSession
+            emit(.readPasswordField(focus: fieldSession))
+        }
         // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than show the draft
         // again, doubled. This key is dropped, so ⏎ doesn't send half a sentence. (A command on the selection marks
         // nothing in the field: there's nothing for the app to take.)
         if composer.isComposing, !composer.draftInPanel, context.markedTextTaken {
             log.notice("the app took the marked text: starting over")
+            autocomplete.known = nil  // the field has text the session didn't put in
             perform(composer.appTookMarkedText())
             lastTyped.forget()
             return true
         }
+        // One @ while the selection after the "@" key is read: a key that neither edits the draft nor is parked for the read
+        // settles it as none first (`Composer.whileSelectionIsRead`), whatever takes it then.
+        perform(composer.settleSelectionRead(before: event))
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
         // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
@@ -694,8 +951,8 @@ public final class InputSession {
             }
             missingCheckWaiting = false
             composer.commandUsage = services.loadCommandUsage()  // another field may have run commands
-            composer.remembersQuestions = services.loadSettings().rememberQuestions
-            applyChatSettings(services.loadSettings())
+            composer.remembersQuestions = config.rememberQuestions
+            applyChatSettings(config)
             composer.questionHistory = services.loadQuestionHistory()  // asked in another field, or cleared
         }
         // Dead keys aren't composed for an input method (macOS): done here, from the layout the keys come from.
@@ -713,17 +970,24 @@ public final class InputSession {
         keyContext = context
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
+        let pending = composer.selectionPending
         let response = composer.handleKeyDown(key)
         keyContext = nil
+        // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
+        if composer.selectionPending, !pending {
+            selectionReads += 1
+            selectionReading = selectionReads
+            emit(.readSelection(id: selectionReads))
+        }
         if composer.pendingAccent == nil { deadKeys.reset() }
         perform(response.effects)
         followEnglishTyping(key, english: english, passedOn: !response.handled)
-        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { text } else { nil } }.last
+        let inserted = response.effects.compactMap { if case let .commit(text) = $0 { intoField(text) } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         // What went into the field with this key: what the input method put in, and the key's own text if the app types it.
         let put = response.effects.compactMap { effect -> String? in
             switch effect {
-            case let .commit(text), let .commitAfterKey(text): return text
+            case let .commit(text), let .commitAfterKey(text): return intoField(text)
             default: return nil
             }
         }.joined() + (response.handled ? "" : key.printableText ?? "")
@@ -754,16 +1018,43 @@ public final class InputSession {
         learningSwitched(from: before)
     }
 
+    /// Whether AI may run in the app typed in (`Config.allowsAI`), read once a turn (`turn`): one @ asks on each read of
+    /// its rows, several times a key, and each read of the settings looks at the config file's date.
+    private func aiAllowedNow() -> Bool {
+        if let read = aiAllowedRead, read.turn == turn, read.app == app { return read.allowed }
+        let allowed = services.loadSettings().allowsAI(in: app)
+        aiAllowedRead = (turn, app, allowed)
+        return allowed
+    }
+
     // MARK: - What the composer asks of the field
 
-    /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key: with the setting on
-    /// (`useSelection`), never during secure input, nor in a terminal (its selection is no text being edited: what goes
-    /// back would be typed at the prompt).
+    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`), never during
+    /// secure input, nor in a field known as a password field where it isn't on (`passwordField`: unknown is read as
+    /// before, no key waiting to tell it), nor in a terminal (its selection is no text being edited: what goes back would
+    /// be typed at the prompt).
+    private func selectionMayBeRead() -> Bool {
+        services.loadSettings().useSelection && !secureInputActive() && passwordField != .yes && !terminal
+    }
+
+    /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key, where it may be read
+    /// (`selectionMayBeRead`).
     private func readSelection() -> Composer.Selection? {
-        guard let context = keyContext, context.read.contains(.selection), services.loadSettings().useSelection,
-              !secureInputActive(), !terminal, let selection = context.selection else { return nil }
+        guard let context = keyContext, context.read.contains(.selection), selectionMayBeRead() else { return nil }
+        guard let selection = context.selection else {
+            // Read after the key (`selectionFollows`): where the field's selection is now, as it reports it.
+            if context.selectionFollows { selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : nil) }
+            return nil
+        }
         selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : selection.range)
         return selection
+    }
+
+    /// `selected`, read after the "@" key, where the draft may take it (`selectionMayBeRead`: a field told a password field
+    /// meanwhile too).
+    private func usable(_ selected: Composer.Selection?) -> Composer.Selection? {
+        guard let selected, !selected.text.isEmpty, selectionMayBeRead() else { return nil }
+        return selected
     }
 
     /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
@@ -776,7 +1067,7 @@ public final class InputSession {
 
     private func characterBeforeCaret(in context: FieldContext) -> Character? {
         guard let typed = lastTyped.character,
-              !services.pointerUsedWithin(ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
+              !caretMayHaveMoved(within: ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
         guard !(context.field ?? field).terminal, context.read.contains(.beforeCaret) else { return typed }
         switch context.beforeCaret {
         case .unknown: return typed  // a field that tells no caret, or reads nothing back
@@ -822,6 +1113,7 @@ public final class InputSession {
     func perform(_ effects: [Composer.Effect]) {
         defer {
             wakePageIfAgent()
+            warmModelAhead()  // the draft an AI command: its model made ready by ⏎
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
         }
         for effect in effects {
@@ -841,12 +1133,14 @@ public final class InputSession {
                 // The rows as the input has them now: Code's go with it (its word went in as typed).
                 if suggesting.shown { suggestionsUpdate() }
             case let .commit(text):
+                let text = intoField(text)
                 emit(.commit(text))
                 lastInserted = text
                 lastTyped.forget()  // a key that typed it says so (`key`)
                 followEnglishInserted(text)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
+                let text = intoField(text)
                 emit(.commitAfterKey(text))
                 lastTyped.forget()
                 followEnglishInserted(text)
@@ -862,6 +1156,7 @@ public final class InputSession {
                 lastTyped.forget()
                 followEnglishInserted(text)
             case let .typeOut(text):
+                let text = intoField(text)
                 emit(.typeOut(text))
                 lastInserted = nil
                 lastTyped.forget()
@@ -949,6 +1244,10 @@ public final class InputSession {
                 // ⏎ on a failure put right there (nothing to translate into): the sentence went in as typed before.
                 emit(.openSettings(place))
             case let .listAgents(id):
+                // The list as last seen, at once; the one asked for now replaces it as it comes.
+                if let last = services.lastAgents(), !last.isEmpty {
+                    perform(composer.receiveSearch(SessionTasks.agentRows(last), id: id, ahead: true))
+                }
                 tasks.listAgents(id: id, with: services.listAgents)
             case let .runInTerminal(prompt):
                 // A custom agent without a command isn't offered; one emptied meanwhile starts nothing.
@@ -973,6 +1272,13 @@ public final class InputSession {
                 handOff(prompt, to: kind)
             case .commandUsed:
                 services.saveCommandUsage(composer.commandUsage)
+            case let .candidateRemoved(text):
+                // Left out in this field already, also under a new engine and a list read before it is written; kept for
+                // every field a moment later, never while the key is handled (left out there meanwhile:
+                // `SessionServices.unwrittenRemovals`).
+                removedCandidates.removed(text)
+                services.removeCandidate(text)
+                log.notice("removed a candidate (\(text.count) characters)")
             case let .rememberQuestion(entry):
                 // Kept only on this device, never while secure input is on (the composer checks too).
                 guard services.loadSettings().rememberQuestions, !secureInputActive() else { break }
@@ -1036,6 +1342,7 @@ public final class InputSession {
             }
         }
         scheduleLiveSearch()
+        scheduleOneAtFiles()
         scheduleRecipientSearch()
         scheduleListRun()
         refreshStatuses()
@@ -1125,7 +1432,7 @@ public final class InputSession {
         let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
                                   improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
-                                  commandTrigger: config.commandTrigger)
+                                  commandTrigger: config.commandTrigger, chinese: config.typedChinese)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).
@@ -1185,6 +1492,10 @@ public final class InputSession {
             perform(composer.receiveList(output, for: query))
         case let .live(results, query):
             perform(composer.receiveLive(results, for: query))
+        case let .liveSoFar(results, query):
+            perform(composer.receiveLive(results, for: query, isFinal: false))
+        case let .oneAtFiles(results, query):
+            perform(composer.receiveOneAtFiles(results, for: query))
         case let .recipients(found, note, query):
             perform(composer.receiveRecipients(found, note: note, for: query))
         case let .page(context):
@@ -1203,8 +1514,7 @@ public final class InputSession {
         case let .recognized(text, request):
             perform(composer.recognized(text, id: request))
         case let .recognitionFailed(error, request):
-            let message = (error as? ScreenText.Problem).map(composer.messages.reply.describe) ?? UIText.describe(error)
-            perform(composer.recognitionFailed(message, id: request))
+            perform(composer.recognitionFailed(composer.messages.reply.describe(failure: error), id: request))
         case let .programs(missing, check):
             programsChecked(missing: missing, check: check)
         case let .noteFolderNamed(name, settings):
@@ -1217,6 +1527,10 @@ public final class InputSession {
             autocompleteAnswered(result, request: request)
         case .completionsAnswered:
             suggestionsAnswered()
+        case let .warmDue(head, target, focus):
+            warmDue(head, target: target, focus: focus)
+        case .pluginsScanned:
+            pluginsScanned()
         }
     }
 
@@ -1312,11 +1626,20 @@ public final class InputSession {
         }
     }
 
-    /// The status lines of the commands the list shows, when they're due (`SessionServices.refreshStatuses`); each one
-    /// that ends redraws the list.
+    /// The status lines of the commands the list shows, when they're due (`SessionServices.refreshStatuses`): as many as
+    /// it shows (one @'s rows, `Composer.oneAtVisible`; the list inside a text, `paletteVisible`). Each one that ends
+    /// redraws the list. Never a found script's (`ScriptCommand.runsStatus`): only what the user added, or a source they
+    /// reviewed, runs without being chosen.
     private func refreshStatuses() {
-        guard composer.paletteQuery != nil else { return }
-        let shown = composer.paletteVisible.compactMap(\.script).filter { $0.status != nil }
+        let listed: [Command]
+        if composer.oneAt != nil {
+            listed = composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command } else { nil } }
+        } else if composer.paletteQuery != nil {
+            listed = Array(composer.paletteVisible)
+        } else {
+            return
+        }
+        let shown = listed.compactMap(\.script).filter(\.runsStatus)
         guard !shown.isEmpty, !secureInputActive() else { return }
         let config = services.loadSettings()
         let (index, context, preferences) = (services.loadExtensions(config, false), scriptContext(query: ""), services.extensionPreferences)
@@ -1329,9 +1652,16 @@ public final class InputSession {
         }, { post(.statusEnded) })
     }
 
-    /// A send command's recipient as it is typed (`SessionTasks.findRecipients`).
+    /// A send command's recipient as it is typed (`SessionTasks.findRecipients`): searched only while the address book
+    /// isn't in memory yet (once it is, the composer finds them on the key: `Composer.instantRecipients`).
     private func scheduleRecipientSearch() {
-        tasks.findRecipients(composer.recipientQuery, recent: services.loadRecentHandles, contacts: services.loadContacts)
+        let query = composer.recipientQuery.flatMap { services.cachedContacts() == nil ? $0 : nil }
+        tasks.findRecipients(query, recent: services.loadRecentHandles, contacts: services.loadContacts)
+    }
+
+    /// One @'s text as it is typed: Spotlight's names for it (`SessionTasks.searchNamesAsTyped`).
+    private func scheduleOneAtFiles() {
+        tasks.searchNamesAsTyped(composer.oneAtFileQuery, history: services.loadOpenHistory, with: services.searchFileNames)
     }
 
     /// `@open` as you type (`SessionTasks.searchAsTyped`).
@@ -1492,7 +1822,13 @@ public final class InputSession {
     }
 
     private func showPanel() {
-        emit(.panel(composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil ? panelModel() : nil))
+        emit(.panel(shownPanel()))
+    }
+
+    /// The panel to show now: `panelModel` where the composer wants one or clipboard history shows, else suggestions'
+    /// rows where they are the one shown (what `panelModel` would be then); nil: none.
+    private func shownPanel() -> PanelModel? {
+        composer.wantsPanel || clipboard.shown ? panelModel() : suggestionsShownPanel()
     }
 
     /// A short status message ("英" English mode, "已复制" copied, …): on the panel's footer when it's shown, else on its
@@ -1506,8 +1842,8 @@ public final class InputSession {
         notice = text
         noticeToken += 1
         emit(.startTimer(.notice(noticeToken), after: lasting ?? SessionText.noticeDuration(text, long: long)))
-        if composer.wantsPanel || clipboard.shown || suggestionsShownPanel() != nil {
-            showPanel()
+        if let panel = shownPanel() {
+            emit(.panel(panel))
         } else {
             emit(.notice(text))
         }

@@ -1167,9 +1167,9 @@ enum SelfTest {
         settle()
         at()
         let commands = controller.panelModel().rows.map(\.text)
-        // The commands by name alone: the trigger was just typed.
-        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open"],
-              "@ opens the command palette (\(commands))")
+        // One @'s list for the key alone: the commands by name alone (the trigger was just typed), seven shown.
+        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open", "reply", "note"],
+              "@ opens one @'s list, the commands first (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
         _ = enter(controller, client)
@@ -1190,9 +1190,10 @@ enum SelfTest {
         controller.commitComposition(client)
         needing(.composing)
 
+        // A name's start and Tab pick the command (Space after a part of a name is a space: one @).
         at()
         type("ag", controller, client)
-        _ = space(controller, client)
+        _ = press(controller, client, "\t", code: VirtualKey.tab)
         type("bangwoxiegeshellxiaojiaoben", controller, client)  // 帮我写个shell小脚本: write me a small shell script
         let insertedBefore = client.inserted
         _ = enter(controller, client)
@@ -1203,8 +1204,9 @@ enum SelfTest {
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
         let secureInput = controller.services.secureInputActive
         controller.services.secureInputActive = { true }
+        // The whole name and Space write it, as "@agent " always did.
         at()
-        type("ag", controller, client)
+        type("agent", controller, client)
         _ = space(controller, client)
         type("nihao", controller, client)
         _ = enter(controller, client)
@@ -1335,13 +1337,14 @@ enum SelfTest {
         _ = escape(controller, client)
         // One letter isn't searched as it is typed (most paths have an "a" in them: seconds of Spotlight); ⏎ searches it.
         // The rows after ⏎ are drawn as when typing: a web address opens in the browser, a content match says so.
-        let searchFiles = controller.services.searchFiles
+        let (searchFiles, instantResults) = (controller.services.searchFiles, controller.services.instantResults)
         var searched: [String] = []
         let mention = SearchResult(name: "notes.txt", path: "/tmp/notes.txt", matchedContent: true)
         controller.services.searchFiles = { @MainActor query, _ in
             searched.append(query)
             return query == "a" ? [SearchResult.web("example.com")!, mention] : [mention]
         }
+        controller.services.instantResults = { _, _ in [] }  // only the stand-in's rows: no app of this Mac's for "a"
         at()
         type("o", controller, client)
         _ = press(controller, client, "\t", code: VirtualKey.tab)
@@ -1371,14 +1374,18 @@ enum SelfTest {
               "only content matches: ⏎ lists them to pick from, opens nothing (\(liveFooter))")
         _ = escape(controller, client)
         _ = escape(controller, client)
-        controller.services.searchFiles = searchFiles
+        (controller.services.searchFiles, controller.services.instantResults) = (searchFiles, instantResults)
         check(client.marked.isEmpty, "…Esc twice: nothing left")
 
-        // "@" with a letter no command starts with is a mention: it goes in as typed.
+        // "@" with a letter no command starts with is one @'s text (a mention, say): Esc puts it in as typed.
         at()
+        let insertedBeforeMention = client.inserted
         type("z", controller, client)
-        check(client.inserted.last == "@" && controller.composer.engineState.isComposing, "@z: '@' goes in, z is pinyin")
+        check(client.inserted == insertedBeforeMention && controller.composer.draft == "@" && controller.composer.engineState.isComposing,
+              "@z: z is pinyin after the '@', nothing goes in yet (\(client.inserted.suffix(2)))")
         _ = escape(controller, client)
+        check(client.inserted.last == "@z" && client.marked.isEmpty && !controller.composer.isComposing,
+              "…Esc puts '@z' in as typed (\(client.inserted.suffix(2)))")
         controller.commitComposition(client)
     }
 
@@ -1495,8 +1502,10 @@ enum SelfTest {
         check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
-        check(rows.map(\.text) == ["reminder"] && rows.first?.comment == "加到提醒事项，时间直接写在里面",
-              "@rem offers @reminder (\(rows.first?.comment ?? "-"))")
+        // The command its letters start comes first; one @'s other rows for the text follow it.
+        check(rows.first?.text == "reminder" && rows.first?.comment == "加到提醒事项，时间直接写在里面"
+              && controller.panelModel().highlighted == 0,
+              "@rem offers @reminder first (\(rows.map(\.text)), \(rows.first?.comment ?? "-"))")
         tab()
         controller.readClipboard = { .text("明天下午3点给张三打电话") }
         check(press(controller, client, "v", code: 0x09, flags: .command)
@@ -1868,10 +1877,12 @@ enum SelfTest {
         // The recent one comes first with nothing typed.
         start()
         check(found() == [Recipient(name: "张三", handle: "+1 555 0100")], "the recent recipient is offered at once")
-        // A number typed in full, without Contacts access.
+        // A number typed in full, without Contacts access. The rows of the text before (the recent one) stay listed until
+        // the search for the number answers (0.7.0: the rows no longer go blank on each key), with what it says.
         contacts = nil
         type("+15550199", controller, client)
-        let typed = found()
+        _ = pump(timeout: 3) { controller.composer.recipientNote != nil }
+        let typed = controller.composer.currentRecipients
         check(typed == [Recipient(name: "", handle: "+15550199")]
               && controller.panelModel().status == .hint(tr("没有通讯录权限：系统设置 → 隐私与安全性 → 通讯录 → 打开 AllInOneIME；也可以直接输入手机号或邮箱",
                                                          "No access to Contacts: System Settings → Privacy & Security → Contacts → turn on AllInOneIME; or type a phone number or email")),
@@ -1958,6 +1969,7 @@ enum SelfTest {
         check(fitted.string.hasSuffix("…") && width <= CandidateView.Metrics.maxCellTextWidth
               && width > CandidateView.Metrics.maxCellTextWidth - CandidateView.Fonts.candidate.pointSize * 2,
               "a long candidate is cut to fit, no gap after the … (\(Int(width)) of \(Int(CandidateView.Metrics.maxCellTextWidth)) pt)")
+        panel.hide()  // a scene of its own: as wide as its candidates, not as the pages before
         panel.show(PanelModel(rows: ["你好", long, "拟好"].enumerated().map {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
@@ -2083,9 +2095,16 @@ enum SelfTest {
 
     /// A panel the README shows: snapshotted as it is (Chinese interface, docs/), then the same state
     /// with the English interface as `<name>-en` (docs/en), so both show the same results and no
-    /// request is made twice.
+    /// request is made twice. Each as the panel comes up with it, as wide as its own rows: while it shows it only widens
+    /// (`CandidateView.minimumWidth`), and neither language's image (nor a dark one after) is as wide as the other's.
     static func readmeSnapshot(_ name: String, _ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                in directory: URL, appearance: NSAppearance.Name = .aqua) {
+        let panel = CandidatePanel.shared
+        func showAfresh(_ model: PanelModel) {
+            panel.hide()
+            panel.show(model, anchor: client.caretRect)
+        }
+        if panel.isShowing { showAfresh(panel.view.model) }
         snapshot(name, in: directory, appearance: appearance)
         let language = settings.uiLanguage
         settings.uiLanguage = "en"
@@ -2095,13 +2114,13 @@ enum SelfTest {
         if let detail = model.detail, let english = englishNotices[detail] { model.detail = english }
         let interface = [model.footer, model.detail ?? ""] + model.rows.map(\.comment)
         check(!interface.joined().containsHan, "\(name)-en: English interface (\(model.footer) | \(model.detail ?? "-"))")
-        CandidatePanel.shared.show(model, anchor: client.caretRect)
+        showAfresh(model)
         snapshot(name + "-en", in: directory, appearance: appearance)
         // The text line above the panel, for the README image (a transcript isn't known beforehand).
         try? Data(client.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
         settings.uiLanguage = language
         controller.applySettings()
-        CandidatePanel.shared.show(controller.panelModel(), anchor: client.caretRect)
+        showAfresh(controller.panelModel())
     }
 
     /// @py, @js and @search through the controller, with ⏎ as the action key: results come back as
@@ -2224,10 +2243,10 @@ enum SelfTest {
                                           start: (String) -> Bool, typeText: (String) -> Void, clear: () -> Void) {
         var pasted: [String] = []
         controller.canPasteInTerminal = { true }
-        controller.pasteInTerminal = { pasted.append($0) }
+        controller.pasteInTerminal = { pasted.append($0); return true }
         defer {
             controller.canPasteInTerminal = { false }
-            controller.pasteInTerminal = { _ in }
+            controller.pasteInTerminal = { _ in true }
         }
         func ask() -> String? {
             guard start("question") else { check(false, "@question is picked from the list ('\(client.marked)')"); return nil }
@@ -2681,13 +2700,14 @@ enum SelfTest {
         // No keys posted, the clipboard left alone: line breaks into a terminal go in on one line unless a
         // check pastes them itself.
         controller.canPasteInTerminal = { false }
-        controller.pasteInTerminal = { _ in }
+        controller.pasteInTerminal = { _ in true }
         // Never a key posted to the user's frontmost app: the app's paste key and a kept image's paste are counted or
         // dropped by the checks that use them.
         controller.passPasteKey = {}
         controller.passCommandV = {}
         controller.pasteImage = { _, _ in }
         controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
+        controller.services.buttonUsedWithin = { _ in false }  // …nor clicks in the fake field
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.services.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
@@ -3013,7 +3033,7 @@ enum SelfTest {
         // today's date ("rq", rime-ice's Lua): a word picked would be learned, and move up in the checks below.
         type("rq", controller, client)
         let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
-        panel.onSelect?(1)
+        panel.view.pointer.clicked(1)
         check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
         testHorizontalCandidates(controller, client, snapshotDirectory: snapshotDirectory)
 
@@ -3240,7 +3260,13 @@ enum SelfTest {
         testReportIssue(controller, client, snapshotDirectory: snapshotDirectory)
         testSelectionKept(controller, client)
         testCommandsOnSelection(controller, client)
-        testAtAfterAWord(controller, client)
+        // One @ and the magic key after a word, with "@" and with another magic key, put back after.
+        for key in ["@", "~"] {
+            withMagicKey(key, controller) {
+                testOneAtList(controller, client)
+                testAtAfterAWord(controller, client)
+            }
+        }
         testSnippets(controller, client)
         testAppProfiles(controller, client, snapshotDirectory: snapshotDirectory)
         testTranslateMode(controller, client, snapshotDirectory: snapshotDirectory)
@@ -3348,9 +3374,15 @@ enum SelfTest {
         testSettingsWindow(snapshotDirectory: snapshotDirectory)
         testUpdates(controller, snapshotDirectory: snapshotDirectory)
         testExtensionSources(snapshotDirectory: snapshotDirectory)
+        // Settings' own checks, with no text field active as with --settings-only: a field takes the settings again when a
+        // switch in them is saved (`SuggestionsShared.settingsChanged`, a press of these checks' own, or a Settings
+        // window's plugins read in the background landing late), the self-test's Chinese interface with them, under
+        // checks that read English.
+        controller.deactivateServer(client)
         testExtensionSourceTrust(snapshotDirectory: snapshotDirectory)
         testExtensionSourceLimits(snapshotDirectory: snapshotDirectory)
         testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
+        controller.activateServer(client)
         testSuggestionsOnByDefault(snapshotDirectory: snapshotDirectory)
         testICloudSync(snapshotDirectory: snapshotDirectory)
         testSettingsListsAfterSync(snapshotDirectory: snapshotDirectory)

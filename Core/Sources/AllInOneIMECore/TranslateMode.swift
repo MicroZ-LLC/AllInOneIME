@@ -24,31 +24,41 @@ public enum TranslateMode {
     /// the first of them something typed (`inputs`, the input languages) is translated into, as
     /// `Config.hasLanguageToTranslateInto` counts them: with English alone typed, English first and French added,
     /// French (into English it would only ever put text in as typed). Else the first of them (nil: none). The language
-    /// being typed has no say: text typed in the target goes in as typed.
-    public static func target(last: OutputLanguage?, outputs: [OutputLanguage], inputs: [Language] = []) -> OutputLanguage? {
-        last.flatMap { last in outputs.first { $0 == last } } ?? first(of: outputs, from: inputs) ?? outputs.first
+    /// being typed has no say: text typed in the target goes in as typed. Chinese is typed in `chinese`'s characters
+    /// (`Config.typedChinese`): Traditional typed isn't translated into Traditional Chinese.
+    public static func target(last: OutputLanguage?, outputs: [OutputLanguage], inputs: [Language] = [],
+                              chinese: ChineseCharacters = .simplified) -> OutputLanguage? {
+        last.flatMap { last in outputs.first { $0 == last } } ?? first(of: outputs, from: inputs, chinese: chinese) ?? outputs.first
     }
 
-    /// The first of `outputs` something typed (`inputs`, the input languages) is translated into, as
-    /// `Config.hasLanguageToTranslateInto` counts them; nil: none.
-    static func first(of outputs: [OutputLanguage], from inputs: [Language]) -> OutputLanguage? {
-        outputs.first { output in inputs.contains { !$0.matches(output) } }
+    /// The first of `outputs` something typed (`inputs`, the input languages, Chinese in `chinese`'s characters) is
+    /// translated into, as `Config.hasLanguageToTranslateInto` counts them; nil: none.
+    static func first(of outputs: [OutputLanguage], from inputs: [Language], chinese: ChineseCharacters = .simplified) -> OutputLanguage? {
+        outputs.first { output in inputs.contains { !$0.matches(output, chinese: chinese) } }
     }
 
-    /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 …, else its Chinese name
-    /// without 语 / 文.
-    public static func short(_ language: OutputLanguage) -> String {
-        let table = ["en": "英", "zh": "中", "zh-Hant": "繁", "ja": "日", "ko": "韩", "fr": "法", "de": "德", "es": "西",
-                     "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼", "ar": "阿", "hi": "印"]
-        if let short = table[language.code] { return short }
+    /// One language as the chip writes it in the Chinese interface: 「英」, 「日」, 「繁」 (Taiwan's and Hong Kong's too) …,
+    /// else its Chinese name without 语 / 文. Simplified Chinese is 「简」 for someone typing Traditional characters
+    /// (`chinese`), as the lists name it (`OutputLanguage.name(in:typing:)`).
+    public static func short(_ language: OutputLanguage, chinese: ChineseCharacters = .simplified) -> String {
+        if language == .chinese, chinese.isTraditional { return "简" }
+        if let short = shortNames[language.code] { return short }
         var name = language.name(chinese: true)
         if name.count > 2, name.hasSuffix("语") || name.hasSuffix("文") { name.removeLast() }
         return name
     }
 
-    /// One language as the chip writes it in the English interface: its code in capitals, "EN", "ZH", "ZH-HANT".
-    public static func tag(_ language: OutputLanguage) -> String {
-        language.code.uppercased()
+    /// The languages `short` writes in a character or two of their own, by code: made once, as the chip is drawn on
+    /// every key.
+    static let shortNames = ["en": "英", "zh": "中", "zh-Hant": "繁", "zh-Hant-TW": "繁", "zh-Hant-HK": "繁", "ja": "日", "ko": "韩",
+                             "fr": "法", "de": "德", "es": "西", "pt": "葡", "it": "意", "ru": "俄", "vi": "越", "th": "泰", "id": "印尼",
+                             "ar": "阿", "hi": "印"]
+
+    /// One language as the chip writes it in the English interface: its code in capitals, "EN", "ZH", "ZH-HANT" (Taiwan's
+    /// and Hong Kong's too, as 「繁」 is); "ZH-HANS" for someone typing Traditional characters (`chinese`), as 「简」.
+    public static func tag(_ language: OutputLanguage, chinese: ChineseCharacters = .simplified) -> String {
+        if language == .chinese, chinese.isTraditional { return "ZH-HANS" }
+        return language.isTraditionalChinese ? "ZH-HANT" : language.code.uppercased()
     }
 
     /// One time the mode is on: what it translates into.
@@ -67,6 +77,8 @@ public enum TranslateMode {
         /// (`appActivated`).
         public private(set) var app: String?
         private var sawApp = false
+        /// The characters Chinese was typed in when it came on or the settings were last read (`follow`).
+        private var characters: ChineseCharacters?
 
         public init() {}
 
@@ -79,10 +91,12 @@ public enum TranslateMode {
         @discardableResult
         public mutating func enter(last: OutputLanguage?, config: Config) -> Session? {
             guard config.hasLanguageToTranslateInto,
-                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages, inputs: config.inputLanguages)
+                  let target = TranslateMode.target(last: last, outputs: config.outputLanguages, inputs: config.inputLanguages,
+                                                    chinese: config.typedChinese)
             else { return nil }
             let session = Session(target: target)
             self.session = session
+            characters = config.typedChinese
             return session
         }
 
@@ -98,15 +112,24 @@ public enum TranslateMode {
             return session
         }
 
-        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages): a target
-        /// no longer among them (removed in the settings) gives way at once to the one it would come on into with none
-        /// picked (`enter`), the first of them something typed is translated into; with none, it leaves, as it wouldn't
-        /// come on (English alone typed and English left: not on into English, where it would only put text in as
-        /// typed). True: the session changed.
+        /// The settings were read again (`outputs`, the output languages now; `inputs`, the input languages; `chinese`, the
+        /// characters Chinese is typed in): a target no longer among them (removed in the settings) gives way at once to
+        /// the one it would come on into with none picked (`enter`), the first of them something typed is translated
+        /// into; with none, it leaves, as it wouldn't come on (English alone typed and English left: not on into English,
+        /// where it would only put text in as typed). So does a target Chinese is typed in since the characters changed
+        /// (into Traditional Chinese, then Traditional picked: Chinese would go in as typed, the chip 「繁 → 繁」), for
+        /// another of them. True: the session changed.
         @discardableResult
-        public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = []) -> Bool {
-            guard let session, !outputs.contains(session.target) else { return false }
-            self.session = TranslateMode.first(of: outputs, from: inputs).map(Session.init(target:))
+        public mutating func follow(outputs: [OutputLanguage], inputs: [Language] = [],
+                                    chinese: ChineseCharacters = .simplified) -> Bool {
+            let before = characters ?? chinese
+            characters = chinese
+            guard let session else { return false }
+            let typedNow = inputs.contains(.chinese) && Language.chinese.matches(session.target, chinese: chinese)
+                && !Language.chinese.matches(session.target, chinese: before)
+            guard typedNow || !outputs.contains(session.target) else { return false }
+            let others = typedNow ? outputs.filter { $0 != session.target } : outputs
+            self.session = TranslateMode.first(of: others, from: inputs, chinese: chinese).map(Session.init(target:))
             return true
         }
 
@@ -157,21 +180,24 @@ public enum TranslateMode {
         public var target: OutputLanguage
         /// The output languages listed under it to pick from (the target part clicked); nil: no list.
         public var choices: [OutputLanguage]?
+        /// The characters Chinese is typed in (`Config.typedChinese`): the source part says 「繁」 for Traditional ones.
+        public var chinese: ChineseCharacters
 
-        public init(source: Language, target: OutputLanguage, choices: [OutputLanguage]? = nil) {
-            (self.source, self.target, self.choices) = (source, target, choices)
+        public init(source: Language, target: OutputLanguage, choices: [OutputLanguage]? = nil,
+                    chinese: ChineseCharacters = .simplified) {
+            (self.source, self.target, self.choices, self.chinese) = (source, target, choices, chinese)
         }
 
-        /// 「中」, the source part.
-        public var sourceText: String { TranslateMode.short(OutputLanguage(source)) }
-        /// 「英」, the target part.
-        public var targetText: String { TranslateMode.short(target) }
+        /// 「中」 (「繁」 for Traditional characters), the source part.
+        public var sourceText: String { TranslateMode.short(OutputLanguage(source, chinese: chinese)) }
+        /// 「英」, the target part (「简」 for Simplified Chinese from Traditional characters).
+        public var targetText: String { TranslateMode.short(target, chinese: chinese) }
         /// 「中 → 英」.
         public var text: String { sourceText + " → " + targetText }
         /// "ZH", the source part in the English interface.
-        public var sourceTag: String { TranslateMode.tag(OutputLanguage(source)) }
-        /// "EN", the target part in the English interface.
-        public var targetTag: String { TranslateMode.tag(target) }
+        public var sourceTag: String { TranslateMode.tag(OutputLanguage(source, chinese: chinese)) }
+        /// "EN", the target part in the English interface ("ZH-HANS" for Simplified Chinese from Traditional characters).
+        public var targetTag: String { TranslateMode.tag(target, chinese: chinese) }
 
         /// Whether `language` is checked in the list: the target.
         public func checks(_ language: OutputLanguage) -> Bool { language == target }
@@ -330,7 +356,7 @@ public enum TranslateMode {
 
     /// The lines the mode asks for: one, the text in `target` (`Prompt.system`'s format for translations).
     static func plan(for input: String, target: OutputLanguage, config: Config) -> WritingPlan {
-        WritingPlan(versions: nil, translations: [target], styles: [], input: OutputLanguage(config.language(of: input)))
+        WritingPlan(versions: nil, translations: [target], styles: [], input: config.writtenLanguage(of: input))
     }
 }
 

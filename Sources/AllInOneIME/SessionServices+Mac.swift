@@ -9,32 +9,47 @@ extension SessionServices {
     @MainActor
     private static let lettersTypedOnce = EnglishWords.TypedOnce()
 
+    /// Where the English words learned, and the candidates removed, are written into the config file, off the main
+    /// thread (`EnglishWords.Writer`): every field's, in order. The file as it is then is read there too, so the next key
+    /// finds it read (`LiveConfig.take`) and doesn't parse it again. What it couldn't write yet is tried again once the
+    /// file reads anew and parses (`LiveConfig.parsedAnew`), and drained before the input method ends (`main.swift`):
+    /// any thread.
+    static let englishWordsWriter = EnglishWords.Writer { url in
+        guard let read = LiveConfig.read(url) else { return }
+        DispatchQueue.main.async { LiveConfig.take(read) }
+    }
+
     /// This Mac's: the config file as of now, what UserDefaults keeps, Spotlight, Terminal, Notes or a folder or Notion,
     /// Reminders, Contacts and Messages, the keychain. Main thread only, but for the `@Sendable` ones.
     @MainActor
     static var mac: SessionServices {
         var services = SessionServices(converter: sharedConverter, loadSettings: { LiveConfig.current })
+        // Clipboard history's image rows: a larger picture of the one pointed at or chosen, beside the panel.
+        ImagePreview.shared.attach(to: CandidatePanel.shared)
+        // The connection to the user's cloud provider opened as an AI command is written, after a pause.
+        services.warmsConnections = true
         // librime's session once it has deployed; without the Chinese pack it never starts (Latin letters).
         services.levelOne = {
             if let session = RimeService.shared.makeSession() { return .engine(session) }
             return RimeService.shared.isStarted ? .starting : .none
         }
         services.engineIsValid = { ($0 as? RimeSession)?.isValid ?? true }
-        // English words among pinyin's candidates; a word learned goes into the config file (the self-test's own while it runs).
+        // English words among pinyin's candidates; a word learned, and a candidate removed, go into the config file (the
+        // self-test's own while it runs) a moment later, never while the key is handled.
         services.englishDictionary = { RimeService.shared.englishDictionary }
         services.englishTypedOnce = lettersTypedOnce
-        services.learnEnglishWord = { word in
-            do {
-                try EnglishWords.learn(word, at: Config.defaultURL)
-            } catch {
-                log.error("could not keep an English word: \(String(describing: error), privacy: .public)")
-            }
-        }
+        services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
+        services.removeCandidate = { englishWordsWriter.remove($0, at: Config.defaultURL) }
+        // Until it is in the file every field leaves it out; once it is, the file's list has the say (a restore there
+        // reaches every field).
+        services.unwrittenRemovals = { englishWordsWriter.unwrittenRemovals(at: Config.defaultURL) }
         services.hangulTables = { LanguagePackManager.shared.hangulTables() }
         services.hindiTables = { LanguagePackManager.shared.hindiTables() }
         services.usableLanguages = { LanguagePackManager.shared.usable($0) }
         services.voiceSupported = { VoiceInput.isSupported }
         services.plugins = { LivePlugins.current(rescan: $0) }
+        // A field that takes the focus has them as last scanned at once, scanned again in the background.
+        services.rescanPlugins = { scanned in LivePlugins.rescan(scanned: scanned) }
         services.scriptStatus = { command in MainActor.assumeIsolated { ScriptStatus.shared.text(for: command) } }
         services.refreshStatuses = { shown, environment, ended in
             MainActor.assumeIsolated { ScriptStatus.shared.refresh(shown, environment: environment, ended: ended) }
@@ -72,16 +87,47 @@ extension SessionServices {
         services.loadRecentHandles = { RecentRecipients.handles }
         services.saveRecentHandles = { RecentRecipients.handles = $0 }
         services.secureInputActive = { SecureInput.isOn }
-        services.pointerUsedWithin = { seconds in
-            let kinds: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
-                                        .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged, .scrollWheel]
-            return kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
+        // The mouse's buttons and drags, and the wheel: the system times each kind apart, so that the wheel over our own
+        // panels hides no click in the field before it (`InputSession.caretMayHaveMoved`).
+        let buttons: [CGEventType] = [.leftMouseDown, .leftMouseUp, .leftMouseDragged, .rightMouseDown, .rightMouseUp,
+                                      .rightMouseDragged, .otherMouseDown, .otherMouseUp, .otherMouseDragged]
+        let used = { (kinds: [CGEventType], seconds: TimeInterval) in
+            kinds.contains { CGEventSource.secondsSinceLastEventType(.combinedSessionState, eventType: $0) < seconds }
         }
+        services.pointerUsedWithin = { used(buttons + [.scrollWheel], $0) }
+        services.buttonUsedWithin = { used(buttons, $0) }
         // An Option key still down with no mouse button pressed, as a sanity check when the hold timer fires (the
         // composer tracks which key from the events).
         services.isVoiceKeyHeld = { NSEvent.modifierFlags.contains(.option) && NSEvent.pressedMouseButtons == 0 }
         services.recognizeText = Platform.current.text
-        services.searchFiles = { await FileSearch.run($0, history: $1) }
+        // `@open`: Spotlight's names told before what the files contain, as its text is typed (`FileSearchProgress`); what
+        // is known at once listed from the key that changed the text, from memory made ready now, off the main thread.
+        // A row that opens an app, a folder or a file shows its own icon (`ItemIcons`): loaded off the main thread with the
+        // results, as they are found (what is known at once as it is kept; a search's before it is told), kept by path.
+        // A row drawn before its icon was in has the symbol until it is, then its icon.
+        @Sendable func paths(_ rows: [SearchResult]) -> [String] { rows.filter { $0.webURL == nil }.map(\.path) }
+        CandidateView.itemIcon = { ItemIcons.shared.icon(requesting: $0) }
+        ItemIcons.shared.onLoaded = { paths in MainActor.assumeIsolated { CandidateView.itemIconsCameIn(paths) } }
+        services.searchFiles = { query, history in
+            let found = FileSearchProgress.found.map { told in
+                { @Sendable (rows: [SearchResult]) in
+                    ItemIcons.shared.preload(paths(rows))
+                    told(rows)
+                }
+            }
+            let rows = await FileSearch.run(query, history: history, found: found)
+            await ItemIcons.shared.load(paths(rows))
+            return rows
+        }
+        InstantFiles.shared.onKept = { ItemIcons.shared.prefetch($0) }
+        InstantFiles.shared.prepare(history: OpenHistoryStore.history)
+        services.instantResults = { InstantFiles.shared.results($0, history: $1) }
+        // One @: Spotlight's names for its text, below what is known at once.
+        services.searchFileNames = { query, history in
+            let rows = await FileSearch.names(query, history: history)
+            await ItemIcons.shared.load(paths(rows))
+            return rows
+        }
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
         services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }
@@ -94,6 +140,7 @@ extension SessionServices {
         }
         services.startAgent = { try await AgentMonitor.shared.start($0) }
         services.listAgents = { try await AgentMonitor.shared.list() }
+        services.lastAgents = { MainActor.assumeIsolated { AgentMonitor.shared.lastListed } }
         services.runProgram = { CommandRunner.run($0, input: $1) }
         // The plugin's preferences (`ctx.preferences`, as its completions get them), read once it runs: passwords from the
         // keychain.
@@ -130,6 +177,7 @@ extension SessionServices {
             if case let .contacts(contacts) = await ContactBook.load() { return contacts }
             return nil
         }
+        services.cachedContacts = { ContactBook.cached() }
         services.messageSender = AppleScriptMessageSender()
         return services
     }

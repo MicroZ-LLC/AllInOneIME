@@ -65,12 +65,14 @@ struct QuickJSEngineTests {
     @Test func anotherThreadStopsAScript() throws {
         let context = try context()
         let stop = context.interrupter
-        _ = context.limitTime(to: 30)  // should the interrupter fail, the test fails instead of hanging
+        // Should the interrupter fail, the test fails instead of hanging: stopped by the time limit, well after a busy test
+        // run's thread gets to the interrupter (`Timing`).
+        _ = context.limitTime(to: TimeInterval(Timing.longSleep))
         let start = Date()
         DispatchQueue.global().asyncAfter(deadline: .now() + 0.2) { stop() }
         context.evaluate("for (;;) {}")
         let took = Date().timeIntervalSince(start)
-        #expect(context.exception?.toString() == "InternalError: interrupted" && took < 10, "\(took) s")
+        #expect(context.exception?.toString() == "InternalError: interrupted" && took < Timing.wellBeforeLongSleep, "\(took) s")
         // And whatever runs after it, whatever the clock says.
         #expect(context.limitTime(to: .infinity) && context.evaluate("'after'")?.isUndefined == true)
         #expect(context.global("Math")?.isObject == true)  // its values can still be read

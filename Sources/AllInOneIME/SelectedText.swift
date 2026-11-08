@@ -40,24 +40,31 @@ enum SelectedText {
         return readWithAccessibility().map { ($0, .accessibility, nil) }
     }
 
-    /// The focused element of the frontmost app, if Accessibility may be used (a quarter of a second at most per call).
+    /// Whether a selection the text input protocol didn't tell may be there all the same, for Accessibility to read
+    /// (`readWithAccessibility`, after the key: `FieldContext.selectionFollows`): this app may use Accessibility, and the
+    /// field told no range, or is a Chromium or Electron app's (`chromium`), which often reports none with one. A field
+    /// that told its caret is believed: nothing is selected there.
+    @MainActor
+    static func mayBeUntold(in client: IMKTextInput?, chromium: Bool) -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+        guard let client, !chromium else { return true }
+        let range = client.selectedRange()
+        return range.location == NSNotFound || range.length == NSNotFound
+    }
+
+    /// The focused element of the frontmost app, if Accessibility may be used (`FocusedField.element`: a quarter of a
+    /// second at most per call), unless it is a password field.
     private static func focusedElement() -> AXUIElement? {
-        guard AXIsProcessTrusted() else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.25)
-        var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
-              let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement  // checked just above
-        AXUIElementSetMessagingTimeout(element, 0.25)
+        guard let element = FocusedField.element() else { return nil }
         var subrole: CFTypeRef?
         if AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success,
            subrole as? String == kAXSecureTextFieldSubrole as String { return nil }
         return element
     }
 
-    /// The focused element's selected text (`kAXSelectedTextAttribute`), no longer than `maxRead`.
-    private static func readWithAccessibility() -> String? {
+    /// The focused element's selected text (`kAXSelectedTextAttribute`), no longer than `maxRead`. Any thread: after the
+    /// "@" key it's read off the main one (up to four calls of a quarter of a second each).
+    static func readWithAccessibility() -> String? {
         guard let element = focusedElement() else { return nil }
         // How long first: a huge selection isn't read at all.
         if let range = selectedRange(of: element), range.length > maxRead {

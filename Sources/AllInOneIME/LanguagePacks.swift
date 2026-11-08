@@ -68,12 +68,6 @@ final class LanguagePackManager: ObservableObject {
         return usable.isEmpty ? [.english] : usable
     }
 
-    /// Reads the packs folder again (a pack may have been installed by the installer or another process).
-    func refresh() {
-        for pack in LanguagePack.catalog where downloads[pack.id] == nil { states[pack.id] = nil }
-        objectWillChange.send()
-    }
-
     // MARK: Launch
 
     /// At launch: starts the engines of the installed packs. An upgrade from a version that bundled the
@@ -96,7 +90,8 @@ final class LanguagePackManager: ObservableObject {
         guard !FileManager.default.fileExists(atPath: Config.defaultURL.path) else { return }
         var config = Config.fresh
         config.setOrder([Language.chinese, .english])
-        do { try config.write() } catch {
+        // Looked for again with the write: a file made meanwhile (an English word learned) stays.
+        do { try config.writeIfMissing() } catch {
             log.error("could not write the settings: \(String(describing: error), privacy: .public)")
         }
     }
@@ -156,7 +151,8 @@ final class LanguagePackManager: ObservableObject {
     }
 }
 
-/// Starts librime on the Chinese pack: its Lua linked to the app's, the fuzzy pinyin patch written, and a
+/// Starts librime on the Chinese pack: its Lua linked to the app's, the fuzzy pinyin patch written (the characters too,
+/// with the app's OpenCC data for them), and a
 /// full check when the pack changed since the last deployment. Deploys again if it was running already
 /// (the pack was installed anew in the same folder).
 enum RimeStartup {
@@ -174,7 +170,9 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
-        let fuzzy = RimeFuzzy.write(LiveConfig.current.fuzzyPinyin)
+        // Fuzzy pinyin's patch, with the characters, by the config file as it parses: while it doesn't, the patch stays
+        // as it is (the defaults aren't the user's pairs or characters), and is written once it does (`RimeFuzzy.follow`).
+        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin, characters: $0.typedChinese) }
         let record = store.installed(.chinesePinyin)
         let deployed = "\(record?.version ?? "?")|\(record?.sha256 ?? record?.source.rawValue ?? "")|\(shared.path)"
         let packChanged = UserDefaults.standard.string(forKey: deployedKey) != deployed
@@ -184,7 +182,7 @@ enum RimeStartup {
             do {
                 try RimeService.shared.start(
                     sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
-                    fullCheck: fuzzy == .written || fuzzy == .removed || packChanged)
+                    fullCheck: fuzzy == .written || fuzzy == .removed || packChanged, openCCDir: RimeDirectories.openCC)
                 RimeReadinessLogger.shared.start()
             } catch {
                 log.fault("could not start Rime: \(String(describing: error), privacy: .public)")

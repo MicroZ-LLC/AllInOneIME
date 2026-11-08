@@ -63,7 +63,7 @@ a second press come at later times, never copies. Modifier changes, which Chromi
 
 | Output | The Mac |
 |---|---|
-| `commit`, `commitAfterKey`, `replace` | `insertText` (a terminal gets text with line breaks as a paste); after the key; by range |
+| `commit`, `commitAfterKey`, `replace` | `insertText` (a terminal gets text with line breaks, tabs or other control characters as a paste); after the key; by range |
 | `marked` | `setMarkedText`, and its watch for apps that take it on their own |
 | `typeOut`, `moveCaret` | typed out like a person (`TypeOut.Typist`), the caret back into a snippet |
 | `panel`, `notice`, `noticeElsewhere` | the candidate panel at the caret (`PanelModel`, below); a notice on its own; in the field typed in now, else at the pointer |
@@ -131,6 +131,7 @@ two. What is structure is data, for each shell to lay out and draw its own way:
 | `rows` | `label`, `text`, `comment`, `kind` (candidate, original, translation), `isComplete`, `icon`, `pickable`, `choice` | a column, or side by side (`horizontal`) |
 | `highlighted`, `transcript` | the row picked; the rows are a conversation (no taller than half the screen, scrolled to the last) | |
 | `status` | `none`, `loading`, `hint`, `list` (a hint and its items), `error` | under the rows; a list's items after "· " |
+| `candidates` | the pinyin candidates on one line while they are composed with rows that aren't them (one @'s, after the magic key) | on the side nearest the caret, the rows on the far side: below the caret at the top, under the input line (the header still just above the rows); above it under the rows and the status, just above the footer; as small as the header |
 | `footer`, `detail` | what the keys do; on its right the page, the time a result took, a notice | |
 
 A click on a row: the shell sends `.pick` with the row's index, and the session picks its `choice` (what
@@ -228,6 +229,9 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
      caret in characters: `Input.utf16Caret`), the text wrapped, the caret drawn where DirectWrite puts that position
      (`HitTestTextPosition`);
    - `header` as its lines (`headerLines`), each its own;
+   - `candidates` as one line (`candidates`) on the side nearest the caret, as the Mac's: under the input below the
+     caret, under the rows and the status, just above the footer, above it (`aio_panel_render_png`'s `above`); the
+     panel as big either way, drawn for the side it goes on before it is shown;
    - `handoff`: its title, then each choice's shortcut and name as a chip, the chips wrapping;
    - `Status.list`: `AIO_STATUS_LIST`, its items a line each under the hint; an error after "⚠", in its color;
    - a row's `icon` (`PanelIcons`): a built-in as a glyph of Segoe Fluent Icons (Segoe MDL2 Assets' code points, for
@@ -241,7 +245,8 @@ The engine (merged in 0.6.6/integration) drives a `Composer` through `AllInOneIM
    - `transcript`: the rows' text wrapped, the panel no taller than half the monitor's work area, the rows scrolled to
      the last one (or the highlighted one above), a rule where they are cut; a row out of sight takes no click;
    - from top to bottom as the model says (the status under the rows), a rule above the footer as the Mac's panel
-     has; the footers' symbols come from DirectWrite's font fallback. `chip` stays empty: Translate as You Type is the
+     has; below the caret, or above it when there is no room below (and, while it stays up on the same line, above as
+     long as it fits there, so it doesn't flip with each key); the footers' symbols come from DirectWrite's font fallback. `chip` stays empty: Translate as You Type is the
      Mac shell's.
    `AllInOneIMEEngine --render-panel DIR` draws `PanelSamples` (each of these) into PNG files, light and dark, at 96
    and 120 DPI, without a window (`aio_panel_render_png`).

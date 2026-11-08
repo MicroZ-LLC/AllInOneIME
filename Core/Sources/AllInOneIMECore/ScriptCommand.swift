@@ -46,6 +46,18 @@ public struct ScriptCommand: Hashable, Sendable {
         }
     }
 
+    /// Where its file was read from (`ExtensionStore.Folder`): what the user chose to load, or what Spotlight found.
+    public enum Origin: Hashable, Sendable {
+        /// A folder the user added (`Config.extensionFolders`, the first one included), or a file read on its own.
+        case added
+        /// A folder Spotlight found holding Raycast scripts (`ExtensionStore.discover`), which nobody added: any download
+        /// or copy in the home folder. Only an executable script without the internet's mark loads from it
+        /// (`ExtensionStore.foundProblem`), and nothing of it runs that the user didn't start: no status line.
+        case found
+        /// An extension source's clone (`ExtensionSources`), reviewed before it is enabled.
+        case extensionSource
+    }
+
     /// What it needs after its name.
     public enum Input: String, Hashable, Sendable {
         /// Nothing: the text after it is ignored; the action key on its name runs it.
@@ -148,6 +160,10 @@ public struct ScriptCommand: Hashable, Sendable {
         case nameTaken(String, by: Owner)
         /// A symbolic link to nothing.
         case brokenLink
+        /// In a folder Spotlight found, a script that isn't executable (`Origin.found`).
+        case notExecutable
+        /// In a folder Spotlight found, a script downloaded from the internet (`FileOps.isQuarantined`).
+        case quarantined
     }
 
     /// What's wrong with an `extension.json`.
@@ -160,6 +176,8 @@ public struct ScriptCommand: Hashable, Sendable {
         case noCommands
         /// A preference without a name, or of a type this app doesn't know.
         case badPreference
+        /// It's larger than `ExtensionBundle.maxManifestBytes`.
+        case tooLarge
     }
 
     /// What has a name a command wanted.
@@ -183,6 +201,8 @@ public struct ScriptCommand: Hashable, Sendable {
     /// name and the command's ("tools/convert").
     public var id: String
     public var source: Source
+    /// Set by `ExtensionStore.load` from its folder.
+    public var origin: Origin = .added
     public var file: URL
     /// What follows "@" (`isValidName`).
     public var name: String
@@ -204,6 +224,8 @@ public struct ScriptCommand: Hashable, Sendable {
     /// Keeps running when the field is left (it starts and the draft is done), then a notification says how it went.
     public var background: Bool
     public var status: Status?
+    /// Whether its status line runs on its own, while the command list shows it: never a found script's (`Origin.found`).
+    public var runsStatus: Bool { status != nil && origin != .found }
     /// The action key asks once more before it runs.
     public var confirm: Bool
     public var timeout: Double
@@ -443,7 +465,7 @@ extension ScriptCommand {
         // None declared: one free-text argument, required unless the input says otherwise.
         if arguments.isEmpty { arguments = [Argument()] }
         if declared == .optional { arguments = arguments.map { var a = $0; a.optional = true; return a } }
-        // `required`: something must be written, so the first argument is, whatever it says.
+        // `required`: something must be written, so at least one argument is required: the first, unless a later one is.
         if declared == .required, arguments.allSatisfy(\.optional) { arguments[0].optional = false }
         let input = declared ?? (arguments.allSatisfy(\.optional) ? .optional : .required)
 

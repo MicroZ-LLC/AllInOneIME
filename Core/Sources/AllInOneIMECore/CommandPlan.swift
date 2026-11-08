@@ -57,7 +57,8 @@ public struct CommandPlan: Equatable, Sendable {
             let afterWordChar = i > 0 && chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)
             if c == trigger, !afterWordChar {
                 var j = i + 1
-                while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
+                // A name is letters, then digits too (`@addr2`), as the draft shows it (`Composer.shownDraft`).
+                while j < chars.count, chars[j].isASCII, chars[j].isLetter || j > i + 1 && chars[j].isNumber { j += 1 }
                 let name = String(chars[(i + 1)..<j]).lowercased()
                 // No argument: right before a space, punctuation or the end of the text.
                 if let command = inners[name], takesNoArgument(command) {
@@ -143,7 +144,7 @@ public struct CommandPlan: Equatable, Sendable {
         if "?!;".contains(c), i + 1 == chars.count || chars[i + 1] == " " { return true }
         guard c == trigger, i == 0 || !(chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)) else { return false }
         var j = i + 1
-        while j < chars.count, chars[j].isASCII, chars[j].isLetter { j += 1 }
+        while j < chars.count, chars[j].isASCII, chars[j].isLetter || j > i + 1 && chars[j].isNumber { j += 1 }
         return commands[String(chars[(i + 1)..<j]).lowercased()] != nil && j < chars.count
             && (chars[j] == " " || "「“\"".contains(chars[j]))
     }

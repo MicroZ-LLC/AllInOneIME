@@ -71,6 +71,8 @@ public struct ExtensionBundle: Hashable, Sendable {
     }
 
     public static let manifestName = "extension.json"
+    /// The largest `extension.json` read: a larger one is a bad bundle (`BundleProblem.tooLarge`).
+    public static let maxManifestBytes = 4 << 20
 
     /// The values its commands get: `stored` (what was set; passwords read from the keychain) or each
     /// preference's default. Checkboxes are "true" or "false".
@@ -97,6 +99,7 @@ public struct ExtensionBundle: Hashable, Sendable {
     static func read(_ data: Data, folder: URL)
         -> Result<(bundle: ExtensionBundle, commands: [[String: String]], snippets: [[String: String]],
                    problems: [ScriptCommand.Problem]), ScriptCommand.Problem> {
+        guard data.count <= maxManifestBytes else { return .failure(.badBundle(.tooLarge)) }
         guard let json = ((try? JSONSerialization.jsonObject(with: data)) as? [String: Any]).map(withoutNulls) else {
             return .failure(.badBundle(.notJSON))
         }
@@ -275,6 +278,22 @@ public struct ExtensionIndex: Equatable, Sendable {
 
     public static let empty = ExtensionIndex()
 
+    /// This index, built off the main thread from `before`, numbered: `before`'s generation when it is the same, else
+    /// the next (compared there, not on the main thread).
+    public func numbered(after before: ExtensionIndex) -> ExtensionIndex {
+        var built = self
+        built.generation = built == before ? before.generation : before.generation &+ 1
+        return built
+    }
+
+    /// This index (`numbered(after: before)`) landing on the main thread where the index is `current` now: `taken`, the
+    /// index from now on, unless another build landed meanwhile (its is as new); `changed`, it changed what was there,
+    /// and an "@" list open then is told (`LiveExtensions.changed`). The same for every build in the background.
+    public func lands(on current: ExtensionIndex, builtFrom before: ExtensionIndex) -> (taken: Bool, changed: Bool) {
+        let taken = current.generation == before.generation
+        return (taken, taken && generation != before.generation)
+    }
+
     public func bundle(of command: ScriptCommand) -> ExtensionBundle? {
         command.source.bundleName.flatMap { name in bundles.first { $0.name == name } }
     }
@@ -319,6 +338,9 @@ public enum ExtensionStore {
         }
 
         public var url: URL { URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true) }
+
+        /// Where its commands come from, as they carry it (`ScriptCommand.origin`).
+        public var origin: ScriptCommand.Origin { found ? .found : bundleOnly ? .extensionSource : .added }
     }
 
     /// A script or bundle that isn't loaded, or a command left out, and why.
@@ -348,7 +370,9 @@ public enum ExtensionStore {
 
     /// Reads `folders` (not those hidden): each one's bundles (subfolders with `extension.json`) and scripts,
     /// by name, not deeper (as Raycast does); an added folder with an `extension.json` of its own is that one
-    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only.
+    /// bundle; from a folder found (`Folder.found`), its Raycast scripts only, those that pass `foundProblem`, and
+    /// without their status lines (nothing of a found folder runs that the user didn't start). Each command carries
+    /// its folder's `origin`.
     /// Symbolic links are followed: a linked folder, script or bundle is read as the one it points to (a link to
     /// nothing is reported). A script or bundle byte for byte the same as one before it, under the same name (a
     /// second checkout of a repository, a copied folder), is left out quietly (`ExtensionIndex.identical`); one
@@ -412,6 +436,11 @@ public enum ExtensionStore {
                             skipped.append(Skipped(file: manifest, problem: .bundleTaken))
                             continue
                         }
+                        let commands = commands.map { command in
+                            var command = command
+                            command.origin = folder.origin
+                            return command
+                        }
                         bundles.append((bundle, commands, snippets, digest))
                         skipped += problems
                     case let .failure(problem):
@@ -420,12 +449,16 @@ public enum ExtensionStore {
                     }
                 case .file:
                     guard let file = read(item.url), !folder.found || file.metadata?.front == .raycast,
-                          let read = ScriptCommand.read(file.metadata, firstLine: file.firstLine, file: item.url,
+                          var read = ScriptCommand.read(file.metadata, firstLine: file.firstLine, file: item.url,
                                                         executable: file.executable) else { continue }
+                    // Before the copies are told apart: an executable copy elsewhere still loads.
+                    if folder.found, case .success = read, let problem = foundProblem(file, at: item.url) { read = .failure(problem) }
                     switch read {
                     case var .success(command):
                         guard first("command " + command.name, file.digest, item.url) else { continue }
                         command.id = abbreviated(item.url.path)
+                        command.origin = folder.origin
+                        if folder.found { command.status = nil }
                         scripts.append(command)
                     case let .failure(problem):
                         guard first("file " + item.url.lastPathComponent, file.digest, item.url) else { continue }
@@ -439,6 +472,16 @@ public enum ExtensionStore {
         let ordered = bundles.flatMap(\.commands) + scripts.filter { $0.source == .script } + scripts.filter { $0.source == .raycast }
         return ExtensionIndex(commands: ordered, bundles: bundles.map(\.bundle), snippets: bundles.flatMap(\.snippets), skipped: skipped,
                               identical: identical)
+    }
+
+    /// Why a Raycast script of a folder Spotlight found isn't loaded, though it could be: nobody added the folder (a
+    /// download, a cloned repository, a copy of anything), so a script must have been made executable, as Raycast wants
+    /// it (one isn't run through its "#!" line), and not be a download (`FileOps.isQuarantined`: a zip unpacked in
+    /// ~/Downloads). Nil: it loads. Its folder added, it loads as any script does.
+    static func foundProblem(_ file: ExtensionCache.File, at url: URL) -> ScriptCommand.Problem? {
+        if !file.executable { return .notExecutable }
+        if Platform.current.files.isQuarantined(url) { return .quarantined }
+        return nil
     }
 
     /// A bundle's commands (each entry's keys over its script's own `@allinoneime.` lines) and snippets, and the
@@ -547,11 +590,12 @@ public enum ExtensionStore {
         return folders.sorted()
     }
 
-    /// Whether `file` is there and is a Raycast script that loads (a file of a folder since removed, still in
-    /// Spotlight's index, isn't: its folder is dropped).
+    /// Whether `file` is there and is a Raycast script that loads from a found folder (`foundProblem`; a file of a
+    /// folder since removed, still in Spotlight's index, isn't: its folder is dropped).
     @usableFromInline static func isScript(_ file: URL) -> Bool {
         guard let read = ExtensionCache().read(file), read.metadata?.front == .raycast,
-              case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable)
+              case .success? = ScriptCommand.read(read.metadata, firstLine: read.firstLine, file: file, executable: read.executable),
+              foundProblem(read, at: file) == nil
         else { return false }
         return true
     }
@@ -611,7 +655,7 @@ public final class ExtensionCache: @unchecked Sendable {
         /// The `@allinoneime.` or `@raycast.` keys in its first 64 KB.
         public var metadata: (front: ScriptCommand.FrontEnd, keys: [String: String])?
         public var firstLine: String
-        /// An `extension.json`'s bytes.
+        /// An `extension.json`'s bytes, all of them (of one larger than `ExtensionBundle.maxManifestBytes`, a byte more).
         public var json: Data?
         public var executable: Bool
         /// A compiled program (or any file with a NUL byte): run as it is.
@@ -622,7 +666,7 @@ public final class ExtensionCache: @unchecked Sendable {
 
     private var files: [String: File] = [:]
     private let lock = NSLock()
-    /// Metadata past the first 64 KB isn't looked for; an `extension.json` is smaller.
+    /// Metadata past the first 64 KB isn't looked for (an `extension.json` is read whole).
     static let maxBytes = 64 * 1024
 
     public init() {}
@@ -645,17 +689,24 @@ public final class ExtensionCache: @unchecked Sendable {
         guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         let data = (try? handle.read(upToCount: Self.maxBytes)) ?? Data()
-        // The rest of a longer file is only hashed (once, while it's unchanged), a megabyte at a time.
+        // The rest of a longer file is only hashed (once, while it's unchanged), a megabyte at a time; an extension.json's
+        // is kept too, up to a byte past its limit (enough to tell it's too large).
         var hasher = SHA256()
         hasher.update(data: data)
+        var json = url.lastPathComponent == ExtensionBundle.manifestName ? data : nil
         if data.count == Self.maxBytes {
-            while let more = try? handle.read(upToCount: 1 << 20), !more.isEmpty { hasher.update(data: more) }
+            while let more = try? handle.read(upToCount: 1 << 20), !more.isEmpty {
+                hasher.update(data: more)
+                if let kept = json?.count, kept <= ExtensionBundle.maxManifestBytes {
+                    json?.append(more.prefix(ExtensionBundle.maxManifestBytes + 1 - kept))
+                }
+            }
         }
         let binary = data.contains(0)
         let text = binary ? "" : String(decoding: data, as: UTF8.self)
         let file = File(date: date, size: size, mode: mode, metadata: binary ? nil : ScriptCommand.metadata(in: text),
                         firstLine: ScriptCommand.firstLine(of: text),
-                        json: url.lastPathComponent == ExtensionBundle.manifestName ? data : nil,
+                        json: json,
                         executable: Self.isExecutable(url), binary: binary, digest: Data(hasher.finalize()))
         lock.withLock { files[url.path] = file }
         return file

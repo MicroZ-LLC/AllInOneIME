@@ -54,9 +54,10 @@ public struct ReplyContext: Equatable, Sendable {
 
     /// The context from what the composer has, each layer capped; the language is told from the first of the other
     /// party's last 3 messages, the screenshot, the message, the selection and the field after the caret that has text
-    /// (`Platform.current.languages`, at least `languageConfidence` sure).
+    /// (`Platform.current.languages`, at least `languageConfidence` sure), Chinese in the characters the user types in
+    /// (`chinese`, `Config.typedChinese`), whichever the other party writes.
     public static func make(intent: String, selection: String?, message: String?, screen: ScreenText?, field: FieldText?,
-                            provider: Provider) -> ReplyContext {
+                            provider: Provider, chinese: ChineseCharacters = .simplified) -> ReplyContext {
         func nonEmpty(_ text: String?) -> String? {
             guard let text = text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
             return text
@@ -74,7 +75,7 @@ public struct ReplyContext: Equatable, Sendable {
         }
         let them = transcript.map { $0.last(3).joined(separator: "\n") }
         let sources = [them, context.screenshot, context.message, context.selection, context.field?.after]
-        if let text = sources.lazy.compactMap(nonEmpty).first { context.language = language(of: text) }
+        if let text = sources.lazy.compactMap(nonEmpty).first { context.language = language(of: text, chinese: chinese) }
         return context
     }
 
@@ -96,19 +97,18 @@ public struct ReplyContext: Equatable, Sendable {
         intent.isEmpty && selection == nil && message == nil && screenshot == nil && field == nil
     }
 
-    /// The English name of the language `text` is written in, when `Platform.current.languages` is sure enough.
-    static func language(of text: String) -> String? {
+    /// The English name of the language `text` is written in, when `Platform.current.languages` is sure enough: Chinese
+    /// as the user writes it (`chinese`).
+    static func language(of text: String, chinese: ChineseCharacters = .simplified) -> String? {
         guard let found = Platform.current.languages.dominantLanguage(of: text, among: []),
               found.confidence >= languageConfidence else { return nil }
-        return name(ofCode: found.code)
+        return name(ofCode: found.code, chinese: chinese)
     }
 
-    /// "ja" → "Japanese", "zh-Hans" → "Simplified Chinese", "zh-Hant" → "Traditional Chinese".
-    static func name(ofCode code: String) -> String {
-        let lower = code.lowercased()
-        if lower.hasPrefix("zh") {
-            return lower.contains("hant") || lower.hasSuffix("tw") || lower.hasSuffix("hk") ? "Traditional Chinese" : "Simplified Chinese"
-        }
+    /// "ja" → "Japanese"; Chinese, "zh-Hans" or "zh-Hant", in the user's characters (`chinese`): "Simplified Chinese",
+    /// "Traditional Chinese (Taiwan)", "Traditional Chinese (Hong Kong)". The reply is the user's to send.
+    static func name(ofCode code: String, chinese: ChineseCharacters = .simplified) -> String {
+        if code.lowercased().hasPrefix("zh") { return chinese.language.promptName }
         let base = String(code.prefix { $0 != "-" && $0 != "_" })
         return OutputLanguage(base).promptName
     }
@@ -295,10 +295,7 @@ extension Converter {
     func runReply(input: String, app: String?, fresh: Bool, turns: [Refinement.Turn],
                   continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
-        func elapsed() -> TimeInterval {
-            let d = ContinuousClock.now - started
-            return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
-        }
+        func elapsed() -> TimeInterval { Self.seconds(since: started) }
         let config = try Self.settings(try loadConfig(), app: app)
         let tone = TranslateMode.tone(app: app, config: config)
         let appClass = AppClass(app: app)
@@ -328,13 +325,7 @@ extension Converter {
         var last = ConversionResult.empty
         for try await event in stream {
             if case let .messageStop(reason) = event { stopReason = reason }
-            if case let .textDelta(delta) = event {
-                text += delta
-            } else if case let .textReplaced(whole) = event {
-                text = whole
-            } else {
-                continue
-            }
+            guard event.apply(to: &text) else { continue }
             if firstToken == nil { firstToken = elapsed() }
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             let result = replies(text, final: false)

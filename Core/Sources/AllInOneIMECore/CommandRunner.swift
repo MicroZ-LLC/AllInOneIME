@@ -250,11 +250,18 @@ public enum CommandRunner {
     }
 
     /// What the program printed, as inserted: control characters (colors, bells, a terminal title)
-    /// removed, line breaks and tabs kept, trailing blank lines dropped.
-    static func cleanOutput(_ data: Data) -> String {
-        let text = String(decoding: data, as: UTF8.self)
-            .replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
-            .replacingOccurrences(of: "\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)?", with: "", options: .regularExpression)
+    /// removed, line breaks and tabs kept, blank lines before and after it dropped (the first line's
+    /// indentation kept: a table's header stays over its columns). One number on its own (a count `wc`
+    /// right-aligns, `printf %5d`, a size `du` prints) has nothing to line up with: it goes in without its
+    /// padding, once the program exited (`isFinal`; before, its next line may still come). One line of text
+    /// keeps its indentation.
+    static func cleanOutput(_ data: Data, isFinal: Bool = true) -> String {
+        var text = String(decoding: data, as: UTF8.self)
+        // Both sequences start with ESC: output without one (most, and a completion list of up to 4 MB) isn't searched.
+        if text.utf8.contains(0x1B) {
+            text = text.replacingOccurrences(of: "\u{1B}\\[[0-9;?]*[A-Za-z]", with: "", options: .regularExpression)
+                .replacingOccurrences(of: "\u{1B}\\][^\u{07}\u{1B}]*(\u{07}|\u{1B}\\\\)?", with: "", options: .regularExpression)
+        }
         var out = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             if scalar == "\n" || scalar == "\t" { out.append(scalar); continue }
@@ -262,7 +269,16 @@ public enum CommandRunner {
             if scalar.properties.generalCategory == .control { continue }
             out.append(scalar)
         }
-        return String(out).trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = String(out)
+        guard let first = cleaned.firstIndex(where: { !$0.isWhitespace }),
+              let last = cleaned.lastIndex(where: { !$0.isWhitespace }) else { return "" }
+        let printed = cleaned[first...last]
+        if isFinal, !printed.contains("\n"), let digit = printed.drop(while: { $0 == "-" || $0 == "+" }).first,
+           digit.isASCII, digit.isNumber {
+            return String(printed)
+        }
+        let start = cleaned[..<first].lastIndex(of: "\n").map { cleaned.index(after: $0) } ?? cleaned.startIndex
+        return String(cleaned[start...last])
     }
 
     /// `result` as inserted into a terminal, which runs every line it is given: each text on one line
@@ -377,26 +393,28 @@ public enum CommandRunner {
         private func capture(_ pipe: Pipe, into append: @escaping @Sendable (Run, Data) -> Void) {
             pipes.enter()
             pipe.fileHandleForReading.readabilityHandler = { [self] handle in
-                let chunk = handle.availableData
-                if chunk.isEmpty {
-                    handle.readabilityHandler = nil
-                    pipes.leave()
-                    return
-                }
-                lock.lock()
-                append(self, chunk)
-                let tooMuch = output.count + errors.count > launch.maxOutput
-                var sofar: Data?
-                if streamPending, !finished, ContinuousClock.now - lastStreamed >= .seconds(CommandRunner.streamInterval) {
-                    (sofar, streamPending, lastStreamed) = (output, false, ContinuousClock.now)
-                }
-                lock.unlock()
-                if tooMuch { stop(.tooMuchOutput) }
-                if let sofar {
-                    let text = CommandRunner.cleanOutput(sofar)
-                    continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
-                                                        firstTokenLatency: nil, fromCache: false))
-                }
+                repeat {
+                    let chunk = handle.availableData
+                    if chunk.isEmpty {
+                        handle.readabilityHandler = nil
+                        pipes.leave()
+                        return
+                    }
+                    lock.lock()
+                    append(self, chunk)
+                    let tooMuch = output.count + errors.count > launch.maxOutput
+                    var sofar: Data?
+                    if streamPending, !finished, ContinuousClock.now - lastStreamed >= .seconds(CommandRunner.streamInterval) {
+                        (sofar, streamPending, lastStreamed) = (output, false, ContinuousClock.now)
+                    }
+                    lock.unlock()
+                    if tooMuch { stop(.tooMuchOutput) }
+                    if let sofar {
+                        let text = CommandRunner.cleanOutput(sofar, isFinal: false)
+                        continuation.yield(ConversionUpdate(result: .empty, rawText: text, isFinal: false, elapsed: 0,
+                                                            firstTokenLatency: nil, fromCache: false))
+                    }
+                } while handle.hasMoreToRead
             }
         }
 
@@ -443,5 +461,21 @@ public enum CommandRunner {
                                                 firstTokenLatency: nil, fromCache: false))
             continuation.finish()
         }
+    }
+}
+
+extension FileHandle {
+    /// Whether more of what this reading end of a pipe has is there now: data, or its end. Corelibs Foundation reads
+    /// 8 KB a time for `readabilityHandler`, and libdispatch on Linux tells a pipe readable again only as more arrives:
+    /// what a program printed faster than that and left in the pipe as it ended (a list of hundreds of kilobytes) was
+    /// never read, nor its end, so a handler there reads on while this holds. Apple's Foundation tells it again while
+    /// there's more; elsewhere false.
+    var hasMoreToRead: Bool {
+        #if canImport(Glibc) || canImport(Musl)
+        var pipe = pollfd(fd: fileDescriptor, events: Int16(POLLIN), revents: 0)
+        return poll(&pipe, 1, 0) > 0
+        #else
+        return false
+        #endif
     }
 }

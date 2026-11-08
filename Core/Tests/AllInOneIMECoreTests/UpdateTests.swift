@@ -301,6 +301,39 @@ struct UpdateTests {
         #expect(!saved.checkForUpdates && saved == config)
     }
 
+    /// A new version's notification (`notifiesUpdates`, 0.7.0): on by default, also for a file from before the switch,
+    /// which doesn't gain the key (it is written only when off); turned off, it stays off; synced as checking is, between
+    /// Macs, on or off.
+    @Test func notifyingIsOnUnlessTurnedOff() throws {
+        #expect(Config.default.notifiesUpdates && Config.fresh.notifiesUpdates)
+        let before = try JSONDecoder().decode(Config.self, from: Data(#"{"checkForUpdates": false, "provider": "anthropic"}"#.utf8))
+        #expect(before.notifiesUpdates && !before.checkForUpdates)
+        #expect((try JSONSerialization.jsonObject(with: JSONEncoder().encode(before)) as? [String: Any])?["notifiesUpdates"] == nil)
+        var config = Config.default
+        config.notifiesUpdates = false
+        let data = try JSONEncoder().encode(config)
+        let saved = try JSONDecoder().decode(Config.self, from: data)
+        #expect(!saved.notifiesUpdates && saved.checkForUpdates && saved == config)
+        #expect((try JSONSerialization.jsonObject(with: data) as? [String: Any])?["notifiesUpdates"] as? Bool == false)
+        #expect(Config.allKeys.contains("notifiesUpdates"))
+        #expect(ICloudSync.category(of: "notifiesUpdates") == ICloudSync.category(of: "checkForUpdates") && ICloudSync.category(of: "notifiesUpdates") != nil)
+        #expect(ICloudSync.values(of: .default, in: [.settings])["notifiesUpdates"] == .bool(true))
+        #expect(ICloudSync.values(of: config, in: [.settings])["notifiesUpdates"] == .bool(false))
+    }
+
+    /// Don't Show Again writes only that key (`Config.change`): the rest of the file as it was, a later version's key too.
+    @Test func turningNotificationsOffWritesOnlyThatKey() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("update-notify-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent("config.json")
+        try Data(#"{"provider": "anthropic", "aKeyOfALaterVersion": [1, 2]}"#.utf8).write(to: url)
+        try Config.change(at: url) { $0.notifiesUpdates = false }
+        let file = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        #expect(Set(file.keys) == ["provider", "aKeyOfALaterVersion", "notifiesUpdates"] && file["notifiesUpdates"] as? Bool == false)
+        #expect(try !Config.load(from: url).notifiesUpdates)
+    }
+
     @Test func errorsReadInEnglish() {
         #expect(UpdateError.hashMismatch.errorDescription == "The download doesn't match the signed manifest; nothing was changed")
         #expect(UpdateError.notNewer("0.6.2").errorDescription == "Version 0.6.2 isn't newer than this one; nothing was changed")

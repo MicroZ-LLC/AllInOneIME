@@ -150,6 +150,8 @@ In the app (`PluginLibrary`, Settings → Commands → Plugins → "Browse Libra
   installed plugin); updates are manual. A local plugin (no `install.json`) of the same name is never overwritten:
   the library shows it as local.
 - Installing or removing a plugin rescans the plugins folder, so the command list has it at the next keystroke.
+  Removing one moves its folder to the Trash, a local plugin's too (it may be the author's only copy): it can be put
+  back from there.
 
 ## Completions (suggestions)
 

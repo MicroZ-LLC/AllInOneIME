@@ -62,8 +62,8 @@ extension Composer {
         return endCodeWord(then: event)
     }
 
-    /// The word held goes in as typed, then `event` acts as it would have with nothing held, as a key after the command
-    /// list's letters does (`commitPalette`). The command trigger right after the word is text, as after a word typed
+    /// The word held goes in as typed, then `event` acts as it would have with nothing held, as a key that leaves one @'s
+    /// list does (`commitPalette`). The command trigger right after the word is text, as after a word typed
     /// straight in ("user@host": `continuesWord`).
     private func endCodeWord(then event: KeyEvent) -> Response {
         let word = draft

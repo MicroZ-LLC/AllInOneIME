@@ -37,6 +37,12 @@ LIBRIME_SHA256  := 147dc220d20bcf2650889c98f943f1792b3c675dbef91f42f9151a216ad2c
 RIME_ICE_TAG    := 2026.06.30
 RIME_ICE_ZIP    := rime-ice-$(RIME_ICE_TAG)-full.zip
 RIME_ICE_SHA256 := 675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac
+# OpenCC's data (Apache-2.0) for Traditional characters (Settings → Input → Chinese → Characters): the conversions the
+# app offers and their dictionaries, from librime's own build of its dependencies for the same release. The .ocd2
+# format follows the OpenCC linked into librime, so never OpenCC's own releases or master.
+RIME_DEPS_TARBALL := rime-deps-de4700e-macOS-universal.tar.bz2
+RIME_DEPS_SHA256  := 087e753056f092f644cc4a470f64ecf2cd9de18e684b220e0588f86f6b91dfcc
+OPENCC_FILES      := s2twp.json s2hk.json s2tw.json STPhrases.ocd2 STCharacters.ocd2 TWPhrases.ocd2 TWVariants.ocd2 HKVariants.ocd2
 
 # Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
 # say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
@@ -47,6 +53,8 @@ RIME_DIST  := $(DEPS)/librime/dist
 RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
+OPENCC_DATA := $(DEPS)/opencc
+OPENCC_BUILT := $(OPENCC_DATA)/s2twp.json
 
 # The Chinese language pack (Core/Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
@@ -66,7 +74,7 @@ PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/do
 
 all: app
 
-deps: $(RIME_LIB) $(RIME_BUILT)
+deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT)
 
 $(RIME_LIB):
 	mkdir -p $(DEPS)
@@ -90,6 +98,16 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 	rm -f $(RIME_DATA)/user.yaml $(RIME_DATA)/installation.yaml
 	rm -rf $(RIME_DATA)/*.userdb
 	test -f $@
+
+# Only the OpenCC files the app uses (ChineseCharacters.openCCFiles in the core), out of the asset's share/opencc.
+$(OPENCC_BUILT):
+	mkdir -p $(DEPS)
+	[ -f $(DEPS)/$(RIME_DEPS_TARBALL) ] || curl -fsSL -o $(DEPS)/$(RIME_DEPS_TARBALL) \
+		https://github.com/rime/librime/releases/download/$(LIBRIME_VERSION)/$(RIME_DEPS_TARBALL)
+	echo "$(RIME_DEPS_SHA256)  $(DEPS)/$(RIME_DEPS_TARBALL)" | shasum -a 256 -c -
+	rm -rf $(OPENCC_DATA) && mkdir -p $(OPENCC_DATA)
+	tar xjf $(DEPS)/$(RIME_DEPS_TARBALL) -C $(OPENCC_DATA) --strip-components 2 $(addprefix share/opencc/,$(OPENCC_FILES))
+	touch $@
 
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
@@ -144,9 +162,15 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	printf 'APPL????' > "$(APP)/Contents/PkgInfo"
 	cp $(RIME_LIB) "$(APP)/Contents/Frameworks/"
 	cp -R $(RIME_DIST)/lib/rime-plugins "$(APP)/Contents/Frameworks/"
-	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack.
+	# Only rime-ice's Lua scripts (code, so never downloaded): the dictionaries are the Chinese pack. Beside them our own
+	# filter of the candidates removed (lua_filter@*allinoneime_removed, which rime_ice.custom.yaml adds).
 	cp -R $(RIME_DATA)/lua "$(APP)/Contents/SharedSupport/rime-lua"
 	cp $(RIME_DATA)/LICENSE "$(APP)/Contents/SharedSupport/rime-lua/LICENSE"
+	cp Resources/rime/lua/allinoneime_removed.lua "$(APP)/Contents/SharedSupport/rime-lua/"
+	# OpenCC's data for Traditional characters, with librime (its .ocd2 format is the linked OpenCC's), not in the pack;
+	# its Apache-2.0 notice is in THIRD_PARTY_NOTICES.md.
+	mkdir -p "$(APP)/Contents/SharedSupport/opencc"
+	cp $(addprefix $(OPENCC_DATA)/,$(OPENCC_FILES)) "$(APP)/Contents/SharedSupport/opencc/"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
@@ -337,6 +361,12 @@ update-manifest:
 # The tests never read this Mac's AWS files: a test whose settings pick Bedrock (the default provider, which autocomplete
 # now asks) without stubbing the credentials would otherwise send a real, billed request.
 TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+# The tests run on Swift's plain global queues instead of its cooperative pool. That pool has one thread per core and
+# adds none when one waits, and many tests wait on theirs: for a session's work (`FakeHost.settle`), for a child process,
+# for the input method compiled into one (this package's issue suites, eight of them, each for the whole compile), so the
+# other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
+# thread when one waits.
+TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
 test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
@@ -346,8 +376,8 @@ test: deps strings-check check-ios
 	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
-	$(TEST_AWS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
 	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
@@ -435,7 +465,8 @@ status:
 # ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, those
 # checks are skipped (what the harness recorded is played anyway). The self-test's exit status: 0 when every check ran
 # and passed, 1 when one failed, 2 when none failed but some were skipped or couldn't run (a locked screen, secure input,
-# no Bedrock credentials, no Electron harness, no on-device model): 2 isn't a pass, and fails this target (and
+# no Bedrock credentials, no Electron harness, no on-device model, the app run on a Mac without this checkout and no
+# ALLINONEIME_SOURCE_ROOT naming one): 2 isn't a pass, and fails this target (and
 # `screenshots`) as 1 does, saying which. Its last line, SELFTEST-RESULT {...}, has the counts and the outcome as JSON.
 OUT ?= /tmp/allinoneime-selftest
 ELECTRON_HARNESS ?=

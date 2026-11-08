@@ -168,19 +168,62 @@ struct DoctorTests {
         ])
     }
 
-    /// After an update System Settings may show AllInOneIME allowed while this build isn't: the finding says where to turn
-    /// it off and on, and Fix opens that pane.
-    @Test func accessibilityDenialExplainsStaleSystemSettingsEntry() {
-        let denied = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false).first { $0.area == .permissions }
-        #expect(denied?.status == .warning && denied?.fix == .openPrivacy(.accessibility))
-        #expect(denied?.text(chinese: false) == "⚠ Accessibility isn't allowed — the selection can't be read in some apps. "
-                + "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again "
-                + "(macOS can keep the permission for the previous version)")
-        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true).first { $0.area == .permissions }
-        #expect(chinese?.detail == "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，"
-                + "先关掉再打开（macOS 可能还留着上一个版本的权限）")
+    /// Accessibility not allowed: one warning, its detail what works less well without it, a line each, then (after an
+    /// update System Settings may show AllInOneIME allowed while this build isn't) where to turn it off and on; Fix opens
+    /// that pane. Not yet asked is the same.
+    @Test func accessibilityDenialListsWhatItHoldsBack() {
+        for permission in [Doctor.Facts.Permission.denied, .notDetermined] {
+            let found = Doctor.findings(facts { $0.accessibility = permission }, chinese: false).filter { $0.area == .permissions && $0.status != .ok }
+            #expect(found.count == 1)
+            let denied = found.first
+            #expect(denied?.status == .warning && denied?.fix == .openPrivacy(.accessibility))
+            #expect(denied?.title == "Accessibility isn't allowed")
+            #expect(denied?.detail == """
+                what doesn't work fully:
+                • some apps can also get the keys a list takes (↓ ↑ → ⏎ Tab Esc)
+                • text of more than one line (AI answers, snippets, clipboard history) goes into terminals on one line
+                • clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps
+                • in Chrome and apps like Slack or VS Code, @ commands may not read the selection, and ⌃V may not open clipboard history
+                • in some apps (often Chrome's pages), a list may show away from the caret
+                • @agent and @reply can't take the Chrome page along
+                • autocomplete's gray text can run past the field's edge
+                • English words aren't learned from what you type
+                • a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, \
+                and suggestions may show there
+                If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again \
+                (macOS can keep the permission for the previous version)
+                """)
+        }
+        let chinese = Doctor.findings(facts { $0.accessibility = .denied }, chinese: true)
+            .filter { $0.area == .permissions && $0.status != .ok }
+        #expect(chinese.count == 1 && chinese.first?.fix == .openPrivacy(.accessibility))
+        #expect(chinese.first?.title == "辅助功能权限没有允许")
+        #expect(chinese.first?.detail == """
+            这些会受影响：
+            • 列表用的键（↓ ↑ → ⏎ Tab Esc）有的 App 也会收到
+            • 多行文字（AI 回答、片段、剪贴板历史）放进终端会变成一行
+            • 剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴
+            • 在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史
+            • 有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边
+            • @agent 和 @reply 带不上 Chrome 里的网页
+            • 续写的灰字可能超出输入框
+            • 不会从你打的字里学英文词
+            • 少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面
+            如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）
+            """)
         let allowed = Doctor.findings(facts { $0.accessibility = .granted }, chinese: false).first { $0.area == .permissions }
         #expect(allowed?.status == .ok && allowed?.detail == nil)
+    }
+
+    /// The model reads a finding per line: the list of what Accessibility holds back is on its finding's line.
+    @Test func theReportKeepsAListedDetailOnOneLine() {
+        let findings = Doctor.findings(facts { $0.accessibility = .denied }, chinese: false)
+        let report = Doctor.report(findings)
+        let line = report.split(separator: "\n").first { $0.hasPrefix("- permissions: ⚠ Accessibility isn't allowed") }
+        #expect(line?.hasPrefix("- permissions: ⚠ Accessibility isn't allowed — what doesn't work fully: • some apps can also get the keys") == true)
+        #expect(line?.contains("• @agent and @reply can't take the Chrome page along •") == true)
+        #expect(line?.hasSuffix("(macOS can keep the permission for the previous version) [fix F1]") == true)
+        #expect(report.split(separator: "\n").count == findings.count)
     }
 
     @Test func theReportForTheModelNamesFixesByID() {

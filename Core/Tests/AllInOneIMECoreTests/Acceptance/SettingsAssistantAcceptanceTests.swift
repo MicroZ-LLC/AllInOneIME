@@ -30,21 +30,24 @@ struct SettingsAssistantAcceptanceTests {
 
     // MARK: Helpers
 
-    /// A text field as the controller sets it up: English typed, `commands` offered, ⏎ runs.
+    /// A text field as the controller sets it up: English typed, `commands` offered, ⏎ runs; with `aiOff`, an app with no
+    /// AI (no AI row in the one @ list, AI commands refused).
     func field(commands: [Command] = Command.catalog([]), aiOff: Bool = false) -> Composer {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.commands = commands
         c.inputLanguages = [.chinese, .english]
         c.setInputMode(.english)
+        c.aiAllowed = { !aiOff }
         c.aiRefusal = { aiOff ? Self.refusal : nil }
         return c
     }
 
     func key(_ ch: Character) -> KeyEvent { ch == "@" ? at : ch == " " ? spaceKey : k(String(ch)) }
 
-    /// Types `text` into a field and presses ⏎, as the app sees it: what ends up in the field (text committed, and keys
-    /// the composer passes on to the app, then the draft left), every effect, and the ⏎'s own response.
-    func typeIntoField(_ text: String, _ c: Composer) -> (field: String, effects: [Composer.Effect], enter: Composer.Response) {
+    /// Types `text` into a field and presses ⏎ (or `finish`), as the app sees it: what ends up in the field (text committed,
+    /// and keys the composer passes on to the app, then the draft left), every effect, and that last key's own response.
+    func typeIntoField(_ text: String, _ c: Composer, then finish: KeyEvent = enterKey)
+        -> (field: String, effects: [Composer.Effect], enter: Composer.Response) {
         var field = "", effects: [Composer.Effect] = []
         for ch in text {
             let response = c.handleKeyDown(key(ch))
@@ -52,7 +55,7 @@ struct SettingsAssistantAcceptanceTests {
             field += inserted(response.effects).joined()
             if !response.handled { field.append(ch) }
         }
-        let enter = c.handleKeyDown(enterKey)
+        let enter = c.handleKeyDown(finish)
         effects += enter.effects
         field += inserted(enter.effects).joined()
         return (field + c.draft, effects, enter)
@@ -100,11 +103,12 @@ struct SettingsAssistantAcceptanceTests {
         effects.map { String(describing: $0).replacingOccurrences(of: name, with: "NAME") }
     }
 
-    /// What typing `@<name><rest>` and ⏎ does in a fresh field, with the name as a placeholder.
-    func behaviour(_ name: String, _ rest: String, commands: [Command] = Command.catalog([]), aiOff: Bool = false)
+    /// What typing `@<name><rest>` and ⏎ (or `finish`) does in a fresh field, with the name as a placeholder.
+    func behaviour(_ name: String, _ rest: String, commands: [Command] = Command.catalog([]), aiOff: Bool = false,
+                   then finish: KeyEvent = enterKey)
         -> (field: String, enter: [String], handled: Bool, draft: String, phase: String, panel: Bool) {
         let c = field(commands: commands, aiOff: aiOff)
-        let typed = typeIntoField("@" + name + rest, c)
+        let typed = typeIntoField("@" + name + rest, c, then: finish)
         return (typed.field.replacingOccurrences(of: name, with: "NAME"), normalized(typed.enter.effects, name),
                 typed.enter.handled, c.draft.replacingOccurrences(of: name, with: "NAME"), "\(c.phase)", c.wantsPanel)
     }
@@ -214,31 +218,38 @@ struct SettingsAssistantAcceptanceTests {
 
     @Test func r3_typedWithTextTheyAreLikeAnUnknownName() {
         let control = behaviour(Self.unknown, " output languages English and French")
-        // The control itself: an unknown name starts nothing and leaves the text as typed.
-        #expect(control.field == "@NAME output languages English and French")
+        let controlLeft = behaviour(Self.unknown, " output languages English and French", then: escKey)
+        // The control itself: an unknown name starts nothing of its own, and Esc leaves the text as typed (one @, 0.7.0:
+        // ⏎ does the list's first row for the text, as for any text).
+        #expect(controlLeft.field == "@NAME output languages English and French")
         for name in Self.removed {
             let c = field()
-            let typed = typeIntoField("@\(name) output languages English and French", c)
+            let typed = typeIntoField("@\(name) output languages English and French", c, then: escKey)
             #expect(!startsAnything(typed.effects), "@\(name): \(typed.effects)")
             #expect(typed.field == "@\(name) output languages English and French", "@\(name): \(typed.effects)")
-            let seen = behaviour(name, " output languages English and French")
-            #expect(seen.field == control.field, "@\(name)")
-            #expect(seen.enter == control.enter, "@\(name)")
-            #expect(seen.handled == control.handled && seen.draft == control.draft, "@\(name)")
-            #expect(seen.phase == control.phase && seen.panel == control.panel, "@\(name)")
+            for (finish, control) in [(enterKey, control), (escKey, controlLeft)] {
+                let seen = behaviour(name, " output languages English and French", then: finish)
+                #expect(seen.field == control.field, "@\(name)")
+                #expect(seen.enter == control.enter, "@\(name)")
+                #expect(seen.handled == control.handled && seen.draft == control.draft, "@\(name)")
+                #expect(seen.phase == control.phase && seen.panel == control.panel, "@\(name)")
+            }
         }
     }
 
     @Test func r3_typedAloneTheyAreLikeAnUnknownName() {
-        // "@doctor" and ⏎ used to run the checks; "@config" and ⏎ did nothing (it waited for a request).
-        let control = behaviour(Self.unknown, "")
+        // "@doctor" and ⏎ used to run the checks; "@config" and ⏎ did nothing (it waited for a request). Now ⏎ does what it
+        // does after a name no command has (one @, 0.7.0: the list's first row for the text), and Esc leaves it as typed.
+        let control = behaviour(Self.unknown, ""), controlLeft = behaviour(Self.unknown, "", then: escKey)
         for name in Self.removed {
             let c = field()
-            let typed = typeIntoField("@\(name)", c)
+            let typed = typeIntoField("@\(name)", c, then: escKey)
             #expect(!startsAnything(typed.effects), "@\(name): \(typed.effects)")
-            let seen = behaviour(name, "")
-            #expect(seen.field == control.field && seen.enter == control.enter && seen.handled == control.handled, "@\(name)")
-            #expect(seen.draft == control.draft && seen.phase == control.phase && seen.panel == control.panel, "@\(name)")
+            for (finish, control) in [(enterKey, control), (escKey, controlLeft)] {
+                let seen = behaviour(name, "", then: finish)
+                #expect(seen.field == control.field && seen.enter == control.enter && seen.handled == control.handled, "@\(name)")
+                #expect(seen.draft == control.draft && seen.phase == control.phase && seen.panel == control.panel, "@\(name)")
+            }
             // With a space after it, too.
             let spaced = behaviour(name, " ")
             let spacedControl = behaviour(Self.unknown, " ")
@@ -247,9 +258,10 @@ struct SettingsAssistantAcceptanceTests {
     }
 
     @Test func r3_configUndoIsJustText() {
-        // "@config undo" put back the last changes; now it is text like any other.
+        // "@config undo" put back the last changes; now it is text like any other: Esc leaves it as typed, ⏎ does what it
+        // does after a name no command has (one @, 0.7.0: the list's first row for the text).
         let c = field()
-        let typed = typeIntoField("@config undo", c)
+        let typed = typeIntoField("@config undo", c, then: escKey)
         #expect(!startsAnything(typed.effects), "\(typed.effects)")
         #expect(typed.field == "@config undo")
         let seen = behaviour("config", " undo"), control = behaviour(Self.unknown, " undo")
@@ -257,12 +269,15 @@ struct SettingsAssistantAcceptanceTests {
     }
 
     @Test func r3_noAIRefusalForThem() {
-        // In an app with AI off @config was refused with a notice; an unknown name is not an AI command, so it isn't.
+        // In an app with AI off @config was refused with a notice; an unknown name is not an AI command, so it isn't (one @,
+        // 0.7.0: no AI row is offered there, so nothing is refused on ⏎ either); Esc leaves the text as typed.
         for name in Self.removed {
             let c = field(aiOff: true)
             let typed = typeIntoField("@\(name) use Apple Intelligence", c)
             #expect(!notices(typed.effects).contains(Self.refusal), "@\(name): \(typed.effects)")
-            #expect(!startsAnything(typed.effects) && typed.field == "@\(name) use Apple Intelligence", "@\(name)")
+            let left = typeIntoField("@\(name) use Apple Intelligence", field(aiOff: true), then: escKey)
+            #expect(!notices(left.effects).contains(Self.refusal), "@\(name): \(left.effects)")
+            #expect(!startsAnything(left.effects) && left.field == "@\(name) use Apple Intelligence", "@\(name)")
             let seen = behaviour(name, " use Apple Intelligence", aiOff: true)
             let control = behaviour(Self.unknown, " use Apple Intelligence", aiOff: true)
             #expect(seen.field == control.field && seen.enter == control.enter, "@\(name)")

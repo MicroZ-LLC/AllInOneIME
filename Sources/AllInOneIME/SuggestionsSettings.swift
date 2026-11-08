@@ -22,16 +22,6 @@ struct SuggestionsSection: View {
         }
         .disabled(!model.canSave)
     }
-
-    /// A row's title with a short explanation under it, as the other pages show them.
-    @ViewBuilder private func titled(_ spot: SettingsSpot) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(spot.title)
-            if let note = spot.note {
-                Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-            }
-        }
-    }
 }
 
 /// What a suggestion row inserts everywhere (decision 28), under the Suggestions switch: the source's own (a plugin's
@@ -51,10 +41,7 @@ struct SuggestionsInsertPicker: View {
                 Text(tr("默认", "Default")).tag(SuggestionsInsert?.none)
                 ForEach(SuggestionsInsert.offered, id: \.self) { insert in Text(insert.label).tag(SuggestionsInsert?.some(insert)) }
             } label: {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(SettingsSpot.suggestionsInsert.title)
-                    Text(SuggestionsInsert.help).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                }
+                titled(.suggestionsInsert)
             }
         }
     }
@@ -76,11 +63,7 @@ struct AppInsertsList: View {
         let apps = model.appInsertApps
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(SettingsSpot.appInserts.title)
-                    Text(SettingsSpot.appInserts.note ?? "").font(.callout).foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
+                titled(.appInserts)
                 Spacer()
                 AddAppMenu(model: model, has: { $0.insertChoice != nil }) { app in
                     model.setInsertChoice(.insert(AppInsertsList.added(everywhere: model.config.suggestionsInsert)), for: app)

@@ -13,9 +13,13 @@ enum ContactBook {
     }
 
     private static let lock = NSLock()
-    private static var cached: (at: Date, contacts: [Contact])?
+    private static var book: (at: Date, contacts: [Contact])?
+    /// A read of the book is under way in the background (`cached`).
+    private static var reading = false
+    /// How long the book read is used before it is read again (in the background: the keys meanwhile use it as it is).
+    static let maxAge: TimeInterval = 60
 
-    /// The contacts, read again at most every 60 seconds. Asks for access when it was never asked.
+    /// The contacts, read again at most every `maxAge` seconds. Asks for access when it was never asked.
     static func load() async -> Lookup {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
@@ -24,7 +28,25 @@ enum ContactBook {
         }
     }
 
-    private static func loadNow() -> Lookup {
+    /// The contacts as last read, at once, for a key (nil: not read yet, or no access): one read more than `maxAge`
+    /// ago is read again in the background, and used as it is meanwhile. Never asks for access, never waits for the lock
+    /// a read holds.
+    static func cached() -> [Contact]? {
+        guard lock.try() else { return nil }
+        defer { lock.unlock() }
+        guard let book else { return nil }
+        let status = CNContactStore.authorizationStatus(for: .contacts)
+        if Date().timeIntervalSince(book.at) >= maxAge, !reading, status != .notDetermined, status != .denied, status != .restricted {
+            reading = true
+            DispatchQueue.global(qos: .utility).async {
+                _ = loadNow(fresh: true)
+                lock.withLock { reading = false }
+            }
+        }
+        return book.contacts
+    }
+
+    private static func loadNow(fresh: Bool = false) -> Lookup {
         switch CNContactStore.authorizationStatus(for: .contacts) {
         case .notDetermined:
             let asked = DispatchSemaphore(value: 0)
@@ -41,9 +63,7 @@ enum ContactBook {
         default:
             break  // authorized (or limited)
         }
-        lock.lock()
-        defer { lock.unlock() }
-        if let cached, Date().timeIntervalSince(cached.at) < 60 { return .contacts(cached.contacts) }
+        if !fresh, let book = lock.withLock({ book }), Date().timeIntervalSince(book.at) < maxAge { return .contacts(book.contacts) }
         let keys = [CNContactGivenNameKey, CNContactFamilyNameKey, CNContactNicknameKey, CNContactOrganizationNameKey,
                     CNContactPhoneNumbersKey, CNContactEmailAddressesKey] as [CNKeyDescriptor]
         var contacts: [Contact] = []
@@ -60,7 +80,7 @@ enum ContactBook {
             return .denied
         }
         log.notice("@imessage: \(contacts.count, privacy: .public) contacts with a phone number or email")
-        cached = (Date(), contacts)
+        lock.withLock { book = (Date(), contacts) }
         return .contacts(contacts)
     }
 }

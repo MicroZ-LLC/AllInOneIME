@@ -43,16 +43,19 @@ public struct WritingPlan: Equatable, Sendable {
     public var input: OutputLanguage
 
     /// `mode` for `text`: translations go to the added output languages other than the sentence's
-    /// own (in the user's order); one target gets three versions, several get a line each.
+    /// own (in the user's order); one target gets three versions, several get a line each. Chinese is in the characters
+    /// it is written in, else those it is typed in (`Config.writtenLanguage`): a Simplified selection is translated into
+    /// Traditional Chinese for a Taiwan user.
     public static func make(_ mode: WritingMode, text: String, config: Config) -> WritingPlan {
-        make(mode, input: OutputLanguage(config.language(of: text)), config: config)
+        make(mode, input: config.writtenLanguage(of: text), config: config)
     }
 
     /// `mode` for a sentence written in `input`.
     public static func make(_ mode: WritingMode, input: OutputLanguage, config: Config) -> WritingPlan {
         let styles = mode == .translate ? [] : RewriteStyle.resolve(config.rewriteStyles)
         guard mode != .improve else { return WritingPlan(versions: input, translations: [], styles: styles, input: input) }
-        let targets = config.outputLanguages.filter { $0 != input }
+        // Traditional Chinese typed is in "zh-Hant" already (`OutputLanguage.isSame`): polished, not translated.
+        let targets = config.outputLanguages.filter { !$0.isSame(as: input) }
         switch targets.count {
         case 0:
             // Nothing else to translate into (the sentence is in the only language added): polish it.

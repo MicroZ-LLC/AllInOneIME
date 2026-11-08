@@ -82,8 +82,10 @@ public enum FuzzyPinyin {
         case userFile
     }
 
-    /// Writes (or removes) the patch in `userDir` for `ids`; the caller deploys Rime again unless `.unchanged`.
-    public static func apply(_ ids: [String], schema schemaURL: URL, userDir: URL) throws -> Outcome {
-        try PersonalDictionaryStore(userDirectory: userDir, schema: schemaURL).applyFuzzyPinyin(ids)
+    /// Writes (or removes) the patch in `userDir` for `ids`, and for the characters typed (`characters`: Traditional ones
+    /// are in the same file, `ChineseCharacters.patch`); the caller deploys Rime again unless `.unchanged`.
+    public static func apply(_ ids: [String], characters: ChineseCharacters = .simplified, schema schemaURL: URL,
+                             userDir: URL) throws -> Outcome {
+        try PersonalDictionaryStore(userDirectory: userDir, schema: schemaURL).applyFuzzyPinyin(ids, characters: characters)
     }
 }

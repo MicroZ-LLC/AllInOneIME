@@ -1,6 +1,5 @@
 import AllInOneIMECore
 import AllInOneIMEMac
-import AllInOneIMECore
 import AllInOneIMERime
 import AppKit
 import Carbon
@@ -25,6 +24,9 @@ let usage = """
                         Electron harness where ALLINONEIME_ELECTRON_HARNESS names it; no AI requests);
                         --clipboard-only just clipboard history's (a history of its own, never the
                         clipboard's; the Electron harness as for suggestions).
+                        The GitHub plugin and a coding pack come from the repository's Core/: the
+                        checkout this build was made from, or ALLINONEIME_SOURCE_ROOT's (skipped where
+                        neither is on this Mac).
                         Exits 0 when every check ran and passed, 1 when one failed, 2 when none failed
                         but some were skipped or couldn't run (a locked screen ends it at once); the
                         last line is SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":…}
@@ -54,6 +56,11 @@ func printError(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
+/// The value after `name` in a developer command's `arguments` (`--key BASE64`); nil when there is none.
+func option(_ name: String, in arguments: [String]) -> String? {
+    arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
+}
+
 /// Where level one keeps its data: the Chinese language pack's dictionaries, learned words per user,
 /// and the Lua scripts the pack's schemas use (in the bundle: packs are data only).
 enum RimeDirectories {
@@ -70,6 +77,10 @@ enum RimeDirectories {
     static var code: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
     }
+    /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
+    static var openCC: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
+    }
     static var user: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library/Application Support/AllInOneIME/Rime")
@@ -79,14 +90,21 @@ enum RimeDirectories {
     }
 }
 
-/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on.
+/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, for the
+/// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC), and for the filter of the
+/// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too.
 enum RimeFuzzy {
+    /// The characters the patch was last written for (`follow`).
+    static let written = ChineseCharacters.Written()
+
     /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
     @discardableResult
-    static func write(_ ids: [String]) -> FuzzyPinyin.Outcome? {
+    static func write(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
         guard let shared = RimeDirectories.shared else { return nil }
+        // Whatever came of it: tried once for these characters, not again at every check (`follow`).
+        defer { written.wrote(characters) }
         do {
-            let outcome = try FuzzyPinyin.apply(ids, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
+            let outcome = try FuzzyPinyin.apply(ids, characters: characters, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
                                                 userDir: RimeDirectories.user)
             if outcome == .userFile { log.notice("fuzzy pinyin not applied: the Rime folder has the user's own \(FuzzyPinyin.fileName, privacy: .public)") }
             return outcome
@@ -98,10 +116,23 @@ enum RimeFuzzy {
 
     /// Changed in the settings: written, and Rime deployed again when it changed (about a second).
     @discardableResult
-    static func apply(_ ids: [String]) -> FuzzyPinyin.Outcome? {
-        let outcome = write(ids)
+    static func apply(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
+        let outcome = write(ids, characters: characters)
         if outcome == .written || outcome == .removed { RimeService.shared.redeploy() }
         return outcome
+    }
+
+    /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
+    /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
+    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. Nothing while the
+    /// config file doesn't parse (nil): its defaults aren't the user's fuzzy pinyin. Nothing in the self-test either
+    /// (`Config.selfTestURL`): its Rime has a user folder of its own, and the patch is the user's.
+    @MainActor
+    static func follow(_ config: Config?) {
+        guard let config, Config.selfTestURL == nil, RimeService.shared.isStarted,
+              let characters = written.changed(config) else { return }
+        log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
+        apply(config.fuzzyPinyin, characters: characters)
     }
 }
 
@@ -116,20 +147,32 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
     }
 }
 
-/// SIGTERM (an update, `make install`, logging out): the programs running for script extensions, and what they
-/// started, are stopped first (`CommandRunner.stopAll`, at most half a second), then the input method ends, as
-/// the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main
-/// thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// SIGTERM (an update, `make install`, logging out): what was typed in the settings window without ⏎ (a model ID, the
+/// region) is saved first, as closing the window saves it (`SettingsWindow.save`, on the main thread, waited for at
+/// most half a second), the programs running for script extensions, and what they started, are stopped
+/// (`CommandRunner.stopAll`, at most half a second), the English words learned and the candidates removed not written
+/// yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the
+/// signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main thread: a
+/// main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
     source.setEventHandler {
-        DispatchQueue.global().asyncAfter(deadline: .now() + 1.5) { _exit(0) }
+        DispatchQueue.global().asyncAfter(deadline: .now() + 2) { _exit(0) }
+        let saved = DispatchSemaphore(value: 0)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated { SettingsWindow.shared.save() }
+            saved.signal()
+        }
+        _ = saved.wait(timeout: .now() + 0.5)
         CommandRunner.stopAll()
+        SessionServices.englishWordsWriter.drain(within: 0.5)
         _exit(0)
     }
     return source
@@ -180,13 +223,36 @@ func runServer(showSettings: Bool = false) -> Never {
     // A plugin found for the first time (installed, put in the plugins folder, or there before 0.6.7.2): its completion
     // sources on, as each scan of the plugins folder finds it.
     LivePlugins.found = { plugins in MainActor.assumeIsolated { SuggestionsShared.pluginsFound(plugins) } }
+    // The extensions and plugins found in the background now, not at the first field's focus: the first "@" has them; a
+    // rebuild that lands while an "@" list is open shows them there at once.
+    LiveExtensions.changed = { MainActor.assumeIsolated { AllInOneIMEInputController.activeController?.commandsChanged() } }
+    LivePlugins.changed = { MainActor.assumeIsolated { AllInOneIMEInputController.activeController?.commandsChanged() } }
+    LiveExtensions.prepare(LiveConfig.current)
+    LivePlugins.prepare()
+    // The script extensions' status lines kept from the last launch, read off the main thread now, not on the key that
+    // first shows one.
+    MainActor.assumeIsolated { ScriptStatus.shared.prepare() }
+    // English words learned (candidates removed) while the config file didn't parse (or couldn't be written): written
+    // once it parses again.
+    LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.
     MainActor.assumeIsolated { ICloudSyncController.shared.start() }
     // Clipboard history: a look at the clipboard's change count each second (⌃V lists what was copied).
     MainActor.assumeIsolated { ClipboardHistoryShared.start() }
-    withExtendedLifetime(server) { app.run() }
+    // Without librime (no Chinese pack), what the first key and panel would wait for is made ready a moment after launch;
+    // with it, once it is ready (`RimeReadinessLogger`).
+    DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
+        MainActor.assumeIsolated { if !RimeService.shared.isStarted { LaunchWarmUp.run() } }
+    }
+    // The system's languages changed (System Settings → General → Language & Region): with no characters picked, the
+    // candidates follow them as the rest does (a text field focused checks too).
+    let localeChanged = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil,
+                                                               queue: .main) { _ in
+        MainActor.assumeIsolated { RimeFuzzy.follow(LiveConfig.currentIfValid) }
+    }
+    withExtendedLifetime((server, localeChanged)) { app.run() }
     exit(0)
 }
 
@@ -204,6 +270,7 @@ final class RimeReadinessLogger: NSObject {
         if RimeService.shared.isReady {
             timer.invalidate()
             log.info("Rime ready \(elapsed, format: .fixed(precision: 2))s after launch")
+            MainActor.assumeIsolated { LaunchWarmUp.run() }
         } else if elapsed > 300 {
             timer.invalidate()
             log.error("Rime still deploying after 300s")
@@ -318,7 +385,9 @@ func printStatus() -> Int32 {
         if config.provider == .apple {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
-            print("api key:     \(APIKeys.source(config.provider) == .none ? "✗ none" : "found")")  // not read: no keychain prompt
+            let source = APIKeys.source(config.provider).sent(by: config.provider,
+                                                              to: HTTPProviders.host(of: config.settings(for: config.provider)))
+            print("api key:     \(source == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else {
             // Read from the files and the SSO sign-in only: no program run, nothing fetched.
             let status = AWSCredentialResolver.shared.status(profile: config.awsProfile)
@@ -358,22 +427,19 @@ func printStatus() -> Int32 {
 /// `--install-pack ID [--library URL] [--key BASE64] [--packs-dir DIR]`: the settings' download, from a
 /// terminal (and against a test library: another key, plain http to this Mac).
 func installPack(_ arguments: [String]) -> Int32 {
-    func option(_ name: String) -> String? {
-        arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
-    }
     guard let id = arguments.first, let pack = LanguagePack.catalog.first(where: { $0.id == id }) else {
         printError("usage: --install-pack \(LanguagePack.catalog.map(\.id).joined(separator: "|")) [--library URL] [--key BASE64] [--packs-dir DIR]")
         return 2
     }
     var library = LanguagePackLibrary(allowsLocalHTTP: true)
-    if let url = option("--library").flatMap(URL.init(string:)) { library = LanguagePackLibrary(baseURL: url, allowsLocalHTTP: true) }
-    if let key = option("--key") {
+    if let url = option("--library", in: arguments).flatMap(URL.init(string:)) { library = LanguagePackLibrary(baseURL: url, allowsLocalHTTP: true) }
+    if let key = option("--key", in: arguments) {
         guard let raw = Data(base64Encoded: key) else { printError("--key: not base64"); return 2 }
         library.publicKey = raw
     }
-    if let dir = option("--packs-dir") { library.store = LanguagePackStore(directory: URL(fileURLWithPath: dir)) }
+    if let dir = option("--packs-dir", in: arguments) { library.store = LanguagePackStore(directory: URL(fileURLWithPath: dir)) }
     let started = Date()
-    let outcome = InstallOutcome()
+    let outcome = ResultBox<LanguagePackRecord>()
     Task.detached { [library] in
         do {
             let record = try await library.install(pack) { share in
@@ -395,14 +461,6 @@ func installPack(_ arguments: [String]) -> Int32 {
         printError("✗ \((error as? LocalizedError)?.errorDescription ?? "\(error)")")
         return 1
     }
-}
-
-/// The outcome of a background install, polled by the main thread.
-final class InstallOutcome: @unchecked Sendable {
-    private let lock = NSLock()
-    private var value: Result<LanguagePackRecord, Error>?
-    func set(_ result: Result<LanguagePackRecord, Error>) { lock.withLock { value = result } }
-    func get() -> Result<LanguagePackRecord, Error>? { lock.withLock { value } }
 }
 
 /// `--adopt-pack DATA [VERSION]`: the Chinese pack from a Rime data folder, without downloading (the
@@ -507,7 +565,7 @@ case "--settings-image":
         // `agent=gemini|kiro|custom:<command>`: the agent `@agent` hands the text to.
         let agent = arguments.first { $0.hasPrefix("agent=") }.map { String($0.dropFirst("agent=".count)) }
         // `doctor=fine`: About → Troubleshoot's checks with nothing wrong (else made-up problems); `doctor=open` or
-        // `doctor=fine,open`: what is fine opened (else folded).
+        // `doctor=fine,open`: what is fine opened (else folded); `noax` with either: Accessibility not allowed.
         let doctor = arguments.first { $0.hasPrefix("doctor=") }.map { String($0.dropFirst("doctor=".count)) }
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent, doctor: doctor)

@@ -1140,7 +1140,8 @@ public struct ReminderParser: Sendable {
     // MARK: - The text as the rules read it
 
     /// The text with what the detector misses written out (明早 → 明天早上, 今早 → 今天早上, 明晚 → 明天晚上,
-    /// 早8点 → 早上8点), and the way back to the text as typed for the title. Of a longer text, only the first `limit`
+    /// 早8点 → 早上8点), in Simplified characters, as the rules are written (這個禮拜五 → 这个礼拜五: `simplified`), and the way
+    /// back to the text as typed for the title, which keeps its own characters. Of a longer text, only the first `limit`
     /// characters are read; the ranges found there are ranges of the whole text as typed.
     struct Written {
         let original: String
@@ -1152,7 +1153,7 @@ public struct ReminderParser: Sendable {
 
         init(_ original: String, reading limit: Int = .max) {
             self.original = original
-            let chars = Array(original.prefix(limit))
+            let chars = Self.simplified(Array(original.prefix(limit)))
             var text = "", origins: [Range<Int>] = []
             var i = 0
             while i < chars.count {
@@ -1176,6 +1177,16 @@ public struct ReminderParser: Sendable {
             }
             self.text = text
             self.origins = origins
+        }
+
+        /// `chars` in Simplified characters (ICU's Hant-Hans transform), one for one, so that each still stands for the
+        /// one typed; as they are where the transform isn't there or changes how many there are.
+        private static func simplified(_ chars: [Character]) -> [Character] {
+            let text = String(chars)
+            guard text.containsHan,
+                  let converted = text.applyingTransform(StringTransform(rawValue: "Hant-Hans"), reverse: false).map(Array.init),
+                  converted.count == chars.count else { return chars }
+            return converted
         }
 
         /// A span of time of day (「3-4点」, 「三到四点」, 「3点半到4点」): read as its start (「3点」, 「3点半」), which the

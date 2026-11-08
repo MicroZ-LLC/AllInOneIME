@@ -23,9 +23,12 @@ enum ClipboardHistoryShared {
     /// The switch and the limit last applied.
     private static var applied: (on: Bool, limit: Int)?
 
-    /// Starts looking, once a second, at launch.
+    /// Starts looking, once a second, at launch; and at each paste of ours (`TerminalPaste`): before its write, and its
+    /// put back marked as looked at (`ClipboardRecorder.putBack`).
     static func start() {
         guard timer == nil else { return }
+        TerminalPaste.lookBeforeWrite = { tick() }
+        TerminalPaste.didPutBack = { recorder.putBack(at: $0, asAt: $1) }
         tick()
         let timer = Timer(timeInterval: 1, repeats: true) { _ in MainActor.assumeIsolated { tick() } }
         timer.tolerance = 0.5
@@ -34,12 +37,15 @@ enum ClipboardHistoryShared {
     }
 
     /// The settings as they are now (turned off: the history deleted; a lower limit: the oldest dropped), then, while it's
-    /// on, a copy since the last look recorded.
-    static func tick() {
-        let config = LiveConfig.current
+    /// on, a copy since the last look recorded. Nothing at all while the config file doesn't parse (`currentIfValid`): its
+    /// defaults would trim the history to 20, or turn on one the user turned off. `quick`: for ⌃V's panel, which waits
+    /// for it (`ClipboardRecorder.poll(limit:quick:)`: a text in memory at once, written after; an image copied just before
+    /// kept at once, a moment waited for it at most).
+    static func tick(quick: Bool = false) {
+        guard let config = LiveConfig.currentIfValid else { return }
         apply(config)
         guard config.clipboardHistoryOn else { return }
-        if recorder.poll(limit: config.clipboardHistoryKept) == .recorded {
+        if recorder.poll(limit: config.clipboardHistoryKept, quick: quick) == .recorded {
             log.debug("clipboard history: a copy recorded (\(recorder.store.items.count, privacy: .public) kept)")
         }
     }
@@ -79,7 +85,7 @@ enum ClipboardHistoryShared {
             state: { MainActor.assumeIsolated { access == .allowed ? .recording : .notAllowed } },
             items: {
                 MainActor.assumeIsolated {
-                    tick()
+                    tick(quick: true)
                     return recorder.store.items
                 }
             },
@@ -92,6 +98,12 @@ enum ClipboardHistoryShared {
             openPermission: { MainActor.assumeIsolated { openPrivacyPage() } },
             imageData: { id in MainActor.assumeIsolated { recorder.store.imageData(id) } },
             clipboardIsNewest: { MainActor.assumeIsolated { recorder.clipboardIsNewest } })
+    }
+
+    /// The kept image a panel row's thumbnail stands for, and its file (`ImagePreview`, the panel's larger picture of it);
+    /// none in the self-test's isolation, whose checks give their own.
+    static func keptImage(thumbnail path: String) -> (image: ClipboardHistoryImage, file: URL)? {
+        isolated ? nil : recorder.store.image(thumbnail: path)
     }
 
     /// Paste from Other Apps, in System Settings.

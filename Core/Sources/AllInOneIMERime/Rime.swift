@@ -19,6 +19,8 @@ public final class RimeService {
     public private(set) var isStarted = false
     public private(set) var sharedDataDir: URL?
     public private(set) var userDataDir: URL?
+    /// The app's OpenCC data (`ChineseCharacters.openCCFiles`), copied into the user folder's `opencc` (`prepareOpenCC`).
+    public private(set) var openCCDir: URL?
 
     private init() {
         api = rime_get_api()
@@ -80,12 +82,14 @@ public final class RimeService {
     private func setSyncing(_ on: Bool) { syncLock.lock(); syncing = on; syncLock.unlock() }
 
     /// Sets up librime and starts deployment in the background. Deployment is quick when the
-    /// prebuilt dictionaries in `sharedDataDir/build` are current.
-    public func start(sharedDataDir: URL, userDataDir: URL, logDir: URL?, fullCheck: Bool = false) throws {
+    /// prebuilt dictionaries in `sharedDataDir/build` are current. `openCCDir`: the app's OpenCC data, for Traditional
+    /// characters (nil: none, as before).
+    public func start(sharedDataDir: URL, userDataDir: URL, logDir: URL?, fullCheck: Bool = false, openCCDir: URL? = nil) throws {
         guard !isStarted else { return }
         let fm = FileManager.default
         try fm.createDirectory(at: userDataDir, withIntermediateDirectories: true)
         Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir)
+        if let openCCDir { Self.supplyOpenCC(from: openCCDir, userDataDir: userDataDir) }
         if let logDir { try fm.createDirectory(at: logDir, withIntermediateDirectories: true) }
         // Our schema-list patch goes into the user directory so it applies (and can be edited there).
         let patch = "default.custom.yaml"
@@ -122,6 +126,7 @@ public final class RimeService {
         _ = api.pointee.start_maintenance(fullCheck ? 1 : 0)
         self.sharedDataDir = sharedDataDir
         self.userDataDir = userDataDir
+        self.openCCDir = openCCDir
         englishLoad = EnglishLoad(sharedDataDir)
         isStarted = true
     }
@@ -144,24 +149,31 @@ public final class RimeService {
     /// shared one changed, as long as the copy is still the one made here (`LunarCopy`, beside it). One the user put
     /// there instead (or a link) is left as it is. Throws when the copy can't be made.
     static func prepareLunarDatabase(sharedDataDir: URL, userDataDir: URL) throws {
-        let fm = FileManager.default
         let source = sharedDataDir.appendingPathComponent("lua/lunar.db").resolvingSymlinksInPath()
         let destination = userDataDir.appendingPathComponent("lua/lunar.db")
         let record = userDataDir.appendingPathComponent("lua/" + LunarCopy.fileName)
-        // Other schemas have none.
-        guard let shared = LunarCopy.Stamp(source, type: .typeRegular) else { return }
         let copied = (try? Data(contentsOf: record)).flatMap { try? JSONDecoder().decode(LunarCopy.self, from: $0) }
+        let now = try prepareCopy(of: source, to: destination, recorded: copied)
+        if let now, now != copied { try JSONEncoder().encode(now).write(to: record, options: .atomic) }
+    }
+
+    /// `source` copied to `destination`, unless the copy there is current (`copied`, its record, says it was made from
+    /// the source as it is); copied again once the source changed, as long as the copy is still the one made here. One
+    /// put there otherwise (or a link) is left as it is; one with the source's bytes and no record (copied before there
+    /// was one: 0.6.7's first builds' lunar database) is taken for one made here. No source (another pack's schemas have
+    /// no lunar database): nothing. The record of the copy now, to keep; nil: none. Throws when the copy can't be made.
+    static func prepareCopy(of source: URL, to destination: URL, recorded copied: LunarCopy?) throws -> LunarCopy? {
+        let fm = FileManager.default
+        guard let shared = LunarCopy.Stamp(source, type: .typeRegular) else { return copied }
         // Anything there, a dangling link too.
         if (try? fm.attributesOfItem(atPath: destination.path)) != nil {
             let present = LunarCopy.Stamp(destination, type: .typeRegular)
             if let copied, present == copied.copy {
-                guard copied.source != shared else { return }  // made here, from the shared one as it is
-            } else if copied == nil, present != nil, try Data(contentsOf: destination) == Data(contentsOf: source) {
-                // The shared one's bytes, copied before there was a record (0.6.7's first builds): made here.
-                try write(LunarCopy(source: shared, copy: present!), to: record)
-                return
+                guard copied.source != shared else { return copied }  // made here, from the source as it is
+            } else if copied == nil, let present, try Data(contentsOf: destination) == Data(contentsOf: source) {
+                return LunarCopy(source: shared, copy: present)  // the source's bytes: made here
             } else {
-                return  // the user's own
+                return copied  // the user's own
             }
         }
         try fm.createDirectory(at: destination.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -169,15 +181,65 @@ public final class RimeService {
         guard let copy = LunarCopy.Stamp(destination, type: .typeRegular) else {
             throw CocoaError(.fileWriteUnknown, userInfo: [NSFilePathErrorKey: destination.path])
         }
-        try write(LunarCopy(source: shared, copy: copy), to: record)
+        return LunarCopy(source: shared, copy: copy)
     }
 
-    private static func write(_ copy: LunarCopy, to url: URL) throws {
-        try JSONEncoder().encode(copy).write(to: url, options: .atomic)
+    /// The app's OpenCC data for Traditional characters (`ChineseCharacters.openCCFiles`) in the user folder's
+    /// `opencc`, where librime looks first (then in the shared folder, the pack, which has none): copied as the lunar
+    /// database is (`prepareOpenCC`), before librime starts and before each deployment (an app update brings new ones).
+    /// Never what stops pinyin: a copy that fails is logged, and only Traditional characters are missing (the Doctor says
+    /// so, from librime's log).
+    static func supplyOpenCC(from bundled: URL, userDataDir: URL) {
+        do {
+            try prepareOpenCC(from: bundled, userDataDir: userDataDir)
+        } catch {
+            log.error("OpenCC data not copied into the Rime user folder: \(error.localizedDescription)")
+        }
     }
 
-    /// What the user folder's `lua/lunar.db` was copied from, and the copy as it was made: a later shared one is copied
-    /// over it only while it is still that copy.
+    /// Each of the app's OpenCC files (`bundled`) copied into the user folder's `opencc`, unless the copy there is current
+    /// (`prepareCopy`), the records of the copies in one file beside them (`openCCRecord`). A file the user put
+    /// there is left as it is. Throws when a copy can't be made (the others are made all the same).
+    static func prepareOpenCC(from bundled: URL, userDataDir: URL) throws {
+        let folder = userDataDir.appendingPathComponent("opencc", isDirectory: true)
+        let record = folder.appendingPathComponent(openCCRecord)
+        let copied = (try? Data(contentsOf: record)).flatMap { try? JSONDecoder().decode(OpenCCCopies.self, from: $0) } ?? [:]
+        var copies = copied, failure: Error?
+        for name in ChineseCharacters.openCCFiles {
+            do {
+                copies[name] = try prepareCopy(of: bundled.appendingPathComponent(name).resolvingSymlinksInPath(),
+                                               to: folder.appendingPathComponent(name), recorded: copied[name])
+            } catch {
+                failure = failure ?? error
+            }
+        }
+        if copies != copied { try JSONEncoder().encode(copies).write(to: record, options: .atomic) }
+        if let failure { throw failure }
+    }
+
+    /// The records of the OpenCC files copied into the user folder (`prepareOpenCC`), by name, and their file there.
+    typealias OpenCCCopies = [String: LunarCopy]
+    static let openCCRecord = "opencc.allinoneime.json"
+
+    /// When the user folder's `opencc` got the app's copy of the files `characters` convert with (`openCCData`: the newest
+    /// copy's modification time), while each is still as `prepareOpenCC` copied it (its record lists it, and the file is
+    /// that copy, not one of the user's own); nil otherwise, and for Simplified. The Doctor then takes librime's errors
+    /// about the data logged before it for resolved (`Doctor.OpenCCNow.provided`); a run since couldn't read the copy.
+    public static func providedOpenCC(userDataDir: URL, for characters: ChineseCharacters) -> Date? {
+        let folder = userDataDir.appendingPathComponent("opencc", isDirectory: true)
+        guard !characters.openCCData.isEmpty, let data = try? Data(contentsOf: folder.appendingPathComponent(openCCRecord)),
+              let copied = try? JSONDecoder().decode(OpenCCCopies.self, from: data) else { return nil }
+        var newest = -Double.infinity
+        for name in characters.openCCData {
+            guard let copy = copied[name]?.copy, LunarCopy.Stamp(folder.appendingPathComponent(name), type: .typeRegular) == copy
+            else { return nil }
+            newest = max(newest, copy.modified)
+        }
+        return Date(timeIntervalSince1970: newest)
+    }
+
+    /// What the user folder's `lua/lunar.db` (or an OpenCC file) was copied from, and the copy as it was made: a later
+    /// source is copied over it only while it is still that copy.
     struct LunarCopy: Codable, Equatable {
         static let fileName = "lunar.db.allinoneime.json"
 
@@ -277,6 +339,7 @@ public final class RimeService {
             if again { startRequestedRedeploy() }
         }
         if let sharedDataDir, let userDataDir { Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir) }
+        if let openCCDir, let userDataDir { Self.supplyOpenCC(from: openCCDir, userDataDir: userDataDir) }
         if invalidateSchema {
             do { try invalidateGeneratedSchema() }
             catch {
@@ -591,6 +654,49 @@ public final class RimeSession: PinyinEngine {
         let selected = api.pointee.select_candidate_on_current_page(id, index) != 0
         if !learns, let after = composition(), after.isConfirmed { put(after.preview) }
         return selected
+    }
+
+    /// librime's `delete_candidate` (rime-ice's ⌃⌦): a word it learned (one made of characters picked one by one too)
+    /// is forgotten, one of its dictionary's goes back to where the dictionary puts it. The page is laid out anew then
+    /// (from the first), but for one of a translator without a user dictionary it writes: rime-ice's English words and
+    /// custom phrases, a Lua translator's (the date), whose page stays as it was until the next key. Not asked for one a
+    /// filter made from a word and put beside it (`isDerived`: rime-ice's emoji, 👏 after 鼓掌), which librime's delete
+    /// takes for that word (its genuine candidate) and would forget it: false, nothing deleted.
+    public func deleteCandidate(onPage index: Int) -> Bool {
+        guard isCurrentGeneration, index >= 0, !isDerived(onPage: index) else { return false }
+        return api.pointee.delete_candidate_on_current_page(id, index) != 0
+    }
+
+    /// Whether the candidate at `index` on the page is one a filter made from a word and put beside it. AllInOneIME's Lua
+    /// filter tells, where the schema has it, from what librime has of the candidate (asked on
+    /// `RemovedCandidates.askedProperty`, it answers on `derivedProperty` at once); where it can't, the text tells
+    /// (`RemovedCandidates.mayBeAWord`).
+    private func isDerived(onPage index: Int) -> Bool {
+        api.pointee.set_property(id, RemovedCandidates.derivedProperty, "")
+        api.pointee.set_property(id, RemovedCandidates.askedProperty, String(index))
+        var answer = [CChar](repeating: 0, count: 8)
+        if api.pointee.get_property(id, RemovedCandidates.derivedProperty, &answer, answer.count - 1) != 0 {
+            return String(cString: answer) == "1"
+        }
+        let page = snapshot().candidates
+        return page.indices.contains(index) && !RemovedCandidates.mayBeAWord(page[index].text)
+    }
+
+    /// The candidates removed, as librime's property holds them (`setRemovedCandidates`).
+    private var removedProperty = ""
+
+    /// The candidates the user removed, as the context property `RemovedCandidates.property`, one text per line, which
+    /// AllInOneIME's Lua filter reads where the schema has it (`RemovedCandidates.luaFilter`): librime leaves them out
+    /// and lays its pages out from what is left, what is being typed laid out anew at once (the filter does, on the
+    /// property's change: one just removed, whatever its delete did). A text with a line break or a NUL in it, which the
+    /// property can't hold, is left to `EnglishWordsEngine`.
+    /// Set only when it changes. A session made anew (librime deployed again, one it dropped) is a new one of these,
+    /// given them by the `EnglishWordsEngine` made on it.
+    public func setRemovedCandidates(_ texts: [String]) {
+        let value = texts.filter { !$0.utf8.contains { $0 == 0x0A || $0 == 0 } }.joined(separator: "\n")
+        guard value != removedProperty, isCurrentGeneration else { return }
+        removedProperty = value
+        api.pointee.set_property(id, RemovedCandidates.property, value)
     }
 
     public func commitComposition() -> String? {

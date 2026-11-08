@@ -14,9 +14,15 @@ public enum SessionEvent: Sendable {
     /// The app wants what's pending in now (a click elsewhere in it).
     case commit
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
-    /// scrolled by `steps` rows (down positive).
+    /// scrolled by `steps` rows (down positive; 0: the wheel or trackpad moved over it short of a row, or scrolled a
+    /// conversation in it). Each wheel event over the panel is told: the wheel used there moved no caret in the field
+    /// (`InputSession.caretMayHaveMoved`).
     case pick(Int)
     case scroll(Int)
+    /// A row of the candidate panel right-clicked (its index in `PanelModel.rows`): its candidate deleted, as ⌃⌦ deletes
+    /// the highlighted one (`Composer.deleteCandidate`). Nothing on clipboard history's rows, suggestions', or a row that
+    /// isn't a candidate.
+    case delete(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
     /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)
@@ -24,6 +30,14 @@ public enum SessionEvent: Sendable {
     /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
     /// `FieldContext.read`, counts as unknown).
     case field(FieldContext, id: Int)
+    /// Whether the field that had the focus when `SessionOutput.readPasswordField` asked (`focus`, its count) is a
+    /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
+    /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
+    case passwordField(Bool?, focus: Int)
+    /// The selection read after the "@" key (`SessionOutput.readSelection`, its `id`); nil: none, or the read gave up. A key
+    /// parked for it is done then (`Composer.parkedForSelection`). One the draft no longer waits for (the field lost the
+    /// focus, the draft ended, a key settled it as none) is dropped.
+    case selection(Composer.Selection?, id: Int)
     /// What the session's work answers (`SessionTasks`).
     case task(TaskID, TaskUpdate)
     /// A timer the session started (`SessionOutput.startTimer`) went off.
@@ -109,6 +123,14 @@ public enum SessionOutput: Equatable, Sendable {
     /// mode's words once typing paused, `ReplyContext.Limits.fieldBefore` and `fieldAfter`), never during secure input,
     /// and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
     case readField(id: Int)
+    /// Read whether the field that has the focus is a password field where secure input isn't on, off the session's
+    /// thread (the Mac asks Accessibility, which may take a quarter of a second: no key waits for it), and hand it back
+    /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
+    case readPasswordField(focus: Int)
+    /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
+    /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `id`. No key waits
+    /// for it: one the list takes meanwhile is parked until it lands (`Composer.parkedForSelection`).
+    case readSelection(id: Int)
     /// Autocomplete's suggestion (`Autocomplete`): `text` in gray right after the caret (where the caret can't be placed,
     /// a line of the candidate panel), until the next one; nil: none. Shown again as the caret moves (typed along).
     case ghost(String?)
@@ -241,7 +263,8 @@ public struct FieldContext: Equatable, Sendable {
         public static let beforeCaret = Parts(rawValue: 1 << 4)
         public static let text = Parts(rawValue: 1 << 5)
         /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
-        /// `AXSecureTextField`), told in `field`'s `secure`: asked once a field, where suggestions may show.
+        /// `AXSecureTextField`), told in `field`'s `secure` (one the shell couldn't tell, `passwordFieldUnknown`): asked
+        /// once a field, where suggestions may show.
         public static let passwordField = Parts(rawValue: 1 << 6)
         public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }
@@ -271,10 +294,16 @@ public struct FieldContext: Equatable, Sendable {
     public var beforeCaret: BeforeCaret
     /// The text around the caret, without the draft (`@reply`'s context).
     public var text: FieldText?
+    /// Asked whether the field is a password field (`Parts.passwordField`), the shell couldn't tell (the Mac: no
+    /// Accessibility, nothing focused, no answer in time, the read failed): unknown, never none.
+    public var passwordFieldUnknown: Bool
+    /// Asked for the selection (`Parts.selection`), the field didn't tell one, and the shell reads it after the key
+    /// instead (the Mac: with Accessibility, which may take a while): the draft waits for it (`Composer.selectionPending`).
+    public var selectionFollows: Bool
 
     public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false, markedTextTaken: Bool = false,
                 selectedRange: Range<Int>? = nil, selection: Composer.Selection? = nil, beforeCaret: BeforeCaret = .unknown,
-                text: FieldText? = nil) {
+                text: FieldText? = nil, passwordFieldUnknown: Bool = false) {
         self.read = read
         self.field = field
         self.secure = secure
@@ -283,5 +312,7 @@ public struct FieldContext: Equatable, Sendable {
         self.selection = selection
         self.beforeCaret = beforeCaret
         self.text = text
+        self.passwordFieldUnknown = passwordFieldUnknown
+        selectionFollows = false
     }
 }

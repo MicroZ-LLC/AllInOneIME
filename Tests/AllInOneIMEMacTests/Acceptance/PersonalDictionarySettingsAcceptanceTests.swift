@@ -115,6 +115,7 @@ enum RimeDirectories {
 }
 @MainActor enum LiveConfig {
     static var current: Config { try! Config.load() } // selfTestURL is set before any model is created
+    static var currentIfValid: Config? { try? Config.load() }
 }
 @MainActor final class RimeService {
     enum DeploymentStatus { case idle, deploying, succeeded, failed }

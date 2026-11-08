@@ -65,7 +65,7 @@ extension SelfTest {
                                 issues listed: [(number: Int, title: String, state: String)] = GitHubStandIn.issues) -> CompletionSourceApproval? {
         try? FileManager.default.removeItem(at: folder)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let source = coreFolder.appendingPathComponent("Plugins/github", isDirectory: true)
+        guard let source = coreFile("Plugins/github", for: "the GitHub plugin from Core/Plugins/github") else { return nil }
         guard (try? FileManager.default.copyItem(at: source, to: folder.appendingPathComponent("github"))) != nil,
               let github = PluginStore.load(from: folder).plugins.first(where: { $0.name == "github" }),
               let issues = github.manifest.completions.first, let approval = CompletionSourceApproval(enabling: issues, of: github) else {
@@ -84,11 +84,22 @@ extension SelfTest {
         return approval
     }
 
-    /// Where the repository keeps what the app's source ships with (Core/), from this file's place in it: the self-test
-    /// runs from a build of it.
-    static var coreFolder: URL {
-        URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Core", isDirectory: true)
+    /// `path` in the repository's Core/ (the GitHub plugin, a coding pack: the app doesn't carry them), for `what`: in the
+    /// checkout ALLINONEIME_SOURCE_ROOT names, else in the one this build was made from (this file's place in it, a path
+    /// on the Mac that built it). Nil when it isn't there, said once: skipped when that checkout isn't on this Mac (the
+    /// app built on another), failed when it is, without the file.
+    static func coreFile(_ path: String, for what: String) -> URL? {
+        let named = ProcessInfo.processInfo.environment["ALLINONEIME_SOURCE_ROOT"].flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        let root = named ?? URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let url = root.appendingPathComponent("Core", isDirectory: true).appendingPathComponent(path)
+        if FileManager.default.fileExists(atPath: url.path) { return url }
+        if named == nil, !FileManager.default.fileExists(atPath: root.appendingPathComponent("Core").path) {
+            print("  the checkout this build was made from, \(root.path), isn't on this Mac: ALLINONEIME_SOURCE_ROOT=<a checkout of it> runs this")
+            skip(what, noSourceTree)
+        } else {
+            check(false, "\(what): no \(url.path)")
+        }
+        return nil
     }
 
     /// Suggestions v1 end to end, in the fake field with the candidate panel: the GitHub plugin (Core/Plugins/github)
@@ -118,7 +129,7 @@ extension SelfTest {
         }
         try? FileManager.default.removeItem(at: folder)
         try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let source = coreFolder.appendingPathComponent("Plugins/github", isDirectory: true)
+        guard let source = coreFile("Plugins/github", for: "the GitHub plugin from Core/Plugins/github") else { return }
         guard (try? FileManager.default.copyItem(at: source, to: folder.appendingPathComponent("github"))) != nil,
               let github = PluginStore.load(from: folder).plugins.first(where: { $0.name == "github" }),
               let issues = github.manifest.completions.first else {
@@ -221,8 +232,8 @@ extension SelfTest {
         controller.commitComposition(client)
         client.bundleIDOverride = "com.example.editor"
         controller.activateServer(client)
-        if let pack = try? Data(contentsOf: coreFolder.appendingPathComponent("CodingPacks/python.json")),
-           (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
+        let python = coreFile("CodingPacks/python.json", for: "the Python pack from Core/CodingPacks")
+        if let python, let pack = try? Data(contentsOf: python), (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
             SuggestionsShared.packsChanged()
             controller.services.suggestions.codingPacks = { SuggestionsShared.codingPacks }
             settings.codingLanguage = "python"
@@ -292,8 +303,8 @@ extension SelfTest {
                   "an app set to start in Code starts there, another in Chinese (\(controller.composer.input))")
             try? SuggestionsShared.packs.remove("python")
             SuggestionsShared.packsChanged()
-        } else {
-            check(false, "the Python pack from Core/CodingPacks")
+        } else if let python {
+            check(false, "the Python pack from \(python.path)")
         }
     }
 }
@@ -380,7 +391,7 @@ extension SelfTest {
         let again = pump(timeout: 5) { shown().rows == ["#7021"] + numbers(7001...7004) }
         wheel(7)
         let clicked = shown()
-        panel.view.onSelect?(1)
+        panel.view.pointer.clicked(1)
         _ = pump(timeout: 0.2) { false }
         check(again && clicked.rows == numbers(7003...7007) && client.inserted.last == "04" && controller.session.panelModel().rows.isEmpty,
               "\" #70\" (#7021, picked, first), the wheel to #7007 (\(clicked.rows)), a click on the second row shown puts #7004 in "
@@ -463,8 +474,8 @@ extension SelfTest {
 
         // Code (its Python pack from Core/CodingPacks for the while): its rows with the same keys as everywhere (decision
         // 31): the first chosen from the start, Return puts it in.
-        if let pack = try? Data(contentsOf: coreFolder.appendingPathComponent("CodingPacks/python.json")),
-           (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
+        let python = coreFile("CodingPacks/python.json", for: "the Python pack from Core/CodingPacks")
+        if let python, let pack = try? Data(contentsOf: python), (try? SuggestionsShared.packs.keep(pack, language: "python")) != nil {
             SuggestionsShared.packsChanged()
             controller.services.suggestions.codingPacks = { SuggestionsShared.codingPacks }
             settings.codingLanguage = "python"
@@ -483,13 +494,14 @@ extension SelfTest {
             settings.codingLanguage = saved.settings.codingLanguage
             try? SuggestionsShared.packs.remove("python")
             SuggestionsShared.packsChanged()
-        } else {
-            check(false, "the Python pack from Core/CodingPacks")
+        } else if let python {
+            check(false, "the Python pack from \(python.path)")
         }
 
-        // "@tk": no @ command (a Suggestions command is used by its prefix alone): never in the list, and "@tk" ⏎ ⏎ does
-        // what "@tz" ⏎ ⏎ does (no command has that name; "@t" is the start of others' as with "@tk"): what reaches the app
-        // (put in, or the keys it gets) is the same, nothing runs, nothing is said.
+        // "@tk": no @ command (a Suggestions command is used by its prefix alone): never in the list, and "@tk" Esc does
+        // what "@tz" Esc does (no command has that name; "@t" is the start of others' as with "@tk"): what reaches the app
+        // (put in, or the keys it gets) is the same, nothing runs, nothing is said. (One @: ⏎ would do the first row, an
+        // AI one for a word; Esc leaves it as typed.)
         func typedAfterTheMagicKey(_ name: String) -> (listed: Bool, app: String, said: String) {
             controller.commitComposition(client)
             controller.activateServer(client)
@@ -502,11 +514,11 @@ extension SelfTest {
                 let handled = press(controller, client, characters, code: code, flags: flags)
                 app += client.inserted.dropFirst(count).joined() + (handled ? "" : characters)
                 listed = listed || controller.composer.paletteMatches.contains { $0.name == "tk" }
+                    || controller.composer.oneAtRows.contains { $0.command?.name == "tk" }
             }
             key("@", code: 0x13, flags: .shift)
             for letter in name { key(String(letter), code: keyCodes[letter] ?? 0) }
-            key("\r", code: VirtualKey.returnKey)
-            key("\r", code: VirtualKey.returnKey)
+            key("\u{1B}", code: VirtualKey.escape)
             let said = controller.notice ?? ""
             controller.commitComposition(client)
             return (listed, app, said)
@@ -515,7 +527,7 @@ extension SelfTest {
         let tk = typedAfterTheMagicKey("tk"), tz = typedAfterTheMagicKey("tz")
         check(!tk.listed && tk.app.hasPrefix("@tk") && tk.app == tz.app.replacingOccurrences(of: "tz", with: "tk") && tk.said == tz.said
               && calls().count == before,
-              "\"@tk\" ⏎ ⏎ is not in the list and does what \"@tz\" does: \(tk.app.debugDescription) (\(tz.app.debugDescription)), "
+              "\"@tk\" Esc is not in the list and does what \"@tz\" does: \(tk.app.debugDescription) (\(tz.app.debugDescription)), "
                   + "said \(tk.said.debugDescription), nothing run (\(calls().count - before))")
         for _ in 0..<3 { press(controller, client, "\u{1B}", code: VirtualKey.escape) }
     }

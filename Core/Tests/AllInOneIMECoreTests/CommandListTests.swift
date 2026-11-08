@@ -29,11 +29,12 @@ struct CommandListTests {
         { "name": "post", "version": "1.0.0", "type": "link", "url": "https://example.com/post?text={input}" }
         """#
 
-    /// What the magic key, then `name`'s letters, then the action key twice do in a composer offering `commands` (English or
-    /// Chinese): each key's answer, the field's text as the app has it then (what goes in, and the keys it gets), and
-    /// whether the command list ever offered a command named `listed`.
-    static func typed(_ name: String, with commands: [Command], english: Bool = true,
-                      listed: String) -> (responses: [Composer.Response], text: String, offered: Bool) {
+    /// What the magic key, then `name`'s letters, then `last` (Esc, else the action key: ⏎) do in a composer offering
+    /// `commands` (English or Chinese): each key's answer, the field's text as the app has it then (what goes in, and the
+    /// keys it gets), whether the command list ever offered a command named `listed`, and the command the draft is then
+    /// (running, or picked; nil: none).
+    static func typed(_ name: String, with commands: [Command], english: Bool = true, then last: KeyEvent = escKey,
+                      listed: String) -> (responses: [Composer.Response], text: String, offered: Bool, command: Command?) {
         let composer = Composer(engine: FakeEngine(), actionKey: .enter)
         composer.commands = commands
         composer.horizontalCandidates = true
@@ -44,12 +45,13 @@ struct CommandListTests {
         func press(_ key: KeyEvent) {
             responses.append(field.press(key))
             offered = offered || composer.paletteMatches.contains { $0.name == listed }
+                || composer.oneAtRows.contains { $0.command?.name == listed }
         }
         press(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
         for letter in name { press(k(String(letter))) }
-        press(enterKey)
-        press(enterKey)
-        return (responses, field.text, offered)
+        // One @: ⏎ does the first row (a writing action for a word); Esc leaves it as typed.
+        press(last)
+        return (responses, field.text, offered, composer.activeCommand ?? composer.draftCommand)
     }
 
     // MARK: - A Suggestions command
@@ -72,18 +74,30 @@ struct CommandListTests {
         }
     }
 
-    /// "@jira" then the action key does what it does where no command has that name (no Suggestions command at all): each
-    /// key answers the same, the same text goes in, nothing is said; in English and in Chinese.
+    /// "@jira" then the action key (⏎) does what it does where no command has that name (no Suggestions command at all):
+    /// each key answers the same, the same text goes in, the same row is done (Translate, as for any English word: the
+    /// composer's main input language is Chinese), nothing is said; and so does Esc, which leaves "@jira" as typed; in
+    /// English and in Chinese.
     @Test func atItsNameTheActionKeyDoesWhatAnUnknownNameDoes() {
         let with = Command.catalog([Self.jira()])
         let without = Command.catalog([])
         for english in [true, false] {
-            let typed = Self.typed("jira", with: with, english: english, listed: "jira")
-            let unknown = Self.typed("jira", with: without, english: english, listed: "jira")
-            #expect(typed.responses == unknown.responses && typed.text == unknown.text, "English: \(english): \(typed.text) / \(unknown.text)")
-            #expect(english ? typed.text.hasPrefix("@jira") : typed.text.hasPrefix("@"), "\(typed.text)")
-            #expect(!typed.responses.contains { $0.effects.contains { if case .notice = $0 { return true } else { return false } } },
-                    "nothing said: \(typed.responses)")
+            for last in [enterKey, escKey] {
+                let typed = Self.typed("jira", with: with, english: english, then: last, listed: "jira")
+                let unknown = Self.typed("jira", with: without, english: english, then: last, listed: "jira")
+                let place = "English: \(english), \(last == enterKey ? "⏎" : "Esc")"
+                #expect(typed.responses == unknown.responses && typed.text == unknown.text && typed.command == unknown.command,
+                        "\(place): \(typed.text) / \(unknown.text), \(String(describing: typed.command)) / \(String(describing: unknown.command))")
+                #expect(!typed.responses.contains { $0.effects.contains { if case .notice = $0 { return true } else { return false } } },
+                        "\(place): nothing said: \(typed.responses)")
+                if last == enterKey {
+                    #expect(typed.command == .translate && typed.text.isEmpty, "\(place): the first row: \(String(describing: typed.command))")
+                    #expect(typed.responses.last?.effects.contains { if case .startConversion = $0 { true } else { false } } == true,
+                            "\(place): \(String(describing: typed.responses.last))")
+                } else {
+                    #expect(typed.text == "@jira" && typed.command == nil, "\(place): \(typed.text)")
+                }
+            }
         }
     }
 

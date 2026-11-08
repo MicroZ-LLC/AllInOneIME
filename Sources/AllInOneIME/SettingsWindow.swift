@@ -38,7 +38,7 @@ final class SettingsModel: ObservableObject {
     @Published private(set) var learned: [LearnedItem] = []
 
     func refreshLearned() {
-        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) })
+        learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an
@@ -110,12 +110,56 @@ final class SettingsModel: ObservableObject {
     var canSave: Bool { store.canSave }
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
-    /// (`SettingsStore.save`). Nothing is written when nothing changed. The window then shows the file as it now is.
-    func save() { store.save() }
+    /// (`SettingsStore.save`), Words to hide typed in without ⏎ too (`flushWords`). Nothing is written when nothing
+    /// changed. The window then shows the file as it now is.
+    func save() {
+        flushWords()
+        store.save()
+    }
 
     /// Reads the config file again if something else changed it, so the window shows it and its next save
     /// doesn't put back what was there before.
     func reloadIfChanged() { store.reloadIfChanged() }
+
+    // MARK: The window shown
+
+    /// When the pages' facts were last read as the window showed (`windowShown`).
+    private var shownAt: Date?
+
+    /// The window shown, opened or opened again with these settings (`SettingsWindow.show`): what its pages show of this
+    /// Mac read again, the plugins folder, the extensions' folders, the keychain items' attributes, the jargon list and
+    /// the rest off the main thread, each page brought up to date as its part comes in (meanwhile it shows what it showed
+    /// last). Not twice within a second (the window opened again and its view appearing). `discoverExtensions`:
+    /// Spotlight looks for Raycast script folders too (the Commands page shown first).
+    func windowShown(discoverExtensions: Bool) {
+        if let shownAt, Date().timeIntervalSince(shownAt) < 1 { return }
+        shownAt = Date()
+        refreshPluginsInBackground { [weak self] in self?.refreshExtensionsInBackground(discover: discoverExtensions) }
+        refreshKeys()
+        refreshSearchKey()
+        refreshNotionTokenInBackground()
+        refreshNotesFolder()
+        refreshAccount()
+        refreshVoice()
+        refreshJargonInBackground()
+    }
+
+    /// The window opened again with these settings, kept since it was closed: the file read again if something else
+    /// changed it, the AWS profiles listed again (off the main thread), and what a new window wouldn't show is gone: a
+    /// test's result, the errors of before, a link pasted and not tested, the control pointed at.
+    func reopened() {
+        reloadIfChanged()
+        (testStatus, searchTestStatus, notesTestStatus) = (.idle, .idle, .idle)
+        (keyError, searchKeyError, notionTokenError, accountError) = (nil, nil, nil, nil)
+        (pluginError, extensionError, voiceError) = (nil, nil, nil)
+        notionLink = ""
+        spot = nil
+        Task { [weak self] in
+            let names = await Task.detached(priority: .userInitiated) { AWSSharedConfig.profileNames() }.value
+            guard let self else { return }
+            self.profiles = names.contains(self.config.awsProfile) ? names : [self.config.awsProfile] + names
+        }
+    }
 
     // MARK: Lists edited while sync may change them
 
@@ -123,9 +167,48 @@ final class SettingsModel: ObservableObject {
     // or a menu is open), and sync through iCloud may have changed the list in it: each reads it again first, and edits
     // the list by name, never by an index the page showed (`SettingsStore`).
 
-    /// The hidden-words field saved (Return, or leaving the page). The list to show.
+    /// The hidden-words field saved (`commitWords`, `flushWords`). The list to show.
     @discardableResult
     func saveWords(field text: String, shown: [String]) -> [String] { store.saveWords(field: text, shown: shown) }
+
+    /// Settings → Privacy's Words to hide as typed (`PrivacySection`), kept here so that every save has it (the window
+    /// closing, the input method ending), not only the field's own. `wordsShown`: the words it showed, or held when last
+    /// saved, which an edit is measured against; `wordsEdited`: typed in since it last showed the list. Not being
+    /// edited, it follows the list.
+    @Published private(set) var wordsField = ""
+    private var wordsShown: [String] = []
+    private(set) var wordsEdited = false
+
+    /// The words field showing `list`, not edited.
+    func showWords(_ list: [String]) {
+        wordsField = list.joined(separator: ", ")
+        wordsShown = list
+        wordsEdited = false
+    }
+
+    /// The words field typed in.
+    func editWords(_ text: String) {
+        guard text != wordsField else { return }
+        wordsField = text
+        wordsEdited = true
+    }
+
+    /// Return, the focus leaving the field or the window, the page going: the field's edit, if there was one, applied to
+    /// the list as the file has it now (`saveWords`): the words taken out of the field go, the words put in are added;
+    /// the others, a word added elsewhere since included, stay. The field then shows the list.
+    func commitWords() {
+        guard wordsEdited else { return }
+        showWords(saveWords(field: wordsField, shown: wordsShown))
+    }
+
+    /// Any other save (`save`): the field's edit applied as `commitWords` applies it, the field left as typed (it may
+    /// still be typed in) and measured from now on against what it holds: a word typed halfway and saved goes once
+    /// the rest of it is typed.
+    private func flushWords() {
+        guard wordsEdited else { return }
+        saveWords(field: wordsField, shown: wordsShown)
+        wordsShown = RedactionSettings.words(from: wordsField)
+    }
 
     /// Settings → Input → English Words' Add (`SettingsStore.addEnglishWords`): those added, and those refused as what
     /// hiding sensitive information hides.
@@ -134,6 +217,9 @@ final class SettingsModel: ObservableObject {
 
     /// A word's ✕ (`SettingsStore.removeEnglishWord`).
     func removeEnglishWord(_ word: String) { store.removeEnglishWord(word) }
+
+    /// A removed candidate's ✕ (`SettingsStore.restoreCandidate`).
+    func restoreCandidate(_ text: String) { store.restoreCandidate(text) }
 
     /// The custom commands an edit of the one named `original` (nil: one being added) is checked against.
     func otherCommands(than original: String?) -> [CustomCommand] { store.otherCommands(than: original) }
@@ -188,17 +274,26 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Fuzzy pinyin
 
-    /// Fuzzy pinyin couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
+    /// Fuzzy pinyin (and the characters) couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
     @Published private(set) var fuzzyBlocked = false
-    /// Writes the patch and deploys Rime again (the self-test's preview model doesn't).
-    var applyFuzzyPinyin: @MainActor ([String]) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0) }
+    /// Writes the patch, fuzzy pinyin's and the characters', and deploys Rime again (the self-test's preview model doesn't).
+    var applyRimePatch: @MainActor ([String], ChineseCharacters) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0, characters: $1) }
     /// What turning it on picks: the pairs most often mixed up.
     static let fuzzyDefaults = SettingsStore.fuzzyDefaults
 
     func setFuzzyPinyin(_ ids: [String]) {
         store.setFuzzyPinyin(ids)
         guard persists else { return }
-        fuzzyBlocked = applyFuzzyPinyin(config.fuzzyPinyin) == .userFile
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
+    }
+
+    /// The characters Chinese is typed in, picked: saved (no longer the system's languages'), and Rime deployed again
+    /// when they change what it types, as for fuzzy pinyin.
+    func setChineseCharacters(_ characters: ChineseCharacters) {
+        guard characters != config.chineseCharacters else { return }
+        store.setChineseCharacters(characters)
+        guard persists else { return }
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
     }
 
     func setFuzzy(_ id: String, on: Bool) {
@@ -252,9 +347,11 @@ final class SettingsModel: ObservableObject {
     }
     private var keysShown = false
 
-    /// Whether the provider's key is set, as its row shows it.
+    /// Whether the provider's key is set, as its row shows it: one in the shell only for a base URL it is sent to
+    /// (`APIKeys.shellKeyGoes`).
     func keyState(_ provider: Provider) -> KeyState {
-        KeyState(keySources[provider], ending: keyEndings[provider])
+        let host = HTTPProviders.host(of: config.settings(for: provider))
+        return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
     }
 
     /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
@@ -374,6 +471,18 @@ final class SettingsModel: ObservableObject {
         // From the item's attributes: the token isn't read, so nothing asks for the login password.
         notionTokenSource = APIKeys.source(account: NotionAPI.keyAccount, variables: [])
         notionTokenEnding = APIKeys.keyEnding(account: NotionAPI.keyAccount)
+    }
+
+    /// `refreshNotionToken`, the keychain asked off the main thread (the window shown).
+    func refreshNotionTokenInBackground() {
+        guard persists, Self.looksUpKeys else { return refreshNotionToken() }
+        Task { [weak self] in
+            let (source, ending) = await Task.detached(priority: .userInitiated) {
+                (APIKeys.source(account: NotionAPI.keyAccount, variables: []), APIKeys.keyEnding(account: NotionAPI.keyAccount))
+            }.value
+            self?.notionTokenSource = source
+            self?.notionTokenEnding = ending
+        }
     }
 
     var notionTokenState: KeyState { KeyState(notionTokenSource, ending: notionTokenEnding) }
@@ -549,7 +658,24 @@ final class SettingsModel: ObservableObject {
     var pluginsFolder = PluginStore.directory
 
     func refreshPlugins() {
-        (plugins, skippedPlugins) = PluginStore.load(from: pluginsFolder)
+        let (plugins, skipped) = PluginStore.load(from: pluginsFolder)
+        take(plugins: plugins, skipped: skipped)
+    }
+
+    /// `refreshPlugins`, the folder read off the main thread (the window shown); `then` once they're in.
+    func refreshPluginsInBackground(then: @escaping @MainActor () -> Void = {}) {
+        let folder = pluginsFolder
+        Task { [weak self] in
+            let (plugins, skipped) = await Task.detached(priority: .userInitiated) { PluginStore.load(from: folder) }.value
+            guard let self else { return }
+            self.take(plugins: plugins, skipped: skipped)
+            then()
+        }
+    }
+
+    /// The plugins as the folder has them now.
+    private func take(plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]) {
+        (self.plugins, skippedPlugins) = (plugins, skipped)
         updateLibraryStatus()
         // A plugin not found on this Mac before (just installed, put in the folder, or there before 0.6.7.2): its
         // completion sources on, approved as they are now; the field being typed in takes them at once.
@@ -611,7 +737,21 @@ final class SettingsModel: ObservableObject {
     /// (not for a preview), and the list follows when it's done.
     func refreshExtensions(discover: Bool = false) {
         extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
-        let index = LiveExtensions.load(config)
+        show(LiveExtensions.load(config), passwordsOffMain: false)
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
+    }
+
+    /// `refreshExtensions`, the folders and the keychain read off the main thread (the window shown): the page shows what
+    /// it had until they're in.
+    func refreshExtensionsInBackground(discover: Bool = false) {
+        extensionFolders = ExtensionStore.folders(config, found: LiveExtensions.found)
+        LiveExtensions.loadInBackground(config) { [weak self] index in self?.show(index, passwordsOffMain: true) }
+        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensionsInBackground() } }
+    }
+
+    /// `index` as the pages show it: the names each command got, what was left out, the passwords saved (asked off the
+    /// main thread where `passwordsOffMain`).
+    private func show(_ index: ExtensionIndex, passwordsOffMain: Bool) {
         extensionIndex = index
         let enabled = index.enabled(config.disabledExtensions)
         let enabledSnippets = index.enabledSnippets(config.disabledExtensions)
@@ -628,21 +768,32 @@ final class SettingsModel: ObservableObject {
         skippedExtensions = index.skipped
         hiddenExtensions = Dictionary(hidden.map { ($0.script.id, .nameTaken($0.script.name, by: $0.owner)) }, uniquingKeysWith: { first, _ in first })
         // Whether each is saved, not its value (that could ask for the keychain); none in a preview.
-        passwordsSaved = persists ? Set(index.bundles.flatMap { bundle in
-            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.hasKeychainKey(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
-                    ? bundle.name + "/" + preference.name : nil
+        let bundles = persists ? index.bundles : []
+        if passwordsOffMain {
+            Task { [weak self] in
+                let (saved, endings) = await Task.detached(priority: .userInitiated) { Self.passwords(of: bundles) }.value
+                guard let self else { return }
+                (self.passwordsSaved, self.passwordEndings) = (saved, endings)
             }
-        }) : []
-        passwordEndings = persists ? Dictionary(index.bundles.flatMap { bundle in
-            bundle.preferences.filter { $0.kind == .password }.compactMap { preference in
-                APIKeys.keyEnding(account: ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: preference.name))
-                    .map { (bundle.name + "/" + preference.name, $0) }
-            }
-        }, uniquingKeysWith: { first, _ in first }) : [:]
+        } else {
+            (passwordsSaved, passwordEndings) = Self.passwords(of: bundles)
+        }
         // What the suggestions' switches show, read again off the main thread.
         readExtensionDigests()
-        if discover, persists { LiveExtensions.discoverIfDue(config, force: true) { [weak self] in self?.refreshExtensions() } }
+    }
+
+    /// The password preferences of `bundles` saved in the keychain ("bundle/name"), and their last 4 characters where
+    /// kept: from the items' attributes, never their value.
+    nonisolated static func passwords(of bundles: [ExtensionBundle]) -> (saved: Set<String>, endings: [String: String]) {
+        let preferences = bundles.flatMap { bundle in
+            bundle.preferences.filter { $0.kind == .password }.map {
+                (bundle.name + "/" + $0.name, ExtensionBundle.Preference.keychainAccount(bundle: bundle.name, name: $0.name))
+            }
+        }
+        let saved = Set(preferences.compactMap { APIKeys.hasKeychainKey(account: $0.1) ? $0.0 : nil })
+        let endings = Dictionary(preferences.compactMap { name, account in APIKeys.keyEnding(account: account).map { (name, $0) } },
+                                 uniquingKeysWith: { first, _ in first })
+        return (saved, endings)
     }
 
     /// Adds a folder of extensions (asked with an open panel); one Spotlight found and was hidden is shown again.
@@ -842,6 +993,19 @@ final class SettingsModel: ObservableObject {
         jargonCount = jargonExists ? JargonLibrary.load(from: url).count : 0
     }
 
+    /// `refreshJargon`, the file read off the main thread (the window shown, or back in front).
+    func refreshJargonInBackground() {
+        let url = config.jargonURL
+        Task { [weak self] in
+            let (exists, count) = await Task.detached(priority: .userInitiated) { () -> (Bool, Int) in
+                let exists = FileManager.default.fileExists(atPath: url.path)
+                return (exists, exists ? JargonLibrary.load(from: url).count : 0)
+            }.value
+            guard let self, self.config.jargonURL == url else { return }
+            (self.jargonExists, self.jargonCount) = (exists, count)
+        }
+    }
+
     /// Uses a text file the user already has (e.g. the team's list) where it is.
     func chooseJargonFile() {
         let panel = NSOpenPanel()
@@ -964,6 +1128,19 @@ struct SettingsView: View {
 
     /// The page Settings opens on when none is asked for.
     static let firstPage = SettingsPage.general
+
+    /// Translate to's Add… as the accessibility tree has it (the rewrite styles' Add… is on the same page).
+    static let addOutputLanguageID = "outputLanguages.add"
+
+    /// The window shown (opened, or opened again): the checks behind the banners (quick, local: never a permission asked,
+    /// a key read or the AI called), and the pages' facts read again off the main thread (`SettingsModel.windowShown`).
+    private func shown() {
+        UIText.commandTrigger = model.config.commandTrigger
+        assistant.expireUndo()
+        assistant.dropStalePreview()
+        assistant.probe()
+        model.windowShown(discoverExtensions: page == .commands)
+    }
 
     @ViewBuilder private var loadErrorSection: some View {
         if let loadError = model.loadError {
@@ -1168,7 +1345,7 @@ struct SettingsView: View {
                 }
                 HStack(spacing: 6) {
                     LanguageChips(items: model.config.inputLanguages,
-                                  name: { SessionText.inputName($0, language: UIText.language) },
+                                  name: { SessionText.inputName($0, language: UIText.language, chinese: model.config.typedChinese) },
                                   firstNote: tr("默认", "default"),
                                   keepsOne: !(model.config.inputLanguages.count == 1 && model.config.inputLanguages.first != .english),
                                   reorder: { model.config.setOrder($0) }, remove: removeInputLanguage,
@@ -1247,7 +1424,7 @@ struct SettingsView: View {
         return Menu(tr("添加…", "Add…")) {
             ForEach(missing, id: \.self) { language in
                 let download = !packs.isUsable(language)
-                Button(SessionText.inputName(language, language: UIText.language)
+                Button(SessionText.inputName(language, language: UIText.language, chinese: model.config.typedChinese)
                        + (download ? tr("（下载语言包）", " (downloads a language pack)") : "")) {
                     addInputLanguage(language)
                 }
@@ -1281,22 +1458,25 @@ struct SettingsView: View {
             // @translate writes a line in each, in this order (three versions with only one).
             LabeledContent {
                 HStack(spacing: 6) {
-                    LanguageChips(items: model.config.outputLanguages, name: UIText.name,
+                    // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
+                    let chinese = model.config.typedChinese
+                    LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
                                   firstNote: nil,
                                   reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
                     Menu(tr("添加…", "Add…")) {
                         ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
-                            Button(UIText.name(language)) { addOutputLanguage(language) }
+                            Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
                         }
                     }
                     .fixedSize()
+                    .accessibilityIdentifier(Self.addOutputLanguageID)
                 }
             } label: {
                 if model.config.hasLanguageToTranslateInto {
                     titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
                 } else {
                     // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
-                    let typed = model.config.inputLanguages.map { UIText.name(OutputLanguage($0)) }.joined(separator: tr("、", ", "))
+                    let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
                     VStack(alignment: .leading, spacing: 2) {
                         Text(SettingsSpot.outputLanguages.title)
                         Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
@@ -1519,7 +1699,12 @@ struct SettingsView: View {
             let root = folder.url.resolvingSymlinksInPath().path + "/"
             return !folder.hidden && files.contains { $0.hasPrefix(root) }
         }
-        return (model.extensionFolders.filter(brings), model.extensionFolders.filter { !brings($0) })
+        // Each folder's links resolved once, for one list or the other.
+        var bringing: [ExtensionStore.Folder] = [], others: [ExtensionStore.Folder] = []
+        for folder in model.extensionFolders {
+            if brings(folder) { bringing.append(folder) } else { others.append(folder) }
+        }
+        return (bringing, others)
     }
 
     /// An extension folder: where it is, whether it was added or found (and hidden), Show in Finder, and Remove (added)
@@ -1865,19 +2050,6 @@ struct SettingsView: View {
         }
     }
 
-    /// A row's title with a short explanation under it, as System Settings shows them.
-    private func titled(_ title: String, _ note: String) -> some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(title)
-            Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-        }
-    }
-
-    /// A row's title and what it says, as the search finds them (`SettingsSpot`).
-    @ViewBuilder private func titled(_ spot: SettingsSpot) -> some View {
-        if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
-    }
-
     // MARK: Pages
 
     /// Like System Settings: a search field, then the pages, each with its icon (and a dot while the checks find
@@ -1916,7 +2088,7 @@ struct SettingsView: View {
         .padding(.top, 8)
         .onChange(of: query) {
             chosen = 0
-            follow()
+            follow(results)
             // The on-device model and the apps, before a request.
             if !typed.isEmpty { AIConfigSession.prewarmIfDue() }
         }
@@ -1925,7 +2097,8 @@ struct SettingsView: View {
     /// What's typed in the search field, trimmed.
     private var typed: String { query.trimmingCharacters(in: .whitespacesAndNewlines) }
 
-    /// The rows the search finds, in order; the row after them is "Change: …".
+    /// The rows the search finds, in order; the row after them is "Change: …". Searched anew each time it is read, so
+    /// each place reads it once.
     private var results: [SettingsSpot] {
         typed.isEmpty ? [] : SettingsSpot.search(typed, trigger: model.config.commandTrigger, config: model.config)
     }
@@ -1969,7 +2142,8 @@ struct SettingsView: View {
 
     /// The rows found, each with its page, the chosen one highlighted; "Change: …" last.
     private var resultList: some View {
-        ScrollView {
+        let results = self.results
+        return ScrollView {
             VStack(alignment: .leading, spacing: 2) {
                 ForEach(Array(results.enumerated()), id: \.offset) { index, spot in
                     resultRow(index) {
@@ -2010,13 +2184,14 @@ struct SettingsView: View {
     /// ↑↓ in the search field: the chosen row moves (stays in the list), and is shown.
     private func moveChoice(_ step: Int) -> KeyPress.Result {
         guard !typed.isEmpty else { return .ignored }
+        let results = self.results
         chosen = min(max(chosen + step, 0), results.count)
-        follow()
+        follow(results)
         return .handled
     }
 
-    /// The chosen row shown on its page, outlined; "Change: …" shows nothing until it is picked.
-    private func follow() {
+    /// The chosen row of `results` shown on its page, outlined; "Change: …" shows nothing until it is picked.
+    private func follow(_ results: [SettingsSpot]) {
         guard results.indices.contains(chosen) else { return }
         show(results[chosen])
     }
@@ -2024,6 +2199,7 @@ struct SettingsView: View {
     /// Return on a row, or a click: a setting is shown; "Change: …" asks the AI, as typed (the preview comes at the top of
     /// the page, with Apply and Undo).
     private func pick(_ index: Int) {
+        let results = self.results
         if results.indices.contains(index) {
             show(results[index])
         } else if index == results.count, !typed.isEmpty {
@@ -2037,9 +2213,9 @@ struct SettingsView: View {
         model.spot = spot
     }
 
-    /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin and personal dictionaries,
-    /// French's keyboard layout), the English words pinyin offers (English's, or Chinese's without English), and its
-    /// place among the languages; Code's coding language and packs.
+    /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin, personal dictionaries and
+    /// the candidates removed, French's keyboard layout), the English words pinyin offers (English's, or Chinese's without
+    /// English), and its place among the languages; Code's coding language and packs.
     @ViewBuilder private func inputOptions(_ input: Input) -> some View {
         switch input {
         case .code:
@@ -2051,11 +2227,17 @@ struct SettingsView: View {
             }
             if language == .chinese {
                 PersonalDictionariesSection(model: model, dictionaries: personalDictionaries)
+                RemovedCandidatesSection(model: model)
             }
-            if language == .english || (language == .chinese && !model.config.inputLanguages.contains(.english)) {
+            if Self.showsEnglishWords(under: language, model.config) {
                 EnglishWordsSection(model: model)
             }
         }
+    }
+
+    /// The English words pinyin offers are under English's options, or Chinese's without English.
+    static func showsEnglishWords(under language: Language, _ config: Config) -> Bool {
+        language == .english || (language == .chinese && !config.inputLanguages.contains(.english))
     }
 
     @ViewBuilder private func languageOptions(_ language: Language) -> some View {
@@ -2071,6 +2253,15 @@ struct SettingsView: View {
             }
             switch language {
             case .chinese:
+                // As the system's languages say until one is picked (`Config.typedChinese`).
+                Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
+                    ForEach(ChineseCharacters.allCases, id: \.self) { characters in
+                        Text(characters.name(in: UIText.language)).tag(characters)
+                    }
+                } label: {
+                    titled(.chineseCharacters)
+                }
+                .pickerStyle(.menu)
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(.fuzzyPinyin)
@@ -2086,8 +2277,8 @@ struct SettingsView: View {
                     }
                 }
                 if model.fuzzyBlocked {
-                    Label(tr("Rime 用户目录里有你自己的 \(FuzzyPinyin.fileName)，没有改动它，模糊音没有生效。",
-                             "The Rime user folder has your own \(FuzzyPinyin.fileName): it was left as is, so fuzzy pinyin isn't on."),
+                    Label(tr("Rime 用户目录里有你自己的 \(FuzzyPinyin.fileName)，没有改动它，模糊音和字形没有生效。",
+                             "The Rime user folder has your own \(FuzzyPinyin.fileName): it was left as is, so fuzzy pinyin and the characters aren't applied."),
                           systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange)
                 }
@@ -2113,7 +2304,7 @@ struct SettingsView: View {
                     .foregroundStyle(.secondary)
             }
         } header: {
-            SectionTitle(SessionText.inputName(language, language: UIText.language), icon: CommandIcons.input)
+            SectionTitle(SessionText.inputName(language, language: UIText.language, chinese: model.config.typedChinese), icon: CommandIcons.input)
         } footer: {
             if language == .chinese {
                 Text(tr("改完词库会重新部署，一两秒生效。", "Applied in a second or two: the dictionaries are deployed again."))
@@ -2332,7 +2523,11 @@ struct SettingsView: View {
                 pluginToRemove = nil
             }
         } message: {
-            if let plugin = pluginToRemove { Text(model.config.commandTrigger + plugin.name) }
+            if let plugin = pluginToRemove {
+                let (name, folder) = (model.config.commandTrigger + plugin.name, ExtensionStore.abbreviated(plugin.directory.path))
+                Text(tr("\(name)：它的文件夹（\(folder)）会移到废纸篓，还可以从那里放回来。",
+                        "\(name): its folder (\(folder)) goes to the Trash, so you can still put it back."))
+            }
         }
         .onChange(of: model.config.awsProfile) { model.save() }
         .onChange(of: model.config.provider) {
@@ -2371,29 +2566,25 @@ struct SettingsView: View {
             model.refreshExtensions(discover: model.config.findRaycastScripts)
         }
         .onChange(of: page) {
-            if page == .commands { model.refreshExtensions(discover: true) }
+            if page == .commands { model.refreshExtensionsInBackground(discover: true) }  // the page shows at once
             if let spot = model.spot, spot.page != page { model.spot = nil }  // pointed at on a page no longer shown
         }
         .onChange(of: model.config.customCommands) { model.refreshExtensions() }  // a name an extension had may be taken now
         .onChange(of: model.config.notes) { model.refreshNotesFolder() }
-        .onAppear {
-            UIText.commandTrigger = model.config.commandTrigger
-            // The checks behind the banners: quick, local (never a permission asked, a key read or the AI called).
-            assistant.expireUndo()
-            assistant.dropStalePreview()
-            assistant.probe()
-            model.refreshPlugins()
-            model.refreshExtensions(discover: page == .commands)
-            model.refreshKeys()
-            model.refreshSearchKey()
-            model.refreshNotionToken()
-            model.refreshNotesFolder()
-            model.refreshAccount()
-            model.refreshVoice()
-            model.refreshJargon()
+        .onAppear { shown() }
+        // Opened again, the window and its settings kept: as a new one starts (`page`, else General; nothing searched, no
+        // sheet or dialog up), its pages brought up to date as they come in.
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { note in
+            page = (note.userInfo?["page"] as? String).flatMap(SettingsPage.init(rawValue:)) ?? Self.firstPage
+            (query, chosen, openChip) = ("", 0, nil)
+            (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
+            (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
+            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders) = (false, false, false, false, false)
+            (packToRemove, packToDelete) = (nil, nil)
+            shown()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
-            model.refreshJargon()  // the list may have been edited in the text editor
+            model.refreshJargonInBackground()  // the list may have been edited in the text editor
             model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.readExtensionDigests()  // and an extension source's files, which its suggestions' switch shows
             model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
@@ -2452,7 +2643,7 @@ struct SettingsView: View {
     /// The commands, at the top: what this input method does beyond typing the user's input languages.
     private var commandsSummary: String {
         let key = UIText.howToPress(model.config.actionKey)
-        let languages = model.config.inputLanguages.map { SessionText.inputName($0, language: UIText.language) }
+        let languages = model.config.inputLanguages.map { SessionText.inputName($0, language: UIText.language, chinese: model.config.typedChinese) }
             .joined(separator: tr("、", ", "))
         return tr("平时就是普通输入法：\(languages)。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，"
                       + "@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完\(key)执行。",
@@ -2599,7 +2790,7 @@ struct SettingsView: View {
             Text(tr("自定义…", "Custom…")).tag("custom")
         }
         if customModel || !SuggestedModel.all.contains(where: { $0.id == model.config.modelId }) {
-            TextField(tr("模型 ID", "Model ID"), text: $model.config.modelId,
+            TextField(tr("模型 ID", "Model ID"), text: modelIdBinding,
                       prompt: Text(tr("例如 ", "e.g. ") + "us.anthropic.claude-haiku-4-5-20251001-v1:0"))
                 .onSubmit { model.save() }
         }
@@ -2925,14 +3116,14 @@ struct SettingsView: View {
             })
     }
 
-    private var regionBinding: Binding<String> {
-        Binding(get: { model.config.region ?? "" },
-                set: { model.config.region = $0.trimmingCharacters(in: .whitespaces).isEmpty ? nil : $0 })
+    /// Bedrock's model ID and region as typed, trimmed (`SettingsStore.setBedrockModelId`, `setBedrockRegion`): a space or
+    /// line break pasted with them would break every request.
+    private var modelIdBinding: Binding<String> {
+        Binding(get: { model.config.modelId }, set: { model.store.setBedrockModelId($0) })
     }
 
-    private var temperatureOn: Binding<Bool> {
-        Binding(get: { model.config.temperature != nil },
-                set: { model.config.temperature = $0 ? (model.config.temperature ?? 0.3) : nil })
+    private var regionBinding: Binding<String> {
+        Binding(get: { model.config.region ?? "" }, set: { model.store.setBedrockRegion($0) })
     }
 }
 
@@ -2953,6 +3144,10 @@ final class SettingsWindow {
     /// Whether the window is open (an update opens it again once the input method restarts).
     var isVisible: Bool { window?.isVisible == true }
 
+    /// The window's settings saved as closing it saves them, the fields typed in without ⏎ (a model ID, the region)
+    /// too: before the input method ends (it quits for an update, SIGTERM). Nothing is written when nothing changed.
+    func save() { model?.save() }
+
     /// Shows the window on `page` (already open: it turns to it), and outlines `spot` there if given (`SettingsModel.spot`).
     func show(page: SettingsPage, spot: SettingsSpot? = nil) {
         show(opening: page)
@@ -2968,8 +3163,19 @@ final class SettingsWindow {
 
     private func show(opening page: SettingsPage?) {
         AgentAvailability.forget()  // an agent may have been installed meanwhile
-        if window?.isVisible != true {
-            // (Re)build so the window reflects the config file as it is now.
+        if let window, let model, !window.isVisible, model.configURL == Config.defaultURL {
+            // Opened again: the window and its settings as they were kept since it was closed (building them again took
+            // longer than showing them), the file read again if something else changed it, the page asked for (else
+            // General, as a new window starts), its facts read again off the main thread.
+            model.reopened()
+            UIText.choice = model.config.uiLanguage
+            AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
+            window.title = Self.title
+            NotificationCenter.default.post(name: .allInOneIMESettingsReopened, object: nil,
+                                            userInfo: page.map { ["page": $0.rawValue] } ?? [:])
+        } else if window?.isVisible != true {
+            // The first time (or the settings in another file now: the self-test's): built with the config file as it is
+            // now, and kept once closed.
             window?.close()
             let model = SettingsModel()
             self.model = model
@@ -3082,12 +3288,6 @@ private struct LanguageChips<Item: Hashable>: View {
     var keepsOne = true
     let reorder: ([Item]) -> Void
     let remove: (Item) -> Void
-    /// Chips that open: the one open (highlighted), and a click opens another.
-    var selected: Item? = nil
-    var select: ((Item) -> Void)? = nil
-    /// What an open chip shows, in a popover under it, and which is open.
-    var options: ((Item) -> AnyView)? = nil
-    var open: Binding<Item?>? = nil
     /// Moving a chip one place left (-1) or right (1), from its context menu and for VoiceOver, as dragging does.
     var move: ((Item, Int) -> Void)? = nil
     @State private var frames: [Item: CGRect] = [:]
@@ -3117,17 +3317,14 @@ private struct LanguageChips<Item: Hashable>: View {
     private func chip(_ item: Item) -> some View {
         let first = item == items.first && firstNote != nil
         let label = first && items.count > 1 ? name(item) + " · " + (firstNote ?? "") : name(item)
-        let picked = select != nil && item == selected
         return HStack(spacing: 2) {
-            Text(label).foregroundStyle(picked || first ? .primary : .secondary)
+            Text(label).foregroundStyle(first ? .primary : .secondary)
                 .overlay {
-                    if items.count > 1 || select != nil {
-                        DragHandle(onTap: { select?(item) }, onChanged: { dx in
-                            guard items.count > 1 else { return }
+                    if items.count > 1 {
+                        DragHandle(onChanged: { dx in
                             dragging = item
                             offset = dx
                         }, onEnded: { x in
-                            guard items.count > 1 else { return }
                             let moved = ChipOrder.moved(item, in: items, to: x, midX: { frames[$0]?.midX })
                             dragging = nil
                             offset = 0
@@ -3143,15 +3340,8 @@ private struct LanguageChips<Item: Hashable>: View {
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 2)
-        .background(picked ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
-        .overlay(Capsule().strokeBorder(picked ? Color.accentColor.opacity(0.7) : .clear, lineWidth: 1))
-        .accessibilityAddTraits(picked ? .isSelected : [])
+        .background(Color.secondary.opacity(first ? 0.22 : 0.1), in: Capsule())
         .help(firstNote.map { tr("拖动排序，第一个是\($0)", "Drag to reorder; the first is \($0)") } ?? tr("拖动排序", "Drag to reorder"))
-        .popover(isPresented: Binding(get: { open?.wrappedValue == item && options != nil },
-                                      set: { if !$0, open?.wrappedValue == item { open?.wrappedValue = nil } }),
-                 arrowEdge: .bottom) {
-            options?(item)
-        }
         .contextMenu {
             if let move, items.count > 1 {
                 Button(tr("左移", "Move Left")) { move(item, -1) }.disabled(item == items.first)
@@ -3169,23 +3359,19 @@ private struct LanguageChips<Item: Hashable>: View {
 
 /// Tracks a mouse drag itself (its own event loop from mouseDown to mouseUp), so the table view under
 /// the Form never sees it: reports the horizontal distance while dragging and the pointer's x in the
-/// window where it's let go. A click without moving is a tap.
+/// window where it's let go. A click without moving does nothing.
 private struct DragHandle: NSViewRepresentable {
-    /// A click without moving.
-    var onTap: () -> Void = {}
     var onChanged: (CGFloat) -> Void
     var onEnded: (CGFloat) -> Void
 
     func makeNSView(context: Context) -> HandleView { HandleView() }
 
     func updateNSView(_ view: HandleView, context: Context) {
-        view.onTap = onTap
         view.onChanged = onChanged
         view.onEnded = onEnded
     }
 
     final class HandleView: NSView {
-        var onTap: (() -> Void)?
         var onChanged: ((CGFloat) -> Void)?
         var onEnded: ((CGFloat) -> Void)?
 
@@ -3199,7 +3385,7 @@ private struct DragHandle: NSViewRepresentable {
             while let next = window?.nextEvent(matching: [.leftMouseDragged, .leftMouseUp]) {
                 let dx = next.locationInWindow.x - start
                 if next.type == .leftMouseUp {
-                    if moved { onEnded?(next.locationInWindow.x) } else { onTap?() }
+                    if moved { onEnded?(next.locationInWindow.x) }
                     break
                 }
                 if abs(dx) > 3 { moved = true }
@@ -3399,6 +3585,21 @@ struct SectionTitle: View {
     var body: some View {
         Text(title).font(.system(size: 14, weight: .medium)).foregroundStyle(.primary).padding(.top, 6)
     }
+}
+
+/// A row's title with a short explanation under it, as System Settings shows them: every page's.
+@MainActor
+func titled(_ title: String, _ note: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(title)
+        Text(note).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    }
+}
+
+/// A row's title and what it says, as the search finds them (`SettingsSpot`).
+@MainActor @ViewBuilder
+func titled(_ spot: SettingsSpot) -> some View {
+    if let note = spot.note { titled(spot.title, note) } else { Text(spot.title) }
 }
 
 

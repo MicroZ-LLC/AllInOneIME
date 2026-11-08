@@ -207,6 +207,19 @@ struct ReplyTests {
         #expect(withScreenshot.questionHistory.entries.isEmpty)
     }
 
+    @Test func aSavedAnswerShownWithAScreenshotAttachedIsHandedOffWithoutIt() {
+        let c = draft("question")
+        c.handoffChoices = [.copy]
+        c.questionHistory = QuestionHistory(entries: [QuestionHistory.Entry(question: "what is rust", answer: "A language.", date: .distantPast)])
+        _ = screenshot(["Tom & Jerry"], c)
+        _ = c.handleKeyDown(k("1"))
+        #expect(c.showsSavedAnswer)
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
+        let effects = c.handleKeyDown(KeyEvent(keyCode: 0, characters: "1", charactersIgnoringModifiers: "1", modifiers: .command)).effects
+        // The saved question wasn't about the screenshot: it isn't taken along.
+        #expect(effects.contains(.copy("**Q:** what is rust\n\n**A:** A language.")), "\(effects)")
+    }
+
     @Test func theAttachmentGoesWithTheDraft() {
         let c = draft("reply")
         paste(.text("hello"), c)

@@ -11,30 +11,90 @@ import FoundationNetworking
 public enum HTTPStream {
     /// Sends `request` on `session` and returns when the response's headers are in. `redirect` decides each
     /// redirect: the request to send instead, or nil to refuse it (the redirect itself is then the response);
-    /// without it, redirects are followed.
+    /// without it, redirects are followed. `refusesAuthentication`: any authentication the server asks for (Basic, Digest,
+    /// NTLM, a client certificate) is refused, nothing answered from the credentials the system keeps; where Foundation
+    /// tells the request's own delegate (Apple's).
     public static func bytes(for request: URLRequest, session: URLSession,
-                             redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil) async throws -> (Body, URLResponse) {
-        let receiver = Receiver(redirect: redirect)
+                             redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil,
+                             refusesAuthentication: Bool = false) async throws -> (Body, URLResponse) {
+        let prepared = prepare(request, session: session, redirect: redirect, refusesAuthentication: refusesAuthentication)
+        prepared.start()
+        return try await prepared.response()
+    }
+
+    /// `request` on `session` made ready as `bytes` sends it, but not sent (`Prepared.start` sends it): what may stop it
+    /// can be checked right before the start, nothing scheduled between the two.
+    static func prepare(_ request: URLRequest, session: URLSession, redirect: (@Sendable (URLRequest) -> URLRequest?)? = nil,
+                        refusesAuthentication: Bool = false) -> Prepared {
+        let receiver = Receiver(redirect: redirect, refusesAuthentication: refusesAuthentication)
         #if canImport(Darwin)
         // On the caller's session, so that its connections are reused; the task has a delegate of its own.
         let task = session.dataTask(with: request)
         task.delegate = receiver
-        task.resume()
+        return Prepared(receiver: receiver, task: task)
         #else
         // Corelibs Foundation tells a task's data only to its session's delegate: a session of its own, with the
         // same configuration, that goes away when the task is done.
         let own = URLSession(configuration: session.configuration, delegate: receiver, delegateQueue: nil)
-        let task = own.dataTask(with: request)
-        task.resume()
-        own.finishTasksAndInvalidate()
+        return Prepared(receiver: receiver, task: own.dataTask(with: request), own: own)
         #endif
-        let body = Body(reader: Reader(receiver: receiver, task: task))
-        let response = try await withTaskCancellationHandler {
-            try await receiver.response()
-        } onCancel: {
-            task.cancel()
+    }
+
+    /// A request made ready (`prepare`), its task not resumed yet. One let go of before it is started is cancelled, having
+    /// sent nothing.
+    final class Prepared: @unchecked Sendable {
+        private let receiver: Receiver
+        private let task: URLSessionDataTask
+        #if !canImport(Darwin)
+        private let own: URLSession
+        #endif
+        private let started = Locked(initialState: false)
+
+        #if canImport(Darwin)
+        init(receiver: Receiver, task: URLSessionDataTask) {
+            self.receiver = receiver
+            self.task = task
         }
-        return (body, response)
+        #else
+        init(receiver: Receiver, task: URLSessionDataTask, own: URLSession) {
+            self.receiver = receiver
+            self.task = task
+            self.own = own
+        }
+        #endif
+
+        deinit {
+            guard !started.withLock({ $0 }) else { return }
+            #if canImport(Darwin)
+            task.cancel()
+            #else
+            own.invalidateAndCancel()
+            #endif
+        }
+
+        /// Sends it now: its task resumed, which doesn't block or wait for anything.
+        func start() {
+            started.withLock { $0 = true }
+            task.resume()
+            #if !canImport(Darwin)
+            own.finishTasksAndInvalidate()
+            #endif
+        }
+
+        /// Its response once the headers are in, and its body as it arrives (once started): `bytes`'s.
+        func response() async throws -> (Body, URLResponse) {
+            #if canImport(Darwin)
+            let body = Body(reader: Reader(receiver: receiver, task: task))
+            #else
+            let body = Body(reader: Reader(receiver: receiver, task: task, delegateQueue: own.delegateQueue))
+            #endif
+            let response = try await withTaskCancellationHandler {
+                try await receiver.response()
+            } onCancel: {
+                body.reader.cancel()
+            }
+            return (body, response)
+        }
     }
 
     /// The response's body, as it arrives.
@@ -155,27 +215,51 @@ public enum HTTPStream {
     fileprivate final class Reader: @unchecked Sendable {
         let receiver: Receiver
         let task: URLSessionDataTask
+        /// Where the task's delegate is told what happens to it, one thing at a time: the queue of corelibs Foundation's
+        /// session of its own (nil on Apple's, where the caller's session runs it).
+        let delegateQueue: OperationQueue?
 
-        init(receiver: Receiver, task: URLSessionDataTask) {
+        init(receiver: Receiver, task: URLSessionDataTask, delegateQueue: OperationQueue? = nil) {
             self.receiver = receiver
             self.task = task
+            self.delegateQueue = delegateQueue
         }
 
         deinit {
-            task.cancel()
+            cancel()
         }
 
         func next() async throws -> Data? {
             try await withTaskCancellationHandler {
                 try await receiver.next()
-            } onCancel: { [task] in
+            } onCancel: {
+                cancel()
+            }
+        }
+
+        /// Cancels the request, unless it's over. Apple's Foundation ignores a cancel once it's done. Corelibs
+        /// Foundation (Linux, Windows) cancels later, on the task's own queue, and if the task completes meanwhile its
+        /// session lets go of it first: the cancel then asks the session about a task it no longer has, which stops the
+        /// process ("Trying to access a behaviour for a task that in not in the registry"). There the cancel is asked
+        /// on the delegate's queue, where the delegate is told the task completed, and that queue waits until the task
+        /// has it (its error set): told it completed before, nothing is cancelled; after, it completes as cancelled.
+        func cancel() {
+            guard let delegateQueue else {
+                if !receiver.isDone { task.cancel() }
+                return
+            }
+            delegateQueue.addOperation { [receiver, task] in
+                guard !receiver.isDone else { return }
                 task.cancel()
+                // Its queue can be slow to come to it (a busy machine): only this request's delegate waits meanwhile.
+                let deadline = Date().addingTimeInterval(30)
+                while task.error == nil, task.state != .completed, Date() < deadline { Thread.sleep(forTimeInterval: 0.0005) }
             }
         }
     }
 
     /// The task's delegate: keeps what arrives until it's read.
-    fileprivate final class Receiver: NSObject, URLSessionDataDelegate, @unchecked Sendable {
+    final class Receiver: NSObject, URLSessionDataDelegate, @unchecked Sendable {
         private struct State {
             var response: URLResponse?
             var data = Data()
@@ -186,10 +270,15 @@ public enum HTTPStream {
 
         private let state = Locked(initialState: State())
         private let redirect: (@Sendable (URLRequest) -> URLRequest?)?
+        private let refusesAuthentication: Bool
 
-        init(redirect: (@Sendable (URLRequest) -> URLRequest?)?) {
+        init(redirect: (@Sendable (URLRequest) -> URLRequest?)?, refusesAuthentication: Bool) {
             self.redirect = redirect
+            self.refusesAuthentication = refusesAuthentication
         }
+
+        /// Whether the task told it it completed (`didCompleteWithError`).
+        var isDone: Bool { state.withLock { $0.done } }
 
         func response() async throws -> URLResponse {
             while true {
@@ -251,6 +340,15 @@ public enum HTTPStream {
                         newRequest request: URLRequest, completionHandler: @escaping @Sendable (URLRequest?) -> Void) {
             completionHandler(redirect.map { $0(request) } ?? request)
         }
+
+        #if canImport(Darwin)
+        /// A challenge: the server's certificate checked as usual; any other refused where `refusesAuthentication`.
+        func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge,
+                        completionHandler: @escaping @Sendable (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
+            let serverTrust = challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust
+            completionHandler(refusesAuthentication && !serverTrust ? .cancelAuthenticationChallenge : .performDefaultHandling, nil)
+        }
+        #endif
 
         func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
             update {

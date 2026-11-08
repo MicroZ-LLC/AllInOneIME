@@ -591,6 +591,46 @@ struct InputSessionTests {
         }
     }
 
+    /// A field that takes the focus has the plugins looked for again (one installed or removed shows up there), in the
+    /// background where the shell can (`SessionServices.rescanPlugins`): the focus has them as last looked for at once,
+    /// never looking itself (that hashes their files), and the command list takes what was found once the scan ends,
+    /// through the session's events; keys before have the list as it was. Once a focus.
+    @Test func aFocusLooksForThePluginsAgainInTheBackground() async {
+        await inEnglish {
+            /// What is installed, and what was found when the plugins were last looked for (what `plugins(false)` gives).
+            final class Plugins: @unchecked Sendable {
+                var installed: [InstalledPlugin] = []
+                var found: [InstalledPlugin] = []
+                var lookedHere = 0
+                var scans: [@Sendable () -> Void] = []
+            }
+            let plugins = Plugins()
+            let host = host { services in
+                services.plugins = { rescan in
+                    if rescan { (plugins.lookedHere, plugins.found) = (plugins.lookedHere + 1, plugins.installed) }
+                    return plugins.found
+                }
+                services.rescanPlugins = { plugins.scans.append($0) }
+            }
+            #expect(plugins.lookedHere == 0 && plugins.scans.count == 1, "\(plugins.lookedHere) \(plugins.scans.count)")
+            // One installed meanwhile: keys have the list as it was until the scan ends.
+            plugins.installed = [InstalledPlugin(manifest: PluginManifest(name: "x", version: "1.0.0", minAppVersion: "0.5.0", type: .link,
+                                                                          url: LinkTests.x),
+                                                 directory: URL(fileURLWithPath: "/tmp/x"), isLocal: true)]
+            host.press(KeyEvent(keyCode: 0, characters: "a"))
+            host.press(FakeHost.escape)
+            #expect(!host.composer.commands.contains { $0.name == "x" }, "\(host.composer.commands.map(\.name))")
+            // The scan ends, on another thread: the command list has it, no key needed.
+            let scanned = plugins.scans.removeFirst()
+            plugins.found = plugins.installed
+            DispatchQueue.global().async { scanned() }
+            #expect(host.settle { host.composer.commands.contains { $0.name == "x" } }, "\(host.composer.commands.map(\.name))")
+            // Another field: looked for again, once, in the background.
+            host.focus()
+            #expect(plugins.lookedHere == 0 && plugins.scans.count == 1, "\(plugins.lookedHere) \(plugins.scans.count)")
+        }
+    }
+
     // MARK: - Terminals, voice
 
     /// The session's messages name the keys the composer acts on (`Composer.modifierRoles`), as its panel does, whatever
@@ -717,6 +757,29 @@ struct InputSessionTests {
             host.press(FakeHost.enter)
             #expect(host.document == "Best,\nAnn", "\(host.document)")
             #expect(host.outputs.contains(.moveCaret(back: 4, after: "Best,\nAnn")), "the caret back to {cursor}: \(host.outputs.suffix(4))")
+        }
+    }
+
+    /// A snippet with line breaks goes into a terminal as clipboard history and answers do (`InputSession.intoField`): its
+    /// lines kept where they go in as a paste, else on one line (a line break typed there is Return: the shell would run
+    /// each line), typed out too. Elsewhere as written.
+    @Test func aSnippetsLinesIntoATerminal() async {
+        await inEnglish {
+            for (terminal, pastes, typesOut, expected) in [(true, false, false, "echo one echo two"), (true, true, false, "echo one\n  echo two"),
+                                                            (false, false, false, "echo one\n  echo two"), (true, false, true, "echo one echo two")] {
+                let settings = Settings()
+                settings.config.customCommands = [CustomCommand(name: "two", type: .snippet, text: "echo one\n  echo two")]
+                settings.config.typeOut = typesOut
+                let host = host(settings) { $0.pastesInTerminal = { pastes } }
+                host.terminal = terminal
+                host.focus()
+                host.composer.setInputMode(.english)
+                host.press(FakeHost.at)
+                host.type("two")
+                host.press(FakeHost.enter)
+                let put = typesOut ? host.typedOut.joined() : host.document
+                #expect(put == expected, "terminal \(terminal), pastes \(pastes), typed out \(typesOut): \(put.debugDescription)")
+            }
         }
     }
 

@@ -33,14 +33,15 @@ enum QuestionHistoryStore {
 
     private static func save(_ history: QuestionHistory) {
         do {
-            try history.write(to: url)
+            if let aside = try history.write(to: url) {
+                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
+            }
         } catch {
             log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
         }
         loaded = (modificationDate(), history)
     }
 
-    private static func modificationDate() -> Date? {
-        (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
-    }
+    /// By `lstat` (a microsecond; the file manager's attributes take some forty): the history is asked for with each key.
+    private static func modificationDate() -> Date? { FileDate.own(url.path) }
 }

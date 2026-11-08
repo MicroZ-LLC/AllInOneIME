@@ -620,7 +620,7 @@ struct SuggestionsTests {
 
     /// Removing a plugin (Settings → Plugins, the Mac's or the settings document's) forgets what was enabled of it, and
     /// saves that: installed again, its sources are off until enabled again. Other plugins' stay.
-    @Test func uninstallingAPluginForgetsWhatWasEnabledOfIt() throws {
+    @Test(OwnTrash()) func uninstallingAPluginForgetsWhatWasEnabledOfIt() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-uninstall-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)

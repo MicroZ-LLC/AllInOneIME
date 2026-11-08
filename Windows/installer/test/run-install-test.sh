@@ -117,6 +117,9 @@ verify_installed() { # $1: the snapshot's name
   local data; data="$(find "$INSTALL_DIR/rime-data" -type f 2>/dev/null | wc -l)"
   check "rime-ice's data in rime-data ($data files, the prebuilt dictionaries among them)" \
     test -f "$INSTALL_DIR/rime-data/build/rime_ice.table.bin" -a -f "$INSTALL_DIR/rime-data/rime_ice.schema.yaml"
+  check "OpenCC's data for Traditional characters in rime-data/opencc" \
+    test -f "$INSTALL_DIR/rime-data/opencc/s2twp.json" -a -f "$INSTALL_DIR/rime-data/opencc/s2hk.json" \
+      -a -f "$INSTALL_DIR/rime-data/opencc/STPhrases.ocd2"
   check "the command line runs on the runtime installed beside it" \
     grep -q '^usage: allinoneime-cli set-provider' <("$INSTALL_DIR/allinoneime-cli.exe" set-provider --help 2>&1 | tr -d '\r')
   local runtime; runtime="$(ls "$INSTALL_DIR" | grep -ciE '^(swift|Foundation|_Foundation|dispatch|BlocksRuntime|vcruntime|msvcp).*\.dll$')"

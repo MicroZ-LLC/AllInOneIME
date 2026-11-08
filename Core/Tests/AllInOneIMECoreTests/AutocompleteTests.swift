@@ -1064,11 +1064,16 @@ struct AutocompleteTests {
 
         var pauses: [TimerID] { host.timers.filter { if case .autocomplete = $0 { true } else { false } } }
 
-        /// The pause runs out: the field is read, and what it asks is answered.
+        /// The pause runs out: the field is read, and what it asks is answered. Expecting nothing to show, a moment as
+        /// before, then until the field's reading and the request it made (if any) are over, which a busy test run can
+        /// hold up past that moment.
         func pauseEnds(expecting text: String? = nil) {
             clock.advance(0.2)
             host.fireTimers { if case .autocomplete = $0 { true } else { false } }
-            if text != nil { host.settle(timeout: 5) { host.ghost != nil } } else { host.settle(timeout: 0.3) { false } }
+            if text != nil { host.settle(timeout: 5) { host.ghost != nil } } else {
+                host.settle(timeout: 0.3) { false }
+                host.settle(timeout: 20) { host.session.autocomplete.reading == nil && host.session.autocomplete.asked == nil }
+            }
         }
     }
 
@@ -1242,6 +1247,35 @@ struct AutocompleteTests {
             r.clock.advance(1)
             #expect(!r.host.press(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")))
             #expect(r.host.ghost == nil)
+        }
+    }
+
+    /// The keys it takes are the input method's, as the rows' are (`SuggestionsScrollTests.theKeysTheRowsTakeSaySo`), for
+    /// a shell whose app would act on them as well (Chromium's: Esc closed Slack's thread, a single character put in left
+    /// Tab to the page): Esc says it puts nothing in (`rowsTookKey`), first; Tab says a row goes in (`rowByKey`) before
+    /// its text, one character or more; a key it leaves to the app says neither.
+    @Test func theKeysItTakesSaySo() async {
+        await withInterfaceLanguage("en") {
+            func press(_ key: KeyEvent, suggested: String) -> (handled: Bool, outputs: [SessionOutput]) {
+                let r = rig(model: ContinuingModel { _ in suggested })
+                r.host.type("Hello wor")
+                r.pauseEnds(expecting: "x")
+                #expect(r.host.ghost == suggested)
+                r.clock.advance(0.5)
+                let before = r.host.outputs.count
+                let handled = r.host.press(key)
+                return (handled, Array(r.host.outputs.dropFirst(before)))
+            }
+            let esc = press(FakeHost.escape, suggested: "ld, how are you?")
+            #expect(esc.handled && esc.outputs.first == .rowsTookKey && !esc.outputs.contains(.rowByKey), "\(esc.outputs)")
+            for suggested in ["ld, how are you?", "d"] {
+                let tab = press(FakeHost.tab, suggested: suggested)
+                let row = tab.outputs.firstIndex(of: .rowByKey), commit = tab.outputs.firstIndex(of: .commit(suggested))
+                #expect(tab.handled && row != nil && commit != nil && row! < commit!, "\(suggested): \(tab.outputs)")
+                #expect(!tab.outputs.contains(.rowsTookKey), "\(suggested): \(tab.outputs)")
+            }
+            let right = press(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}"), suggested: "ld, how are you?")
+            #expect(!right.handled && !right.outputs.contains(.rowsTookKey) && !right.outputs.contains(.rowByKey), "\(right.outputs)")
         }
     }
 
@@ -1428,6 +1462,18 @@ struct AutocompleteTests {
             r.host.type("Hello wor")
             r.pauseEnds(expecting: "x")
             #expect(r.model.requests.count == 1 && r.model.requests.first?.prompt == "<before>Hello wor</before>")
+        }
+    }
+
+    /// Where the shell can't tell whether the field is a password field when it's read (the Mac without Accessibility,
+    /// no answer in time), autocomplete runs as it always did there (only the English words learned take it as one).
+    @Test func aFieldTheShellCantTellRunsAsBefore() async {
+        await withInterfaceLanguage("en") {
+            let r = rig()
+            r.host.cannotTellPasswordField = true
+            r.host.type("Hello wor")
+            r.pauseEnds(expecting: "x")
+            #expect(r.model.requests.count == 1 && r.host.ghost != nil)
         }
     }
 

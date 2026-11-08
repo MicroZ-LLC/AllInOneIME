@@ -135,6 +135,9 @@ public enum Doctor {
         public var recentErrors: [String] = []
         /// Sync through iCloud (`ICloudSync`).
         public var iCloudSync = ICloudSyncFacts()
+        /// The areas whose checks haven't ended yet, where the shell tells the facts as each of its probes ends: their
+        /// findings are left out until they have (what isn't known yet isn't shown as fine). Empty: all checked.
+        public var unchecked: Set<Area> = []
 
         public init() {}
     }
@@ -185,14 +188,25 @@ public enum Doctor {
                                detail: logDetail))
         }
         // What the probes reported may hold a full path or a key (an error that echoes one): never shown or sent so.
-        out = out.map { finding in
+        out = out.filter { !facts.unchecked.contains($0.area) }.map { finding in
             var finding = finding
             finding.title = scrub(finding.title)
             finding.detail = finding.detail.map { scrub($0) }
             return finding
         }
+        return ordered(out)
+    }
+
+    /// `findings(facts, language:)`, with those of `before` (the last check's) for the areas not checked yet
+    /// (`Facts.unchecked`): checks run again show what the last ones found until their own part is in.
+    public static func findings(_ facts: Facts, language: String, keeping before: [Finding]) -> [Finding] {
+        ordered(findings(facts, language: language) + before.filter { facts.unchecked.contains($0.area) })
+    }
+
+    /// Problems first, then warnings, then what is fine, in the areas' order within each, as they came within an area.
+    static func ordered(_ findings: [Finding]) -> [Finding] {
         let order = Area.allCases
-        return out.enumerated().sorted { a, b in
+        return findings.enumerated().sorted { a, b in
             (a.element.status, order.firstIndex(of: a.element.area) ?? 0, a.offset)
                 < (b.element.status, order.firstIndex(of: b.element.area) ?? 0, b.offset)
         }.map(\.element)
@@ -316,12 +330,35 @@ public enum Doctor {
         case .granted:
             out.append(Finding(area: .permissions, status: .ok, title: t.tr("辅助功能权限已允许", "Accessibility is allowed")))
         case .denied, .notDetermined:
-            // Not allowed for the build that runs, though System Settings may show the switch on: after an update macOS
-            // can keep it for the previous build's signature.
+            // What works less well without it, a line each (the Mac's: the key tap, `KeyGuard`; posting the paste key,
+            // `TerminalPaste`, `canPassPasteKey`; the selection, `SelectedText`; ⌃V's panel where nothing can be marked,
+            // `clipboardPanelFits`; the caret, `FocusedField.caret`; the page, `PageContextReader`; the field's frame and
+            // password fields, `FocusedField`: unknown, `InputSession.PasswordField.unknown`, so no English word is learned,
+            // `fieldIsPrivate`, and autocomplete stops only for one known).
+            // Then: not allowed for the build that runs, though System Settings may show the switch on: after an update
+            // macOS can keep it for the previous build's signature.
+            let without = [
+                t.tr("列表用的键（↓ ↑ → ⏎ Tab Esc）有的 App 也会收到", "some apps can also get the keys a list takes (↓ ↑ → ⏎ Tab Esc)"),
+                t.tr("多行文字（AI 回答、片段、剪贴板历史）放进终端会变成一行",
+                     "text of more than one line (AI answers, snippets, clipboard history) goes into terminals on one line"),
+                t.tr("剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴",
+                     "clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps"),
+                t.tr("在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史",
+                     "in Chrome and apps like Slack or VS Code, @ commands may not read the selection, and ⌃V may not open clipboard history"),
+                t.tr("有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边",
+                     "in some apps (often Chrome's pages), a list may show away from the caret"),
+                t.tr("@agent 和 @reply 带不上 Chrome 里的网页", "@agent and @reply can't take the Chrome page along"),
+                t.tr("续写的灰字可能超出输入框", "autocomplete's gray text can run past the field's edge"),
+                t.tr("不会从你打的字里学英文词", "English words aren't learned from what you type"),
+                t.tr("少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面",
+                     "a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, and suggestions may show there"),
+            ]
+            // The title says it isn't allowed: the lead only says what follows.
+            let detail = [t.tr("这些会受影响：", "what doesn't work fully:")] + without.map { "• " + $0 }
+                + [t.tr("如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
+                        "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)")]
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: t.tr("有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
-                                            "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)"),
-                               fix: .openPrivacy(.accessibility)))
+                               detail: detail.joined(separator: "\n"), fix: .openPrivacy(.accessibility)))
         case .unknown: break
         }
         if facts.config?.voiceInput != false {
@@ -511,9 +548,10 @@ public enum Doctor {
     /// times"): the newest `limit` events, oldest first. Of the line's own text only two things may be kept: a `~/…` path
     /// in a Rime dictionary event (which of its files), and a plugin's name when it looks like one (letters, digits, - _ .).
     /// Lines no known event matches are counted on one last line ("2 other log lines"). `lunarDatabaseAvailable`: the Rime
-    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`).
+    /// user folder has lua/lunar.db now, so the runs that missed it were earlier ones (`providedLunarDatabase`); `openCC`,
+    /// where OpenCC's data stands now, the same for the runs that couldn't use it (`providedOpenCC`, `unusedOpenCC`).
     public static func summarizeLogLines(_ lines: [String], home: String = NSHomeDirectory(), limit: Int = 3,
-                                         lunarDatabaseAvailable: Bool = false) -> [String] {
+                                         lunarDatabaseAvailable: Bool = false, openCC: OpenCCNow = .unknown) -> [String] {
         let errors = lines.filter { line in
             let lower = line.lowercased()
             return line.hasPrefix("E") && line.count > 1 && line.dropFirst().first?.isNumber == true
@@ -527,6 +565,13 @@ public enum Doctor {
                 continue
             }
             if lunarDatabaseAvailable, event == missingLunarDatabase { event = providedLunarDatabase }
+            if event == failedOpenCC {
+                switch openCC {
+                case let .provided(since): if let at = glogTime(line), at < since { event = providedOpenCC }
+                case .unused: event = unusedOpenCC
+                case .unknown: break
+                }
+            }
             event = event.count > 120 ? String(event.prefix(120)) + "…" : event
             counts[event, default: 0] += 1
             last[event] = index
@@ -551,7 +596,46 @@ public enum Doctor {
     static let missingLunarDatabase = "Rime: a file it needs is missing: lua/lunar.db (the lunar date)"
     static let providedLunarDatabase = "Earlier Rime run: lua/lunar.db was missing; this version provides it"
 
-    static func isResolvedLogEvent(_ line: String) -> Bool { line.hasPrefix(providedLunarDatabase) }
+    static func isResolvedLogEvent(_ line: String) -> Bool {
+        [providedLunarDatabase, providedOpenCC, unusedOpenCC].contains { line.hasPrefix($0) }
+    }
+
+    /// librime couldn't find, or couldn't read, OpenCC's data for Traditional characters (Settings → Input → Chinese →
+    /// Characters): the files the app carries and copies into the Rime folder's `opencc` (`RimeService.prepareOpenCC`),
+    /// missing (a build without them, a copy that failed) or not OpenCC's of librime's version (a file of the user's own
+    /// there, left as it is). librime 1.16.1 logs either as "opencc config not found" (its simplifier loads the config
+    /// lazily and catches whatever OpenCC throws), so they are one event, which says what to do for both
+    /// (`localizedLogEvent`): the app's files put back, or Simplified until then.
+    static let failedOpenCC = "Rime: the data for Traditional characters (OpenCC) is missing or can't be read"
+    /// The same, logged by earlier runs: before the user folder got the app's files as they are now (`OpenCCNow.provided`),
+    /// or with Simplified chosen now (nothing is converted). Not an error.
+    static let providedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it"
+    static let unusedOpenCC = "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now"
+
+    /// Where OpenCC's data for Traditional characters stands now, for the errors earlier runs logged about it
+    /// (`summarizeLogLines`).
+    public enum OpenCCNow: Sendable {
+        /// Not known: they are errors.
+        case unknown
+        /// The Rime user folder's `opencc` has the app's files for the characters typed as it copied them, the newest of
+        /// them copied at `since` (`RimeService.providedOpenCC`): what was logged before is resolved, what was logged
+        /// since isn't (the copy itself couldn't be read).
+        case provided(since: Date)
+        /// Simplified is chosen: nothing is converted.
+        case unused
+    }
+
+    /// When librime logged `line` (glog's "E20261008 15:45:58.123456 …", in local time); nil for a line without the time.
+    static func glogTime(_ line: String, timeZone: TimeZone = .current) -> Date? {
+        guard let range = line.range(of: #"^[IWEF]\d{8} \d{2}:\d{2}:\d{2}(\.\d+)?"#, options: .regularExpression) else { return nil }
+        let stamp = line[range].dropFirst()
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = timeZone
+        formatter.dateFormat = "yyyyMMdd HH:mm:ss"
+        guard let seconds = formatter.date(from: String(stamp.prefix(17))) else { return nil }
+        return seconds.addingTimeInterval(Double("0" + stamp.dropFirst(17)) ?? 0)
+    }
 
     /// A line of `summarizeLogLines` as the findings show it: the lunar database's phrases and the count in the
     /// interface language (the other phrases stay in English, as the logs are).
@@ -566,6 +650,13 @@ public enum Doctor {
             event = t.tr("Rime：缺少所需文件 lua/lunar.db（农历日期）", "Rime: a file it needs is missing: lua/lunar.db (the lunar date)")
         case providedLunarDatabase:
             event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
+        case failedOpenCC:
+            event = t.tr("Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」",
+                         "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters")
+        case providedOpenCC:
+            event = t.tr("之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；此版本已提供", "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it")
+        case unusedOpenCC:
+            event = t.tr("之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体", "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now")
         default: break
         }
         return event + (count.map { t.tr("，\($0) 次", ", \($0) times") } ?? "")
@@ -594,6 +685,8 @@ public enum Doctor {
                line.contains("non-existent file") || line.contains("Error opening reversedb") {
                 return missingLunarDatabase
             }
+            // The simplifier's (rime-ice's traditionalize): its config file not found, or OpenCC failing on it.
+            if message.contains("opencc config not found") || message.contains("error initializing opencc") { return failedOpenCC }
             if message.contains("lookup") { return "Rime lookup failed" + reason }
             if message.contains("deploy") || source == "deployer" || source == "deployment_tasks" {
                 return "Rime deployment failed" + reason
@@ -671,13 +764,8 @@ public enum Doctor {
     /// name may be the user's. A folder's name may hold spaces (it ends before a "/"); the last component's only before a
     /// word that doesn't start in lowercase ("Report Q3 2026.zip"), so the text after a path ("… to /tmp") stays.
     static func maskingAbsolutePaths(_ text: String) -> String {
-        let folder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
-        let last = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
-        // A file URL's path too ("file:///Users/…", "file://localhost/…"); not one masked already ("…/a.zip").
-        let fileURL = try! NSRegularExpression(pattern: #"(?i)(file://)(?:localhost)?/(?:\#(folder)/)*\#(last)"#)
-        let path = try! NSRegularExpression(pattern: #"(?<![\w~./:\\…-])/(?:\#(folder)/)*\#(last)"#)
         var out = text
-        for (regex, keepsScheme) in [(fileURL, true), (path, false)] {
+        for (regex, keepsScheme) in [(fileURLPath, true), (absolutePath, false)] {
             let ns = out as NSString
             let masked = NSMutableString(string: out)
             for match in regex.matches(in: out, range: NSRange(location: 0, length: ns.length)).reversed() {
@@ -691,6 +779,14 @@ public enum Doctor {
         }
         return out
     }
+
+    /// What `maskingAbsolutePaths` masks, made once (it runs on every finding's title and detail, and again on each line
+    /// of `report`): a path's folders and its last component; a file URL's path too ("file:///Users/…",
+    /// "file://localhost/…"), and any other absolute path, not one masked already ("…/a.zip").
+    private static let pathFolder = #"[^/\n:"“”'‘’「」]*[^/\s:"“”'‘’「」]"#
+    private static let pathLast = #"[^/\s:"“”'‘’「」,;()]+(?:[ \t](?![a-z])[^/\s:"“”'‘’「」,;()]+)*"#
+    private static let fileURLPath = try! NSRegularExpression(pattern: #"(?i)(file://)(?:localhost)?/(?:\#(pathFolder)/)*\#(pathLast)"#)
+    private static let absolutePath = try! NSRegularExpression(pattern: #"(?<![\w~./:\\…-])/(?:\#(pathFolder)/)*\#(pathLast)"#)
 
     /// The repeated languages taken out of `outputLanguages` and `inputLanguages` in the config file at `url`, the first
     /// of each kept, at the JSON level (`AIConfig.patchingFile`): every other key, one this version doesn't know too,
@@ -711,12 +807,14 @@ public enum Doctor {
     /// The findings as the model reads them, one per line, each with its id when it has a fix ("F3"): what
     /// a question sends, nothing else. In the language they were made in: the controller makes them in English
     /// for the model (`findings(_:chinese: false)`, in the same order as the panel's). Each line is scrubbed again
-    /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them.
+    /// (`scrub`): no paths beyond ~ ("…/<last>" for others), no keys; the user's text was never in them. A detail of
+    /// several lines (what doesn't work without Accessibility) is on its finding's line, its lines joined with spaces.
     public static func report(_ findings: [Finding], areas: Set<Area>? = nil) -> String {
         findings.enumerated().compactMap { index, finding in
             guard areas?.contains(finding.area) ?? true else { return nil }
             let id = finding.fix == nil ? "" : " [fix F\(index + 1)]"
-            return "- \(finding.area.rawValue): \(scrub(finding.text(chinese: false)))\(id)"
+            let text = scrub(finding.text(chinese: false)).split(whereSeparator: \.isNewline).joined(separator: " ")
+            return "- \(finding.area.rawValue): \(text)\(id)"
         }.joined(separator: "\n")
     }
 

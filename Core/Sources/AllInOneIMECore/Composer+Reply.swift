@@ -201,7 +201,7 @@ extension Composer {
         let (plan, snippets, codeLeft) = innerPlan(typed)
         let intent = plan.isEmpty ? plan.input(outputs: []) : typed
         let context = ReplyContext.make(intent: intent, selection: selectionInUse, message: message, screen: screen,
-                                        field: readFieldText(), provider: provider)
+                                        field: readFieldText(), provider: provider, chinese: chineseCharacters)
         if context.isEmpty, !pageContextApplies() { return .consumed([.notice(messages.reply.hint)]) }
         if let refusal = aiRefusal() { return .consumed([.updateMarkedText, .notice(refusal)]) }
         let input = Prompt.replyMessage(context)
@@ -222,7 +222,8 @@ extension Composer {
     /// `@reply`'s rows: "0" what was typed (none when nothing was), "1"–"3" the replies.
     var replyChoices: [Choice] {
         var out: [Choice] = []
-        if !sentText.isEmpty { out.append(Choice(label: "0", kind: .original, text: sentText, isComplete: true)) }
+        let typed = sentText
+        if !typed.isEmpty { out.append(Choice(label: "0", kind: .original, text: typed, isComplete: true)) }
         for (index, line) in result.versions.prefix(ReplyParser.maxReplies).enumerated() {
             out.append(Choice(label: String(index + 1), kind: .answer, text: line.text, isComplete: line.isComplete))
         }
@@ -271,6 +272,8 @@ extension Composer {
         public var unsupported: String
         public var imageTooLarge: String
         public var timedOut: String
+        /// The recognizer failed (Vision on every device it tried): the screenshot isn't attached.
+        public var unreadable: String
         /// `@improve` / `@translate` with a selection and a screenshot: the selection was used.
         public var screenshotUnused: String
         /// The interface language they're in (`InterfaceWords`), for the ones made with what they say (`renamed`).
@@ -283,6 +286,12 @@ extension Composer {
             case .noText: return noText
             case .timedOut: return timedOut
             }
+        }
+
+        /// What a read that failed with `error` means, to say it: a `ScreenText.Problem` as `describe` says it, any other
+        /// error (the recognizer's own) as the screenshot not read and not attached, never the error's text.
+        public func describe(failure error: Error) -> String {
+            (error as? ScreenText.Problem).map(describe) ?? unreadable
         }
 
         /// A custom command renamed for a built-in that has its name now (`Config.freeBuiltinNames`): "Your own @reply
@@ -310,6 +319,7 @@ extension Composer {
                 unsupported: t.tr("这台设备不能识别图片里的文字", "This device can't read text in images"),
                 imageTooLarge: t.tr("图片太大：最多 30 MB", "The image is too large: 30 MB at most"),
                 timedOut: t.tr("识别截图超时，再试一次", "Reading the screenshot took too long; try again"),
+                unreadable: t.tr("截图识别失败，没有附上", "The screenshot couldn't be read, so it isn't attached"),
                 screenshotUnused: t.tr("已有选中的文字，截图没有用上", "Text is selected: the screenshot wasn't used"),
                 language: language)
         }

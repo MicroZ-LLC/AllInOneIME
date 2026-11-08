@@ -2120,6 +2120,53 @@
         }
       }
     },
+    "@agent and @reply can't take the Chrome page along" : {
+      "comment" : "@agent 和 @reply 带不上 Chrome 里的网页 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent und @reply können die Chrome-Seite nicht mitnehmen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent y @reply no pueden incluir la página de Chrome"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent et @reply ne peuvent pas joindre la page Chrome"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agentと@replyにChromeのページを添えられません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent와 @reply가 Chrome 페이지를 함께 전달할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent e @reply não conseguem levar junto a página do Chrome"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@agent 和 @reply 附不上 Chrome 中的網頁"
+          }
+        }
+      }
+    },
     "@agent and @reply take the Chrome page along" : {
       "comment" : "@agent 和 @reply 带上 Chrome 里的网页 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -3390,6 +3437,100 @@
         }
       }
     },
+    "%@ do it · ↑↓ choose · Esc as typed" : {
+      "comment" : "%@ 执行 · ↑↓ 选择 · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ausführen · ↑↓ auswählen · Esc wie getippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ejecutar · ↑↓ elegir · Esc tal como está"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ exécuter · ↑↓ choisir · Esc tel quel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 実行 · ↑↓ 移動 · Esc 入力のまま"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 실행 · ↑↓ 이동 · Esc 입력한 그대로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ executar · ↑↓ selecionar · Esc como digitado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 執行 · ↑↓ 選擇 · Esc 原樣輸入"
+          }
+        }
+      }
+    },
+    "%@ do it · ↑↓ choose · Esc cancel, the selection stays" : {
+      "comment" : "%@ 执行 · ↑↓ 选择 · Esc 取消，选中的文字不变 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ausführen · ↑↓ auswählen · Esc abbrechen, die Auswahl bleibt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ejecutar · ↑↓ elegir · Esc cancelar, la selección se mantiene"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ exécuter · ↑↓ choisir · Esc annuler, la sélection reste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 実行 · ↑↓ 移動 · Esc キャンセル（選択はそのまま）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 실행 · ↑↓ 이동 · Esc 취소, 선택 영역 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ executar · ↑↓ selecionar · Esc cancelar, a seleção é mantida"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 執行 · ↑↓ 選擇 · Esc 取消，選取內容不變"
+          }
+        }
+      }
+    },
     "%@ extension commands weren't loaded" : {
       "comment" : "%@ 个扩展命令没有加载 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -3997,6 +4138,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 是魔法鍵，打它會打開命令列表，所以這個補全不會出現（在「一般」裡換一個魔法鍵就行）"
+          }
+        }
+      }
+    },
+    "%@ is writing…" : {
+      "comment" : "%@ 在写… — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ schreibt …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ está escribiendo…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ écrit…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ が作成中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 작성 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ está escrevendo…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 正在寫⋯"
           }
         }
       }
@@ -5741,6 +5929,100 @@
         }
       }
     },
+    "%@ types it as typed · Esc as typed" : {
+      "comment" : "%@ 原样输入 · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt es wie getippt ein · Esc wie getippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lo escribe tal como está · Esc tal como está"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ l'insère tel quel · Esc tel quel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 入力のまま入れる · Esc 入力のまま"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 입력한 그대로 넣기 · Esc 입력한 그대로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere como digitado · Esc como digitado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 原樣輸入 · Esc 原樣輸入"
+          }
+        }
+      }
+    },
+    "%@ types it as typed · Esc cancel" : {
+      "comment" : "%@ 原样输入 · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt es wie getippt ein · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lo escribe tal como está · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ l'insère tel quel · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 入力のまま入れる · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 입력한 그대로 넣기 · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere como digitado · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 原樣輸入 · Esc 取消"
+          }
+        }
+      }
+    },
     "%@ waiting for you" : {
       "comment" : "%@ 个等你 — Sources/AllInOneIMECore/Dashboard.swift",
       "localizations" : {
@@ -6683,6 +6965,53 @@
         }
       }
     },
+    "$%@ is sent only to %@, not this base URL: save a key for this service in the settings" : {
+      "comment" : "$%@ 只发给 %@，不会发给现在的 Base URL：请在设置里为这个服务保存 key — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Schlüssel aus $%@ wird nur an %@ gesendet, nicht an diese Basis-URL: Sichere in den Einstellungen einen Schlüssel für diesen Dienst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clave de $%@ solo se envía a %@, no a esta URL base: guarda una clave para este servicio en los ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La clé de $%@ n’est envoyée qu’à %@, pas à cette URL de base : enregistrez une clé pour ce service dans les réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@のキーは%@にのみ送信され、このBase URLには送信されません：設定でこのサービス用のキーを保存してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 키는 %@에만 보내지고 이 Base URL로는 보내지지 않습니다. 설정에서 이 서비스용 키를 저장하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A chave de $%@ só é enviada para %@, não para esta URL base: salve uma chave para este serviço nos Ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 中的金鑰只會傳送給 %@，不會傳送給現在的 Base URL：請在設定中為這個服務儲存金鑰"
+          }
+        }
+      }
+    },
     "1 char" : {
       "comment" : "1 字 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -7389,6 +7718,101 @@
         }
       }
     },
+    "a few password fields aren't recognized, so autocomplete and suggestions may show in them" : {
+      "comment" : "少数密码框认不出来，续写和建议可能会在里面出现 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "einige wenige Passwortfelder werden nicht erkannt, sodass Autovervollständigen und Vorschläge darin erscheinen können"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunos campos de contraseña no se reconocen, así que Autocompletar y las sugerencias pueden aparecer en ellos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quelques champs de mot de passe ne sont pas reconnus, la complétion automatique et les suggestions peuvent donc s’y afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のパスワード欄を見分けられず、オートコンプリートや候補が出ることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 암호 입력란을 알아보지 못해 자동 완성과 제안이 그 안에 나올 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns campos de senha não são reconhecidos, então o Autocompletar e as sugestões podem aparecer neles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少數密碼欄位認不出來，續寫和建議可能會在裡面出現"
+          }
+        }
+      }
+    },
+    "a few password fields aren't recognized: autocomplete may send what you type in them to your AI provider, and suggestions may show there" : {
+      "comment" : "少数密码框认不出来：续写可能把你在里面打的字发给 AI 服务，建议也可能出现在里面 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "einige wenige Passwortfelder werden nicht erkannt: Autovervollständigen kann, was du darin tippst, an deinen KI-Anbieter senden, und Vorschläge können darin erscheinen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunos campos de contraseña no se reconocen: Autocompletar puede enviar lo que escribes en ellos a tu proveedor de IA, y pueden aparecer sugerencias en ellos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "quelques champs de mot de passe ne sont pas reconnus : la complétion automatique peut envoyer ce que vous y tapez à votre fournisseur d’IA, et des suggestions peuvent s’y afficher"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のパスワード欄を見分けられません：そこで入力した文字がオートコンプリートでAIプロバイダに送られたり、候補が出たりすることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 암호 입력란을 알아보지 못함: 자동 완성이 그 안에 입력한 내용을 선택한 AI 서비스로 보낼 수 있고, 제안이 그 안에 나올 수도 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns campos de senha não são reconhecidos: o Autocompletar pode enviar o que você digita neles ao seu provedor de IA, e sugestões podem aparecer neles"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "少數密碼欄位認不出來：續寫可能把你在裡面打的字傳送給 AI 服務，建議也可能出現在裡面"
+          }
+        }
+      }
+    },
     "A language is listed twice in config.json" : {
       "comment" : "config.json 里有重复的语言 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -8047,49 +8471,49 @@
         }
       }
     },
-    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI." : {
-      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+    "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart." : {
+      "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI."
+            "value" : "Ein Wort, das du beim Pinyin-Tippen zweimal so eingibst, wie du es getippt hast, oder im Englisch-Modus zweimal tippst, erscheint unter den Pinyin-Kandidaten; nie in Passwortfeldern, Terminals oder Apps ohne KI. Dafür braucht es den Zugriff auf Bedienungshilfen, der Passwortfelder erkennt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA."
+            "value" : "Una palabra introducida dos veces tal cual al escribir pinyin, o escrita dos veces en modo inglés, aparece entre los candidatos del pinyin; nunca en campos de contraseña, terminales ni apps sin IA. Necesita Accesibilidad, que distingue los campos de contraseña."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA."
+            "value" : "Un mot inséré deux fois tel que tapé en pinyin, ou tapé deux fois en mode anglais, apparaît parmi les candidats du pinyin ; jamais dans les champs de mot de passe, les terminaux ni les apps sans IA. Il faut l’Accessibilité, qui distingue les champs de mot de passe."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。"
+            "value" : "ピンイン入力中にそのまま2回確定した単語や、英語モードで2回入力した単語が、ピンインの候補に出ます。パスワード欄、ターミナル、AIを使わないAppでは学習しません。パスワード欄を見分けるため、アクセシビリティの許可が必要です。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다."
+            "value" : "병음을 입력하다가 입력한 그대로 두 번 넣거나 영어 모드에서 두 번 입력한 단어가 병음 후보에 나타납니다. 암호 필드, 터미널, AI를 사용하지 않는 앱에서는 학습하지 않습니다. 암호 필드를 구분하려면 손쉬운 사용 권한이 필요합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA."
+            "value" : "Uma palavra inserida duas vezes como digitada ao digitar pinyin, ou digitada duas vezes no modo inglês, aparece entre os candidatos do pinyin; nunca em campos de senha, terminais ou apps sem IA. Precisa da Acessibilidade, que distingue os campos de senha."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。"
+            "value" : "打拼音時照原樣送出兩次的字母，或英文模式下打了兩次的詞，以後會出現在拼音的候選裡；密碼欄位、終端機和不使用 AI 的 App 裡不學。需要輔助使用權限，用來認出密碼欄位。"
           }
         }
       }
@@ -8472,6 +8896,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "加入"
+          }
+        }
+      }
+    },
+    "add to Reminders" : {
+      "comment" : "加到提醒事项 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zu Erinnerungen hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "añadir a Recordatorios"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ajouter aux Rappels"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダーに追加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미리 알림에 추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "adicionar aos Lembretes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加到「提醒事項」"
           }
         }
       }
@@ -11075,6 +11546,53 @@
         }
       }
     },
+    "Ask AI" : {
+      "comment" : "问 AI — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI fragen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntar a la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Demander à l'IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI に聞く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI에게 묻기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perguntar à IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "問 AI"
+          }
+        }
+      }
+    },
     "assumed when a request needs it" : {
       "comment" : "需要时才切换角色 — Sources/AllInOneIMECore/AWSCredentialResolver.swift",
       "localizations" : {
@@ -11637,6 +12155,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "續寫在「%@」中沒用上，已在這個 App 中停下（可以在設定 → 隱私權 →「學到的內容⋯」裡復原）"
+          }
+        }
+      }
+    },
+    "autocomplete's gray text can run past the field's edge" : {
+      "comment" : "续写的灰字可能超出输入框 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der graue Text des Autovervollständigens kann über den Rand des Felds hinausragen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto gris de Autocompletar puede pasar del borde del campo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le texte gris de la complétion automatique peut dépasser du bord du champ"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オートコンプリートの灰色の文字が入力欄の端からはみ出すことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동 완성의 회색 글자가 입력란 가장자리를 넘어갈 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o texto cinza do Autocompletar pode passar da borda do campo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫的灰字可能超出輸入框"
           }
         }
       }
@@ -12534,6 +13099,53 @@
         }
       }
     },
+    "back to the app" : {
+      "comment" : "交还给 App — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "zurück an die App"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "devolver a la app"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "rendre à l’app"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アプリに戻す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "앱으로 돌려주기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "devolver ao app"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "交還給 App"
+          }
+        }
+      }
+    },
     "Background Claude tasks: progress and replies" : {
       "comment" : "后台 Claude 任务的进度和回复 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -13145,6 +13757,53 @@
         }
       }
     },
+    "cancel" : {
+      "comment" : "取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取消"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "comment" : "取消 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -13564,6 +14223,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更改會立即生效，不需重新啟動。"
+          }
+        }
+      }
+    },
+    "Characters" : {
+      "comment" : "字形 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字体"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자형"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "字形"
           }
         }
       }
@@ -14086,6 +14792,53 @@
         }
       }
     },
+    "Chinese (pinyin, Traditional)" : {
+      "comment" : "中文（拼音·繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinesisch (Pinyin, traditionell)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chino (pinyin, tradicional)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinois (pinyin, traditionnel)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中国語（ピンイン・繁体字）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중국어 (병음·번체)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinês (pinyin, tradicional)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中文（拼音·繁體）"
+          }
+        }
+      }
+    },
     "Chinese (pinyin)" : {
       "comment" : "中文（拼音） — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -14129,6 +14882,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中文（拼音）"
+          }
+        }
+      }
+    },
+    "choose" : {
+      "comment" : "选择 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "elegir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "choisir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "선택"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "escolher"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇"
           }
         }
       }
@@ -14505,6 +15305,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "剪貼簿歷史"
+          }
+        }
+      }
+    },
+    "clipboard history: ⏎ on an image only puts it on the clipboard, for your own ⌘V, and ⌃V again doesn't paste in most apps" : {
+      "comment" : "剪贴板历史：在图片上按 ⏎ 只会放到剪贴板，要自己按 ⌘V；再按 ⌃V 在多数 App 里不会粘贴 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verlauf der Zwischenablage: ⏎ auf einem Bild legt es nur in die Zwischenablage, zum Einsetzen mit ⌘V, und ⌃V ein zweites Mal setzt in den meisten Apps nichts ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "historial del portapapeles: ⏎ sobre una imagen solo la pone en el portapapeles, para que la pegues con ⌘V, y ⌃V otra vez no pega en la mayoría de las apps"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "historique du presse-papiers : ⏎ sur une image la met seulement dans le presse-papiers, à coller vous-même avec ⌘V, et ⌃V une seconde fois ne colle rien dans la plupart des apps"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリップボード履歴：画像で⏎を押してもクリップボードに入れるだけなので、自分で⌘Vしてください。もう一度⌃Vを押しても、ほとんどのAppではペーストされません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클립보드 기록: 이미지에서 ⏎ 키를 누르면 클립보드에 넣기만 하므로 직접 ⌘V를 눌러야 하고, ⌃V를 다시 눌러도 대부분의 앱에서는 붙여넣어지지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "histórico da área de transferência: ⏎ em uma imagem só a coloca na área de transferência, para você colar com ⌘V, e ⌃V de novo não cola na maioria dos apps"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "剪貼簿歷史：在圖片上按 ⏎ 只會放到剪貼簿，要自己按 ⌘V；再按 ⌃V 在多數 App 裡不會貼上"
+          }
+        }
+      }
+    },
+    "close" : {
+      "comment" : "关闭 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉"
           }
         }
       }
@@ -15647,6 +16541,53 @@
         }
       }
     },
+    "copy" : {
+      "comment" : "复制 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝"
+          }
+        }
+      }
+    },
     "Copy" : {
       "comment" : "复制 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -15690,6 +16631,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝"
+          }
+        }
+      }
+    },
+    "copy all" : {
+      "comment" : "复制全部 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alles kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar todo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tout copier"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "すべてコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "모두 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar tudo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部拷貝"
+          }
+        }
+      }
+    },
+    "copy path" : {
+      "comment" : "复制路径 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pfad kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar ruta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copier le chemin"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスをコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "경로 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar caminho"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝路徑"
           }
         }
       }
@@ -15784,6 +16819,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拷貝對話"
+          }
+        }
+      }
+    },
+    "copy the reply" : {
+      "comment" : "复制回复 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antwort kopieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar la respuesta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copier la réponse"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返信をコピー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "응답 복사"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "copiar a resposta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拷貝回覆"
           }
         }
       }
@@ -17339,6 +18421,53 @@
         }
       }
     },
+    "do it" : {
+      "comment" : "执行 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ausführen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "hacerlo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "exécuter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "fazer"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行"
+          }
+        }
+      }
+    },
     "doesn't check for updates automatically" : {
       "comment" : "没有自动检查更新 — Sources/AllInOneIMECore/Doctor.swift",
       "extractionState" : "stale",
@@ -17571,6 +18700,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "下載%@語言套件"
+          }
+        }
+      }
+    },
+    "Downloaded from the internet: not loaded from a folder Spotlight found (add the folder to use it)" : {
+      "comment" : "是从网上下载的：聚焦找到的文件夹里不载入这样的脚本（要用就添加这个文件夹） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus dem Internet geladen: wird aus einem Ordner, den Spotlight gefunden hat, nicht geladen (füge den Ordner hinzu, um es zu verwenden)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Descargado de internet: no se carga desde una carpeta que encontró Spotlight (añade la carpeta para usarlo)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Téléchargé depuis Internet : non chargé depuis un dossier trouvé par Spotlight (ajoutez le dossier pour l’utiliser)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インターネットからダウンロードされたものです：Spotlightが見つけたフォルダからは読み込みません（使うにはフォルダを追加してください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터넷에서 다운로드됨: Spotlight가 찾은 폴더에서는 불러오지 않습니다 (사용하려면 폴더를 추가하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Baixado da internet: não é carregado de uma pasta que o Spotlight encontrou (adicione a pasta para usá-lo)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "是從網路下載的：Spotlight 找到的檔案夾中不載入這樣的腳本（要使用就加入這個檔案夾）"
           }
         }
       }
@@ -17902,6 +19078,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先前執行 Rime 時缺少 lua/lunar.db；此版本已提供該檔案"
+          }
+        }
+      }
+    },
+    "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; Simplified is chosen now" : {
+      "comment" : "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；现在选的是简体 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einem früheren Rime-Lauf waren die Daten für traditionelle Schriftzeichen (OpenCC) nicht nutzbar; jetzt ist „Vereinfacht“ gewählt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En una ejecución anterior de Rime no se pudieron usar los datos de los caracteres tradicionales (OpenCC); ahora está elegido Simplificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors d’une précédente exécution de Rime, les données des caractères traditionnels (OpenCC) n’ont pas pu être utilisées ; Simplifié est choisi maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRime実行時に繁体字の変換データ（OpenCC）を使えませんでした。現在は「簡体字」が選ばれています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 실행에서 번체용 변환 데이터(OpenCC)를 쓸 수 없었습니다. 지금은 '간체'가 선택되어 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uma execução anterior do Rime, os dados dos caracteres tradicionais (OpenCC) não puderam ser usados; agora Simplificado está escolhido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前執行 Rime 時無法使用繁體字的轉換資料（OpenCC）；現在選的是簡體"
+          }
+        }
+      }
+    },
+    "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it" : {
+      "comment" : "之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；此版本已提供 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei einem früheren Rime-Lauf waren die Daten für traditionelle Schriftzeichen (OpenCC) nicht nutzbar; diese Version stellt sie bereit"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En una ejecución anterior de Rime no se pudieron usar los datos de los caracteres tradicionales (OpenCC); esta versión los incluye"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lors d’une précédente exécution de Rime, les données des caractères traditionnels (OpenCC) n’ont pas pu être utilisées ; cette version les fournit"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "以前のRime実行時に繁体字の変換データ（OpenCC）を使えませんでした。このバージョンには含まれています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 Rime 실행에서 번체용 변환 데이터(OpenCC)를 쓸 수 없었습니다. 이 버전에는 해당 데이터가 포함됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uma execução anterior do Rime, os dados dos caracteres tradicionais (OpenCC) não puderam ser usados; esta versão os inclui"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先前執行 Rime 時無法使用繁體字的轉換資料（OpenCC）；此版本已提供"
           }
         }
       }
@@ -18329,6 +19599,53 @@
         }
       }
     },
+    "English words aren't learned from what you type" : {
+      "comment" : "不会从你打的字里学英文词 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "aus dem, was du tippst, werden keine englischen Wörter gelernt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no se aprenden palabras en inglés de lo que escribes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "les mots anglais ne sont pas appris à partir de ce que vous tapez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した文字から英単語を学習しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력한 내용에서 영어 단어를 학습하지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "palavras em inglês não são aprendidas com o que você digita"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不會從你打的字裡學英文詞"
+          }
+        }
+      }
+    },
     "Enter" : {
       "comment" : "Enter 键 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -18701,6 +20018,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "詞條必須有文字和小寫拼音編碼，音節用空格分開（ü 寫作 v）。"
+          }
+        }
+      }
+    },
+    "extension.json is larger than 4 MB" : {
+      "comment" : "extension.json 太大（超过 4 MB） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json ist größer als 4 MB"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json ocupa más de 4 MB"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json dépasse 4 Mo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.jsonが4 MBを超えています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json이 4MB보다 큼"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json tem mais de 4 MB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "extension.json 大於 4 MB"
           }
         }
       }
@@ -20735,6 +22099,53 @@
         }
       }
     },
+    "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)" : {
+      "comment" : "如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wenn AllInOneIME in Systemeinstellungen → Datenschutz & Sicherheit → Bedienungshilfen schon eingeschaltet ist, schalte es aus und wieder ein (macOS kann die Berechtigung für die vorherige Version behalten)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si AllInOneIME ya está activado en Ajustes del Sistema → Privacidad y seguridad → Accesibilidad, desactívalo y vuelve a activarlo (macOS puede conservar el permiso de la versión anterior)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si AllInOneIME est déjà activé dans Réglages Système → Confidentialité et sécurité → Accessibilité, désactivez-le puis réactivez-le (macOS peut conserver l’autorisation de la version précédente)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "システム設定 → プライバシーとセキュリティ → アクセシビリティでAllInOneIMEがすでにオンになっている場合は、一度オフにしてからオンにしてください（macOSが前のバージョンの許可を保持していることがあります）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용에서 AllInOneIME가 이미 켜져 있다면 껐다가 다시 켜세요(macOS가 이전 버전의 권한을 유지할 수 있습니다)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o AllInOneIME já estiver ativado em Ajustes do Sistema → Privacidade e Segurança → Acessibilidade, desative e ative de novo (o macOS pode manter a permissão da versão anterior)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "如果系統設定 → 隱私權與安全性 → 輔助使用裡 AllInOneIME 已經打開，請先關閉再打開（macOS 可能仍保留上一個版本的權限）"
+          }
+        }
+      }
+    },
     "Image %@ × %@" : {
       "comment" : "图片 %@ × %@ — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -20876,6 +22287,53 @@
         }
       }
     },
+    "Improve" : {
+      "comment" : "改写 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verbessern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mejorar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Améliorer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書き直す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다듬기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melhorar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改寫"
+          }
+        }
+      }
+    },
     "In any case" : {
       "comment" : "不分大小写 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "extractionState" : "stale",
@@ -20924,6 +22382,53 @@
         }
       }
     },
+    "in Chrome and apps like Slack or VS Code, @ commands may not read the selection, and ⌃V may not open clipboard history" : {
+      "comment" : "在 Chrome 和 Slack、VS Code 这类 App 里，@ 命令可能读不到选中的文字，⌃V 也可能打不开剪贴板历史 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in Chrome und Apps wie Slack oder VS Code lesen @-Befehle die Auswahl vielleicht nicht, und ⌃V öffnet den Verlauf der Zwischenablage vielleicht nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en Chrome y en apps como Slack o VS Code, puede que los comandos @ no lean la selección y que ⌃V no abra el historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dans Chrome et des apps comme Slack ou VS Code, les commandes @ peuvent ne pas lire la sélection, et ⌃V peut ne pas ouvrir l’historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ChromeやSlack、VS CodeなどのAppでは、@コマンドが選択したテキストを読み取れないことがあり、⌃Vでクリップボード履歴が開かないことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chrome과 Slack, VS Code 같은 앱에서는 @ 명령이 선택 영역을 읽지 못하거나 ⌃V로 클립보드 기록이 열리지 않을 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "no Chrome e em apps como Slack ou VS Code, os comandos @ podem não ler a seleção, e ⌃V pode não abrir o histórico da área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Chrome 和 Slack、VS Code 這類 App 裡，@ 指令可能讀不到選取的文字，⌃V 也可能打不開剪貼簿歷史"
+          }
+        }
+      }
+    },
     "In Notion, open the page → ··· → Connections → add your integration" : {
       "comment" : "在 Notion 里打开那个页面 → ··· → 连接 → 加上你的集成 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -20967,6 +22472,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Notion 中打開該頁面 → ··· → 連線 → 加入你的整合"
+          }
+        }
+      }
+    },
+    "in some apps (often Chrome's pages), a list may show away from the caret" : {
+      "comment" : "有的 App 里（多半是 Chrome 里的网页），列表可能不在光标旁边 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in manchen Apps (oft auf Seiten in Chrome) kann eine Liste abseits der Einfügemarke erscheinen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "en algunas apps (a menudo en páginas de Chrome), una lista puede aparecer lejos del cursor"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "dans certaines apps (souvent sur des pages dans Chrome), une liste peut s’afficher loin du curseur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一部のApp（多くはChromeのページ）では、リストがカーソルから離れた場所に出ることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "일부 앱(주로 Chrome의 웹 페이지)에서는 목록이 커서에서 떨어진 곳에 나올 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "em alguns apps (muitas vezes em páginas do Chrome), uma lista pode aparecer longe do cursor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有些 App 裡（多半是 Chrome 裡的網頁），列表可能不在游標旁邊"
           }
         }
       }
@@ -21207,7 +22759,7 @@
       }
     },
     "insert" : {
-      "comment" : "上屏 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "comment" : "上屏 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22473,6 +24025,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只插入匹配的部分"
+          }
+        }
+      }
+    },
+    "Keep original" : {
+      "comment" : "保留原文 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original behalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mantener el original"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Garder l’original"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原文のまま"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "원문 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Manter o original"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保留原文"
           }
         }
       }
@@ -27565,6 +29164,53 @@
         }
       }
     },
+    "Not executable: from a folder Spotlight found, only executable scripts load (chmod +x, or add the folder)" : {
+      "comment" : "没有执行权限：聚焦找到的文件夹里只载入可执行的脚本（chmod +x，或者添加这个文件夹） — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht ausführbar: Aus einem Ordner, den Spotlight gefunden hat, werden nur ausführbare Skripte geladen (chmod +x, oder füge den Ordner hinzu)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No es ejecutable: de una carpeta que encontró Spotlight solo se cargan scripts ejecutables (chmod +x, o añade la carpeta)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non exécutable : depuis un dossier trouvé par Spotlight, seuls les scripts exécutables sont chargés (chmod +x, ou ajoutez le dossier)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行権限がありません：Spotlightが見つけたフォルダからは実行可能なスクリプトだけを読み込みます（chmod +x するか、フォルダを追加してください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 권한 없음: Spotlight가 찾은 폴더에서는 실행 가능한 스크립트만 불러옵니다 (chmod +x 하거나 폴더를 추가하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não é executável: de uma pasta que o Spotlight encontrou, só scripts executáveis são carregados (chmod +x, ou adicione a pasta)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有執行權限：Spotlight 找到的檔案夾中只載入可執行的腳本（chmod +x，或加入這個檔案夾）"
+          }
+        }
+      }
+    },
     "Not for macOS (platform)" : {
       "comment" : "不是给 macOS 用的（platform） — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -28502,6 +30148,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "提示"
+          }
+        }
+      }
+    },
+    "Notify me when a new version is out" : {
+      "comment" : "有新版本时通知我 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Benachrichtigen, wenn eine neue Version erscheint"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisarme cuando haya una versión nueva"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "M’avertir quand une nouvelle version est disponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンが出たら通知する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전이 나오면 알림 받기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avisar quando houver uma versão nova"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有新版本時通知我"
           }
         }
       }
@@ -29543,6 +31236,53 @@
         }
       }
     },
+    "One notification per new version, with Update and Don't Show Again; never a window." : {
+      "comment" : "每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Mitteilung pro neuer Version, mit „Aktualisieren“ und „Nicht mehr anzeigen“; nie ein Fenster."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una notificación por cada versión nueva, con “Actualizar” y “No volver a mostrar”; nunca una ventana."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une notification par nouvelle version, avec « Mettre à jour » et « Ne plus afficher » ; jamais de fenêtre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいバージョンごとに通知は1回だけで、「アップデート」と「今後表示しない」があります。ウインドウは開きません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 버전마다 알림은 한 번만 오며, 업데이트와 다시 보지 않기 버튼이 있습니다. 창은 열리지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma notificação por versão nova, com “Atualizar” e “Não mostrar novamente”; nunca uma janela."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個新版本只發一次系統通知，附「更新」和「不再提示」；不會彈出視窗。"
+          }
+        }
+      }
+    },
     "Only a simple dictionary header and columns list are supported." : {
       "comment" : "只支持简单的词库头和 columns 列表。 — Sources/AllInOneIMECore/PersonalDictionary.swift",
       "localizations" : {
@@ -29633,6 +31373,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只能在設定 → 一般中選擇"
+          }
+        }
+      }
+    },
+    "open" : {
+      "comment" : "打开 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abrir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ouvrir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "abrir"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開"
+          }
+        }
+      }
+    },
+    "Open %@" : {
+      "comment" : "打开 %@ — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ öffnen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ouvrir %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ を開く"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 열기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Abrir %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開 %@"
           }
         }
       }
@@ -31148,7 +32982,7 @@
       }
     },
     "pick" : {
-      "comment" : "选中这一项 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "comment" : "选中这一项 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31378,6 +33212,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只能是以下其中之一："
+          }
+        }
+      }
+    },
+    "picks a word" : {
+      "comment" : "选词 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "wählt ein Wort"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "elige una palabra"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "choisit un mot"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "単語を選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "단어 선택"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "escolhe uma palavra"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選字"
           }
         }
       }
@@ -32417,6 +34298,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按空白鍵"
+          }
+        }
+      }
+    },
+    "previous" : {
+      "comment" : "上一版 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "vorherige"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "anterior"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "précédent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前の結果へ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이전 결과"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "anterior"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上一版"
           }
         }
       }
@@ -33740,6 +35668,53 @@
         }
       }
     },
+    "refine" : {
+      "comment" : "修改 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "verfeinern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "refinar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "affiner"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手直し"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "수정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "refinar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "修改"
+          }
+        }
+      }
+    },
     "refine › " : {
       "comment" : "修改 ›  — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -34257,6 +36232,53 @@
         }
       }
     },
+    "Reminder: %@ %@" : {
+      "comment" : "提醒：%@ %@ — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erinnerung: %1$@ %2$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recordatorio: %1$@ %2$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rappel : %1$@ %2$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リマインダー：%1$@ %2$@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "미리 알림: %1$@ %2$@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lembrete: %1$@ %2$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提醒：%1$@ %2$@"
+          }
+        }
+      }
+    },
     "Remove" : {
       "comment" : "移除 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -34435,6 +36457,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "resposta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回覆"
+          }
+        }
+      }
+    },
+    "Reply" : {
+      "comment" : "回复 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Antworten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responder"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Répondre"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返信"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답장"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Responder"
           }
         },
         "zh-Hant" : {
@@ -34963,6 +37032,53 @@
         }
       }
     },
+    "Rewrite the selection as it says" : {
+      "comment" : "按这句话改选中的文字 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Auswahl so umschreiben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescribir la selección como dice"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réécrire la sélection comme indiqué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この指示どおりに選択部分を書き換え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 말대로 선택한 글 고치기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reescrever a seleção como diz"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按這句話改選取的文字"
+          }
+        }
+      }
+    },
     "rewrite the selection as you asked" : {
       "comment" : "按你写的要求改选中的文字 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -35151,6 +37267,149 @@
         }
       }
     },
+    "Rime: the data for Traditional characters (OpenCC) can't be read; remove the opencc folder in the Rime user folder, then reinstall AllInOneIME" : {
+      "comment" : "Rime：繁体字的转换数据（OpenCC）读不出来；请删掉 Rime 用户目录里的 opencc 文件夹，再重新安装 AllInOneIME — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) lassen sich nicht lesen; entferne den Ordner opencc im Rime-Benutzerordner und installiere AllInOneIME dann neu"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: no se pueden leer los datos de los caracteres tradicionales (OpenCC); elimina la carpeta opencc de la carpeta de usuario de Rime y luego reinstala AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) sont illisibles ; supprimez le dossier opencc du dossier utilisateur de Rime, puis réinstallez AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）を読み込めません。Rimeユーザフォルダのopenccフォルダを削除してから、AllInOneIMEを再インストールしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)를 읽을 수 없습니다. Rime 사용자 폴더의 opencc 폴더를 삭제한 다음 AllInOneIME를 다시 설치하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: não é possível ler os dados dos caracteres tradicionais (OpenCC); remova a pasta opencc da pasta de usuário do Rime e reinstale o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁體字的轉換資料（OpenCC）讀不出來；請刪除 Rime 使用者檔案夾裡的 opencc 檔案夾，再重新安裝 AllInOneIME"
+          }
+        }
+      }
+    },
+    "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters" : {
+      "comment" : "Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) fehlen oder lassen sich nicht lesen; installiere AllInOneIME neu (entferne vorher eigene Dateien aus opencc im Rime-Ordner) oder wähle „Vereinfacht“ unter Einstellungen → Eingabe → Chinesisch → Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltan los datos de los caracteres tradicionales (OpenCC) o no se pueden leer; reinstala AllInOneIME (antes quita los archivos tuyos de opencc en la carpeta de Rime) o elige Simplificado en Ajustes → Entrada → Chino → Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) manquent ou sont illisibles ; réinstallez AllInOneIME (retirez d’abord vos propres fichiers du dossier opencc de Rime), ou choisissez Simplifié dans Réglages → Saisie → Chinois → Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）がないか、読み込めません。AllInOneIMEを再インストールするか（先にRimeフォルダのopencc内にあるご自分のファイルを削除してください）、設定 → 入力 → 中国語 → 字体で「簡体字」を選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)가 없거나 읽을 수 없습니다. AllInOneIME를 다시 설치하거나(먼저 Rime 폴더의 opencc에 직접 넣은 파일을 지우세요) 설정 → 입력 → 중국어 → 자형에서 '간체'를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: os dados dos caracteres tradicionais (OpenCC) estão faltando ou não podem ser lidos; reinstale o AllInOneIME (antes remova seus próprios arquivos da pasta opencc do Rime) ou escolha Simplificado em Ajustes → Entrada → Chinês → Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁體字的轉換資料（OpenCC）缺少或讀不出來；請重新安裝 AllInOneIME（先刪掉你自己放進 Rime 使用者資料夾 opencc 資料夾裡的檔案），或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
+          }
+        }
+      }
+    },
+    "Rime: the data for Traditional characters (OpenCC) is missing; reinstall AllInOneIME, or choose Simplified under Settings → Input → Chinese → Characters" : {
+      "comment" : "Rime：缺少繁体字的转换数据（OpenCC）；请重新安装 AllInOneIME，或在设置 →「输入」→ 中文的「字形」里选「简体」 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) fehlen; installiere AllInOneIME neu oder wähle „Vereinfacht“ unter Einstellungen → Eingabe → Chinesisch → Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltan los datos de los caracteres tradicionales (OpenCC); reinstala AllInOneIME o elige Simplificado en Ajustes → Entrada → Chino → Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) manquent ; réinstallez AllInOneIME, ou choisissez Simplifié dans Réglages → Saisie → Chinois → Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）がありません。AllInOneIMEを再インストールするか、設定 → 入力 → 中国語 → 字体で「簡体字」を選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)가 없습니다. AllInOneIME를 다시 설치하거나 설정 → 입력 → 중국어 → 자형에서 '간체'를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltam os dados dos caracteres tradicionais (OpenCC); reinstale o AllInOneIME ou escolha Simplificado em Ajustes → Entrada → Chinês → Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：缺少繁體字的轉換資料（OpenCC）；請重新安裝 AllInOneIME，或在設定 →「輸入」→ 中文的「字形」裡選「簡體」"
+          }
+        }
+      }
+    },
     "Role via %@" : {
       "comment" : "通过 %@ 的角色 — Sources/AllInOneIMECore/AWSProfiles.swift",
       "localizations" : {
@@ -35293,7 +37552,7 @@
       }
     },
     "run" : {
-      "comment" : "运行 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "comment" : "运行 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39763,6 +42022,53 @@
         }
       }
     },
+    "Simplified" : {
+      "comment" : "简体 — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vereinfacht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplificado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplifié"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簡体字"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "간체"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simplificado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "簡體"
+          }
+        }
+      }
+    },
     "snippet" : {
       "comment" : "代码片段 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -39806,6 +42112,101 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "程式碼片段"
+          }
+        }
+      }
+    },
+    "some apps can also get the keys a list takes (↓ ↑ → ⏎ Tab Esc)" : {
+      "comment" : "列表用的键（↓ ↑ → ⏎ Tab Esc）有的 App 也会收到 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Tasten, die eine Liste nutzt (↓ ↑ → ⏎ Tab Esc), können auch bei manchen Apps ankommen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunas apps también pueden recibir las teclas que usa una lista (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certaines apps peuvent aussi recevoir les touches d’une liste (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストで使うキー（↓ ↑ → ⏎ Tab Esc）が、一部のAppにも届くことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 쓰는 키(↓ ↑ → ⏎ Tab Esc)가 일부 앱에도 전달될 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns apps também podem receber as teclas que uma lista usa (↓ ↑ → ⏎ Tab Esc)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表用的鍵（↓ ↑ → ⏎ Tab Esc）有些 App 也會收到"
+          }
+        }
+      }
+    },
+    "some apps can also get the keys a list takes (↓ ↑ ⏎ Esc)" : {
+      "comment" : "列表用的键（↓ ↑ ⏎ Esc）有的 App 也会收到 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "die Tasten, die eine Liste nutzt (↓ ↑ ⏎ Esc), können auch bei manchen Apps ankommen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "algunas apps también pueden recibir las teclas que usa una lista (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "certaines apps peuvent aussi recevoir les touches d’une liste (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リストで使うキー（↓ ↑ ⏎ Esc）が、一部のAppにも届くことがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "목록에서 쓰는 키(↓ ↑ ⏎ Esc)가 일부 앱에도 전달될 수 있음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "alguns apps também podem receber as teclas que uma lista usa (↓ ↑ ⏎ Esc)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列表用的鍵（↓ ↑ ⏎ Esc）有些 App 也會收到"
           }
         }
       }
@@ -39952,7 +42353,7 @@
       }
     },
     "Space" : {
-      "comment" : "空格 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "comment" : "空格 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -40464,6 +42865,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 選字 · 指令要先打 @"
+          }
+        }
+      }
+    },
+    "Space picks a word · %@ do the highlighted row · ↑↓ choose" : {
+      "comment" : "空格 选词 · %@ 执行选中的一行 · ↑↓ 选择 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt ein Wort · %@ führt die markierte Zeile aus · ↑↓ auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige una palabra · %@ ejecuta la fila resaltada · ↑↓ elegir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisit un mot · %@ exécute la ligne en surbrillance · ↑↓ choisir"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 単語を選択 · %@ 選択中の行を実行 · ↑↓ 移動"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %@ 선택한 줄 실행 · ↑↓ 이동"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe uma palavra · %@ executa a linha destacada · ↑↓ selecionar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %@ 執行選中的一行 · ↑↓ 選擇"
           }
         }
       }
@@ -43102,6 +45550,101 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已選取文字：未使用截圖"
+          }
+        }
+      }
+    },
+    "text of more than one line (AI answers, snippets, clipboard history) goes into terminals on one line" : {
+      "comment" : "多行文字（AI 回答、片段、剪贴板历史）放进终端会变成一行 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mehrzeiliger Text (KI-Antworten, Textbausteine, Verlauf der Zwischenablage) kommt im Terminal in einer Zeile an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto de varias líneas (respuestas de la IA, fragmentos, historial del portapapeles) entra en una terminal en una sola línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "un texte de plusieurs lignes (réponses de l’IA, extraits, historique du presse-papiers) arrive dans un terminal sur une seule ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数行のテキスト（AIの回答、スニペット、クリップボード履歴）はターミナルに1行で入ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 줄의 텍스트(AI 답변, 스니펫, 클립보드 기록)가 터미널에 한 줄로 들어감"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "texto de mais de uma linha (respostas da IA, trechos, histórico da área de transferência) entra no terminal em uma só linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多行文字（AI 回答、片段、剪貼簿歷史）放進終端機會變成一行"
+          }
+        }
+      }
+    },
+    "text of more than one line goes into terminals on one line" : {
+      "comment" : "多行文字放进终端会变成一行 — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mehrzeiliger Text kommt im Terminal in einer Zeile an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el texto de varias líneas entra en una terminal en una sola línea"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "un texte de plusieurs lignes arrive dans un terminal sur une seule ligne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複数行のテキストはターミナルに1行で入ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "여러 줄의 텍스트가 터미널에 한 줄로 들어감"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "texto de mais de uma linha entra no terminal em uma só linha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多行文字放進終端機會變成一行"
           }
         }
       }
@@ -46352,6 +48895,53 @@
         }
       }
     },
+    "The screenshot couldn't be read, so it isn't attached" : {
+      "comment" : "截图识别失败，没有附上 — Sources/AllInOneIMECore/Composer+Reply.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text im Bildschirmfoto konnte nicht erkannt werden; es ist nicht angehängt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo leer la captura de pantalla, así que no se adjuntó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lire la capture d’écran : elle n’est pas jointe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショットを読み取れなかったため、添付していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크린샷을 인식하지 못해 첨부하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível ler a captura de tela, então ela não foi anexada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖辨識失敗，沒有附上"
+          }
+        }
+      }
+    },
     "The script changed since its suggestions were turned on: not run" : {
       "comment" : "脚本在打开补全以后改过，没有运行 — Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift",
       "extractionState" : "stale",
@@ -46544,6 +49134,7 @@
     },
     "the selection can't be read in some apps. If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)" : {
       "comment" : "有的 App 里读不到选中的文字。如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限） — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47341,6 +49932,53 @@
         }
       }
     },
+    "three more" : {
+      "comment" : "再写三条 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "drei weitere"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "tres más"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "trois autres"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "さらに3件"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "3개 더 작성"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mais três"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再寫三則"
+          }
+        }
+      }
+    },
     "Timeout %@ s" : {
       "comment" : "超时 %@ 秒 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -48001,6 +50639,147 @@
         }
       }
     },
+    "Traditional (Hong Kong)" : {
+      "comment" : "繁體（香港） — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionell (Hongkong)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Hong Kong)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionnel (Hong Kong)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁体字（香港）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번체 (홍콩)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Hong Kong)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁體（香港）"
+          }
+        }
+      }
+    },
+    "Traditional (Taiwan)" : {
+      "comment" : "繁體（台灣） — Sources/AllInOneIMECore/ChineseCharacters.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionell (Taiwan)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Taiwán)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traditionnel (Taïwan)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁体字（台湾）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번체 (대만)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tradicional (Taiwan)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "繁體（台灣）"
+          }
+        }
+      }
+    },
+    "Translate" : {
+      "comment" : "翻译 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übersetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯"
+          }
+        }
+      }
+    },
     "Translate & Rewrite" : {
       "comment" : "翻译与改写 — Sources/AllInOneIMECore/Session/InputSession.swift",
       "localizations" : {
@@ -48187,6 +50966,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "程式碼輸入裡不能邊打邊譯"
+          }
+        }
+      }
+    },
+    "Translate into %@" : {
+      "comment" : "翻译成%@ — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf %@ übersetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traducir a %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduire en %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@に翻訳"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@(으)로 번역"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzir para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯成%@"
           }
         }
       }
@@ -48663,6 +51489,149 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已關閉"
+          }
+        }
+      }
+    },
+    "Type a command's name, or what you want · %@ / Tab picks · ↑↓ · Esc cancel" : {
+      "comment" : "打命令名，或者想做的事 · %@ / Tab 选择 · ↑↓ · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einen Befehlsnamen eingeben oder was du möchtest · %@ / Tab wählt · ↑↓ · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe el nombre de un comando o lo que quieras · %@ / Tab elige · ↑↓ · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez le nom d'une commande, ou ce que vous voulez · %@ / Tab choisit · ↑↓ · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド名か、したいことを入力 · %@ / Tab 選択 · ↑↓ · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 이름이나 원하는 것을 입력 · %@ / Tab 선택 · ↑↓ · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite o nome de um comando ou o que quiser · %@ / Tab escolhe · ↑↓ · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打命令名，或者想做的事 · %@ / Tab 選擇 · ↑↓ · Esc 取消"
+          }
+        }
+      }
+    },
+    "Type a command's name, or what you want · Tab picks · ↑↓ · Esc as typed" : {
+      "comment" : "打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einen Befehlsnamen eingeben oder was du möchtest · Tab wählt · ↑↓ · Esc wie getippt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe el nombre de un comando o lo que quieras · Tab elige · ↑↓ · Esc tal como está"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez le nom d'une commande, ou ce que vous voulez · Tab choisit · ↑↓ · Esc tel quel"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド名か、したいことを入力 · Tab 選択 · ↑↓ · Esc 入力のまま"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 이름이나 원하는 것을 입력 · Tab 선택 · ↑↓ · Esc 입력한 그대로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite o nome de um comando ou o que quiser · Tab escolhe · ↑↓ · Esc como digitado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打命令名，或者想做的事 · Tab 選擇 · ↑↓ · Esc 原樣輸入"
+          }
+        }
+      }
+    },
+    "Type a command's name, or what you want · Tab picks · ↑↓ · Esc cancel" : {
+      "comment" : "打命令名，或者想做的事 · Tab 选择 · ↑↓ · Esc 取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einen Befehlsnamen eingeben oder was du möchtest · Tab wählt · ↑↓ · Esc abbrechen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe el nombre de un comando o lo que quieras · Tab elige · ↑↓ · Esc cancelar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez le nom d'une commande, ou ce que vous voulez · Tab choisit · ↑↓ · Esc annuler"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンド名か、したいことを入力 · Tab 選択 · ↑↓ · Esc キャンセル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 이름이나 원하는 것을 입력 · Tab 선택 · ↑↓ · Esc 취소"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite o nome de um comando ou o que quiser · Tab escolhe · ↑↓ · Esc cancelar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打命令名，或者想做的事 · Tab 選擇 · ↑↓ · Esc 取消"
           }
         }
       }
@@ -50416,6 +53385,53 @@
         }
       }
     },
+    "what doesn't work fully:" : {
+      "comment" : "这些会受影响： — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "was nicht ganz funktioniert:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lo que no funciona del todo:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ce qui ne fonctionne pas pleinement :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影響を受ける機能："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "영향을 받는 기능:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o que não funciona totalmente:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些會受影響："
+          }
+        }
+      }
+    },
     "What it does" : {
       "comment" : "做什么 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -50553,6 +53569,101 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你輸入的文字會作為它的最後一個參數。"
+          }
+        }
+      }
+    },
+    "Whether pinyin types Simplified or Traditional characters; the AI polishes, translates and replies in them too. Taiwan's also uses Taiwan's words (软件 → 軟體)." : {
+      "comment" : "拼音打出简体字还是繁体字，AI 的润色、翻译和回复也跟着用；台湾繁体也换成台湾的用词（软件 → 軟體）。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ob Pinyin vereinfachte oder traditionelle Schriftzeichen schreibt; auch die KI überarbeitet, übersetzt und antwortet darin. Taiwans Variante verwendet auch Taiwans Wörter (软件 → 軟體)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el pinyin escribe caracteres simplificados o tradicionales; la IA también pule, traduce y responde con ellos. La variante de Taiwán usa además las palabras de Taiwán (软件 → 軟體)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le pinyin écrit en caractères simplifiés ou traditionnels ; l’IA retouche, traduit et répond aussi avec eux. Ceux de Taïwan prennent aussi les mots de Taïwan (软件 → 軟體)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインで簡体字と繁体字のどちらを入力するかを選びます。AIの推敲・翻訳・返信もそれに合わせます。台湾の繁体字では台湾の語彙も使います（软件 → 軟體）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음으로 간체를 입력할지 번체를 입력할지 정합니다. AI의 다듬기, 번역, 답장도 이를 따릅니다. 대만 번체는 대만식 단어도 씁니다(软件 → 軟體)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o pinyin escreve caracteres simplificados ou tradicionais; a IA também revisa, traduz e responde neles. A variante de Taiwan usa também as palavras de Taiwan (软件 → 軟體)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音打出簡體字還是繁體字，AI 的潤飾、翻譯和回覆也跟著用；台灣繁體也換成台灣的用詞（软件 → 軟體）。"
+          }
+        }
+      }
+    },
+    "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too." : {
+      "comment" : "拼音打出简体字还是繁体字。台湾的还会换成台湾的用词（软件 → 軟體）。AI 润色和回复也用这种字。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ob Pinyin vereinfachte oder traditionelle Schriftzeichen schreibt. „Traditionell (Taiwan)“ verwendet auch Taiwans Wörter (软件 → 軟體). Auch die Überarbeitungen und Antworten der KI verwenden sie."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si el pinyin escribe caracteres simplificados o tradicionales. Tradicional (Taiwán) usa además las palabras de Taiwán (软件 → 軟體). Los retoques y las respuestas de la IA también los usan."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Si le pinyin écrit en caractères simplifiés ou traditionnels. Traditionnel (Taïwan) prend aussi les mots de Taïwan (软件 → 軟體). Les retouches et les réponses de l’IA les utilisent aussi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインで簡体字と繁体字のどちらを入力するかを選びます。繁体字（台湾）では台湾の語彙も使います（软件 → 軟體）。AIの推敲と返信もこの字体を使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음으로 간체를 입력할지 번체를 입력할지 정합니다. 번체 (대만)는 대만식 단어도 씁니다(软件 → 軟體). AI의 다듬기와 답장도 이 자형을 씁니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se o pinyin escreve caracteres simplificados ou tradicionais. Tradicional (Taiwan) usa também as palavras de Taiwan (软件 → 軟體). As revisões e respostas da IA também os usam."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音打出簡體字還是繁體字。台灣的還會換成台灣的用詞（软件 → 軟體）。AI 潤飾和回覆也用這種字。"
           }
         }
       }
@@ -50882,6 +53993,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連同標題和連結（聊天 App 裡）"
+          }
+        }
+      }
+    },
+    "without it:" : {
+      "comment" : "没有这个权限： — Sources/AllInOneIMECore/Doctor.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ohne diese Berechtigung:"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin este permiso:"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sans cette autorisation :"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可しないと："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "권한이 없으면:"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sem essa permissão:"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有這個權限："
           }
         }
       }

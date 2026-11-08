@@ -33,9 +33,15 @@ Extensions are read from folders:
 
 A folder you add (and the first one) is read whole, as below. From a folder Spotlight found, only its Raycast Script
 Commands are taken: its `@allinoneime.` scripts and bundles are left alone, since a found folder may be any copy of
-anything that holds a Raycast script (a second checkout of a repository, a backup). To use all of such a folder, add
-it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script, drops out of
-the list.
+anything that holds a Raycast script (a second checkout of a repository, a backup, a zip unpacked in Downloads). Nobody
+looked at such a folder, so a script loads from it only when it is executable (`chmod +x`, as Raycast wants it) and
+wasn't downloaded from the internet (macOS's quarantine mark, `com.apple.quarantine`). The search finds only a folder
+holding at least one Raycast script that loads: a folder whose Raycast scripts are all left out this way isn't found at
+all, so it isn't in Settings' list of folders and nothing is said of it there. In a folder that is found, a script left
+out this way is listed as left out, and why (§7). And nothing of a found folder runs before you choose it: its scripts
+get no status line (a `mode inline` script with `refreshTime` runs only when you pick it). To use all of such a folder,
+add it. Each search replaces the folders found before, so one removed, or no longer holding a Raycast script that loads,
+drops out of the list.
 
 A script, or a bundle, that is byte for byte the same as one read before it under the same name (its `extension.json`
 and the scripts it lists, for a bundle) is a copy: it's left out quietly, and Settings says only "Skipped N identical
@@ -82,7 +88,7 @@ A file may use `@allinoneime.<key> <value>` (the protocol's own keys) or `@rayca
 | `group` | shown after the title in the command list | none (a bundle's title for its commands) |
 | `keywords` | comma-separated words the command list also finds it by | none |
 | `icon` | an emoji, an SF Symbol name, or an image file (a path from the script's folder) | one for its output |
-| `input` | `none`, `optional` or `required` (then its first argument is required, whatever it says) | `required` if one of its arguments is, else `optional` |
+| `input` | `none`, `optional` or `required` (then at least one argument is required: the first, unless a later one already is) | `required` if one of its arguments is, else `optional` |
 | `argument1`…`argument3` | Raycast's JSON (below) | one free-text argument |
 | `output` | `insert`, `show`, `list` or `silent` (§4) | `insert` |
 | `background` | `true`: it starts, and the text field is free at once (§5) | `false` |
@@ -256,7 +262,7 @@ reached through `ALLINONEIME_EXTENSION_DIR`) and settings. One folder to install
 ```
 
 - `schemaVersion`, `name` (letters, digits, `-`, `_`; two bundles can't share one) and `commands` or `snippets` are
-  required.
+  required. The file can be up to 4 MB; a larger one doesn't load, and Settings says why.
 - Each command names its `script` (a path inside the bundle) and takes the keys of §2 in JSON: strings, `true` /
   `false`, numbers, and the `argumentN` and `completion` objects as they are. They override the `@allinoneime.` lines in
   the script, if it has any.
@@ -310,7 +316,7 @@ Raycast's keys are read as they are, and mean:
 | `schemaVersion`, `title`, `mode` | required, as in Raycast (Raycast's `schemaVersion` is `1`; another is reported) |
 | `mode fullOutput` | `output show` |
 | `mode compact`, `mode silent` | `output silent` |
-| `mode inline` with `refreshTime` | `status self`, `statusRefresh` = `refreshTime` (running it is `silent`) |
+| `mode inline` with `refreshTime` | `status self`, `statusRefresh` = `refreshTime` (running it is `silent`; none from a found folder) |
 | `mode inline` alone | `output silent` |
 | `needsConfirmation` | `confirm` |
 | `currentDirectoryPath` | `currentDirectoryPath` |

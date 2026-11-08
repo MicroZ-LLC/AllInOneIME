@@ -163,7 +163,8 @@ public struct Redaction: Sendable {
         guard !hidden.isEmpty else { return request }
         var out = request
         for i in out.system.indices { out.system[i].text = scrub(out.system[i].text) }
-        for i in out.messages.indices {
+        // The last message is `sent` whatever it held: only the ones before it are scrubbed.
+        for i in out.messages.indices.dropLast() {
             for j in out.messages[i].content.indices { out.messages[i].content[j].text = scrub(out.messages[i].content[j].text) }
         }
         if let last = out.messages.indices.last { out.messages[last].content = [.init(sent)] }
@@ -338,7 +339,8 @@ public struct Redaction: Sendable {
             var text = "", starts: [Int] = [], ends: [Int] = [], at = 0
             for character in original {
                 let length = String(character).utf16.count
-                let folded = String(character).precomposedStringWithCompatibilityMapping
+                // ASCII is its own NFKC form: only the other characters are folded.
+                let folded = character.isASCII ? String(character) : String(character).precomposedStringWithCompatibilityMapping
                 for _ in folded.utf16 {
                     starts.append(at)
                     ends.append(at + length)
@@ -364,13 +366,12 @@ public struct Redaction: Sendable {
         let ns = folded.text as NSString
         let all = NSRange(location: 0, length: ns.length)
         var found: [Found] = []
-        func add(_ kind: Kind, _ regex: NSRegularExpression?, _ valid: (String) -> Bool = { _ in true }) {
-            guard let regex else { return }
+        func add(_ kind: Kind, _ regex: NSRegularExpression, _ valid: (String) -> Bool = { _ in true }) {
             for match in regex.matches(in: folded.text, range: all) where match.range.length > 0 && valid(ns.substring(with: match.range)) {
                 found.append(Found(kind: kind, range: match.range))
             }
         }
-        for word in settings.customWords { add(.item, wordRegex(word)) }
+        for regex in wordRegexes(settings.customWords) { add(.item, regex) }
         if settings.keys {
             add(.key, keyPrefixes)
             add(.key, privateKey)
@@ -413,6 +414,20 @@ public struct Redaction: Sendable {
         let pattern = (latin(folded.first) ? "(?<![A-Za-z0-9_])" : "") + body + (latin(folded.last) ? "(?![A-Za-z0-9_])" : "")
         return try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive])
     }
+
+    /// `wordRegex` of each of `words` that has one, in order, made again only for another list than the last one's:
+    /// every `find` of a request (its texts, the scrubs of `protect`, each jargon entry `allows`) and of each word typed
+    /// that may be learned (`EnglishWords.looksSecret`) is given the same list, the user's.
+    static func wordRegexes(_ words: [String]) -> [NSRegularExpression] {
+        guard !words.isEmpty else { return [] }
+        if let last = lastWords.withLock({ $0 }), last.words == words { return last.regexes }
+        let regexes = words.compactMap(wordRegex)
+        lastWords.withLock { $0 = (words, regexes) }
+        return regexes
+    }
+
+    /// The list `wordRegexes` made last, and what it made.
+    private static let lastWords = Locked<(words: [String], regexes: [NSRegularExpression])?>(initialState: nil)
 
     /// Not an address in a git remote ("git@github.com:org/repo") or a URL's user right after its scheme
     /// ("https://user@host"); after any other "/" it is one ("support@corp.com/sales@corp.com").
@@ -529,10 +544,12 @@ public struct Redaction: Sendable {
     /// the vowels of English ("internationalization_and_localization").
     static func isOrdinary(_ s: String) -> Bool {
         let letters = s.filter { $0.isASCII && $0.isLetter }
-        guard !letters.isEmpty, coverage(s) < 0.8 else { return true }
+        guard !letters.isEmpty else { return true }
+        let covered = coverage(s)
+        guard covered < 0.8 else { return true }
         guard !s.contains(where: \.isNumber) else { return false }
         let mixed = letters.contains(where: \.isUppercase) && letters.contains(where: \.isLowercase)
-        if mixed { return isCamelCase(s) && coverage(s) >= 0.4 }
+        if mixed { return isCamelCase(s) && covered >= 0.4 }
         let vowels = Double(letters.filter { "aeiouAEIOU".contains($0) }.count) / Double(letters.count)
         return s.count < 32 || (0.3...0.6).contains(vowels)
     }

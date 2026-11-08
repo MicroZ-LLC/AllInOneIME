@@ -24,6 +24,15 @@ public enum HTTPProviders {
         return URL(string: base)?.host?.lowercased()
     }
 
+    /// This computer itself (localhost, 127.x.x.x, ::1): a model served on it (Ollama, LM Studio), where a key set in the
+    /// login shell may go too (`APIKeys.shellKeyGoes`); unlike `isLocal`, no other machine on the network.
+    static func isLoopback(_ host: String) -> Bool {
+        let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        if host == "localhost" || host == "::1" { return true }
+        let parts = host.split(separator: ".", omittingEmptySubsequences: false)
+        return parts.count == 4 && parts[0] == "127" && parts.allSatisfy { UInt8($0) != nil }
+    }
+
     /// This Mac or the local network: plain http is fine there (a model served by Ollama, LM Studio).
     static func isLocal(_ host: String) -> Bool {
         let host = host.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
@@ -96,7 +105,7 @@ public enum HTTPProviders {
             ]
             // OpenAI's own API wants max_completion_tokens (its reasoning models reject max_tokens);
             // the compatible services (DeepSeek, Qwen, Ollama, …) take max_tokens.
-            json[base.contains("api.openai.com") ? "max_completion_tokens" : "max_tokens"] = maxTokens
+            json[base.lowercased().contains("api.openai.com") ? "max_completion_tokens" : "max_tokens"] = maxTokens
             if let effort { json["reasoning_effort"] = effort }
         case .hosted:
             // The request as built (the service checks it, caps it and picks the model), with the session token.
@@ -167,7 +176,8 @@ public enum HTTPProviders {
             }
             if let reason = candidate["finishReason"] as? String {
                 if ["SAFETY", "PROHIBITED_CONTENT", "BLOCKLIST", "SPII"].contains(reason) { throw ProviderError.refused(provider) }
-                events.append(.messageStop(reason: reason == "MAX_TOKENS" ? "max_tokens" : reason.lowercased()))
+                // Only STOP is a whole answer: MAX_TOKENS, RECITATION, LANGUAGE, OTHER, … stopped it partway (cut off).
+                events.append(.messageStop(reason: reason == "STOP" ? "stop" : "max_tokens"))
             }
             return events
         case .openai:
@@ -215,11 +225,15 @@ public enum HTTPProviders {
 
 /// Reads a server-sent event stream: the `data:` lines, each turned into events by `HTTPProviders`.
 enum SSEStream {
-    static func events(_ request: URLRequest, provider: Provider, session: URLSession) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
+    /// `warmth` told of an answer (`ConnectionWarmth.answered`).
+    static func events(_ request: URLRequest, provider: Provider, session: URLSession,
+                       warmth: ConnectionWarmth? = nil) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session)
+                    // Every redirect is refused: the key (in a header) and the text reach the base URL's host and no
+                    // other. The redirect comes back as the answer, an HTTP error.
+                    let (bytes, response) = try await HTTPStream.bytes(for: request, session: session, redirect: { _ in nil })
                     guard let http = response as? HTTPURLResponse else {
                         throw ProviderError.invalidResponse(provider, "not an HTTP response")
                     }
@@ -231,6 +245,7 @@ enum SSEStream {
                         }
                         throw HTTPProviders.httpError(provider: provider, status: http.statusCode, body: body)
                     }
+                    warmth?.answered(request.url)
                     for try await line in bytes.lines {
                         guard line.hasPrefix("data:") else { continue }  // event names, comments, keep-alives
                         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)

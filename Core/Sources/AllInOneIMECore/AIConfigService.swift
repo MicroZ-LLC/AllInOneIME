@@ -46,7 +46,8 @@ public final class AIConfigService: Sendable {
             case nil: return true
             case let error as ProviderError:
                 switch error {
-                case .missingKey, .missingModel, .signedOut, .keyForAnotherHost, .invalidBaseURL, .insecureBaseURL: return true
+                case .missingKey, .missingModel, .signedOut, .keyForAnotherHost, .shellKeyForAnotherHost, .invalidBaseURL,
+                     .insecureBaseURL: return true
                 default: return false
                 }
             case is AWSConfigError: return true

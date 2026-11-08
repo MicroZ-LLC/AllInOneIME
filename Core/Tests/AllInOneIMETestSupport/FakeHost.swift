@@ -47,13 +47,21 @@ public final class FakeHost: @unchecked Sendable {
     /// The field tells nothing of its text when it is read (`SessionOutput.readField`): WeChat's.
     public var tellsNoText = false
     /// The field is a password field by what the shell tells of it when it is read (the Mac's Accessibility:
-    /// `AXSecureTextField`), though secure input isn't on.
+    /// `AXSecureTextField`), though secure input isn't on: once a pause asks (`SessionOutput.readField`), with a key
+    /// read as the Mac reads it (`readsWhatIsWanted`) where the session asks (`FieldContext.Parts.passwordField`), and
+    /// once the key is answered where it asks that (`SessionOutput.readPasswordField`; held back with `fieldReadsWait`).
     public var passwordField = false
+    /// The shell can't tell whether the field is a password field (the Mac without Accessibility): every read of it
+    /// answers unknown (`FieldContext.passwordFieldUnknown`, `SessionEvent.passwordField` nil).
+    public var cannotTellPasswordField = false
     /// A key reads only what the session wants of the field (`InputSession.fieldWants`), asked until it wants nothing
     /// more, as the Mac does: its text isn't told with every key, only once a pause asks for it (`SessionOutput.readField`).
     public var readsWhatIsWanted = false
     /// The field is read once the test says (`answerFieldReads`), not at once: keys may come before what it says.
     public var fieldReadsWait = false
+    /// The same for the selection read after the "@" key (`SessionOutput.readSelection`): a slow Accessibility read, landed
+    /// when the test says (`answerFieldReads`, or `selectionReadsGiveUp`). No key ever waits for it.
+    public var selectionReadsWait = false
 
     // MARK: What the session did
 
@@ -75,6 +83,8 @@ public final class FakeHost: @unchecked Sendable {
     /// Autocomplete's suggestion up after the caret (`SessionOutput.ghost`), and the reads of the field it asked for.
     public private(set) var ghost: String?
     public private(set) var fieldReads = 0
+    /// The reads of whether the field is a password field asked off the key's thread (`SessionOutput.readPasswordField`).
+    public private(set) var passwordFieldReads = 0
     /// The replacements read back before they were made (`SessionOutput.checkNextReplace`).
     public private(set) var replacementsChecked = 0
     /// What the reads asked for while `fieldReadsWait` say, not handed to the session yet.
@@ -131,7 +141,8 @@ public final class FakeHost: @unchecked Sendable {
                             selectedRange: selection ?? caret..<caret,
                             selection: selected.map { Composer.Selection(text: $0, range: selection) },
                             beforeCaret: before,
-                            text: FieldText(before: text.substring(to: caret), after: text.substring(from: end)))
+                            text: FieldText(before: text.substring(to: caret), after: text.substring(from: end)),
+                            passwordFieldUnknown: cannotTellPasswordField)
     }
 
     /// What the field says around the caret as the Mac reads it for `key` (`readsWhatIsWanted`): only the parts the
@@ -149,6 +160,10 @@ public final class FakeHost: @unchecked Sendable {
             if missing.contains(.selection) { told.selection = full.selection }
             if missing.contains(.beforeCaret) { told.beforeCaret = full.beforeCaret }
             if missing.contains(.text) { told.text = full.text }
+            if missing.contains(.passwordField) {
+                told.field = FieldInfo(app: app, terminal: terminal, secure: passwordField && !cannotTellPasswordField)
+                told.passwordFieldUnknown = cannotTellPasswordField
+            }
         }
     }
 
@@ -235,12 +250,25 @@ public final class FakeHost: @unchecked Sendable {
         return true
     }
 
-    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`), in order: the field as it was
-    /// when each was asked for.
+    /// Hands the session what the field said for the reads waiting (`fieldReadsWait`, `selectionReadsWait`), in order:
+    /// the field as it was when each was asked for.
     public func answerFieldReads() {
         let reads = waitingReads
         waitingReads = []
         for read in reads { send(read) }
+    }
+
+    /// The selection reads waiting (`selectionReadsWait`) give up, whatever is selected (Accessibility answered nothing in
+    /// time): each answers none, in order. The other reads still wait.
+    public func selectionReadsGiveUp() {
+        let reads = waitingReads.compactMap { if case let .selection(_, id) = $0 { id } else { nil } }
+        waitingReads.removeAll { if case .selection = $0 { true } else { false } }
+        for id in reads { send(.selection(nil, id: id)) }
+    }
+
+    /// The ids of the selection reads asked for so far (`SessionOutput.readSelection`), in order.
+    public var selectionReads: [Int] {
+        outputs.compactMap { if case let .readSelection(id) = $0 { id } else { nil } }
     }
 
     /// Fires the timers started so far, in order.
@@ -321,8 +349,21 @@ public final class FakeHost: @unchecked Sendable {
                 fieldReads += 1
                 var read = context
                 if tellsNoText { read.text = nil }
-                if passwordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
+                if passwordField, !cannotTellPasswordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
                 if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
+            case let .readPasswordField(focus):
+                // Once the key is answered, off its thread as the Mac reads it (held back with `fieldReadsWait`).
+                let told = SessionEvent.passwordField(cannotTellPasswordField ? nil : passwordField, focus: focus)
+                passwordFieldReads += 1
+                if fieldReadsWait {
+                    waitingReads.append(told)
+                } else {
+                    afterKey.append { [weak self] in self?.send(told) }
+                }
+            case let .readSelection(id):
+                // Once the key is answered, as the Mac reads it with Accessibility: the field's selection.
+                let told = SessionEvent.selection(context.selection, id: id)
+                if selectionReadsWait { waitingReads.append(told) } else { afterKey.append { [weak self] in self?.send(told) } }
             case let .ghost(text):
                 ghost = text
             case let .platform(action):

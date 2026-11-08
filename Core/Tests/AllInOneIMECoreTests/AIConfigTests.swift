@@ -840,6 +840,42 @@ struct AIConfigTests {
         #expect(try Set(Config.load(from: url).appProfiles.keys) == ["com.tencent.xinWeChat", "com.apple.Notes"])
     }
 
+    /// On a fresh install Settings may save (`SettingsStore.save`, through `AIConfig.writing`) as the input method learns
+    /// an English word into a file it makes (`EnglishWords.Writer`): whether there is a file and the write that follows
+    /// are one step under `AIConfig.fileLock`. A save that starts while the learner holds the lock, with no file yet,
+    /// finds the learner's file once it has the lock and writes only what it changed: the word stays. So does a whole
+    /// config written only where there is none (`Config.writeIfMissing`: the input menu's Open Config File).
+    @Test func aWriteStartedWithNoFileKeepsTheFileMadeMeanwhile() throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("config.json")
+        let fresh = Config.default
+        var changed = fresh
+        changed.typeOut = true
+        let saved = changed  // a constant: the save below runs on another thread
+        // The learner holds the lock (its write does): Settings' save starts meanwhile, on another thread, and has looked
+        // for the file by the time the learner makes it, if it looks without the lock.
+        AIConfig.fileLock.lock()
+        let done = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { [saved] in
+            try? AIConfig.writing(saved, from: fresh, keys: AIConfig.changedKeys(fresh, saved), at: url)
+            done.signal()
+        }
+        Thread.sleep(forTimeInterval: 0.2)
+        #expect(!FileManager.default.fileExists(atPath: url.path), "the save waits for the lock")
+        try EnglishWords.learn("frobnicate", at: url)
+        AIConfig.fileLock.unlock()
+        #expect(done.wait(timeout: .now() + 10) == .success)
+        let file = try Config.load(from: url)
+        #expect(file.englishWords == ["frobnicate"] && file.typeOut, "\(file.englishWords) \(file.typeOut)")
+
+        #expect(try !Config.default.writeIfMissing(to: url))
+        #expect(try Config.load(from: url).englishWords == ["frobnicate"])
+        try FileManager.default.removeItem(at: url)
+        #expect(try Config.default.writeIfMissing(to: url) && FileManager.default.fileExists(atPath: url.path))
+    }
+
     @Test func nestedUnknownFieldsAndLargeNumbersSurvive() throws {
         // The file as a later version (or another branch) wrote it: unknown fields inside known objects, and big integers.
         var base = config

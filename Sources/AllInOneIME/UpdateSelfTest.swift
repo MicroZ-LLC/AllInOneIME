@@ -1,9 +1,12 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 
 extension SelfTest {
-    /// The updater as the user sees it (nothing is checked, downloaded or installed): the About page's Updates
-    /// card in each state, drawn offscreen (settings-about-update-*.png), and the input menu's item.
+    /// The updater as the user sees it (nothing is checked, downloaded or installed, no notification is posted): the
+    /// About page's Updates card in each state, drawn offscreen (settings-about-update-*.png; under Check for updates
+    /// automatically, Notify me when a new version is out, gone with checking off: -not-checking), the input menu's item,
+    /// and a new version's notification's text.
     static func testUpdates(_ controller: AllInOneIMEInputController, snapshotDirectory: URL) {
         section("updates (nothing checked, downloaded or installed)")
         let updates = UpdateController.shared
@@ -58,6 +61,18 @@ extension SelfTest {
             if FileManager.default.fileExists(atPath: url.path) { rendered += 1 }
         }
         check(rendered == states.count, "the About page's Updates card renders in each state (\(rendered)/\(states.count))")
+        // Checking off: the notification's switch goes with it (the model saves nothing).
+        model.config.checkForUpdates = false
+        updates.state = .available(sample)
+        updates.lastResult = nil
+        let off = snapshotDirectory.appendingPathComponent("settings-about-update-not-checking.png")
+        try? FileManager.default.removeItem(at: off)
+        SettingsImage.render(model, page: .about, to: off) { _ = pump(timeout: $0) { false } }
+        check(FileManager.default.fileExists(atPath: off.path), "…and with checking off")
         check(Config.default.checkForUpdates, "checking for updates is on by default")
+        check(Config.default.notifiesUpdates, "…and so is its notification")
+        let notice = UpdateNotice.available(sample)
+        check(notice.title == "AllInOneIME 9.9.0 is available" && notice.body == "Updates from inside the app, with one click.",
+              "a new version's notification says which and what's new (\(notice.title) | \(notice.body))")
     }
 }

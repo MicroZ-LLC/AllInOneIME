@@ -210,6 +210,51 @@ struct ClipboardHistoryRecordingTests {
         #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["later"])
     }
 
+    /// The clipboard put back after a paste of ours (`TerminalPaste`: its write marked transient, then what was there
+    /// before) is never recorded as a new copy: not a token skipped during secure input, not what Clear History removed;
+    /// the newest still if it was; a copy made after is recorded as before.
+    @Test func thePutBackAfterAPasteOfOursIsNeverRecorded() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var secure = true
+        let (recorder, pasteboard) = Self.recorder(in: folder, secure: { secure })
+        pasteboard.copy("token")
+        #expect(recorder.poll(limit: 20) == .secureInput)
+        secure = false
+        recorder.poll(limit: 20)
+        let was = pasteboard.changeCount
+        pasteboard.copy("pasted", types: ["public.utf8-plain-text", "org.nspasteboard.TransientType"])
+        #expect(recorder.poll(limit: 20) == .marked)
+        pasteboard.copy("token")
+        recorder.putBack(at: pasteboard.changeCount, asAt: was)
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.store.items.isEmpty, "the token put back: not recorded")
+        // Put back before the history looked at our write.
+        pasteboard.copy("kept")
+        #expect(recorder.poll(limit: 20) == .recorded)
+        let kept = pasteboard.changeCount
+        pasteboard.copy("pasted", types: ["public.utf8-plain-text", "org.nspasteboard.TransientType"])
+        pasteboard.copy("kept")
+        recorder.putBack(at: pasteboard.changeCount, asAt: kept)
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.clipboardIsNewest, "the newest still")
+        // Clear History while a paste is still to be put back.
+        pasteboard.copy("pasted", types: ["public.utf8-plain-text", "org.nspasteboard.TransientType"])
+        recorder.store.clear()
+        recorder.forget()
+        pasteboard.copy("kept")
+        recorder.putBack(at: pasteboard.changeCount, asAt: kept)
+        #expect(recorder.poll(limit: 20) == .unchanged && recorder.store.items.isEmpty && !recorder.clipboardIsNewest,
+                "what Clear History removed stays out")
+        pasteboard.copy("a")
+        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["a"])
+        // A copy the history hadn't looked at before the paste: the next look takes it as it would have.
+        pasteboard.copy("unseen")
+        let unseen = pasteboard.changeCount
+        pasteboard.copy("pasted", types: ["public.utf8-plain-text", "org.nspasteboard.TransientType"])
+        pasteboard.copy("unseen")
+        recorder.putBack(at: pasteboard.changeCount, asAt: unseen)
+        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["unseen", "a"])
+    }
+
     /// A file that can't be read is an empty history, made anew by the next copy.
     @Test func anUnreadableFileIsEmpty() throws {
         let folder = try Self.folder()

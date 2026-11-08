@@ -128,7 +128,7 @@ extension SelfTest {
                 return (true, "0.8 s: Hello")
             }
             DoctorSession.perform = { [unowned self] in performed.append($0) }
-            DoctorSession.probe = { [unowned self] in
+            DoctorSession.probe = { [unowned self] _ in
                 probed += 1
                 return facts(url)
             }
@@ -412,10 +412,11 @@ extension SelfTest {
     }
 
     /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
-    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range), all from `rig`'s stand-ins and
-    /// config file.
-    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false) -> AssistantModel {
-        rig.facts = fine ? fineFacts : troubledFacts
+    /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range; `noAccessibility`: with
+    /// Accessibility not allowed, its list of what doesn't work fully), all from `rig`'s stand-ins and config file.
+    static func sampleAssistant(_ rig: AssistantRig, fine: Bool = false, noAccessibility: Bool = false) -> AssistantModel {
+        let facts: (URL) -> Doctor.Facts = fine ? fineFacts : troubledFacts
+        rig.facts = noAccessibility ? { var shown = facts($0); shown.accessibility = .denied; return shown } : facts
         if fine {
             var config = (try? Config.load(from: rig.url)) ?? assistantSampleConfig
             config.typeOutRate = TypeOut.defaultRate
@@ -945,7 +946,7 @@ extension SelfTest {
         let shown = [Provider.openai, .anthropic, .gemini].map(model.keyStatus)
         check(shown == [tr("✓ 已保存 · 结尾 a1b2", "✓ Saved · ends in a1b2"), tr("✓ 来自 $ANTHROPIC_API_KEY", "✓ From $ANTHROPIC_API_KEY"),
                         tr("还没有 API key", "No API key yet")], "Settings says in each key's row whether it is set (\(shown))")
-        let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource)
+        let keyed = AIConfigSession.providersWithKey(AIConfigSession.keySource, config: .default)
         check(keyed == [.openai, .anthropic], "Settings → Assistant's checks see the same keys (\(keyed))")
     }
 

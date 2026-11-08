@@ -189,7 +189,6 @@ public struct Command: Hashable, Sendable {
     /// (`hidden`: `Config.hiddenFromCommandList`, `hidesFromCommandList`), its suggestions as they were.
     public static func catalog(_ custom: [CustomCommand], plugins: [InstalledPlugin] = [],
                                scripts: [ScriptCommand] = [], snippets: [BundleSnippet] = [], hidden: [String] = []) -> [Command] {
-        let builtinNames = Set(builtins.map(\.name))
         var taken = builtinNames
         let fromPlugins = plugins.compactMap { plugin -> Command? in
             guard taken.insert(plugin.name).inserted else {
@@ -209,9 +208,7 @@ public struct Command: Hashable, Sendable {
                 return Command(name: plugin.name, kind: .link, plugin: plugin)
             }
         }
-        // A built-in that's off isn't offered, but its name stays taken.
-        let offered = builtins.filter { !off.contains($0) }
-        let all = offered + fromPlugins + custom.compactMap { definition in
+        let all = offeredBuiltins + fromPlugins + custom.compactMap { definition in
             let name = definition.name.lowercased()
             guard definition.isValid, taken.insert(name).inserted else {
                 if definition.isValid, builtinNames.contains(name) { logHidden("custom command", name) }
@@ -243,6 +240,11 @@ public struct Command: Hashable, Sendable {
         // Without child processes (iOS, Android) the commands that run a program aren't offered.
         return Platform.current.processes.canLaunch ? all : all.filter { !$0.needsChildProcess }
     }
+
+    /// The built-ins' names, taken whether they are offered or not, and those offered (a built-in that's off isn't, but
+    /// its name stays taken): made once, not for each catalog.
+    private static let builtinNames = Set(builtins.map(\.name))
+    private static let offeredBuiltins = builtins.filter { !off.contains($0) }
 
     /// An extension in the order its names are given out: the bundles' commands, their snippets, then the rest.
     private enum Extension {
@@ -513,16 +515,18 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     /// Full-width punctuation a Chinese keyboard layout types, as the ASCII that code means by it:
     /// `print（“牛逼”）` → `print("牛逼")`. Letters and Chinese text stay as they are.
     public static func halfWidth(_ text: String) -> String {
-        let map: [Character: String] = [
-            "（": "(", "）": ")", "【": "[", "】": "]", "「": "\"", "」": "\"", "『": "'", "』": "'",
-            "“": "\"", "”": "\"", "‘": "'", "’": "'", "，": ",", "。": ".", "：": ":", "；": ";",
-            "！": "!", "？": "?", "《": "<", "》": ">", "、": "\\", "～": "~", "｜": "|", "＝": "=",
-            "＋": "+", "－": "-", "＊": "*", "／": "/", "＃": "#", "＄": "$", "％": "%", "＆": "&",
-            "＠": "@", "｛": "{", "｝": "}", "［": "[", "］": "]", "＜": "<", "＞": ">", "…": "...",
-            "·": "`", "　": " ",
-        ]
-        return String(text.flatMap { map[$0].map(Array.init) ?? [$0] })
+        String(text.flatMap { halfWidths[$0].map(Array.init) ?? [$0] })
     }
+
+    /// What `halfWidth` puts for each full-width mark, made once.
+    private static let halfWidths: [Character: String] = [
+        "（": "(", "）": ")", "【": "[", "】": "]", "「": "\"", "」": "\"", "『": "'", "』": "'",
+        "“": "\"", "”": "\"", "‘": "'", "’": "'", "，": ",", "。": ".", "：": ":", "；": ";",
+        "！": "!", "？": "?", "《": "<", "》": ">", "、": "\\", "～": "~", "｜": "|", "＝": "=",
+        "＋": "+", "－": "-", "＊": "*", "／": "/", "＃": "#", "＄": "$", "％": "%", "＆": "&",
+        "＠": "@", "｛": "{", "｝": "}", "［": "[", "］": "]", "＜": "<", "＞": ">", "…": "...",
+        "·": "`", "　": " ",
+    ]
 }
 
 extension CustomCommand {
@@ -588,6 +592,26 @@ extension CustomCommand {
             if let problem = suggestionProblem(trigger: trigger) { return problem }
         }
         return nil
+    }
+
+    /// What an editor that shows only some of a command's fields starts its Save from, the command saved as a `type`
+    /// one: what config.json has that the form doesn't show kept (its `icon` and `color`, a `stdin` of its own like
+    /// "{input}\nquit\n", a source's `minChars`), the fields `type` doesn't use cleared. Turned into another type, only
+    /// its name, description, icon and color are kept. The editor then puts in what the form shows.
+    public func kept(as type: CommandType) -> CustomCommand {
+        var c = CustomCommand(name: name, type: type, summary: summary, icon: icon, color: color)
+        guard type == self.type else { return c }
+        switch type {
+        case .prompt: (c.prompt, c.ascii) = (prompt, ascii)
+        case .run: (c.argv, c.stdin, c.ascii, c.timeoutSeconds) = (argv, stdin, ascii, timeoutSeconds)
+        case .terminal: (c.argv, c.ascii) = (argv, ascii)
+        case .link: (c.url, c.ascii) = (url, ascii)
+        case .snippet: (c.text, c.ascii) = (text, ascii)
+        case .suggestions:
+            (c.argv, c.timeoutSeconds, c.prefix, c.minChars, c.compare) = (argv, timeoutSeconds, prefix, minChars, compare)
+            (c.refresh, c.query, c.queryMinChars, c.insert) = (refresh, query, queryMinChars, insert)
+        }
+        return c
     }
 
     // MARK: Editing the list by name

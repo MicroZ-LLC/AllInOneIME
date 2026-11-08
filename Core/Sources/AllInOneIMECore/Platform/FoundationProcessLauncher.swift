@@ -20,6 +20,39 @@ public struct FoundationProcessLauncher: ProcessLauncher {
     public func isRunnable(_ program: URL) -> Bool { true }
 
     public func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess {
+        #if canImport(Glibc) || canImport(Musl)
+        // Linux refuses to start a program file open for writing (ETXTBSY), and one just written stays open in each
+        // program another thread starts meanwhile, until it runs: a script written and started at once can fail to
+        // start (one start in eight, with programs starting on six other threads), and starts a moment later. Tried
+        // again a few times, each in a Process of its own (a Process starts once), only while the program is there and
+        // executable: one that is missing or can't run fails at once, as on the Mac.
+        for _ in 0..<4 {
+            if let started = try? Self.unblocked({ try start(spec) }) { return started }
+            guard FileManager.default.isExecutableFile(atPath: spec.executable.path) else { break }
+            Thread.sleep(forTimeInterval: 0.005)
+        }
+        return try Self.unblocked { try start(spec) }
+        #else
+        return try start(spec)
+        #endif
+    }
+
+    #if canImport(Glibc) || canImport(Musl)
+    /// `body` (a program started) with no signal blocked on this thread, its mask as it was after. A program starts with
+    /// the signal mask of the thread that starts it, and libdispatch's threads block nearly every signal (SIGTERM,
+    /// SIGINT, SIGCHLD …): started from one (`CommandRunner` starts programs on a queue), it could never be asked to end,
+    /// only killed. Started with none blocked, as a shell starts it; only while it starts, never across a wait.
+    private static func unblocked<T>(_ body: () throws -> T) rethrows -> T {
+        var none = sigset_t(), mask = sigset_t()
+        sigemptyset(&none)
+        pthread_sigmask(SIG_SETMASK, &none, &mask)
+        defer { pthread_sigmask(SIG_SETMASK, &mask, nil) }
+        return try body()
+    }
+    #endif
+
+    /// `spec` started in a new Process.
+    private func start(_ spec: LaunchSpec) throws -> FoundationProcess {
         let process = Process()
         process.executableURL = spec.executable
         process.arguments = spec.arguments

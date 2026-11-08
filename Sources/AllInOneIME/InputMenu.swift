@@ -26,11 +26,12 @@ extension AllInOneIMEInputController {
         // added (a new user has one), with "Add Languages…" opening the settings.
         let current = config ?? .default
         // @translate writes in every language added, in this order (one picked here moves to the front).
-        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(UIText.name).joined(separator: tr("、", ", ")),
+        let named = { (language: OutputLanguage) in UIText.name(language, typing: current.typedChinese) }
+        let outputItem = NSMenuItem(title: tr("翻译成：", "Translate to: ") + current.outputLanguages.map(named).joined(separator: tr("、", ", ")),
                                     action: nil, keyEquivalent: "")
         let outputs = NSMenu()
         for language in current.outputLanguages {
-            let item = NSMenuItem(title: UIText.name(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: named(language), action: #selector(setOutputLanguage(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.code
             item.state = .on
@@ -48,7 +49,9 @@ extension AllInOneIMEInputController {
 
         // The inputs: the languages, then Code ("Code (Python)", its item added by `addingCode`).
         let coding = current.codingLanguage.map { CodingLanguagePack.title(of: $0) }
-        let inputNames = current.inputs.map { SessionText.inputName($0, language: UIText.language, coding: coding) }
+        let inputNames = current.inputs.map {
+            SessionText.inputName($0, language: UIText.language, coding: coding, chinese: current.typedChinese)
+        }
         let inputItem = NSMenuItem(title: tr("输入：", "Input: ") + inputNames.joined(separator: " + "),
                                    action: nil, keyEquivalent: "")
         let inputs = NSMenu()
@@ -56,7 +59,8 @@ extension AllInOneIMEInputController {
         for language in current.inputLanguages {
             // One whose pack isn't there yet can't be typed: shown, greyed, with why.
             let usable = LanguagePackManager.shared.isUsable(language)
-            let title = SessionText.inputName(language, language: UIText.language) + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
+            let title = SessionText.inputName(language, language: UIText.language, chinese: current.typedChinese)
+                + (usable ? "" : tr("（还没有语言包）", " (no language pack yet)"))
             let item = NSMenuItem(title: title, action: #selector(setDefaultInput(_:)), keyEquivalent: "")
             item.target = self
             item.representedObject = language.rawValue
@@ -306,10 +310,6 @@ extension AllInOneIMEInputController {
     /// `languages` with `language` removed, or added at the end; the last one stays (`SessionText.toggled`).
     static func toggled(_ language: Language, in languages: [Language]) -> [Language] { SessionText.toggled(language, in: languages) }
 
-    @objc func openConfig(_ sender: Any?) {
-        MainActor.assumeIsolated { Self.openConfigFile() }
-    }
-
     override func showPreferences(_ sender: Any!) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
@@ -354,23 +354,6 @@ extension AllInOneIMEInputController {
             perform(composer.commitAll(), client: nil)
             session.dropEngine()
             RimeService.shared.redeploy()
-        }
-    }
-
-    @MainActor
-    static func openConfigFile() {
-        let url = Config.defaultURL
-        if !FileManager.default.fileExists(atPath: url.path) {
-            do {
-                try Config.default.write(to: url)
-            } catch {
-                log.error("could not create config: \(String(describing: error), privacy: .public)")
-            }
-        }
-        if let textEdit = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.TextEdit") {
-            NSWorkspace.shared.open([url], withApplicationAt: textEdit, configuration: NSWorkspace.OpenConfiguration())
-        } else {
-            NSWorkspace.shared.open(url)
         }
     }
 }

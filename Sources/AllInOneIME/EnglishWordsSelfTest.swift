@@ -12,21 +12,35 @@ extension SelfTest {
         section("English words among pinyin's candidates", needs: .composing)
         let settingsBefore = settings
         let pointerBefore = controller.services.pointerUsedWithin
+        let passwordFieldBefore = controller.passwordField
         defer {
             settings = settingsBefore
             controller.services.pointerUsedWithin = pointerBefore
+            controller.passwordField = passwordFieldBefore
             controller.services.secureInputActive = { false }
             controller.commitComposition(client)
             client.bundleIDOverride = nil
             controller.activateServer(client)
             controller.applySettings()
         }
-        // The fake field is no password field: secure input off, whatever holds it on this Mac now (the lock screen).
+        // The fake field is no password field: secure input off, whatever holds it on this Mac now (the lock screen), and
+        // none as Accessibility would tell it (it isn't the one focused). That is told off the key, once its first letter
+        // is answered (`readPasswordField`): until then nothing is learned in it. A field is asked once, and the one before
+        // was, of Accessibility (this Mac's frontmost app, which can't tell: nothing learned there): a field of its own.
         controller.services.secureInputActive = { false }
+        controller.passwordField = { false }
+        controller.commitComposition(client)
+        controller.activateServer(client)
+        func toldNoPasswordField() { _ = pump(timeout: 0.2) { false } }
         func candidates() -> [String] { controller.composer.engineState.candidates.map(\.text) }
-        func learned() -> [String] { (try? Config.load())?.englishWords ?? [] }
+        // What was learned is written a moment later, off the main thread (`SessionServices.englishWordsWriter`).
+        func learned() -> [String] {
+            SessionServices.englishWordsWriter.flush()
+            return (try? Config.load())?.englishWords ?? []
+        }
 
         type("bedrock", controller, client)
+        toldNoPasswordField()
         check(candidates().first == "Bedrock" && controller.composer.engineState.highlighted == 0,
               "'bedrock' offers Bedrock first (\(candidates().prefix(4)))")
         snapshot("english-words", in: snapshotDirectory)
@@ -79,6 +93,7 @@ extension SelfTest {
         controller.activateServer(client)
         controller.composer.setInputMode(.chinese)
         putInTwice("nihao")
+        toldNoPasswordField()
         check(!learned().contains("quuxify") && !learned().contains("nihao"),
               "nothing learned during secure input, in an app with no AI, a terminal, a remote desktop or an SSH client, or of pinyin (\(learned()))")
 

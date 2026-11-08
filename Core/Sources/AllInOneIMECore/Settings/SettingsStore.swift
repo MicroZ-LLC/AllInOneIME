@@ -205,9 +205,14 @@ public final class SettingsStore {
 
     /// Settings → Input → English Words' Add: the words of `text` added to the English words pinyin offers, marked as the
     /// user's (`EnglishWords.add`), on the list as the file has it now: those added (each a word the user hadn't added; one
-    /// learned becomes theirs), and those refused as what hiding sensitive information hides.
+    /// learned becomes theirs, one of theirs removed among the candidates is added again), and those refused as what
+    /// hiding sensitive information hides. Each added is taken off the list of those removed too (Removed candidates,
+    /// `Config.removedCandidates`, by its letters: `EnglishWords.key`), so that it comes up as the user asked.
     @discardableResult
     public func addEnglishWords(_ text: String) -> EnglishWords.Added {
+        // From the file's read to its write: a word learned or a candidate removed meanwhile (`EnglishWords.Writer`)
+        // stays.
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         let result = EnglishWords.add(text, to: &changed)
@@ -219,11 +224,25 @@ public final class SettingsStore {
 
     /// A word's ✕: `word` gone from the English words (`EnglishWords.remove`), wherever it is in the list now.
     public func removeEnglishWord(_ word: String) {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
         refresh()
         var changed = config
         EnglishWords.remove(word, from: &changed)
         guard changed != config else { return }
         config = changed
+        save()
+    }
+
+    /// Settings → Input → Removed Candidates' ✕: `text` back among pinyin's candidates (`RemovedCandidates.restoring`),
+    /// wherever it is in the list now. What librime forgot of it stays forgotten; an English word of the user's comes back
+    /// as it was, never taken out of them.
+    public func restoreCandidate(_ text: String) {
+        // From the file's read to its write: a candidate removed meanwhile (`EnglishWords.Writer`) stays.
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }
+        refresh()
+        let list = RemovedCandidates.restoring(text, from: config.removedCandidates)
+        guard list != config.removedCandidates else { return }
+        config.removedCandidates = list
         save()
     }
 
@@ -310,6 +329,13 @@ public final class SettingsStore {
 
     /// What turning fuzzy pinyin on picks: the pairs most often mixed up.
     public static let fuzzyDefaults = ["z-zh", "c-ch", "s-sh", "en-eng", "in-ing"]
+
+    /// The characters Chinese is typed in (`Config.chineseCharacters`), saved: picked, they no longer follow the system's
+    /// languages. The shell applies them to its Rime, as it does fuzzy pinyin.
+    public func setChineseCharacters(_ characters: ChineseCharacters) {
+        config.chineseCharacters = characters
+        save()
+    }
 
     // MARK: Rewrite styles
 
@@ -398,16 +424,35 @@ public final class SettingsStore {
         save()
     }
 
-    /// One string setting of a provider, as typed: trimmed, and an empty one stored as `empty` (nil: unset, so that the
-    /// default applies and is never written as if typed). Nothing is written unless the value changes.
+    /// One string setting of a provider, as typed: trimmed (`typed`), and an empty one stored as `empty` (nil: unset, so
+    /// that the default applies and is never written as if typed). Nothing is written unless the value changes.
     public func setProviderField(_ provider: Provider, _ key: WritableKeyPath<ProviderSettings, String?>, to value: String,
                                  empty: String? = nil) {
         var settings = providerSettings(provider)
-        let trimmed = value.trimmingCharacters(in: .whitespaces)
+        let trimmed = Self.typed(value)
         let new = trimmed.isEmpty ? empty : trimmed
         guard settings[keyPath: key] != new else { return }
         settings[keyPath: key] = new
         setProviderSettings(settings, for: provider)
+    }
+
+    /// Amazon Bedrock's model ID, as typed: trimmed (`typed`); empty as the field shows it. Saved as the window saves.
+    public func setBedrockModelId(_ value: String) {
+        config.modelId = Self.typed(value)
+    }
+
+    /// Amazon Bedrock's region, as typed: trimmed (`typed`), and an empty one unset (the AWS profile's region applies).
+    /// Saved as the window saves.
+    public func setBedrockRegion(_ value: String) {
+        let region = Self.typed(value)
+        config.region = region.isEmpty ? nil : region
+    }
+
+    /// A provider's text setting (a model ID, a base URL, a region) without the spaces and line breaks around it: pasted
+    /// with it, they would go into every request's address, which then fails ("Invalid region: us-west-2 ", the space
+    /// unseen).
+    static func typed(_ value: String) -> String {
+        value.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: Keys
@@ -419,12 +464,8 @@ public final class SettingsStore {
     /// Saves the provider's API key, tied to the base URL it is saved with: it isn't sent to another one set later.
     public func saveKey(_ key: String, for provider: Provider) -> String? {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
+        return changingSecret(failing: Self.couldntSaveKey) {
             try APIKeys.save(key, for: provider, host: HTTPProviders.host(of: config.settings(for: provider)))
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
         }
     }
 
@@ -442,59 +483,43 @@ public final class SettingsStore {
     /// Removes the provider's API key: Remove Key…, confirmed.
     public func removeKey(_ provider: Provider) -> String? {
         guard persists else { return nil }
-        defer { notify(.keys) }
-        do {
+        return changingSecret(failing: Self.couldntRemoveKey) {
             try APIKeys.remove(provider)
             Self.log.notice("Settings: the \(provider.rawValue) key removed (Remove Key…, confirmed)")
-            return nil
-        } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
         }
     }
 
     /// Saves the web search key (`WebSearch`).
     public func saveSearchKey(_ key: String) -> String? {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
-            try WebSearch.saveKey(key)
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntSaveKey) { try WebSearch.saveKey(key) }
     }
 
     public func removeSearchKey() -> String? {
         guard persists else { return nil }
-        defer { notify(.keys) }
-        do {
-            try WebSearch.removeKey()
-            return nil
-        } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntRemoveKey) { try WebSearch.removeKey() }
     }
 
     /// Saves the Notion token, sent to api.notion.com only.
     public func saveNotionToken(_ token: String) -> String? {
         guard persists, !token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        defer { notify(.keys) }
-        do {
-            try NotionAPI.saveToken(token)
-            return nil
-        } catch {
-            return Self.couldntSaveKey + UIText.describe(error)
-        }
+        return changingSecret(failing: Self.couldntSaveKey) { try NotionAPI.saveToken(token) }
     }
 
     public func removeNotionToken() -> String? {
         guard persists else { return nil }
+        return changingSecret(failing: Self.couldntRemoveKey) { try NotionAPI.removeToken() }
+    }
+
+    /// `change` made in the secret store (a key or a token saved or removed), then `keys` told: nil when it was done,
+    /// else what went wrong as the window shows it, `failing` and the error.
+    private func changingSecret(failing: @autoclosure () -> String, _ change: () throws -> Void) -> String? {
         defer { notify(.keys) }
         do {
-            try NotionAPI.removeToken()
+            try change()
             return nil
         } catch {
-            return Self.couldntRemoveKey + UIText.describe(error)
+            return failing() + UIText.describe(error)
         }
     }
 
@@ -607,9 +632,10 @@ public final class SettingsStore {
 
     // MARK: Plugins
 
-    /// Removes an installed plugin (its folder), and what was kept of its completion sources (`Config.forgetPlugin`: their
-    /// approvals, that it was found here: installed again, they are on as they are then, but those the user turned off;
-    /// their cached lists go as the input method takes the settings in). What went wrong (nil: done).
+    /// Removes an installed plugin (its folder to the Trash: `PluginStore.uninstall`), and what was kept of its completion
+    /// sources (`Config.forgetPlugin`: their approvals, that it was found here: installed again, they are on as they are
+    /// then, but those the user turned off; their cached lists go as the input method takes the settings in). What went
+    /// wrong (nil: done; the folder stays where it can't go to the Trash).
     public func uninstall(_ plugin: InstalledPlugin) -> String? {
         guard persists else { return nil }
         do {

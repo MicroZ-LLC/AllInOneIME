@@ -6,15 +6,17 @@ import Testing
 struct SpotlightTests {
     let shell = URL(fileURLWithPath: "/bin/sh")
 
-    /// `body` on a thread of its own (it blocks), awaited.
+    /// `body` on a thread of its own (it blocks), awaited. A `Thread`, not a dispatch queue: while tests that wait for a
+    /// child process fill every thread of the test run's pool, a global queue gets no thread for seconds, the time limit
+    /// passes before the shell has started, and what it would print is lost.
     func inBackground<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
         await withCheckedContinuation { continuation in
-            DispatchQueue.global().async { continuation.resume(returning: body()) }
+            Thread { continuation.resume(returning: body()) }.start()
         }
     }
 
     @Test func stopsAtTheTimeLimitAndKeepsWhatWasPrinted() async {
-        // A limit of 2 s leaves the shell time to start and print under load; it would sleep a minute (`Timing`).
+        // A limit of 2 s leaves the shell time to start and print under load; it would sleep five minutes (`Timing`).
         let spotlight = Spotlight(until: .now() + 2, executable: shell)
         let started = Date()
         let output = await inBackground { spotlight.mdfind(["-c", "echo first; exec sleep \(Timing.longSleep)"]) }
@@ -25,15 +27,18 @@ struct SpotlightTests {
 
     @Test func readsMoreThanAPipeHolds() async {
         // A pipe holds 64 KB: the output is read while the program runs, or neither would finish.
+        // Both on the one thread: the time limit is the shells', not spent waiting for the test's turn in between.
         let spotlight = Spotlight(until: .now() + 10, executable: shell)
-        let output = await inBackground { spotlight.mdfind(["-c", "head -c 300000 /dev/zero | tr '\\0' x"]) }
+        let (output, both) = await inBackground {
+            (spotlight.mdfind(["-c", "head -c 300000 /dev/zero | tr '\\0' x"]),
+             spotlight.mdfind(each: [["-c", "echo one"], ["-c", "sleep 0.2; echo two"], ["-c", "exit 3"]]))
+        }
         #expect(output?.count == 300_000 && output?.allSatisfy { $0 == UInt8(ascii: "x") } == true)
-        let both = await inBackground { spotlight.mdfind(each: [["-c", "echo one"], ["-c", "sleep 0.2; echo two"], ["-c", "exit 3"]]) }
         #expect(both?.map { String(decoding: $0, as: UTF8.self) } == ["one\n", "two\n", ""])
     }
 
     @Test func cancellingStopsItAndDropsWhatWasPrinted() async throws {
-        // A minute's sleep with a limit past it: only the cancel can stop it well before (`Timing`).
+        // Five minutes of sleep with a limit past it: only the cancel can stop it well before (`Timing`).
         let spotlight = Spotlight(until: .now() + Double(Timing.longSleep * 2), executable: shell)
         let started = Date()
         let running = Task { await inBackground { spotlight.mdfind(["-c", "echo early; exec sleep \(Timing.longSleep)"]) } }

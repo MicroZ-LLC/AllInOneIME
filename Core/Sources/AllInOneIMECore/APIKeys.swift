@@ -2,7 +2,8 @@ import Foundation
 
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
 /// user brings a key for (the web search, `WebSearch`). They are kept in the keychain (never in the config file); a key
-/// set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain has none. Which keychain is the platform's
+/// set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain has none, and goes only to its provider's
+/// own service and to this computer (`shellKeyGoes`). Which keychain is the platform's
 /// (`Platform.secrets`): on the Mac the login keychain, as in 0.6.4, and while key sync is on (in a build entitled to
 /// it) the data protection keychain's items that iCloud Keychain syncs (`Keychain.routed`, `KeySync`).
 ///
@@ -31,19 +32,28 @@ public enum APIKeys {
         set { Platform.installed.withLock { $0.secrets = newValue } }
     }
 
-    /// The key for `provider`: the keychain's, else the login shell's.
+    /// The key for `provider`: the keychain's, else the login shell's, whatever the host (a request's is
+    /// `load(_:for:)`).
     public static func load(_ provider: Provider) -> String? {
         load(account: provider.rawValue, variables: provider.keyVariables)
     }
 
     /// The key for `provider` to send to `host`. A key in the keychain goes only to the host it was saved
     /// for (one saved before keys were tied to a host is tied to the first it is sent to): a base URL
-    /// changed to another service (a relay) doesn't get the key of the one before.
+    /// changed to another service (a relay) doesn't get the key of the one before. Without one, the login
+    /// shell's goes only where `shellKeyGoes` (else `shellKeyForAnotherHost`): DeepSeek or a relay never gets the
+    /// user's OPENAI_API_KEY. A keychain item that couldn't be read (its prompt denied) isn't asked for again.
     public static func load(_ provider: Provider, for host: String) throws -> String? {
         let host = host.lowercased()
         let account = provider.rawValue
-        guard let key = keychainKey(account: account) else { return load(provider) }
-        guard let saved = savedHost(account: account) else {
+        // The item's attributes, asked once for each request: its stamp for the key kept, its comment for the host.
+        let attributes = keychain.attributes(account)
+        guard let key = keychainKey(account: account, attributes: attributes) else {
+            guard let (name, key) = shellVariable(provider.keyVariables) else { return nil }
+            guard shellKeyGoes(provider, to: host) else { throw ProviderError.shellKeyForAnotherHost(provider, variable: name) }
+            return key
+        }
+        guard let saved = savedHost(attributes) else {
             bind(account: account, to: host)
             return key
         }
@@ -51,9 +61,9 @@ public enum APIKeys {
         return key
     }
 
-    /// The host the key under `account` was saved for (nil: not tied to one).
-    static func savedHost(account: String) -> String? {
-        guard let host = keychain.attributes(account)?.comment, !host.isEmpty else { return nil }
+    /// The host a key whose item has `attributes` was saved for (nil: not tied to one).
+    private static func savedHost(_ attributes: ItemAttributes?) -> String? {
+        guard let host = attributes?.comment, !host.isEmpty else { return nil }
         return host.lowercased()
     }
 
@@ -65,7 +75,20 @@ public enum APIKeys {
     /// The key kept under `account`: the keychain's, else the first of `variables` the login shell sets.
     public static func load(account: String, variables: [String]) -> String? {
         if let key = keychainKey(account: account) { return key }
-        return variables.lazy.compactMap { Platform.current.processes.loginEnvironment[$0] }.first
+        return shellVariable(variables)?.key
+    }
+
+    /// The first of `variables` the login shell sets, and its value.
+    private static func shellVariable(_ variables: [String]) -> (name: String, key: String)? {
+        variables.lazy.compactMap { name in Platform.current.processes.loginEnvironment[name].map { (name, $0) } }.first
+    }
+
+    /// Whether a key set in the login shell for `provider` goes to `host`: only to the provider's own service (its
+    /// default base URL's host: api.openai.com for OPENAI_API_KEY) and to this computer (a server on it, `isLoopback`).
+    /// Another base URL (DeepSeek, a relay, a server on the network) gets a key saved for it in Settings, never this one.
+    public static func shellKeyGoes(_ provider: Provider, to host: String) -> Bool {
+        let host = host.lowercased()
+        return host == HTTPProviders.host(of: .defaults(for: provider)) || HTTPProviders.isLoopback(host)
     }
 
     /// Where the key comes from, for the settings window.
@@ -73,8 +96,16 @@ public enum APIKeys {
         case keychain
         case environment(String)
         case none
+
+        /// This source as it counts for `provider`'s requests to `host` (nil: no valid base URL): a key set in the login
+        /// shell is none where it isn't sent (`shellKeyGoes`), so nothing shows it as set for a base URL it won't go to.
+        public func sent(by provider: Provider, to host: String?) -> Source {
+            guard case .environment = self, !APIKeys.shellKeyGoes(provider, to: host ?? "") else { return self }
+            return .none
+        }
     }
 
+    /// Where `provider`'s key comes from, whatever the host (`Source.sent(by:to:)` for the base URL's).
     public static func source(_ provider: Provider) -> Source {
         source(account: provider.rawValue, variables: provider.keyVariables)
     }
@@ -98,12 +129,22 @@ public enum APIKeys {
     /// The key under `account`, read from the keychain once in this process (and again only when the item
     /// changed since, here or in another app).
     public static func keychainKey(account: String) -> String? {
-        cache.key(account, stamp: stamp(account: account)) { readKey(account: account) }
+        keychainKey(account: account, attributes: keychain.attributes(account))
+    }
+
+    /// `keychainKey(account:)` with the attributes of the item under `account` already asked for.
+    private static func keychainKey(account: String, attributes: ItemAttributes?) -> String? {
+        cache.key(account, stamp: attributes.map(stamp(_:))) { readKey(account: account) }
     }
 
     /// When the item under `account` was made and last changed (nil: there is none), from its attributes.
     static func stamp(account: String, in store: Keychain = keychain) -> KeyCache.Stamp? {
-        store.attributes(account).map { KeyCache.Stamp(created: $0.created, modified: $0.modified) }
+        store.attributes(account).map(stamp(_:))
+    }
+
+    /// When an item with `attributes` was made and last changed.
+    private static func stamp(_ attributes: ItemAttributes) -> KeyCache.Stamp {
+        KeyCache.Stamp(created: attributes.created, modified: attributes.modified)
     }
 
     private static func readKey(account: String) -> String? {

@@ -2,25 +2,21 @@ import AllInOneIMECore
 import Foundation
 
 /// The installed plugins, scanned again when a text field becomes active (installing or removing one
-/// shows up there) and at most every 30 seconds otherwise: then in the background, never while a key is
-/// handled (the key gets the plugins as last scanned). Main thread only.
+/// shows up there: `rescan(scanned:)`) and at most every 30 seconds otherwise: then in the background, never
+/// while a key is handled or a field takes the focus (they get the plugins as last scanned). Main thread only.
 enum LivePlugins {
     private static var cached: (at: Date, result: (plugins: [InstalledPlugin], skipped: [PluginStore.Skipped]))?
     private static var scanning = false
+    /// A scan wanted while one goes on (it may have started before what changed): one more after it; and what waits for
+    /// the scans wanted to be in.
+    private static var scanAgain = false
+    private static var waiting: [() -> Void] = []
 
+    /// The plugins as last scanned (none scanned yet: none, until the scan started then is in). `rescan`: scanned now,
+    /// on this thread (the settings window, which shows what is there at once).
     static func current(rescan: Bool = false) -> [InstalledPlugin] {
-        guard rescan || cached == nil else {
-            if let cached, Date().timeIntervalSince(cached.at) >= 30, !scanning {
-                scanning = true
-                DispatchQueue.global(qos: .utility).async {
-                    let result = PluginStore.load()
-                    DispatchQueue.main.async {
-                        self.cached = (Date(), result)
-                        scanning = false
-                        found(result.plugins)
-                    }
-                }
-            }
+        guard rescan else {
+            if cached.map({ Date().timeIntervalSince($0.at) >= 30 }) ?? true { scanInBackground() }
             return cached?.result.plugins ?? []
         }
         let result = PluginStore.load()
@@ -29,9 +25,51 @@ enum LivePlugins {
         return result.plugins
     }
 
+    /// Scanned again in the background (a text field became active): `scanned`, on the main thread, once a scan that
+    /// started after this is in (`current()` gives what it found).
+    static func rescan(scanned: @escaping () -> Void) {
+        waiting.append(scanned)
+        if scanning { scanAgain = true } else { scanInBackground() }
+    }
+
+    private static func scanInBackground() {
+        guard !scanning else { return }
+        scanning = true
+        let started = Date()
+        DispatchQueue.global(qos: .utility).async {
+            let result = PluginStore.load()
+            DispatchQueue.main.async {
+                // Unless the settings scanned meanwhile (`current(rescan: true)`): theirs is as new.
+                if (cached?.at ?? .distantPast) < started {
+                    let before = cached?.result.plugins
+                    cached = (Date(), result)
+                    found(result.plugins)
+                    if before != result.plugins { changed() }
+                }
+                scanning = false
+                if scanAgain {
+                    scanAgain = false
+                    scanInBackground()
+                    return
+                }
+                let done = waiting
+                waiting = []
+                done.forEach { $0() }
+            }
+        }
+    }
+
     /// Told the plugins each scan finds, on the main thread: the input method's `SuggestionsShared.pluginsFound` (one
     /// found here for the first time has its completion sources turned on); nothing by default.
     static var found: ([InstalledPlugin]) -> Void = { _ in }
+    /// Told on the main thread when a scan in the background found other plugins than before (the first one at launch
+    /// too): the field's "@" list, if one is open, shows them at once.
+    static var changed: () -> Void = {}
+
+    /// The plugins scanned in the background now, at launch: the first "@" has them.
+    static func prepare() {
+        _ = current()
+    }
 }
 
 /// How much each @ command is used (the order of the command list), shared by every text field and kept
@@ -64,17 +102,44 @@ enum CommandUsageStore {
 enum LiveConfig {
     private static var cached: (url: URL, date: Date?, config: Config?)?
 
+    /// The config, or the defaults while the file doesn't parse (a comma left in TextEdit): what typing goes by, which a
+    /// broken file mustn't stop. Never what deletes, trims or starts recording anything (clipboard history, the cached
+    /// lists of suggestions): the defaults aren't the user's settings (a limit of 20 would drop the rest of a history of
+    /// 100, a history turned off would record again). That goes by `currentIfValid`, and does nothing while it is nil.
     static var current: Config { currentIfValid ?? .default }
 
-    /// The input menu must still report a broken file and disable actions that would overwrite it.
+    /// The config as the file has it; nil while it doesn't parse. The input menu must still report a broken file and
+    /// disable actions that would overwrite it; what deletes, trims or records anything waits for the file to parse.
+    /// Read anew and parsing (fixed in an editor, say), it says so (`parsedAnew`).
     static var currentIfValid: Config? {
         let url = Config.defaultURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        let date = modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.config }
         let config = try? Config.load(from: url)
         cached = (url, date, config)
+        if config != nil { parsedAnew() }
         return config
     }
+
+    /// Told on the main thread each time the file is read anew and parses: the input method's English words whose
+    /// write failed are tried again (`EnglishWords.Writer.retry`, set in `runServer`); nothing by default.
+    static var parsedAnew: () -> Void = {}
+
+    /// The file at `url` read now, off the main thread, with its modification date (nil: it changed while it was read,
+    /// or doesn't parse): what `take` makes the settings, an English word learned (`EnglishWords.Writer`).
+    static func read(_ url: URL) -> (url: URL, date: Date?, config: Config)? {
+        let date = modificationDate(url)
+        guard let config = try? Config.load(from: url), modificationDate(url) == date else { return nil }
+        return (url, date, config)
+    }
+
+    /// What `read` read, as the settings now, unless the file changed since: the next key doesn't parse it again.
+    static func take(_ read: (url: URL, date: Date?, config: Config)) {
+        guard read.url == Config.defaultURL, modificationDate(read.url) == read.date else { return }
+        cached = (read.url, read.date, read.config)
+    }
+
+    fileprivate static func modificationDate(_ url: URL) -> Date? { FileDate.own(url.path) }
 }
 
 /// The user's jargon list (for explaining the terms a jargon (黑话) line uses), re-read when the file changes.
@@ -83,11 +148,31 @@ enum LiveJargon {
 
     static func entries(for config: Config) -> [JargonEntry] {
         let url = config.jargonURL
-        let date = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
+        let date = LiveConfig.modificationDate(url)
         if let cached, cached.url == url, cached.date == date { return cached.entries }
         let entries = date == nil ? [] : JargonLibrary.load(from: url)
         cached = (url, date, entries)
         return entries
+    }
+
+    /// What was read of the list at `url` elsewhere (`date`: the file's modification date then; off the main thread at
+    /// launch, `LaunchWarmUp`), as the list now, unless the file changed since: the first key doesn't read it again.
+    static func take(url: URL, date: Date?, entries: [JargonEntry]) {
+        guard LiveConfig.modificationDate(url) == date else { return }
+        cached = (url, date, entries)
+    }
+}
+
+/// A file's modification date as `FileManager.attributesOfItem` gives it (a symbolic link's own, not its target's), from
+/// a single `lstat`: that dictionary of every attribute, the owner's and group's names looked up, takes about 50 times as
+/// long. For the files read again only when they change, several of them on each key (the config, the jargon list, the
+/// recent questions, an extension source's statuses, an extension's image).
+enum FileDate {
+    static func own(_ path: String) -> Date? {
+        var info = stat()
+        guard lstat(path, &info) == 0 else { return nil }
+        let time = info.st_mtimespec
+        return Date(timeIntervalSince1970: TimeInterval(time.tv_sec) + TimeInterval(time.tv_nsec) / 1_000_000_000)
     }
 }
 

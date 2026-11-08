@@ -1,0 +1,91 @@
+import Foundation
+
+/// The model made ready before a request goes to it, so that ⏎ doesn't wait for it: the on-device model loaded (it takes
+/// about half a second after a short idle, up to 1.5 s), a cloud provider's connection opened (after two or three minutes
+/// idle a new one takes 50 to 300 ms). Nothing of the user's is sent: the on-device model's loading sends nothing, and a
+/// built-in cloud provider at its own default base URL that a request succeeded at before gets a HEAD to its origin with
+/// no key and no body (`ConnectionWarmth`); never a base URL of the user's, never the hosted service. Whether it may is
+/// checked when it is asked for and again as the HEAD starts, in one step (`warmDue`).
+extension InputSession {
+    /// What the model would be asked for next, as the draft is now: the AI command it is (its name typed out or picked,
+    /// "@improve …"), else one @'s highlighted row when it is the AI's and something was typed or selected (never "@"
+    /// alone: it is often a mention, a sum, an app), else the AI command highlighted in a command list inside a text, else
+    /// Translate as You Type, on in this field. Nil: nothing that asks the model.
+    var modelAhead: String? {
+        if let command = composer.draftCommand, Self.asksTheModel(command) { return command.name }
+        if let (text, letters) = composer.oneAt {
+            guard !text.isEmpty || letters != nil || composer.selection != nil else { return nil }
+            let (rows, row) = (composer.oneAtRows, composer.oneAtHighlighted)
+            guard rows.indices.contains(row), let command = Self.asksTheModel(rows[row]) else { return nil }
+            return command.name
+        }
+        if composer.paletteQuery != nil {
+            let (matches, row) = (composer.paletteMatches, composer.paletteHighlighted)
+            if matches.indices.contains(row), Self.asksTheModel(matches[row]) { return matches[row].name }
+        }
+        return composer.translateMode != nil ? Self.translateAsYouType : nil
+    }
+
+    /// `modelAhead` for Translate as You Type.
+    static let translateAsYouType = "\u{0}translate as you type"
+
+    /// Whether `command` sends its text to the model the settings pick: `@improve`, `@translate`, `@question`, `@reply`
+    /// and the custom commands that write with it (not `@agent`: the agent has its own).
+    static func asksTheModel(_ command: Command) -> Bool { command.kind == .convert || command.kind == .generate }
+
+    /// The command one @'s `row` sends to the model on ⏎ (a writing action, a rewrite of the selection, an AI command
+    /// found by name); nil for the rows that send nothing (a value, an app, a reminder, the other commands).
+    static func asksTheModel(_ row: OneAt.Action) -> Command? {
+        switch row {
+        case let .command(command), let .write(command): return asksTheModel(command) ? command : nil
+        case .edit: return .improve
+        case .value, .open, .reminder: return nil
+        }
+    }
+
+    /// After the composer answered: what the model would be asked for next changed (`modelAhead`) to something, so it is
+    /// made ready now (`warmModel`), once while it stays the same. Translate as You Type loads the on-device model only:
+    /// a cloud provider's connection is opened for an AI command and autocomplete, as the owner approved, not for it.
+    func warmModelAhead() {
+        let ahead = modelAhead
+        guard ahead != modelWarmedFor else { return }
+        modelWarmedFor = ahead
+        if let ahead { warmModel(connection: ahead != Self.translateAsYouType) }
+    }
+
+    /// The model the AI commands go to made ready for a request: the on-device one loaded, once a minute at most
+    /// (`AutocompleteStore.prewarmDue`), else (`connection`) the provider's connection opened where nothing went to it
+    /// lately, it is at its own default base URL and a request succeeded there before (`Converter.warmTarget`, its HEAD
+    /// made ready off this thread, `Converter.warmHead`, and checked again as it starts, `warmDue`; where the shell does:
+    /// `SessionServices.warmsConnections`). Nothing during secure input, nor in an app with no AI, nor for the hosted
+    /// service.
+    func warmModel(connection: Bool = true) {
+        let config = services.loadSettings()
+        guard !secureInputActive(), config.allowsAI(in: app) else { return }
+        switch config.provider {
+        case .apple:
+            guard services.autocomplete.prewarmDue(at: services.uptime()) else { return }
+            services.converter.prewarmOnDevice()
+        case .hosted:
+            return
+        case .bedrock, .anthropic, .gemini, .openai:
+            guard connection, services.warmsConnections, let target = Converter.warmTarget(config.provider, config: config) else { return }
+            let (converter, focus) = (services.converter, fieldSession)
+            tasks.start(nil) { post in
+                if let head = converter.warmHead(for: target) { post(.warmDue(head, target: target, focus: focus)) }
+            }
+        }
+    }
+
+    /// The HEAD for `target` made ready off this thread (`TaskUpdate.warmDue`: its request and its task, not started),
+    /// checked again and started in one step, nothing scheduled between the two (starting it doesn't block). It goes only
+    /// in the field it was asked for in (`focus`) and, as when it was asked for (`warmModel`), not during secure input nor
+    /// in an app with No AI, and only for the provider and the address the settings still give. Else none goes: let go
+    /// of, it is cancelled unsent.
+    func warmDue(_ head: WarmHead, target: WarmTarget, focus: Int) {
+        let config = services.loadSettings()
+        guard focus == fieldSession, services.warmsConnections, !secureInputActive(), config.allowsAI(in: app),
+              Converter.warmTarget(config.provider, config: config) == target else { return }
+        head.start()
+    }
+}

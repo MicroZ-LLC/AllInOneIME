@@ -77,6 +77,9 @@ struct ProviderTests {
         let openai = try json(request(.openai, ProviderSettings(model: "some-model", effort: "low")))
         #expect(openai["max_completion_tokens"] as? Int == 1000 && openai["max_tokens"] == nil)
         #expect(openai["reasoning_effort"] as? String == "low")
+        // OpenAI's base URL written another way is still OpenAI's: its default model, max_completion_tokens.
+        let written = try json(request(.openai, ProviderSettings(baseURL: "HTTPS://API.OpenAI.com/v1/")))
+        #expect(written["model"] as? String == "gpt-6-luna" && written["max_completion_tokens"] as? Int == 1000)
         #expect(throws: ProviderError.invalidBaseURL("not a url")) {
             try request(.openai, ProviderSettings(model: "m", baseURL: "not a url"))
         }

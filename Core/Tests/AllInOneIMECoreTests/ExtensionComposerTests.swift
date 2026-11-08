@@ -36,10 +36,13 @@ struct ExtensionComposerTests {
             .environment(for: command, base: ["PATH": "/usr/bin:/bin"], preferences: preferences, action: action)
     }
 
-    /// Runs what `effects` start, as the controller does, and gives the composer each update; the effects of that.
+    /// Runs what `effects` start, as the controller does, and gives the composer each update; the effects of that. Within
+    /// a time limit no busy test run reaches (`Timing`), not the script's own: what it does is checked here, not how long
+    /// it takes (the start of a run on a small machine can hold a program up past its 10 s).
     @discardableResult
     func finish(_ effects: [Composer.Effect], in c: Composer, preferences: [String: String] = [:]) async -> [Composer.Effect] {
-        guard let start = started(effects), let script = start.command.script else { return [] }
+        guard let start = started(effects), var script = start.command.script else { return [] }
+        script.timeout = Double(Timing.longSleep)
         var out: [Composer.Effect] = []
         do {
             for try await update in CommandRunner.run(script, arguments: start.arguments,
@@ -53,9 +56,12 @@ struct ExtensionComposerTests {
         return out
     }
 
-    /// Runs the list being typed in `c` once, as the controller does after its `queryDelay`.
+    /// Runs the list being typed in `c` once, as the controller does after its `queryDelay` (within a time limit no busy
+    /// test run reaches, as `finish`).
     func runList(_ c: Composer) async throws -> [Composer.Effect] {
-        let query = try #require(c.listQuery), script = try #require(c.draftCommand?.script)
+        let query = try #require(c.listQuery)
+        var script = try #require(c.draftCommand?.script)
+        script.timeout = Double(Timing.longSleep)
         guard case let .success(arguments) = script.arguments(from: query) else { return [] }
         var output = ScriptOutput.text("")
         for try await update in CommandRunner.run(script, arguments: arguments, environment: environment(script, query: query)) where update.isFinal {
@@ -84,11 +90,15 @@ struct ExtensionComposerTests {
         let d = composer(folder)
         typeKeys("@uu", d)
         #expect(started(d.handleKeyDown(enterKey).effects) != nil && d.draft == "@uuid ")
-        // With another action key, ⏎ in the list only picks.
+        // With another action key, ⏎ does the highlighted row too (one @: ⏎ does it); Tab only picks.
         let e = composer(folder)
         e.actionKey = .optionTap
         typeKeys("@uu", e)
-        #expect(started(e.handleKeyDown(enterKey).effects) == nil && e.draft == "@uuid ")
+        #expect(started(e.handleKeyDown(enterKey).effects) != nil && e.draft == "@uuid ")
+        let t = composer(folder)
+        t.actionKey = .optionTap
+        typeKeys("@uu", t)
+        #expect(started(t.handleKeyDown(tab).effects) == nil && t.draft == "@uuid ")
     }
 
     @Test func argumentsComeFromTheText() async throws {
@@ -265,9 +275,10 @@ struct ExtensionComposerTests {
         let list = try #require(c.currentList)
         #expect(list.items.map(\.title) == ["Jane j", "Open her page", "Copy her id", "More about her", "Information only"])
         #expect(c.listItem?.title == "Jane j" && c.handleKeyDown(copyKey).effects.first == .copy("jdoe"))
-        // Another key: the list belongs to the text before (the controller runs it again after `queryDelay`).
+        // Another key: the rows of the text before stay until its run answers (the controller runs it again after
+        // `queryDelay`), and no row of theirs is picked meanwhile.
         typeKeys("a", c)
-        #expect(c.currentList == nil && c.listQuery == "ja")
+        #expect(c.currentList?.items.first?.title == "Jane j" && c.listQuery == "ja" && c.listItem == nil)
         _ = try await runList(c)
         // ↑↓ skip rows of information; Tab completes the text.
         _ = c.handleKeyDown(upKey)
@@ -350,10 +361,15 @@ struct ExtensionComposerTests {
         let e = composer(folder)
         typeKeys("@enc", e)
         #expect(e.paletteMatches.map(\.name) == ["base64"])
-        // Another digit picks a row.
+        // Another digit is text (one @); ↓ and Tab pick the second row.
         let f = composer(folder)
         typeKeys("@base", f)
         _ = f.handleKeyDown(k("2"))
-        #expect(f.draft == "@bases ")
+        #expect(f.draft == "@base2" && f.draftCommand == nil)
+        let g = composer(folder)
+        typeKeys("@base", g)
+        _ = g.handleKeyDown(downKey)
+        _ = g.handleKeyDown(tab)
+        #expect(g.draft == "@bases ")
     }
 }

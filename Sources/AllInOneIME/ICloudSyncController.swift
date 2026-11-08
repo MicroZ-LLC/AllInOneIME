@@ -104,14 +104,15 @@ final class ICloudSyncController: ObservableObject {
     static let rimeInterval: TimeInterval = 30 * 60
     static let rimeIdle: TimeInterval = 30
 
-    /// The checks' view of this Mac: which providers have a key (the keychain item's attributes, never the key), the
-    /// AWS profiles, the providers offered.
+    /// The checks' view of this Mac: where each provider's key comes from (the keychain item's attributes, never the
+    /// key; one from the login shell counts only for a base URL it goes to, as in Settings), the AWS profiles, the
+    /// providers offered.
     nonisolated static var liveEnvironment: ICloudSync.Environment {
-        ICloudSync.Environment(hasKey: { APIKeys.source($0) != .none }, awsProfiles: { AWSSharedConfig.profileNames() },
+        ICloudSync.Environment(keySource: { APIKeys.source($0) }, awsProfiles: { AWSSharedConfig.profileNames() },
                                offeredProviders: Provider.offered, interfaceLanguages: InterfaceLanguage.shipped())
     }
 
-    /// The setting as the config file has it now.
+    /// The setting as the config file has it now: the file read and parsed each time, so asked once for both switches.
     private var settings: ICloudSyncSettings { ((try? Config.load(from: engine.configURL)) ?? .default).iCloudSync }
 
     /// Rime's sync folder in the shared one.
@@ -141,7 +142,8 @@ final class ICloudSyncController: ObservableObject {
     /// Sync Now (and the switches in Settings): at once, the learned words too.
     func syncNow() {
         run()
-        if settings.enabled, settings.learnedWords { syncLearnedWords() }
+        let on = settings
+        if on.enabled, on.learnedWords { syncLearnedWords() }
     }
 
     private func schedule(after delay: TimeInterval) {
@@ -376,7 +378,9 @@ final class ICloudSyncController: ObservableObject {
 
     /// The learned words: Rime's sync into the shared folder's `rime/`, the other Macs' snapshots downloaded first.
     func syncLearnedWords() {
-        guard !sample, settings.enabled, settings.learnedWords, engine.folder.isAvailable else { return }
+        guard !sample else { return }
+        let on = settings
+        guard on.enabled, on.learnedWords, engine.folder.isAvailable else { return }
         let folder = engine.folder
         try? FileManager.default.createDirectory(at: rimeFolder, withIntermediateDirectories: true)
         folder.downloadAll(in: ICloudSync.rimeFolder)
@@ -395,7 +399,8 @@ final class ICloudSyncController: ObservableObject {
     /// Every minute: the learned words when they're due (at start, then every 30 minutes), nothing typed for a while and
     /// nothing being composed.
     private func rimeIfDue() {
-        guard settings.enabled, settings.learnedWords else { return }
+        let on = settings
+        guard on.enabled, on.learnedWords else { return }
         let due = rimeWanted || lastRimeSync.map { Date().timeIntervalSince($0) >= Self.rimeInterval } ?? true
         guard due, secondsSinceKey() >= Self.rimeIdle, !composing() else { return }
         syncLearnedWords()
@@ -539,12 +544,16 @@ final class ICloudSyncController: ObservableObject {
     // MARK: Applying
 
     /// What reading the config again doesn't do by itself: Settings and the input method told, the menu bar icon,
-    /// fuzzy pinyin (Rime deployed again), the interface language, a language pack for an input language added.
+    /// fuzzy pinyin and the characters (Rime deployed again), the interface language, a language pack for an input language
+    /// added.
     static func applyLive(_ report: ICloudSyncEngine.Report) {
         let config = LiveConfig.current
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         if report.configKeys.contains("menuBarIcon") { MenuBarIcon.shared.apply(config.menuBarIcon) }
-        if report.configKeys.contains("fuzzyPinyin") { RimeFuzzy.apply(config.fuzzyPinyin) }
+        if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters"),
+           let valid = LiveConfig.currentIfValid {
+            RimeFuzzy.apply(valid.fuzzyPinyin, characters: valid.typedChinese)
+        }
         if report.configKeys.contains("uiLanguage") {
             UIText.choice = config.uiLanguage
             SettingsWindow.shared.updateTitle()

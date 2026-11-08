@@ -23,8 +23,9 @@ public enum ICloudSync {
         case settings
         /// The jargon list and `customCommands`.
         case jargon
-        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`); and the
-        /// English words pinyin offers (`englishWordsKey`), learned or added (`addedEnglishWordsKey`).
+        /// Rime's user dictionary: what pinyin learned from the user's choices (librime's own sync, `RimeSync`); the
+        /// English words pinyin offers (`englishWordsKey`), learned or added (`addedEnglishWordsKey`); and the candidates
+        /// the user removed (`removedCandidatesKey`).
         case learnedWords
         /// `redaction.customWords`: off by default (iCloud Drive is end-to-end encrypted only with Advanced Data Protection).
         case hiddenWords
@@ -44,8 +45,8 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "keyboardLayouts", "candidateLayout",
+        "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
@@ -55,6 +56,8 @@ public enum ICloudSync {
     /// (`Config.addedEnglishWords`): with the words it learned.
     public static let englishWordsKey = "englishWords"
     public static let addedEnglishWordsKey = "addedEnglishWords"
+    /// The candidates the user removed (`Config.removedCandidates`): with the words learned, what pinyin no longer offers.
+    public static let removedCandidatesKey = "removedCandidates"
     /// The jargon list and the recent questions: entries of `settings.json` that stamp a file next to it (`jargonFile`,
     /// `questionsFile`), their value its SHA-256 (`fileValue`).
     public static let jargonKey = "file:jargon"
@@ -92,7 +95,7 @@ public enum ICloudSync {
         switch key {
         case commandsKey, jargonKey: return .jargon
         case hiddenWordsKey: return .hiddenWords
-        case englishWordsKey, addedEnglishWordsKey: return .learnedWords
+        case englishWordsKey, addedEnglishWordsKey, removedCandidatesKey: return .learnedWords
         case questionsKey: return .recentQuestions
         default: return nil
         }
@@ -245,11 +248,7 @@ public enum ICloudSync {
         /// The file without `keys`: only their text goes.
         public func removing(_ keys: Set<String>) -> Data {
             if let text, let out = JSONFileText.patched(text, setting: [:], keys: keys) { return Data(out.utf8) }
-            var all = entries.mapValues(\.json)
-            for key in keys { all[key] = nil }
-            let encoder = JSONEncoder()
-            encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
-            return (try? encoder.encode(AIConfig.JSONValue.object(all))) ?? Data("{}".utf8)
+            return whole { all in for key in keys { all[key] = nil } }
         }
 
         /// The file with `changes` written in: only those keys' text changes.
@@ -257,8 +256,14 @@ public enum ICloudSync {
             let values = changes.mapValues(\.json)
             if let text, let out = JSONFileText.patched(text, setting: values, keys: Set(values.keys)) { return Data(out.utf8) }
             // No file yet (or text it can't patch in place): the entries it could read, and the changes.
+            return whole { all in for (key, value) in values { all[key] = value } }
+        }
+
+        /// The file written whole, where there is no text to patch in place: the entries it could read, as `edit` leaves
+        /// them.
+        private func whole(_ edit: (inout [String: AIConfig.JSONValue]) -> Void) -> Data {
             var all = entries.mapValues(\.json)
-            for (key, value) in values { all[key] = value }
+            edit(&all)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
             return (try? encoder.encode(AIConfig.JSONValue.object(all))) ?? Data("{}".utf8)
@@ -379,6 +384,7 @@ public enum ICloudSync {
             for key in settingsKeys { out[key] = encoded[key] }
             // Written into the file only when off (the trigger: when it isn't @); synced either way.
             out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
+            out["notifiesUpdates"] = .bool(config.notifiesUpdates)
             out["commandTrigger"] = .string(config.commandTrigger)
             if case var .object(redaction)? = encoded["redaction"] {
                 redaction["customWords"] = nil
@@ -397,7 +403,7 @@ public enum ICloudSync {
             out[hiddenWordsKey] = redaction["customWords"] ?? .array([])
         }
         if categories.contains(.learnedWords) {
-            for key in [englishWordsKey, addedEnglishWordsKey] { out[key] = encoded[key] ?? .array([]) }
+            for key in [englishWordsKey, addedEnglishWordsKey, removedCandidatesKey] { out[key] = encoded[key] ?? .array([]) }
         }
         return out
     }
@@ -424,9 +430,10 @@ public enum ICloudSync {
     }
 
     /// The collections a joining (or rejoining) Mac merges with iCloud's rather than taking iCloud's: its custom
-    /// commands (by name, iCloud's on a clash), hidden words, English words (those added too) and jargon lines (each
-    /// once). Recent questions are always merged (`ICloudSyncEngine`).
-    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, englishWordsKey, addedEnglishWordsKey, jargonKey]
+    /// commands (by name, iCloud's on a clash), hidden words, English words (those added too), the candidates removed
+    /// and jargon lines (each once). Recent questions are always merged (`ICloudSyncEngine`).
+    public static let mergedOnJoin: Set<String> = [commandsKey, hiddenWordsKey, englishWordsKey, addedEnglishWordsKey,
+                                                   removedCandidatesKey, jargonKey]
 
     /// What one run does with the keys: what comes into this Mac's config, what goes into `settings.json`, and this Mac's
     /// record afterwards.
@@ -725,6 +732,7 @@ public enum ICloudSync {
     /// some maybe only in part.
     @discardableResult
     public static func writeConfig(_ config: Config, readAs old: Config, keys: Set<String>, at url: URL) throws -> Set<String> {
+        AIConfig.fileLock.lock(); defer { AIConfig.fileLock.unlock() }  // from the file's read to its write
         guard FileManager.default.fileExists(atPath: url.path) else {
             try config.write(to: url)
             return keys
@@ -790,7 +798,7 @@ public enum ICloudSync {
     }
 
     /// Hidden words merged: iCloud's, then this Mac's that iCloud's lack, as they are matched (`key`: ignoring case; the
-    /// English words added by their letters, `EnglishWords.key`).
+    /// English words added by their letters, `EnglishWords.key`; the candidates removed by their whole text, as shown).
     public static func mergedWords(_ theirs: AIConfig.JSONValue, _ mine: AIConfig.JSONValue,
                                    key: (String) -> String = { $0.lowercased() }) -> AIConfig.JSONValue {
         let icloud = theirs.strings ?? [], local = mine.strings ?? []
@@ -908,7 +916,9 @@ public enum ICloudSync {
     /// What the checks need of this Mac: which providers have a key (asked without reading it), the AWS profiles, the
     /// providers offered. The tests give their own.
     public struct Environment: Sendable {
-        public var hasKey: @Sendable (Provider) -> Bool
+        /// Where each provider's key comes from (`APIKeys.source`: the keychain item's attributes, never the key): one
+        /// set in the login shell counts only for a base URL it goes to (`APIKeys.Source.sent(by:to:)`), as in Settings.
+        public var keySource: @Sendable (Provider) -> APIKeys.Source
         /// The AWS profiles in ~/.aws (nil: not checked).
         public var awsProfiles: (@Sendable () -> [String])?
         public var offeredProviders: [Provider]
@@ -916,9 +926,12 @@ public enum ICloudSync {
         /// refused.
         public var interfaceLanguages: [String]
 
-        public init(hasKey: @escaping @Sendable (Provider) -> Bool = { _ in true }, awsProfiles: (@Sendable () -> [String])? = nil,
+        /// `hasKey`: whether each provider has a key, as if the keychain held it; `keySource`, where given, where it
+        /// comes from instead (this Mac's: `APIKeys.source`).
+        public init(hasKey: @escaping @Sendable (Provider) -> Bool = { _ in true },
+                    keySource: (@Sendable (Provider) -> APIKeys.Source)? = nil, awsProfiles: (@Sendable () -> [String])? = nil,
                     offeredProviders: [Provider] = Provider.allCases, interfaceLanguages: [String] = InterfaceLanguage.builtIn) {
-            self.hasKey = hasKey
+            self.keySource = keySource ?? { hasKey($0) ? .keychain : .none }
             self.awsProfiles = awsProfiles
             self.offeredProviders = offeredProviders
             self.interfaceLanguages = interfaceLanguages
@@ -928,10 +941,13 @@ public enum ICloudSync {
     /// Why `value` (nil: deleted) can't be `key`'s on this Mac, by the rules Settings keeps to; nil when it can. Names a
     /// newer version added where a list can do without them (a language, a fuzzy pair, a place to continue in) are left
     /// out when the config reads it, as for a file written by a newer version; one a single value needs is refused.
-    public static func problem(_ key: String, _ value: AIConfig.JSONValue?, environment env: Environment) -> Problem? {
+    /// `config`: what the value goes into, with what came in before it (a provider's base URL, where its key must go).
+    public static func problem(_ key: String, _ value: AIConfig.JSONValue?, environment env: Environment,
+                               in config: Config = .default) -> Problem? {
         guard let value else {
             // Only what the config may leave out can be deleted.
-            return key.hasPrefix(appPrefix) || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert"].contains(key)
+            return key.hasPrefix(appPrefix)
+                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters"].contains(key)
                 ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
@@ -956,13 +972,16 @@ public enum ICloudSync {
         }
         switch key {
         case "improveTranslates", "voiceInput", "claudeInBackground", "rememberQuestions", "menuBarIcon", "typeOut",
-             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "useSelection", "learnsEnglishWords":
+             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "notifiesUpdates", "useSelection", "learnsEnglishWords":
             if case .bool = value { return nil }
             return .wrongType
         case "provider":
             guard case let .string(name) = value else { return .wrongType }
             guard let provider = Provider(rawValue: name), env.offeredProviders.contains(provider) else { return .unknownValue }
-            return [.anthropic, .gemini, .openai, .hosted].contains(provider) && !env.hasKey(provider) ? .noKey : nil
+            // A key from the login shell only where it goes: its base URL as it comes in too (its key sorts before this).
+            let host = HTTPProviders.host(of: config.settings(for: provider))
+            return [.anthropic, .gemini, .openai, .hosted].contains(provider)
+                && env.keySource(provider).sent(by: provider, to: host) == .none ? .noKey : nil
         case "awsProfile":
             guard case let .string(name) = value else { return .wrongType }
             if name.trimmingCharacters(in: .whitespaces).isEmpty { return .outOfRange }
@@ -1023,6 +1042,9 @@ public enum ICloudSync {
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil
+        case "chineseCharacters":
+            guard case let .string(name) = value else { return .wrongType }
+            return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil
         case "suggestionsInsert":
             return insertProblem(value)
         case "redaction":
@@ -1032,7 +1054,7 @@ public enum ICloudSync {
                 return .wrongType
             }
             return nil
-        case hiddenWordsKey, englishWordsKey, addedEnglishWordsKey:
+        case hiddenWordsKey, englishWordsKey, addedEnglishWordsKey, removedCandidatesKey:
             return strings() == nil ? .wrongType : nil
         case commandsKey:
             // An entry of a type this version doesn't know (a later one's) is kept as the config file keeps it; its name
@@ -1083,7 +1105,7 @@ public enum ICloudSync {
         var rejected: [String: Problem] = [:]
         for key in incoming.keys.sorted() {
             let value = incoming[key] ?? nil
-            if let problem = problem(key, value, environment: env) {
+            if let problem = problem(key, value, environment: env, in: current) {
                 rejected[key] = problem
                 continue
             }

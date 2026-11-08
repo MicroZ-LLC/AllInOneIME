@@ -475,16 +475,10 @@ final class FloatingPanel: ObservableObject {
 
     /// Its own looks at the tasks, every 15 s while it's expanded and a task it lists isn't done
     /// (skipped while AgentMonitor looks). Finished tasks don't change: `claude agents` isn't run
-    /// for them.
+    /// for them. Started as it opens (`shut` stops it).
     private func scheduleAgents() {
-        let wanted = isShowing
-        if wanted, agentTimer == nil {
-            agentTimer = repeating(agentInterval) { panel in
-                if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
-            }
-        } else if !wanted {
-            agentTimer?.invalidate()
-            agentTimer = nil
+        agentTimer = repeating(agentInterval) { panel in
+            if panel.isOnScreen, panel.tasksUnfinished { panel.lookAtTasks(force: false) }
         }
     }
 
@@ -1035,7 +1029,8 @@ struct FloatingPanelView: View {
     @ObservedObject var extensionSources: ExtensionSourceController = .shared
     @Environment(\.colorScheme) private var scheme
 
-    private static let cornerRadius: CGFloat = 14
+    /// As the candidate panel's (`CandidateView.Metrics.cornerRadius`): one look.
+    private static let cornerRadius: CGFloat = CandidateView.Metrics.cornerRadius
     /// Frosted glass (what's behind the window, blurred). Off for the self-test's images: an offscreen
     /// rendering has nothing behind it, so they show the solid color instead.
     static var glass = true

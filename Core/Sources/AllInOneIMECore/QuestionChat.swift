@@ -30,9 +30,8 @@ public enum QuestionChat {
     /// The rounds of a conversation kept as a refinement: `first` the first question (as sent), each turn the answer
     /// shown and the question typed after it, `latest` the answer to the last question (nil: not in yet).
     public static func rounds(first: String, turns: [Refinement.Turn], latest: String?) -> [Round] {
-        var questions = [first] + turns.map(\.instruction)
+        let questions = [first] + turns.map(\.instruction)
         let answers = turns.map { $0.answer.versions.first?.text ?? "" } + [latest ?? ""]
-        if questions.isEmpty { questions = [""] }
         return zip(questions, answers).map { Round(question: $0, answer: $1) }
     }
 

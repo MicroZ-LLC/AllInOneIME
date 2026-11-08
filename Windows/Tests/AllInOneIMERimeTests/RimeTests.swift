@@ -465,4 +465,32 @@ struct RimeEngineTests {
         let plain = try candidates("lan")
         #expect(!plain.contains { nan.contains($0) }, "lan without fuzzy pinyin: \(plain)")
     }
+
+    /// Traditional characters (`ChineseCharacters`) through OpenCC's data in the shared data's opencc
+    /// (Scripts/build-rime-data.sh; librime looks there after the user folder's, which has none): Taiwan's ruanjian is
+    /// 軟體, Hong Kong's 軟件; Simplified again once the patch goes.
+    @Test func traditionalCharactersWithTheRealEngine() throws {
+        _ = try RimeFixture.startup.get()
+        let schema = RimeFixture.sharedData.appendingPathComponent("rime_ice.schema.yaml")
+        let openCC = RimeFixture.sharedData.appendingPathComponent("opencc/s2twp.json")
+        try #require(FileManager.default.fileExists(atPath: openCC.path), "no \(openCC.path) (Scripts/build-rime-data.sh)")
+        func first(_ input: String) throws -> String? {
+            let s = try RimeFixture.session()
+            type(input, into: s)
+            return s.snapshot().candidates.first?.text
+        }
+        func apply(_ characters: ChineseCharacters) throws -> FuzzyPinyin.Outcome {
+            let outcome = try FuzzyPinyin.apply([], characters: characters, schema: schema, userDir: RimeFixture.userData)
+            RimeService.shared.redeploy()
+            #expect(RimeService.shared.waitUntilReady(timeout: 120))
+            return outcome
+        }
+        defer { _ = try? apply(.simplified) }
+        #expect(try apply(.taiwan) == .written)
+        #expect(try first("ruanjian") == "軟體")
+        #expect(try apply(.hongkong) == .written)
+        #expect(try first("ruanjian") == "軟件")
+        #expect(try apply(.simplified) == .removed)
+        #expect(try first("ruanjian") == "软件")
+    }
 }

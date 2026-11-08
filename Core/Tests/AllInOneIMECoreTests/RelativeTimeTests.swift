@@ -53,7 +53,7 @@ struct RelativeTimeTests {
         var intervals: [TimeInterval] = Array(stride(from: 60, to: 7200, by: 37))
         intervals += Array(stride(from: 7200, to: 3 * 86_400, by: 1613))
         intervals += Array(stride(from: 3 * 86_400, to: 800 * 86_400, by: 0.73 * 86_400))
-        let now = Date()
+        let now = t0  // a fixed day: from today, a span across a clock change (2026-11-01) counted a day differently
         for language in ["en", "zh-Hans", "zh-Hant", "de", "fr", "ja"] {
             let differing = intervals.filter {
                 let date = now - $0

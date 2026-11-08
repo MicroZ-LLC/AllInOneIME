@@ -3,6 +3,7 @@ import Foundation
 
 /// The core's icons (`IconToken`) as the candidate window draws them: a glyph of Segoe Fluent Icons (the code points
 /// Segoe MDL2 Assets has too, for Windows 10) white on a rounded square of the icon's color, an emoji, or an image file.
+/// An app's, a folder's or a file's own icon (`IconToken.Glyph.item`) is its fallback's glyph: none is read yet.
 /// A symbol named in SF Symbols' vocabulary (a custom command's, a plugin's, a script extension's) is drawn as the glyph
 /// Windows has for it, where this knows one, else as the icon's fallback.
 public enum PanelIcons {
@@ -27,6 +28,8 @@ public enum PanelIcons {
         case let .symbol(name, _): return Flat(kind: glyphKind, text: glyph(symbol: name) ?? fallback, fallback: fallback, color: color)
         case let .emoji(emoji, _): return Flat(kind: emojiKind, text: emoji, fallback: fallback, color: color)
         case let .image(path, _): return Flat(kind: imageKind, text: path, fallback: fallback, color: color)
+        // An app's, a folder's or a file's own icon: none on Windows yet, its fallback (`@open`'s) as before.
+        case .item: return Flat(kind: glyphKind, text: fallback, fallback: fallback, color: color)
         }
     }
 
@@ -54,6 +57,7 @@ public enum PanelIcons {
         case .link: code = 0xE71B  // Link
         case .prompt: code = 0xE8F2  // ChatBubbles
         case .snippet, .scriptInsert: code = 0xE8AC  // Rename
+        case .image: code = 0xE8B9  // Photo
         case .scriptShow: code = 0xE8E4  // AlignLeft
         case .scriptList: code = 0xE8FD  // BulletedList
         case .scriptBackground: code = 0xE81C  // History

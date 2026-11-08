@@ -63,7 +63,8 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     @discardableResult
-    public func importDictionary(from source: URL, fuzzyPinyin: [String]) throws -> PersonalDictionary {
+    public func importDictionary(from source: URL, fuzzyPinyin: [String],
+                                 characters: ChineseCharacters = .simplified) throws -> PersonalDictionary {
         // Read and validate the entire source before touching the installed setup, outside the write lock.
         let parsed = try Parsed.read(source)
         return try Self.locked {
@@ -85,7 +86,7 @@ public struct PersonalDictionaryStore: Sendable {
             let says = Self.tableSays + String(decoding: try encodeLine(Said(name: record.name, fileName: record.fileName,
                                                                               entryCount: record.entryCount)), as: UTF8.self)
             var changes: [Change] = [Change(url: table, data: Data(parsed.table(named: reference(record), says: says).utf8))]
-            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
+            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -93,7 +94,7 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    public func removeDictionary(named name: String, fuzzyPinyin: [String]) throws {
+    public func removeDictionary(named name: String, fuzzyPinyin: [String], characters: ChineseCharacters = .simplified) throws {
         try Self.locked {
             let before = try readState().state
             guard before.dictionaries.contains(where: { $0.name == name }) else { return }
@@ -101,7 +102,7 @@ public struct PersonalDictionaryStore: Sendable {
             try checkWrapper()
             var after = before
             after.dictionaries.removeAll { $0.name == name }
-            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, checkAlgebra: true)
+            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -109,21 +110,22 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary.
+    /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary, and the characters
+    /// (`characters`, `ChineseCharacters.patch`) go in the same file.
     @discardableResult
-    public func applyFuzzyPinyin(_ ids: [String]) throws -> FuzzyPinyin.Outcome {
+    public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified) throws -> FuzzyPinyin.Outcome {
         try Self.locked {
             // The user's own file (or a link): left alone before anything else is read, as fuzzy pinyin always did,
             // whatever the dictionaries' files are like.
             guard try checkPatch(requireOwnership: false) else {
                 let listed = (try? readState().state.dictionaries.isEmpty) == false
-                return !listed && FuzzyPinyin.known(ids).isEmpty ? .unchanged : .userFile
+                return !listed && FuzzyPinyin.known(ids).isEmpty && !characters.isTraditional ? .unchanged : .userFile
             }
             let (state, recovered) = try readState()
             if !state.dictionaries.isEmpty { try checkWrapper() }
             // After a first import that never finished, its wrapper goes too (if it is this app's).
             let leftWrapper = recovered && state.dictionaries.isEmpty && (try? checkWrapper()) != nil
-            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, checkAlgebra: false,
+            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, characters: characters, checkAlgebra: false,
                                                    includeWrapper: !state.dictionaries.isEmpty || leftWrapper)
             // Recovered: the manifest as it is now (the tables it lists all there).
             if recovered { changes.append(Change(url: manifest, data: try encode(state))) }
@@ -161,6 +163,10 @@ public struct PersonalDictionaryStore: Sendable {
     /// version (0.6.6) still takes the file as its own, and its fuzzy pinyin switch works (it writes the file without
     /// them, and this version adds them again); the second says what else it holds.
     private static let patchDictionaries = "# And the personal dictionaries (Settings → Input → Chinese)."
+    /// The line that says the patch has the filter of the candidates removed too (`withRemovedFilter`), and the filter,
+    /// appended to the schema's own (librime's "/+"), so it comes after rime-ice's: it sees the text as shown.
+    private static let patchRemoved = "# And the filter of the candidates removed (a right-click on one: Settings → Input → Chinese)."
+    private static let removedFilter = "  engine/filters/+:\n    - lua_filter@*\(RemovedCandidates.luaFilter)\n"
     /// The first line 0.6.7's first builds wrote instead, which 0.6.6 took for the user's: still this app's.
     private static let earlyPatchMarker = "# Written by AllInOneIME: personal dictionaries and fuzzy pinyin (Settings → Input). Edits here are replaced."
     private var folder: URL { userDirectory.appendingPathComponent(Self.folderName, isDirectory: true) }
@@ -315,23 +321,28 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    private func configurationChanges(for state: State, fuzzyPinyin: [String], checkAlgebra: Bool,
-                                      includeWrapper: Bool = true) throws -> [Change] {
+    private func configurationChanges(for state: State, fuzzyPinyin: [String], characters: ChineseCharacters,
+                                      checkAlgebra: Bool, includeWrapper: Bool = true) throws -> [Change] {
         let schemaText = (try? String(contentsOf: schema, encoding: .utf8)) ?? ""
         let fuzzy = FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText)
         if checkAlgebra, !FuzzyPinyin.known(fuzzyPinyin).isEmpty, fuzzy == nil {
             throw PersonalDictionaryError.unsupported(tr("无法读取当前拼音方案的模糊音规则。", "The current pinyin schema's spelling rules couldn't be read."))
         }
+        // Traditional characters: lines of their own at the end of the patch, whatever else it holds.
+        let traditional = characters.patch(schema: schemaText)
         var changes: [Change] = []
         if state.dictionaries.isEmpty {
-            changes.append(Change(url: patch, data: fuzzy.map { Data($0.utf8) }))
+            let text = fuzzy == nil && traditional == nil ? nil
+                : (fuzzy ?? FuzzyPinyin.marker + "\npatch:\n") + (traditional ?? "")
+            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
             let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
             var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
             // The dictionary changes; the database of learned words deliberately keeps its old identity.
             text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
-            changes.append(Change(url: patch, data: Data(text.utf8)))
+            text += traditional ?? ""
+            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper {
                 let base = try baseDictionary()
                 let tables = state.dictionaries.map { reference($0) } + base.tables
@@ -352,6 +363,19 @@ public struct PersonalDictionaryStore: Sendable {
             } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {}
         }
         return changes
+    }
+
+    /// `text`, the patch (nil: none), with AllInOneIME's filter of the candidates removed (`RemovedCandidates.luaFilter`)
+    /// last, when the shared data's Lua has it (`lua/` beside the schema: on the Mac the app's scripts, linked into the
+    /// pack); without a patch, one of the filter alone. Where it hasn't (Windows ships rime-ice's alone), the patch is as
+    /// it was, and `EnglishWordsEngine` leaves them out of what librime shows: a Lua filter librime can't load leaves no
+    /// candidate at all.
+    private func withRemovedFilter(_ text: String?) -> String? {
+        let script = schema.deletingLastPathComponent().appendingPathComponent("lua/\(RemovedCandidates.luaFilter).lua")
+        guard FileManager.default.fileExists(atPath: script.path) else { return text }
+        let text = text ?? FuzzyPinyin.marker + "\npatch:\n"
+        guard let start = text.range(of: "\npatch:\n") else { return text }
+        return String(text[..<start.lowerBound]) + "\n" + Self.patchRemoved + String(text[start.lowerBound...]) + Self.removedFilter
     }
 
     /// `import_tables` imports direct rows, not another dictionary's imports. Flatten the current
@@ -578,7 +602,7 @@ public struct PersonalDictionaryStore: Sendable {
             guard started, ended, let name, !name.isEmpty else {
                 throw PersonalDictionaryError.invalid(tr("词库头必须包含 name，并以 --- 和 ... 分隔。", "The dictionary header must contain name and be delimited by --- and ... ."))
             }
-            guard name.utf8.count <= 128, name.utf8.allSatisfy({ (65...90).contains($0) || (97...122).contains($0) || (48...57).contains($0) || [45, 46, 95].contains($0) }), name != ".", name != ".." else {
+            guard PersonalDictionaryStore.isName(name) else {
                 throw PersonalDictionaryError.unsupported(tr("name 只能包含英文字母、数字、-、_ 和 .，最多 128 字节。", "name may contain Latin letters, digits, -, _ and ., up to 128 bytes."))
             }
             let layout = columns ?? ["text", "code", "weight"]
@@ -605,7 +629,7 @@ public struct PersonalDictionaryStore: Sendable {
                 let rawWeight = weightIndex.flatMap { fields.indices.contains($0) ? fields[$0] : nil }?.trimmingCharacters(in: .whitespaces) ?? ""
                 let weight = rawWeight.isEmpty ? "100" : rawWeight
                 guard let numeric = Double(weight), numeric.isFinite, numeric >= 0,
-                      weight.range(of: #"^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#, options: .regularExpression) != nil else {
+                      weightPattern.firstMatch(in: weight, range: NSRange(weight.startIndex..., in: weight)) != nil else {
                     throw invalidLine(number, tr("weight 必须是有限的非负数。", "weight must be a finite, nonnegative number."))
                 }
                 if seen.insert(phrase + "\t" + code).inserted { entries.append(Entry(text: phrase, code: code, weight: weight)) }
@@ -613,6 +637,10 @@ public struct PersonalDictionaryStore: Sendable {
             guard !entries.isEmpty else { throw PersonalDictionaryError.invalid(tr("词库中没有带拼音编码的词条。", "The dictionary has no entries with pinyin codes.")) }
             return Parsed(name: name, sort: sort, entries: entries)
         }
+
+        /// What an entry's weight is written as: a plain decimal number, with an exponent or not. Made once: it is matched
+        /// against every entry of a file (up to 32 MiB of them).
+        private static let weightPattern = try! NSRegularExpression(pattern: #"^[+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$"#)
 
         /// The table as it is written, `says` its second line (`tableSays`).
         func table(named name: String, says: String) -> String {

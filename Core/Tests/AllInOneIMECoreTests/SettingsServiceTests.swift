@@ -53,6 +53,24 @@ struct SettingsServiceTests {
         #expect(mac.field("actionKey")?.choices?.count == 4)
     }
 
+    /// A new version's notification (`notifiesUpdates`) is the Mac's, right under Check for updates automatically and
+    /// only while that is on; set here, it is written.
+    @Test func theUpdateNotificationSwitchFollowsChecking() throws {
+        let (mac, url) = try service(#"{"provider": "anthropic"}"#, platform: .mac)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let general = try #require(mac.document().sections.first { $0.id == "general" }).fields.map(\.id)
+        let checking = try #require(general.firstIndex(of: "checkForUpdates"))
+        #expect(general.firstIndex(of: "notifiesUpdates") == checking + 1)
+        #expect(mac.document().field("notifiesUpdates")?.value == .bool(true))
+        #expect((try? mac.set("notifiesUpdates", to: .bool(false)).get()) != nil)
+        #expect(try !Config.load(from: url).notifiesUpdates && mac.document().field("notifiesUpdates")?.value == .bool(false))
+        #expect((try? mac.set("checkForUpdates", to: .bool(false)).get()) != nil)
+        #expect(mac.document().field("notifiesUpdates") == nil)
+        let (windows, folder) = try service(#"{"provider": "anthropic"}"#)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        #expect(!ids(windows.document()).contains("notifiesUpdates"))
+    }
+
     /// A provider's own fields only while it is the one in use; the key as a secret: never its value.
     @Test func theProviderInUse() async throws {
         do {
@@ -95,6 +113,23 @@ struct SettingsServiceTests {
         #expect(key.status?.hasSuffix("a1b2") == true && key.actions == ["setKey", "removeKey"])
         let text = String(decoding: try JSONEncoder().encode(service.document()), as: UTF8.self)
         #expect(!text.contains("gemini-env-key") && !text.contains("gemini-saved-key"))
+    }
+
+    /// A key set in the user's environment shows as set only while the base URL is one it is sent to (its provider's
+    /// own service, this computer: `APIKeys.shellKeyGoes`); with another service's there is no key until one is saved.
+    @Test(MemorySecrets(environment: ["OPENAI_API_KEY": "sk-proj-shell-0000-a1b2"]))
+    func aShellKeyShowsAsSetOnlyWhereItIsSent() throws {
+        func key(_ openai: String) throws -> SettingsDocument.Field {
+            try #require(try service(#"{"provider": "openai", "openai": \#(openai)}"#).0.document().field("openai.key"))
+        }
+        let shell = KeyState.shell("OPENAI_API_KEY").text(missing: "")
+        for sent in [#"{}"#, #"{"baseURL": "http://localhost:11434/v1", "model": "llama3"}"#] {
+            let field = try key(sent)
+            #expect(field.isSet == true && field.status == shell, "\(sent)")
+        }
+        let other = try key(#"{"baseURL": "https://api.deepseek.com/v1", "model": "deepseek-chat"}"#)
+        #expect(other.isSet == false && other.status == KeyState.missing.text(missing: tr("还没有 API key", "No API key yet")))
+        #expect(other.actions == ["setKey"])
     }
 
     /// Keys, tokens and what a window sends (words to hide, a command's prompt) go to the secret store and the file,
@@ -195,6 +230,11 @@ struct SettingsServiceTests {
         #expect(config.provider == .bedrock && config.temperature == nil)
         #expect((try? service.set("bedrock.region", to: .string("  ")).get()) != nil)
         #expect(try Config.load(from: url).region == nil)
+        // Pasted with a line break: saved without it, as the Mac's window saves it (GitHub #65).
+        #expect((try? service.set("bedrock.region", to: .string("us-west-2\n")).get()) != nil)
+        #expect((try? service.set("bedrock.modelId", to: .string("us.anthropic.claude-haiku-4-5-20251001-v1:0\r\n")).get()) != nil)
+        config = try Config.load(from: url)
+        #expect(config.region == "us-west-2" && config.modelId == "us.anthropic.claude-haiku-4-5-20251001-v1:0")
         // The Cloud's sign-in and Apple's model aren't Windows' choices.
         let providers = service.document().field("provider")?.choices?.compactMap(\.value.string) ?? []
         #expect(!providers.contains("apple") && !providers.contains("hosted") && providers.contains("anthropic"))

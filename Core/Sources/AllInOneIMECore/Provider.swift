@@ -38,6 +38,9 @@ public enum Provider: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    /// The host of the provider's own service (its default base URL's): the one its `keyVariables` go to.
+    var ownHost: String { HTTPProviders.host(of: .defaults(for: self)) ?? "" }
+
     /// Environment variables (of the user's login shell) that hold the API key when the keychain has none.
     public var keyVariables: [String] {
         switch self {
@@ -99,10 +102,20 @@ public struct ProviderSettings: Codable, Equatable, Sendable {
             return value
         }
         let base = pick(baseURL, d.baseURL)
-        // OpenAI's default model is OpenAI's: another service at its own base URL has no default.
-        let defaultModel = provider == .openai && base != d.baseURL ? nil : d.model
+        // OpenAI's default model is OpenAI's: another service at its own base URL has no default. OpenAI's written
+        // another way ("…/v1/", the host in capitals) is still OpenAI's.
+        let defaultModel = provider == .openai && Self.comparable(base) != Self.comparable(d.baseURL) ? nil : d.model
         return ProviderSettings(model: pick(model, defaultModel), baseURL: base,
                                 effort: effort ?? d.effort, temperature: temperature ?? d.temperature)
+    }
+
+    /// A base URL as compared: without the trailing "/" (as requests go, `HTTPProviders.makeRequest`), the scheme and
+    /// host in lower case. The path keeps its case: a server may tell it apart.
+    static func comparable(_ url: String?) -> String {
+        let url = (url ?? "").trimmingCharacters(in: CharacterSet(charactersIn: "/ "))
+        guard let scheme = url.range(of: "://") else { return url }
+        let path = url[scheme.upperBound...].firstIndex(of: "/") ?? url.endIndex
+        return url[..<path].lowercased() + url[path...]
     }
 
     /// `effort`, or nil when nothing is to be sent.
@@ -122,6 +135,9 @@ public enum ProviderError: Error, LocalizedError, Equatable {
     case insecureBaseURL(String)
     /// The keychain's key was saved for another host than the base URL's (`APIKeys.load(_:for:)`).
     case keyForAnotherHost(Provider, saved: String)
+    /// No key saved, and the one in the login shell (`variable`) goes only to the provider's own service, not the base
+    /// URL's (`APIKeys.shellKeyGoes`).
+    case shellKeyForAnotherHost(Provider, variable: String)
     case http(provider: Provider, status: Int, type: String?, message: String)
     case stream(provider: Provider, type: String, message: String)
     /// The model declined the request (the Claude API's `refusal` stop reason, Gemini's SAFETY finish).
@@ -140,6 +156,8 @@ public enum ProviderError: Error, LocalizedError, Equatable {
         case let .insecureBaseURL(url): return "Not sent over http:// to the internet (only to this Mac or the local network): \(url)"
         case let .keyForAnotherHost(p, saved):
             return "The \(p.displayName) API key was saved for \(saved), not this base URL: save the key again for it"
+        case let .shellKeyForAnotherHost(p, variable):
+            return "$\(variable) is sent only to \(p.ownHost), not this base URL: save a key for this service in the settings"
         case let .http(p, status, type, message): return "\(p.displayName) \(type ?? "HTTP \(status)"): \(message)"
         case let .stream(p, type, message): return "\(p.displayName) \(type): \(message)"
         case let .refused(p): return p == .apple ? "Apple Intelligence declined this request" : "The \(p.displayName) declined this request"
@@ -195,17 +213,22 @@ public struct ChatClient: Sendable {
             case .anthropic, .gemini, .openai, .hosted:
                 let provider = config.provider
                 let settings = config.settings(for: provider)
-                let host = HTTPProviders.host(of: settings) ?? ""
+                // A base URL with no host (typed without https://) is what's wrong, not the key looked up for it.
+                guard let host = HTTPProviders.host(of: settings) else {
+                    throw ProviderError.invalidBaseURL(settings.baseURL ?? "")
+                }
                 guard let key = try loadKey(provider, host)?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
                     throw provider == .hosted ? ProviderError.signedOut : ProviderError.missingKey(provider)
                 }
                 let maxTokens = body.inferenceConfig.maxTokens ?? config.maxTokens
                 let request = try HTTPProviders.makeRequest(body, provider: provider, settings: settings, key: key,
                                                             maxTokens: maxTokens, timeout: config.timeoutSeconds)
+                let warmth = bedrock.warmth
+                warmth.sending(to: request.url)
                 // The Claude API and OpenAI-compatible services: without the temperature for a model that refuses one
                 // (`TemperatureSupport`). Gemini and the hosted service send theirs as they are.
                 guard provider == .anthropic || provider == .openai, settings.temperature != nil else {
-                    return SSEStream.events(request, provider: provider, session: session)
+                    return SSEStream.events(request, provider: provider, session: session, warmth: warmth)
                 }
                 var without = settings
                 without.temperature = nil
@@ -213,7 +236,7 @@ public struct ChatClient: Sendable {
                                                           maxTokens: maxTokens, timeout: config.timeoutSeconds)
                 let session = session
                 return bedrock.temperatureSupport.adapting(provider, model: settings.model ?? "") { withoutTemperature in
-                    SSEStream.events(withoutTemperature ? retry : request, provider: provider, session: session)
+                    SSEStream.events(withoutTemperature ? retry : request, provider: provider, session: session, warmth: warmth)
                 }
             case .apple:
                 return AppleModel.stream(body, backend: apple, maxTokens: body.inferenceConfig.maxTokens ?? config.maxTokens,

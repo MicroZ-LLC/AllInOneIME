@@ -156,7 +156,7 @@ extension InputSession {
     /// row chosen when it started, ⏎ keypad Enter and Tab put in what is selected, → and Esc hide the panel, ⌃V again hides
     /// it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
     /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command the
-    /// composer's: nil). Any other key hides it and goes on (nil): digits are typed, never pick.
+    /// composer's: nil), ⌃⌦ with pinyin composed only hides it. Any other key hides it and goes on (nil): digits are typed, never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
         if isPasteAnywhere(event) {
             clipboardTookKey()
@@ -182,8 +182,12 @@ extension InputSession {
             return true
         }
         guard modifiers.isEmpty else {
+            // ⌃⌦ deletes the highlighted candidate (`Composer.deleteCandidate`): not one the history's rows hid. With
+            // nothing composed it goes on as it would (the app's; in a command's text, ⌦).
+            let deletes = event.key == .forwardDelete && modifiers == .control && composer.engineState.isComposing
+            if deletes { clipboardTookKey() }
             clipboardHide()
-            return nil
+            return deletes ? true : nil
         }
         switch event.key {
         case .enter, .keypadEnter, .tab:
@@ -326,7 +330,7 @@ extension InputSession {
             return
         }
         // Line breaks into a terminal only as a paste (a line break typed there is Return): else on one line.
-        let put = terminal && text.contains(where: \.isNewline) && !services.pastesInTerminal() ? Composer.oneLine(text) : text
+        let put = intoField(text)
         if key != nil { emit(.rowByKey) }
         emit(.commit(put))
         lastTyped.forget()
