@@ -20,7 +20,7 @@ TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # `make dmg` uses the Developer ID one, committed (every shipped copy carries it). A profile that doesn't fit the
 # signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
 # The Developer ID profile is the App ID's of the bundle ID in Resources/Info.plist (AllInOneIME's own system identity
-# since 0.7.2): made in the developer portal for it and committed at this path before a release.
+# since 0.7.2, 9SR8N3UD5Y.com.allinoneime.inputmethod.AllInOneIME).
 PROFILE ?=
 DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
 # The keychain access groups the entitlements give (one or more, the first the default): KeySync.accessGroup in the core.
