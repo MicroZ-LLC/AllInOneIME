@@ -400,19 +400,25 @@ struct ManifestRedirects: Sendable {
 }
 
 /// What `--apply-update` left behind for the input method that starts next: whether the update went in, and
-/// if not, why (the previous version is back). JSON in `UpdateResult.url`.
+/// if not, why (the previous version is back); and whether the helper got the input method started again. JSON in
+/// `UpdateResult.url`.
 public struct UpdateResult: Codable, Equatable, Sendable {
     public var from: String
     public var to: String
     public var ok: Bool
     public var error: String?
+    /// Why the input method wasn't running once the helper had started it again (nil: it was, or it wasn't the helper's
+    /// to start): it ran only once macOS or the user started it.
+    public var launchError: String?
     public var date: Date
 
-    public init(from: String, to: String, ok: Bool, error: String? = nil, date: Date = Platform.current.clock.now) {
+    public init(from: String, to: String, ok: Bool, error: String? = nil, launchError: String? = nil,
+                date: Date = Platform.current.clock.now) {
         self.from = from
         self.to = to
         self.ok = ok
         self.error = error
+        self.launchError = launchError
         self.date = date
     }
 

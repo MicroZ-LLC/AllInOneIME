@@ -166,7 +166,9 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
     public var updated = Date()
     /// The bundle IDs of the identity before: an app among `apps` is deleted only when it has one of them.
     public var bundleIDs: [String] = []
-    /// The input source to disable and take out of the user's input sources.
+    /// The input source to disable and take out of the user's input sources (by its input source ID), once the new
+    /// version's own is enabled: macOS lets only the user add a new input method, and until then the old one's entry may
+    /// be what its source is filed under.
     public var inputSource: String?
     /// The user defaults domains to remove (their files too, once emptied).
     public var defaultsDomains: [String] = []
@@ -178,8 +180,32 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
     public var keychainItems: [KeychainItem] = []
     /// The login keychain's originals of the keys handed over, to delete before their handover items are imported.
     public var loginKeys: [LoginKey] = []
+    /// The cache folders to delete: ~/Library/Caches/<one of `bundleIDs`>.
+    public var caches: [String] = []
 
     public init() {}
+
+    enum CodingKeys: String, CodingKey {
+        case format, handedOver, updated, bundleIDs, inputSource, defaultsDomains, apps, launchAgents, keychainGroup, keychainItems
+        case loginKeys, caches
+    }
+
+    /// A list missing from the file is empty (a record written before it was added).
+    public init(from decoder: any Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        format = try values.decode(Int.self, forKey: .format)
+        handedOver = try values.decodeIfPresent(Bool.self, forKey: .handedOver) ?? false
+        updated = try values.decodeIfPresent(Date.self, forKey: .updated) ?? Date()
+        bundleIDs = try values.decodeIfPresent([String].self, forKey: .bundleIDs) ?? []
+        inputSource = try values.decodeIfPresent(String.self, forKey: .inputSource)
+        defaultsDomains = try values.decodeIfPresent([String].self, forKey: .defaultsDomains) ?? []
+        apps = try values.decodeIfPresent([String].self, forKey: .apps) ?? []
+        launchAgents = try values.decodeIfPresent([LaunchAgent].self, forKey: .launchAgents) ?? []
+        keychainGroup = try values.decodeIfPresent(String.self, forKey: .keychainGroup)
+        keychainItems = try values.decodeIfPresent([KeychainItem].self, forKey: .keychainItems) ?? []
+        loginKeys = try values.decodeIfPresent([LoginKey].self, forKey: .loginKeys) ?? []
+        caches = try values.decodeIfPresent([String].self, forKey: .caches) ?? []
+    }
 
     /// The record's name, in ~/Library/Application Support/AllInOneIME.
     public static let fileName = "identity-cleanup.json"
@@ -196,7 +222,7 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
     /// Nothing left to remove.
     public var isEmpty: Bool {
         inputSource == nil && defaultsDomains.isEmpty && apps.isEmpty && launchAgents.isEmpty && keychainItems.isEmpty
-            && loginKeys.isEmpty
+            && loginKeys.isEmpty && caches.isEmpty
     }
 
     /// Whether what it lists is the next version's to do now (`handedOver`, or stale).

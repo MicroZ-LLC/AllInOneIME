@@ -306,6 +306,12 @@ struct UpdateTests {
         try result.write(to: url)
         #expect(UpdateResult.read(url) == result)
         #expect(UpdateResult.read(url.appendingPathExtension("missing")) == nil)
+        // The input method not started again (the update in): said with it; a result written without it reads back.
+        let notStarted = UpdateResult(from: "0.7.1", to: "0.7.2", ok: true, launchError: "open: -600", date: Date(timeIntervalSince1970: 1_800_000_000))
+        try notStarted.write(to: url)
+        #expect(UpdateResult.read(url) == notStarted && UpdateResult.read(url)?.launchError == "open: -600")
+        try Data(#"{"from":"0.7.0","to":"0.7.1","ok":true,"date":"2027-01-15T08:00:00Z"}"#.utf8).write(to: url)
+        #expect(UpdateResult.read(url)?.ok == true && UpdateResult.read(url)?.launchError == nil)
     }
 
     @Test func checkingByItselfIsOnUnlessTurnedOff() throws {

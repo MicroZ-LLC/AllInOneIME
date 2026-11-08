@@ -50,6 +50,7 @@ extension SelfTest {
             ("needs-macos", .needsNewerSystem(UpdateManifest.sample(version: "9.9.0", minimumSystem: "99.0")), nil),
             ("updated", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true)),
             ("rolled-back", .upToDate, UpdateResult(from: AppVersion.string, to: "9.9.0", ok: false, error: "it didn't start")),
+            ("not-started", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true, launchError: "open exited 1: -600")),
         ]
         var rendered = 0
         for (name, state, result) in states {

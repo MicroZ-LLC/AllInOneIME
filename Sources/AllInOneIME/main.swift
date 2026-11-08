@@ -521,6 +521,12 @@ if arguments.first == "--keychain-probe" {
     exit(KeychainProbe.run(Array(arguments.dropFirst())))
 }
 
+// Hidden: one call of Text Input Sources for the update helper's move to the new identity (`ChildInputSources`), which
+// never calls them itself; nothing else runs.
+if arguments.first == InputSourceCommand.option {
+    exit(InputSourceCommand.run(Array(arguments.dropFirst())))
+}
+
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
 for (path, outcome) in LegacyData.migrate() where outcome != .nothingToMove {
     switch outcome {

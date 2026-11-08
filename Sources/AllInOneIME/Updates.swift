@@ -21,7 +21,8 @@ import UserNotifications
 //    for it to end, moves the installed apps aside and the new ones in (`BundleSwap`, as the installer does),
 //    checks that the new input method starts and registers it; on any failure it puts the previous apps back
 //    and registers those again. Then it starts the input method again (with the settings window, if it was
-//    open), which reads what happened (`UpdateResult`) and says so on the About page.
+//    open; a new instance, checked to run: `UpdateRelaunch`), which reads what happened (`UpdateResult`) and says so
+//    on the About page. Each step goes to update.log and to the unified log.
 //
 // Only the two apps change: the settings, language packs, learned words and extensions live elsewhere
 // (~/.config/allinoneime, ~/Library/Application Support/AllInOneIME) and are never touched. An update with the new system
@@ -189,9 +190,11 @@ enum UpdateHelper {
     static let lsregister =
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
+    /// A line in update.log (its standard output) and in the unified log (no key is ever in one).
     static func say(_ text: String) {
         print("\(ISO8601DateFormatter().string(from: Date())) [\(getpid())] \(text)")
         fflush(stdout)
+        log.notice("update helper: \(text, privacy: .public)")
     }
 
     static func run(_ arguments: [String]) -> Int32 {
@@ -224,19 +227,33 @@ enum UpdateHelper {
 
         func finish(_ error: String?) -> Int32 {
             if let error { say("✗ \(error)") } else { say("✓ AllInOneIME \(to) is installed") }
-            do {
-                try UpdateResult(from: from, to: to, ok: error == nil, error: error).write(to: locations.result)
-            } catch {
-                say("could not write \(locations.result.path): \(error)")
+            var result = UpdateResult(from: from, to: to, ok: error == nil, error: error)
+            func write() {
+                do {
+                    try result.write(to: locations.result)
+                } catch {
+                    say("could not write \(locations.result.path): \(error)")
+                }
             }
+            write()
             if !keepStaged { try? manager.removeItem(at: staged) }
             // The input method back (new or previous), with its settings window if it was open: macOS would only
             // start it on the next keystroke, and the menu bar icon is its. Already started again by macOS, it's left
-            // alone unless the settings window is wanted (`open` then only shows it).
-            if !locations.isTest, BundleSwap.exists(locations.inputMethod),
-               reopenSettings || inputMethodPIDs(locations, staged: staged).isEmpty {
-                let open = UpdateProcess.run("/usr/bin/open", [locations.inputMethod.path] + (reopenSettings ? ["--args", "--settings"] : []), timeout: 30)
-                say("started the input method again (\(open.status))")
+            // alone unless the settings window is wanted (`open` then only shows it). Else a new instance, looked for
+            // until it runs: one that doesn't is said in the result, which it reads once it is started some other way.
+            let running = !inputMethodPIDs(locations, staged: staged).isEmpty
+            if !locations.isTest, BundleSwap.exists(locations.inputMethod), reopenSettings || !running {
+                let executable = locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME")
+                if let failure = UpdateRelaunch.start(locations.inputMethod, newInstance: !running, settings: reopenSettings,
+                                                      open: { let run = UpdateProcess.run("/usr/bin/open", $0, timeout: 30); return (run.status, run.output) },
+                                                      running: { !UpdateRelaunch.processes(running: executable).isEmpty }) {
+                    say("✗ the input method didn't start again: \(failure); it starts once it is chosen in the input menu or "
+                        + "AllInOneIME Settings is opened")
+                    result.launchError = failure
+                    write()
+                } else {
+                    say("started the input method again" + (running ? "" : " (a new instance)"))
+                }
             }
             return error == nil ? 0 : 1
         }
@@ -440,15 +457,23 @@ enum MigrationCommand {
         if !locations.isTest { UpdateHelper.stopInputMethod(locations, staged: staged) }
         let switcher = UpdateHelper.identitySwitch(placing: UpdatePayload(inputMethod: app, settingsApp: settings, identity: new),
                                                    version: version, staged: staged, locations: locations, simulateFailure: nil)
-        let report = UpdateHelper.migration(locations, say: { print($0); fflush(stdout) }).run(switcher)
+        let report = UpdateHelper.migration(locations, say: { line in
+            print(line)
+            fflush(stdout)
+            log.notice("migrate-identity: \(line, privacy: .public)")
+        }).run(switcher)
         if !report.notRestored { try? FileManager.default.removeItem(at: staged) }
         guard report.switched else {
-            printError("✗ \(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; nothing was changed"))
+            printError("✗ \(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; everything is put back as it was"))
             return 1
         }
         print(report.pending.isEmpty ? "✓ AllInOneIME \(version) is installed with the new identity"
               : "✓ AllInOneIME \(version) is installed with the new identity; left for its next launch: "
                 + report.pending.map(\.rawValue).joined(separator: ", "))
+        if !report.inputSourceEnabled {
+            print("  its input source isn't enabled yet: macOS lets only you add it (System Settings → Keyboard → Input Sources → + "
+                  + "→ English → AllInOneIME)")
+        }
         return 0
     }
 }
@@ -975,10 +1000,17 @@ struct UpdateSection: View {
 
     private func resultRow(_ result: UpdateResult) -> some View {
         Label {
-            Text(result.ok ? tr("已从 \(result.from) 更新到 \(result.to)。", "Updated from \(result.from) to \(result.to).")
-                           : tr("更新到 \(result.to) 没成功，仍是 \(result.from)：", "The update to \(result.to) didn't go in; this is still \(result.from): ")
-                             + (result.error ?? ""))
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.ok ? tr("已从 \(result.from) 更新到 \(result.to)。", "Updated from \(result.from) to \(result.to).")
+                               : tr("更新到 \(result.to) 没成功，仍是 \(result.from)：", "The update to \(result.to) didn't go in; this is still \(result.from): ")
+                                 + (result.error ?? ""))
+                // The helper couldn't get it started again: it ran only once chosen or opened.
+                if let failure = result.launchError {
+                    Text(tr("更新后它没能自己重新启动（\(failure)），是之后才启动的。", "It didn't start again by itself after the update (\(failure)); it started later."))
+                        .font(.callout).foregroundStyle(.secondary)
+                }
+            }
+            .fixedSize(horizontal: false, vertical: true)
         } icon: {
             Image(systemName: result.ok ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                 .foregroundStyle(result.ok ? Color.green : Color.orange)

@@ -20,6 +20,7 @@ struct IdentityHandoverTests {
         record.keychainGroup = "TEAM.com.example.before.shared"
         record.keychainItems = [CleanupRecord.KeychainItem(service: APIKeys.service, account: "openai", synchronizable: true)]
         record.loginKeys = [LoginKey(service: APIKeys.service, account: "claude")]
+        record.caches = ["/tmp/Caches/com.example.before.inputmethod"]
         return record
     }
 
@@ -34,6 +35,7 @@ struct IdentityHandoverTests {
         let read = try #require(try CleanupRecord.read(at: url))
         #expect(read.bundleIDs == record.bundleIDs && read.inputSource == record.inputSource && read.apps == record.apps)
         #expect(read.launchAgents == record.launchAgents && read.keychainItems == record.keychainItems && read.loginKeys == record.loginKeys)
+        #expect(read.caches == record.caches)
         #expect(abs(read.updated.timeIntervalSince(record.updated)) < 1 && read.format == CleanupRecord.currentFormat)
         // Written again in one go: still the user's alone, nothing else left in the folder.
         record.loginKeys = []
@@ -43,6 +45,24 @@ struct IdentityHandoverTests {
         #expect(try CleanupRecord.read(at: url)?.loginKeys.isEmpty == true)
         #expect(CleanupRecord.remove(at: url) && CleanupRecord.remove(at: url))
         #expect(try CleanupRecord.read(at: url) == nil)
+    }
+
+    /// A record without a list added since (the caches) reads with that list empty; one without its layout's number isn't
+    /// one.
+    @Test func aListMissingFromTheFileIsEmpty() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(CleanupRecord.fileName)
+        try Data(#"{"format": 1, "handedOver": true, "updated": "2026-11-07T06:10:31Z", "inputSource": "com.example.before.inputmethod"}"#.utf8)
+            .write(to: url)
+        let read = try #require(try CleanupRecord.read(at: url))
+        #expect(read.handedOver && read.inputSource == "com.example.before.inputmethod" && read.caches.isEmpty && read.apps.isEmpty)
+        #expect(!read.isEmpty)
+        try Data(#"{"handedOver": true}"#.utf8).write(to: url)
+        #expect(throws: (any Error).self) { try CleanupRecord.read(at: url) }
+        var caches = CleanupRecord()
+        caches.caches = ["/tmp/Caches/com.example.before.inputmethod"]
+        #expect(!caches.isEmpty && CleanupRecord().isEmpty)
     }
 
     @Test func aRecordThatIsntOneThrows() throws {

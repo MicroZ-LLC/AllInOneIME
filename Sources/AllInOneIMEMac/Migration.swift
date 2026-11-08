@@ -19,11 +19,15 @@ import Security
 //    at launch, so that macOS never asks it to allow one;
 // c. what the cleanup (d) will remove is written down (`CleanupRecord`, ~/Library/Application Support/AllInOneIME), then
 //    the apps are swapped as an update swaps them (`MigrationSwitch`), the new input method has to start (`--version`),
-//    and its input source is registered, enabled if the old one was and selected if the old one was;
-// d. only then is the old identity cleaned up: its input source disabled and taken out of the user's input sources, the
-//    previous apps deleted, its domains and keychain items deleted (synced ones too: another Mac reads its keys once it
-//    has updated as well), the login keychain's originals of the keys handed over deleted, and any other copy of the old
-//    apps and any launch agent with an old label removed. The record follows each step, and goes once all are done.
+//    and its input source is registered, then asked to be enabled if the old one was and selected if the old one was,
+//    and Text Input Sources asked how it is: macOS lets only the user add a new input method (System Settings → Keyboard
+//    → Input Sources), so it is often left off; the new version then shows the user that one step;
+// d. only then is the old identity cleaned up: its input source disabled and taken out of the user's input sources (by
+//    its input source ID, and only once the new one is enabled as itself; until then that step is left in the record for
+//    the new version), the previous apps deleted, its domains and keychain items deleted (synced ones too: another Mac
+//    reads its keys once it has updated as well), the login keychain's originals of the keys handed over deleted, any
+//    other copy of the old apps, any launch agent with an old label and the old input method's caches removed. The
+//    record follows each step, and goes once all are done.
 //
 // A failure up to the end of c puts everything back: the keys and items it copied (handover items too) are taken out of
 // the new domains and group again, the record deleted, the previous apps go back (`MigrationSwitch.rollBack`), and the
@@ -31,7 +35,9 @@ import Security
 // left (`Report.pending`); it never undoes the switch, and the record keeps it, handed over: the new version does it at
 // its next launch, by the identifiers the record lists (it can't name the old identity), as another run of this one
 // would, found by looking (it copies what the new identity still lacks, then cleans up what is still there). Logged by
-// key name, service and account, never with a value or a key.
+// key name, service and account, never with a value or a key. Text Input Sources is asked in a process of its own
+// (`ChildInputSources`): the update helper that runs this never becomes the app at the input method's path for Launch
+// Services, so that it can start the new one there afterwards.
 
 /// One identity's names, as the migration uses them.
 public struct MigrationNames: Equatable, Sendable {
@@ -109,16 +115,33 @@ public protocol MigrationKeychain {
     func delete(_ item: MigrationKeychainItem, from group: String) -> OSStatus
 }
 
-public struct MigrationInputSourceState: Equatable, Sendable {
+/// An input source as Text Input Sources and the user's input sources have it.
+public struct MigrationInputSourceState: Codable, Equatable, Sendable {
     public var registered = false
-    /// Enabled, or in the user's input sources (`InputSourceList`).
+    /// Enabled, as Text Input Sources says (`kTISPropertyInputSourceIsEnabled`).
     public var enabled = false
+    /// In the user's input sources (`InputSourceList`), by its bundle ID.
+    public var listed = false
     public var selected = false
+    /// The bundle ID Text Input Sources files it under; nil when it doesn't say. Its cache can keep the bundle ID an app
+    /// at the same path had before (the old identity's for the new input method, right after the swap): enabled then
+    /// means the old one's entry, not its own.
+    public var bundleID: String?
 
-    public init(registered: Bool = false, enabled: Bool = false, selected: Bool = false) {
+    public init(registered: Bool = false, enabled: Bool = false, listed: Bool = false, selected: Bool = false, bundleID: String? = nil) {
         self.registered = registered
         self.enabled = enabled
+        self.listed = listed
         self.selected = selected
+        self.bundleID = bundleID
+    }
+
+    /// The user has it: enabled, or in their input sources.
+    public var added: Bool { enabled || listed }
+
+    /// Enabled as itself: filed under `bundleID` (an AllInOneIME input source's ID is its bundle ID), not another's.
+    public func isEnabled(as bundleID: String) -> Bool {
+        registered && enabled && (self.bundleID == nil || self.bundleID == bundleID)
     }
 }
 
@@ -127,10 +150,13 @@ public protocol MigrationInputSources {
     func state(of id: String) -> MigrationInputSourceState
     /// Registers the input method at `bundle`; true once `id` is listed.
     func register(_ bundle: URL, id: String) -> Bool
-    /// Enabled and in the user's input sources (which Ctrl+Space goes through).
+    /// Enabled (as itself, `MigrationInputSourceState.isEnabled(as:)`) and in the user's input sources (which Ctrl+Space
+    /// goes through); false when Text Input Sources doesn't say it is afterwards (macOS leaves a new input method to the
+    /// user).
     func enable(_ id: String) -> Bool
     func select(_ id: String) -> Bool
-    /// Disabled and out of the user's input sources; true when it is neither afterwards.
+    /// Disabled and its entries out of the user's input sources, by its input source ID; true when it is neither
+    /// afterwards. Never an entry Text Input Sources files another source under.
     func disable(_ id: String) -> Bool
 }
 
@@ -147,7 +173,7 @@ public struct MigrationLaunchAgent: Hashable, Sendable, CustomStringConvertible 
     public var description: String { label }
 }
 
-/// What else the old identity left: copies of its apps besides the installed ones, and launch agents.
+/// What else the old identity left: copies of its apps besides the installed ones, launch agents, and caches.
 public protocol MigrationLeftovers {
     func oldApps() -> [URL]
     /// Unregistered and deleted; true when it is gone.
@@ -155,6 +181,10 @@ public protocol MigrationLeftovers {
     func oldLaunchAgents() -> [MigrationLaunchAgent]
     /// Unloaded and its property list deleted; true when both are gone.
     func remove(agent: MigrationLaunchAgent) -> Bool
+    /// The old apps' cache folders (~/Library/Caches/<old bundle ID>) that are there.
+    func oldCaches() -> [URL]
+    /// Deleted; true when it is gone.
+    func remove(cache: URL) -> Bool
 }
 
 /// Step c's apps: the installed ones swapped for the new ones (`AppsSwitch`; tests have their own).
@@ -202,6 +232,14 @@ public struct Migration {
         case loginKeys = "login keychain keys handed over"
         case otherApps = "other copies of the old apps"
         case launchAgents = "launch agents with an old label"
+        case caches = "old caches"
+    }
+
+    /// How a cleanup step went.
+    enum StepOutcome {
+        case done, failed
+        /// Not this run's to do: the old input source waits for the new one to be enabled (by the user).
+        case waiting
     }
 
     /// Whether the input method whose Info.plist is `info` (the one installed) has the new identity: a version newer than
@@ -222,6 +260,8 @@ public struct Migration {
         public var copiedItems = 0
         /// Login keychain keys handed over (`IdentityHandover`).
         public var handedOver = 0
+        /// The new input source is enabled as itself (Text Input Sources says so); false: the user still has to add it.
+        public var inputSourceEnabled = false
         /// Cleanup steps left for the next run.
         public var pending: [Cleanup] = []
         public var lines: [String] = []
@@ -256,27 +296,29 @@ public struct Migration {
         self.say = say
     }
 
-    /// The Mac's own: the user's defaults, the data protection keychain, Text Input Sources, ~/Applications,
-    /// ~/Library/Input Methods and the user's launch agents. Main thread (Text Input Sources).
+    /// The Mac's own: the user's defaults, the data protection keychain, Text Input Sources (asked by this executable in
+    /// a process of its own, `ChildInputSources`), ~/Applications, ~/Library/Input Methods, the user's launch agents and
+    /// ~/Library/Caches.
     public static func system(say: @escaping (String) -> Void) -> Migration {
         // Bundle.main as this process started: after the swap, the path it started from holds the new app.
         _ = Bundle.main.bundleIdentifier
         let home = FileManager.default.homeDirectoryForCurrentUser
         return Migration(defaults: SystemDefaults(), keychain: SystemKeychain(), login: IdentityHandover.loginStore(service:),
                          handover: { IdentityHandover.handoverStore(group: new.keychainGroup, service: $0) },
-                         inputSources: SystemInputSources(),
+                         inputSources: ChildInputSources.system,
                          leftovers: FolderLeftovers(apps: [home.appendingPathComponent("Library/Input Methods", isDirectory: true),
                                                            home.appendingPathComponent("Applications", isDirectory: true)],
                                                     launchAgents: home.appendingPathComponent("Library/LaunchAgents", isDirectory: true),
                                                     otherPlists: [home.appendingPathComponent("Library/Logs/AllInOneIME/realtest-watch.plist")],
+                                                    caches: home.appendingPathComponent("Library/Caches", isDirectory: true),
                                                     system: true),
                          record: CleanupRecord.defaultURL, say: say)
     }
 
     /// A test install's (`--target-dir ROOT`, `make update-test`): files in `root` stand for the defaults
     /// (Preferences/<domain>.plist), the keychain (Keychain/<group>.plist, the login keychain Keychain/login.plist), the
-    /// input sources (InputSources.plist) and the launch agents (LaunchAgents/), and the record is ROOT/identity-cleanup.json;
-    /// nothing of the user's is read or changed.
+    /// input sources (InputSources.plist), the launch agents (LaunchAgents/) and the caches (Caches/), and the record is
+    /// ROOT/identity-cleanup.json; nothing of the user's is read or changed.
     public static func test(root: URL, say: @escaping (String) -> Void) -> Migration {
         let keychain = root.appendingPathComponent("Keychain", isDirectory: true)
         var migration = Migration(defaults: FileDefaults(folder: root.appendingPathComponent("Preferences", isDirectory: true)),
@@ -290,7 +332,8 @@ public struct Migration {
                                   leftovers: FolderLeftovers(apps: [root.appendingPathComponent("Input Methods", isDirectory: true),
                                                                     root.appendingPathComponent("Applications", isDirectory: true)],
                                                              launchAgents: root.appendingPathComponent("LaunchAgents", isDirectory: true),
-                                                             otherPlists: [], system: false),
+                                                             otherPlists: [], caches: root.appendingPathComponent("Caches", isDirectory: true),
+                                                             system: false),
                                   record: root.appendingPathComponent(CleanupRecord.fileName), say: say)
         migration.pause = {}
         return migration
@@ -320,6 +363,7 @@ public struct Migration {
             // is left of the old one cleaned up.
             log("identity: the input method installed has the new identity already; cleaning up what is left of the old one")
             report.switched = true
+            report.inputSourceEnabled = inputSources.state(of: new.inputSource).isEnabled(as: new.inputSource)
             report.pending = cleanUp(switcher, log: log)
             return report
         }
@@ -332,9 +376,12 @@ public struct Migration {
             report.handedOver = try handOverLoginKeys(&added, log: log)
             // What the cleanup will remove, written down before anything is: what the new version does if it can't.
             write(plan(switcher), log: log)
-            try switchApps(switcher, log: log, notRestored: &notRestored)
+            report.inputSourceEnabled = try switchApps(switcher, log: log, notRestored: &notRestored)
         } catch {
-            let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            // What went wrong, without the "nothing was changed" of an update's check before the swap: here the copies
+            // and the swap were made, then taken back.
+            var reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
+            if case let UpdateError.invalidApp(detail) = error { reason = detail }
             log("✗ \(reason)")
             undo(added, log: log)
             report.error = reason
@@ -526,6 +573,8 @@ public struct Migration {
             record.apps = record.apps.filter { previous.contains($0) } + others
         case .launchAgents:
             record.launchAgents = leftovers.oldLaunchAgents().map { CleanupRecord.LaunchAgent(label: $0.label, plist: $0.plist?.path) }
+        case .caches:
+            record.caches = leftovers.oldCaches().map(\.path)
         }
     }
 
@@ -543,6 +592,7 @@ public struct Migration {
             let previous = Set(switcher.previousApps.map(\.path))
             record.apps.removeAll { !previous.contains($0) }
         case .launchAgents: record.launchAgents = []
+        case .caches: record.caches = []
         }
     }
 
@@ -568,13 +618,17 @@ public struct Migration {
         if !CleanupRecord.remove(at: url) { log("cleanup record: \(url.path) can't be deleted") }
     }
 
-    /// The apps swapped and the new input method started (`switcher`), then its input source registered, enabled if the
-    /// old one was and selected if it was. A failure after the swap puts the previous apps back and the old input source
-    /// as it was, then throws.
-    func switchApps(_ switcher: any MigrationSwitch, log: (String) -> Void, notRestored: inout Bool) throws {
+    /// The apps swapped and the new input method started (`switcher`), then its input source registered, asked to be
+    /// enabled if the old one was added and selected if it was selected, and how it is then logged as Text Input Sources
+    /// says (macOS lets only the user add a new input method: asked to enable one, it says it did and leaves it off).
+    /// True when it is enabled as itself. A failure after the swap (the new input method doesn't start, its input source
+    /// doesn't appear) puts the previous apps back and the old input source as it was, then throws; one it is left off
+    /// doesn't: the user adds it once, the new version says how.
+    func switchApps(_ switcher: any MigrationSwitch, log: (String) -> Void, notRestored: inout Bool) throws -> Bool {
         let (old, new) = (Self.old.inputSource, Self.new.inputSource)
         let before = inputSources.state(of: old)
-        log("input source: \(old) registered \(before.registered), enabled \(before.enabled), selected \(before.selected)")
+        log("input source: \(old) registered \(before.registered), enabled \(before.enabled), in the input sources \(before.listed), "
+            + "selected \(before.selected)")
         do {
             try switcher.perform()
         } catch {
@@ -586,11 +640,6 @@ public struct Migration {
             guard inputSources.register(switcher.inputMethod, id: new) else {
                 throw MigrationError("input source: \(new) didn't appear once registered")
             }
-            if before.enabled, !inputSources.enable(new) { throw MigrationError("input source: \(new) couldn't be enabled") }
-            if before.selected, !inputSources.select(new) {
-                log("input source: \(new) couldn't be selected; Ctrl+Space or the input menu switches to it")
-            }
-            log("input source: \(new) registered" + (before.enabled ? ", enabled" : "") + (before.selected ? ", selected" : ""))
         } catch {
             log("rolling back: \((error as? LocalizedError)?.errorDescription ?? String(describing: error))")
             _ = inputSources.disable(new)
@@ -605,14 +654,36 @@ public struct Migration {
             log("apps: the previous ones are back")
             throw error
         }
+        if before.added { _ = inputSources.enable(new) }
+        if before.selected { _ = inputSources.select(new) }
+        let after = inputSources.state(of: new)
+        let enabled = after.isEnabled(as: new)
+        if enabled {
+            log("input source: \(new) registered, enabled" + (!before.selected ? ""
+                : after.selected ? ", selected" : "; not selected (Ctrl+Space or the input menu switches to it)"))
+        } else if before.added {
+            log("input source: \(new) registered, not enabled"
+                + (after.enabled ? " as itself (Text Input Sources files it under \(after.bundleID ?? "?"), the old one's entry)" : "")
+                + ": macOS lets only the user add it (System Settings → Keyboard → Input Sources → + → English → AllInOneIME); "
+                + "the new version shows that step, and the old input source stays until then")
+        } else {
+            log("input source: \(new) registered; not enabled, as the old one wasn't in the input sources")
+        }
+        return enabled
     }
 
     /// The copies of a run whose switch didn't happen taken out again: the keys it added to the new domains (a domain
     /// left empty removed), the items it added to the new group and the handover items it wrote; and the record deleted.
     func undo(_ added: Added, log: (String) -> Void) {
+        var removed: [String] = []
         for (domain, keys) in added.keys {
             for key in keys { defaults.remove(key, from: domain) }
-            if defaults.domain(domain)?.isEmpty ?? false { defaults.removeDomain(domain) } else { defaults.flush(domain) }
+            if defaults.domain(domain)?.isEmpty ?? false {
+                defaults.removeDomain(domain)
+                removed.append(domain)
+            } else {
+                defaults.flush(domain)
+            }
         }
         var left: [String] = []
         for item in added.items {
@@ -629,6 +700,11 @@ public struct Migration {
             log("undone: \(keys) defaults keys and \(items - left.count) keychain items copied are taken out again"
                 + (left.isEmpty ? "" : "; not taken out: \(left.joined(separator: ", "))"))
         }
+        // The domains the copies created, removed: no file left under their names either, once cfprefsd has emptied it.
+        if !removed.isEmpty {
+            let deleted = defaults.deleteEmptiedFiles(of: removed.sorted())
+            if !deleted.isEmpty { log("undone: the emptied files of \(deleted.joined(separator: ", ")) deleted") }
+        }
         removeRecord(log: log)
     }
 
@@ -643,14 +719,19 @@ public struct Migration {
         var record = plan(switcher)
         write(record, log: log)
         for step in Cleanup.allCases {
-            var done = false
-            for attempt in 1...max(attempts, 1) where !done {
+            var outcome = StepOutcome.failed
+            for attempt in 1...max(attempts, 1) where outcome == .failed {
                 if attempt > 1 { pause() }
-                done = cleanUp(step, switcher, log: log)
+                outcome = cleanUp(step, switcher, log: log)
             }
-            if done {
+            switch outcome {
+            case .done:
                 Self.cleared(step, switcher, in: &record)
-            } else {
+            case .waiting:
+                pending.append(step)
+                planned(step, switcher, into: &record)
+                log("cleanup: \(step.rawValue) left until the new input source is enabled; the new version does it then")
+            case .failed:
                 pending.append(step)
                 planned(step, switcher, into: &record)
                 log("cleanup: \(step.rawValue) not done; left for the new version's next launch (or the next run of --migrate-identity)")
@@ -669,17 +750,25 @@ public struct Migration {
         return pending
     }
 
-    func cleanUp(_ step: Cleanup, _ switcher: any MigrationSwitch, log: (String) -> Void) -> Bool {
+    func cleanUp(_ step: Cleanup, _ switcher: any MigrationSwitch, log: (String) -> Void) -> StepOutcome {
+        let outcome = { (done: Bool) in done ? StepOutcome.done : .failed }
         let (old, new) = (Self.old, Self.new)
         switch step {
         case .inputSource:
-            guard inputSources.disable(old.inputSource) else { return false }
+            // Only once the new input source is enabled as itself: until the user adds it, the old one's entry may be what
+            // Text Input Sources files it under (its cache keeps the old bundle ID for the path), and taking that out
+            // would leave no AllInOneIME in the input sources at all.
+            // (One the user didn't have has no entry to keep.)
+            if inputSources.state(of: old.inputSource).added, !inputSources.state(of: new.inputSource).isEnabled(as: new.inputSource) {
+                return .waiting
+            }
+            guard inputSources.disable(old.inputSource) else { return .failed }
             log("cleanup: \(old.inputSource) disabled and out of the input sources")
-            return true
+            return .done
 
         case .previousApps:
             switcher.commit()
-            return !switcher.previousApps.contains { BundleSwap.exists($0) }
+            return outcome(!switcher.previousApps.contains { BundleSwap.exists($0) })
 
         case .defaults:
             for (from, to) in zip(old.domains, new.domains) {
@@ -687,23 +776,23 @@ public struct Migration {
                 // What the new domain still lacks first (an earlier switch, or the new identity installed without this).
                 let there = defaults.domain(to) ?? [:]
                 let missing = values.keys.filter { there[$0] == nil }
-                guard missing.allSatisfy({ defaults.set(values[$0]!, forKey: $0, in: to) }) else { return false }
+                guard missing.allSatisfy({ defaults.set(values[$0]!, forKey: $0, in: to) }) else { return .failed }
                 if !missing.isEmpty {
                     defaults.flush(to)
                     let now = defaults.domain(to) ?? [:]
-                    guard missing.allSatisfy({ Self.same(now[$0], values[$0]) }) else { return false }
+                    guard missing.allSatisfy({ Self.same(now[$0], values[$0]) }) else { return .failed }
                     log("cleanup: \(missing.count) keys copied from \(from) to \(to) first")
                 }
                 defaults.removeDomain(from)
-                guard defaults.domain(from)?.isEmpty ?? true else { return false }
+                guard defaults.domain(from)?.isEmpty ?? true else { return .failed }
                 log("cleanup: \(from) removed")
             }
-            return true
+            return .done
 
         case .keychain:
             let (from, to) = (old.keychainGroup, new.keychainGroup)
-            guard keychain.isEntitled(to: from) else { return true }  // none this build can see
-            guard let items = try? keychain.items(in: from) else { return false }
+            guard keychain.isEntitled(to: from) else { return .done }  // none this build can see
+            guard let items = try? keychain.items(in: from) else { return .failed }
             var done = true
             var deleted: [MigrationKeychainItem] = [], kept: [MigrationKeychainItem] = []
             for item in items {
@@ -729,7 +818,7 @@ public struct Migration {
             }
             if !deleted.isEmpty { log("cleanup: deleted from \(from): \(deleted.map(\.description).joined(separator: ", "))") }
             if !kept.isEmpty { log("cleanup: kept in \(from) (the new group has another key): \(kept.map(\.description).joined(separator: ", "))") }
-            return done
+            return outcome(done)
 
         case .loginKeys:
             // A key this identity reads without asking, its handover item holding the same key (written first if it isn't:
@@ -767,21 +856,28 @@ public struct Migration {
             if !deleted.isEmpty {
                 log("cleanup: deleted from the login keychain (handed over): \(deleted.map(\.description).joined(separator: ", "))")
             }
-            return done
+            return outcome(done)
 
         case .otherApps:
             var done = true
             for app in leftovers.oldApps() {
                 if leftovers.remove(app: app) { log("cleanup: removed \(app.path)") } else { done = false }
             }
-            return done
+            return outcome(done)
 
         case .launchAgents:
             var done = true
             for agent in leftovers.oldLaunchAgents() {
                 if leftovers.remove(agent: agent) { log("cleanup: removed the launch agent \(agent.label)") } else { done = false }
             }
-            return done
+            return outcome(done)
+
+        case .caches:
+            var done = true
+            for cache in leftovers.oldCaches() {
+                if leftovers.remove(cache: cache) { log("cleanup: removed \(cache.path)") } else { done = false }
+            }
+            return outcome(done)
         }
     }
 }
@@ -909,19 +1005,23 @@ public struct SystemDefaults: MigrationDefaults {
         CFPreferencesAppSynchronize(name as CFString)
     }
 
-    /// Up to 15 seconds in all: cfprefsd took up to 8 to write a removed domain's file.
+    /// Up to 15 seconds in all: cfprefsd took up to 8 to write a removed domain's file. One not there (yet) is looked
+    /// for during the first 3: a domain written just before it was removed (a move undone) gets its file late.
     public func deleteEmptiedFiles(of domains: [String]) -> [String] {
         var left = domains.map { preferences.appendingPathComponent($0 + ".plist") }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
         var deleted: [String] = []
-        let deadline = Date().addingTimeInterval(15)
+        let started = Date()
         while !left.isEmpty {
             for file in left where (NSDictionary(contentsOf: file) as? [String: Any])?.isEmpty == true {
                 try? FileManager.default.removeItem(at: file)
-                deleted.append(file.deletingPathExtension().lastPathComponent)
+                if !FileManager.default.fileExists(atPath: file.path) { deleted.append(file.deletingPathExtension().lastPathComponent) }
             }
-            left.removeAll { !FileManager.default.fileExists(atPath: $0.path) }
-            guard !left.isEmpty, Date() < deadline else { break }
+            let waited = Date().timeIntervalSince(started)
+            left.removeAll { file in
+                deleted.contains(file.deletingPathExtension().lastPathComponent)
+                    || (waited > 3 && !FileManager.default.fileExists(atPath: file.path))
+            }
+            guard !left.isEmpty, waited < 15 else { break }
             Thread.sleep(forTimeInterval: 0.25)
         }
         return deleted
@@ -998,7 +1098,8 @@ public struct SystemKeychain: MigrationKeychain {
 
 /// Text Input Sources and the user's input sources (`InputSourceList`), as `--register` and `--disable` use them. Main
 /// thread. Text Input Sources has no call to unregister one: an input source goes once its bundle does (the previous
-/// apps deleted, and unregistered from Launch Services first).
+/// apps deleted, and unregistered from Launch Services first). A process that calls them is an app for Launch Services
+/// from then on (the one at the path it started from): the update helper asks through `ChildInputSources`.
 public struct SystemInputSources: MigrationInputSources {
     public init() {}
 
@@ -1010,6 +1111,18 @@ public struct SystemInputSources: MigrationInputSources {
     func bool(_ source: TISInputSource, _ key: CFString) -> Bool {
         guard let pointer = TISGetInputSourceProperty(source, key) else { return false }
         return CFBooleanGetValue(Unmanaged<CFBoolean>.fromOpaque(pointer).takeUnretainedValue())
+    }
+
+    func string(_ source: TISInputSource, _ key: CFString) -> String? {
+        guard let pointer = TISGetInputSourceProperty(source, key) else { return nil }
+        return Unmanaged<CFString>.fromOpaque(pointer).takeUnretainedValue() as String
+    }
+
+    /// Every input source installed: its ID and the bundle ID it is filed under.
+    func filed() -> [InputSourceList.Filed] {
+        ((TISCreateInputSourceList(nil, true)?.takeRetainedValue() as? [TISInputSource]) ?? []).compactMap { source in
+            string(source, kTISPropertyInputSourceID).map { InputSourceList.Filed(id: $0, bundleID: string(source, kTISPropertyBundleID)) }
+        }
     }
 
     func userList() -> [[String: Any]]? {
@@ -1031,10 +1144,11 @@ public struct SystemInputSources: MigrationInputSources {
 
     public func state(of id: String) -> MigrationInputSourceState {
         let source = source(id)
-        let listed = userList().map { InputSourceList.contains($0, bundleID: id) } ?? false
         return MigrationInputSourceState(registered: source != nil,
-                                         enabled: listed || source.map { bool($0, kTISPropertyInputSourceIsEnabled) } == true,
-                                         selected: source.map { bool($0, kTISPropertyInputSourceIsSelected) } == true)
+                                         enabled: source.map { bool($0, kTISPropertyInputSourceIsEnabled) } == true,
+                                         listed: userList().map { InputSourceList.contains($0, bundleID: id) } ?? false,
+                                         selected: source.map { bool($0, kTISPropertyInputSourceIsSelected) } == true,
+                                         bundleID: source.flatMap { string($0, kTISPropertyBundleID) })
     }
 
     public func register(_ bundle: URL, id: String) -> Bool {
@@ -1047,7 +1161,13 @@ public struct SystemInputSources: MigrationInputSources {
 
     public func enable(_ id: String) -> Bool {
         guard let source = source(id) else { return false }
-        if !bool(source, kTISPropertyInputSourceIsEnabled), TISEnableInputSource(source) != noErr { return false }
+        // noErr also when macOS leaves a new input method to the user (it opens Keyboard settings then): asked again.
+        if !bool(source, kTISPropertyInputSourceIsEnabled) { _ = TISEnableInputSource(source) }
+        let deadline = Date().addingTimeInterval(2)
+        while !state(of: id).isEnabled(as: id), Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
+        // Not enabled as itself: the user's list is left alone (an entry for it then makes Text Input Sources file it
+        // under the old one's bundle ID again).
+        guard state(of: id).isEnabled(as: id) else { return false }
         // Where the old one is in the user's input sources (the order Ctrl+Space goes in), else at the end.
         guard let list = userList(), !InputSourceList.contains(list, bundleID: id) else { return true }
         var updated = list
@@ -1065,24 +1185,139 @@ public struct SystemInputSources: MigrationInputSources {
         if let source = source(id), bool(source, kTISPropertyInputSourceIsEnabled) {
             done = TISDisableInputSource(source) == noErr
         }
-        if let updated = InputSourceList.removing(id, from: userList()) { done = write(updated) && done }
-        return done
+        switch InputSourceList.removingSource(id, from: userList(), filed: filed()) {
+        case .unlisted: return done
+        case let .removed(updated): return write(updated) && done
+        case .filedUnder: return false
+        }
     }
 }
 
-/// Copies of the old apps in `apps` (the folders apps are installed in: their bundle ID, whatever their name) and launch
+/// Text Input Sources asked by this executable in a process of its own (`InputSourceCommand`, `--input-source`), one
+/// call each: the update helper never calls them itself. A process that does is an app for Launch Services, the one at
+/// the path it started from, and the helper started from the installed input method's: with the new input method there,
+/// `open` then found the helper and started nothing (the 0.7.1 → 0.7.2 rehearsal, -600).
+public struct ChildInputSources: MigrationInputSources {
+    /// This executable where it is now (the swap moves it aside with the previous apps); nil: not found.
+    public var executable: () -> String?
+    /// Runs it with these arguments: its exit status and what it printed.
+    public var run: (_ path: String, _ arguments: [String]) -> (status: Int32, output: String)
+
+    public init(executable: @escaping () -> String?, run: @escaping (String, [String]) -> (status: Int32, output: String)) {
+        self.executable = executable
+        self.run = run
+    }
+
+    /// This process's executable, found by its process ID (its path follows the bundle when it is moved), and run as a
+    /// tool (30 s at most).
+    public static var system: ChildInputSources {
+        ChildInputSources(executable: { InputSourceCommand.currentExecutable() ?? Bundle.main.executablePath },
+                          run: { InputSourceCommand.runTool($0, $1, timeout: 30) })
+    }
+
+    func ask(_ arguments: [String]) -> InputSourceCommand.Answer? {
+        guard let path = executable() else { return nil }
+        let result = run(path, [InputSourceCommand.option] + arguments)
+        guard result.status == 0 else { return nil }
+        return InputSourceCommand.answer(from: result.output)
+    }
+
+    public func state(of id: String) -> MigrationInputSourceState { ask(["state", id])?.state ?? MigrationInputSourceState() }
+    public func register(_ bundle: URL, id: String) -> Bool { ask(["register", id, bundle.path])?.done ?? false }
+    public func enable(_ id: String) -> Bool { ask(["enable", id])?.done ?? false }
+    public func select(_ id: String) -> Bool { ask(["select", id])?.done ?? false }
+    public func disable(_ id: String) -> Bool { ask(["disable", id])?.done ?? false }
+}
+
+/// `--input-source state|register|enable|select|disable ID [BUNDLE]` (hidden): one call of `MigrationInputSources` on
+/// this Mac's Text Input Sources (`SystemInputSources`), for `ChildInputSources`. Prints one line of JSON (`Answer`):
+/// whether it did it, and the input source as it is afterwards.
+public enum InputSourceCommand {
+    public static let option = "--input-source"
+
+    public struct Answer: Codable, Equatable, Sendable {
+        public var done: Bool
+        public var state: MigrationInputSourceState
+
+        public init(done: Bool, state: MigrationInputSourceState) {
+            self.done = done
+            self.state = state
+        }
+    }
+
+    /// Exits 0 with the answer, 2 for a bad argument.
+    public static func run(_ arguments: [String], sources: any MigrationInputSources = SystemInputSources()) -> Int32 {
+        guard arguments.count >= 2, let call = arguments.first else {
+            FileHandle.standardError.write(Data("usage: \(option) state|register|enable|select|disable ID [BUNDLE]\n".utf8))
+            return 2
+        }
+        let id = arguments[1]
+        let done: Bool
+        switch call {
+        case "state": done = true
+        case "register" where arguments.count == 3: done = sources.register(URL(fileURLWithPath: arguments[2]), id: id)
+        case "enable": done = sources.enable(id)
+        case "select": done = sources.select(id)
+        case "disable": done = sources.disable(id)
+        default:
+            FileHandle.standardError.write(Data("\(option): unknown call \(call)\n".utf8))
+            return 2
+        }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .sortedKeys
+        guard let line = try? encoder.encode(Answer(done: done, state: sources.state(of: id))) else { return 1 }
+        print(String(decoding: line, as: UTF8.self))
+        return 0
+    }
+
+    /// The answer in what the tool printed: its last line that is one (anything else it printed before is skipped).
+    public static func answer(from output: String) -> Answer? {
+        for line in output.split(whereSeparator: \.isNewline).reversed() where line.hasPrefix("{") {
+            if let answer = try? JSONDecoder().decode(Answer.self, from: Data(line.utf8)) { return answer }
+        }
+        return nil
+    }
+
+    /// The path of this process's executable as it is now (the kernel's: it follows a rename of the bundle).
+    public static func currentExecutable() -> String? { UpdateRelaunch.executablePath(of: getpid()) }
+
+    /// `path` run with `arguments` to its end (killed after `timeout`): its exit status (-1: it couldn't start or was
+    /// killed) and its output.
+    public static func runTool(_ path: String, _ arguments: [String], timeout: TimeInterval) -> (status: Int32, output: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: path)
+        process.arguments = arguments
+        let output = Pipe()
+        process.standardOutput = output
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return (-1, error.localizedDescription) }
+        let timer = DispatchWorkItem { if process.isRunning { process.terminate() } }
+        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timer)
+        let data = output.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        timer.cancel()
+        let killed = process.terminationReason == .uncaughtSignal
+        return (killed ? -1 : process.terminationStatus, String(decoding: data, as: UTF8.self))
+    }
+}
+
+/// Copies of the old apps in `apps` (the folders apps are installed in: their bundle ID, whatever their name), launch
 /// agents with an old label (property lists in `launchAgents` and `otherPlists`; with `system`, those loaded too, unloaded
-/// with launchctl, and apps unregistered from Launch Services before they go).
+/// with launchctl, and apps unregistered from Launch Services before they go), and the old apps' folders in `caches`
+/// (named after their bundle IDs; nothing of macOS's own records, nothing outside these folders).
 public struct FolderLeftovers: MigrationLeftovers {
     public var apps: [URL]
     public var launchAgents: URL
     public var otherPlists: [URL]
+    public var caches: URL?
     public var system: Bool
 
-    public init(apps: [URL], launchAgents: URL, otherPlists: [URL], system: Bool) {
+    public init(apps: [URL], launchAgents: URL, otherPlists: [URL], caches: URL? = nil, system: Bool) {
         self.apps = apps
         self.launchAgents = launchAgents
         self.otherPlists = otherPlists
+        self.caches = caches
         self.system = system
     }
 
@@ -1127,6 +1362,17 @@ public struct FolderLeftovers: MigrationLeftovers {
         if let plist = agent.plist { try? FileManager.default.removeItem(at: plist) }
         let plistGone = agent.plist.map { (try? FileManager.default.attributesOfItem(atPath: $0.path)) == nil } ?? true
         return plistGone && !(system && Self.loaded(agent.label))
+    }
+
+    public func oldCaches() -> [URL] {
+        guard let caches else { return [] }
+        return [Migration.old.apps.inputMethod, Migration.old.apps.settings].map { caches.appendingPathComponent($0, isDirectory: true) }
+            .filter { (try? FileManager.default.attributesOfItem(atPath: $0.path)) != nil }
+    }
+
+    public func remove(cache: URL) -> Bool {
+        try? FileManager.default.removeItem(at: cache)
+        return (try? FileManager.default.attributesOfItem(atPath: cache.path)) == nil
     }
 
     static func loaded(_ label: String) -> Bool {
@@ -1238,7 +1484,8 @@ public struct FileKeychain: MigrationKeychain {
     }
 }
 
-/// A test install's input sources: a property list of input source IDs, each with registered, enabled and selected.
+/// A test install's input sources: a property list of input source IDs, each with registered, enabled, listed and selected
+/// (and leftToTheUser: asked to enable it, nothing changes, as macOS does with a new input method).
 public struct FileInputSources: MigrationInputSources {
     public var file: URL
 
@@ -1255,7 +1502,7 @@ public struct FileInputSources: MigrationInputSources {
     public func state(of id: String) -> MigrationInputSourceState {
         let source = sources()[id] ?? [:]
         return MigrationInputSourceState(registered: source["registered"] ?? false, enabled: source["enabled"] ?? false,
-                                         selected: source["selected"] ?? false)
+                                         listed: source["listed"] ?? false, selected: source["selected"] ?? false)
     }
 
     public func register(_ bundle: URL, id: String) -> Bool {
@@ -1266,7 +1513,7 @@ public struct FileInputSources: MigrationInputSources {
 
     public func enable(_ id: String) -> Bool {
         var sources = sources()
-        guard sources[id]?["registered"] == true else { return false }
+        guard sources[id]?["registered"] == true, sources[id]?["leftToTheUser"] != true else { return false }
         sources[id]?["enabled"] = true
         return write(sources)
     }
@@ -1280,8 +1527,9 @@ public struct FileInputSources: MigrationInputSources {
 
     public func disable(_ id: String) -> Bool {
         var sources = sources()
-        guard sources[id]?["enabled"] == true || sources[id]?["selected"] == true else { return true }
+        guard sources[id]?["enabled"] == true || sources[id]?["listed"] == true || sources[id]?["selected"] == true else { return true }
         sources[id]?["enabled"] = false
+        sources[id]?["listed"] = false
         sources[id]?["selected"] = false
         return write(sources)
     }

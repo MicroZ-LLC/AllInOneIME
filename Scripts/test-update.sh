@@ -6,11 +6,12 @@
 # nothing, a failure after the swap rolls back, the update itself (the helper outliving the process that started
 # it, as the input method does), and a downgrade is refused. Then the move to the new system identity (`Migration`):
 # 9.9.1 with the new bundle IDs over this build again, its preferences, keychain items (the login keychain's too),
-# input sources and launch agents stood for by files in the test install (Preferences/, Keychain/, InputSources.plist,
-# LaunchAgents/): a failure after the swap puts everything back, the update carries them over (the login keychain's keys
-# as handover items) and cleans up the old identity, and so does `--migrate-identity` (the 0.7.2 installer's way); a
-# cleanup step that fails is left in the record (identity-cleanup.json) for the new version, and another run finishes
-# it, changing nothing else. `make install-check` and the installer refuse an installed copy with the new identity. The user's settings,
+# input sources, launch agents and caches stood for by files in the test install (Preferences/, Keychain/,
+# InputSources.plist, LaunchAgents/, Caches/): a failure after the swap puts everything back, the update carries them over
+# (the login keychain's keys as handover items) and cleans up the old identity, and so does `--migrate-identity` (the
+# 0.7.2 installer's way); a cleanup step that fails is left in the record (identity-cleanup.json) for the new version,
+# and another run finishes it, changing nothing else; a new input source left to the user keeps the old one in the
+# record until it is added. `make install-check` and the installer refuse an installed copy with the new identity. The user's settings,
 # packs, installed apps, input sources and running input method are the same afterwards.
 # Usage: Scripts/test-update.sh BUILD-DIR (with AllInOneIME.app and "AllInOneIME Settings.app")
 set -eu
@@ -155,7 +156,7 @@ item() {
 }
 reinstall() {
     rm -rf "$root/Input Methods/AllInOneIME.app" "$root/Applications/AllInOneIME Settings.app" "$root/Preferences" "$root/Keychain" \
-        "$root/LaunchAgents" "$root/InputSources.plist" "$root/Updates.noindex/result.json"
+        "$root/LaunchAgents" "$root/InputSources.plist" "$root/Updates.noindex/result.json" "$root/Caches"
     ditto "$build/AllInOneIME.app" "$root/Input Methods/AllInOneIME.app"
     ditto "$build/AllInOneIME Settings.app" "$root/Applications/AllInOneIME Settings.app"
     # Another copy of the old Settings app, and a launch agent with an old label: cleaned up after the switch.
@@ -163,6 +164,8 @@ reinstall() {
     mkdir -p "$root/Preferences" "$root/Keychain" "$root/LaunchAgents"
     plutil -create xml1 "$root/LaunchAgents/watch.plist"
     plutil -insert Label -string "${old_ime%%.inputmethod.*}.realtest-watch" "$root/LaunchAgents/watch.plist"
+    # The old input method's caches (they go) and another app's (they stay).
+    mkdir -p "$root/Caches/$old_ime/com.apple.e5rt.e5bundlecache" "$root/Caches/com.example.other"
     # The old domains (the new input method's has a key of its own already, which stays), two keys in the old group
     # (one synced, one not; test values) and the old input source enabled and selected.
     plutil -create xml1 "$root/Preferences/$old_ime.plist"
@@ -211,6 +214,7 @@ moved() {
         && [ "$(plist_value "$root/InputSources.plist" "$new_ime:selected")" = true ] \
         && [ "$(plist_value "$root/InputSources.plist" "$old_ime:enabled")" = false ] \
         && [ ! -e "$root/Applications/AllInOneIME Settings copy.app" ] && [ ! -e "$root/LaunchAgents/watch.plist" ] \
+        && [ ! -e "$root/Caches/$old_ime" ] && [ -d "$root/Caches/com.example.other" ] \
         && [ -z "$(ls -A "$root/Updates.noindex" 2>/dev/null | grep -E '^(update|identity)-')" ] \
         && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude data)" = sk-test-claude ] \
         && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude attributes:icmt)" = api.anthropic.com ] \
@@ -252,10 +256,12 @@ out=$("$installed" --install-update $args --simulate-failure after-swap 2>&1) &&
         && [ "$(plist_value "$root/InputSources.plist" "$old_ime:selected")" = true ] \
         && [ "$(plist_value "$root/InputSources.plist" "$new_ime:enabled")" != true ] \
         && [ -e "$root/Applications/AllInOneIME Settings copy.app" ] && [ -e "$root/LaunchAgents/watch.plist" ] \
+        && [ -d "$root/Caches/$old_ime" ] \
         && cmp -s "$root/Keychain/login.plist" "$root/login-before.plist" \
         && [ -z "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude data)" ] \
         && [ ! -e "$root/identity-cleanup.json" ] \
         && grep -q '"ok" : false' "$root/Updates.noindex/result.json" \
+        && grep -q "is back" "$root/Updates.noindex/result.json" && ! grep -q "nothing was changed" "$root/Updates.noindex/result.json" \
         && pass "a failure in the move to the new identity puts everything back: $old, its settings and keys as they were" \
         || { echo "$out"; cat "$root/update.log"; fail "the move's rollback"; }; }
 
@@ -300,6 +306,31 @@ else
 fi
 out=$("$bridge" --migrate-identity "$root/Input Methods/AllInOneIME.app" --target-dir "$root" 2>&1) && moved \
     && pass "another run finishes the step left and deletes the record" || { echo "$out"; cat "$record" 2>/dev/null; fail "another run finishes the record"; }
+
+# 6d'. The new input source left to the user (as macOS leaves a new input method: asked to enable it, nothing changes):
+# the move goes through and says so; the old input source stays, in the record alone, until the new one is enabled.
+reinstall
+/usr/libexec/PlistBuddy -c "Add :$new_ime dict" -c "Add :$new_ime:leftToTheUser bool true" "$root/InputSources.plist"
+rm -rf "$root/incoming" && mkdir -p "$root/incoming" && ditto -x -k "$server/AllInOneIME-9.9.1-update.zip" "$root/incoming"
+out=$("$installed" --migrate-identity "$root/incoming/AllInOneIME.app" --target-dir "$root" 2>&1) && status=0 || status=$?
+if [ "$status" -eq 0 ] && echo "$out" | grep -q "registered, not enabled" && echo "$out" | grep -q "isn't enabled yet" \
+    && ! echo "$out" | grep -q "registered, enabled" \
+    && [ "$(plist_value "$root/InputSources.plist" "$old_ime:enabled")" = true ] \
+    && [ "$(plist_value "$root/InputSources.plist" "$new_ime:enabled")" != true ] \
+    && [ "$(plutil -extract inputSource raw -o - "$record")" = "$old_ime" ] \
+    && [ "$(plutil -extract handedOver raw -o - "$record")" = true ] \
+    && [ "$(plutil -extract launchAgents raw -o - "$record")" = 0 ] && [ "$(plutil -extract caches raw -o - "$record")" = 0 ] \
+    && [ ! -e "$root/Caches/$old_ime" ] && [ ! -e "$root/Preferences/$old_ime.plist" ]; then
+    pass "a new input source macOS leaves to the user: the move says so, and the old one stays in the record until it is added"
+else
+    echo "$out"; cat "$record" 2>/dev/null; fail "the new input source left to the user"
+fi
+# The user adds it: the next run takes the old one out and deletes the record.
+/usr/libexec/PlistBuddy -c "Delete :$new_ime" -c "Add :$new_ime dict" -c "Add :$new_ime:registered bool true" \
+    -c "Add :$new_ime:enabled bool true" -c "Add :$new_ime:selected bool true" "$root/InputSources.plist"
+out=$("$bridge" --migrate-identity "$root/Input Methods/AllInOneIME.app" --target-dir "$root" 2>&1) && moved \
+    && pass "once the user has added it, the old input source goes and the record with it" \
+    || { echo "$out"; cat "$record" 2>/dev/null; fail "the old input source once the new one is added"; }
 
 # 6e. Another run (the new identity installed already): nothing changes.
 state() {

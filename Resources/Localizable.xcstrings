@@ -15736,6 +15736,53 @@
         }
       }
     },
+    "It didn't start again by itself after the update (%@); it started later." : {
+      "comment" : "更新后它没能自己重新启动（%@），是之后才启动的。 — Sources/AllInOneIME/Updates.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Es ist nach dem Update nicht von selbst wieder gestartet (%@); es wurde später gestartet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se volvió a abrir solo después de la actualización (%@); se abrió más tarde."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il ne s’est pas relancé de lui-même après la mise à jour (%@) ; il a été lancé plus tard."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アップデート後に自動で再起動できませんでした（%@）。後から起動されました。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "업데이트 후 저절로 다시 시작되지 않았습니다(%@). 나중에 시작되었습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele não reabriu sozinho depois da atualização (%@); foi aberto mais tarde."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更新後它沒能自己重新啟動（%@），是之後才啟動的。"
+          }
+        }
+      }
+    },
     "It stays at that version and isn't checked for updates." : {
       "comment" : "固定后停在这个版本，不再检查更新。 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {

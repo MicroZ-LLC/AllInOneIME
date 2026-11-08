@@ -35,4 +35,35 @@ public enum InputSourceList {
         guard let list, contains(list, bundleID: bundleID) else { return nil }
         return list.filter { $0[bundleIDKey] as? String != bundleID }
     }
+
+    /// An input source as Text Input Sources files it: its ID, and the bundle ID it has for it.
+    public struct Filed: Equatable, Sendable {
+        public var id: String
+        public var bundleID: String?
+
+        public init(id: String, bundleID: String?) {
+            self.id = id
+            self.bundleID = bundleID
+        }
+    }
+
+    public enum Removal {
+        /// Nothing listed for it (or no list).
+        case unlisted
+        /// The list without its entries.
+        case removed([[String: Any]])
+        /// Text Input Sources files this other input source under its entry's bundle ID: left.
+        case filedUnder(String)
+    }
+
+    /// The list without the entries of the input source `id` (an input method without input modes, listed by its bundle
+    /// ID, which is its input source ID). Unless Text Input Sources (`filed`: every input source installed) files another
+    /// one under that bundle ID: its cache can keep the bundle ID an app had for its path after another app took that
+    /// path (AllInOneIME's new identity in place of the old one), and then that entry is what the other one is enabled
+    /// by.
+    public static func removingSource(_ id: String, from list: [[String: Any]]?, filed: [Filed]) -> Removal {
+        guard let updated = removing(id, from: list) else { return .unlisted }
+        if let other = filed.first(where: { $0.id != id && $0.bundleID == id }) { return .filedUnder(other.id) }
+        return .removed(updated)
+    }
 }

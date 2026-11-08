@@ -71,3 +71,54 @@ extension Updater {
         }
     }
 }
+
+/// The input method started again by the update helper once the apps are in (or back): with `open`, as a new instance
+/// when none is running (Launch Services may take the helper itself for the app at that path, the helper having
+/// started from it, and then start nothing: `open` returned -600 after the move to the new identity), then looked for
+/// until it runs.
+public enum UpdateRelaunch {
+    /// `open`'s arguments: a new instance of `app` when none runs (else the one running is brought forward), the
+    /// settings window opened when `settings`.
+    public static func openArguments(_ app: URL, newInstance: Bool, settings: Bool) -> [String] {
+        (newInstance ? ["-n"] : []) + [app.path] + (settings ? ["--args", "--settings"] : [])
+    }
+
+    /// `app` started (`open`, run with `openArguments`) and looked for (`running`) for `wait` seconds: nil once it runs,
+    /// else why it doesn't.
+    public static func start(_ app: URL, newInstance: Bool, settings: Bool, open: ([String]) -> (status: Int32, output: String),
+                             running: () -> Bool, wait: TimeInterval = 10,
+                             pause: () -> Void = { Thread.sleep(forTimeInterval: 0.25) }, now: () -> Date = Date.init) -> String? {
+        let opened = open(openArguments(app, newInstance: newInstance, settings: settings))
+        let deadline = now().addingTimeInterval(wait)
+        while !running() {
+            guard now() < deadline else {
+                let said = opened.output.split(whereSeparator: \.isNewline).last.map { ": \($0.prefix(200))" } ?? ""
+                return opened.status == 0 ? "it isn't running \(Int(wait)) s after open" : "open exited \(opened.status)\(said)"
+            }
+            pause()
+        }
+        return nil
+    }
+
+    /// The processes, this one excepted, whose executable is `executable` (by its path, links resolved): the kernel's
+    /// list, not Launch Services'.
+    public static func processes(running executable: URL) -> [pid_t] {
+        let wanted = executable.resolvingSymlinksInPath().standardizedFileURL.path
+        var pids = [pid_t](repeating: 0, count: 4096)
+        let count = proc_listallpids(&pids, Int32(pids.count * MemoryLayout<pid_t>.size))
+        guard count > 0 else { return [] }
+        return pids.prefix(Int(count)).filter { pid in
+            guard pid > 0, pid != getpid(), let path = executablePath(of: pid) else { return false }
+            return URL(fileURLWithPath: path).resolvingSymlinksInPath().standardizedFileURL.path == wanted
+        }
+    }
+
+    /// The path of `pid`'s executable as it is now (the kernel's: it follows a rename of its bundle); nil when it can't
+    /// be had.
+    public static func executablePath(of pid: pid_t) -> String? {
+        var buffer = [UInt8](repeating: 0, count: 4 * Int(MAXPATHLEN))
+        let length = proc_pidpath(pid, &buffer, UInt32(buffer.count))
+        guard length > 0 else { return nil }
+        return String(decoding: buffer.prefix(Int(length)), as: UTF8.self)
+    }
+}
