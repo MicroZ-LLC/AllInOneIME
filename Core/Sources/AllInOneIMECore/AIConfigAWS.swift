@@ -14,13 +14,13 @@ extension AIConfig {
 
     /// The AWS profiles in `~/.aws/config` and `~/.aws/credentials` (or the files the environment names) and their
     /// regions, read line by line: section names and `region` lines only, never a key, a token or any other setting.
-    /// SSO, role and `credential_process` profiles are listed with their region like the others.
-    public static func awsProfiles(environment: [String: String] = ProcessInfo.processInfo.environment) -> [AWSProfile] {
-        let home = CorePaths.home
-        let config = environment["AWS_CONFIG_FILE"] ?? home.appendingPathComponent(".aws/config").path
-        let credentials = environment["AWS_SHARED_CREDENTIALS_FILE"] ?? home.appendingPathComponent(".aws/credentials").path
-        return awsProfiles(config: try? String(contentsOfFile: config, encoding: .utf8),
-                           credentials: try? String(contentsOfFile: credentials, encoding: .utf8))
+    /// SSO, role and `credential_process` profiles are listed with their region like the others. The environment is the
+    /// one the AWS Profile picker and Bedrock's requests read (`AWSCredentialContext.live`): the input method's own over
+    /// the login shell's, so the files named in the shell are the ones read.
+    public static func awsProfiles(environment: [String: String] = AWSCredentialContext.live.environment()) -> [AWSProfile] {
+        let files = AWSFileLocations(environment: environment)
+        return awsProfiles(config: try? String(contentsOf: files.config, encoding: .utf8),
+                           credentials: try? String(contentsOf: files.credentials, encoding: .utf8))
     }
 
     /// The profiles in these files' texts: the config file's region first (the credentials file's where it has none).
