@@ -418,7 +418,7 @@ Ctrl+Space로 AllInOneIME에 가지 않거나, 얼마 후 U.S.로 되돌아간�
 
 이전 버전에서 0.6.3으로 업데이트하는 경우: 0.6.3은 Developer ID로 서명된 첫 버전이라, 키체인은 아직 이 앱을 키를 저장한 앱으로 알아보지 못합니다. 저장된 각 키(API 키, AllInOneIME Cloud 로그인, 확장의 암호)가 처음 필요할 때 macOS가 로그인 암호를 묻습니다. 암호를 입력하고 "Always Allow"(항상 허용)를 클릭하세요. 그 뒤로는 이후 업데이트 후에도 다시 묻지 않습니다. Amazon Bedrock의 키는 `~/.aws/credentials`에 있어서 영향을 받지 않습니다. 터미널에 붙여 넣기와 선택 영역 읽기에 쓰이는 손쉬운 사용(시스템 설정 → 개인정보 보호 및 보안 → 손쉬운 사용)도 한 단계가 필요합니다. AllInOneIME가 목록에 있으면 제거한 뒤, 요청이 나올 때 다시 켜세요.
 
-AIPinyin(AllInOneIME의 이전 이름)을 설치했었다면 그냥 설치하세요. 이전 AIPinyin.app과 그 설정 실행기는 제거되고, 입력 소스의 항목은 새 이름으로 바뀌므로 다시 추가할 필요가 없습니다. 설정, Jargon 목록, 학습한 단어는 처음 실행할 때 새 폴더(`~/.config/allinoneime` 등)로 옮겨지며, 이전 폴더는 각각 새 폴더를 가리키는 링크로 남습니다.
+0.7.1 이하에서 업데이트하기: 0.7.2부터 AllInOneIME는 자체 시스템 ID(macOS가 앱을 알아보는 번들 ID)를 가집니다. 0.7.1은 스스로 업데이트할 때(Settings → About → Update)든 설치 프로그램이 요청할 때든 이 ID로 옮기며 설정과 저장된 API 키를 가져갑니다. 그 이전 버전은 그렇게 할 수 없으니 먼저 0.7.1로 업데이트하거나, 그대로 설치한 뒤 API 키를 다시 입력하세요. 어느 쪽이든 macOS는 AllInOneIME에 허용했던 권한을 다시 묻고, AllInOneIME는 어떤 권한인지 한 번 알려 줍니다.
 
 제거하려면 "Install AllInOneIME"을 열고 "Uninstall…"(제거…)을 클릭하세요. 설정과 학습한 단어는 유지됩니다.
 
@@ -603,7 +603,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 앱은 매니페스트를 읽기 전에 내장된 공개 키로 서명을 확인하고, 더 새롭지 않은 버전은 절대 설치하지 않으며, https로 allinoneime.com 또는 이 저장소의 GitHub 릴리스 파일에서만 내려받고, 아카이브의 크기와 SHA-256이 매니페스트와 일치하고 두 앱의 번들 ID, 버전, 코드 서명이 확인되며 새 입력기가 시작될 때에만 설치합니다. 그런 다음 입력기는 자신의 실행 파일을 도우미로 넘겨(`--apply-update`) 작업을 맡깁니다. 도우미는 입력기가 종료되기를 기다렸다가 설치 프로그램과 같은 방식으로 앱을 바꾸고(이전 앱은 옆으로 옮겨 두고, 실패하면 되돌림) 새 앱을 등록합니다. 로컬 서버로 시험하려면: `make update-test`, 또는 `Scripts/build-update-manifest.swift`의 `--test-key`와 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`를 사용합니다.
 
-번들 ID는 여전히 `com.aipinyin.inputmethod.AIPinyin`입니다. macOS가 이것으로 추가된 입력 소스와 부여된 권한을 기억하므로, 바꾸면 입력기를 다시 추가하고 권한을 다시 허용해야 합니다.
+번들 ID는 0.7.2부터 `com.allinoneime.inputmethod.AllInOneIME`입니다(AllInOneIME Settings는 `com.allinoneime.settings`, 키체인 접근 그룹은 `9SR8N3UD5Y.com.allinoneime.shared`). macOS는 이것으로 추가된 입력 소스와 허용한 권한을 기억합니다. 이전 ID를 가진 마지막 버전인 0.7.1이 설치를 이 ID로 옮깁니다(자체 업데이트로, 또는 설치 프로그램과 `make install`이 호출하는 `AllInOneIME --migrate-identity <새 AllInOneIME.app>`으로). 이후 버전은 다른 ID의 설치를 번들 ID로만 알아봅니다.
 
 ## 라이선스
 

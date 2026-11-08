@@ -418,7 +418,7 @@ Cập nhật: Settings → About → Check for Updates (kiểm tra cập nhật)
 
 Cập nhật lên 0.6.3 từ phiên bản cũ hơn: 0.6.3 là phiên bản đầu tiên được ký bằng Developer ID, nên keychain chưa nhận ra nó là ứng dụng đã lưu các khóa của bạn. Lần đầu nó cần đến từng khóa đã lưu (một API key, phiên đăng nhập AllInOneIME Cloud, mật khẩu của một tiện ích mở rộng), macOS sẽ hỏi mật khẩu đăng nhập của bạn: nhập mật khẩu rồi nhấp "Always Allow" (Luôn cho phép). Sau đó nó không hỏi lại nữa, kể cả sau những lần cập nhật sau. Khóa của Amazon Bedrock nằm trong `~/.aws/credentials`, không bị ảnh hưởng. Trợ năng (Cài đặt hệ thống → Quyền riêng tư & Bảo mật → Trợ năng), thứ mà việc dán vào terminal và đọc vùng chọn sử dụng, cũng cần một bước: nếu AllInOneIME có trong danh sách, hãy gỡ nó ra rồi bật lại khi được hỏi.
 
-Nếu bạn đã cài AIPinyin (tên cũ của AllInOneIME), chỉ cần cài: AIPinyin.app cũ và trình khởi chạy cài đặt của nó sẽ bị gỡ, và mục trong các nguồn nhập của bạn được đổi sang tên mới, không cần thêm lại. Cài đặt, danh sách jargon và các từ đã học được chuyển sang các thư mục mới (`~/.config/allinoneime` và các thư mục khác) ở lần khởi chạy đầu tiên, và mỗi thư mục cũ được để lại dưới dạng liên kết tới thư mục mới.
+Cập nhật từ 0.7.1 trở về trước: từ 0.7.2, AllInOneIME có danh tính hệ thống riêng (các bundle ID mà macOS dùng để nhận ra nó). Bản 0.7.1 chuyển sang danh tính này và mang theo cài đặt cùng các khóa API đã lưu, dù nó tự cập nhật (Settings → About → Update) hay được trình cài đặt yêu cầu. Bản cũ hơn thì không làm được: hãy cập nhật lên 0.7.1 trước, hoặc vẫn cài đặt rồi nhập lại các khóa API. Dù bằng cách nào, macOS cũng hỏi lại các quyền bạn đã cấp cho AllInOneIME, và AllInOneIME sẽ cho bạn biết một lần đó là những quyền nào.
 
 Để gỡ cài đặt, mở "Install AllInOneIME" và nhấp "Uninstall…". Cài đặt và các từ đã học được giữ lại.
 
@@ -603,7 +603,7 @@ Phát hành một phiên bản (trình cập nhật trong ứng dụng đọc ht
 
 Ứng dụng kiểm tra chữ ký của manifest bằng khóa công khai tích hợp sẵn trước khi đọc nó, không bao giờ cài phiên bản không mới hơn, chỉ tải qua https từ allinoneime.com hoặc các tệp phát hành GitHub của kho mã, và chỉ cài gói lưu trữ khi kích thước và SHA-256 khớp với manifest, bundle ID, phiên bản và chữ ký mã của cả hai ứng dụng đều hợp lệ và bộ gõ mới khởi động được. Sau đó bộ gõ giao việc cho chính tệp thực thi của nó làm trình trợ giúp (`--apply-update`), trình này chờ bộ gõ thoát, hoán đổi các ứng dụng như trình cài đặt làm (bản cũ được để sang bên, đặt lại nếu có gì thất bại) và đăng ký bản mới. Để thử với máy chủ cục bộ: `make update-test`, hoặc `--test-key` với `Scripts/build-update-manifest.swift` và `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`.
 
-Bundle ID vẫn là `com.aipinyin.inputmethod.AIPinyin`: macOS dùng nó để ghi nhớ nguồn nhập đã thêm và các quyền đã cấp cho nó, nên thay đổi nó đồng nghĩa với việc phải thêm lại bộ gõ và cấp lại các quyền đó.
+Từ 0.7.2, bundle ID là `com.allinoneime.inputmethod.AllInOneIME` (AllInOneIME Settings: `com.allinoneime.settings`; nhóm truy cập chuỗi khóa: `9SR8N3UD5Y.com.allinoneime.shared`): macOS dùng nó để nhớ nguồn nhập liệu đã thêm và các quyền đã cấp. Bản 0.7.1, bản cuối cùng mang danh tính trước đó, chuyển một bản cài sang danh tính này (bằng bản cập nhật của chính nó, hoặc `AllInOneIME --migrate-identity <AllInOneIME.app mới>` mà trình cài đặt và `make install` gọi); các bản sau chỉ nhận ra bản cài mang danh tính khác qua bundle ID.
 
 ## Giấy phép
 

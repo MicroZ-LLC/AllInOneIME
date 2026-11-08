@@ -1172,9 +1172,10 @@ Allow". It doesn't ask again, also after later updates. Amazon Bedrock's keys ar
 isn't affected. Accessibility (System Settings → Privacy & Security → Accessibility), which pasting into terminals,
 reading the selection and keeping a panel's keys from apps use, needs one step too: if AllInOneIME is listed, remove it and turn it on again when asked.
 
-If you had AIPinyin installed (AllInOneIME's earlier name), just install: the old AIPinyin.app and its settings launcher are removed,
-and the entry in your input sources gets the new name, with no need to add it again. Settings, the jargon list and learned words move to the new folders
-(`~/.config/allinoneime` and others) on first launch, and each old folder is left as a link to the new one.
+Updating from 0.7.1 or earlier: since 0.7.2, AllInOneIME has its own system identity (the bundle IDs macOS knows it by).
+0.7.1 moves to it and carries your settings and saved API keys over, whether it updates itself (Settings → About → Update)
+or the installer asks it to. An earlier version can't: update it to 0.7.1 first, or install anyway and enter your API keys
+again. Either way, macOS asks again for the permissions you gave AllInOneIME, and AllInOneIME tells you which once.
 
 To uninstall, open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 
@@ -1491,22 +1492,14 @@ waits for it to quit, swaps the apps the way the installer does (the old ones mo
 registers the new one. To try it against a local server: `make update-test`, or `--test-key` with
 `Scripts/build-update-manifest.swift` and `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`.
 
-The bundle ID is still `com.aipinyin.inputmethod.AIPinyin` in 0.7.1, the last version with it: 0.7.2 has AllInOneIME's own
-system identity (`com.allinoneime.inputmethod.AllInOneIME`, AllInOneIME Settings `com.allinoneime.settings`, the keychain
-access group `9SR8N3UD5Y.com.allinoneime.shared`). 0.7.1's updater installs it: it copies the preferences and the keychain
-group's items over to the new identity first, hands the login keychain's keys over (each copied into the new group as a
-handover item, which 0.7.2 imports into the login keychain at launch as its own, so macOS never asks it to allow one;
-`Sources/AllInOneIMEMac/IdentityHandover.swift`), writes down what its cleanup will remove, swaps the apps, registers the
-new input source, never asking for it to be enabled (macOS lets only the user add a new input method; asked to, it only
-opens System Settings), with Text Input Sources asked in a process of its own, so that the helper can start the new
-version afterwards, and what it says logged; and only then removes the old identity's
-(`Sources/AllInOneIMEMac/Migration.swift`); any failure before the new input method starts puts everything back. What the
-cleanup couldn't remove stays listed in `~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which 0.7.2
-finishes at launch. Until the user adds the new input source, which 0.7.2 asks first (System Settings → Keyboard → Input
-Sources → + → English → AllInOneIME), no AllInOneIME input source works: the old one's entry stays in the input sources
-only to be taken out then, its app gone. The 0.7.2 installer asks an installed 0.7.1 to do the same
-(`AllInOneIME --migrate-identity <the new AllInOneIME.app>`), and the 0.7.1 installer and `make install` never install
-over 0.7.2 (the installed version is newer). macOS asks again for the permissions it keeps by bundle ID.
+The bundle ID is `com.allinoneime.inputmethod.AllInOneIME` since 0.7.2, AllInOneIME's own system identity (AllInOneIME
+Settings: `com.allinoneime.settings`; the keychain access group: `9SR8N3UD5Y.com.allinoneime.shared`): macOS uses it to
+remember the added input source and the permissions granted to it. 0.7.1, the last version with the earlier identity,
+moves an install to this one, carrying the preferences and keychain items over (by its own update, or
+`AllInOneIME --migrate-identity <the new AllInOneIME.app>`, which the installer and `make install` call); this version
+relies on that, and tells an install of another identity only by its bundle ID not being this one's
+(`Sources/AllInOneIMEMac/SystemIdentity.swift`). After the move, the input method says once which permissions to allow
+again (About, with Troubleshoot).
 
 ## License
 

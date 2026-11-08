@@ -904,9 +904,10 @@ Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再
 之后不会再问，以后更新也不会。Amazon Bedrock 的密钥在 `~/.aws/credentials` 里，不受影响。
 辅助功能（系统设置 → 隐私与安全性 → 辅助功能）用于往终端里粘贴、读取选中的文字，以及不让面板的按键漏给 App：如果列表里有 AllInOneIME，把它移除，等再问时重新打开。
 
-以前装过 AI 拼音（AIPinyin）的话，直接安装就行：旧的 AIPinyin.app 和「AI 拼音设置」会被删掉，
-输入法列表里那一项会换成新名字，不用重新添加。设置、黑话库和学到的词第一次启动时搬到新目录
-（`~/.config/allinoneime` 等），旧目录留一个指向新目录的链接。
+从 0.7.1 或更早的版本更新：从 0.7.2 起，AllInOneIME 有了自己的系统身份（macOS 用来认它的 bundle ID）。0.7.1 不论是自己更新
+（设置 →「关于」→「更新」），还是被安装程序要求，都会换到这个身份，并把你的设置和保存的 API 密钥带过来。更早的版本做不到：
+请先更新到 0.7.1，或者照样安装，之后重新输入 API 密钥。无论哪种方式，macOS 都会重新询问你给过 AllInOneIME 的权限，AllInOneIME
+会告诉你一次是哪些。
 
 卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
 
@@ -1171,18 +1172,12 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 在本机试：`make update-test`，或者用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再
 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<端口>/update-v2.json --key <测试公钥> --target-dir <目录>`。
 
-0.7.1 的 Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`，它是用这个 ID 的最后一个版本：0.7.2 换成 AllInOneIME 自己的系统身份
-（`com.allinoneime.inputmethod.AllInOneIME`，AllInOneIME 设置是 `com.allinoneime.settings`，钥匙串访问组是
-`9SR8N3UD5Y.com.allinoneime.shared`）。由 0.7.1 的更新程序安装它：先把偏好设置和钥匙串访问组里的项目复制到新身份下，把登录钥匙串里的密钥交接过去（每个复制成新访问组里的
-一个交接项，0.7.2 启动时把它导入登录钥匙串，成为自己的项目，macOS 不会为此询问；`Sources/AllInOneIMEMac/IdentityHandover.swift`），
-记下清理要删的东西，再换 App、注册新输入法（不请求启用它：新输入法只有用户能添加，请求了也只会自己打开系统设置；文字输入源在单独的进程里调用，
-这样更新助手之后才能启动新版本；结果按文字输入源实际所说记录），之后才删掉旧身份的东西
-（`Sources/AllInOneIMEMac/Migration.swift`）；新输入法启动之前出任何问题都会全部恢复原样。清理没删掉的留在
-`~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，由 0.7.2 启动时删完。用户添加新输入法之前
-（0.7.2 会先请用户添加：系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME），AllInOneIME 打不了字：旧输入法那一项还留在输入法列表里，
-只是为了到时删掉，它的 App 已经不在了。0.7.2 的安装程序会请已安装的 0.7.1 做同样的事
-（`AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；0.7.1 的安装程序和 `make install` 不会装在 0.7.2 上面（已安装的版本更新）。
-macOS 按 bundle ID 记的权限要重新允许。
+从 0.7.2 起，Bundle ID 是 `com.allinoneime.inputmethod.AllInOneIME`，AllInOneIME 自己的系统身份（AllInOneIME 设置是
+`com.allinoneime.settings`，钥匙串访问组是 `9SR8N3UD5Y.com.allinoneime.shared`）：macOS 按它记住已添加的输入法和给它的权限。
+使用之前身份的最后一个版本 0.7.1 会把安装换到这个身份，把偏好设置和钥匙串项目带过来（通过它自己的更新，或者安装程序和
+`make install` 调用的 `AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；这个版本依靠它做完这件事，只凭 bundle ID
+不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。换过来以后，输入法会说一次哪些权限要重新允许
+（「关于」页，带「排查问题」）。
 
 ## 许可证
 
