@@ -906,8 +906,9 @@ Ctrl+空格 切不到 AllInOneIME，或者切过去一会儿又变回 U.S.：再
 
 从 0.7.1 或更早的版本更新：从 0.7.2 起，AllInOneIME 有了自己的系统身份（macOS 用来认它的 bundle ID）。0.7.1 不论是自己更新
 （设置 →「关于」→「更新」），还是被安装程序要求，都会换到这个身份，并把你的设置和保存的 API 密钥带过来。更早的版本做不到：
-请先更新到 0.7.1，或者照样安装，之后重新输入 API 密钥。无论哪种方式，新的输入法都只能由你自己添加：AllInOneIME 会先告诉你这一步
-（系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME）。macOS 也会重新询问你给过 AllInOneIME 的权限，AllInOneIME 会告诉你一次是哪些。
+请先更新到 0.7.1，或者照样安装，之后重新输入 API 密钥。无论哪种方式，新的输入法都只能由你自己添加，加好之前用不了 AllInOneIME 打字：
+AllInOneIME 会打开设置 →「关于」，最先告诉你这一步（系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME）。之前的输入法已经不能用了，
+你加好以后它那一项就删掉。macOS 也会重新询问你给过 AllInOneIME 的权限，AllInOneIME 会告诉你一次是哪些。
 
 卸载：打开「安装 AllInOneIME」，点「卸载…」。设置和学到的词会保留。
 
@@ -1182,9 +1183,10 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。0.7.1 存在登录钥匙串里的密钥，作为交接项放在
 这个版本的访问组里：输入法启动时把每个导入登录钥匙串，成为自己的项目（macOS 不会为此询问），再删掉交接项；0.7.1 的清理没删掉的，
 列在 `~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，输入法启动时按里面列的标识删完，从不碰这个身份自己的东西
-（`Sources/AllInOneIMEMac/IdentityHandover.swift`、`IdentityFinish.swift`）。新的输入法只能由用户自己添加：这个输入法的
-输入源还没启用时，「关于」页最先列出这一步（系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME，带打开「键盘」设置的按钮；
-`Sources/AllInOneIME/InputSourceStep.swift`），App 回到前台、文本框启用它时再看一次；记录里之前的输入法要等这个启用了才删。
+（`Sources/AllInOneIMEMac/IdentityHandover.swift`、`IdentityFinish.swift`）。新的输入法只能由用户自己添加（0.7.1 不会请求启用它）：
+这个输入法的输入源还没启用时，AllInOneIME 打不了字，「关于」页最先列出这一步（系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME，
+带打开「键盘」设置的按钮；`Sources/AllInOneIME/InputSourceStep.swift`），App 回到前台、文本框启用它时再看一次；刚换过来时输入法会马上
+打开「关于」页，先于其他任何页面。记录里之前的输入法已经不能用了，它那一项要等这个启用了才删。
 换过来以后，输入法会说一次哪些权限要重新允许（「关于」页，带「排查问题」）。
 
 ## 许可证

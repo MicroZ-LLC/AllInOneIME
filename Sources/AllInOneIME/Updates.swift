@@ -515,6 +515,8 @@ final class UpdateController: ObservableObject {
     @Published var lastChecked: Date?
     /// What the last update did, shown on the About page after the restart.
     @Published var lastResult: UpdateResult?
+    /// What this launch shows first, of its own (`start`): the step to add the input source right after the move.
+    private(set) var firstShown = SystemIdentity.FirstShown.nothing
 
     var updater = Updater(manifestURL: Updater.defaultManifestURL)
     var locations = UpdateLocations.real
@@ -562,17 +564,22 @@ final class UpdateController: ObservableObject {
         Task { await notifier.restarted(after: result) }
         // Moved to this system identity (from a version before it, by its update or the installer): macOS asks again for
         // the permissions it keeps by bundle ID. Said once: About, its update row saying which (`UpdateText.moved`), with
-        // Troubleshoot outlined, which lists those still to allow. Once the input method has started. Its input source not
-        // added yet (macOS leaves that to the user): About from its top, that step first (`InputSourceStepSection`), and
-        // Troubleshoot outlined once it is added.
-        if let result, SystemIdentity.moved(result) {
+        // Troubleshoot outlined, which lists those still to allow, once the input method has started. Its input source not
+        // added yet (macOS leaves that to the user; nothing of AllInOneIME types until then): About from its top at once,
+        // that step the first thing shown (`InputSourceStepSection`; a settings window asked for at launch opens on it
+        // too, `firstShown`), and Troubleshoot outlined once it is added.
+        let status = InputSourceStatus.shared
+        firstShown = SystemIdentity.firstShown(after: result, inputSourceEnabled: !status.needsAdding)
+        switch firstShown {
+        case .nothing:
+            break
+        case .inputSourceStep:
+            log.notice("moved to this system identity: About shows the step to add the input source first, then the permissions")
+            DispatchQueue.main.async { SettingsWindow.shared.show(page: .about) }
+            status.whenAdded = { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+        case .permissions:
             log.notice("moved to this system identity: the permissions are told on the About page")
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                let status = InputSourceStatus.shared
-                guard status.needsAdding else { return SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
-                SettingsWindow.shared.show(page: .about)
-                status.whenAdded = { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
-            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
         }
         clearLeftovers()
         lastChecked = defaults.object(forKey: Self.successKey) as? Date

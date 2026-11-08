@@ -244,7 +244,9 @@ struct IdentityFinishTests {
         var rest = record
         rest.inputSource = nil
         #expect(rest.isEmpty && mac.actions.domains.isEmpty && mac.actions.caches.isEmpty)
-        #expect(mac.lines.contains { $0.contains("stays until this one is added") })
+        // Said as it is: the entry is kept only to be taken out, the source itself can't be used.
+        #expect(mac.lines.contains { $0.contains("\(oldIME) can't be used any more; its entry is kept only to be taken out once this one is added") })
+        #expect(!mac.lines.contains { $0.contains("stays until") })
         #expect(mac.finish().waitsForInputSource)
         // The keys don't wait for it.
         mac.keys.unreadable = []

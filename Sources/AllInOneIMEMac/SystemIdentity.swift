@@ -40,4 +40,22 @@ public enum SystemIdentity {
         result.ok && result.from.range(of: #"^[0-9]+(\.[0-9]+)*$"#, options: .regularExpression) != nil
             && SemVer.compare(result.from, since) < 0 && SemVer.compare(result.to, since) >= 0
     }
+
+    /// What the input method shows first, of its own, when it starts.
+    public enum FirstShown: Equatable, Sendable {
+        case nothing
+        /// About from its top, at once (before any other page: the settings window asked for at launch too): the step to
+        /// add the input source, which macOS leaves to the user. Nothing of AllInOneIME types until it is done.
+        case inputSourceStep
+        /// About with Troubleshoot outlined: the permissions to allow again.
+        case permissions
+    }
+
+    /// After `result` (nil: none was left for it), with its own input source enabled or not: moved to this identity, the
+    /// step to add the input source while it isn't, else the permissions; nothing otherwise (an update within this
+    /// identity, one that didn't go in, a launch without one).
+    public static func firstShown(after result: UpdateResult?, inputSourceEnabled: Bool) -> FirstShown {
+        guard let result, moved(result) else { return .nothing }
+        return inputSourceEnabled ? .permissions : .inputSourceStep
+    }
 }

@@ -32,4 +32,16 @@ struct SystemIdentityTests {
         #expect(!SystemIdentity.moved(UpdateResult(from: "none", to: "0.7.2", ok: true)))
         #expect(!SystemIdentity.moved(UpdateResult(from: "?", to: "0.7.2", ok: true)))
     }
+
+    /// Started right after the move with its input source not added yet (macOS leaves that to the user): the step to add
+    /// it is the first thing shown; once it is added, the permissions; nothing of the kind after any other launch.
+    @Test func theStepToAddTheInputSourceIsShownFirstAfterTheMove() {
+        let moved = UpdateResult(from: "0.7.1", to: "0.7.2", ok: true)
+        #expect(SystemIdentity.firstShown(after: moved, inputSourceEnabled: false) == .inputSourceStep)
+        #expect(SystemIdentity.firstShown(after: moved, inputSourceEnabled: true) == .permissions)
+        for result in [nil, UpdateResult(from: "0.7.2", to: "0.7.3", ok: true), UpdateResult(from: "0.7.1", to: "0.7.2", ok: false)] {
+            #expect(SystemIdentity.firstShown(after: result, inputSourceEnabled: false) == .nothing)
+            #expect(SystemIdentity.firstShown(after: result, inputSourceEnabled: true) == .nothing)
+        }
+    }
 }

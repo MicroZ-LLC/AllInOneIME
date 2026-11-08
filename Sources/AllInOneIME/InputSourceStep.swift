@@ -6,9 +6,11 @@ import SwiftUI
 // The one step the user has to take after an install or the move to this system identity: adding the input method in
 // System Settings → Keyboard → Input Sources. macOS lets only the user add a new input method (asked to enable one,
 // Text Input Sources says it did and changes nothing), so until the user has, the About page shows that step first, with
-// a button to Keyboard settings (`InputSourceStepSection`). Looked at again when the input method's app becomes active
-// (back from System Settings, say) and when a text field activates it; once the source is enabled the step goes, and
-// what the move's record waits for (the input source before this one taken out) is done (`IdentityFinish`).
+// a button to Keyboard settings (`InputSourceStepSection`); right after the move, the input method opens About on it at
+// once, before any other page (`UpdateController.start`): nothing of AllInOneIME types until it is done. Looked at again
+// when the input method's app becomes active (back from System Settings, say) and when a text field activates it; once
+// the source is enabled the step goes, and what the move's record waits for (the input source before this one taken
+// out) is done (`IdentityFinish`).
 
 /// Whether the installed input method's own input source is enabled (`InputSourceCheck`). Main thread.
 @MainActor
@@ -73,11 +75,15 @@ final class InputSourceStatus: ObservableObject {
         }
     }
 
-    static var title: String { tr("还差一步：把 AllInOneIME 添加到输入法", "One step left: add AllInOneIME to your input sources") }
+    /// The step, in plain words: where to add it.
+    static var title: String {
+        tr("还差一步：添加 AllInOneIME —— 系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME",
+           "One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → English → AllInOneIME")
+    }
 
     static var steps: String {
-        tr("新的输入法只能由你自己添加：系统设置 → 键盘 → 输入法（编辑…）→ + → 英语 → AllInOneIME → 添加。之后用 Ctrl+空格 或 🌐 键切换到 AllInOneIME。",
-           "macOS lets only you add a new input method: System Settings → Keyboard → Input Sources (Edit…) → + → English → AllInOneIME → Add. Then switch to it with Ctrl+Space or the 🌐 key.")
+        tr("加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。加好以后用 Ctrl+空格 或 🌐 键切换到它。",
+           "AllInOneIME can't type until it's added, and only you can add it. Then switch to it with Ctrl+Space or the 🌐 key.")
     }
 
     static var button: String { tr("打开键盘设置", "Open Keyboard Settings") }

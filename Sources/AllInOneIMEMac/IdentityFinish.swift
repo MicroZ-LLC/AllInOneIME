@@ -180,8 +180,10 @@ public struct IdentityFinish {
                 say("cleanup: the input source \(id) isn't one of the record's apps; left")
                 record.inputSource = nil
             } else if actions.isInputSourceAdded(id), !actions.isInputSourceEnabled(ownInputSource) {
-                // Not before the user has added this one: the entry of the one before may be what it is filed under.
-                say("cleanup: the input source \(id) stays until this one is added (System Settings → Keyboard → Input Sources)")
+                // Not before the user has added this one: the entry of the one before may be what it is filed under. That
+                // entry is all that is left of it: it can't be used (nothing of AllInOneIME types until this one is added).
+                say("cleanup: the input source \(id) can't be used any more; its entry is kept only to be taken out once this one "
+                    + "is added (System Settings → Keyboard → Input Sources → + → English → AllInOneIME)")
             } else if actions.disableInputSource(id) {
                 say("cleanup: \(id) disabled and out of the input sources")
                 record.inputSource = nil

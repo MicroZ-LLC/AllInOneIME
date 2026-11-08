@@ -212,7 +212,13 @@ func runServer(showSettings: Bool = false) -> Never {
         }
     }
     if showSettings {
-        DispatchQueue.main.async { MainActor.assumeIsolated { SettingsWindow.shared.show() } }
+        // On About instead when the move to this identity shows the step to add the input source first (decided by
+        // `UpdateController.start` below, before this runs).
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated {
+                if UpdateController.shared.firstShown != .inputSourceStep { SettingsWindow.shared.show() }
+            }
+        }
     }
     // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
