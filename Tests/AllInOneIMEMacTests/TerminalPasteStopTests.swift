@@ -81,7 +81,7 @@ enum TerminalPasteStopChild {
     static func run(_ stop: Stop) throws -> [Round] {
         let executable = try compiled.get()
         let fm = FileManager.default
-        let name = "com.aipinyin.inputmethod.pastestop.\(UUID().uuidString)"
+        let name = "com.allinoneime.inputmethod.pastestop.\(UUID().uuidString)"
         defer { NSPasteboard(name: NSPasteboard.Name(name)).releaseGlobally() }
         let home = fm.temporaryDirectory.appendingPathComponent("pastestop-home-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: home.appendingPathComponent(".config/allinoneime"), withIntermediateDirectories: true)

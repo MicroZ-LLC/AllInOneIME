@@ -44,11 +44,6 @@ let usage = """
                         download, verify and install the update as About's Update button does; with
                         --target-dir, into DIR/Input Methods and DIR/Applications (a test install:
                         nothing is registered, the user's apps are left alone)
-      --migrate-identity APP [--target-dir DIR] | --migrate-identity --check
-                        move to the new system identity with APP (an AllInOneIME.app that has it, and
-                        AllInOneIME Settings.app beside it): settings and keychain items carried over,
-                        the apps swapped, the input source switched, then the old identity cleaned up;
-                        --check says this version can; --target-dir: a test install, as above
       --add-source URL [--path FOLDER] [--branch BRANCH] [--pin TAG-OR-COMMIT]
                         clone an extension source (ssh://, git@host:, https://, file://) with your
                         git, print what it holds and runs, and enable it (running this is the consent)
@@ -521,30 +516,6 @@ if arguments.first == "--keychain-probe" {
     exit(KeychainProbe.run(Array(arguments.dropFirst())))
 }
 
-// Hidden: one call of Text Input Sources for the update helper's move to the new identity (`ChildInputSources`), which
-// never calls them itself; nothing else runs.
-if arguments.first == InputSourceCommand.option {
-    exit(InputSourceCommand.run(Array(arguments.dropFirst())))
-}
-
-// Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
-for (path, outcome) in LegacyData.migrate() where outcome != .nothingToMove {
-    switch outcome {
-    case .moved: log.notice("moved legacy data to \(path, privacy: .public)")
-    case .keptBoth: log.notice("legacy data left in place: \(path, privacy: .public) exists")
-    case let .failed(error): log.error("could not move legacy data to \(path, privacy: .public): \(error, privacy: .public)")
-    case .nothingToMove: break
-    }
-    if arguments.first?.hasPrefix("--") == true {
-        switch outcome {
-        case .moved: print("data:        moved from the AIPinyin folder to \(path)")
-        case .keptBoth: print("data:        \(path) exists; the old AIPinyin folder was left as it is")
-        case let .failed(error): printError("data:        could not move the AIPinyin folder to \(path): \(error)")
-        case .nothingToMove: break
-        }
-    }
-}
-
 switch arguments.first {
 case "--register":
     exit(register())
@@ -621,9 +592,6 @@ case "--list-extensions":
 case "--apply-update":
     // The updater's helper (`UpdateHelper`), started by the input method on an update it staged.
     exit(UpdateHelper.run(Array(arguments.dropFirst())))
-case "--migrate-identity":
-    // The move to the new system identity (`MigrationCommand`), for the 0.7.2 installer.
-    exit(MigrationCommand.run(Array(arguments.dropFirst())))
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)

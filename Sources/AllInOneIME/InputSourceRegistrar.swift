@@ -7,7 +7,7 @@ import Foundation
 enum InputSourceRegistrar {
     static var sourceID: String {
         Bundle.main.object(forInfoDictionaryKey: "TISInputSourceID") as? String
-            ?? "com.aipinyin.inputmethod.AIPinyin"
+            ?? "com.allinoneime.inputmethod.AllInOneIME"
     }
 
     static func register(bundleURL: URL = Bundle.main.bundleURL) -> OSStatus {

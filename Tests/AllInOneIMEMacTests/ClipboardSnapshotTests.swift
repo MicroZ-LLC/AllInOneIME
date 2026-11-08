@@ -21,7 +21,7 @@ struct ClipboardSnapshotTests {
     /// A pasteboard of the test's own, with what the user copied on it (through `provider`): on an iPhone where `remote`
     /// (Universal Clipboard's marker among its types).
     static func copied(through provider: CountingProvider, remote: Bool = false) -> NSPasteboard {
-        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.aipinyin.inputmethod.tests.snapshot.\(UUID().uuidString)"))
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.allinoneime.inputmethod.tests.snapshot.\(UUID().uuidString)"))
         pasteboard.clearContents()
         let item = NSPasteboardItem()
         if remote { item.setData(Data(), forType: NSPasteboard.PasteboardType(SystemClipboard.remoteType)) }
@@ -61,7 +61,7 @@ struct ClipboardSnapshotTests {
     }
 
     @Test func withAllowItIsKeptAndPutBack() throws {
-        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.aipinyin.inputmethod.tests.snapshot.\(UUID().uuidString)"))
+        let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.allinoneime.inputmethod.tests.snapshot.\(UUID().uuidString)"))
         defer { pasteboard.releaseGlobally() }
         let html = NSPasteboard.PasteboardType.html, plain = NSPasteboard.PasteboardType.string
         let first = NSPasteboardItem(), second = NSPasteboardItem()

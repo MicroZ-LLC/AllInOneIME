@@ -138,7 +138,7 @@ public final class ImagePreviewImages {
 
     /// Decodes one (on `queue`, never the main thread): ImageIO's thumbnail by default (`thumbnail`); a test's own.
     public var decode: @Sendable (Key) -> CGImage? = { ImagePreviewImages.thumbnail($0) }
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.image-preview", qos: .userInitiated)
+    private let queue = DispatchQueue(label: "com.allinoneime.inputmethod.image-preview", qos: .userInitiated)
     /// The images in, the one used last at the end.
     private var cache: [(key: Key, image: CGImage)] = []
     /// The one wanted, and what to hand it to once it is in.
@@ -200,7 +200,7 @@ public final class ImagePreviewImages {
         if skipped, wanted?.key == key { return ask(key) }
         guard let image else {
             if !skipped, wanted?.key == key {
-                CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+                CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
                     .notice("image preview: the image couldn't be decoded at \(key.pixels) px; the row's thumbnail stays")
             }
             return

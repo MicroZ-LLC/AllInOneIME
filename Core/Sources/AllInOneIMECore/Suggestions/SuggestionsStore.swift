@@ -142,7 +142,7 @@ public final class SuggestionsStore: @unchecked Sendable {
     /// The files' SHA-256s it read (plugins' scripts, script extensions' files), by their size and date.
     let hashes = FileHashes()
     /// Where the cache files are written and deleted, in order.
-    static let disk = DispatchQueue(label: "com.aipinyin.inputmethod.suggestions.cache")
+    static let disk = DispatchQueue(label: "com.allinoneime.inputmethod.suggestions.cache")
 
     public init() {}
 
@@ -510,7 +510,7 @@ public final class SuggestionsStore: @unchecked Sendable {
         }
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 }
 
 /// Where completion scripts' calls (`CompletionRuntime`) run: threads of their own, not the concurrency pool's, which
@@ -530,7 +530,7 @@ enum SuggestionsWork {
 @available(macOS 15, iOS 18, tvOS 18, watchOS 11, visionOS 2, *)
 final class SuggestionsExecutor: TaskExecutor {
     static let shared = SuggestionsExecutor()
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.suggestions.work", qos: .userInitiated, attributes: .concurrent)
+    private let queue = DispatchQueue(label: "com.allinoneime.inputmethod.suggestions.work", qos: .userInitiated, attributes: .concurrent)
 
     func enqueue(_ job: consuming ExecutorJob) {
         let job = UnownedJob(job)

@@ -51,6 +51,8 @@ extension SelfTest {
             ("failed", .failed(UpdateText.describe(UpdateError.hashMismatch), sample), nil),
             ("needs-macos", .needsNewerSystem(UpdateManifest.sample(version: "9.9.0", minimumSystem: "99.0")), nil),
             ("updated", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true)),
+            // Moved to this system identity: the permissions to allow again (`UpdateText.moved`).
+            ("moved", .upToDate, UpdateResult(from: "0.7.1", to: SystemIdentity.since, ok: true)),
             ("rolled-back", .upToDate, UpdateResult(from: AppVersion.string, to: "9.9.0", ok: false, error: "it didn't start")),
             ("not-started", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true, launchError: "open exited 1: -600")),
         ]

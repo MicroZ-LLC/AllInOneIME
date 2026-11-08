@@ -4,7 +4,7 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// The apps last typed in, most recent first, for the "Add App…" of Settings' lists of apps (Insert's, Apps without AI;
-/// bundle ids only, kept in this app's defaults: `defaults delete com.aipinyin.inputmethod.AIPinyin recentApps` forgets
+/// bundle ids only, kept in this app's defaults: `defaults delete com.allinoneime.inputmethod.AllInOneIME recentApps` forgets
 /// them).
 @MainActor
 enum RecentApps {
@@ -17,7 +17,7 @@ enum RecentApps {
 
     /// `app` first (not this input method's own windows); written only when it wasn't first already.
     static func record(_ app: String) {
-        guard AppProfile.isBundleID(app), !app.hasPrefix("com.aipinyin."), apps.first != app else { return }
+        guard AppProfile.isBundleID(app), !app.hasPrefix("com.allinoneime."), apps.first != app else { return }
         defaults.set(Array(([app] + apps.filter { $0 != app }).prefix(limit)), forKey: key)
     }
 }

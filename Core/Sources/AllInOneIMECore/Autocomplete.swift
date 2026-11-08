@@ -951,7 +951,7 @@ public final class AutocompleteStore: @unchecked Sendable {
     /// How long what was counted and learned waits before it's written (`keepSoon`): what changes meanwhile goes with it.
     public static let writeDelay: TimeInterval = 2
     /// Where it's written: off the session's thread (a key's end of a suggestion never waits for the defaults).
-    private static let writes = DispatchQueue(label: "com.aipinyin.autocomplete.store", qos: .utility)
+    private static let writes = DispatchQueue(label: "com.allinoneime.autocomplete.store", qos: .utility)
 
     private let state: Locked<State>
     private let defaults: any KeyValueStore

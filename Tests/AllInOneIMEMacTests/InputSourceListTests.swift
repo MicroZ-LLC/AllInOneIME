@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 
 struct InputSourceListTests {
-    let ours = "com.aipinyin.inputmethod.AIPinyin"
+    let ours = "com.allinoneime.inputmethod.AllInOneIME"
 
     /// The list as macOS had it on a Mac where AllInOneIME was enabled but missing from it.
     let system: [[String: Any]] = [

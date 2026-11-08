@@ -11,7 +11,7 @@
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
-	<string>com.aipinyin.inputmethod.AIPinyin</string>
+	<string>com.allinoneime.inputmethod.AllInOneIME</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
@@ -23,7 +23,7 @@
 	<key>CFBundleVersion</key>
 	<string>24</string>
 	<key>InputMethodConnectionName</key>
-	<string>com.aipinyin.inputmethod.AIPinyin_Connection</string>
+	<string>com.allinoneime.inputmethod.AllInOneIME_Connection</string>
 	<key>InputMethodServerControllerClass</key>
 	<string>AllInOneIMEInputController</string>
 	<key>LSMinimumSystemVersion</key>
@@ -49,7 +49,7 @@
 	<key>TISIconIsTemplate</key>
 	<true/>
 	<key>TISInputSourceID</key>
-	<string>com.aipinyin.inputmethod.AIPinyin</string>
+	<string>com.allinoneime.inputmethod.AllInOneIME</string>
 	<key>TISIntendedLanguage</key>
 	<string>en</string>
 	<key>tsInputMethodCharacterRepertoireKey</key>

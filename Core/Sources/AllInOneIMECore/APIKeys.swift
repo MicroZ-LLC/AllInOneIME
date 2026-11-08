@@ -21,7 +21,7 @@ public enum APIKeys {
     /// one Mac (signing out on one would sign out all). AWS credentials are never stored at all.
     public static let neverSynced: Set<String> = ["hosted"]
     static let cache = KeyCache()
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "keys")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "keys")
 
     /// The items of this service: the platform's secret store (`Platform.secrets`: on the Mac the routed store of
     /// `KeySync.system`, or the login keychain in a build without the entitlement), read

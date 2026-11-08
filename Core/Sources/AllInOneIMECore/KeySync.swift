@@ -21,7 +21,7 @@ import Foundation
 public enum KeySync {
     /// The keychain access group the synced items are in, set on every query: an iOS app or a wrapped command line of
     /// the same team can share it later (the provisioning profile allows the team's `9SR8N3UD5Y.*`).
-    public static let accessGroup = "9SR8N3UD5Y.com.aipinyin.shared"
+    public static let accessGroup = "9SR8N3UD5Y.com.allinoneime.shared"
 
     /// The service of the replaced copies (`Stores.replaced`, in the login keychain): a key that lost to a different
     /// one, that a newer one was written over, or that moved into a synced store that had none for it. Only a safety copy,

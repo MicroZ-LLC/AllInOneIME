@@ -48,7 +48,7 @@ public struct VisionTextRecognizer: TextRecognizer {
     /// The process's: every `VisionTextRecognizer()` shares it.
     static let processMemory = Locked(initialState: Memory())
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
     public func prepare(languages: [String]) async {
         // A blank image read once in the same languages, on the device reads go to: Vision's models for them are loaded

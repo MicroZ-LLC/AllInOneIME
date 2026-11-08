@@ -19,12 +19,13 @@ TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # with `make app PROFILE=<the Development profile, kept outside the repository> SIGN_IDENTITY=<a certificate it lists>`;
 # `make dmg` uses the Developer ID one, committed (every shipped copy carries it). A profile that doesn't fit the
 # signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
+# The Developer ID profile is the App ID's of the bundle ID in Resources/Info.plist (AllInOneIME's own system identity
+# since 0.7.2): made in the developer portal for it and committed at this path before a release.
 PROFILE ?=
 DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
-# The keychain access groups the entitlements give: KeySync.accessGroup in the core (where the keys are), then the new
-# system identity's (Migration.new.keychainGroup), which 0.7.1 copies them into when it moves AllInOneIME to that
-# identity (Sources/AllInOneIMEMac/Migration.swift). The profile has to allow both (the team's `9SR8N3UD5Y.*` does).
-KEYCHAIN_GROUPS := 9SR8N3UD5Y.com.aipinyin.shared 9SR8N3UD5Y.com.allinoneime.shared
+# The keychain access groups the entitlements give (one or more, the first the default): KeySync.accessGroup in the core.
+# The profile has to allow each (the team's `9SR8N3UD5Y.*` does).
+KEYCHAIN_GROUPS := 9SR8N3UD5Y.com.allinoneime.shared
 ENTITLEMENTS := $(BUILD_DIR)/AllInOneIME.entitlements
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
@@ -72,7 +73,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install install-check uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -241,10 +242,6 @@ SETTINGS_NAME := AllInOneIME Settings
 SETTINGS_APP  := $(BUILD_DIR)/$(SETTINGS_NAME).app
 USER_APPS     := $(HOME)/Applications
 
-# Installed under the old name (AIPinyin) by earlier versions; removed on install and uninstall.
-LEGACY_APP_NAME      := AIPinyin
-LEGACY_INSTALLED_APP := $(INSTALL_DIR)/$(LEGACY_APP_NAME).app
-LEGACY_SETTINGS_APP  := $(USER_APPS)/AI 拼音设置.app
 LSREGISTER := /System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister
 
 settings-app: $(STRINGS_BUILD) Resources/AppIcon.icns
@@ -338,10 +335,9 @@ update-zip:
 
 # site/public/update-v2.json and update-v2.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed
 # with the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
-# 0.7.1 and later read it. update.json (and .sig), which 0.7.0 and earlier read, is written too only for an archive
-# whose apps have the old system identity: 0.7.1's, the last version those can install (they refuse other bundle IDs),
-# which moves AllInOneIME to the new identity. From 0.7.2 on it is left as it is, naming 0.7.1 for good: an old
-# version updates to 0.7.1, and 0.7.1 to the newest.
+# 0.7.1 and later read it. update.json (and .sig), which the versions before 0.7.1 read, is left as it is: it names 0.7.1
+# for good (they install no other bundle IDs than theirs), which moves AllInOneIME to its own system identity, and then
+# updates from update-v2.json.
 # Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
 # Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
 RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)
@@ -431,30 +427,33 @@ install-pack: $(RIME_BUILT)
 # Stops the running IME (macOS relaunches it on next use), replaces the bundle, registers it
 # (--register also keeps it in the user's input sources, so Ctrl+Space reaches it).
 # The bundle is moved, not copied: macOS launches input methods by bundle ID, and with a second
-# copy left in build/ it may start that one instead of the installed one. A copy installed under
-# the old name (same bundle ID) is removed for the same reason; the new one takes over its data.
-# An installed copy with AllInOneIME's own system identity (0.7.2 on: NEW_IDENTITY_IME, Migration.new in
-# Sources/AllInOneIMEMac/Migration.swift) is newer and is never replaced by this one (install-check, before anything is
-# built): that would go back to the identity before, the settings and keys moved on with it.
-NEW_IDENTITY_IME := com.allinoneime.inputmethod.AllInOneIME
-install: install-check app settings-app
+# copy left in build/ it may start that one instead of the installed one.
+# An installed copy with another bundle ID (0.7.1 and earlier: the old system identity) isn't just replaced: its settings
+# and keys would stay with it. 0.7.1 moves itself to this identity (`--migrate-identity` with these two apps, which it
+# puts in place, as the installer has it do); an earlier version can't, and the install stops: update it first
+# (AllInOneIME Settings → About → Update), or `make uninstall` first and enter the saved API keys again.
+install: app settings-app
+	@ours=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(APP)/Contents/Info.plist"); \
+	theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
+	if [ -n "$$theirs" ] && [ "$$theirs" != "$$ours" ]; then \
+		[ "$$("$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity --check 2>/dev/null)" = "migrate-identity: 1" ] || { \
+			echo "error: the installed AllInOneIME has another system identity and can't move to this one: update it first (AllInOneIME Settings → About → Update), or run make uninstall first (the saved API keys must be entered again)" >&2; \
+			exit 1; }; \
+		"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity "$(abspath $(APP))" || exit 1; \
+	fi
 	@pkill -x $(APP_NAME) || true
-	@pkill -x $(LEGACY_APP_NAME) || true
 	mkdir -p "$(INSTALL_DIR)"
-	-"$(LSREGISTER)" -u "$(LEGACY_INSTALLED_APP)" "$(LEGACY_SETTINGS_APP)" 2>/dev/null
 	# Versions up to 0.6.1 bundled the Chinese data: it becomes the pack before that app goes (the same
 	# rime-ice data as pack $(PACK_VERSION)), so pinyin keeps working without a download.
-	@if [ -d "$(INSTALLED_APP)/Contents/SharedSupport/rime" ]; then \
+	@if [ -d "$(INSTALLED_APP)/Contents/SharedSupport/rime" ] && [ -d "$(APP)" ]; then \
 		"$(APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(INSTALLED_APP)/Contents/SharedSupport/rime" $(PACK_VERSION) || true; \
 	fi
-	rm -rf "$(INSTALLED_APP)" "$(LEGACY_INSTALLED_APP)"
-	mv "$(APP)" "$(INSTALL_DIR)/"
+	# Unless the move to this identity put them in place already.
+	@if [ -d "$(APP)" ]; then rm -rf "$(INSTALLED_APP)" && mv "$(APP)" "$(INSTALL_DIR)/"; fi
 	mkdir -p "$(USER_APPS)"
-	rm -rf "$(USER_APPS)/$(SETTINGS_NAME).app" "$(LEGACY_SETTINGS_APP)"
-	mv "$(SETTINGS_APP)" "$(USER_APPS)/"
+	@if [ -d "$(SETTINGS_APP)" ]; then rm -rf "$(USER_APPS)/$(SETTINGS_NAME).app" && mv "$(SETTINGS_APP)" "$(USER_APPS)/"; fi
 	"$(LSREGISTER)" -f "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --register
-	@pkill -x $(LEGACY_APP_NAME) || true
 	# Started again here, not left to macOS: it starts an input method when a text field connects to it, and the
 	# fields already connected to the one stopped above may not until the focus or the input source changes (keys
 	# go nowhere meanwhile). In the background (-g); it is the installed copy (the build was moved there).
@@ -462,19 +461,10 @@ install: install-check app settings-app
 	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
 		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
 
-install-check:
-	@theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
-	if [ "$$theirs" = "$(NEW_IDENTITY_IME)" ]; then \
-		installed=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
-		echo "error: the installed AllInOneIME $$installed is newer than $(VERSION) (it has AllInOneIME's own system identity), so it isn't replaced; to update it, use AllInOneIME Settings → About → Update" >&2; \
-		exit 1; \
-	fi
-
 uninstall:
 	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable
 	@pkill -x $(APP_NAME) || true
-	@pkill -x $(LEGACY_APP_NAME) || true
-	rm -rf "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app" "$(LEGACY_INSTALLED_APP)" "$(LEGACY_SETTINGS_APP)"
+	rm -rf "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
 
 status:
 	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --status
@@ -562,7 +552,7 @@ realtest-run:
 
 # Runs the real-app test automatically once the screen is unlocked (temporary launchd job, not
 # persisted across logins; it removes itself when done). Log: ~/Library/Logs/AllInOneIME/realtest-watch.log
-WATCH_LABEL := com.aipinyin.realtest-watch
+WATCH_LABEL := com.allinoneime.realtest-watch
 WATCH_PLIST := $(TEST_LOGS)/realtest-watch.plist
 realtest-when-unlocked: realtest-build
 	@launchctl bootout gui/$$(id -u)/$(WATCH_LABEL) 2>/dev/null || true

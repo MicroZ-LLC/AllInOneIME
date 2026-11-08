@@ -60,7 +60,7 @@ extension SelfTest {
                      clipboard: controller.readClipboard, recognizer: controller.services.recognizeText, secure: controller.services.secureInputActive,
                      defaults: TranslateModeShared.defaults, lastTarget: TranslateModeShared.lastTarget)
         let caretBefore = client.caretRect
-        let suite = "com.aipinyin.selftest.releaseimages"
+        let suite = "com.allinoneime.selftest.releaseimages"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
         defer {

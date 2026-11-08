@@ -269,7 +269,7 @@ extension SelfTest {
         let saved = (settings: settings, pointer: TranslateModeShared.pointer, stickyKeys: TranslateModeShared.stickyKeys,
                      defaults: TranslateModeShared.defaults, pointerUsed: controller.services.pointerUsedWithin,
                      shiftHeld: TranslateModeShared.shiftHeld)
-        let suite = "com.aipinyin.selftest.translatemode.electron"
+        let suite = "com.allinoneime.selftest.translatemode.electron"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
         // The recorded presses' Shift down as the system has it while the timers run.

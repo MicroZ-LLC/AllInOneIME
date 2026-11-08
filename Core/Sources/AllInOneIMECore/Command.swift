@@ -312,7 +312,7 @@ public struct Command: Hashable, Sendable {
         return (hidden, hiddenSnippets)
     }
 
-    private static let catalogLog = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "commands")
+    private static let catalogLog = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "commands")
     private static let loggedHidden = Locked(initialState: Set<String>())
 
     /// A plugin or custom command a built-in one hides (say a custom "@note" from before @note was built in):

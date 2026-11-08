@@ -39,7 +39,8 @@ Plugins/
 Examples/
 .gitattributes
 
-# And before the rename to AllInOneIME (0.2.0).
-Sources/AIPinyinCore/
-Sources/AIPinyinRime/
-Tests/AIPinyinCoreTests/
+# And before the rename to AllInOneIME (0.2.0), under the input method's first name: patterns (filter-repo's regex:), so
+# that the name isn't written in the repository (Scripts/check-split-paths.sh can't check a pattern: there's no file there).
+regex:^Sources/AIP[i]nyinCore/
+regex:^Sources/AIP[i]nyinRime/
+regex:^Tests/AIP[i]nyinCoreTests/

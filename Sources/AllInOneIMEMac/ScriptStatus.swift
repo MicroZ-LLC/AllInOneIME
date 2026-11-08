@@ -16,7 +16,7 @@ public final class ScriptStatus {
     /// How the values kept across launches are read (off the main thread).
     private let read: @Sendable () -> [String: StatusSchedule.Kept]
     /// Where the values are written, off the main thread, one write after another; the read at launch goes first.
-    private static let writes = DispatchQueue(label: "com.aipinyin.inputmethod.script-statuses", qos: .utility)
+    private static let writes = DispatchQueue(label: "com.allinoneime.inputmethod.script-statuses", qos: .utility)
 
     /// Made without reading anything: the values kept come in with `prepare`.
     init(read: @escaping @Sendable () -> [String: StatusSchedule.Kept] = { StatusFile.shared.read() }) {

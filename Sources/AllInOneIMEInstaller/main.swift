@@ -35,6 +35,9 @@ let manualAddHint = tr(
 let usage = """
     Install AllInOneIME \(newVersion). Opened from Finder, it asks first; from a terminal:
       --install     install or update AllInOneIME for this user, without asking
+      --install-anyway
+                    the same over a version too old to carry its saved API keys over to this one
+                    (they must be entered again)
       --uninstall   uninstall it, without asking (settings and learned words are kept)
     """
 
@@ -42,10 +45,10 @@ func printError(_ message: String) {
     FileHandle.standardError.write(Data((message + "\n").utf8))
 }
 
-func runFromTerminal(install: Bool) -> Int32 {
+func runFromTerminal(install: Bool, anyway: Bool = false) -> Int32 {
     do {
         if install {
-            let output = try Installer.install { print($0) }
+            let output = try Installer.install(anyway: anyway) { print($0) }
             print(output)
             // --register prints how to add it by hand when it couldn't enable it; not when it's
             // enabled but couldn't go into the list.
@@ -122,11 +125,10 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
     func ask() {
         let isInstalled = Installer.exists(Installer.inputMethod)
         let installed = Installer.installedVersion() ?? ""
-        // A newer version with AllInOneIME's own system identity: never replaced by this one.
-        if Installer.newerIdentityInstalled {
-            let version = installed.isEmpty ? "" : " \(installed)"
-            finish(tr("已经装了更新的 AllInOneIME\(version)", "A newer AllInOneIME\(version) is installed"),
-                   Installer.Failure.newerInstalled(Installer.installedVersion()).localizedDescription, style: .warning)
+        // Another system identity's (a version before this one's): one too old to move itself to it is told first.
+        let identity = Installer.installedIdentity()
+        if case let .tooOld(version) = identity {
+            updateFirst(version)
             return
         }
         let alert = NSAlert()
@@ -153,14 +155,14 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
         if isInstalled {
             details.append(tr("设置、黑话库和学到的词都会保留。", "Your settings, jargon list and learned words are kept."))
         }
-        if Installer.hasLegacyInstall {
-            details.append(tr("旧的 AI 拼音（AIPinyin）会被替换，设置和学到的词会搬过来。",
-                              "The old AIPinyin (AI 拼音) is replaced; its settings and learned words move over."))
+        if case .movable = identity {
+            details.append(tr("AllInOneIME 会换到自己的系统身份：已安装的版本把你的设置和保存的 API 密钥带过来，macOS 会重新询问你给过它的权限。",
+                              "AllInOneIME moves to its own system identity: the installed version carries your settings and saved API keys over, and macOS asks again for the permissions you gave it."))
         }
         alert.informativeText = details.joined(separator: "\n\n")
         alert.addButton(withTitle: action)
         addCancelButton(to: alert)
-        if isInstalled || Installer.hasLegacyInstall {
+        if isInstalled {
             alert.addButton(withTitle: tr("卸载…", "Uninstall…"))
         }
         switch alert.runModal() {
@@ -171,6 +173,47 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
         default:
             NSApp.terminate(nil)
         }
+    }
+
+    /// The installed version has another system identity and is too old to move itself to this one (0.7.0 and earlier):
+    /// its saved API keys would stay with it. Updating it first brings the version that carries them over; installing
+    /// anyway is asked once more.
+    func updateFirst(_ version: String?) {
+        let installed = version.map { " \($0)" } ?? ""
+        let alert = NSAlert()
+        alert.messageText = tr("请先更新已安装的 AllInOneIME", "Update the installed AllInOneIME first")
+        alert.informativeText = tr(
+            "已安装的 AllInOneIME\(installed) 没法把保存的 API 密钥带到 \(newVersion)：它换了新的系统身份。请先在 AllInOneIME 设置 →「关于」里点「更新」：那次更新会把设置和密钥一起带过来，之后再打开这个安装程序。",
+            "The installed AllInOneIME\(installed) can't carry its saved API keys over to \(newVersion), which has a new system identity. Update it first in AllInOneIME Settings → About → Update: that update carries your settings and keys over. Then open this installer again.")
+        alert.addButton(withTitle: tr("打开 AllInOneIME 设置", "Open AllInOneIME Settings"))
+        alert.addButton(withTitle: tr("照样安装…", "Install Anyway…"))
+        addCancelButton(to: alert)
+        switch alert.runModal() {
+        case .alertFirstButtonReturn:
+            NSWorkspace.shared.openApplication(at: Installer.settingsApp, configuration: .init()) { _, _ in
+                DispatchQueue.main.async { NSApp.terminate(nil) }
+            }
+        case .alertSecondButtonReturn:
+            confirmInstallAnyway()
+        default:
+            NSApp.terminate(nil)
+        }
+    }
+
+    func confirmInstallAnyway() {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = tr("照样安装 \(newVersion)？", "Install \(newVersion) anyway?")
+        alert.informativeText = tr(
+            "保存的 API 密钥带不过来：装好后要在设置里重新输入。设置、黑话库和学到的词都会保留。macOS 会重新询问你给过它的权限。",
+            "Your saved API keys aren't carried over: enter them again in Settings after installing. Your settings, jargon list and learned words are kept. macOS asks again for the permissions you gave it.")
+        alert.addButton(withTitle: tr("照样安装", "Install Anyway"))
+        addCancelButton(to: alert)
+        guard alert.runModal() == .alertFirstButtonReturn else {
+            NSApp.terminate(nil)
+            return
+        }
+        perform(tr("正在安装…", "Installing…"), { step in try Installer.install(anyway: true, step: step) }, then: { _ in self.installed() })
     }
 
     func confirmUninstall() {
@@ -257,6 +300,8 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
 switch CommandLine.arguments.dropFirst().first {
 case "--install":
     exit(runFromTerminal(install: true))
+case "--install-anyway":
+    exit(runFromTerminal(install: true, anyway: true))
 case "--uninstall":
     exit(runFromTerminal(install: false))
 case "-h", "--help":

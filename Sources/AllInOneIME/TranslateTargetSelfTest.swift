@@ -217,7 +217,7 @@ extension SelfTest {
         try? alone.write(to: scratch)
         controller.applySettings()
         // No language picked on the chip: the self-test's own defaults (the user's stay as they are).
-        let suite = "com.aipinyin.selftest.translatetarget"
+        let suite = "com.allinoneime.selftest.translatetarget"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         let savedDefaults = TranslateModeShared.defaults
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard

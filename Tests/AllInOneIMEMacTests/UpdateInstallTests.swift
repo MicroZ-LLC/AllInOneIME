@@ -50,12 +50,9 @@ struct UpdateInstallTests {
         #expect(throws: UpdateError.invalidApp("AllInOneIME.app is version 0.6.9, not 0.7.0")) { try attempt("old", version: "0.6.9") }
         #expect(throws: UpdateError.invalidApp("AllInOneIME.app is build 8, not 9")) { try attempt("build", build: "8") }
         #expect(throws: UpdateError.invalidApp("AllInOneIME.app's bundle ID")) { try attempt("id", imeID: "com.example.other") }
-        // The new system identity (0.7.2 on) is accepted, both apps' (this version is the bridge); a mixed pair isn't.
-        #expect(try attempt("new", imeID: AppIdentity.allInOneIME.inputMethod, settingsID: AppIdentity.allInOneIME.settings).identity
-                == .allInOneIME)
-        #expect(payload.identity == Updater.identity)
+        // Both apps have this version's identity: an input method or a settings app with any other isn't accepted.
         #expect(throws: UpdateError.invalidApp("AllInOneIME Settings.app's bundle ID")) {
-            try attempt("mixed", imeID: AppIdentity.allInOneIME.inputMethod)
+            try attempt("settings id", settingsID: "com.example.settings")
         }
         #expect(throws: UpdateError.invalidApp("AllInOneIME Settings.app is missing")) { try attempt("half", settings: false) }
         #expect(throws: (any Error).self) { try attempt("unsigned", sign: false) }

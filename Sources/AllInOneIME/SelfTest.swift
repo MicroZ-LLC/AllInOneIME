@@ -109,7 +109,7 @@ class FakeTextClient: NSObject, IMKTextInput {
     func supportsUnicode() -> Bool { true }
     /// Pretend to be another application (nil: this one).
     var bundleIDOverride: String?
-    func bundleIdentifier() -> String! { bundleIDOverride ?? Bundle.main.bundleIdentifier ?? "com.aipinyin.selftest" }
+    func bundleIdentifier() -> String! { bundleIDOverride ?? Bundle.main.bundleIdentifier ?? "com.allinoneime.selftest" }
     func windowLevel() -> CGWindowLevel { CGWindowLevelForKey(.normalWindow) }
     func supportsProperty(_ property: TSMDocumentPropertyTag) -> Bool { false }
     func uniqueClientIdentifierString() -> String! { "allinoneime-selftest" }
@@ -2678,7 +2678,7 @@ enum SelfTest {
               String(format: "Rime deployed in %.2fs (librime %@)", Date().timeIntervalSince(deployStart), RimeService.shared.version))
 
         guard let server = IMKServer(
-            name: "com.aipinyin.inputmethod.AIPinyin_SelfTest_Connection",
+            name: "com.allinoneime.inputmethod.AllInOneIME_SelfTest_Connection",
             bundleIdentifier: Bundle.main.bundleIdentifier)
         else {
             check(false, "IMKServer could not be created (run from inside AllInOneIME.app)")

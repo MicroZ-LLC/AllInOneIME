@@ -10,7 +10,7 @@ struct LegacyLearnedTests {
     /// A folder, defaults and a store of the test's own: the user's are never read.
     final class Place {
         let folder: URL
-        let suite = "com.aipinyin.tests.learned.\(UUID().uuidString)"
+        let suite = "com.allinoneime.tests.learned.\(UUID().uuidString)"
         let defaults: UserDefaults
 
         init() throws {

@@ -288,7 +288,7 @@ extension AllInOneIMEInputController {
         let rects = Self.caretRects(client)
         let place = Self.ghostPlace(rects)
         // What the field told, to check a real app by (`log stream --level debug --predicate 'subsystem ==
-        // "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "autocomplete placed"'`): numbers only.
+        // "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "autocomplete placed"'`): numbers only.
         log.debug("""
             autocomplete placed \(place == nil ? "in the panel" : "after the caret", privacy: .public) in \(client.bundleIdentifier() ?? "", privacy: .private): \
             caret \(Self.describe(rects.caret), privacy: .public), previous character \(Self.describe(rects.previous), privacy: .public), \

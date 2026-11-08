@@ -1,9 +1,8 @@
 #!/usr/bin/env swift
 // Writes and signs the in-app updater's manifest (Updater in AllInOneIMECore) for the site (site/public/, served at
-// https://allinoneime.com/): update-v2.json, which 0.7.1 and later read, and, for an archive whose apps have the old
-// system identity (0.7.1's, the last version with it), update.json too, which 0.7.0 and earlier read: they install no
-// other bundle IDs, so update.json names 0.7.1 for good, and 0.7.1 moves AllInOneIME to the new identity. An archive
-// with the new identity leaves update.json as it is. `make update-manifest` runs it.
+// https://allinoneime.com/update-v2.json), which 0.7.1 and later read. update.json, which the versions before 0.7.1
+// read, is left as it is: it names 0.7.1 for good (they install no other bundle IDs than theirs), the version that
+// moves AllInOneIME to its own system identity. `make update-manifest` runs it.
 //
 //   swift Scripts/build-update-manifest.swift --out DIR --zip ZIP --url URL --notes URL
 //        --summary-en TEXT --summary-zh TEXT
@@ -117,12 +116,9 @@ func info(_ app: String) -> [String: Any] {
     return info
 }
 let ime = info("AllInOneIME.app"), settings = info("AllInOneIME Settings.app")
-// The apps' bundle IDs, both of one identity (AppIdentity in AllInOneIMECore): the old one (`oldIdentity`, 0.7.1's) or
-// the new one.
-let oldIdentity = ["com.aipinyin.inputmethod.AIPinyin", "com.aipinyin.settings"]
-let newIdentity = ["com.allinoneime.inputmethod.AllInOneIME", "com.allinoneime.settings"]
-let identity = [ime["CFBundleIdentifier"] as? String ?? "", settings["CFBundleIdentifier"] as? String ?? ""]
-guard identity == oldIdentity || identity == newIdentity,
+// The apps' bundle IDs: AllInOneIME's system identity (Updater.bundleID and settingsBundleID in AllInOneIMECore).
+guard ime["CFBundleIdentifier"] as? String == "com.allinoneime.inputmethod.AllInOneIME",
+      settings["CFBundleIdentifier"] as? String == "com.allinoneime.settings",
       let version = ime["CFBundleShortVersionString"] as? String, let build = ime["CFBundleVersion"] as? String,
       settings["CFBundleShortVersionString"] as? String == version,
       let minimumSystem = ime["LSMinimumSystemVersion"] as? String else {
@@ -161,11 +157,6 @@ let signature = try! privateKey.signature(for: data)
 precondition(privateKey.publicKey.isValidSignature(signature, for: data))
 let out = URL(fileURLWithPath: outPath, isDirectory: true)
 try! FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-for name in identity == oldIdentity ? ["update-v2.json", "update.json"] : ["update-v2.json"] {
-    try! data.write(to: out.appendingPathComponent(name))
-    try! Data((signature.base64EncodedString() + "\n").utf8).write(to: out.appendingPathComponent(name + ".sig"))
-    print("✓ \(out.path)/\(name): AllInOneIME \(version) (\(build)), \(archive.count) bytes, sha256 \(sha256), signed into \(name).sig")
-}
-if identity == newIdentity {
-    print("  update.json left as it is: the versions that read it install the old identity's apps only (it names 0.7.1)")
-}
+try! data.write(to: out.appendingPathComponent("update-v2.json"))
+try! Data((signature.base64EncodedString() + "\n").utf8).write(to: out.appendingPathComponent("update-v2.json.sig"))
+print("✓ \(out.path)/update-v2.json: AllInOneIME \(version) (\(build)), \(archive.count) bytes, sha256 \(sha256), signed into update-v2.json.sig")
