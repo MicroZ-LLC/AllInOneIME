@@ -313,7 +313,7 @@ enum UpdateHelper {
                 guard register.status == 0 else { throw UpdateError.invalidApp("registering \(to) failed (\(register.status))") }
             }
         } catch {
-            // What went wrong, without the "nothing was changed" of a check before the swap: here it's the rollback's.
+            // What went wrong, without an update check's wording (an `invalidApp` by its detail): here it's the rollback's.
             var reason = error.localizedDescription
             if case let UpdateError.invalidApp(detail) = error { reason = detail }
             say("rolling back: \(reason)")
@@ -472,7 +472,7 @@ enum MigrationCommand {
                 + report.pending.map(\.rawValue).joined(separator: ", "))
         if !report.inputSourceEnabled {
             print("  its input source isn't enabled yet: macOS lets only you add it (System Settings → Keyboard → Input Sources → + "
-                  + "→ English → AllInOneIME)")
+                  + "→ English → AllInOneIME); until you do, AllInOneIME can't be typed with")
         }
         return 0
     }

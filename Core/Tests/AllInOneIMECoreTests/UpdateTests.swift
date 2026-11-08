@@ -359,5 +359,8 @@ struct UpdateTests {
     @Test func errorsReadInEnglish() {
         #expect(UpdateError.hashMismatch.errorDescription == "The download doesn't match the signed manifest; nothing was changed")
         #expect(UpdateError.notNewer("0.6.2").errorDescription == "Version 0.6.2 isn't newer than this one; nothing was changed")
+        // Without it: the About page's text for a refused update says it, once ("…; nothing was changed: " and this).
+        #expect(UpdateError.invalidApp("AllInOneIME.app doesn't start").errorDescription
+                == "The update isn't a valid AllInOneIME: AllInOneIME.app doesn't start")
     }
 }

@@ -1175,11 +1175,12 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 （`com.allinoneime.inputmethod.AllInOneIME`，AllInOneIME 设置是 `com.allinoneime.settings`，钥匙串访问组是
 `9SR8N3UD5Y.com.allinoneime.shared`）。由 0.7.1 的更新程序安装它：先把偏好设置和钥匙串访问组里的项目复制到新身份下，把登录钥匙串里的密钥交接过去（每个复制成新访问组里的
 一个交接项，0.7.2 启动时把它导入登录钥匙串，成为自己的项目，macOS 不会为此询问；`Sources/AllInOneIMEMac/IdentityHandover.swift`），
-记下清理要删的东西，再换 App、注册新输入法（旧的启用、选中了，就请求启用、选中新的；文字输入源在单独的进程里调用，这样更新助手之后才能启动新版本；
-结果按文字输入源实际所说记录：新输入法只有用户能添加），之后才删掉旧身份的东西
+记下清理要删的东西，再换 App、注册新输入法（不请求启用它：新输入法只有用户能添加，请求了也只会自己打开系统设置；文字输入源在单独的进程里调用，
+这样更新助手之后才能启动新版本；结果按文字输入源实际所说记录），之后才删掉旧身份的东西
 （`Sources/AllInOneIMEMac/Migration.swift`）；新输入法启动之前出任何问题都会全部恢复原样。清理没删掉的留在
-`~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，由 0.7.2 启动时删完；旧输入法要等新的启用了才删，
-0.7.2 会先请用户添加（系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME）。0.7.2 的安装程序会请已安装的 0.7.1 做同样的事
+`~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，由 0.7.2 启动时删完。用户添加新输入法之前
+（0.7.2 会先请用户添加：系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME），AllInOneIME 打不了字：旧输入法那一项还留在输入法列表里，
+只是为了到时删掉，它的 App 已经不在了。0.7.2 的安装程序会请已安装的 0.7.1 做同样的事
 （`AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；0.7.1 的安装程序和 `make install` 不会装在 0.7.2 上面（已安装的版本更新）。
 macOS 按 bundle ID 记的权限要重新允许。
 

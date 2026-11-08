@@ -138,14 +138,14 @@ struct MigrationTests {
         }
     }
 
-    /// Text Input Sources as this macOS has them: a new input method is left to the user (`leftToTheUser`: asked to
-    /// enable it, nothing changes); and its cache can file the new input source under the old bundle ID
-    /// (`filedUnderOld`): it then counts as enabled while the old one's entry is there, and taking that entry out (the
-    /// old one disabled by its bundle ID, as 0.7.1 did before the rehearsal) leaves no AllInOneIME at all.
+    /// Text Input Sources as this macOS has them: a new input method is the user's to add (the move never asks; a test
+    /// adds it as the user would, `Mac.userAddsTheNewInputSource`); and its cache can file the new input source under the
+    /// old bundle ID (`filedUnderOld`): it then counts as enabled while the old one's entry is there, and taking that entry
+    /// out (the old one disabled by its bundle ID, as 0.7.1 did before the rehearsal) leaves no AllInOneIME at all.
     final class FakeInputSources: MigrationInputSources {
         var sources: [String: MigrationInputSourceState] = [:]
-        var failingRegister = false, failingEnable = false, failingDisable = false
-        var leftToTheUser = false, filedUnderOld = false
+        var failingRegister = false, failingDisable = false
+        var filedUnderOld = false
         let events: Events
         init(_ events: Events) { self.events = events }
 
@@ -163,15 +163,10 @@ struct MigrationTests {
             events.list.append("input: registered \(id)")
             return true
         }
-        func enable(_ id: String) -> Bool {
-            events.list.append("input: asked to enable \(id)")
-            guard !failingEnable, !leftToTheUser, sources[id]?.registered == true else { return false }
-            sources[id]?.enabled = true
-            return state(of: id).isEnabled(as: id)
-        }
         func select(_ id: String) -> Bool {
             guard state(of: id).enabled else { return false }
             for key in sources.keys { sources[key]?.selected = key == id }
+            events.list.append("input: selected \(id)")
             return true
         }
         func disable(_ id: String) -> Bool {
@@ -227,14 +222,20 @@ struct MigrationTests {
         init(_ events: Events) { self.events = events }
 
         var isSwitched: Bool { state == .new }
-        func perform() throws {
+        /// As `AppsSwitch` does it, and logs it.
+        func perform(log: (String) -> Void) throws {
             events.list.append("switch: perform")
             onPerform()
             guard !failingSwap else { throw MigrationError("the swap failed") }
             state = .new
+            log("apps: swapped")
             guard !failingLaunch else {
+                var reason = (launchFailure as? LocalizedError)?.errorDescription ?? "\(launchFailure)"
+                if case let UpdateError.invalidApp(detail) = launchFailure { reason = detail }
+                log("rolling back: \(reason)")
                 if notRestorable { throw BundleSwap.Failure.notRestored("doesn't start", folder: "/test/aside") }
                 state = .old
+                log("apps: the previous ones are back")
                 throw launchFailure
             }
             swapped = true
@@ -301,6 +302,22 @@ struct MigrationTests {
         func savedRecord() throws -> CleanupRecord? { try CleanupRecord.read(at: record) }
 
         func run() -> Migration.Report { migration().run(switcher) }
+
+        /// The user adds the new input source (System Settings → Keyboard → Input Sources), as only they can.
+        func userAddsTheNewInputSource() {
+            inputSources.filedUnderOld = false
+            inputSources.sources[new.inputSource, default: MigrationInputSourceState(registered: true)].enabled = true
+            inputSources.sources[new.inputSource]?.listed = true
+        }
+
+        /// Switched, and done but for the old input source's step, which waits for the user to add the new one: the
+        /// record keeps that step alone, handed over to the new version.
+        func doneButTheOldInputSource(_ report: Migration.Report) throws -> Bool {
+            guard report.switched, report.error == nil, report.pending == [.inputSource], !report.inputSourceEnabled,
+                  var record = try savedRecord(), record.handedOver, record.inputSource == old.inputSource else { return false }
+            record.inputSource = nil
+            return record.isEmpty
+        }
     }
 
     // MARK: Each step
@@ -308,7 +325,7 @@ struct MigrationTests {
     @Test func theSettingsAndKeysMoveAndTheOldIdentityIsCleanedUp() throws {
         let mac = Mac()
         let report = mac.run()
-        #expect(report.switched && report.error == nil && report.pending.isEmpty)
+        #expect(report.switched && report.error == nil && report.pending == [.inputSource])
 
         // a. The keys the new domains lacked, the new one's own kept; the old domains gone.
         #expect(report.copiedKeys == 3)
@@ -324,13 +341,12 @@ struct MigrationTests {
         #expect(mac.keychain.groups[new.keychainGroup] == [openAI: Data(secrets[0].utf8), gemini: Data(secrets[1].utf8)])
         #expect(mac.keychain.groups[old.keychainGroup]?.isEmpty == true)
 
-        // c. The new input source registered, enabled and selected as the old one was; d. the old one disabled.
+        // c. The new input source registered, never asked to be enabled (only the user can add it); d. the old one's entry
+        // kept until then, the rest cleaned up.
         #expect(mac.switcher.state == .new && mac.switcher.committed)
-        #expect(mac.inputSources.sources[new.inputSource] == MigrationInputSourceState(registered: true, enabled: true, selected: true))
-        #expect(report.inputSourceEnabled)
-        #expect(mac.inputSources.sources[old.inputSource]?.added == false && mac.inputSources.sources[old.inputSource]?.selected == false)
+        #expect(mac.inputSources.sources[new.inputSource] == MigrationInputSourceState(registered: true))
+        #expect(!report.inputSourceEnabled && mac.inputSources.sources[old.inputSource]?.added == true)
         #expect(mac.leftovers.apps.isEmpty && mac.leftovers.agents.isEmpty && mac.leftovers.caches.isEmpty)
-        #expect(mac.lines.contains("input source: \(new.inputSource) registered, enabled, selected"))
 
         // b. The login keychain's keys handed over (never synced, label, comment and save time kept), then deleted there.
         #expect(report.handedOver == 3)
@@ -340,7 +356,14 @@ struct MigrationTests {
             #expect(attributes.label == "AllInOneIME: \(key.account)" && attributes.comment == "api.example.com")
             #expect(IdentityHandover.same(attributes.saved, savedAt))
         }
-        // All done: no record left.
+        // All done but the old input source: the record keeps it alone.
+        #expect(try mac.doneButTheOldInputSource(report))
+
+        // The user adds the new one: the next run (or the new version) takes the old one out, and the record goes.
+        mac.userAddsTheNewInputSource()
+        let added = mac.run()
+        #expect(added.switched && added.pending.isEmpty && added.inputSourceEnabled)
+        #expect(mac.inputSources.sources[old.inputSource]?.added == false && mac.inputSources.sources[old.inputSource]?.selected == false)
         #expect(!FileManager.default.fileExists(atPath: mac.record.path))
 
         // Logged by key name and account, never with a key.
@@ -354,10 +377,12 @@ struct MigrationTests {
         let events = mac.events
         let verified = try #require(events.index("switch: verified"))
         let registered = try #require(events.index("input: registered \(new.inputSource)"))
-        // Nothing of the old identity removed before the new one is in and registered; the copies all before the swap.
-        for cleanup in ["input: disabled", "defaults: removed", "keychain: deleted", "login: deleted", "leftovers:", "switch: committed"] {
+        // Nothing of the old identity removed before the new one is in and registered (its input source not at all, until
+        // the user adds the new one); the copies all before the swap.
+        for cleanup in ["defaults: removed", "keychain: deleted", "login: deleted", "leftovers:", "switch: committed"] {
             #expect(try #require(events.index(cleanup)) > max(verified, registered), "\(cleanup)")
         }
+        #expect(events.index("input: disabled") == nil)
         let swap = try #require(events.index("switch: perform"))
         #expect(try #require(events.lastIndex("keychain: added")) < swap && events.lastIndex("defaults: set")! < swap)
         #expect(try #require(events.lastIndex("handover: added")) < swap)
@@ -365,15 +390,14 @@ struct MigrationTests {
 
     /// A key the login keychain would ask for (another build saved it) is left where it is: not handed over, not deleted,
     /// and not in the record; the rest moves.
-    @Test func aLoginKeyThatWouldAskIsLeftWhereItIs() {
+    @Test func aLoginKeyThatWouldAskIsLeftWhereItIs() throws {
         let mac = Mac()
         mac.login.unreadable = [claude.account]
         let report = mac.run()
-        #expect(report.switched && report.pending.isEmpty && report.handedOver == 2)
+        #expect(try mac.doneButTheOldInputSource(report) && report.handedOver == 2)
         #expect(mac.original(claude) == secrets[2] && mac.handedOver(claude) == nil)
         #expect(mac.original(hosted) == nil && mac.handedOver(hosted) == secrets[3])
         #expect(mac.lines.contains { $0.contains("claude") && $0.contains("without asking") })
-        #expect(!FileManager.default.fileExists(atPath: mac.record.path))
     }
 
     /// A handover item an earlier run left (its key saved again since) is replaced by the key as it is now.
@@ -387,7 +411,7 @@ struct MigrationTests {
     // MARK: The cleanup record
 
     /// Before the swap, the record lists what the cleanup will remove, not handed over yet (the bridge is at it); 0600.
-    /// Once all is done it is gone.
+    /// Once all is done (the old input source too, once the user has added the new one) it is gone.
     @Test func theRecordListsTheCleanupBeforeTheSwapAndGoesOnceItIsDone() throws {
         let mac = Mac()
         var atSwap: CleanupRecord?
@@ -398,7 +422,7 @@ struct MigrationTests {
             mode = (try? FileManager.default.attributesOfItem(atPath: mac.record.path))?[.posixPermissions] as? Int
             text = (try? String(contentsOf: mac.record, encoding: .utf8)) ?? ""
         }
-        #expect(mac.run().switched)
+        #expect(try mac.doneButTheOldInputSource(mac.run()))
         let record = try #require(atSwap)
         #expect(mode == 0o600)
         #expect(!record.handedOver && !record.isHandedOver(now: record.updated.addingTimeInterval(60)))
@@ -413,7 +437,8 @@ struct MigrationTests {
         #expect(record.caches == ["/test/Caches/\(old.apps.inputMethod)"])
         // Identifiers only: no key in it.
         #expect(text.contains("claude") && !secrets.contains { text.contains($0) })
-        #expect(!FileManager.default.fileExists(atPath: mac.record.path))
+        mac.userAddsTheNewInputSource()
+        #expect(mac.run().pending.isEmpty && !FileManager.default.fileExists(atPath: mac.record.path))
     }
 
     /// A step left is kept in the record, handed over to the new version (and only it: the steps done are out of it);
@@ -421,7 +446,6 @@ struct MigrationTests {
     @Test func aStepLeftStaysInTheRecordForTheNewVersion() throws {
         let mac = Mac()
         mac.keychain.failingDeletes = ["openai"]
-        mac.inputSources.failingDisable = true
         mac.login.failingDeletes = [hosted.account]
         let report = mac.run()
         #expect(report.switched && report.pending == [.inputSource, .keychain, .loginKeys])
@@ -434,8 +458,8 @@ struct MigrationTests {
         #expect(mac.original(hosted) == secrets[3] && mac.handedOver(hosted) == secrets[3])
 
         mac.keychain.failingDeletes = []
-        mac.inputSources.failingDisable = false
         mac.login.failingDeletes = []
+        mac.userAddsTheNewInputSource()
         #expect(mac.run().pending.isEmpty)
         #expect(!FileManager.default.fileExists(atPath: mac.record.path) && mac.original(hosted) == nil)
     }
@@ -455,67 +479,66 @@ struct MigrationTests {
         let report = mac.run()
         #expect(report.switched && !report.inputSourceEnabled)
         #expect(mac.inputSources.sources[new.inputSource] == MigrationInputSourceState(registered: true, enabled: false, selected: false))
-        // Not asked to be enabled; and with no entry of the old one to keep, nothing waits for it.
-        #expect(!mac.events.list.contains { $0.hasPrefix("input: asked to enable") })
+        // Only registered; and with no entry of the old one to keep, nothing waits for it.
+        #expect(mac.events.list.filter { $0.hasPrefix("input: ") } == ["input: registered \(new.inputSource)"])
         #expect(report.pending.isEmpty && !FileManager.default.fileExists(atPath: mac.record.path))
     }
 
     // MARK: The new input source left to the user
 
-    /// macOS lets only the user add a new input method: asked to enable it, it says it did and leaves it off. The move
-    /// goes on (nothing is rolled back), says so as Text Input Sources has it, and leaves the old input source as it is:
-    /// that step stays in the record, handed over, for the new version to do once its own is enabled.
+    /// macOS lets only the user add a new input method (asked to enable one, it says it did, leaves it off and opens
+    /// System Settings by itself): the move only registers it, goes on (nothing is rolled back), says so as Text Input
+    /// Sources has it, and leaves the old input source's entry as it is: that step stays in the record, handed over, for
+    /// the new version to do once its own is added.
     @Test(arguments: [false, true])
-    func aNewInputSourceMacOSLeavesOffKeepsTheOldOneForTheNewVersion(filedUnderOld: Bool) throws {
+    func theNewInputSourceIsLeftToTheUserAndTheOldOneWaitsForIt(filedUnderOld: Bool) throws {
         let mac = Mac()
-        mac.inputSources.leftToTheUser = true
         // The cache files the new input source under the old bundle ID: "enabled" by the old one's entry.
         mac.inputSources.filedUnderOld = filedUnderOld
         let report = mac.run()
-        #expect(report.switched && report.error == nil && !report.inputSourceEnabled)
-        #expect(report.pending == [.inputSource])
+        #expect(try mac.doneButTheOldInputSource(report))
         #expect(mac.switcher.state == .new && mac.switcher.committed && mac.events.index("switch: rolled back") == nil)
+        // Registered, nothing else asked of it: never selected while it isn't enabled as itself.
+        #expect(mac.events.list.filter { $0.hasPrefix("input: ") } == ["input: registered \(new.inputSource)"])
         // The old input source is never disabled (by its ID or its bundle ID): it may be what the new one is filed under.
-        #expect(mac.events.index("input: disabled") == nil)
         #expect(mac.inputSources.sources[old.inputSource]?.listed == true && mac.inputSources.sources[old.inputSource]?.enabled == true)
         #expect(mac.inputSources.state(of: new.inputSource).enabled == filedUnderOld)
-        // The truth logged: not enabled (not "enabled, selected"), and why.
+        // The truth logged: not enabled (not "enabled, selected"), the step, and that nothing of AllInOneIME works until
+        // then: the old one's entry is kept only to be taken out.
         #expect(!mac.lines.contains { $0.contains("registered, enabled") })
-        #expect(mac.lines.contains { $0.contains("\(new.inputSource) registered, not enabled") && $0.contains("System Settings → Keyboard") })
-        if filedUnderOld { #expect(mac.lines.contains { $0.contains("files it under \(old.inputSource)") }) }
-        // Everything else is done; the record keeps the old input source alone, handed over.
-        let record = try #require(try mac.savedRecord())
-        #expect(record.handedOver && record.inputSource == old.inputSource && record.bundleIDs.contains(old.inputSource))
-        var rest = record
-        rest.inputSource = nil
-        #expect(rest.isEmpty)
+        let line = try #require(mac.lines.first { $0.contains("\(new.inputSource) registered, not enabled") })
+        #expect(line.contains("System Settings → Keyboard → Input Sources → + → English → AllInOneIME"))
+        #expect(line.contains("until then no AllInOneIME input source works") && line.contains("kept only to be taken out"))
+        #expect(!mac.lines.contains { $0.contains("stays until then") })
+        if filedUnderOld { #expect(line.contains("files it under \(old.inputSource)")) }
         #expect(mac.defaults.domains[old.apps.inputMethod] == nil && mac.leftovers.caches.isEmpty && mac.original(claude) == nil)
 
         // The user adds it (System Settings, which also files it under its own bundle ID): another run does the step.
-        mac.inputSources.leftToTheUser = false
-        mac.inputSources.filedUnderOld = false
-        mac.inputSources.sources[new.inputSource]?.enabled = true
+        mac.userAddsTheNewInputSource()
         let again = mac.run()
         #expect(again.switched && again.pending.isEmpty && again.inputSourceEnabled)
         #expect(mac.inputSources.sources[old.inputSource]?.added == false && mac.inputSources.sources[new.inputSource]?.enabled == true)
         #expect(!FileManager.default.fileExists(atPath: mac.record.path))
     }
 
-    /// Asked to enable the new input source, Text Input Sources fails: the move goes on as when macOS leaves it off.
-    @Test func anEnableThatFailsIsNoRollback() {
+    /// A new input source the user has enabled already (an earlier run of theirs): selected as the old one was, and the old
+    /// one taken out at once.
+    @Test func aNewInputSourceEnabledAlreadyIsSelectedAndTheOldOneGoes() {
         let mac = Mac()
-        mac.inputSources.failingEnable = true
+        mac.inputSources.sources[new.inputSource] = MigrationInputSourceState(registered: true, enabled: true, listed: true)
         let report = mac.run()
-        #expect(report.switched && !report.inputSourceEnabled && report.pending == [.inputSource])
-        #expect(mac.events.index("switch: rolled back") == nil && mac.events.index("input: disabled") == nil)
+        #expect(report.switched && report.pending.isEmpty && report.inputSourceEnabled)
+        #expect(mac.inputSources.sources[new.inputSource]?.selected == true && mac.inputSources.sources[old.inputSource]?.added == false)
+        #expect(mac.lines.contains("input source: \(new.inputSource) registered, enabled, selected"))
+        #expect(!FileManager.default.fileExists(atPath: mac.record.path))
     }
 
-    @Test func anotherKeyTheNewGroupHasIsKeptAndTheOldOneLeft() {
+    @Test func anotherKeyTheNewGroupHasIsKeptAndTheOldOneLeft() throws {
         let mac = Mac()
         // Another Mac moved first: its key for OpenAI synced into the new group here.
         mac.keychain.groups[new.keychainGroup] = [openAI: Data("sk-test-other-mac".utf8)]
         let report = mac.run()
-        #expect(report.switched && report.pending.isEmpty && report.copiedItems == 1)
+        #expect(try mac.doneButTheOldInputSource(report) && report.copiedItems == 1)
         #expect(mac.keychain.groups[new.keychainGroup]?[openAI] == Data("sk-test-other-mac".utf8))
         #expect(mac.keychain.groups[new.keychainGroup]?[gemini] == Data(secrets[1].utf8))
         // Never deleted: the only copy of that key.
@@ -523,15 +546,14 @@ struct MigrationTests {
         #expect(mac.lines.contains { $0.contains("kept") && $0.contains("openai") })
     }
 
-    @Test func aBuildWithoutTheKeychainEntitlementLeavesTheKeychainAlone() {
+    @Test func aBuildWithoutTheKeychainEntitlementLeavesTheKeychainAlone() throws {
         let mac = Mac()
         mac.keychain.entitled = []
         let report = mac.run()
-        #expect(report.switched && report.copiedItems == 0 && report.handedOver == 0 && report.pending.isEmpty)
+        #expect(try mac.doneButTheOldInputSource(report) && report.copiedItems == 0 && report.handedOver == 0)
         #expect(mac.keychain.groups[old.keychainGroup]?.count == 2 && mac.keychain.groups[new.keychainGroup] == nil)
         // The login keychain's keys stay (the new identity asks once for each): nothing handed over.
         #expect(mac.original(claude) == secrets[2] && mac.handedOver(claude) == nil && mac.original(hosted) == secrets[3])
-        #expect(!FileManager.default.fileExists(atPath: mac.record.path))
     }
 
     // MARK: A failure before the switch
@@ -589,6 +611,7 @@ struct MigrationTests {
         #expect(!report.switched && report.error == "AllInOneIME.app doesn't start (-1: not executable)")
         #expect(!mac.lines.contains { $0.contains("nothing was changed") })
         #expect(mac.lines.contains { $0.hasPrefix("undone: ") && $0.contains("taken out again") })
+        #expect(mac.lines.contains("rolling back: AllInOneIME.app doesn't start (-1: not executable)"))
     }
 
     @Test func previousAppsThatCantBePutBackAreSaidSo() {
@@ -608,7 +631,6 @@ struct MigrationTests {
     @Test func aCleanupStepThatFailsIsLeftForTheNextRunAndNeverUndoesTheSwitch() {
         let mac = Mac()
         mac.keychain.failingDeletes = ["openai"]
-        mac.inputSources.failingDisable = true
         var report = mac.run()
         #expect(report.switched && report.error == nil)
         #expect(report.pending == [.inputSource, .keychain])
@@ -617,12 +639,18 @@ struct MigrationTests {
         #expect(mac.keychain.groups[new.keychainGroup]?.count == 2 && mac.keychain.groups[old.keychainGroup] == [openAI: Data(secrets[0].utf8)])
         #expect(mac.defaults.domains[old.apps.inputMethod] == nil && mac.leftovers.apps.isEmpty)
 
-        // The next run (the new identity installed now) does what was left.
+        // The next run (the new identity installed now) does what was left; the old input source, once the user has added
+        // the new one, and again at the run after when taking it out fails.
         mac.keychain.failingDeletes = []
+        mac.userAddsTheNewInputSource()
+        mac.inputSources.failingDisable = true
+        report = mac.run()
+        #expect(report.switched && report.pending == [.inputSource] && report.copiedItems == 0)
+        #expect(mac.keychain.groups[old.keychainGroup]?.isEmpty == true && mac.keychain.groups[new.keychainGroup]?.count == 2)
+        #expect(mac.lines.contains { $0.contains("old input source not done; left for") })
         mac.inputSources.failingDisable = false
         report = mac.run()
-        #expect(report.switched && report.pending.isEmpty && report.copiedItems == 0)
-        #expect(mac.keychain.groups[old.keychainGroup]?.isEmpty == true && mac.keychain.groups[new.keychainGroup]?.count == 2)
+        #expect(report.switched && report.pending.isEmpty)
         #expect(mac.inputSources.sources[old.inputSource]?.added == false)
     }
 
@@ -632,7 +660,7 @@ struct MigrationTests {
         let (defaults, items, sources) = (mac.defaults.domains, mac.keychain.groups, mac.inputSources.sources)
         let events = mac.events.list.count
         let report = mac.run()
-        #expect(report.switched && report.pending.isEmpty && report.copiedKeys == 0 && report.copiedItems == 0)
+        #expect(report.switched && report.pending == [.inputSource] && report.copiedKeys == 0 && report.copiedItems == 0)
         #expect(NSDictionary(dictionary: mac.defaults.domains).isEqual(to: defaults))
         #expect(mac.keychain.groups == items && mac.inputSources.sources == sources)
         #expect(mac.events.list.count == events)
@@ -663,7 +691,7 @@ struct MigrationTests {
         _ = mac.login.store(claude.service).write(claude.account, "sk-test-imported", "AllInOneIME: claude", "", nil, savedAt)
         mac.login.unreadable = [claude.account]
         let report = mac.run()
-        #expect(report.switched && report.pending.isEmpty)
+        #expect(report.switched && report.pending == [.inputSource])
         #expect(mac.original(claude) == "sk-test-imported")
     }
 
@@ -684,7 +712,6 @@ struct MigrationTests {
             switch call {
             case "state": done = true
             case "register": done = fake.register(URL(fileURLWithPath: arguments[3]), id: id)
-            case "enable": done = fake.enable(id)
             case "select": done = fake.select(id)
             case "disable": done = fake.disable(id)
             default: return (2, "")
@@ -696,16 +723,15 @@ struct MigrationTests {
         #expect(calls.last == ["/aside/0-AllInOneIME.app/Contents/MacOS/AllInOneIME", "--input-source", "register", new.inputSource,
                                "/test/Input Methods/AllInOneIME.app"])
         #expect(child.state(of: new.inputSource) == MigrationInputSourceState(registered: true))
-        // macOS leaves it to the user: enable says no, and the state is as Text Input Sources has it.
-        fake.leftToTheUser = true
-        #expect(!child.enable(new.inputSource) && !child.state(of: new.inputSource).enabled)
-        fake.leftToTheUser = false
-        #expect(child.enable(new.inputSource) && child.select(new.inputSource) && child.state(of: new.inputSource).selected)
+        // Not enabled (only the user adds it): it can't be selected, and the state is as Text Input Sources has it.
+        #expect(!child.select(new.inputSource) && !child.state(of: new.inputSource).enabled)
+        fake.sources[new.inputSource]?.enabled = true
+        #expect(child.select(new.inputSource) && child.state(of: new.inputSource).selected)
         #expect(child.disable(new.inputSource) && !child.state(of: new.inputSource).added)
 
         // No executable, a failed run, or no answer: nothing done, nothing known.
         let failing = ChildInputSources(executable: { "/nowhere" }, run: { _, _ in (1, "{\"done\":true}") })
-        #expect(!failing.enable(new.inputSource) && failing.state(of: new.inputSource) == MigrationInputSourceState())
+        #expect(!failing.select(new.inputSource) && failing.state(of: new.inputSource) == MigrationInputSourceState())
         let mute = ChildInputSources(executable: { "/nowhere" }, run: { _, _ in (0, "no answer") })
         #expect(!mute.disable(old.inputSource))
         let none = ChildInputSources(executable: { nil }, run: { _, _ in Issue.record("run without an executable"); return (0, "") })
@@ -723,9 +749,10 @@ struct MigrationTests {
         #expect(answer.state.added && !answer.state.isEnabled(as: new.inputSource) && answer.state.isEnabled(as: old.inputSource))
         #expect(MigrationInputSourceState(registered: true, enabled: true).isEnabled(as: new.inputSource))
         #expect(!MigrationInputSourceState(registered: false, enabled: true).isEnabled(as: new.inputSource))
-        // A bad call is refused before anything is asked.
+        // A bad call is refused before anything is asked; there is none to enable one (only the user adds it).
         let fake = FakeInputSources(Events())
-        #expect(InputSourceCommand.run(["enable"], sources: fake) == 2 && InputSourceCommand.run(["unknown", "x"], sources: fake) == 2)
+        #expect(InputSourceCommand.run(["state"], sources: fake) == 2 && InputSourceCommand.run(["unknown", "x"], sources: fake) == 2)
+        #expect(InputSourceCommand.run(["enable", new.inputSource], sources: fake) == 2)
         #expect(InputSourceCommand.run(["register", new.inputSource], sources: fake) == 2 && fake.sources.isEmpty)
     }
 
@@ -752,7 +779,7 @@ struct MigrationTests {
         let login = IdentityHandover.fileStore(root.appendingPathComponent("Keychain/login.plist"), service: APIKeys.service)
         #expect(login.write("claude", secrets[2], "AllInOneIME: Claude", "api.anthropic.com", nil, savedAt) == .ok)
         let sources = FileInputSources(file: root.appendingPathComponent("InputSources.plist"))
-        #expect(sources.register(installed, id: old.inputSource) && sources.enable(old.inputSource) && sources.select(old.inputSource))
+        try ([old.inputSource: ["registered": true, "enabled": true, "selected": true]] as NSDictionary).write(to: sources.file)
         let agents = root.appendingPathComponent("LaunchAgents")
         try FileManager.default.createDirectory(at: agents, withIntermediateDirectories: true)
         try (["Label": Migration.oldLabelPrefix + "realtest-watch"] as NSDictionary).write(to: agents.appendingPathComponent("watch.plist"))
@@ -769,7 +796,7 @@ struct MigrationTests {
                                   inputMethod: installed, version: "0.7.2", stop: {},
                                   launchCheck: { app, wanted in guard version(app) == wanted else { throw MigrationError("doesn't start") } })
         let report = Migration.test(root: root, say: { _ in }).run(switcher)
-        #expect(report.switched && report.pending.isEmpty, "\(report.lines)")
+        #expect(report.switched && report.pending == [.inputSource], "\(report.lines)")
         #expect(NSDictionary(contentsOf: installed.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == new.apps.inputMethod)
         #expect(version(settings) == "0.7.2" && !FileManager.default.fileExists(atPath: root.appendingPathComponent("previous").path))
         #expect(defaults.domain(new.apps.inputMethod)?["recentApps"] as? String == "old value" && defaults.domain(old.apps.inputMethod) == nil)
@@ -780,14 +807,63 @@ struct MigrationTests {
         let handover = IdentityHandover.fileStore(root.appendingPathComponent("Keychain/\(new.keychainGroup).plist"),
                                                   service: IdentityHandover.handoverService(for: APIKeys.service))
         #expect(handover.read("claude") == secrets[2] && handover.attributes("claude")?.comment == "api.anthropic.com")
-        #expect(login.accounts().isEmpty && !FileManager.default.fileExists(atPath: root.appendingPathComponent(CleanupRecord.fileName).path))
-        #expect(sources.state(of: new.inputSource) == MigrationInputSourceState(registered: true, enabled: true, selected: true))
-        #expect(sources.state(of: old.inputSource).enabled == false)
+        #expect(login.accounts().isEmpty)
+        // The new input source registered, left to the user; the old one's entry waits for it, in the record.
+        let record = root.appendingPathComponent(CleanupRecord.fileName)
+        #expect(sources.state(of: new.inputSource) == MigrationInputSourceState(registered: true))
+        #expect(try sources.state(of: old.inputSource).enabled && CleanupRecord.read(at: record)?.inputSource == old.inputSource)
         // The stray old Settings app and the old label's agent are gone; another app's agent stays.
         #expect(try FileManager.default.contentsOfDirectory(atPath: applications.path) == [Updater.settingsAppName])
         #expect(try FileManager.default.contentsOfDirectory(atPath: agents.path) == ["other.plist"])
         // The old input method's caches go; another app's stay.
         #expect(try FileManager.default.contentsOfDirectory(atPath: caches.path) == ["com.example.other"])
+
+        // The user adds it: another run takes the old one out and deletes the record.
+        try ([old.inputSource: ["registered": true, "enabled": true, "selected": false],
+              new.inputSource: ["registered": true, "enabled": true, "listed": true, "selected": true]] as NSDictionary).write(to: sources.file)
+        #expect(Migration.test(root: root, say: { _ in }).run(switcher).pending.isEmpty)
+        #expect(!sources.state(of: old.inputSource).enabled && !FileManager.default.fileExists(atPath: record.path))
+    }
+
+    /// A failure during or right after the swap (`AppsSwitch`, real bundles in a folder of the test's own) is logged as it
+    /// goes: the swap, the rollback and the previous apps back, before what went wrong; never "the new input method starts".
+    @Test(arguments: [false, true])
+    func aFailureAtTheSwapIsLogged(duringTheSwap: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("migration-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let installed = root.appendingPathComponent("Input Methods/\(Updater.inputMethodName)")
+        let settings = root.appendingPathComponent("Applications/\(Updater.settingsAppName)")
+        let staged = root.appendingPathComponent("staged")
+        try FakeApp.make(installed, id: old.apps.inputMethod, version: "0.7.1", build: "24", sign: false)
+        try FakeApp.make(settings, id: old.apps.settings, version: "0.7.1", build: "24", sign: false)
+        try FakeApp.make(staged.appendingPathComponent(Updater.inputMethodName), id: new.apps.inputMethod, version: "0.7.2", build: "25", sign: false)
+        // During: the new Settings app missing, so the swap stops halfway; after: the new input method doesn't start.
+        if !duringTheSwap {
+            try FakeApp.make(staged.appendingPathComponent(Updater.settingsAppName), id: new.apps.settings, version: "0.7.2", build: "25", sign: false)
+        }
+        #expect(FileDefaults(folder: root.appendingPathComponent("Preferences")).set("old value", forKey: "recentApps", in: old.apps.inputMethod))
+        let switcher = AppsSwitch(placing: [(staged.appendingPathComponent(Updater.inputMethodName), installed),
+                                            (staged.appendingPathComponent(Updater.settingsAppName), settings)],
+                                  replacing: [installed, settings], aside: root.appendingPathComponent("previous"),
+                                  inputMethod: installed, version: "0.7.2", stop: {},
+                                  launchCheck: { _, _ in throw UpdateError.invalidApp("AllInOneIME.app doesn't start (-1: not executable)") })
+        let report = Migration.test(root: root, say: { _ in }).run(switcher)
+        #expect(!report.switched && !report.notRestored)
+        #expect(NSDictionary(contentsOf: installed.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String
+                == old.apps.inputMethod)
+        let lines = report.lines
+        let failed = try #require(lines.firstIndex { $0.hasPrefix("✗ ") })
+        if duringTheSwap {
+            let back = try #require(lines.firstIndex(of: "apps: the new ones couldn't be moved in; the previous ones are back"))
+            #expect(back < failed && !lines.contains("apps: swapped"))
+        } else {
+            let swapped = try #require(lines.firstIndex(of: "apps: swapped"))
+            let rolling = try #require(lines.firstIndex(of: "rolling back: AllInOneIME.app doesn't start (-1: not executable)"))
+            let back = try #require(lines.firstIndex(of: "apps: the previous ones are back"))
+            #expect(swapped < rolling && rolling < back && back < failed)
+            #expect(lines[failed] == "✗ AllInOneIME.app doesn't start (-1: not executable)")
+        }
+        #expect(!lines.contains("apps: the new input method starts") && lines.contains { $0.hasPrefix("undone: ") })
     }
 
     /// The user's defaults as the migration reads and writes them (`UserDefaults(suiteName:)`, `persistentDomain`,

@@ -50,7 +50,9 @@ public enum UpdateError: Error, LocalizedError, Equatable {
     case sizeMismatch
     case hashMismatch
     case unpack(String)
-    /// The archive's apps aren't the ones the manifest names (bundle ID, version, signature, or they don't start).
+    /// The archive's apps aren't the ones the manifest names (bundle ID, version, signature, or they don't start). Its
+    /// description doesn't say whether anything changed: the About page's text for a refused update says nothing was, a
+    /// failure after the swap says what is back.
     case invalidApp(String)
     /// This copy isn't the installed one (~/Library/Input Methods/AllInOneIME.app): nothing to update in place.
     case notInstalled
@@ -71,7 +73,7 @@ public enum UpdateError: Error, LocalizedError, Equatable {
         case .sizeMismatch: return "The download's size doesn't match the signed manifest; nothing was changed"
         case .hashMismatch: return "The download doesn't match the signed manifest; nothing was changed"
         case let .unpack(detail): return "Couldn't unpack the update: \(detail)"
-        case let .invalidApp(detail): return "The update isn't a valid AllInOneIME: \(detail); nothing was changed"
+        case let .invalidApp(detail): return "The update isn't a valid AllInOneIME: \(detail)"
         case .notInstalled: return "This copy of AllInOneIME isn't the installed one; download the installer instead"
         case .cancelled: return "Cancelled"
         }

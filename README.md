@@ -1497,13 +1497,14 @@ access group `9SR8N3UD5Y.com.allinoneime.shared`). 0.7.1's updater installs it: 
 group's items over to the new identity first, hands the login keychain's keys over (each copied into the new group as a
 handover item, which 0.7.2 imports into the login keychain at launch as its own, so macOS never asks it to allow one;
 `Sources/AllInOneIMEMac/IdentityHandover.swift`), writes down what its cleanup will remove, swaps the apps, registers the
-new input source and asks for it to be enabled and selected if the old one was (Text Input Sources asked in a process of
-its own, so that the helper can start the new version afterwards; what it says is logged: macOS lets only the user add a
-new input method), and only then removes the old identity's (`Sources/AllInOneIMEMac/Migration.swift`); any failure
-before the new input method starts puts everything back. What the cleanup couldn't remove stays listed in
-`~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which 0.7.2 finishes at launch; the old input source
-stays there until the new one is enabled, which 0.7.2 asks the user to do first (System Settings → Keyboard → Input
-Sources → + → English → AllInOneIME). The 0.7.2 installer asks an installed 0.7.1 to do the same
+new input source, never asking for it to be enabled (macOS lets only the user add a new input method; asked to, it only
+opens System Settings), with Text Input Sources asked in a process of its own, so that the helper can start the new
+version afterwards, and what it says logged; and only then removes the old identity's
+(`Sources/AllInOneIMEMac/Migration.swift`); any failure before the new input method starts puts everything back. What the
+cleanup couldn't remove stays listed in `~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which 0.7.2
+finishes at launch. Until the user adds the new input source, which 0.7.2 asks first (System Settings → Keyboard → Input
+Sources → + → English → AllInOneIME), no AllInOneIME input source works: the old one's entry stays in the input sources
+only to be taken out then, its app gone. The 0.7.2 installer asks an installed 0.7.1 to do the same
 (`AllInOneIME --migrate-identity <the new AllInOneIME.app>`), and the 0.7.1 installer and `make install` never install
 over 0.7.2 (the installed version is newer). macOS asks again for the permissions it keeps by bundle ID.
 

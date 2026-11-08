@@ -33,6 +33,8 @@ extension SelfTest {
               "an update for a newer macOS isn't offered")
         UIText.choice = "en"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 is available", "the panel's notice")
+        let refused = UpdateText.describe(UpdateError.invalidApp("AllInOneIME.app doesn't start"))
+        check(refused.components(separatedBy: "nothing was changed").count == 2, "a refused update says nothing was changed once (\(refused))")
         UIText.choice = "zh"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 可以更新了"
               && UpdateText.describe(UpdateError.hashMismatch).hasPrefix("下载的文件"), "…in Chinese too")
