@@ -47,6 +47,22 @@ struct TestUpdateServer {
 }
 
 struct UpdateTests {
+    // MARK: Identity
+
+    /// 0.7.1, the bridge, installs its own identity's updates and the new identity's (0.7.2 on), nothing else; never back.
+    @Test func theBridgeAcceptsItsOwnIdentityAndTheNewOneOnly() {
+        let (old, new) = (AppIdentity.legacy, AppIdentity.allInOneIME)
+        #expect(Updater.identity == old)
+        #expect(Updater.accepts(old, over: old) && Updater.accepts(new, over: old) && Updater.accepts(new, over: new))
+        #expect(!Updater.accepts(old, over: new))
+        let third = AppIdentity(inputMethod: "com.example.inputmethod.Other", settings: "com.example.settings")
+        #expect(!Updater.accepts(third, over: old) && !Updater.accepts(old, over: third))
+        #expect(AppIdentity.of(inputMethod: new.inputMethod) == new && AppIdentity.of(inputMethod: old.inputMethod) == old)
+        #expect(AppIdentity.of(inputMethod: third.inputMethod) == nil && AppIdentity.of(inputMethod: nil) == nil)
+        // Both apps change together: no identity mixes them.
+        #expect(Set(AppIdentity.known.map(\.inputMethod)).count == 2 && Set(AppIdentity.known.map(\.settings)).count == 2)
+    }
+
     // MARK: Manifest and signature
 
     @Test func theManifestIsReadOnlyWhenSigned() async throws {

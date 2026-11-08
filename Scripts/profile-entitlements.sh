@@ -4,7 +4,7 @@
 # Resources/AllInOneIME.entitlements). A profile that doesn't fit makes macOS kill the input method at launch (there is
 # no input method then), so every check failing stops the build:
 #   - the profile is for this app (its application identifier is TEAM.<CFBundleIdentifier of INFO_PLIST>) and allows
-#     GROUP among its keychain access groups;
+#     each of GROUPS (one or more, separated by spaces: the Makefile's KEYCHAIN_GROUPS) among its keychain access groups;
 #   - the signing certificate (SIGN_HASH, its SHA-1) is among the profile's DeveloperCertificates, and its team (the
 #     certificate's OU) is the profile's;
 #   - the profile has more than 30 days left;
@@ -12,10 +12,10 @@
 #     lists a few Macs).
 # Reads only the profile (public: every shipped copy carries it) and its certificates; nothing from the keychain.
 #
-# Usage: Scripts/profile-entitlements.sh PROFILE SIGN_HASH INFO_PLIST GROUP ENTITLEMENTS [--all-devices]
+# Usage: Scripts/profile-entitlements.sh PROFILE SIGN_HASH INFO_PLIST GROUPS ENTITLEMENTS [--all-devices]
 set -eu
-[ $# -ge 5 ] || { echo "usage: $0 PROFILE SIGN_HASH INFO_PLIST GROUP ENTITLEMENTS [--all-devices]" >&2; exit 2; }
-profile=$1 hash=$2 info=$3 group=$4 out=$5 all=${6:-}
+[ $# -ge 5 ] || { echo "usage: $0 PROFILE SIGN_HASH INFO_PLIST GROUPS ENTITLEMENTS [--all-devices]" >&2; exit 2; }
+profile=$1 hash=$2 info=$3 groups=$4 out=$5 all=${6:-}
 buddy=/usr/libexec/PlistBuddy
 fail() { echo "error: $profile: $*" >&2; exit 1; }
 
@@ -32,14 +32,17 @@ bundle=$($buddy -c 'Print :CFBundleIdentifier' "$info")
 [ "$app_id" = "$team.$bundle" ] || fail "it is for $app_id, not $team.$bundle"
 [ "$(read_key Entitlements:com.apple.developer.team-identifier)" = "$team" ] || fail "its team identifier isn't $team"
 
-# The access group: one of the profile's, exactly or by its trailing `*`.
-allowed=no
-i=0
-while pattern=$(read_key "Entitlements:keychain-access-groups:$i"); do
-    case $group in $pattern) allowed=yes ;; esac
-    i=$((i + 1))
+# Each access group: one of the profile's, exactly or by its trailing `*`.
+[ -n "$groups" ] || fail "no keychain access group"
+for group in $groups; do
+    allowed=no
+    i=0
+    while pattern=$(read_key "Entitlements:keychain-access-groups:$i"); do
+        case $group in $pattern) allowed=yes ;; esac
+        i=$((i + 1))
+    done
+    [ $allowed = yes ] || fail "it doesn't allow the keychain access group $group"
 done
-[ $allowed = yes ] || fail "it doesn't allow the keychain access group $group"
 
 # The signing certificate, by its SHA-1, and its team.
 hash=$(printf '%s' "$hash" | tr '[:lower:]' '[:upper:]')
@@ -71,6 +74,10 @@ fi
 
 $buddy -c "Add :com.apple.application-identifier string $app_id" \
        -c "Add :com.apple.developer.team-identifier string $team" \
-       -c "Add :keychain-access-groups array" \
-       -c "Add :keychain-access-groups:0 string $group" "$out" >/dev/null
-echo "profile: $(read_key Name) (team $team, $days days left); signing certificate listed; keychain group $group"
+       -c "Add :keychain-access-groups array" "$out" >/dev/null
+i=0
+for group in $groups; do
+    $buddy -c "Add :keychain-access-groups:$i string $group" "$out" >/dev/null
+    i=$((i + 1))
+done
+echo "profile: $(read_key Name) (team $team, $days days left); signing certificate listed; keychain groups $groups"

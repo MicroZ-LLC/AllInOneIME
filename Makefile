@@ -21,8 +21,10 @@ TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
 PROFILE ?=
 DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
-# The keychain access group the entitlements give, KeySync.accessGroup in the core.
-KEYCHAIN_GROUP := 9SR8N3UD5Y.com.aipinyin.shared
+# The keychain access groups the entitlements give: KeySync.accessGroup in the core (where the keys are), then the new
+# system identity's (Migration.new.keychainGroup), which 0.7.1 copies them into when it moves AllInOneIME to that
+# identity (Sources/AllInOneIMEMac/Migration.swift). The profile has to allow both (the team's `9SR8N3UD5Y.*` does).
+KEYCHAIN_GROUPS := 9SR8N3UD5Y.com.aipinyin.shared 9SR8N3UD5Y.com.allinoneime.shared
 ENTITLEMENTS := $(BUILD_DIR)/AllInOneIME.entitlements
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=
@@ -181,7 +183,7 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	# With a profile: its three entitlements added (once it's checked against the signature), and the profile
 	# embedded before signing, so that the signature seals it.
 	@if [ -n "$(PROFILE)" ]; then \
-		Scripts/profile-entitlements.sh "$(PROFILE)" "$(SIGN_HASH)" "$(APP)/Contents/Info.plist" "$(KEYCHAIN_GROUP)" \
+		Scripts/profile-entitlements.sh "$(PROFILE)" "$(SIGN_HASH)" "$(APP)/Contents/Info.plist" "$(KEYCHAIN_GROUPS)" \
 			"$(ENTITLEMENTS)" $(if $(PROFILE_ALL_DEVICES),--all-devices) && \
 		cp "$(PROFILE)" "$(APP)/Contents/embedded.provisionprofile"; \
 	fi
@@ -334,8 +336,12 @@ update-zip:
 	rm -rf "$(PAYLOAD_DIR)"
 	@echo "Built $(UPDATE_ZIP) ($$(du -h "$(UPDATE_ZIP)" | cut -f1 | tr -d ' '))"
 
-# site/public/update.json and update.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed with
-# the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
+# site/public/update-v2.json and update-v2.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed
+# with the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
+# 0.7.1 and later read it. update.json (and .sig), which 0.7.0 and earlier read, is written too only for an archive
+# whose apps have the old system identity: 0.7.1's, the last version those can install (they refuse other bundle IDs),
+# which moves AllInOneIME to the new identity. From 0.7.2 on it is left as it is, naming 0.7.1 for good: an old
+# version updates to 0.7.1, and 0.7.1 to the newest.
 # Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
 # Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
 RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)

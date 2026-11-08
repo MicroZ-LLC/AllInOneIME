@@ -6,7 +6,7 @@ import UserNotifications
 
 // AllInOneIME's own updates, from Settings → About (and the input menu's "Check for Updates…"):
 //
-// 1. Checking (`UpdateController.check`): update.json and its signature from allinoneime.com, checked with the
+// 1. Checking (`UpdateController.check`): update-v2.json and its signature from allinoneime.com, checked with the
 //    releases' key built into the app (`Updater`). By itself once a day, at launch or when a text field is
 //    activated, in the background (`UpdateSchedule`; never on a keystroke); turned off in About. A newer version
 //    is a quiet line on the About page and in the menu bar panel, never a dialog; one this Mac can install, found by
@@ -24,7 +24,9 @@ import UserNotifications
 //    open), which reads what happened (`UpdateResult`) and says so on the About page.
 //
 // Only the two apps change: the settings, language packs, learned words and extensions live elsewhere
-// (~/.config/allinoneime, ~/Library/Application Support/AllInOneIME) and are never touched.
+// (~/.config/allinoneime, ~/Library/Application Support/AllInOneIME) and are never touched. An update with the new system
+// identity (0.7.2 on) is installed by the migration instead (`Migration`, 0.7.1 only): it carries the preferences and the
+// keychain items over first, swaps the apps the same way, and cleans up the old identity once the new one is in.
 
 /// Where an update goes: the user's own folders, or a test's (`--target-dir`), which nothing else touches.
 struct UpdateLocations {
@@ -243,9 +245,12 @@ enum UpdateHelper {
         if !locations.isTest { stopInputMethod(locations, staged: staged) }
 
         // Checked again: they waited in a folder of the user's since the input method checked them. Signed by this app's
-        // team, as the installer checks them (none for an ad-hoc signed build, a developer's).
+        // team, as the installer checks them (none for an ad-hoc signed build, a developer's). Their identity this one's,
+        // or the new one (`Updater.accepts`).
+        let identity: AppIdentity
         do {
-            for (app, id) in [(new.inputMethod, Updater.bundleID), (new.settingsApp, Updater.settingsBundleID)] {
+            identity = try Updater.identity(of: new.inputMethod, over: Updater.identity)
+            for (app, id) in [(new.inputMethod, identity.inputMethod), (new.settingsApp, identity.settings)] {
                 guard NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
                     throw UpdateError.invalidApp("\(app.lastPathComponent) is missing")
                 }
@@ -253,6 +258,18 @@ enum UpdateHelper {
             }
         } catch {
             return finish("the staged update doesn't check out (\(error)); nothing was changed")
+        }
+
+        // The new system identity (0.7.2 on): the migration swaps the apps, after carrying the settings and keys over,
+        // and cleans up the old identity once the new one is in.
+        if identity != Updater.identity {
+            let report = migration(locations).run(identitySwitch(placing: new, version: to, staged: staged, locations: locations,
+                                                                 simulateFailure: simulateFailure))
+            if report.notRestored { keepStaged = true }
+            guard report.switched else {
+                return finish("\(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; AllInOneIME \(from) is back"))
+            }
+            return finish(nil)
         }
 
         let swap: BundleSwap
@@ -300,6 +317,30 @@ enum UpdateHelper {
         return finish(nil)
     }
 
+    /// The move to the new system identity (`Migration`): the user's, or a test install's (files in its folder stand for
+    /// the defaults, the keychain and the input sources).
+    static func migration(_ locations: UpdateLocations, say: @escaping (String) -> Void = UpdateHelper.say) -> Migration {
+        locations.isTest ? .test(root: locations.inputMethods.deletingLastPathComponent(), say: say) : .system(say: say)
+    }
+
+    /// The installed apps swapped for `new` (with the new identity) as an update swaps them, the previous ones waiting in
+    /// `staged`/previous: the migration's step c.
+    static func identitySwitch(placing new: UpdatePayload, version: String, staged: URL, locations: UpdateLocations,
+                               simulateFailure: String?) -> AppsSwitch {
+        let launchServices = { (option: String, apps: [URL]) in
+            if !locations.isTest, !apps.isEmpty { _ = UpdateProcess.run(lsregister, [option] + apps.map(\.path), timeout: 60) }
+        }
+        var placing: [(new: URL, destination: URL)] = [(new.inputMethod, locations.inputMethod)]
+        if BundleSwap.exists(new.settingsApp) { placing.append((new.settingsApp, locations.settingsApp)) }
+        return AppsSwitch(placing: placing, replacing: [locations.inputMethod, locations.settingsApp],
+                          aside: staged.appendingPathComponent("previous", isDirectory: true), inputMethod: locations.inputMethod,
+                          version: version,
+                          stop: { if !locations.isTest { stopInputMethod(locations, staged: staged) } },
+                          launchCheck: { try UpdateStaging.launchCheck($0, version: $1) },
+                          registered: { launchServices("-f", $0) }, unregistered: { launchServices("-u", $0) },
+                          simulateFailure: simulateFailure)
+    }
+
     /// The apps installed now registered with Launch Services, and the input method with the text input system by its own
     /// `--register`: what that said.
     static func registerInstalled(_ locations: UpdateLocations) -> UpdateProcess.Result {
@@ -334,15 +375,80 @@ enum UpdateHelper {
         for pid in pids where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
-    /// The input method's processes started from the installed copy (or from it where it waits aside), not this one.
+    /// The input method's processes started from the installed copy (or from it where it waits aside), not this one: of
+    /// either identity (after a move to the new one, both may be running).
     static func inputMethodPIDs(_ locations: UpdateLocations, staged: URL) -> [pid_t] {
         let installed = locations.inputMethod.resolvingSymlinksInPath().path
         let aside = staged.resolvingSymlinksInPath().path + "/"
-        return NSRunningApplication.runningApplications(withBundleIdentifier: Updater.bundleID).compactMap { app -> pid_t? in
-            guard app.processIdentifier != getpid(), !app.isTerminated, let path = app.bundleURL?.resolvingSymlinksInPath().path,
-                  path == installed || path.hasPrefix(aside) else { return nil }
-            return app.processIdentifier
+        return AppIdentity.known.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0.inputMethod) }
+            .compactMap { app -> pid_t? in
+                guard app.processIdentifier != getpid(), !app.isTerminated, let path = app.bundleURL?.resolvingSymlinksInPath().path,
+                      path == installed || path.hasPrefix(aside) else { return nil }
+                return app.processIdentifier
+            }
+    }
+}
+
+// MARK: - The new identity
+
+/// `--migrate-identity APP [--target-dir DIR]`: the move to the new system identity (`Migration`) with APP, an
+/// AllInOneIME.app that has it (the 0.7.2 installer's, unpacked), moved into place as the installer moves its apps, and
+/// AllInOneIME Settings.app beside it too when it is there (the installed one goes either way: it would open the old
+/// input method). `--migrate-identity --check` says that this version can (`Migration.checkLine`): 0.7.0 and earlier
+/// answer that the option is unknown. With `--target-dir`, a test install's, as `--install-update`'s. Exits 0 once the
+/// new identity is installed (by this run or an earlier one; a cleanup step left is said, and tried again by the next
+/// run), 1 when it isn't (everything as it was), 2 for a bad argument.
+enum MigrationCommand {
+    static func run(_ arguments: [String]) -> Int32 {
+        if arguments.first == "--check" {
+            print(Migration.checkLine)
+            return 0
         }
+        guard let path = arguments.first, !path.hasPrefix("--") else {
+            printError("usage: --migrate-identity APP [--target-dir DIR] | --migrate-identity --check")
+            return 2
+        }
+        let locations = option("--target-dir", in: arguments).map { UpdateLocations.test(root: URL(fileURLWithPath: $0).standardizedFileURL) } ?? .real
+        let app = URL(fileURLWithPath: path).standardizedFileURL
+        let settings = app.deletingLastPathComponent().appendingPathComponent(Updater.settingsAppName, isDirectory: true)
+        guard let version = UpdateStaging.version(of: app) else {
+            printError("✗ \(app.path) isn't an AllInOneIME.app")
+            return 2
+        }
+        guard BundleSwap.exists(locations.inputMethod) else {
+            printError("✗ no AllInOneIME in \(locations.inputMethods.path)")
+            return 1
+        }
+        // The new apps: the new identity, intact, signed by this app's team (none for an ad-hoc signed build), and the input
+        // method starts. Nothing is changed before.
+        let new = Migration.new.apps
+        do {
+            for (bundle, id) in [(app, new.inputMethod)] + (BundleSwap.exists(settings) ? [(settings, new.settings)] : []) {
+                guard NSDictionary(contentsOf: bundle.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
+                    throw UpdateError.invalidApp("\(bundle.lastPathComponent) doesn't have the new identity")
+                }
+                try CodeSignature.check(bundle, identifier: id, team: CodeSignature.ownTeamID)
+            }
+            try UpdateStaging.launchCheck(app, version: version)
+        } catch {
+            printError("✗ \(UpdateText.describe(error))")
+            return 1
+        }
+        let staged = locations.work.appendingPathComponent("identity-\(UUID().uuidString.prefix(8))", isDirectory: true)
+        // The input method stopped before its preferences and keys are copied: nothing changes under the copy.
+        if !locations.isTest { UpdateHelper.stopInputMethod(locations, staged: staged) }
+        let switcher = UpdateHelper.identitySwitch(placing: UpdatePayload(inputMethod: app, settingsApp: settings, identity: new),
+                                                   version: version, staged: staged, locations: locations, simulateFailure: nil)
+        let report = UpdateHelper.migration(locations, say: { print($0); fflush(stdout) }).run(switcher)
+        if !report.notRestored { try? FileManager.default.removeItem(at: staged) }
+        guard report.switched else {
+            printError("✗ \(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; nothing was changed"))
+            return 1
+        }
+        print(report.pending.isEmpty ? "✓ AllInOneIME \(version) is installed with the new identity"
+              : "✓ AllInOneIME \(version) is installed with the new identity; left for the next run: "
+                + report.pending.map(\.rawValue).joined(separator: ", "))
+        return 0
     }
 }
 
