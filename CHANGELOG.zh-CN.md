@@ -2,6 +2,12 @@
 
 [English](CHANGELOG.md) | 中文
 
+## 0.7.1（未发布）
+
+### 修复
+
+- 设置 → 助手里的请求对 Apple Intelligence 来说太长、AI 服务是 Amazon Bedrock 而本机没有它的 AWS profile（或 profile 里没有凭证）时，页面现在说 Bedrock 还没设置好，请说得短一些或者在设置 → AI 里设置好它，和别的 AI 服务一样。以前说的是改问 Bedrock 也没成功。SSO 没登录或登录过期时，照旧提示运行 `aws sso login`。
+
 ## 0.7.0（2026-11-07）
 
 ### 新增
