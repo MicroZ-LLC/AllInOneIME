@@ -8,6 +8,7 @@
 
 - 设置 → 助手里的请求对 Apple Intelligence 来说太长、AI 服务是 Amazon Bedrock 而本机没有它的 AWS profile（或 profile 里没有凭证）时，页面现在说 Bedrock 还没设置好，请说得短一些或者在设置 → AI 里设置好它，和别的 AI 服务一样。以前说的是改问 Bedrock 也没成功。SSO 没登录或登录过期时，照旧提示运行 `aws sso login`。
 - 设置 →「助手」读取登录 shell 里 `AWS_CONFIG_FILE` 和 `AWS_SHARED_CREDENTIALS_FILE` 指定的 AWS 文件，和设置 →「AI」里的 AWS Profile 选择器以及 Bedrock 的请求一样：让它用这些文件里的 profile（「用我工作的 AWS profile」）现在会给出这项更改。以前它只读 `~/.aws`，所以找不到 profile，或者以「~/.aws 里没有这个 profile」拒绝这些文件里的 profile。
+- 另一个命令的文字里的命令出错时（`@reply 答案是 @py …`），候选框现在用界面语言说明原因，写在命令名后面，和这个命令单独运行时一样（`@py：运行超过 10 秒，已停止`）。以前 `@py`、`@js` 和你的运行命令运行超过 10 秒、输出太多或出错退出却没有说明时，`@read` 读不了网页时，不管界面是什么语言都用英文说。
 
 ## 0.7.0（2026-11-07）
 
