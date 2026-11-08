@@ -53,6 +53,24 @@ struct SettingsServiceTests {
         #expect(mac.field("actionKey")?.choices?.count == 4)
     }
 
+    /// A new version's notification (`notifiesUpdates`) is the Mac's, right under Check for updates automatically and
+    /// only while that is on; set here, it is written.
+    @Test func theUpdateNotificationSwitchFollowsChecking() throws {
+        let (mac, url) = try service(#"{"provider": "anthropic"}"#, platform: .mac)
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let general = try #require(mac.document().sections.first { $0.id == "general" }).fields.map(\.id)
+        let checking = try #require(general.firstIndex(of: "checkForUpdates"))
+        #expect(general.firstIndex(of: "notifiesUpdates") == checking + 1)
+        #expect(mac.document().field("notifiesUpdates")?.value == .bool(true))
+        #expect((try? mac.set("notifiesUpdates", to: .bool(false)).get()) != nil)
+        #expect(try !Config.load(from: url).notifiesUpdates && mac.document().field("notifiesUpdates")?.value == .bool(false))
+        #expect((try? mac.set("checkForUpdates", to: .bool(false)).get()) != nil)
+        #expect(mac.document().field("notifiesUpdates") == nil)
+        let (windows, folder) = try service(#"{"provider": "anthropic"}"#)
+        defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
+        #expect(!ids(windows.document()).contains("notifiesUpdates"))
+    }
+
     /// A provider's own fields only while it is the one in use; the key as a secret: never its value.
     @Test func theProviderInUse() async throws {
         do {
