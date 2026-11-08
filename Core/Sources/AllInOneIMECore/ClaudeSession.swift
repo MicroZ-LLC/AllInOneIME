@@ -1,9 +1,11 @@
 import Crypto
 import Foundation
 
-/// Where `@question` is answered (`Config.questionBackend`): the dedicated Claude Code session on the user's Claude
-/// subscription (`ClaudeSessionManager`), or the AI provider. Unset: the session when `claude` is installed and signed
-/// in, else the provider. Every other request (writing, autocomplete, translating …) always goes to the provider.
+/// Where `@question` is answered (`Config.questionBackend`): the dedicated session of the agent `@agent` hands to
+/// (`Config.agent`: Claude Code on the user's Claude subscription, Kiro CLI on their Kiro account; `ClaudeSessionManager`),
+/// or the AI provider. Unset: the session when that agent is installed and signed in, else the provider. An agent with
+/// no session (Gemini CLI, a custom one): the provider. `claudeSession` is the value's name in the file for either agent.
+/// Every other request (writing, autocomplete, translating …) always goes to the provider.
 public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
     case claudeSession
     case provider
@@ -55,6 +57,9 @@ public enum ClaudeSession {
         or code fences) and no preamble. When a question needs current facts, you may search the web (WebSearch, WebFetch).
 
         """]
+
+    /// The files written into the session's folder: its CLAUDE.md.
+    public static let files = [SessionFile(path: "CLAUDE.md", content: instructions, earlier: earlierInstructions)]
 
     /// The tools the session may have: reading the web, nothing else (Claude Code leaves out what its provider lacks:
     /// WebSearch on Bedrock).
@@ -180,8 +185,14 @@ public enum ClaudeSession {
         case apiError(code: String, message: String)
         /// The turn ended (`result`): `error` false with its text, or how it failed; `interrupted`: stopped by an interrupt.
         case result(error: Bool, interrupted: Bool, text: String, status: Int?)
-        /// Claude Code asks whether a tool may run: answered with `deny`.
+        /// Claude Code asks whether a tool may run: answered with `deny` (by the driver, `SessionDriver`).
         case permissionRequest(id: String)
+        /// The agent gave the session this id (an ACP agent's `session/new`): kept for loading it again.
+        case sessionID(String)
+        /// A sign that the answer is being worked on (thinking, a tool running) with nothing to show.
+        case working
+        /// The session or its turn failed (an ACP agent's error response); `endsProcess`: the process is of no use now.
+        case failed(ClaudeSessionError, endsProcess: Bool)
         case other
     }
 
@@ -267,7 +278,11 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
         }
     }
 
-    public var errorDescription: String? {
+    public var errorDescription: String? { description(for: .claude) }
+
+    /// What it says for the session on `agent` (Claude Code's words for any but Kiro's).
+    public func description(for agent: AgentKind) -> String {
+        if agent == .kiro, let kiro = kiroDescription { return kiro }
         switch self {
         case .notInstalled:
             return tr("没找到 claude 命令（Claude Code）", "The claude command (Claude Code) isn't installed")
@@ -288,9 +303,31 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
         }
     }
 
+    /// Kiro CLI's words, where they differ.
+    private var kiroDescription: String? {
+        switch self {
+        case .notInstalled:
+            return tr("没找到 kiro-cli 命令（Kiro CLI）", "The kiro-cli command (Kiro CLI) isn't installed")
+        case .signedOut:
+            return tr("Kiro CLI 没有登录：在终端运行 kiro-cli login", "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
+        case .noResponse:
+            return tr("Kiro 会话没有回应", "The Kiro session didn't respond")
+        case .openInTerminal:
+            return tr("输入法的 Kiro 会话正在终端里打开着", "The input method's Kiro session is open in Terminal")
+        case let .exited(status, message):
+            return tr("Kiro 会话意外退出", "The Kiro session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
+        case let .failed(message):
+            return tr("Kiro 会话出错", "The Kiro session failed") + (message.isEmpty ? "" : ": \(message)")
+        case .limitReached, .awsSignInExpired:
+            return nil
+        }
+    }
+
     /// What the panel says when the provider answered instead.
-    public var fallbackNote: String {
-        (errorDescription ?? "") + tr("，这次由 AI 服务回答", "; the AI provider answered this time")
+    public var fallbackNote: String { fallbackNote(for: .claude) }
+
+    public func fallbackNote(for agent: AgentKind) -> String {
+        description(for: agent) + tr("，这次由 AI 服务回答", "; the AI provider answered this time")
     }
 
     /// The error for an `assistant` line's `error` code and text, or a failed `result` (`status`: its HTTP status).
@@ -324,28 +361,41 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 /// new id. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none; `provider-settings.json`, the
 /// user's provider settings (`ClaudeSession.providerSettings`), before each start; `context.json`, what the input method
 /// keeps of the session (`Memory`).
+///
+/// The same for every agent's session (`SessionBackend`): its folder and `files` (Kiro's steering and agent config in
+/// place of CLAUDE.md), and `agent-session`, the id an ACP agent gave the session (`agentSessionID`).
 public struct ClaudeSessionStore: Sendable {
     public let directory: URL
+    /// What `prepare` writes into the folder.
+    public let files: [SessionFile]
 
-    public init(directory: URL = ClaudeSession.directory) {
+    public init(directory: URL = ClaudeSession.directory, files: [SessionFile] = ClaudeSession.files) {
         self.directory = directory
+        self.files = files
+    }
+
+    /// The store of `backend`'s session, in its folder.
+    public init(_ backend: any SessionBackend) {
+        self.init(directory: backend.directory, files: backend.files)
     }
 
     var idFile: URL { directory.appendingPathComponent("id") }
     var resumableFile: URL { directory.appendingPathComponent("resumable") }
     var providerSettingsFile: URL { directory.appendingPathComponent("provider-settings.json") }
     var memoryFile: URL { directory.appendingPathComponent("context.json") }
+    var agentSessionFile: URL { directory.appendingPathComponent("agent-session") }
     /// The process id of the Claude Code a hand-off started in Terminal, written by the script that starts it.
     public var terminalPIDFile: URL { directory.appendingPathComponent("terminal.pid") }
 
-    /// The folder and its CLAUDE.md, made when missing.
+    /// The folder and its `files` (CLAUDE.md), each made when missing or still an earlier default.
     public func prepare() throws {
-        let files = FileManager.default
-        try files.createDirectory(at: directory, withIntermediateDirectories: true)
-        let instructions = directory.appendingPathComponent("CLAUDE.md")
-        let written = try? String(contentsOf: instructions, encoding: .utf8)
-        if written == nil || ClaudeSession.earlierInstructions.contains(written!) {
-            try Data(ClaudeSession.instructions.utf8).write(to: instructions, options: .atomic)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        for file in files {
+            let url = directory.appendingPathComponent(file.path)
+            let written = try? String(contentsOf: url, encoding: .utf8)
+            guard written == nil || file.earlier.contains(written!) else { continue }
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(file.content.utf8).write(to: url, options: .atomic)
         }
     }
 
@@ -402,6 +452,7 @@ public struct ClaudeSessionStore: Sendable {
         let id = UUID().uuidString.lowercased()
         try Data((id + "\n").utf8).write(to: idFile, options: .atomic)
         try? FileManager.default.removeItem(at: resumableFile)
+        try? FileManager.default.removeItem(at: agentSessionFile)
         return id
     }
 
@@ -415,9 +466,21 @@ public struct ClaudeSessionStore: Sendable {
         if resumable { try? Data().write(to: resumableFile) } else { try? FileManager.default.removeItem(at: resumableFile) }
     }
 
-    /// A new session from now on (the old one stays in Claude Code's history).
+    /// The id the agent gave the session (an ACP agent's), nil before it has one.
+    public func agentSessionID() -> String? {
+        let saved = (try? String(contentsOf: agentSessionFile, encoding: .utf8))?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return saved?.isEmpty == false ? saved : nil
+    }
+
+    public func setAgentSessionID(_ id: String) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? Data((id + "\n").utf8).write(to: agentSessionFile, options: .atomic)
+    }
+
+    /// A new session from now on (the old one stays in the agent's history).
     @discardableResult
     public func startOver() throws -> String {
+        try? FileManager.default.removeItem(at: agentSessionFile)
         try? FileManager.default.removeItem(at: idFile)
         try? FileManager.default.removeItem(at: resumableFile)
         try? FileManager.default.removeItem(at: memoryFile)

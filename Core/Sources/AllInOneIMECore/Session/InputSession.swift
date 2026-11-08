@@ -32,8 +32,10 @@ public final class InputSession {
     public private(set) var lastShortened = false
     /// Why the Claude session didn't answer the last question and the provider did (`ConversionUpdate.note`).
     public private(set) var lastNote: String?
-    /// The Claude session was asked to start for the command being written (`prewarmQuestionSession`).
+    /// The session of @agent's agent was asked to start for the command being written (`prewarmQuestionSession`).
     private var questionSessionWarmed = false
+    /// The session `@question` goes to with the settings (`Converter.questionSession`), nil: the provider.
+    private var questionSessionManager: ClaudeSessionManager?
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
     public private(set) var agent = AgentKind.claude
     public private(set) var agentCommand: [String] = []
@@ -736,8 +738,9 @@ public final class InputSession {
         let installed = services.agentInstalled
         let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
         // The questions go to the input method's Claude session: no round limit, going on in it offered first.
-        composer.questionSession = services.converter.claudeSession?.answersQuestions(config) ?? false
-        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices) : choices
+        questionSessionManager = services.converter.questionSession(config)
+        composer.questionSession = questionSessionManager != nil
+        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: config.agent) : choices
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         let language = UIText.language
         if let made = chatMessages, made.language == language {
@@ -1719,7 +1722,7 @@ public final class InputSession {
             questionSessionWarmed = false
             return
         }
-        guard !questionSessionWarmed, let session = services.converter.claudeSession else { return }
+        guard !questionSessionWarmed, let session = questionSessionManager else { return }
         questionSessionWarmed = true
         Task.detached { session.prewarm() }
     }

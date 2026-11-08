@@ -34,9 +34,17 @@ public final class Converter: Sendable {
     let loadKey: ChatClient.KeyLoader
     private let loadJargon: JargonLoader
     let cache = Locked(initialState: LRUCache(capacity: 64))
-    /// The input method's own Claude Code session (`ClaudeSessionManager`), where `@question` goes when it's the one
-    /// picked (`answersQuestions`); nil: none here, every question to the provider.
-    public let claudeSession: ClaudeSessionManager?
+    /// The input method's own sessions (`ClaudeSessionManager`), one per agent: `@question` goes to the one of the agent
+    /// `@agent` hands to (`Config.agent`) when it answers questions (`answersQuestions`); none for that agent (Gemini
+    /// CLI, a custom one): every question to the provider.
+    public let questionSessions: [AgentKind: ClaudeSessionManager]
+    /// The Claude Code session, if any.
+    public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
+
+    /// The session `@question` goes to with `config`: its agent's, when that answers questions; nil: the provider.
+    public func questionSession(_ config: Config) -> ClaudeSessionManager? {
+        questionSessions[config.agent].flatMap { $0.answersQuestions(config) ? $0 : nil }
+    }
 
     public init(
         client: BedrockClient = BedrockClient(),
@@ -46,10 +54,13 @@ public final class Converter: Sendable {
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
         appleModel: any AppleModelBackend = AppleModel.system,
         appleClock: any Clock<Duration> = ContinuousClock(),
-        claudeSession: ClaudeSessionManager? = nil
+        claudeSession: ClaudeSessionManager? = nil,
+        questionSessions: [AgentKind: ClaudeSessionManager] = [:]
     ) {
         self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
-        self.claudeSession = claudeSession
+        var sessions = questionSessions
+        if let claudeSession { sessions[.claude] = claudeSession }
+        self.questionSessions = sessions
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey
@@ -171,8 +182,8 @@ public final class Converter: Sendable {
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
-        // The dedicated Claude session answers, unless it can't (below).
-        let session = command == .question ? claudeSession.flatMap { $0.answersQuestions(config) ? $0 : nil } : nil
+        // The dedicated session of @agent's agent answers, unless it can't (below).
+        let session = command == .question ? questionSession(config) : nil
         // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
         // history), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
@@ -215,7 +226,7 @@ public final class Converter: Sendable {
                                        told: missing.map(\.answer), continuation: continuation)
                 return
             } catch let error as ClaudeSessionError where error.fallsBack {
-                note = error.fallbackNote
+                note = error.fallbackNote(for: session.backend.agent)
             }
         }
         let request = chat ? QuestionChat.request(first: input, turns: turns, config: config)
@@ -285,7 +296,7 @@ public final class Converter: Sendable {
                     firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
             }
         } catch let error as ClaudeSessionError where firstToken != nil && error.fallsBack {
-            throw ClaudeSessionError.failed(error.localizedDescription)  // part of the answer is in: no other answers now
+            throw ClaudeSessionError.failed(error.description(for: session.backend.agent))  // part of the answer is in: no other answers now
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)

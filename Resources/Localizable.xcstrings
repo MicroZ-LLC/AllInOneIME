@@ -3864,6 +3864,9 @@
         }
       }
     },
+    "A new session: it no longer remembers the earlier questions (the old one stays in Kiro CLI's history)." : {
+      "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 Kiro CLI 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+    },
     "A notification says when it's done and opens it in Terminal; @tasks and the menu bar panel list these tasks." : {
       "comment" : "做完弹通知，点通知在终端里接着聊；@tasks 和菜单栏面板列出这些任务。 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -7706,6 +7709,12 @@
         }
       }
     },
+    "Automatic (now: the AI provider; kiro-cli isn't installed)" : {
+      "comment" : "自动（现在：AI 服务，没装 kiro-cli） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+    },
+    "Automatic (now: the AI provider; kiro-cli isn't signed in)" : {
+      "comment" : "自动（现在：AI 服务，kiro-cli 没登录） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+    },
     "Automatic (now: the Claude session)" : {
       "comment" : "自动（现在：Claude 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
       "localizations" : {
@@ -7752,6 +7761,9 @@
           }
         }
       }
+    },
+    "Automatic (now: the Kiro session)" : {
+      "comment" : "自动（现在：Kiro 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift"
     },
     "Available" : {
       "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
@@ -17107,6 +17119,12 @@
           }
         }
       }
+    },
+    "Kiro session" : {
+      "comment" : "Kiro 会话 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
+    },
+    "Kiro session: the input method's own Kiro CLI session (@agent's agent is Kiro CLI), on your Kiro account, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "Kiro 会话：输入法自己的一个 Kiro CLI 会话（@agent 选的是 Kiro CLI），用你的 Kiro 账号，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIME/ClaudeSessionSettings.swift"
     },
     "Language pack" : {
       "comment" : "语言包 — Sources/AllInOneIME/SettingsWindow.swift",

@@ -12300,6 +12300,9 @@
         }
       }
     },
+    "Automatic: the Kiro session when kiro-cli is installed and signed in" : {
+      "comment" : "自动：装了 kiro-cli 并已登录就用 Kiro 会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift"
+    },
     "AWS credentials: the last refresh failed" : {
       "comment" : "AWS 凭证上次刷新失败 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -16728,6 +16731,9 @@
           }
         }
       }
+    },
+    "Continue in Kiro CLI (the same session)" : {
+      "comment" : "在 Kiro CLI 里接着聊（同一个会话） — Sources/AllInOneIMECore/Session/SessionText.swift"
     },
     "Copied" : {
       "comment" : "已复制 — Sources/AllInOneIMECore/Composer.swift",
@@ -24592,6 +24598,18 @@
           }
         }
       }
+    },
+    "Kiro CLI (this session)" : {
+      "comment" : "Kiro CLI（接着这个会话） — Sources/AllInOneIMECore/Session/SessionText.swift"
+    },
+    "Kiro CLI isn't signed in: run kiro-cli login in Terminal" : {
+      "comment" : "Kiro CLI 没有登录：在终端运行 kiro-cli login — Sources/AllInOneIMECore/ClaudeSession.swift"
+    },
+    "Kiro session (your Kiro account)" : {
+      "comment" : "Kiro 会话（你的 Kiro 账号） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift"
+    },
+    "Kiro session: the input method's own Kiro CLI session (@agent's agent is Kiro CLI), on your Kiro account, which remembers earlier questions. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "Kiro 会话：输入法自己的一个 Kiro CLI 会话（@agent 选的是 Kiro CLI），用你的 Kiro 账号，记得以前问过的问题。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift"
     },
     "Korean" : {
       "comment" : "韩 — Sources/AllInOneIMECore/Composer.swift",
@@ -32645,6 +32663,9 @@
           }
         }
       }
+    },
+    "Opened the input method's Kiro session in Terminal" : {
+      "comment" : "已在终端打开输入法的 Kiro 会话 — Sources/AllInOneIMECore/Composer+QuestionChat.swift"
     },
     "openRow.inBrowser" : {
       "comment" : "在浏览器中打开 — Sources/AllInOneIMECore/Session/SessionText.swift",
@@ -47952,6 +47973,9 @@
         }
       }
     },
+    "The input method's Kiro session is open in Terminal" : {
+      "comment" : "输入法的 Kiro 会话正在终端里打开着 — Sources/AllInOneIMECore/ClaudeSession.swift"
+    },
     "The Jargon style's terms: a text file, one term per line, optionally with its meaning." : {
       "comment" : "「黑话」风格用的词表：文本文件，每行一个词，可以加解释。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -47998,6 +48022,18 @@
           }
         }
       }
+    },
+    "The Kiro session didn't respond" : {
+      "comment" : "Kiro 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift"
+    },
+    "The Kiro session failed" : {
+      "comment" : "Kiro 会话出错 — Sources/AllInOneIMECore/ClaudeSession.swift"
+    },
+    "The Kiro session quit unexpectedly" : {
+      "comment" : "Kiro 会话意外退出 — Sources/AllInOneIMECore/ClaudeSession.swift"
+    },
+    "The kiro-cli command (Kiro CLI) isn't installed" : {
+      "comment" : "没找到 kiro-cli 命令（Kiro CLI） — Sources/AllInOneIMECore/ClaudeSession.swift"
     },
     "The last update didn't work" : {
       "comment" : "上次更新没有成功 — Sources/AllInOneIMECore/Doctor.swift",

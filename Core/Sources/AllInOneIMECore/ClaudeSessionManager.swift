@@ -17,7 +17,8 @@ public protocol ClaudeSessionLauncher: Sendable {
                exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess
 }
 
-/// Keeps the input method's Claude Code session (`ClaudeSession`) running and asks it questions. One process at a time,
+/// Keeps the input method's session on an agent (`backend`: Claude Code, `ClaudeSession`, or an ACP agent such as Kiro
+/// CLI, `ACPBackend`; one manager per agent) running and asks it questions. One process at a time,
 /// for every text field: started ahead of the first question (`prewarm`, when the command trigger is typed), so the
 /// answer doesn't wait for Claude Code to start; reused for each question; ended after `idleTimeout` without one. One
 /// that ended (a crash, killed) is started again with `--resume` by the next question. A question asked while another
@@ -36,6 +37,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     public static let firstAnswerTimeout: Duration = .seconds(30)
 
     public let store: ClaudeSessionStore
+    /// The agent the session runs on, and how its process is talked to.
+    public let backend: any SessionBackend
     private let launcher: any ClaudeSessionLauncher
     private let idleTimeout: Duration
     private let clock: any Clock<Duration>
@@ -48,15 +51,16 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one). `userSettings`: the user's
     /// Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
-    /// `answerClock`: what `firstAnswerTimeout` is timed with.
-    public init(launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore = ClaudeSessionStore(),
+    /// `answerClock`: what `firstAnswerTimeout` is timed with. `store`: nil, the backend's own folder.
+    public init(backend: any SessionBackend = ClaudeCodeBackend(), launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore? = nil,
                 idleTimeout: Duration = ClaudeSessionManager.idleTimeout, clock: any Clock<Duration> = ContinuousClock(),
                 firstAnswerTimeout: Duration = ClaudeSessionManager.firstAnswerTimeout,
                 answerClock: any Clock<Duration> = ContinuousClock(),
                 isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false },
                 userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() }) {
+        self.backend = backend
         self.launcher = launcher
-        self.store = store
+        self.store = store ?? ClaudeSessionStore(backend)
         self.idleTimeout = idleTimeout
         self.clock = clock
         self.firstAnswerTimeout = firstAnswerTimeout
@@ -74,7 +78,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// A question being answered, or waiting for the one before it.
     private final class Turn: @unchecked Sendable {
         let id: Int
-        let message: Data
+        let message: String
         let continuation: AsyncThrowingStream<String, Error>.Continuation
         /// The answer so far (of the model's latest message: after a web search the answer starts again).
         var text = ""
@@ -92,15 +96,17 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var watchdog: Task<Void, Never>?
         var attempt = 0
 
-        init(id: Int, message: Data, continuation: AsyncThrowingStream<String, Error>.Continuation) {
+        init(id: Int, message: String, continuation: AsyncThrowingStream<String, Error>.Continuation) {
             self.id = id
             self.message = message
             self.continuation = continuation
         }
     }
 
-    private struct Running {
+    private struct Running: @unchecked Sendable {
         var process: any ClaudeSessionProcess
+        /// What talks to it (`SessionDriver`), used under the lock only.
+        var driver: any SessionDriver
         var generation: Int
         var resume: Bool
         /// The session started (its "init" came): a failure before that is the start's.
@@ -150,13 +156,17 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// Starts the process now, if it isn't running, so that the next question doesn't wait for it; it ends after
     /// `idleTimeout` unless a question comes.
     public func prewarm() {
-        state.withLock { state in
-            guard state.turns.isEmpty else { return }
+        let actions = state.withLock { state -> [Action] in
+            guard state.turns.isEmpty else { return [] }
+            var actions: [Action] = []
             if state.running == nil {
-                guard !terminalOpen(), (try? start(&state)) != nil else { return }
+                guard !terminalOpen(), let (_, opening) = try? start(&state) else { return [] }
+                actions = opening
             }
             scheduleIdle(&state)
+            return actions
         }
+        perform(actions)
     }
 
     /// Asks `question` (one user message: the text as the provider would get it, already redacted). The stream gives
@@ -172,7 +182,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             }
             let actions = state.withLock { state -> [Action] in
                 if terminalOpen() { return [.finish(continuation, ClaudeSessionError.openInTerminal)] }
-                state.turns.append(Turn(id: id, message: ClaudeSession.userMessage(question), continuation: continuation))
+                state.turns.append(Turn(id: id, message: question, continuation: continuation))
                 return pump(&state)
             }
             perform(actions)
@@ -190,12 +200,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// Hands the session to Terminal: the process ends (a question being answered stops), and what Terminal is to run
-    /// (`ClaudeSession.terminalArguments`, `claude` being where Claude Code is) in the session's folder.
-    public func handOff(claude: String) throws -> (arguments: [String], directory: URL) {
+    /// (`SessionBackend.terminalArguments`, `program` being where the agent is) in the session's folder.
+    public func handOff(program: String) throws -> (arguments: [String], directory: URL) {
         stop()
         let id = try store.sessionID()
-        return (ClaudeSession.terminalArguments(claude: claude, sessionID: id, resume: store.resumable), store.directory)
+        return (backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
+                                          resume: store.resumable), store.directory)
     }
+
+    public func handOff(claude: String) throws -> (arguments: [String], directory: URL) { try handOff(program: claude) }
 
     /// Ends the process, and the questions it was answering (the app quits, the settings changed).
     public func stop() {
@@ -221,16 +234,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
-    /// The arguments for `claude auth status` that say what the session will find (`ClaudeSession.authStatusArguments`),
-    /// run in `store.directory`; the folder and its provider settings are written first.
+    /// The arguments of the command that says whether the agent is signed in, as the session will find it (Claude
+    /// Code's `claude auth status`, `ClaudeSession.authStatusArguments`; `kiro-cli whoami`), run in `store.directory`;
+    /// the folder and its provider settings are written first. Its exit status and output: `backend.signedIn`.
     public func authStatusArguments() -> [String] {
         try? store.prepare()
-        return ClaudeSession.authStatusArguments(settings: providerSettings())
+        return backend.availabilityArguments(settings: providerSettings())
     }
 
-    /// The user's provider settings written into the session's folder, nil when there are none.
+    /// The user's provider settings written into the session's folder, nil when there are none (or the agent takes none).
     private func providerSettings() -> URL? {
-        userSettings().flatMap { store.writeProviderSettings(from: $0) }
+        guard backend.usesProviderSettings else { return nil }
+        return userSettings().flatMap { store.writeProviderSettings(from: $0) }
     }
 
     // MARK: - What the session was told
@@ -308,23 +323,25 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return false
     }
 
-    /// Starts the process (with `--resume` once the session has a conversation).
-    @discardableResult
-    private func start(_ state: inout State) throws -> Running {
-        if let running = state.running { return running }
+    /// Starts the process (with `--resume` once the session has a conversation), and what it is sent first (an ACP
+    /// handshake).
+    private func start(_ state: inout State) throws -> (Running, opening: [Action]) {
+        if let running = state.running { return (running, []) }
         do {
             try store.prepare()
             let id = try store.sessionID()
             let resume = store.resumable
             state.generation += 1
             let generation = state.generation
-            let arguments = ClaudeSession.arguments(sessionID: id, resume: resume, settings: providerSettings())
+            let arguments = backend.arguments(sessionID: id, resume: resume, settings: providerSettings())
+            let driver = backend.driver(sessionID: id, agentSessionID: store.agentSessionID(), resume: resume,
+                                        directory: store.directory)
             let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
                                              exited: { [weak self] in self?.exited(generation: generation, status: $0, message: $1) })
-            let running = Running(process: process, generation: generation, resume: resume)
+            let running = Running(process: process, driver: driver, generation: generation, resume: resume)
             state.running = running
-            return running
+            return (running, driver.opening().map { .send(process, generation: generation, $0) })
         } catch ClaudeSessionError.notInstalled {
             state.availability = .notInstalled
             throw ClaudeSessionError.notInstalled
@@ -336,8 +353,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
         guard let turn = state.turns.first, !turn.sent else { return [] }
         let running: Running
+        let opening: [Action]
         do {
-            running = try start(&state)
+            (running, opening) = try start(&state)
         } catch {
             let turns = state.turns
             state.turns = []
@@ -348,7 +366,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle = nil
         turn.sent = true
         watch(turn)
-        return [.send(running.process, generation: running.generation, turn.message)]
+        return opening + running.driver.message(turn.message).map { .send(running.process, generation: running.generation, $0) }
     }
 
     /// `turn`, just written, fails with `.noResponse` unless a sign of its answer comes within `firstAnswerTimeout`.
@@ -403,8 +421,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     private func interruptAction(_ state: inout State) -> [Action] {
         guard let running = state.running else { return [] }
-        state.serial += 1
-        return [.send(running.process, generation: running.generation, ClaudeSession.interrupt(requestID: "interrupt-\(state.serial)"))]
+        return running.driver.interrupt().map { .send(running.process, generation: running.generation, $0) }
     }
 
     /// The turn `id`'s stream was given up: interrupted if it's being answered, else dropped.
@@ -423,66 +440,106 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         perform(actions)
     }
 
-    /// A line of the process's output.
+    /// A line of the process's output: what it says (`SessionDriver.received`), and the lines written back.
     private func received(_ line: Data, generation: Int) {
-        let event = ClaudeSession.event(line)
         let actions = state.withLock { state -> [Action] in
             guard let running = state.running, running.generation == generation else { return [] }
-            let turn = state.turns.first.flatMap { $0.sent ? $0 : nil }
-            switch event {
-            case .messageStarted, .text, .apiError, .result:
-                turn?.answering = true
-                turn?.watchdog?.cancel()
-            default:
-                break
-            }
-            switch event {
-            case .started:
-                // The session has its conversation from here on (the question is in its transcript): resumed from now on.
-                state.running?.started = true
-                store.markResumable()
-                return []
-            case let .permissionRequest(id):
-                return [.send(running.process, generation: generation, ClaudeSession.deny(requestID: id))]
-            case .messageStarted:
-                if let turn, !turn.text.isEmpty { turn.restarts = true }
-                return []
-            case let .text(text):
-                guard let turn, !turn.done else { return [] }
-                if turn.restarts { (turn.text, turn.restarts) = ("", false) }
-                turn.text += text
-                return [.yield(turn.continuation, turn.text)]
-            case let .apiError(code, message):
-                turn?.error = ClaudeSessionError.from(code: code, status: nil, message: message)
-                return []
-            case let .result(isError, interrupted, text, status):
-                // A failure before the session started is the start's: its exit says what to do (`exited`).
-                guard running.started, let turn else { return [] }
-                state.turns.removeFirst()
-                var actions: [Action] = []
-                if !isError { state.availability = .ready }
-                if !turn.done {
-                    if interrupted {
-                        actions.append(.finish(turn.continuation, CancellationError()))
-                    } else if isError {
-                        // The result's text may say more than the error line did (an AWS credential error).
-                        let ended = ClaudeSessionError.from(code: nil, status: status, message: text)
-                        let error = ended == .awsSignInExpired ? ended : turn.error ?? ended
-                        if error == .signedOut { state.availability = .signedOut }
-                        actions.append(.finish(turn.continuation, error))
-                    } else {
-                        if turn.text.isEmpty, !text.isEmpty { actions.append(.yield(turn.continuation, text)) }
-                        actions.append(.finish(turn.continuation, nil))
-                    }
-                }
-                actions += pump(&state)
-                if state.turns.isEmpty { scheduleIdle(&state) }
-                return actions
-            case .other:
-                return []
-            }
+            let (events, replies) = running.driver.received(line)
+            return replies.map { .send(running.process, generation: generation, $0) }
+                + events.flatMap { handle($0, generation: generation, &state) }
         }
         perform(actions)
+    }
+
+    /// What one event of the process does to the turn being answered and the process.
+    private func handle(_ event: ClaudeSession.Event, generation: Int, _ state: inout State) -> [Action] {
+        guard let running = state.running, running.generation == generation else { return [] }
+        let turn = state.turns.first.flatMap { $0.sent ? $0 : nil }
+        switch event {
+        case .messageStarted, .text, .apiError, .result, .working:
+            turn?.answering = true
+            turn?.watchdog?.cancel()
+        default:
+            break
+        }
+        switch event {
+        case .started:
+            // The session has its conversation from here on (the question is in its transcript): resumed from now on.
+            state.running?.started = true
+            store.markResumable()
+            return []
+        case let .sessionID(id):
+            // A session the agent made in place of the one it had (gone): it knows none of the earlier answers.
+            let previous = store.agentSessionID()
+            store.setAgentSessionID(id)
+            if let previous, previous != id { forgetAnswers() }
+            return []
+        case .permissionRequest, .working, .other:
+            return []  // a permission request is answered by the driver
+        case .messageStarted:
+            if let turn, !turn.text.isEmpty { turn.restarts = true }
+            return []
+        case let .text(text):
+            guard let turn, !turn.done else { return [] }
+            if turn.restarts { (turn.text, turn.restarts) = ("", false) }
+            turn.text += text
+            return [.yield(turn.continuation, turn.text)]
+        case let .apiError(code, message):
+            turn?.error = ClaudeSessionError.from(code: code, status: nil, message: message)
+            return []
+        case let .failed(error, endsProcess):
+            if error == .signedOut { state.availability = .signedOut }
+            var actions: [Action] = []
+            if let turn {
+                state.turns.removeFirst()
+                turn.watchdog?.cancel()
+                if !turn.done { actions.append(.finish(turn.continuation, error)) }
+                turn.done = true
+            }
+            if endsProcess {
+                state.running = nil  // its exit is of no session now
+                state.idle?.cancel()
+                state.idle = nil
+                actions.append(.terminate(running.process))
+            }
+            actions += pump(&state)
+            if state.turns.isEmpty { scheduleIdle(&state) }
+            return actions
+        case let .result(isError, interrupted, text, status):
+            // A failure before the session started is the start's: its exit says what to do (`exited`).
+            guard running.started, let turn else { return [] }
+            state.turns.removeFirst()
+            var actions: [Action] = []
+            if !isError { state.availability = .ready }
+            if !turn.done {
+                if interrupted {
+                    actions.append(.finish(turn.continuation, CancellationError()))
+                } else if isError {
+                    // The result's text may say more than the error line did (an AWS credential error).
+                    let ended = ClaudeSessionError.from(code: nil, status: status, message: text)
+                    let error = ended == .awsSignInExpired ? ended : turn.error ?? ended
+                    if error == .signedOut { state.availability = .signedOut }
+                    actions.append(.finish(turn.continuation, error))
+                } else {
+                    if turn.text.isEmpty, !text.isEmpty { actions.append(.yield(turn.continuation, text)) }
+                    actions.append(.finish(turn.continuation, nil))
+                }
+            }
+            actions += pump(&state)
+            if state.turns.isEmpty { scheduleIdle(&state) }
+            return actions
+        }
+    }
+
+    /// The session holds none of the answers it was given or told (`remember`) any more.
+    private func forgetAnswers() {
+        kept.withLock { kept in
+            guard let id = try? store.sessionID() else { return }
+            var current = load(&kept, id: id)
+            current.memory.answered = []
+            store.save(current.memory)
+            kept = current
+        }
     }
 
     /// The process ended (not by `stop` or the idle time: those let go of it first).
@@ -499,7 +556,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             if !running.started, !turn.retried, !turn.done {
                 turn.retried = true
                 turn.sent = false
-                store.setResumable(!running.resume)
+                if backend.retryTogglesResume { store.setResumable(!running.resume) }
                 return pump(&state)
             }
             state.turns.removeFirst()

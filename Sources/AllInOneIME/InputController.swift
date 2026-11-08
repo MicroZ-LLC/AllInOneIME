@@ -9,7 +9,7 @@ import os
 let log = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
 
 /// One converter (one URLSession, one cache, the one Claude session) shared by every input session in the process.
-let sharedConverter = Converter(claudeSession: ClaudeSessionMac.manager)
+let sharedConverter = Converter(questionSessions: ClaudeSessionMac.managers)
 
 /// Carries a main-thread-only object out of `MainActor.assumeIsolated` (we never leave the main thread).
 struct MainThreadBox<T>: @unchecked Sendable {

@@ -17,8 +17,9 @@ extension Composer {
         public var copiedConversation: String
         /// Secure input is on: nothing is handed over (copying still works).
         public var secureInput: String
-        /// The input method's Claude session opened in Terminal.
+        /// The input method's Claude session opened in Terminal; its Kiro session.
         public var openedSession: String
+        public var openedKiroSession: String
 
         /// What a hand-off says in the interface language `language` (`InterfaceLanguage`).
         public static func make(language: String) -> ChatMessages {
@@ -28,7 +29,8 @@ extension Composer {
                 copiedConversation: t.tr("已复制对话", "Copied the conversation"),
                 secureInput: t.tr("系统安全输入已开启（密码框或锁屏），对话没有发出去",
                                   "Secure input is on (a password field or the lock screen): the conversation wasn't sent"),
-                openedSession: t.tr("已在终端打开输入法的 Claude 会话", "Opened the input method's Claude session in Terminal"))
+                openedSession: t.tr("已在终端打开输入法的 Claude 会话", "Opened the input method's Claude session in Terminal"),
+                openedKiroSession: t.tr("已在终端打开输入法的 Kiro 会话", "Opened the input method's Kiro session in Terminal"))
         }
 
         /// Made each time, as `ReplyMessages`' are.
@@ -154,7 +156,8 @@ extension Composer {
         // The session has the rounds already: only the next question typed goes along.
         if destination == .claudeSession {
             let followUp = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
-            return finish(committing: "", selection: .kept) + [.continueClaudeSession(followUp: followUp), .notice(chatMessages.openedSession)]
+            return finish(committing: "", selection: .kept) + [.continueClaudeSession(followUp: followUp),
+                                                                 .notice(pickedAgent == .kiro ? chatMessages.openedKiroSession : chatMessages.openedSession)]
         }
         // A question about the selection or a screenshot: the selected text and the screenshot's text as blocks of their
         // own, the question as the panel shows it (not the prompt it was sent in: `Prompt.withScreenshot`).
