@@ -13,21 +13,25 @@ import Security
 // a. the keys of the old UserDefaults domains (the input method's, AllInOneIME Settings') that the new domains lack are
 //    copied into them and read back;
 // b. the items of the old keychain access group (synced through iCloud Keychain or not) are copied into the new group
-//    and read back (the bridge's entitlements list both groups);
-// c. the apps are swapped as an update swaps them (`MigrationSwitch`), the new input method has to start (`--version`),
+//    and read back (the bridge's entitlements list both groups); and each key of the login keychain (key sync off, the
+//    Cloud session, the replaced copies: in no access group, readable without asking only by the identity that saved
+//    it) is copied into the new group as a handover item (`IdentityHandover`), read back: the new identity imports it
+//    at launch, so that macOS never asks it to allow one;
+// c. what the cleanup (d) will remove is written down (`CleanupRecord`, ~/Library/Application Support/AllInOneIME), then
+//    the apps are swapped as an update swaps them (`MigrationSwitch`), the new input method has to start (`--version`),
 //    and its input source is registered, enabled if the old one was and selected if the old one was;
 // d. only then is the old identity cleaned up: its input source disabled and taken out of the user's input sources, the
 //    previous apps deleted, its domains and keychain items deleted (synced ones too: another Mac reads its keys once it
-//    has updated as well), and any other copy of the old apps and any launch agent with an old label removed.
+//    has updated as well), the login keychain's originals of the keys handed over deleted, and any other copy of the old
+//    apps and any launch agent with an old label removed. The record follows each step, and goes once all are done.
 //
-// A failure up to the end of c puts everything back: the keys and items it copied are taken out of the new domains and
-// group again, the previous apps go back (`MigrationSwitch.rollBack`), and the old input source is selected again if it
-// was. A cleanup step that fails is tried again a few times, then logged and left (`Report.pending`); it never undoes the
-// switch. Another run does what is left, found by looking: it copies what the new identity still lacks, then cleans up
-// what is still there. Logged by key name, service and account, never with a value or a key.
-//
-// The login keychain's keys (where they stay while key sync is off) aren't in an access group: they stay as they are,
-// under the same service, and the new identity reads them there (macOS may ask once to allow it).
+// A failure up to the end of c puts everything back: the keys and items it copied (handover items too) are taken out of
+// the new domains and group again, the record deleted, the previous apps go back (`MigrationSwitch.rollBack`), and the
+// old input source is selected again if it was. A cleanup step that fails is tried again a few times, then logged and
+// left (`Report.pending`); it never undoes the switch, and the record keeps it, handed over: the new version does it at
+// its next launch, by the identifiers the record lists (it can't name the old identity), as another run of this one
+// would, found by looking (it copies what the new identity still lacks, then cleans up what is still there). Logged by
+// key name, service and account, never with a value or a key.
 
 /// One identity's names, as the migration uses them.
 public struct MigrationNames: Equatable, Sendable {
@@ -158,6 +162,10 @@ public protocol MigrationSwitch: AnyObject {
     /// Where the input method is installed: the new one is registered there after the swap, the old one again after a
     /// rollback.
     var inputMethod: URL { get }
+    /// Where the installed apps are (the input method's and AllInOneIME Settings').
+    var installed: [URL] { get }
+    /// Where the previous apps wait once swapped, until `commit` deletes them (before the swap: where they will).
+    var previousApps: [URL] { get }
     /// The installed input method has the new identity already and starts: an earlier run switched.
     var isSwitched: Bool { get }
     /// The new apps in place of the installed ones, and the new input method starts; throws once the previous apps are
@@ -191,8 +199,16 @@ public struct Migration {
         case previousApps = "previous apps"
         case defaults = "old defaults domains"
         case keychain = "old keychain items"
+        case loginKeys = "login keychain keys handed over"
         case otherApps = "other copies of the old apps"
         case launchAgents = "launch agents with an old label"
+    }
+
+    /// Whether the input method whose Info.plist is `info` (the one installed) has the new identity: a version newer than
+    /// this one, which the installer and `make install` of this one never replace (that would go back to the old
+    /// identity, its keys and settings left with the new one).
+    public static func newIdentityInstalled(info: [String: Any]?) -> Bool {
+        info?["CFBundleIdentifier"] as? String == new.apps.inputMethod
     }
 
     public struct Report: Sendable {
@@ -204,6 +220,8 @@ public struct Migration {
         public var notRestored = false
         public var copiedKeys = 0
         public var copiedItems = 0
+        /// Login keychain keys handed over (`IdentityHandover`).
+        public var handedOver = 0
         /// Cleanup steps left for the next run.
         public var pending: [Cleanup] = []
         public var lines: [String] = []
@@ -211,20 +229,30 @@ public struct Migration {
 
     public var defaults: any MigrationDefaults
     public var keychain: any MigrationKeychain
+    /// The login keychain's keys of a service (`IdentityHandover.loginServices`), read and deleted without asking.
+    public var login: (String) -> APIKeys.Keychain
+    /// The handover items, in the new group, of the keys of a service (`IdentityHandover.handoverStore`).
+    public var handover: (String) -> APIKeys.Keychain
     public var inputSources: any MigrationInputSources
     public var leftovers: any MigrationLeftovers
+    /// Where the cleanup record goes (`CleanupRecord`); nil: none.
+    public var record: URL?
     /// Each line as it's logged (the update helper's log, the command's output).
     public var say: (String) -> Void
     /// How often a cleanup step is tried, and the wait between two tries.
     public var attempts = 3
     public var pause: () -> Void = { Thread.sleep(forTimeInterval: 0.5) }
 
-    public init(defaults: any MigrationDefaults, keychain: any MigrationKeychain, inputSources: any MigrationInputSources,
-                leftovers: any MigrationLeftovers, say: @escaping (String) -> Void) {
+    public init(defaults: any MigrationDefaults, keychain: any MigrationKeychain, login: @escaping (String) -> APIKeys.Keychain,
+                handover: @escaping (String) -> APIKeys.Keychain, inputSources: any MigrationInputSources,
+                leftovers: any MigrationLeftovers, record: URL?, say: @escaping (String) -> Void) {
         self.defaults = defaults
         self.keychain = keychain
+        self.login = login
+        self.handover = handover
         self.inputSources = inputSources
         self.leftovers = leftovers
+        self.record = record
         self.say = say
     }
 
@@ -234,27 +262,36 @@ public struct Migration {
         // Bundle.main as this process started: after the swap, the path it started from holds the new app.
         _ = Bundle.main.bundleIdentifier
         let home = FileManager.default.homeDirectoryForCurrentUser
-        return Migration(defaults: SystemDefaults(), keychain: SystemKeychain(), inputSources: SystemInputSources(),
+        return Migration(defaults: SystemDefaults(), keychain: SystemKeychain(), login: IdentityHandover.loginStore(service:),
+                         handover: { IdentityHandover.handoverStore(group: new.keychainGroup, service: $0) },
+                         inputSources: SystemInputSources(),
                          leftovers: FolderLeftovers(apps: [home.appendingPathComponent("Library/Input Methods", isDirectory: true),
                                                            home.appendingPathComponent("Applications", isDirectory: true)],
                                                     launchAgents: home.appendingPathComponent("Library/LaunchAgents", isDirectory: true),
                                                     otherPlists: [home.appendingPathComponent("Library/Logs/AllInOneIME/realtest-watch.plist")],
                                                     system: true),
-                         say: say)
+                         record: CleanupRecord.defaultURL, say: say)
     }
 
     /// A test install's (`--target-dir ROOT`, `make update-test`): files in `root` stand for the defaults
-    /// (Preferences/<domain>.plist), the keychain (Keychain/<group>.plist), the input sources (InputSources.plist) and the
-    /// launch agents (LaunchAgents/); nothing of the user's is read or changed.
+    /// (Preferences/<domain>.plist), the keychain (Keychain/<group>.plist, the login keychain Keychain/login.plist), the
+    /// input sources (InputSources.plist) and the launch agents (LaunchAgents/), and the record is ROOT/identity-cleanup.json;
+    /// nothing of the user's is read or changed.
     public static func test(root: URL, say: @escaping (String) -> Void) -> Migration {
+        let keychain = root.appendingPathComponent("Keychain", isDirectory: true)
         var migration = Migration(defaults: FileDefaults(folder: root.appendingPathComponent("Preferences", isDirectory: true)),
-                                  keychain: FileKeychain(folder: root.appendingPathComponent("Keychain", isDirectory: true)),
+                                  keychain: FileKeychain(folder: keychain),
+                                  login: { IdentityHandover.fileStore(keychain.appendingPathComponent("login.plist"), service: $0) },
+                                  handover: {
+                                      IdentityHandover.fileStore(keychain.appendingPathComponent(new.keychainGroup + ".plist"),
+                                                                 service: IdentityHandover.handoverService(for: $0))
+                                  },
                                   inputSources: FileInputSources(file: root.appendingPathComponent("InputSources.plist")),
                                   leftovers: FolderLeftovers(apps: [root.appendingPathComponent("Input Methods", isDirectory: true),
                                                                     root.appendingPathComponent("Applications", isDirectory: true)],
                                                              launchAgents: root.appendingPathComponent("LaunchAgents", isDirectory: true),
                                                              otherPlists: [], system: false),
-                                  say: say)
+                                  record: root.appendingPathComponent(CleanupRecord.fileName), say: say)
         migration.pause = {}
         return migration
     }
@@ -265,6 +302,7 @@ public struct Migration {
     struct Added {
         var keys: [String: [String]] = [:]
         var items: [MigrationKeychainItem] = []
+        var handedOver: [LoginKey] = []
     }
 
     /// a–d with `switcher`'s apps (see above). Never throws: the report says how it went.
@@ -291,6 +329,9 @@ public struct Migration {
         do {
             report.copiedKeys = try copyDefaults(&added, log: log)
             report.copiedItems = try copyKeychain(&added, log: log)
+            report.handedOver = try handOverLoginKeys(&added, log: log)
+            // What the cleanup will remove, written down before anything is: what the new version does if it can't.
+            write(plan(switcher), log: log)
             try switchApps(switcher, log: log, notRestored: &notRestored)
         } catch {
             let reason = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
@@ -301,7 +342,8 @@ public struct Migration {
             return report
         }
         report.switched = true
-        log("identity: switched; \(report.copiedKeys) defaults keys and \(report.copiedItems) keychain items carried over")
+        log("identity: switched; \(report.copiedKeys) defaults keys and \(report.copiedItems) keychain items carried over, "
+            + "\(report.handedOver) login keychain keys handed over")
         report.pending = cleanUp(switcher, log: log)
         return report
     }
@@ -388,7 +430,143 @@ public struct Migration {
         return copied
     }
 
-    // MARK: c. The switch
+    /// The login keychain's keys (`IdentityHandover.loginServices`), each read without asking (this identity saved them)
+    /// and copied into the new group as a handover item with its label, comment, ending and save time (`changed`), then
+    /// read back; each recorded in `added` once written. A handover item there already for the same key counts as
+    /// handed over; another one (an earlier run's that didn't get taken out, the key saved again since) is replaced. A
+    /// key that can't be read without asking (another build saved it) is left where it is: the new identity asks once
+    /// for it. Without the new group's entitlement (a build without the profile) nothing is handed over.
+    func handOverLoginKeys(_ added: inout Added, log: (String) -> Void) throws -> Int {
+        let group = Self.new.keychainGroup
+        guard keychain.isEntitled(to: group) else {
+            log("login keychain: this build isn't entitled to \(group): its keys stay where they are (the new identity asks once for each)")
+            return 0
+        }
+        var handed: [LoginKey] = [], there = 0
+        for service in IdentityHandover.loginServices {
+            let (login, handover) = (self.login(service), self.handover(service))
+            let accounts: [String]
+            do {
+                accounts = try login.listedAccounts()
+            } catch {
+                throw MigrationError("login keychain: the keys of \(service) can't be listed (\(error))")
+            }
+            for account in accounts {
+                let key = LoginKey(service: service, account: account)
+                guard let attributes = login.attributes(account) else { continue }  // gone meanwhile
+                guard let value = login.read(account), !value.isEmpty else {
+                    log("login keychain: \(key) can't be read without asking: left where it is (the new identity asks once for it)")
+                    continue
+                }
+                if handover.read(account) == value,
+                   IdentityHandover.same(handover.attributes(account)?.saved, attributes.changed) {
+                    there += 1
+                    continue
+                }
+                if handover.attributes(account) != nil { _ = handover.delete(account) }  // an earlier run's, out of date
+                let status = handover.adding(account, value, attributes.label ?? APIKeys.label(account: account),
+                                             attributes.comment ?? "", attributes.ending ?? APIKeys.ending(of: value),
+                                             attributes.changed)
+                guard status == .ok else { throw MigrationError("login keychain: \(key) not handed over (\(status.code))") }
+                added.handedOver.append(key)
+                guard handover.read(account) == value else {
+                    throw MigrationError("login keychain: \(key)'s handover item doesn't read back as written")
+                }
+                handed.append(key)
+            }
+        }
+        log("login keychain: \(handed.count) keys handed over to \(group)" + (there > 0 ? " (\(there) there already)" : "")
+            + (handed.isEmpty ? "" : ": \(handed.map(\.description).joined(separator: ", "))"))
+        return handed.count
+    }
+
+    // MARK: c. The record and the switch
+
+    /// What the cleanup (d) would remove now, found by looking (its steps' own lists, `planned`), handed over or not.
+    func plan(_ switcher: any MigrationSwitch, handedOver: Bool = false) -> CleanupRecord {
+        var record = CleanupRecord()
+        record.handedOver = handedOver
+        record.bundleIDs = [Self.old.apps.inputMethod, Self.old.apps.settings]
+        record.keychainGroup = Self.old.keychainGroup
+        for step in Cleanup.allCases { planned(step, switcher, into: &record) }
+        return record
+    }
+
+    /// `step`'s part of the record, as it is now (found by looking): what the step would remove.
+    func planned(_ step: Cleanup, _ switcher: any MigrationSwitch, into record: inout CleanupRecord) {
+        let (old, new) = (Self.old, Self.new)
+        switch step {
+        case .inputSource:
+            record.inputSource = old.inputSource
+        case .previousApps:
+            let paths = Set(switcher.previousApps.map(\.path))
+            record.apps = record.apps.filter { !paths.contains($0) } + switcher.previousApps.map(\.path)
+        case .defaults:
+            record.defaultsDomains = old.domains.filter { defaults.domain($0) != nil }
+        case .keychain:
+            // The items the step deletes: all but those the new group has another key for (kept).
+            let items = keychain.isEntitled(to: old.keychainGroup) ? ((try? keychain.items(in: old.keychainGroup)) ?? []) : []
+            record.keychainItems = items.filter { item in
+                guard let theirs = keychain.value(of: item, in: new.keychainGroup) else { return true }
+                return theirs.data == keychain.value(of: item, in: old.keychainGroup)?.data
+            }.map { CleanupRecord.KeychainItem(service: $0.service, account: $0.account, synchronizable: $0.synchronizable) }
+        case .loginKeys:
+            // The originals whose handover item holds the same key.
+            record.loginKeys = IdentityHandover.loginServices.flatMap { service -> [LoginKey] in
+                let (login, handover) = (self.login(service), self.handover(service))
+                return ((try? login.listedAccounts()) ?? []).filter { account in
+                    guard let value = login.read(account), !value.isEmpty else { return false }
+                    return handover.read(account) == value
+                }.map { LoginKey(service: service, account: $0) }
+            }
+        case .otherApps:
+            let installed = Set(switcher.installed.map { $0.standardizedFileURL.path })
+            let previous = Set(switcher.previousApps.map(\.path))
+            let others = leftovers.oldApps().map { $0.standardizedFileURL.path }.filter { !installed.contains($0) }
+            record.apps = record.apps.filter { previous.contains($0) } + others
+        case .launchAgents:
+            record.launchAgents = leftovers.oldLaunchAgents().map { CleanupRecord.LaunchAgent(label: $0.label, plist: $0.plist?.path) }
+        }
+    }
+
+    /// `step` done: its part of the record emptied.
+    static func cleared(_ step: Cleanup, _ switcher: any MigrationSwitch, in record: inout CleanupRecord) {
+        switch step {
+        case .inputSource: record.inputSource = nil
+        case .previousApps:
+            let paths = Set(switcher.previousApps.map(\.path))
+            record.apps.removeAll { paths.contains($0) }
+        case .defaults: record.defaultsDomains = []
+        case .keychain: record.keychainItems = []
+        case .loginKeys: record.loginKeys = []
+        case .otherApps:
+            let previous = Set(switcher.previousApps.map(\.path))
+            record.apps.removeAll { !previous.contains($0) }
+        case .launchAgents: record.launchAgents = []
+        }
+    }
+
+    /// The record written (`record`), or deleted when there is nothing left in it and it is handed over (all done).
+    /// A record that can't be written is logged: the cleanup goes on (only a step it leaves would need it).
+    func write(_ value: CleanupRecord, log: (String) -> Void) {
+        guard let url = record else { return }
+        if value.isEmpty && value.handedOver {
+            if !CleanupRecord.remove(at: url) { log("cleanup record: \(url.path) can't be deleted") }
+            return
+        }
+        var value = value
+        do {
+            try value.write(to: url)
+        } catch {
+            log("cleanup record: \(url.path) can't be written (\(error.localizedDescription))")
+        }
+    }
+
+    /// The record deleted: the switch didn't happen, nothing of the old identity is to go.
+    func removeRecord(log: (String) -> Void) {
+        guard let url = record, FileManager.default.fileExists(atPath: url.path) else { return }
+        if !CleanupRecord.remove(at: url) { log("cleanup record: \(url.path) can't be deleted") }
+    }
 
     /// The apps swapped and the new input method started (`switcher`), then its input source registered, enabled if the
     /// old one was and selected if it was. A failure after the swap puts the previous apps back and the old input source
@@ -430,46 +608,64 @@ public struct Migration {
     }
 
     /// The copies of a run whose switch didn't happen taken out again: the keys it added to the new domains (a domain
-    /// left empty removed) and the items it added to the new group.
+    /// left empty removed), the items it added to the new group and the handover items it wrote; and the record deleted.
     func undo(_ added: Added, log: (String) -> Void) {
         for (domain, keys) in added.keys {
             for key in keys { defaults.remove(key, from: domain) }
             if defaults.domain(domain)?.isEmpty ?? false { defaults.removeDomain(domain) } else { defaults.flush(domain) }
         }
-        var left: [MigrationKeychainItem] = []
+        var left: [String] = []
         for item in added.items {
             let status = keychain.delete(item, from: Self.new.keychainGroup)
-            if status != errSecSuccess && status != errSecItemNotFound { left.append(item) }
+            if status != errSecSuccess && status != errSecItemNotFound { left.append(item.description) }
+        }
+        for key in added.handedOver {
+            let status = handover(key.service).delete(key.account)
+            if status != .ok && status != .notFound { left.append(IdentityHandover.handoverService(for: key.service) + "/" + key.account) }
         }
         let keys = added.keys.values.reduce(0) { $0 + $1.count }
-        if keys > 0 || !added.items.isEmpty {
-            log("undone: \(keys) defaults keys and \(added.items.count - left.count) keychain items copied are taken out again"
-                + (left.isEmpty ? "" : "; not taken out: \(left.map(\.description).joined(separator: ", "))"))
+        let items = added.items.count + added.handedOver.count
+        if keys > 0 || items > 0 {
+            log("undone: \(keys) defaults keys and \(items - left.count) keychain items copied are taken out again"
+                + (left.isEmpty ? "" : "; not taken out: \(left.joined(separator: ", "))"))
         }
+        removeRecord(log: log)
     }
 
     // MARK: d. Cleanup
 
-    /// Each step (`Cleanup`) tried until it's done, `attempts` times at most; those left (logged) are returned.
+    /// Each step (`Cleanup`) tried until it's done, `attempts` times at most; those left (logged) are returned. The
+    /// record follows: written with what is left before the first step (found by looking), each step's part emptied once
+    /// it is done (found by looking again when it isn't); deleted at the end when nothing is left, else handed over to the
+    /// new version.
     func cleanUp(_ switcher: any MigrationSwitch, log: (String) -> Void) -> [Cleanup] {
         var pending: [Cleanup] = []
+        var record = plan(switcher)
+        write(record, log: log)
         for step in Cleanup.allCases {
             var done = false
             for attempt in 1...max(attempts, 1) where !done {
                 if attempt > 1 { pause() }
                 done = cleanUp(step, switcher, log: log)
             }
-            if !done {
+            if done {
+                Self.cleared(step, switcher, in: &record)
+            } else {
                 pending.append(step)
-                log("cleanup: \(step.rawValue) not done; left for the next run of --migrate-identity")
+                planned(step, switcher, into: &record)
+                log("cleanup: \(step.rawValue) not done; left for the new version's next launch (or the next run of --migrate-identity)")
             }
+            write(record, log: log)
         }
         if !pending.contains(.defaults) {
             // The removed domains' files, once cfprefsd has emptied them (a few seconds): nothing named after them is left.
             let deleted = defaults.deleteEmptiedFiles(of: Self.old.domains)
             if !deleted.isEmpty { log("cleanup: the emptied files of \(deleted.joined(separator: ", ")) deleted") }
         }
-        log(pending.isEmpty ? "cleanup: done; nothing of the old identity is left" : "cleanup: \(pending.count) step(s) left")
+        record.handedOver = true
+        write(record, log: log)
+        log(pending.isEmpty ? "cleanup: done; nothing of the old identity is left"
+            : "cleanup: \(pending.count) step(s) left, in \(self.record?.path ?? "no record") for the new version")
         return pending
     }
 
@@ -483,7 +679,7 @@ public struct Migration {
 
         case .previousApps:
             switcher.commit()
-            return true
+            return !switcher.previousApps.contains { BundleSwap.exists($0) }
 
         case .defaults:
             for (from, to) in zip(old.domains, new.domains) {
@@ -535,6 +731,44 @@ public struct Migration {
             if !kept.isEmpty { log("cleanup: kept in \(from) (the new group has another key): \(kept.map(\.description).joined(separator: ", "))") }
             return done
 
+        case .loginKeys:
+            // A key this identity reads without asking, its handover item holding the same key (written first if it isn't:
+            // an earlier switch), is deleted. One it can't read is the new identity's own (imported already) or one it
+            // couldn't hand over: left. Without the new group's entitlement none is handed over, so none deleted.
+            var done = true
+            var deleted: [LoginKey] = []
+            for service in IdentityHandover.loginServices {
+                let (login, handover) = (self.login(service), self.handover(service))
+                guard let accounts = try? login.listedAccounts() else {
+                    done = false
+                    continue
+                }
+                for account in accounts {
+                    guard let attributes = login.attributes(account), let value = login.read(account), !value.isEmpty else { continue }
+                    if handover.read(account) != value {
+                        guard keychain.isEntitled(to: new.keychainGroup) else { continue }
+                        if handover.attributes(account) != nil { _ = handover.delete(account) }
+                        guard handover.adding(account, value, attributes.label ?? APIKeys.label(account: account),
+                                              attributes.comment ?? "", attributes.ending ?? APIKeys.ending(of: value),
+                                              attributes.changed) == .ok,
+                              handover.read(account) == value else {
+                            done = false
+                            continue
+                        }
+                    }
+                    let status = login.delete(account)
+                    if status == .ok || status == .notFound {
+                        deleted.append(LoginKey(service: service, account: account))
+                    } else {
+                        done = false
+                    }
+                }
+            }
+            if !deleted.isEmpty {
+                log("cleanup: deleted from the login keychain (handed over): \(deleted.map(\.description).joined(separator: ", "))")
+            }
+            return done
+
         case .otherApps:
             var done = true
             for app in leftovers.oldApps() {
@@ -560,6 +794,7 @@ public final class AppsSwitch: MigrationSwitch {
     public let inputMethod: URL
     let placing: [(new: URL, destination: URL)]
     let replacing: [URL]
+    public var installed: [URL] { replacing }
     let aside: URL
     let version: String
     /// Stops the input method running from the installed copy (or from where it waits aside).
@@ -573,6 +808,7 @@ public final class AppsSwitch: MigrationSwitch {
     /// "after-swap": a failure on purpose right after the swap (a test install's rollback).
     let simulateFailure: String?
     private var swap: BundleSwap?
+    private var parked: [URL]?
 
     public init(placing: [(new: URL, destination: URL)], replacing: [URL], aside: URL, inputMethod: URL, version: String,
                 stop: @escaping () -> Void, launchCheck: @escaping (URL, String) throws -> Void,
@@ -588,6 +824,13 @@ public final class AppsSwitch: MigrationSwitch {
         self.registered = registered
         self.unregistered = unregistered
         self.simulateFailure = simulateFailure
+    }
+
+    /// Where `BundleSwap` parked them (kept after `commit`); before the swap, where it will (`aside`/<index>-<name>, for
+    /// those of `replacing` that are there).
+    public var previousApps: [URL] {
+        parked ?? replacing.enumerated().filter { BundleSwap.exists($0.element) }
+            .map { aside.appendingPathComponent("\($0.offset)-\($0.element.lastPathComponent)") }
     }
 
     public var isSwitched: Bool {
@@ -609,6 +852,7 @@ public final class AppsSwitch: MigrationSwitch {
             throw error
         }
         self.swap = swap
+        parked = swap.movedAside.map(\.to)
         stop()  // in case macOS started the previous one again meanwhile
         registered(swap.placed)
     }
@@ -618,6 +862,7 @@ public final class AppsSwitch: MigrationSwitch {
         stop()
         try swap.rollBack(reason: reason)
         self.swap = nil
+        parked = nil
         registered(swap.movedAside.map(\.from))
     }
 

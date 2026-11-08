@@ -28,14 +28,20 @@ extension APIKeys.Keychain {
     /// Keychain needs; a key is there while the screen is locked), never asking for the password. Only synced items are
     /// kept there: keys that don't sync stay in the login keychain. Every query, deletes too, says
     /// `kSecAttrSynchronizable` true (never `kSecAttrSynchronizableAny`).
-    public static func dataProtection(group: String, service: String = APIKeys.service) -> APIKeys.Keychain {
+    ///
+    /// `synchronizable` false: the items of `service` in `group` that never sync instead, every query saying so, and
+    /// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (the keys a move to AllInOneIME's own system identity hands
+    /// over, `IdentityHandover`).
+    public static func dataProtection(group: String, service: String = APIKeys.service,
+                                      synchronizable: Bool = true) -> APIKeys.Keychain {
         @Sendable func query(_ account: String?) -> [String: Any] {
             var query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: service,
                                         kSecUseDataProtectionKeychain as String: true, kSecAttrAccessGroup as String: group,
-                                        kSecAttrSynchronizable as String: kCFBooleanTrue!]
+                                        kSecAttrSynchronizable as String: synchronizable ? kCFBooleanTrue! : kCFBooleanFalse!]
             if let account { query[kSecAttrAccount as String] = account }
             return query
         }
+        let accessible = (synchronizable ? kSecAttrAccessibleAfterFirstUnlock : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly) as String
         return APIKeys.Keychain(
             kind: .synced,
             accounts: { (try? accounts(query(nil))) ?? [] },
@@ -43,7 +49,7 @@ extension APIKeys.Keychain {
             read: { account in read(query(account)) },
             write: { account, key, label, comment, ending, saved in
                 write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
-                      adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
+                      adding: [kSecAttrAccessible as String: accessible])
             },
             setComment: { account, comment in
                 keychainStatus(SecItemUpdate(query(account) as CFDictionary, [kSecAttrComment as String: comment] as CFDictionary))
@@ -52,7 +58,7 @@ extension APIKeys.Keychain {
             message: { code in SecCopyErrorMessageString(code, nil) as String? },
             add: { account, key, label, comment, ending, saved in
                 add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
-                    adding: [kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock])
+                    adding: [kSecAttrAccessible as String: accessible])
             },
             listing: { try accounts(query(nil)) })
     }

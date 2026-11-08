@@ -5,11 +5,13 @@
 # with a test key. Checks: the check finds it, another key is refused, a download that doesn't match changes
 # nothing, a failure after the swap rolls back, the update itself (the helper outliving the process that started
 # it, as the input method does), and a downgrade is refused. Then the move to the new system identity (`Migration`):
-# 9.9.1 with the new bundle IDs over this build again, its preferences, keychain items, input sources and launch
-# agents stood for by files in the test install (Preferences/, Keychain/, InputSources.plist, LaunchAgents/): a failure
-# after the swap puts everything back, the update carries them over and cleans up the old identity, and so does
-# `--migrate-identity` (the 0.7.2 installer's way), a second run changing nothing. The user's settings, packs, installed
-# apps, input sources and running input method are the same afterwards.
+# 9.9.1 with the new bundle IDs over this build again, its preferences, keychain items (the login keychain's too),
+# input sources and launch agents stood for by files in the test install (Preferences/, Keychain/, InputSources.plist,
+# LaunchAgents/): a failure after the swap puts everything back, the update carries them over (the login keychain's keys
+# as handover items) and cleans up the old identity, and so does `--migrate-identity` (the 0.7.2 installer's way); a
+# cleanup step that fails is left in the record (identity-cleanup.json) for the new version, and another run finishes
+# it, changing nothing else. `make install-check` and the installer refuse an installed copy with the new identity. The user's settings,
+# packs, installed apps, input sources and running input method are the same afterwards.
 # Usage: Scripts/test-update.sh BUILD-DIR (with AllInOneIME.app and "AllInOneIME Settings.app")
 set -eu
 
@@ -129,6 +131,17 @@ out=$("$installed" --install-update $args 2>&1) && fail "a downgrade is refused"
 
 # 6. The new system identity: 9.9.1 with the new bundle IDs, over this build installed again.
 plist_value() { /usr/libexec/PlistBuddy -c "Print :$2" "$1" 2>/dev/null; }
+# FIELD of the item of SERVICE and ACCOUNT in a test keychain's FILE (data: decoded); empty when there is none.
+login_item() {
+    i=0
+    while service=$(plist_value "$1" "$i:service"); do
+        if [ "$service" = "$2" ] && [ "$(plist_value "$1" "$i:account")" = "$3" ]; then
+            if [ "$4" = data ]; then plutil -extract "$i.data" raw -o - "$1" | base64 -d; else plist_value "$1" "$i:$4"; fi
+            return
+        fi
+        i=$((i + 1))
+    done
+}
 # KEY of the item for ACCOUNT in a test keychain's FILE (its data decoded).
 item() {
     i=0
@@ -165,6 +178,14 @@ reinstall() {
         "<dict><key>service</key><string>AllInOneIME API key</string><key>account</key><string>openai</string><key>synchronizable</key><true/><key>data</key><data>$(printf 'sk-test-openai' | base64)</data><key>attributes</key><dict><key>labl</key><string>AllInOneIME: OpenAI</string></dict></dict>" \
         "<dict><key>service</key><string>AllInOneIME API key</string><key>account</key><string>gemini</string><key>synchronizable</key><false/><key>data</key><data>$(printf 'test-gemini' | base64)</data><key>attributes</key><dict/></dict>" \
         '</array></plist>' > "$root/Keychain/$old_group.plist"
+    # The login keychain (key sync off): an API key and a replaced copy, handed over to the new identity.
+    printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
+        '<plist version="1.0"><array>' \
+        "<dict><key>service</key><string>AllInOneIME API key</string><key>account</key><string>claude</string><key>data</key><data>$(printf 'sk-test-claude' | base64)</data><key>attributes</key><dict><key>labl</key><string>AllInOneIME: Claude</string><key>icmt</key><string>api.anthropic.com</string></dict></dict>" \
+        "<dict><key>service</key><string>AllInOneIME replaced API key</string><key>account</key><string>deepseek</string><key>data</key><data>$(printf 'sk-test-replaced' | base64)</data><key>attributes</key><dict/></dict>" \
+        '</array></plist>' > "$root/Keychain/login.plist"
+    cp "$root/Keychain/login.plist" "$root/login-before.plist"
     printf '%s\n' '<?xml version="1.0" encoding="UTF-8"?>' \
         '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">' \
         "<plist version=\"1.0\"><dict><key>$old_ime</key><dict><key>registered</key><true/><key>enabled</key><true/><key>selected</key><true/></dict></dict></plist>" \
@@ -190,7 +211,13 @@ moved() {
         && [ "$(plist_value "$root/InputSources.plist" "$new_ime:selected")" = true ] \
         && [ "$(plist_value "$root/InputSources.plist" "$old_ime:enabled")" = false ] \
         && [ ! -e "$root/Applications/AllInOneIME Settings copy.app" ] && [ ! -e "$root/LaunchAgents/watch.plist" ] \
-        && [ -z "$(ls -A "$root/Updates.noindex" 2>/dev/null | grep -E '^(update|identity)-')" ]
+        && [ -z "$(ls -A "$root/Updates.noindex" 2>/dev/null | grep -E '^(update|identity)-')" ] \
+        && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude data)" = sk-test-claude ] \
+        && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude attributes:icmt)" = api.anthropic.com ] \
+        && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME replaced API key (handed over)" deepseek data)" = sk-test-replaced ] \
+        && [ "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude synchronizable)" = false ] \
+        && [ -z "$(plist_value "$root/Keychain/login.plist" 0:account)" ] \
+        && [ ! -e "$root/identity-cleanup.json" ]
 }
 mkdir -p "$root/new"
 for app in "AllInOneIME.app" "AllInOneIME Settings.app"; do
@@ -225,6 +252,9 @@ out=$("$installed" --install-update $args --simulate-failure after-swap 2>&1) &&
         && [ "$(plist_value "$root/InputSources.plist" "$old_ime:selected")" = true ] \
         && [ "$(plist_value "$root/InputSources.plist" "$new_ime:enabled")" != true ] \
         && [ -e "$root/Applications/AllInOneIME Settings copy.app" ] && [ -e "$root/LaunchAgents/watch.plist" ] \
+        && cmp -s "$root/Keychain/login.plist" "$root/login-before.plist" \
+        && [ -z "$(login_item "$root/Keychain/$new_group.plist" "AllInOneIME API key (handed over)" claude data)" ] \
+        && [ ! -e "$root/identity-cleanup.json" ] \
         && grep -q '"ok" : false' "$root/Updates.noindex/result.json" \
         && pass "a failure in the move to the new identity puts everything back: $old, its settings and keys as they were" \
         || { echo "$out"; cat "$root/update.log"; fail "the move's rollback"; }; }
@@ -248,7 +278,30 @@ rm -rf "$root/incoming" && mkdir -p "$root/incoming" && ditto -x -k "$server/All
 out=$("$installed" --migrate-identity "$root/incoming/AllInOneIME.app" --target-dir "$root" 2>&1) && moved \
     && pass "--migrate-identity moves to the new identity the same way" || { echo "$out"; fail "--migrate-identity"; }
 
-# 6d. Another run (the new identity installed already): nothing changes.
+# 6d. A cleanup step that fails (a launch agent's property list that can't be deleted): the move goes through, and the
+# record keeps that step alone, handed over to the new version; another run finishes it and deletes the record.
+reinstall
+rm -rf "$root/incoming" && mkdir -p "$root/incoming" && ditto -x -k "$server/AllInOneIME-9.9.1-update.zip" "$root/incoming"
+chmod a-w "$root/LaunchAgents"
+out=$("$installed" --migrate-identity "$root/incoming/AllInOneIME.app" --target-dir "$root" 2>&1) && status=0 || status=$?
+chmod u+w "$root/LaunchAgents"
+record="$root/identity-cleanup.json"
+if [ "$status" -eq 0 ] && echo "$out" | grep -q "left for its next launch" && [ -e "$root/LaunchAgents/watch.plist" ] \
+    && [ "$(stat -f '%Lp' "$record")" = 600 ] \
+    && [ "$(plutil -extract handedOver raw -o - "$record")" = true ] \
+    && [ "$(plutil -extract launchAgents.0.label raw -o - "$record")" = "${old_ime%%.inputmethod.*}.realtest-watch" ] \
+    && [ "$(plutil -extract launchAgents.0.plist raw -o - "$record")" = "$root/LaunchAgents/watch.plist" ] \
+    && [ "$(plutil -extract apps raw -o - "$record")" = 0 ] && [ "$(plutil -extract loginKeys raw -o - "$record")" = 0 ] \
+    && [ "$(plutil -extract defaultsDomains raw -o - "$record")" = 0 ] && ! plutil -extract inputSource raw -o - "$record" >/dev/null 2>&1 \
+    && ! grep -q sk-test "$record"; then
+    pass "a cleanup step that fails is left in the record (0600, handed over, that step alone) for the new version"
+else
+    echo "$out"; cat "$record" 2>/dev/null; fail "a cleanup step left in the record"
+fi
+out=$("$bridge" --migrate-identity "$root/Input Methods/AllInOneIME.app" --target-dir "$root" 2>&1) && moved \
+    && pass "another run finishes the step left and deletes the record" || { echo "$out"; cat "$record" 2>/dev/null; fail "another run finishes the record"; }
+
+# 6e. Another run (the new identity installed already): nothing changes.
 state() {
     find "$root/Preferences" "$root/Keychain" "$root/InputSources.plist" "$root/LaunchAgents" "$root/Input Methods" "$root/Applications" \
         -exec stat -f '%N %z %m' {} + | sort
@@ -257,6 +310,28 @@ state > "$root/moved.txt"
 out=$("$bridge" --migrate-identity "$root/Input Methods/AllInOneIME.app" --target-dir "$root" 2>&1) && moved \
     && state | cmp -s - "$root/moved.txt" \
     && pass "another run of --migrate-identity changes nothing" || { echo "$out"; state | diff "$root/moved.txt" -; fail "another run of --migrate-identity"; }
+
+# 6f. The installer of this version (`make install-check`, which `make install` runs first) never replaces an installed
+# copy with the new identity.
+mkdir -p "$root/guard/Input Methods" && ditto "$root/Input Methods/AllInOneIME.app" "$root/guard/Input Methods/AllInOneIME.app"
+out=$(make -s -C "$repo" install-check INSTALL_DIR="$root/guard/Input Methods" 2>&1) && fail "install-check refuses a newer identity" \
+    || { echo "$out" | grep -q "is newer than" && pass "make install refuses to replace an installed copy with the new identity" \
+        || { echo "$out"; fail "install-check refuses a newer identity"; }; }
+rm -rf "$root/guard/Input Methods/AllInOneIME.app" && ditto "$build/AllInOneIME.app" "$root/guard/Input Methods/AllInOneIME.app"
+out=$(make -s -C "$repo" install-check INSTALL_DIR="$root/guard/Input Methods" 2>&1) \
+    && pass "make install-check lets this identity's copy be replaced" || { echo "$out"; fail "install-check over this identity"; }
+# The disk image's installer (its debug build, without the apps it carries) in a home of the test's own: it refuses
+# before it reads anything else.
+if (cd "$repo" && swift build --product AllInOneIMEInstaller > "$root/installer-build.log" 2>&1); then
+    mkdir -p "$root/home/Library/Input Methods"
+    ditto "$root/Input Methods/AllInOneIME.app" "$root/home/Library/Input Methods/AllInOneIME.app"
+    out=$(CFFIXED_USER_HOME="$root/home" "$(cd "$repo" && swift build --show-bin-path)/AllInOneIMEInstaller" --install 2>&1) \
+        && fail "the installer refuses a newer identity" \
+        || { echo "$out" | grep -q "is newer than" && [ "$(version "$root/home/Library/Input Methods/AllInOneIME.app")" = 9.9.1 ] \
+            && pass "the installer refuses to replace an installed copy with the new identity" || { echo "$out"; fail "the installer refuses a newer identity"; }; }
+else
+    cat "$root/installer-build.log"; fail "the installer builds"
+fi
 
 # 7. The user's own things.
 snapshot "$root/after.txt"

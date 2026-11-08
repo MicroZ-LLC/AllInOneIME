@@ -72,7 +72,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install install-check uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -433,7 +433,11 @@ install-pack: $(RIME_BUILT)
 # The bundle is moved, not copied: macOS launches input methods by bundle ID, and with a second
 # copy left in build/ it may start that one instead of the installed one. A copy installed under
 # the old name (same bundle ID) is removed for the same reason; the new one takes over its data.
-install: app settings-app
+# An installed copy with AllInOneIME's own system identity (0.7.2 on: NEW_IDENTITY_IME, Migration.new in
+# Sources/AllInOneIMEMac/Migration.swift) is newer and is never replaced by this one (install-check, before anything is
+# built): that would go back to the identity before, the settings and keys moved on with it.
+NEW_IDENTITY_IME := com.allinoneime.inputmethod.AllInOneIME
+install: install-check app settings-app
 	@pkill -x $(APP_NAME) || true
 	@pkill -x $(LEGACY_APP_NAME) || true
 	mkdir -p "$(INSTALL_DIR)"
@@ -457,6 +461,14 @@ install: app settings-app
 	@pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null || open -g "$(INSTALLED_APP)"
 	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
 		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
+
+install-check:
+	@theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
+	if [ "$$theirs" = "$(NEW_IDENTITY_IME)" ]; then \
+		installed=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
+		echo "error: the installed AllInOneIME $$installed is newer than $(VERSION) (it has AllInOneIME's own system identity), so it isn't replaced; to update it, use AllInOneIME Settings → About → Update" >&2; \
+		exit 1; \
+	fi
 
 uninstall:
 	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable

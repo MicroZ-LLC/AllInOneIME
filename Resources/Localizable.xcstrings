@@ -3770,6 +3770,53 @@
         }
       }
     },
+    "A newer AllInOneIME%@ is installed" : {
+      "comment" : "已经装了更新的 AllInOneIME%@ — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein neueres AllInOneIME%@ ist installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ya está instalado un AllInOneIME%@ más reciente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un AllInOneIME%@ plus récent est installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "より新しい AllInOneIME%@ がインストールされています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "더 최신 AllInOneIME%@가 설치되어 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um AllInOneIME%@ mais novo está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經裝了較新的 AllInOneIME%@"
+          }
+        }
+      }
+    },
     "A notification says when it's done and opens it in Terminal; @tasks and the menu bar panel list these tasks." : {
       "comment" : "做完弹通知，点通知在终端里接着聊；@tasks 和菜单栏面板列出这些任务。 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -30911,6 +30958,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已安裝的 %@ 比較新；它會被 %@ 取代。"
+          }
+        }
+      }
+    },
+    "The installed AllInOneIME%@ is newer than %@, so this installer doesn't replace it. To update, use AllInOneIME Settings → About → Update." : {
+      "comment" : "已安装的 AllInOneIME%@ 比 %@ 新，所以这个安装程序不会替换它。要更新，请用 AllInOneIME 设置 →「关于」→「更新」。 — Sources/AllInOneIMEInstaller/Installer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das installierte AllInOneIME%1$@ ist neuer als %2$@, daher ersetzt dieses Installationsprogramm es nicht. Zum Aktualisieren verwende AllInOneIME-Einstellungen → Über → Aktualisieren."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El AllInOneIME%1$@ instalado es más reciente que la %2$@, así que este instalador no lo sustituye. Para actualizarlo, usa ajustes de AllInOneIME → Acerca de → Actualizar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’AllInOneIME%1$@ installé est plus récent que la %2$@ : ce programme d’installation ne le remplace donc pas. Pour le mettre à jour, utilisez réglages d’AllInOneIME → À propos → Mettre à jour."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済みの AllInOneIME%1$@ は %2$@ より新しいため、このインストーラでは置き換えません。アップデートするには AllInOneIME設定 → 情報 → アップデート を使ってください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치된 AllInOneIME%1$@가 %2$@보다 최신이므로 이 설치 프로그램은 바꾸지 않습니다. 업데이트하려면 AllInOneIME 설정 → 정보 → 업데이트를 사용하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O AllInOneIME%1$@ instalado é mais novo que a %2$@, então este instalador não o substitui. Para atualizar, use Ajustes do AllInOneIME → Sobre → Atualizar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安裝的 AllInOneIME%1$@ 比 %2$@ 新，所以這個安裝程式不會取代它。要更新，請用 AllInOneIME 設定 →「關於」→「更新」。"
           }
         }
       }

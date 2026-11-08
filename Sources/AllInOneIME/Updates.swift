@@ -396,8 +396,9 @@ enum UpdateHelper {
 /// AllInOneIME Settings.app beside it too when it is there (the installed one goes either way: it would open the old
 /// input method). `--migrate-identity --check` says that this version can (`Migration.checkLine`): 0.7.0 and earlier
 /// answer that the option is unknown. With `--target-dir`, a test install's, as `--install-update`'s. Exits 0 once the
-/// new identity is installed (by this run or an earlier one; a cleanup step left is said, and tried again by the next
-/// run), 1 when it isn't (everything as it was), 2 for a bad argument.
+/// new identity is installed (by this run or an earlier one; a cleanup step left is said, and done by the new version at
+/// its next launch from the record the run leaves, `CleanupRecord`, or by the next run), 1 when it isn't (everything as
+/// it was), 2 for a bad argument.
 enum MigrationCommand {
     static func run(_ arguments: [String]) -> Int32 {
         if arguments.first == "--check" {
@@ -446,7 +447,7 @@ enum MigrationCommand {
             return 1
         }
         print(report.pending.isEmpty ? "✓ AllInOneIME \(version) is installed with the new identity"
-              : "✓ AllInOneIME \(version) is installed with the new identity; left for the next run: "
+              : "✓ AllInOneIME \(version) is installed with the new identity; left for its next launch: "
                 + report.pending.map(\.rawValue).joined(separator: ", "))
         return 0
     }

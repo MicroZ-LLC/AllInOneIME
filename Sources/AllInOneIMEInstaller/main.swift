@@ -122,6 +122,13 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
     func ask() {
         let isInstalled = Installer.exists(Installer.inputMethod)
         let installed = Installer.installedVersion() ?? ""
+        // A newer version with AllInOneIME's own system identity: never replaced by this one.
+        if Installer.newerIdentityInstalled {
+            let version = installed.isEmpty ? "" : " \(installed)"
+            finish(tr("已经装了更新的 AllInOneIME\(version)", "A newer AllInOneIME\(version) is installed"),
+                   Installer.Failure.newerInstalled(Installer.installedVersion()).localizedDescription, style: .warning)
+            return
+        }
         let alert = NSAlert()
         var details = [tr("输入法装到 ~/Library/Input Methods，「AllInOneIME 设置」装到 ~/Applications，并把 AllInOneIME 加进你的输入法列表。只装给当前用户，不需要管理员密码。",
                           "The input method goes into ~/Library/Input Methods and \"AllInOneIME Settings\" into ~/Applications, and AllInOneIME is added to your input sources. For this user only; no administrator password needed.")]
