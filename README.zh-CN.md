@@ -1156,7 +1156,7 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
    App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
    输入法带着 Developer ID 描述文件（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），钥匙串权限来自它；
    描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签名里没有钥匙串权限也会停下，
-   签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了两张 Developer ID G1 证书：换用别的证书（G2）签名前，先在开发者网站上手动做一个列出它的
+   签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了团队的三张 Developer ID Application 证书（都是 G1）：换用别的证书（G2 的）签名前，先在开发者网站上手动做一个列出它的
    新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
 3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update-v2.json`
@@ -1164,6 +1164,9 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
    （`allinoneime-releases-signing`，macOS 可能会问是否允许）签名成 `update-v2.json.sig`。两个文件都提交。0.7.1 及以后读
    update-v2.json；0.7.0 及以前读的 `update.json`（和它的 `.sig`）只在 App 还是旧系统身份的版本（0.7.1，它们能装的最后一个版本）
    时一起写出，从 0.7.2 起不再动：它一直指向 0.7.1，由 0.7.1 把 AllInOneIME 换到新身份。
+   0.7.2 的摘要（0.7.1 安装它之前会显示）要说 macOS 会重新询问给过 AllInOneIME 的权限，比如
+   `UPDATE_SUMMARY_EN="AllInOneIME gets its own system identity: your settings and keys come along, and macOS asks once more for the permissions you gave it (Accessibility, Paste from Other Apps, Automation, Contacts, Reminders, Notifications); About says which."`
+   和 `UPDATE_SUMMARY_ZH="AllInOneIME 换成自己的系统身份：设置和密钥都会带过来，macOS 会再问一次你给过它的权限（辅助功能、从其他 App 粘贴、自动化、通讯录、提醒事项、通知），「关于」页会说是哪些。"`。
 5. 等 release 的文件能下载了，再部署网站（`cd site && npx wrangler@4 deploy`）：App 每天看一次，`AllInOneIME --check-update` 能看到它们看到的。
 
 App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现在新的版本，只通过 https 从 allinoneime.com 或本仓库的 GitHub release 下载；
@@ -1176,7 +1179,10 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 `com.allinoneime.settings`，钥匙串访问组是 `9SR8N3UD5Y.com.allinoneime.shared`）：macOS 按它记住已添加的输入法和给它的权限。
 使用之前身份的最后一个版本 0.7.1 会把安装换到这个身份，把偏好设置和钥匙串项目带过来（通过它自己的更新，或者安装程序和
 `make install` 调用的 `AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；这个版本依靠它做完这件事，只凭 bundle ID
-不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。换过来以后，输入法会说一次哪些权限要重新允许
+不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。0.7.1 存在登录钥匙串里的密钥，作为交接项放在
+这个版本的访问组里：输入法启动时把每个导入登录钥匙串，成为自己的项目（macOS 不会为此询问），再删掉交接项；0.7.1 的清理没删掉的，
+列在 `~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，输入法启动时按里面列的标识删完，从不碰这个身份自己的东西
+（`Sources/AllInOneIMEMac/IdentityHandover.swift`、`IdentityFinish.swift`）。换过来以后，输入法会说一次哪些权限要重新允许
 （「关于」页，带「排查问题」）。
 
 ## 许可证

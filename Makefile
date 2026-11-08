@@ -339,6 +339,8 @@ update-zip:
 # for good (they install no other bundle IDs than theirs), which moves AllInOneIME to its own system identity, and then
 # updates from update-v2.json.
 # Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
+# 0.7.2's (the move to AllInOneIME's own system identity, shown by 0.7.1 before it installs it) says that macOS asks again
+# for the permissions given to AllInOneIME (README: Releasing a version, step 4, has a summary to use).
 # Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
 RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)
 UPDATE_SUMMARY_EN ?=

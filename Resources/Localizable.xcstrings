@@ -5375,49 +5375,49 @@
         }
       }
     },
-    "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. The first time an API key saved on this Mac is used, macOS may ask for your login password once: choose Always Allow. In your input sources, it's listed under English." : {
-      "comment" : "AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。第一次用存在这台 Mac 上的 API 密钥时，macOS 可能会要你输入一次登录密码：选「始终允许」。在输入法列表里，它在「英语」下面。 — Sources/AllInOneIME/Updates.swift",
+    "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under English." : {
+      "comment" : "AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「英语」下面。 — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME hat jetzt seine eigene Systemidentität, daher fragt macOS erneut nach den Berechtigungen, die du erteilt hast: Bedienungshilfen (Auswahl lesen, Autovervollständigung), Aus anderen Apps einsetzen (Zwischenablageverlauf), Automation (Terminal, Notizen und Nachrichten für @agent, @note und @imessage), Kontakte (@imessage), Erinnerungen (@reminder) und Mitteilungen (neue Versionen). Erlaube sie, wenn macOS fragt, oder unter Systemeinstellungen → Datenschutz & Sicherheit; „Probleme beheben …“ zeigt, welche noch fehlen. Beim ersten Gebrauch eines auf diesem Mac gespeicherten API-Schlüssels fragt macOS vielleicht einmal nach deinem Anmeldepasswort: Wähle „Immer erlauben“. In deinen Eingabequellen steht es unter Englisch."
+            "value" : "AllInOneIME hat jetzt seine eigene Systemidentität, daher fragt macOS erneut nach den Berechtigungen, die du erteilt hast: Bedienungshilfen (Auswahl lesen, Autovervollständigung), Aus anderen Apps einsetzen (Zwischenablageverlauf), Automation (Terminal, Notizen und Nachrichten für @agent, @note und @imessage), Kontakte (@imessage), Erinnerungen (@reminder) und Mitteilungen (neue Versionen). Erlaube sie, wenn macOS fragt, oder unter Systemeinstellungen → Datenschutz & Sicherheit; „Probleme beheben …“ zeigt, welche noch fehlen. In deinen Eingabequellen steht es unter Englisch."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME tiene ahora su propia identidad del sistema, así que macOS vuelve a pedir los permisos que le diste: Accesibilidad (leer la selección, autocompletar), Pegar desde otras apps (historial del portapapeles), Automatización (Terminal, Notas y Mensajes, para @agent, @note y @imessage), Contactos (@imessage), Recordatorios (@reminder) y Notificaciones (versiones nuevas). Concédelos cuando macOS los pida, o en Ajustes del Sistema → Privacidad y seguridad; Solucionar problemas… muestra los que faltan. La primera vez que se use una clave de API guardada en este Mac, macOS puede pedirte una vez la contraseña de inicio de sesión: elige Permitir siempre. En tus fuentes de entrada aparece en Inglés."
+            "value" : "AllInOneIME tiene ahora su propia identidad del sistema, así que macOS vuelve a pedir los permisos que le diste: Accesibilidad (leer la selección, autocompletar), Pegar desde otras apps (historial del portapapeles), Automatización (Terminal, Notas y Mensajes, para @agent, @note y @imessage), Contactos (@imessage), Recordatorios (@reminder) y Notificaciones (versiones nuevas). Concédelos cuando macOS los pida, o en Ajustes del Sistema → Privacidad y seguridad; Solucionar problemas… muestra los que faltan. En tus fuentes de entrada aparece en Inglés."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME a désormais sa propre identité système : macOS redemande donc les autorisations que vous lui aviez accordées : Accessibilité (lire la sélection, saisie semi-automatique), Coller depuis d’autres apps (historique du presse-papiers), Automatisation (Terminal, Notes et Messages, pour @agent, @note et @imessage), Contacts (@imessage), Rappels (@reminder) et Notifications (nouvelles versions). Autorisez-les quand macOS les demande, ou dans Réglages Système → Confidentialité et sécurité ; Résoudre les problèmes… indique celles qui manquent encore. La première fois qu’une clé d’API enregistrée sur ce Mac sert, macOS peut demander une fois votre mot de passe de session : choisissez Toujours autoriser. Dans vos méthodes de saisie, il figure sous Anglais."
+            "value" : "AllInOneIME a désormais sa propre identité système : macOS redemande donc les autorisations que vous lui aviez accordées : Accessibilité (lire la sélection, saisie semi-automatique), Coller depuis d’autres apps (historique du presse-papiers), Automatisation (Terminal, Notes et Messages, pour @agent, @note et @imessage), Contacts (@imessage), Rappels (@reminder) et Notifications (nouvelles versions). Autorisez-les quand macOS les demande, ou dans Réglages Système → Confidentialité et sécurité ; Résoudre les problèmes… indique celles qui manquent encore. Dans vos méthodes de saisie, il figure sous Anglais."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME は独自のシステム ID になったため、macOS は以前許可した権限をもう一度確認します：アクセシビリティ（選択テキストの読み取り、オートコンプリート）、ほかのアプリからのペースト（クリップボード履歴）、オートメーション（@agent、@note、@imessage が使うターミナル、メモ、メッセージ）、連絡先（@imessage）、リマインダー（@reminder）、通知（新しいバージョン）。macOS に聞かれたら許可するか、システム設定 → プライバシーとセキュリティ で許可してください。「トラブルシューティング…」にまだ許可していないものが表示されます。この Mac に保存した API キーを初めて使うとき、macOS がログインパスワードを一度求めることがあります。「常に許可」を選んでください。入力ソースでは「英語」の下に表示されます。"
+            "value" : "AllInOneIME は独自のシステム ID になったため、macOS は以前許可した権限をもう一度確認します：アクセシビリティ（選択テキストの読み取り、オートコンプリート）、ほかのアプリからのペースト（クリップボード履歴）、オートメーション（@agent、@note、@imessage が使うターミナル、メモ、メッセージ）、連絡先（@imessage）、リマインダー（@reminder）、通知（新しいバージョン）。macOS に聞かれたら許可するか、システム設定 → プライバシーとセキュリティ で許可してください。「トラブルシューティング…」にまだ許可していないものが表示されます。入力ソースでは「英語」の下に表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME가 이제 자체 시스템 ID를 가지므로 macOS가 이전에 허용한 권한을 다시 묻습니다: 손쉬운 사용(선택한 텍스트 읽기, 자동 완성), 다른 앱에서 붙여넣기(클립보드 기록), 자동화(@agent, @note, @imessage에 쓰는 터미널, 메모, 메시지), 연락처(@imessage), 미리 알림(@reminder), 알림(새 버전). macOS가 물을 때 허용하거나 시스템 설정 → 개인정보 보호 및 보안에서 켜세요. ‘문제 해결…’에서 아직 허용하지 않은 항목을 볼 수 있습니다. 이 Mac에 저장된 API 키를 처음 쓸 때 macOS가 로그인 암호를 한 번 물을 수 있습니다. ‘항상 허용’을 선택하세요. 입력 소스에서는 영어 아래에 있습니다."
+            "value" : "AllInOneIME가 이제 자체 시스템 ID를 가지므로 macOS가 이전에 허용한 권한을 다시 묻습니다: 손쉬운 사용(선택한 텍스트 읽기, 자동 완성), 다른 앱에서 붙여넣기(클립보드 기록), 자동화(@agent, @note, @imessage에 쓰는 터미널, 메모, 메시지), 연락처(@imessage), 미리 알림(@reminder), 알림(새 버전). macOS가 물을 때 허용하거나 시스템 설정 → 개인정보 보호 및 보안에서 켜세요. ‘문제 해결…’에서 아직 허용하지 않은 항목을 볼 수 있습니다. 입력 소스에서는 영어 아래에 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O AllInOneIME agora tem sua própria identidade do sistema, então o macOS pede de novo as permissões que você deu: Acessibilidade (ler a seleção, preenchimento automático), Colar de Outros Apps (histórico da área de transferência), Automação (Terminal, Notas e Mensagens, para @agent, @note e @imessage), Contatos (@imessage), Lembretes (@reminder) e Notificações (novas versões). Permita quando o macOS pedir, ou em Ajustes do Sistema → Privacidade e Segurança; Solucionar Problemas… mostra as que ainda faltam. Na primeira vez que uma chave de API salva neste Mac for usada, o macOS pode pedir sua senha de início de sessão uma vez: escolha Sempre Permitir. Nas suas fontes de entrada, ele aparece em Inglês."
+            "value" : "O AllInOneIME agora tem sua própria identidade do sistema, então o macOS pede de novo as permissões que você deu: Acessibilidade (ler a seleção, preenchimento automático), Colar de Outros Apps (histórico da área de transferência), Automação (Terminal, Notas e Mensagens, para @agent, @note e @imessage), Contatos (@imessage), Lembretes (@reminder) e Notificações (novas versões). Permita quando o macOS pedir, ou em Ajustes do Sistema → Privacidade e Segurança; Solucionar Problemas… mostra as que ainda faltam. Nas suas fontes de entrada, ele aparece em Inglês."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME 現在有了自己的系統身分，所以 macOS 會重新詢問你給過它的權限：輔助使用（讀取選取的文字、自動完成）、從其他 App 貼上（剪貼簿歷史）、自動化（@agent、@note 和 @imessage 用到的終端機、備忘錄和訊息）、聯絡人（@imessage）、提醒事項（@reminder）和通知（新版本）。macOS 詢問時選允許，或在 系統設定 → 隱私權與安全性 裡打開；「疑難排解⋯」會列出還沒允許的。第一次使用存在這台 Mac 上的 API 金鑰時，macOS 可能會要你輸入一次登入密碼：選「永遠允許」。在輸入方式列表裡，它在「英文」底下。"
+            "value" : "AllInOneIME 現在有了自己的系統身分，所以 macOS 會重新詢問你給過它的權限：輔助使用（讀取選取的文字、自動完成）、從其他 App 貼上（剪貼簿歷史）、自動化（@agent、@note 和 @imessage 用到的終端機、備忘錄和訊息）、聯絡人（@imessage）、提醒事項（@reminder）和通知（新版本）。macOS 詢問時選允許，或在 系統設定 → 隱私權與安全性 裡打開；「疑難排解⋯」會列出還沒允許的。在輸入方式列表裡，它在「英文」底下。"
           }
         }
       }

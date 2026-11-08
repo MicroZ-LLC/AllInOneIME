@@ -218,6 +218,11 @@ func runServer(showSettings: Bool = false) -> Never {
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     // What the last update did, and a look for the next one if a day has passed (in the background).
     MainActor.assumeIsolated { UpdateController.shared.start() }
+    // What the move to this system identity left (`IdentityFinish`): the login keychain's keys handed over imported, the
+    // move's cleanup record finished; in the background, by the installed input method only.
+    if UpdateLocations.runningIsInstalled {
+        IdentityFinish.system(say: { line in log.notice("\(line, privacy: .public)") }).start()
+    }
     // Extension sources: checked about 30 s from now, then once a day, if they check by themselves (only ever noted).
     MainActor.assumeIsolated { ExtensionSourceController.shared.start() }
     // A plugin found for the first time (installed, put in the plugins folder, or there before 0.6.7.2): its completion

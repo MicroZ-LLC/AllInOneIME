@@ -1471,8 +1471,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    (`Scripts/profile-entitlements.sh`) or the signature lacks the keychain entitlements, and runs the signed input method
    once (macOS kills one whose profile doesn't fit). An empty `DIST_PROFILE` stops it too: a release without the
    entitlements would lose sight of every key that moved into iCloud Keychain.
-   The profile lists the two Developer ID G1 certificates only: before signing with another (G2), make a new profile in
-   the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists it, and commit it.
+   The profile lists the team's three Developer ID Application certificates (all G1) only: before signing with another
+   (a G2 one), make a new profile in the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists
+   it, and commit it.
 3. Upload both to the GitHub release `v<version>` and publish it.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
@@ -1481,6 +1482,11 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    `update.json` (and its `.sig`), which 0.7.0 and earlier read, is written as well only for a release whose apps still
    have the old system identity, 0.7.1 (the last version those can install), and is left as it is from 0.7.2 on: it names
    0.7.1 for good, which moves AllInOneIME to the new identity.
+   0.7.2's summary (what 0.7.1 shows before it installs it) says that macOS asks again for the permissions given to
+   AllInOneIME, for instance `UPDATE_SUMMARY_EN="AllInOneIME gets its own system identity: your settings and keys come
+   along, and macOS asks once more for the permissions you gave it (Accessibility, Paste from Other Apps, Automation,
+   Contacts, Reminders, Notifications); About says which."` and `UPDATE_SUMMARY_ZH="AllInOneIME 换成自己的系统身份：设置和密钥都会
+   带过来，macOS 会再问一次你给过它的权限（辅助功能、从其他 App 粘贴、自动化、通讯录、提醒事项、通知），「关于」页会说是哪些。"`.
 5. Deploy the site (`cd site && npx wrangler@4 deploy`), only once the release's assets download: the apps check once a day,
    and `AllInOneIME --check-update` shows what they see.
 
@@ -1498,8 +1504,13 @@ remember the added input source and the permissions granted to it. 0.7.1, the la
 moves an install to this one, carrying the preferences and keychain items over (by its own update, or
 `AllInOneIME --migrate-identity <the new AllInOneIME.app>`, which the installer and `make install` call); this version
 relies on that, and tells an install of another identity only by its bundle ID not being this one's
-(`Sources/AllInOneIMEMac/SystemIdentity.swift`). After the move, the input method says once which permissions to allow
-again (About, with Troubleshoot).
+(`Sources/AllInOneIMEMac/SystemIdentity.swift`). The keys 0.7.1 kept in the login keychain come as handover items in this
+version's access group: at launch the input method imports each into the login keychain as its own item (so macOS never
+asks to allow it) and deletes the handover item; and what 0.7.1's cleanup couldn't remove is listed in
+`~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which the input method finishes at launch with the
+identifiers listed there, never anything of this identity's (`Sources/AllInOneIMEMac/IdentityHandover.swift`,
+`IdentityFinish.swift`). After the move, the input method says once which permissions to allow again (About, with
+Troubleshoot).
 
 ## License
 
