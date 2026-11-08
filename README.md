@@ -122,7 +122,7 @@ leaves the `@` as it is; in a terminal ← → on a lone `@` only close the list
 Type the magic key (`@` by default) and whatever you want; the list shows what can be done with it, the likeliest first, each row saying what ⏎
 does, with its command's name dimmed on the right (so the command names are there to learn as you go, but you don't
 have to). The first row is highlighted; ⏎ does it, ↑↓ pick another, a click does that one, Esc leaves the text as typed.
-Nothing you type goes to the AI and no command runs before ⏎: the rows are worked out on this Mac on the key you type (Spotlight's file names, the selected text if there is one). An AI row may open the connection to your provider ahead of ⏎, with no text and no key in it.
+Nothing you type goes to the AI and no command runs until you pick a row (⏎, Tab, your action key or a click): the rows are worked out on this Mac on the key you type (Spotlight's file names, the selected text if there is one). An AI row may open the connection to your provider before that, with no text and no key in it.
 A row that opens an app, a folder or a file shows its own icon, as Finder shows it (in `@open`'s list too).
 
 | You type | First row |
