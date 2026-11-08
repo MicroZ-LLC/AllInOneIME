@@ -22,6 +22,7 @@
 // reply-screenshot.png   @reply with a screenshot pasted (read on this Mac) → three replies (canned)
 // agent-page.png   @agent's notice when it took the Chrome page along
 // snippet-editor.png   the custom command editor's "Insert text": a signature with a blank, the date and the caret's place
+// one-at.png    one @ (the site): a sum, an app, a time and a question after @, each list's likeliest row first
 import AppKit
 
 let args = CommandLine.arguments
@@ -88,9 +89,9 @@ struct Step {
 /// A long text line cut to fit above its panel.
 func cut(_ line: String, _ length: Int = 60) -> String { line.count > length ? String(line.prefix(length)) + "…" : line }
 
-/// Steps side by side: caption, a text line with the input method's inline (underlined) text, and
-/// the candidate panel just below the line, as on screen.
-func composite(_ steps: [Step], to name: String) throws {
+/// Steps side by side (`columns` to a row, the others in rows below, a row narrower than the widest centered): caption,
+/// a text line with the input method's inline (underlined) text, and the candidate panel just below the line, as on screen.
+func composite(_ steps: [Step], columns: Int = .max, to name: String) throws {
     // Renders are 2x bitmaps; lay out in points.
     let scale: CGFloat = 2
     let margin: CGFloat = 28, gap: CGFloat = 36, captionHeight: CGFloat = 30, fieldHeight: CGFloat = 40
@@ -103,41 +104,47 @@ func composite(_ steps: [Step], to name: String) throws {
             (step.caption as NSString).size(withAttributes: [.font: captionFont]).width,
             (step.marked as NSString).size(withAttributes: [.font: fieldFont]).width + 30)
     }
-    let width = margin * 2 + widths.reduce(0, +) + gap * CGFloat(steps.count - 1)
-    let height = margin * 2 + captionHeight + fieldHeight + 6 + (panelSizes.map(\.height).max() ?? 0)
+    let columns = min(columns, steps.count)
+    let rows = stride(from: 0, to: steps.count, by: columns).map { Array($0..<min($0 + columns, steps.count)) }
+    let rowWidths = rows.map { row in row.map { widths[$0] }.reduce(0, +) + gap * CGFloat(row.count - 1) }
+    let rowHeights = rows.map { row in captionHeight + fieldHeight + 6 + (row.map { panelSizes[$0].height }.max() ?? 0) }
+    let width = margin * 2 + (rowWidths.max() ?? 0)
+    let height = margin * 2 + rowHeights.reduce(0, +) + gap * CGFloat(rows.count - 1)
 
     let image = png(NSSize(width: width, height: height), scale: scale) {
         NSColor(calibratedWhite: 0.955, alpha: 1).setFill()
         NSRect(x: 0, y: 0, width: width, height: height).fill()
-        var x = margin
-        for (index, step) in steps.enumerated() {
-            let size = panelSizes[index]
-            let top = height - margin
-            NSAttributedString(string: step.caption, attributes: [
-                .font: captionFont, .foregroundColor: NSColor(white: 0.15, alpha: 1),
-            ]).draw(at: NSPoint(x: x, y: top - 20))
-            let field = NSRect(x: x, y: top - captionHeight - fieldHeight, width: widths[index], height: fieldHeight)
-            NSColor.white.setFill()
-            NSBezierPath(roundedRect: field, xRadius: 8, yRadius: 8).fill()
-            NSColor(white: 0.82, alpha: 1).setStroke()
-            NSBezierPath(roundedRect: field.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8).stroke()
-            let markedWidth = (step.marked as NSString).size(withAttributes: [.font: fieldFont]).width
-            if step.selected {
-                NSColor(calibratedRed: 0.70, green: 0.84, blue: 1, alpha: 1).setFill()
-                NSRect(x: field.minX + 11, y: field.minY + 8, width: markedWidth + 2, height: 23).fill()
+        for (row, indices) in rows.enumerated() {
+            var x = margin + ((rowWidths.max() ?? 0) - rowWidths[row]) / 2
+            let top = height - margin - rowHeights.prefix(row).reduce(0, +) - gap * CGFloat(row)
+            for index in indices {
+                let step = steps[index], size = panelSizes[index]
+                NSAttributedString(string: step.caption, attributes: [
+                    .font: captionFont, .foregroundColor: NSColor(white: 0.15, alpha: 1),
+                ]).draw(at: NSPoint(x: x, y: top - 20))
+                let field = NSRect(x: x, y: top - captionHeight - fieldHeight, width: widths[index], height: fieldHeight)
+                NSColor.white.setFill()
+                NSBezierPath(roundedRect: field, xRadius: 8, yRadius: 8).fill()
+                NSColor(white: 0.82, alpha: 1).setStroke()
+                NSBezierPath(roundedRect: field.insetBy(dx: 0.5, dy: 0.5), xRadius: 8, yRadius: 8).stroke()
+                let markedWidth = (step.marked as NSString).size(withAttributes: [.font: fieldFont]).width
+                if step.selected {
+                    NSColor(calibratedRed: 0.70, green: 0.84, blue: 1, alpha: 1).setFill()
+                    NSRect(x: field.minX + 11, y: field.minY + 8, width: markedWidth + 2, height: 23).fill()
+                }
+                NSAttributedString(string: step.marked, attributes: [
+                    .font: fieldFont, .foregroundColor: NSColor.black,
+                    .underlineStyle: step.selected ? 0 : NSUnderlineStyle.single.rawValue,
+                ]).draw(at: NSPoint(x: field.minX + 12, y: field.minY + 9))
+                if !step.selected {
+                    NSColor.controlAccentColor.setFill()
+                    NSRect(x: field.minX + 12 + markedWidth + 2, y: field.minY + 9, width: 2, height: 21).fill()
+                }
+                // Source-over: drawn as is (copy), the panel's rounded corners would punch holes in the image.
+                step.panel.draw(in: NSRect(x: x, y: field.minY - 6 - size.height, width: size.width, height: size.height),
+                                from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
+                x += widths[index] + gap
             }
-            NSAttributedString(string: step.marked, attributes: [
-                .font: fieldFont, .foregroundColor: NSColor.black,
-                .underlineStyle: step.selected ? 0 : NSUnderlineStyle.single.rawValue,
-            ]).draw(at: NSPoint(x: field.minX + 12, y: field.minY + 9))
-            if !step.selected {
-                NSColor.controlAccentColor.setFill()
-                NSRect(x: field.minX + 12 + markedWidth + 2, y: field.minY + 9, width: 2, height: 21).fill()
-            }
-            // Source-over: drawn as is (copy), the panel's rounded corners would punch holes in the image.
-            step.panel.draw(in: NSRect(x: x, y: field.minY - 6 - size.height, width: size.width, height: size.height),
-                            from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: nil)
-            x += widths[index] + gap
         }
     }
     try image.write(to: output.appendingPathComponent(name))
@@ -264,6 +271,22 @@ try composite([
          marked: "", panel: load("release-agent-page")),
 ], to: "agent-page.png")
 
+// One @ (0.7.0), for the site: the magic key and whatever you want, each list's likeliest row first (the self-test's
+// `oneat-*` renders, with the Chinese interface, and `en-oneat-*`, typed in English with the English one).
+let oneAt = language == "en" ? "en-oneat-" : "oneat-"
+try composite([
+    Step(caption: tr("@ 加算式：⏎ 填入结果", "@ and a sum: ⏎ puts in its value"),
+         marked: marked(oneAt + "sum", "@3*7+2"), panel: loadScene(oneAt + "sum")),
+    Step(caption: tr("@ 加 App 名的拼音首字母：⏎ 打开它", "@ and the start of an app's name: ⏎ opens it"),
+         marked: marked(oneAt + "app", tr("@xtsz", "@cal")), panel: loadScene(oneAt + "app")),
+    Step(caption: tr("@ 加带时间的一句话：⏎ 加提醒", "@ and a time: ⏎ adds the reminder"),
+         marked: marked(oneAt + "reminder", tr("@mingtianxiawusandiankaihui", "@call Bob tomorrow at 3pm")),
+         panel: loadScene(oneAt + "reminder")),
+    Step(caption: tr("@ 加问题：⏎ 问 AI", "@ and a question: ⏎ asks the AI"),
+         marked: marked(oneAt + "question", tr("@weishenmetiankongshilansede", "@why is the sky blue?")),
+         panel: loadScene(oneAt + "question")),
+], columns: 2, to: "one-at.png")
+
 let dark = language == "en" ? source.appendingPathComponent("en-improve-dark.png") : render("4-final-dark")
 for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.png"), (render("14-dashboard"), "dashboard.png"),
                    (render("assistant"), "settings-search.png"), (render("settings-problem"), "settings-problem.png"),
@@ -273,4 +296,5 @@ for (from, to) in [(dark, "panel-dark.png"), (render("6-settings"), "settings.pn
 }
 print("wrote \(output.path)/demo.png, improve.png, english.png, voice.png, commands.png, open.png, panel-dark.png, settings.png, dashboard.png, "
       + "candidates-horizontal.png, refine.png, recent-questions.png, selection.png, question-chat.png, question-chat-handoff.png, "
-      + "settings-search.png, settings-problem.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png")
+      + "settings-search.png, settings-problem.png, translate-as-you-type.png, reply-screenshot.png, agent-page.png, snippet-editor.png, "
+      + "one-at.png")

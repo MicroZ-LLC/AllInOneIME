@@ -2828,6 +2828,8 @@ enum SelfTest {
         (controller.services.converter, settings, controller.services.loadSettings) = (converterBefore, settingsBefore, loadBefore)
         controller.applySettings()
         englishReadmeScenes(controller, client, in: snapshotDirectory)
+        oneAtScenes(controller, client, in: snapshotDirectory, english: true)
+        oneAtScenes(controller, client, in: snapshotDirectory, english: false)
         testNothingToTranslateInto(controller, client, in: snapshotDirectory)
         // @open's history in memory: the user's is neither read (it would reorder the results checked
         // here) nor changed (what the test opens would come first in their searches).
