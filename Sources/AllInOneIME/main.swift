@@ -7,8 +7,8 @@ import InputMethodKit
 
 let usage = """
     AllInOneIME input method. Launched by macOS without arguments; developer commands:
-      --register        register this bundle with Text Input Sources, enable it and add it to
-                        your input sources
+      --register        register this bundle with Text Input Sources; once you have added it
+                        (System Settings → Keyboard), keep it in your input sources
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
@@ -321,23 +321,17 @@ func register() -> Int32 {
         printError("TISRegisterInputSource failed: \(status)")
         return 1
     }
-    guard let source = InputSourceRegistrar.waitForSource() else {
+    guard InputSourceRegistrar.waitForSource() != nil else {
         printError("registered, but input source \(InputSourceRegistrar.sourceID) did not appear")
         return 1
     }
-    if !InputSourceRegistrar.bool(source, kTISPropertyInputSourceIsEnabled) {
-        // Recent macOS versions don't let installers enable third-party keyboard input methods:
-        // register/enable succeed, System Settings → Keyboard opens, and the user adds it there.
-        let enableStatus = TISEnableInputSource(source)
-        guard enableStatus == 0 else {
-            printError("TISEnableInputSource failed: \(enableStatus)")
-            return 1
-        }
-    }
+    // Registered only, never enabled or selected: macOS doesn't let a program enable a third-party input method (asked,
+    // it changes nothing and opens System Settings → Keyboard by itself); the user adds it there once. Enabled already
+    // (added by the user; an update of one they have), it stays so, and selected if it was: Text Input Sources keeps both.
     let enabled = InputSourceRegistrar.waitUntilEnabled(timeout: 2)
     if enabled {
-        // Enabled by a program, it isn't in the user's input sources, which Ctrl+Space goes by:
-        // keep it there as well (see InputSourceList).
+        // Enabled by a program (an earlier version's install), it isn't in the user's input sources, which
+        // Ctrl+Space goes by: keep it there as well (see InputSourceList).
         switch InputSourceRegistrar.updateUserList({ InputSourceList.adding(InputSourceRegistrar.bundleID, to: $0) }) {
         case .written: print("input list:  added to your input sources (Ctrl+Space reaches it now)")
         case .failed: printError("could not add it to your input sources (\(InputSourceList.domain))")
@@ -351,12 +345,12 @@ func register() -> Int32 {
         UIText.choice = (try? Config.load())?.uiLanguage
         print(tr("""
 
-            macOS 需要你手动添加一次（“键盘”设置应该已经打开）：
+            macOS 需要你手动添加一次：
               系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加
             之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。
             """, """
 
-            macOS needs you to add it once (Keyboard settings should have opened):
+            macOS needs you to add it once:
               System Settings → Keyboard → Text Input › Input Sources "Edit…" → + at the bottom left
               → English → AllInOneIME → Add
             Then switch to AllInOneIME with Ctrl+Space or the 🌐 key.

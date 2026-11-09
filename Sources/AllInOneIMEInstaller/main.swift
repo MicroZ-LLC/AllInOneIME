@@ -50,8 +50,8 @@ func runFromTerminal(install: Bool, anyway: Bool = false) -> Int32 {
         if install {
             let output = try Installer.install(anyway: anyway) { print($0) }
             print(output)
-            // --register prints how to add it by hand when it couldn't enable it; not when it's
-            // enabled but couldn't go into the list.
+            // --register prints how to add it by hand when it isn't enabled (it never enables it); not
+            // when it's enabled but couldn't go into the list.
             let state = Installer.inputSourceState()
             if state.enabled && !state.listed { print("\n" + manualAddHint) }
             print("\n" + tr("AllInOneIME \(newVersion) 装好了。", "AllInOneIME \(newVersion) is installed."))
@@ -123,7 +123,7 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
     }
 
     func ask() {
-        let isInstalled = Installer.exists(Installer.inputMethod)
+        let isInstalled = Installer.isInstalled
         let installed = Installer.installedVersion() ?? ""
         // Another system identity's (a version before this one's): one too old to move itself to it is told first.
         let identity = Installer.installedIdentity()

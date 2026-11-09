@@ -110,6 +110,47 @@ struct UpdateInstallTests {
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("previous3").path))
     }
 
+    // MARK: Where it is installed
+
+    /// The input method is found by its bundle ID, whatever its folder's name: AllInOneIME.app (0.7.2's), AllInOneIME
+    /// Input.app (0.7.1.1's move and new installs), or another; never an app with another bundle ID (the earlier
+    /// identity's, at AllInOneIME.app). With several: the running one, else AllInOneIME Input.app.
+    @Test func theInstalledInputMethodIsFoundByItsBundleIDAtEitherPath() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("installed-\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let inputMethods = root.appendingPathComponent("Input Methods", isDirectory: true)
+        let earlier = inputMethods.appendingPathComponent("AllInOneIME.app"), own = inputMethods.appendingPathComponent("AllInOneIME Input.app")
+        func found(_ bundleID: String = Updater.bundleID, preferring: URL? = nil) -> String? {
+            Updater.installedInputMethod(in: inputMethods, bundleID: bundleID, preferring: preferring)?.path
+        }
+        #expect(found() == nil)
+        #expect(Updater.installedInputMethodName == "AllInOneIME Input.app" && Updater.inputMethodName == "AllInOneIME.app")
+
+        // The earlier identity's at AllInOneIME.app, and another input method: neither is this one.
+        try FakeApp.make(earlier, id: "com.example.earlier.inputmethod", version: "0.7.1.1", build: "26", sign: false)
+        try FakeApp.make(inputMethods.appendingPathComponent("Other.app"), id: "com.example.other", version: "1.0", build: "1", sign: false)
+        #expect(found() == nil)
+        #expect(found("com.example.earlier.inputmethod") == earlier.path)
+
+        // 0.7.2 where it put it.
+        try FileManager.default.removeItem(at: earlier)
+        try FakeApp.make(earlier, id: Updater.bundleID, version: "0.7.2", build: "25", sign: false)
+        #expect(found() == earlier.path)
+        // At a path of its own (and under any other name).
+        try FileManager.default.moveItem(at: earlier, to: own)
+        #expect(found() == own.path)
+        let renamed = inputMethods.appendingPathComponent("AllInOneIME copy.app")
+        try FileManager.default.moveItem(at: own, to: renamed)
+        #expect(found() == renamed.path)
+        try FileManager.default.moveItem(at: renamed, to: own)
+
+        // Two copies: the running one first, else the one at its own path.
+        try FakeApp.make(earlier, id: Updater.bundleID, version: "0.7.2", build: "25", sign: false)
+        #expect(found() == own.path)
+        #expect(found(preferring: earlier) == earlier.path)
+        #expect(found(preferring: URL(fileURLWithPath: "/Applications/Elsewhere.app")) == own.path)
+    }
+
     @Test func aRollBackThatCantPutAnAppBackSaysWhereItIs() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("swap-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

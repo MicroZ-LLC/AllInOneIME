@@ -65,6 +65,18 @@ struct IdentityHandoverTests {
         #expect(!caches.isEmpty && CleanupRecord().isEmpty)
     }
 
+    /// 0.7.1.1's record keeps a copy of the old input source's entries (for its own rollback): this version reads it as
+    /// any other record, the copy left aside.
+    @Test func aRecordWithTheBridgesCopyOfTheEntriesReads() throws {
+        defer { try? FileManager.default.removeItem(at: folder) }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let url = folder.appendingPathComponent(CleanupRecord.fileName)
+        try Data(#"{"format": 1, "handedOver": true, "updated": "2026-11-08T06:10:31Z", "inputSourceEntries": {"plist": "YnBsaXN0MDDQCAAAAAAAAAEBAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAJ"}, "caches": ["/tmp/Caches/com.example.before.inputmethod"]}"#.utf8)
+            .write(to: url)
+        let read = try #require(try CleanupRecord.read(at: url))
+        #expect(read.handedOver && read.inputSource == nil && read.caches == ["/tmp/Caches/com.example.before.inputmethod"])
+    }
+
     @Test func aRecordThatIsntOneThrows() throws {
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)

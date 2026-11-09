@@ -505,8 +505,7 @@ public final class InputSession {
                                   secureInput: fieldIsPrivate(unknown: true, untold: true), config: services.loadSettings,
                                   known: englishWords.keys, dictionary: englishWords.dictionary,
                                   removed: englishWords.removedKeys, typedOnce: services.englishTypedOnce) else { return }
-        learned(typed, englishWords)
-        log.notice("learned an English word (\(typed.count) letters)")
+        if learned(typed, englishWords) { log.notice("learned an English word (\(typed.count) letters)") }
     }
 
     /// Words typed in English mode that stood (`EnglishModeWords`: letters gone straight to the app, a space, a mark or ⏎
@@ -524,7 +523,7 @@ public final class InputSession {
                                                     known: englishWords.keys, dictionary: englishWords.dictionary,
                                                     removed: englishWords.removedKeys,
                                                     typedOnce: services.englishTypedOnce) else { continue }
-            learned(typed, englishWords)
+            guard learned(typed, englishWords) else { continue }
             log.notice("learned an English word typed in English mode (\(typed.count) letters)")
         }
     }
@@ -541,10 +540,32 @@ public final class InputSession {
                                      secureInput: secureInputActive(), config: services.loadSettings)
     }
 
-    /// `typed` offered in this field at once, kept for every field (`SessionServices.learnEnglishWord`).
-    private func learned(_ typed: String, _ englishWords: EnglishWordsEngine) {
+    /// `typed` offered in this field at once, kept for every field (`SessionServices.learnEnglishWord`). While the
+    /// settings are only the defaults (their file doesn't parse, `SuggestionsServices.settingsValid`), neither: held with
+    /// its app (`SessionServices.englishWordsHeld`) until the user's are read again (`learnHeldEnglishWords`). Whether
+    /// it was learned now.
+    private func learned(_ typed: String, _ englishWords: EnglishWordsEngine) -> Bool {
+        guard services.suggestions.settingsValid() else {
+            services.englishWordsHeld.hold(typed, in: app)
+            log.notice("held an English word until the settings parse (\(typed.count) letters)")
+            return false
+        }
         englishWords.words.append(typed)
         services.learnEnglishWord(typed)
+        return true
+    }
+
+    /// The words held while the settings were only the defaults (`learned`), now that the user's are read (`config`):
+    /// learned if they allow it in the app each was typed in (`EnglishWords.allows`), else forgotten. Kept held where
+    /// there are no English words to tell them by.
+    private func learnHeldEnglishWords(_ config: Config) {
+        guard let englishWords, !services.englishWordsHeld.isEmpty else { return }
+        for (typed, app) in services.englishWordsHeld.take()
+        where EnglishWords.allows(typed, in: app, config: config, known: englishWords.keys,
+                                  dictionary: englishWords.dictionary, removed: englishWords.removedKeys) {
+            guard learned(typed, englishWords) else { continue }
+            log.notice("learned an English word held while the settings didn't parse (\(typed.count) letters)")
+        }
     }
 
     /// Whether a key goes straight to the app as English typed (a tap of Shift: English mode), with nothing composed: what
@@ -600,9 +621,12 @@ public final class InputSession {
         // Before the settings are read: a candidate removed that is written in between is in what is read.
         let unwritten = services.unwrittenRemovals?()
         let config = services.loadSettings()
+        // Whether they are the user's: only the defaults while their file doesn't parse, which count, reset and learn
+        // nothing.
+        let valid = services.suggestions.settingsValid()
         // Autocomplete's switch turned on or off elsewhere (Settings → Assistant, the file): counted, every app over. Whether
         // it may run in this field now (what a key looks at first).
-        services.autocomplete.saw(switch: config.autocomplete)
+        if valid { services.autocomplete.saw(switch: config.autocomplete) }
         autocompleteTakeSettings(config)
         let app = app ?? self.app
         composer.voiceEnabled = Features.voiceInput && config.voiceInput && services.voiceSupported()  // off for now
@@ -623,6 +647,7 @@ public final class InputSession {
         }
         // The candidates the user removed, left out by level one whatever its engine.
         takeRemovedCandidates(config.removedCandidates, unwritten: unwritten)
+        if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
         composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)

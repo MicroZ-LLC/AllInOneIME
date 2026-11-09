@@ -3,6 +3,24 @@ import AllInOneIMECore
 
 /// Installing an update on the Mac: its archive unpacked with ditto, its apps checked (Info.plist, code signature).
 extension Updater {
+    /// The input method installed in `folder` (~/Library/Input Methods, or a test install's): the app there with
+    /// `bundleID`, whatever its folder's name (0.7.2 installed it as AllInOneIME.app; 0.7.1.1's move and new installs as
+    /// `installedInputMethodName`). With several, `preferred` (this process's own bundle) when it is one of them, else
+    /// `installedInputMethodName`, else the first by name. Nil when there is none.
+    public static func installedInputMethod(in folder: URL, bundleID: String = Updater.bundleID, preferring preferred: URL? = nil) -> URL? {
+        let apps = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []).filter { app in
+            app.pathExtension == "app"
+                && NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == bundleID
+        }
+        func same(_ a: URL, _ b: URL) -> Bool {
+            a.resolvingSymlinksInPath().standardizedFileURL.path == b.resolvingSymlinksInPath().standardizedFileURL.path
+        }
+        let found = apps.first { app in preferred.map { same(app, $0) } ?? false }
+            ?? apps.min { ($0.lastPathComponent != installedInputMethodName ? 1 : 0, $0.lastPathComponent)
+                < ($1.lastPathComponent != installedInputMethodName ? 1 : 0, $1.lastPathComponent) }
+        return found.map { folder.appendingPathComponent($0.lastPathComponent, isDirectory: true) }
+    }
+
     /// The Mac apps' update manifest (site/public/update-v2.json, signed). update.json, which versions before 0.7.1 read,
     /// stays at 0.7.1: they don't install apps with this version's bundle IDs.
     public static let defaultManifestURL = URL(string: "https://allinoneime.com/update-v2.json")!

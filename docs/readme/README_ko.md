@@ -232,7 +232,7 @@ Raycast의 모드는 다음과 같이 대응됩니다: `fullOutput` → `show`, 
 - **업데이트 적용은 사용자가 결정합니다.** 하루에 한 번(그리고 입력기가 시작된 직후) 소스를 가져와(fetch) 새로운 것이 있는지 확인합니다. 설정에 "N updates"(업데이트 N개)와 그 커밋(제목, 작성자, 날짜), 페이지의 배지가 표시됩니다. **Update**(업데이트)를 클릭하기 전까지는 아무것도 바뀌지 않으며, Update는 fast-forward만 하고 훅은 실행하지 않습니다. 강제 푸시가 있으면 소스를 다시 검토해야 합니다. **Re-clone**(다시 클론)이 검토 화면을 보여 주고, Enable을 눌러야만 다시 쓰인 기록으로 바뀝니다(그때까지는 검토한 버전이 계속 동작합니다). 태그나 커밋에 고정한 소스는 확인하지 않습니다. 매일 확인은 소스마다 끌 수 있습니다(`autoCheck`).
 - **오류**는 git의 메시지 그대로이며, "This uses your own git and SSH setup; check that `git ls-remote <url>` works in Terminal"(사용자 자신의 git과 SSH 설정을 사용합니다. Terminal에서 이 명령이 동작하는지 확인하세요)과, 설정했다면 그 아래에 사용자 자신의 안내 문구(설정 파일의 `authHint`)가 붙습니다.
 - **Remove**(제거)는 클론을 휴지통으로 옮깁니다. 번들의 환경설정은 다음을 위해 남겨 둡니다.
-- 터미널에서: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`(검토 내용을 출력하고 활성화합니다. 강제 푸시 뒤에도 다시 실행), `--update-sources`(고정되지 않은 검토된 소스를 모두 fast-forward), `--list-extensions`(실행 파일은 `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+- 터미널에서: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`(검토 내용을 출력하고 활성화합니다. 강제 푸시 뒤에도 다시 실행), `--update-sources`(고정되지 않은 검토된 소스를 모두 fast-forward), `--list-extensions`(실행 파일은 `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`).
 - 검토된 코드만 불러옵니다. 불러오기 목록에 있어도 이 Mac에서 검토하지 않은 소스 폴더(복사해 온 설정 파일 등)는 제외됩니다. git은 응답을 기다리지 않습니다. 터미널도 프롬프트도 없으므로, 알 수 없는 호스트 키나 암호 요청은 바로 실패합니다.
 
 설정 파일에는 `extensionSources`로 저장됩니다. 저장소 구성은 [docs/extensions.md](../extensions.md#10-extension-sources)에 있습니다.

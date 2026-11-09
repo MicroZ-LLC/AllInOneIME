@@ -8,6 +8,10 @@ extension SessionServices {
     /// method quits.
     @MainActor
     private static let lettersTypedOnce = EnglishWords.TypedOnce()
+    /// The words learned while the config file doesn't parse, every field's, until it does and allows them (or the input
+    /// method quits).
+    @MainActor
+    private static let wordsHeld = EnglishWords.Held()
 
     /// Where the English words learned, and the candidates removed, are written into the config file, off the main
     /// thread (`EnglishWords.Writer`): every field's, in order. The file as it is then is read there too, so the next key
@@ -38,6 +42,7 @@ extension SessionServices {
         // self-test's own while it runs) a moment later, never while the key is handled.
         services.englishDictionary = { RimeService.shared.englishDictionary }
         services.englishTypedOnce = lettersTypedOnce
+        services.englishWordsHeld = wordsHeld
         services.learnEnglishWord = { englishWordsWriter.learn($0, at: Config.defaultURL) }
         services.removeCandidate = { englishWordsWriter.remove($0, at: Config.defaultURL) }
         // Until it is in the file every field leaves it out; once it is, the file's list has the say (a restore there

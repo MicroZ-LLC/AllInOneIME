@@ -38,8 +38,22 @@ struct UpdateLocations {
     /// The helper's log.
     var log: URL
     var isTest: Bool
+    /// Where the input method is installed, found once (`Updater.installedInputMethod`): this process's own bundle when
+    /// it is the one in `inputMethods`, else the app there with this bundle ID, whatever its folder's name (0.7.2's
+    /// AllInOneIME.app, or AllInOneIME Input.app); where a new install goes (`Updater.installedInputMethodName`) when
+    /// there is none. An update swaps the apps there: it keeps the folder it finds (a path keeps the bundle ID it had).
+    var inputMethod: URL
 
-    var inputMethod: URL { inputMethods.appendingPathComponent(Updater.inputMethodName, isDirectory: true) }
+    init(inputMethods: URL, applications: URL, work: URL, log: URL, isTest: Bool) {
+        self.inputMethods = inputMethods
+        self.applications = applications
+        self.work = work
+        self.log = log
+        self.isTest = isTest
+        inputMethod = Updater.installedInputMethod(in: inputMethods, preferring: Bundle.main.bundleURL)
+            ?? inputMethods.appendingPathComponent(Updater.installedInputMethodName, isDirectory: true)
+    }
+
     var settingsApp: URL { applications.appendingPathComponent(Updater.settingsAppName, isDirectory: true) }
     var result: URL { work.appendingPathComponent("result.json") }
 
@@ -62,7 +76,7 @@ struct UpdateLocations {
     /// The version of the input method installed here; nil if there's none.
     var installedVersion: String? { UpdateStaging.version(of: inputMethod) }
 
-    /// Whether this process is the installed input method (only that one is updated in place).
+    /// Whether this process is the installed input method (only that one is updated in place), wherever it is installed.
     static var runningIsInstalled: Bool {
         Bundle.main.bundleURL.resolvingSymlinksInPath().standardizedFileURL.path
             == real.inputMethod.resolvingSymlinksInPath().standardizedFileURL.path
