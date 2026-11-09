@@ -2544,6 +2544,7 @@ struct SettingsView: View {
         .onChange(of: model.config.outputLanguage) { model.save() }
         .onChange(of: model.config.outputLanguages) { model.save() }
         .onChange(of: model.config.inputLanguages) { model.save() }
+        .onChange(of: model.config.keyboardLayouts) { model.save() }
         .onChange(of: model.config.codingLanguage) { model.save() }
         .onChange(of: model.config.improveTranslates) { model.save() }
         .onChange(of: model.config.voiceInput) { model.save() }

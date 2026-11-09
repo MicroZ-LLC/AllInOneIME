@@ -74,7 +74,9 @@ struct PanelPointerTests {
         line.type("Hello wor")
         world.advance(0.2)
         line.fireTimers { if case .autocomplete = $0 { true } else { false } }
-        #expect(line.settle(timeout: 5) { line.ghost != nil }, "a suggestion")
+        // The suggestion may take seconds while a whole test run keeps the Mac busy (the input method compiled for each
+        // issue suite).
+        #expect(line.settle(timeout: 15) { line.ghost != nil }, "a suggestion")
         pointer.take(by: line, Self.session(line, rows: false))
         world.advance(0.5)
         world.pointerUsed()

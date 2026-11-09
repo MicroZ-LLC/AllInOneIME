@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.3 (unreleased)
+
+### Fixed
+
+- The keyboard layout you pick for French in Settings → Input (`keyboardLayouts` in the config) is now saved at once and typed with from the next field. Before, French kept typing AZERTY until another setting was saved or Settings was closed, and if the config was rewritten meanwhile (Settings → Assistant, iCloud sync, a learned word) the pick was lost and the picker showed AZERTY again.
+
 ## 0.7.2 (unreleased)
 
 ### Changed
