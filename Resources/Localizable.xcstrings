@@ -3817,6 +3817,53 @@
         }
       }
     },
+    "A random number made on this Mac, so we can count installs. Nothing else is sent." : {
+      "comment" : "一个本机随机生成的编号，只用于统计安装数，不含其他信息。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine auf diesem Mac erzeugte Zufallszahl, damit wir Installationen zählen können. Sonst wird nichts gesendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un número aleatorio creado en este Mac para que podamos contar las instalaciones. No se envía nada más."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nombre aléatoire créé sur ce Mac, pour que nous puissions compter les installations. Rien d’autre n’est envoyé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacで作られたランダムな番号で、インストール数を数えるためだけに使います。ほかには何も送信しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 만든 임의의 번호로, 설치 수를 세는 데만 쓰입니다. 그 밖에는 아무것도 보내지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um número aleatório criado neste Mac, para podermos contar as instalações. Nada mais é enviado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一個在這台 Mac 上隨機產生的編號，只用來統計安裝數，不含其他資訊。"
+          }
+        }
+      }
+    },
     "A regular input method: %@. Type @ first for commands: @improve polishes and rewrites, @translate translates, @question asks, @agent hands it to a coding agent (Claude Code …), @open finds files, @note saves to Notes, @reminder adds a reminder. When done, %@." : {
       "comment" : "平时就是普通输入法：%@。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完%@执行。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -28166,6 +28213,53 @@
         }
       }
     },
+    "Send an anonymous install ID with the daily update check" : {
+      "comment" : "每日检查更新时附带匿名安装 ID — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei der täglichen Update-Prüfung eine anonyme Installations-ID mitsenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar un ID de instalación anónimo con la comprobación diaria de actualizaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer un identifiant d’installation anonyme avec la vérification quotidienne des mises à jour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毎日のアップデート確認で匿名のインストールIDを送信"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매일 업데이트 확인 시 익명 설치 ID 보내기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar um ID de instalação anônimo com a verificação diária de atualizações"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日檢查更新時附帶匿名安裝 ID"
+          }
+        }
+      }
+    },
     "sends the text after @%@ to %@" : {
       "comment" : "@%@ 后面的内容会发到 %@ — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -35581,6 +35675,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網站"
+          }
+        }
+      }
+    },
+    "What Goes to allinoneime.com" : {
+      "comment" : "发给 allinoneime.com 的内容 — Sources/AllInOneIME/PrivacySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was an allinoneime.com geht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que se envía a allinoneime.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui est envoyé à allinoneime.com"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "allinoneime.comに送信される内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "allinoneime.com으로 보내는 내용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Que Vai para allinoneime.com"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送給 allinoneime.com 的內容"
           }
         }
       }

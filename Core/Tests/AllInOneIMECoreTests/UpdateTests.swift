@@ -10,11 +10,11 @@ struct TestUpdateServer {
     let key = Curve25519.Signing.PrivateKey()
     var manifestURL: URL { URL(string: base + "update.json")! }
 
-    func updater(current: String = "0.6.3", system: String = "15.0.0") -> Updater {
+    func updater(current: String = "0.6.3", system: String = "15.0.0", installID: String? = nil) -> Updater {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [LibraryStubProtocol.self]
         return Updater(manifestURL: manifestURL, publicKey: key.publicKey.rawRepresentation, configuration: configuration,
-                       currentVersion: current, systemVersion: system, allowsLocalHTTP: true)
+                       currentVersion: current, systemVersion: system, allowsLocalHTTP: true, installID: installID)
     }
 
     /// Serves `archive` as the download and returns the manifest's fields for it.
@@ -271,6 +271,50 @@ struct UpdateTests {
         #expect(LibraryStubProtocol.asked(host: updater.manifestURL.host!).isEmpty)
     }
 
+    // MARK: Install ID
+
+    @Test func anInstallIDIsSixteenRandomHexDigits() {
+        let ids = (0..<200).map { _ in InstallID.make() }
+        for id in ids {
+            #expect(id.count == 16 && id.allSatisfy { "0123456789abcdef".contains($0) } && InstallID.isValid(id), "\(id)")
+        }
+        #expect(Set(ids).count == ids.count)
+        // Anything else kept is replaced, never sent.
+        for kept in [nil, "", "0123456789ABCDEF", "0123456789abcde", "0123456789abcdef0", "0123456789abcdeg", "0123456789abcde\n",
+                     "０123456789abcde"] {
+            #expect(!InstallID.isValid(kept), "\(kept ?? "nil")")
+        }
+    }
+
+    /// The install ID rides only in the manifest's request, in its User-Agent: never the signature's or the archive's.
+    @Test func onlyTheManifestsRequestCarriesTheInstallID() async throws {
+        let server = TestUpdateServer()
+        let fields = server.publish(Data("archive".utf8))
+        try server.serve(fields)
+        let manifest = server.base + "update.json", signature = server.base + "update.json.sig", archive = try #require(fields["url"] as? String)
+        let updater = server.updater(current: "0.6.3", installID: "0123456789abcdef")
+        let agent = "AllInOneIME/0.6.3 (install 0123456789abcdef)"
+        #expect(updater.manifestUserAgent == agent)
+
+        let found = try await updater.check()
+        #expect(LibraryStubProtocol.userAgent(manifest) == agent)
+        #expect(LibraryStubProtocol.userAgent(signature)?.contains("install") != true)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("update-\(UUID().uuidString).zip")
+        defer { try? FileManager.default.removeItem(at: file) }
+        try await updater.download(found.manifest, to: file)
+        #expect(LibraryStubProtocol.asked(host: "127.0.0.1").contains(archive))
+        #expect(LibraryStubProtocol.userAgent(archive)?.contains("install") != true)
+
+        // Without one (turned off), or with anything but an install ID: the manifest's request as the signature's.
+        for id in [nil, "not an install id"] {
+            let plain = server.updater(installID: id)
+            #expect(plain.manifestUserAgent == nil)
+            _ = try await plain.check()
+            #expect(LibraryStubProtocol.userAgent(manifest) == LibraryStubProtocol.userAgent(signature))
+            #expect(LibraryStubProtocol.userAgent(manifest)?.contains("install") != true)
+        }
+    }
+
     // MARK: Once a day
 
     @Test func checksOnceADayAndRetriesAnHourAfterAFailure() {
@@ -333,6 +377,23 @@ struct UpdateTests {
         #expect(ICloudSync.category(of: "notifiesUpdates") == ICloudSync.category(of: "checkForUpdates") && ICloudSync.category(of: "notifiesUpdates") != nil)
         #expect(ICloudSync.values(of: .default, in: [.settings])["notifiesUpdates"] == .bool(true))
         #expect(ICloudSync.values(of: config, in: [.settings])["notifiesUpdates"] == .bool(false))
+    }
+
+    /// Sending the install ID (`sendsInstallID`): on by default, also for a file from before the switch, which doesn't
+    /// gain the key (it is written only when off); turned off, it stays off; each Mac's own, never synced.
+    @Test func sendingTheInstallIDIsOnUnlessTurnedOff() throws {
+        #expect(Config.default.sendsInstallID && Config.fresh.sendsInstallID)
+        let before = try JSONDecoder().decode(Config.self, from: Data(#"{"checkForUpdates": false, "provider": "anthropic"}"#.utf8))
+        #expect(before.sendsInstallID)
+        #expect((try JSONSerialization.jsonObject(with: JSONEncoder().encode(before)) as? [String: Any])?["sendsInstallID"] == nil)
+        var config = Config.default
+        config.sendsInstallID = false
+        let data = try JSONEncoder().encode(config)
+        let saved = try JSONDecoder().decode(Config.self, from: data)
+        #expect(!saved.sendsInstallID && saved.checkForUpdates && saved == config)
+        #expect((try JSONSerialization.jsonObject(with: data) as? [String: Any])?["sendsInstallID"] as? Bool == false)
+        #expect(Config.allKeys.contains("sendsInstallID") && ICloudSync.neverSynced.contains("sendsInstallID"))
+        #expect(ICloudSync.values(of: config, in: Set(ICloudSync.Category.allCases))["sendsInstallID"] == nil)
     }
 
     /// Don't Show Again writes only that key (`Config.change`): the rest of the file as it was, a later version's key too.

@@ -1045,6 +1045,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `useSelection` | 命令处理输入框里选中的文字（见「对选中的文字用命令」） | `true` |
 | `checkForUpdates` | 每天在后台看一次有没有新版本；不点就不会安装 | `true` |
 | `notifiesUpdates` | 这样发现的新版本，用一条系统通知说一次，带「更新」和「不再提示」（点它就关掉这一项）；只在 `checkForUpdates` 打开时有效 | `true` |
+| `sendsInstallID` | 检查更新时，下载清单的请求带上这台 Mac 的随机安装 ID，用来统计安装数（见「隐私」）；关掉会删掉它。不同步 | `true` |
 | `agent` | `@agent` 交给哪个编程 agent（设置 →「命令」）：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
 | `agentCommand` | 自定义 agent 的命令，你打的字加在最后，例如 `["muse", "--"]` | `[]` |
 | `agentPageContext` | 在 Google Chrome 里 `@agent` 带上网页（输入框、它所在的表单或区块、选中的文字、看得到的内容；不读密码） | `true` |
@@ -1099,7 +1100,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - `@question` 记着最近 5 个问题、答案和提问时间，只存在这台 Mac 上的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的用户能读；除非你选了通过 iCloud 同步它们，见上面），用来在 `@question` 下面列出来；看保存的答案不联网。系统安全输入时什么都不存；对选中文字的提问一律不存（答案说的是选中的文字，存下来就会把那段文字写到磁盘上）。在设置 →「隐私」里关掉「记住最近的问题」会删掉已存的；用搜索里的「修改：…」关掉（配置里的 `rememberQuestions`）时保留，这样能原样撤销。「忘掉」删掉已存的。
 - 菜单栏面板为了列出笔记，记着用 `@note` 存过的最近 30 条笔记的编号（备忘录里的编号、文件的路径或 Notion 页面的地址）和第一行（最多 80 字），存在输入法自己的偏好设置里；面板收着时也记。打开面板从不访问 Notion。
 - `@py`、`@js` 只在你按执行键时运行，运行的只是你自己打的或明确粘贴进来的代码：AI 的回答和其他命令的输出从来不会被当成代码执行。`@py` 用你本机的 `python3`，和在终端里运行一样能读写文件、联网；`@js` 在单独的进程里运行，读不到文件，也不能联网或运行别的程序。安全输入时它们都不运行。
-- 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update-v2.json 和它的签名；请求里没有任何标识，也没有你打的字。只有点了「更新」，才会从 GitHub release 下载新版本。
+- 检查更新：每天一次（关掉「自动检查更新」就不会），AllInOneIME 下载 https://allinoneime.com/update-v2.json 和它的签名，不带你打的字。下载清单的请求在 User-Agent 里带一个标识，`AllInOneIME/<版本> (install <编号>)`：一个本机随机生成的 16 位十六进制编号，存在输入法自己的偏好设置里（不同步），只用于统计安装数。在设置 →「隐私」里关掉「每日检查更新时附带匿名安装 ID」（配置里的 `sendsInstallID`）就不再发送，并删掉这个编号；再打开会生成一个新的。只有点了「更新」，才会从 GitHub release 下载新版本。
 - 扩展来源：git 在你的 Mac 上以你的身份运行，只针对你加的来源：自动检查的来源每天拉取一次（固定的不拉取），以及你点「立即检查」「更新」「重新克隆」时。
   它只连仓库所在的主机，用你自己的 git 和 SSH 设置登录；你打的字不会带上。
 - 通过 iCloud 同步（默认关）：只放进你自己的 iCloud 云盘 `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`，由 Apple

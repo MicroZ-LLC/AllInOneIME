@@ -76,14 +76,15 @@ public enum ICloudSync {
     /// `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
     /// its own, decision 26). Clipboard history's switch and how many it keeps (`clipboardHistory`,
-    /// `clipboardHistoryLimit`) are this Mac's, as its history is. Apps without typos and the recent apps aren't config
-    /// keys either: named so that no later version adds them.
+    /// `clipboardHistoryLimit`) are this Mac's, as its history is, and so is whether the update check sends its install ID
+    /// (`sendsInstallID`), as the ID is. Apps without typos and the recent apps aren't config keys either: named so that no
+    /// later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",
         "defaultInput", "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
         "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
-        "clipboardHistory", "clipboardHistoryLimit",
+        "clipboardHistory", "clipboardHistoryLimit", "sendsInstallID",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
