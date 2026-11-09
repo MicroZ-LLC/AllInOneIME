@@ -232,7 +232,7 @@ Raycast のモードは次のように対応します：`fullOutput` → `show`�
 - **アップデートを適用するのはあなたです。** 1 日 1 回（と入力メソッドの起動直後）にソースを取得（fetch）して新しい変更を確認し、設定画面に「N updates」（N 件のアップデート）とそのコミット（件名、作成者、日付）、ページ上のバッジを表示します。**Update**（アップデート）をクリックするまで何も変わらず、Update は早送り（fast-forward）だけを行い、フックは実行しません。強制プッシュがあったソースは確認し直す必要があります。**Re-clone**（再クローン）で内容が表示され、Enable を押したときだけ書き換えられた履歴に置き換わります（それまでは確認済みのバージョンが動き続けます）。タグやコミットに固定したソースはチェックされません。毎日のチェックはソースごとにオフにできます（`autoCheck`）。
 - **エラー**は git 自身のメッセージそのままで、「This uses your own git and SSH setup; check that `git ls-remote <url>` works in Terminal」（あなた自身の git と SSH の設定を使っています。Terminal でこのコマンドが動くか確認してください）と、設定していればその下にあなた自身の注意書き（設定ファイルの `authHint`）が付きます。
 - **Remove**（削除）はクローンをゴミ箱に移します。バンドルの環境設定は次回のために残ります。
-- ターミナルから：`AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`（確認内容を表示して有効にします。強制プッシュの後にも再度実行）、`--update-sources`（固定されていない確認済みのソースをすべて早送りします）、`--list-extensions`（実行ファイルは `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`）。
+- ターミナルから：`AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`（確認内容を表示して有効にします。強制プッシュの後にも再度実行）、`--update-sources`（固定されていない確認済みのソースをすべて早送りします）、`--list-extensions`（実行ファイルは `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`）。
 - 読み込まれるのは確認済みのコードだけです。読み込みリストにあっても、この Mac で確認されていないソースフォルダ（コピーした設定ファイルなど）は除外されます。git が応答を待つことはありません。ターミナルもプロンプトもないので、未知のホスト鍵やパスワードの要求はすぐに失敗します。
 
 設定ファイルでは `extensionSources` として保存されます。リポジトリの構成は [docs/extensions.md](../extensions.md#10-extension-sources) にあります。

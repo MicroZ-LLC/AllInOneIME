@@ -481,7 +481,8 @@ extensions folder. (Don't put a name, password or token in an https address: git
 - **Remove** moves the clone to the Trash; the bundle's preferences are kept for next time.
 - From a terminal: `AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]` (prints the review and enables
   it; again after a force push), `--update-sources` (fast-forwards every reviewed source that isn't pinned),
-  `--list-extensions` (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`).
+  `--list-extensions` (on `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`; `AllInOneIME.app`
+  in an install updated from 0.7.2).
 - Only reviewed code loads: a source folder in the load list that wasn't reviewed on this Mac (a copied config) is left
   out. git never waits for an answer: no terminal and no prompts, so an unknown host key or a password prompt fails at once.
 
@@ -1503,11 +1504,17 @@ registers the new one. To try it against a local server: `make update-test`, or 
 
 The bundle ID is `com.allinoneime.inputmethod.AllInOneIME` since 0.7.2, AllInOneIME's own system identity (AllInOneIME
 Settings: `com.allinoneime.settings`; the keychain access group: `9SR8N3UD5Y.com.allinoneime.shared`): macOS uses it to
-remember the added input source and the permissions granted to it. 0.7.1, the last version with the earlier identity,
-moves an install to this one, carrying the preferences and keychain items over (by its own update, or
+remember the added input source and the permissions granted to it. 0.7.1 and 0.7.1.1, the last versions with the earlier
+identity, move an install to this one, carrying the preferences and keychain items over (by their own update, or
 `AllInOneIME --migrate-identity <the new AllInOneIME.app>`, which the installer and `make install` call); this version
 relies on that, and tells an install of another identity only by its bundle ID not being this one's
-(`Sources/AllInOneIMEMac/SystemIdentity.swift`). The keys 0.7.1 kept in the login keychain come as handover items in this
+(`Sources/AllInOneIMEMac/SystemIdentity.swift`). The input method is found by its bundle ID in ~/Library/Input Methods,
+whatever its folder's name (`Updater.installedInputMethod`; the installer, `make install`, the updater and AllInOneIME
+Settings all do): 0.7.1.1 and new installs put it in `AllInOneIME Input.app`, a path no version with the earlier identity
+had, so that macOS files its input source under its own bundle ID at once (Text Input Sources files an input method by
+its path, and every running process keeps the bundle it once read there: 0.7.1 put 0.7.2 in `AllInOneIME.app`, the earlier
+identity's path, where it can stay filed under the old bundle ID until the user logs out). An update keeps the folder it
+finds. The keys 0.7.1 kept in the login keychain come as handover items in this
 version's access group: at launch the input method imports each into the login keychain as its own item (so macOS never
 asks to allow it) and deletes the handover item; and what 0.7.1's cleanup couldn't remove is listed in
 `~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which the input method finishes at launch with the

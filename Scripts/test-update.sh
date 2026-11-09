@@ -2,10 +2,12 @@
 # The in-app updater end to end, on this Mac, without touching the user's install (`make update-test`):
 # a temporary "Input Methods" and "Applications" holding this build (the installed version), a test server on
 # 127.0.0.1 with a newer version made from the same build (9.9.0, re-signed ad hoc) and its update-v2.json signed
-# with a test key. Checks: the check finds it, another key is refused, a download that doesn't match changes
-# nothing, a failure after the swap rolls back, the update itself (the helper outliving the process that started
-# it, as the input method does), and a downgrade is refused. The user's settings, packs, installed apps, input sources
-# and running input method are the same afterwards.
+# with a test key. Checks, with the input method where new installs put it (Input Methods/AllInOneIME Input.app): the
+# check finds it, another key is refused, a download that doesn't match changes nothing, a failure after the swap rolls
+# back, the update itself (the helper outliving the process that started it, as the input method does), and a downgrade
+# is refused. Then the same with it where 0.7.2 is (Input Methods/AllInOneIME.app): a rollback and an update keep it
+# there; and the input method is found by its bundle ID in either (Scripts/installed-input-method.sh, `make install`'s
+# way). The user's settings, packs, installed apps, input sources and running input method are the same afterwards.
 # Usage: Scripts/test-update.sh BUILD-DIR (with AllInOneIME.app and "AllInOneIME Settings.app")
 set -eu
 
@@ -33,7 +35,8 @@ snapshot() {
     {
         find "$HOME/.config/allinoneime" "$HOME/Library/Application Support/AllInOneIME/LanguagePacks" -type f \
             -exec stat -f '%N %z %m' {} + 2>/dev/null | sort
-        stat -f '%N %i %m' "$HOME/Library/Input Methods/AllInOneIME.app" "$HOME/Applications/AllInOneIME Settings.app" 2>/dev/null || true
+        stat -f '%N %i %m' "$HOME/Library/Input Methods/AllInOneIME.app" "$HOME/Library/Input Methods/AllInOneIME Input.app" \
+            "$HOME/Applications/AllInOneIME Settings.app" 2>/dev/null || true
         [ -d "$HOME/Library/Application Support/AllInOneIME/Updates.noindex" ] && echo "real Updates.noindex exists" || true
         # The user's input sources never changed.
         defaults read com.apple.HIToolbox AppleEnabledInputSources 2>/dev/null | shasum
@@ -44,11 +47,12 @@ snapshot() {
 }
 snapshot "$root/before.txt"
 
-# The "installed" apps: this build.
+# The "installed" apps: this build, the input method where a new install puts it.
+here="$root/Input Methods/AllInOneIME Input.app"
 mkdir -p "$root/Input Methods" "$root/Applications" "$server" "$root/new"
-ditto "$build/AllInOneIME.app" "$root/Input Methods/AllInOneIME.app"
+ditto "$build/AllInOneIME.app" "$here"
 ditto "$build/AllInOneIME Settings.app" "$root/Applications/AllInOneIME Settings.app"
-installed="$root/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME"
+installed="$here/Contents/MacOS/AllInOneIME"
 
 # The "new" version: the same build as 9.9.0, re-signed (ad hoc), zipped as `make update-zip` does.
 for app in "AllInOneIME.app" "AllInOneIME Settings.app"; do
@@ -85,16 +89,16 @@ out=$("$installed" --check-update --manifest-url "$manifest" --key "$other" 2>&1
 mv "$server/AllInOneIME-9.9.0-update.zip" "$server/good.zip"
 cp "$root/changed.zip" "$server/AllInOneIME-9.9.0-update.zip"
 out=$("$installed" --install-update $args 2>&1) && fail "a changed archive is refused" \
-    || { echo "$out" | grep -q "doesn't match" && [ "$(version "$root/Input Methods/AllInOneIME.app")" = "$old" ] \
+    || { echo "$out" | grep -q "doesn't match" && [ "$(version "$here")" = "$old" ] \
         && [ -z "$(ls -A "$root/Updates.noindex" 2>/dev/null | grep update-)" ] \
         && pass "a changed archive is refused; nothing installed or left behind" || { echo "$out"; fail "a changed archive is refused"; }; }
 mv "$server/good.zip" "$server/AllInOneIME-9.9.0-update.zip"
 
 # 3. A failure after the swap: the previous apps are put back.
 out=$("$installed" --install-update $args --simulate-failure after-swap 2>&1) && fail "rollback" \
-    || { [ "$(version "$root/Input Methods/AllInOneIME.app")" = "$old" ] \
+    || { [ "$(version "$here")" = "$old" ] \
         && [ "$(version "$root/Applications/AllInOneIME Settings.app")" = "$old" ] \
-        && codesign --verify --strict "$root/Input Methods/AllInOneIME.app" 2>/dev/null \
+        && codesign --verify --strict "$here" 2>/dev/null \
         && [ "$("$installed" --version)" = "$old" ] \
         && grep -q '"ok" : false' "$root/Updates.noindex/result.json" \
         && [ -z "$(ls -A "$root/Updates.noindex" | grep update-)" ] \
@@ -104,21 +108,64 @@ out=$("$installed" --install-update $args --simulate-failure after-swap 2>&1) &&
 out=$("$installed" --install-update $args --detach 2>&1) || { echo "$out"; fail "the update starts"; }
 for _ in $(seq 1 120); do [ -f "$root/Updates.noindex/result.json" ] && grep -q '"to" : "9.9.0"' "$root/Updates.noindex/result.json" && break; sleep 0.5; done
 if grep -q '"ok" : true' "$root/Updates.noindex/result.json" 2>/dev/null \
-    && [ "$(version "$root/Input Methods/AllInOneIME.app")" = "9.9.0" ] \
+    && [ "$(version "$here")" = "9.9.0" ] \
     && [ "$(version "$root/Applications/AllInOneIME Settings.app")" = "9.9.0" ] \
     && [ "$("$installed" --version)" = "9.9.0" ] \
-    && [ -z "$(ls -A "$root/Updates.noindex" | grep update-)" ]; then
-    pass "updated $old → 9.9.0: both apps swapped, the new one starts, nothing left behind"
+    && [ -z "$(ls -A "$root/Updates.noindex" | grep update-)" ] && [ "$(ls "$root/Input Methods")" = "AllInOneIME Input.app" ]; then
+    pass "updated $old → 9.9.0 in AllInOneIME Input.app: both apps swapped, the new one starts, nothing left behind"
 else
     echo "$out"; cat "$root/update.log"; fail "the update"
 fi
 
 # 5. The same version again (or an older one): refused.
 out=$("$installed" --install-update $args 2>&1) && fail "a downgrade is refused" \
-    || { echo "$out" | grep -q "isn't newer" && [ "$(version "$root/Input Methods/AllInOneIME.app")" = "9.9.0" ] \
+    || { echo "$out" | grep -q "isn't newer" && [ "$(version "$here")" = "9.9.0" ] \
         && pass "the same version again is refused" || { echo "$out"; fail "a downgrade is refused"; }; }
 
-# 6. The user's own things.
+# 6. Where 0.7.2 is (AllInOneIME.app, the folder 0.7.1 put it in): found there, and an update (or its rollback) keeps it
+# there. 9.9.1, made as 9.9.0 was.
+mkdir -p "$root/new"
+for app in "AllInOneIME.app" "AllInOneIME Settings.app"; do
+    ditto "$build/$app" "$root/new/$app"
+    /usr/libexec/PlistBuddy -c 'Set :CFBundleShortVersionString 9.9.1' -c 'Set :CFBundleVersion 991' "$root/new/$app/Contents/Info.plist"
+    codesign --force --sign - "$root/new/$app" 2>/dev/null
+done
+ditto -c -k --norsrc --noextattr --noacl "$root/new" "$server/AllInOneIME-9.9.1-update.zip"
+rm -rf "$root/new"
+swift "$repo/Scripts/build-update-manifest.swift" --test-key "$root/test.key" --out "$server" \
+    --zip "$server/AllInOneIME-9.9.1-update.zip" --url "http://127.0.0.1:$port/AllInOneIME-9.9.1-update.zip" \
+    --notes "https://github.com/MicroZ-LLC/AllInOneIME/releases" --summary-en "Test update." --summary-zh "测试更新。" > /dev/null
+rm -rf "$here" "$root/Applications/AllInOneIME Settings.app" "$root/Updates.noindex/result.json"
+earlier="$root/Input Methods/AllInOneIME.app"
+ditto "$build/AllInOneIME.app" "$earlier"
+ditto "$build/AllInOneIME Settings.app" "$root/Applications/AllInOneIME Settings.app"
+installed="$earlier/Contents/MacOS/AllInOneIME"
+found=$("$repo/Scripts/installed-input-method.sh" "$root/Input Methods" "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$earlier/Contents/Info.plist")")
+[ "$found" = "$earlier" ] && pass "make install finds the input method by its bundle ID in AllInOneIME.app" || fail "found in AllInOneIME.app: $found"
+out=$("$installed" --install-update $args --simulate-failure after-swap 2>&1) && fail "rollback in AllInOneIME.app" \
+    || { [ "$(version "$earlier")" = "$old" ] && [ "$("$installed" --version)" = "$old" ] && [ ! -e "$here" ] \
+        && grep -q '"ok" : false' "$root/Updates.noindex/result.json" \
+        && pass "a failure after the swap puts $old back in AllInOneIME.app" || { echo "$out"; cat "$root/update.log"; fail "rollback in AllInOneIME.app"; }; }
+rm -f "$root/Updates.noindex/result.json"
+out=$("$installed" --install-update $args --detach 2>&1) || { echo "$out"; fail "the update in AllInOneIME.app starts"; }
+for _ in $(seq 1 120); do [ -f "$root/Updates.noindex/result.json" ] && grep -q '"to" : "9.9.1"' "$root/Updates.noindex/result.json" && break; sleep 0.5; done
+if grep -q '"ok" : true' "$root/Updates.noindex/result.json" 2>/dev/null \
+    && [ "$(version "$earlier")" = "9.9.1" ] && [ "$("$installed" --version)" = "9.9.1" ] \
+    && [ "$(version "$root/Applications/AllInOneIME Settings.app")" = "9.9.1" ] \
+    && [ "$(ls "$root/Input Methods")" = "AllInOneIME.app" ] \
+    && [ -z "$(ls -A "$root/Updates.noindex" | grep update-)" ]; then
+    pass "updated $old → 9.9.1 in AllInOneIME.app: the folder it was in is kept"
+else
+    echo "$out"; cat "$root/update.log"; fail "the update in AllInOneIME.app"
+fi
+id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$earlier/Contents/Info.plist")
+mv "$earlier" "$here"
+[ "$("$repo/Scripts/installed-input-method.sh" "$root/Input Methods" "$id")" = "$here" ] \
+    && ! "$repo/Scripts/installed-input-method.sh" "$root/Input Methods" com.example.other > /dev/null \
+    && [ "$("$repo/Scripts/installed-input-method.sh" --new "$root/Input Methods" com.example.other)" = "$here" ] \
+    && pass "make install finds it in AllInOneIME Input.app too, and puts a new install there" || fail "make install's lookup"
+
+# 7. The user's own things.
 snapshot "$root/after.txt"
 if cmp -s "$root/before.txt" "$root/after.txt"; then
     pass "the user's settings, packs, installed apps and running input method are untouched ($(wc -l < "$root/before.txt" | tr -d ' ') items)"

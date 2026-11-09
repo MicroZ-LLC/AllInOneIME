@@ -54,7 +54,7 @@ public enum UpdateError: Error, LocalizedError, Equatable {
     /// description doesn't say whether anything changed: the About page's text for a refused update says nothing was, a
     /// failure after the swap says what is back.
     case invalidApp(String)
-    /// This copy isn't the installed one (~/Library/Input Methods/AllInOneIME.app): nothing to update in place.
+    /// This copy isn't the installed one (the input method in ~/Library/Input Methods): nothing to update in place.
     case notInstalled
     case cancelled
 
@@ -183,7 +183,15 @@ public struct Updater: Sendable {
     public static let maxManifestBytes = 64 << 10
     /// No release is anywhere near this: a disk filler is refused before it's downloaded.
     public static let maxArchiveBytes: Int64 = 1 << 30
+    /// The input method's folder in an update archive (and a build): what every updater unpacks. Where it is installed
+    /// is found by its bundle ID, whatever the folder's name (`installedInputMethod`, AllInOneIMEMac).
     public static let inputMethodName = "AllInOneIME.app"
+    /// The folder a new install puts the input method in, in ~/Library/Input Methods: a path no version with the earlier
+    /// system identity had (Text Input Sources files an input method by its path, and every process keeps the bundle it
+    /// once read there: a new identity at an old one's path stays filed under the old bundle ID until the user logs out).
+    /// Its name in the input sources and Finder stays AllInOneIME. An install in another folder (0.7.2's AllInOneIME.app)
+    /// keeps it: an update swaps the apps where they are.
+    public static let installedInputMethodName = "AllInOneIME Input.app"
     public static let settingsAppName = "AllInOneIME Settings.app"
     /// The apps' bundle IDs, their system identity (the input method's is its input source ID too): an update with
     /// any other is never installed.

@@ -232,7 +232,7 @@ Raycast 的模式對應如下：`fullOutput` → `show`，`compact` 和 `silent`
 - **更新由你決定是否套用。** 每天一次（以及輸入法啟動後不久）會 fetch 來源，看看有什麼新內容：設定會顯示「N updates」（N 個更新）和這些提交（主旨、作者、日期），頁面上也會有標記。在你按 **Update**（更新）之前什麼都不會改變；更新只做 fast-forward，不執行任何 hook。強制推送（force push）之後，來源需要重新審查：**Re-clone**（重新 clone）會再顯示一次審查內容，只有按 Enable 才會換上改寫過的歷史（在那之前，審查過的版本照常運作）。固定到標籤或提交的來源不會檢查更新。每天的檢查可以針對個別來源關閉（`autoCheck`）。
 - **錯誤**會照錄 git 自己的訊息，並加上「This uses your own git and SSH setup; check that `git ls-remote <url>` works in Terminal」（這裡使用的是你自己的 git 和 SSH 設定；請在 Terminal 中確認這個指令能正常執行），如果你設定了自己的提醒（設定檔中的 `authHint`），也會顯示在下方。
 - **Remove**（移除）會把 clone 移到垃圾桶；套件的偏好設定會保留，下次還能用。
-- 在終端機中：`AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`（印出審查內容並啟用；強制推送之後再執行一次）、`--update-sources`（對每個已審查且未固定的來源做 fast-forward）、`--list-extensions`（執行檔為 `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`）。
+- 在終端機中：`AllInOneIME --add-source <url> [--path …] [--branch …] [--pin …]`（印出審查內容並啟用；強制推送之後再執行一次）、`--update-sources`（對每個已審查且未固定的來源做 fast-forward）、`--list-extensions`（執行檔為 `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`）。
 - 只會載入審查過的程式碼：載入清單中的來源資料夾若沒有在這台 Mac 上審查過（例如複製過來的設定檔），就不會載入。git 從不等待回應：沒有終端機，也不會跳出詢問，所以遇到不認得的主機金鑰或要求輸入密碼時會立即失敗。
 
 設定檔中以 `extensionSources` 保存它們；儲存庫的結構請見 [docs/extensions.md](../extensions.md#10-extension-sources)。

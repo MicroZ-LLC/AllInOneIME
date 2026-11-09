@@ -9,7 +9,18 @@ import AppKit
 
 let inputMethodID = "com.allinoneime.inputmethod.AllInOneIME"
 let home = FileManager.default.homeDirectoryForCurrentUser
-let installed = home.appendingPathComponent("Library/Input Methods/AllInOneIME.app")
+/// The input method installed: the app in ~/Library/Input Methods with its bundle ID, whatever its folder's name (0.7.2
+/// installed it as AllInOneIME.app, later versions as AllInOneIME Input.app; `Updater.installedInputMethod` in the input
+/// method finds it the same way), that one first when there are several.
+let installed: URL? = {
+    let folder = home.appendingPathComponent("Library/Input Methods", isDirectory: true)
+    let apps = ((try? FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)) ?? []).filter { app in
+        app.pathExtension == "app"
+            && NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == inputMethodID
+    }
+    return apps.min { ($0.lastPathComponent != "AllInOneIME Input.app" ? 1 : 0, $0.lastPathComponent)
+        < ($1.lastPathComponent != "AllInOneIME Input.app" ? 1 : 0, $1.lastPathComponent) }
+}()
 
 /// The interface language, as in the input method: the one picked in the settings (`uiLanguage`), else the
 /// system's among the languages this app ships (`InterfaceLanguage`).
@@ -29,12 +40,10 @@ func fail(_ message: String) -> Never {
 let app = NSApplication.shared
 app.setActivationPolicy(.accessory)
 
-let url = FileManager.default.fileExists(atPath: installed.path)
-    ? installed
-    : NSWorkspace.shared.urlForApplication(withBundleIdentifier: inputMethodID)
+let url = installed ?? NSWorkspace.shared.urlForApplication(withBundleIdentifier: inputMethodID)
 guard let url else {
-    fail(tr("没有找到 AllInOneIME 输入法（~/Library/Input Methods/AllInOneIME.app），请先安装。",
-            "The AllInOneIME input method isn't installed (~/Library/Input Methods/AllInOneIME.app)."))
+    fail(tr("没有找到 AllInOneIME 输入法（在 ~/Library/Input Methods 里），请先安装。",
+            "The AllInOneIME input method isn't installed (in ~/Library/Input Methods)."))
 }
 
 let configuration = NSWorkspace.OpenConfiguration()

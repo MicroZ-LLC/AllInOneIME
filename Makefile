@@ -3,7 +3,15 @@ CONFIG        ?= release
 BUILD_DIR     := build
 APP           := $(BUILD_DIR)/$(APP_NAME).app
 INSTALL_DIR   := $(HOME)/Library/Input Methods
-INSTALLED_APP := $(INSTALL_DIR)/$(APP_NAME).app
+# The input method installed (Scripts/installed-input-method.sh, as Updater.installedInputMethod finds it): the app in
+# INSTALL_DIR with this bundle ID, whatever its folder's name (0.7.2 installed it as AllInOneIME.app; 0.7.1.1's move and
+# new installs as AllInOneIME Input.app). A command, run where it's used ($$($(INSTALLED_APP))): the move to this
+# identity puts it in place. INSTALLED_OR_NEW: where a new install goes when there is none.
+IME_BUNDLE_ID := $(shell /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' Resources/Info.plist)
+INSTALLED_APP := Scripts/installed-input-method.sh "$(INSTALL_DIR)" $(IME_BUNDLE_ID)
+INSTALLED_OR_NEW := Scripts/installed-input-method.sh --new "$(INSTALL_DIR)" $(IME_BUNDLE_ID)
+# Where every version with the earlier system identity (0.7.1.1 and before) installed its input method.
+EARLIER_APP   := $(INSTALL_DIR)/$(APP_NAME).app
 # Any part of a codesigning identity's name, or its SHA-1 hash; falls back to ad-hoc signing if none matches.
 # If several match (two Apple Development certificates, say), the first `security find-identity -v` lists.
 SIGN_IDENTITY ?= Apple Development
@@ -424,52 +432,52 @@ $(HI_PACK): $(CORE)/LanguagePacks/hi-phonetic/hindi.json
 # The Chinese pack from this checkout's data, into the installed input method's packs folder, without a
 # download (a developer's Mac before the pack is published).
 install-pack: $(RIME_BUILT)
-	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(abspath $(RIME_DATA))" $(PACK_VERSION)
+	"$$($(INSTALLED_APP))/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(abspath $(RIME_DATA))" $(PACK_VERSION)
 
 # Stops the running IME (macOS relaunches it on next use), replaces the bundle, registers it
 # (--register also keeps it in the user's input sources, so Ctrl+Space reaches it).
 # The bundle is moved, not copied: macOS launches input methods by bundle ID, and with a second
-# copy left in build/ it may start that one instead of the installed one.
-# An installed copy with another bundle ID (0.7.1 and earlier: the old system identity) isn't just replaced: its settings
-# and keys would stay with it. 0.7.1 moves itself to this identity (`--migrate-identity` with these two apps, which it
-# puts in place, as the installer has it do); an earlier version can't, and the install stops: update it first
-# (AllInOneIME Settings → About → Update), or `make uninstall` first and enter the saved API keys again.
+# copy left in build/ it may start that one instead of the installed one. It goes where the input method is installed
+# (an install keeps its folder), or to INSTALL_DIR/AllInOneIME Input.app, a path no version with the earlier identity had.
+# An installed copy with another bundle ID (0.7.1.1 and earlier: the old system identity, in EARLIER_APP) isn't just
+# replaced: its settings and keys would stay with it. 0.7.1 and 0.7.1.1 move themselves to this identity
+# (`--migrate-identity` with these two apps, which they put in place, as the installer has them do); an earlier version
+# can't, and the install stops: update it first (AllInOneIME Settings → About → Update), or `make uninstall` first and
+# enter the saved API keys again.
 install: app settings-app
 	@ours=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(APP)/Contents/Info.plist"); \
-	theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
-	if [ -n "$$theirs" ] && [ "$$theirs" != "$$ours" ]; then \
-		[ "$$("$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity --check 2>/dev/null)" = "migrate-identity: 1" ] || { \
+	theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(EARLIER_APP)/Contents/Info.plist" 2>/dev/null || true); \
+	if ! $(INSTALLED_APP) >/dev/null && [ -n "$$theirs" ] && [ "$$theirs" != "$$ours" ]; then \
+		[ "$$("$(EARLIER_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity --check 2>/dev/null)" = "migrate-identity: 1" ] || { \
 			echo "error: the installed AllInOneIME has another system identity and can't move to this one: update it first (AllInOneIME Settings → About → Update), or run make uninstall first (the saved API keys must be entered again)" >&2; \
 			exit 1; }; \
-		"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity "$(abspath $(APP))" || exit 1; \
+		"$(EARLIER_APP)/Contents/MacOS/$(APP_NAME)" --migrate-identity "$(abspath $(APP))" || exit 1; \
 	fi
 	@pkill -x $(APP_NAME) || true
 	mkdir -p "$(INSTALL_DIR)"
-	# Versions up to 0.6.1 bundled the Chinese data: it becomes the pack before that app goes (the same
-	# rime-ice data as pack $(PACK_VERSION)), so pinyin keeps working without a download.
-	@if [ -d "$(INSTALLED_APP)/Contents/SharedSupport/rime" ] && [ -d "$(APP)" ]; then \
-		"$(APP)/Contents/MacOS/$(APP_NAME)" --adopt-pack "$(INSTALLED_APP)/Contents/SharedSupport/rime" $(PACK_VERSION) || true; \
-	fi
 	# Unless the move to this identity put them in place already.
-	@if [ -d "$(APP)" ]; then rm -rf "$(INSTALLED_APP)" && mv "$(APP)" "$(INSTALL_DIR)/"; fi
+	@if [ -d "$(APP)" ]; then installed=$$($(INSTALLED_OR_NEW)) && rm -rf "$$installed" && mv "$(APP)" "$$installed"; fi
 	mkdir -p "$(USER_APPS)"
 	@if [ -d "$(SETTINGS_APP)" ]; then rm -rf "$(USER_APPS)/$(SETTINGS_NAME).app" && mv "$(SETTINGS_APP)" "$(USER_APPS)/"; fi
-	"$(LSREGISTER)" -f "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
-	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --register
+	@installed=$$($(INSTALLED_APP)) || { echo "error: no input method in $(INSTALL_DIR)" >&2; exit 1; }; \
+		echo "installed:   $$installed"; \
+		"$(LSREGISTER)" -f "$$installed" "$(USER_APPS)/$(SETTINGS_NAME).app" && "$$installed/Contents/MacOS/$(APP_NAME)" --register
 	# Started again here, not left to macOS: it starts an input method when a text field connects to it, and the
 	# fields already connected to the one stopped above may not until the focus or the input source changes (keys
 	# go nowhere meanwhile). In the background (-g); it is the installed copy (the build was moved there).
-	@pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null || open -g "$(INSTALLED_APP)"
+	@pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null || open -g "$$($(INSTALLED_APP))"
 	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
 		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
 
+# Every copy of the input method with this bundle ID in INSTALL_DIR, whatever its folder's name, and AllInOneIME Settings.
 uninstall:
-	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable
+	-"$$($(INSTALLED_APP))/Contents/MacOS/$(APP_NAME)" --disable
 	@pkill -x $(APP_NAME) || true
-	rm -rf "$(INSTALLED_APP)" "$(USER_APPS)/$(SETTINGS_NAME).app"
+	@while installed=$$($(INSTALLED_APP)); do echo "rm -rf \"$$installed\""; rm -rf "$$installed" || exit 1; done
+	rm -rf "$(USER_APPS)/$(SETTINGS_NAME).app"
 
 status:
-	"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --status
+	"$$($(INSTALLED_APP))/Contents/MacOS/$(APP_NAME)" --status
 
 # Drives the input controller (real Rime engine on this checkout's data, live Bedrock call) with a fake text field.
 # ELECTRON_HARNESS: the Electron harness's folder (`make electron-harness`), run by the self-test too; without it, those

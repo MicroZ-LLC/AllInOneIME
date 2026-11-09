@@ -443,7 +443,8 @@ bundle, others in a repository of their own.
   and Settings say what's wrong, and its other scripts aren't loaded as single scripts instead (§1's fallback is for
   folders you add yourself).
 
-**Command line** (on `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`):
+**Command line** (on `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`; `AllInOneIME.app` in an
+install updated from 0.7.2):
 
 | | |
 |---|---|

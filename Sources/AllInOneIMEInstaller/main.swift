@@ -123,7 +123,7 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
     }
 
     func ask() {
-        let isInstalled = Installer.exists(Installer.inputMethod)
+        let isInstalled = Installer.isInstalled
         let installed = Installer.installedVersion() ?? ""
         // Another system identity's (a version before this one's): one too old to move itself to it is told first.
         let identity = Installer.installedIdentity()

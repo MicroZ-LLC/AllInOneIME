@@ -30872,6 +30872,7 @@
     },
     "The AllInOneIME input method isn't installed (~/Library/Input Methods/AllInOneIME.app)." : {
       "comment" : "没有找到 AllInOneIME 输入法（~/Library/Input Methods/AllInOneIME.app），请先安装。 — Sources/AllInOneIMESettings/main.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30913,6 +30914,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "未安裝 AllInOneIME 輸入法（~/Library/Input Methods/AllInOneIME.app）。"
+          }
+        }
+      }
+    },
+    "The AllInOneIME input method isn't installed (in ~/Library/Input Methods)." : {
+      "comment" : "没有找到 AllInOneIME 输入法（在 ~/Library/Input Methods 里），请先安装。 — Sources/AllInOneIMESettings/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Eingabemethode AllInOneIME ist nicht installiert (in ~/Library/Input Methods)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El método de entrada AllInOneIME no está instalado (en ~/Library/Input Methods)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La méthode de saisie AllInOneIME n’est pas installée (dans ~/Library/Input Methods)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME入力メソッドがインストールされていません（~/Library/Input Methods内）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 입력기가 설치되어 있지 않습니다 (~/Library/Input Methods에 없음)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O método de entrada AllInOneIME não está instalado (em ~/Library/Input Methods)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未安裝 AllInOneIME 輸入法（在 ~/Library/Input Methods 裡）。"
           }
         }
       }

@@ -18,9 +18,19 @@ enum Installer {
     static let home = FileManager.default.homeDirectoryForCurrentUser
     static let inputMethods = home.appendingPathComponent("Library/Input Methods", isDirectory: true)
     static let applications = home.appendingPathComponent("Applications", isDirectory: true)
-    static let inputMethod = inputMethods.appendingPathComponent("AllInOneIME.app")
+    /// The input method installed: the app in ~/Library/Input Methods with this bundle ID, whatever its folder's name
+    /// (`Updater.installedInputMethod`: 0.7.2's AllInOneIME.app, or AllInOneIME Input.app); nil when there is none.
+    static var installedInputMethod: URL? { Updater.installedInputMethod(in: inputMethods) }
+    /// Where the input method of an earlier system identity is installed: every version before 0.7.2 put it there.
+    static let earlierInputMethod = inputMethods.appendingPathComponent(Updater.inputMethodName)
+    /// Where this install puts the input method: where it is installed (an install keeps its folder), else
+    /// `Updater.installedInputMethodName` (a new install, or one in place of an earlier identity's: a path that identity
+    /// never had, so that macOS files it under this bundle ID at once).
+    static var inputMethod: URL { installedInputMethod ?? inputMethods.appendingPathComponent(Updater.installedInputMethodName) }
     static let settingsApp = applications.appendingPathComponent("AllInOneIME Settings.app")
-    static let executable = inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME")
+    static func executable(of app: URL) -> URL { app.appendingPathComponent("Contents/MacOS/AllInOneIME") }
+    /// Something is installed: this identity's input method, or an earlier one's.
+    static var isInstalled: Bool { installedInputMethod != nil || exists(earlierInputMethod) }
     /// What the input method that starts next reads of the install (`UpdateResult`), as of an update's: the one that
     /// starts after a move to this system identity says which permissions to allow again.
     static let result = home.appendingPathComponent("Library/Application Support/AllInOneIME/Updates.noindex/result.json")
@@ -33,17 +43,24 @@ enum Installer {
     /// The version this installer carries (the apps in the payload are built from the same tree).
     static let version = AppVersion.string
 
-    /// The installed input method's version; nil if it isn't installed or doesn't say.
+    /// The installed input method's version (this identity's, else an earlier one's); nil if none is installed or it
+    /// doesn't say.
     static func installedVersion() -> String? {
-        NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
+        let app = installedInputMethod ?? earlierInputMethod
+        return NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
     }
 
-    /// The input method installed, by the bundle ID its Info.plist has (`SystemIdentity.installed`): another identity's
-    /// is asked whether it can move itself to this one (`--migrate-identity --check`, for 30 seconds at most).
+    /// The input method installed, by the bundle ID its Info.plist has (`SystemIdentity.installed`): this identity's
+    /// wherever it is, else an earlier identity's (`earlierInputMethod`), which is asked whether it can move itself to this
+    /// one (`--migrate-identity --check`, for 30 seconds at most).
     static func installedIdentity() -> SystemIdentity.Installed {
-        let info = NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
-        return SystemIdentity.installed(info: exists(inputMethod) ? info ?? [:] : nil) {
-            guard let answer = try? run(executable.path, ["--migrate-identity", "--check"], timeout: 30), answer.status == 0 else { return nil }
+        if let app = installedInputMethod {
+            return SystemIdentity.installed(info: NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any] ?? [:]) { nil }
+        }
+        let info = NSDictionary(contentsOf: earlierInputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
+        return SystemIdentity.installed(info: exists(earlierInputMethod) ? info ?? [:] : nil) {
+            guard let answer = try? run(executable(of: earlierInputMethod).path, ["--migrate-identity", "--check"], timeout: 30),
+                  answer.status == 0 else { return nil }
             return answer.output
         }
     }
@@ -135,7 +152,9 @@ enum Installer {
         // was that confirmation.
         let unzip = try run("/usr/bin/ditto", ["-x", "-k", "--noqtn", payload.path, staging.path])
         guard unzip.status == 0 else { throw Failure.unpack(unzip.output) }
-        let incoming = [(app: staging.appendingPathComponent(inputMethod.lastPathComponent), to: inputMethod, id: bundleID),
+        // Where it is installed, or at a path of its own (a new install, or in place of an earlier identity's).
+        let destination = inputMethod
+        let incoming = [(app: staging.appendingPathComponent(Updater.inputMethodName), to: destination, id: bundleID),
                         (app: staging.appendingPathComponent(settingsApp.lastPathComponent), to: settingsApp, id: settingsBundleID)]
         for item in incoming {
             guard isFolder(item.app) else { throw Failure.payloadMissing }
@@ -152,24 +171,26 @@ enum Installer {
             break
         case .movable:
             step(tr("正在搬设置和密钥…", "Moving your settings and keys…"))
-            // It moves itself, with these apps (moved into place, AllInOneIME Settings beside the input method), and puts
-            // everything back when it fails.
-            let moved = try run(executable.path, ["--migrate-identity", incoming[0].app.path], timeout: 600)
-            guard moved.status == 0, installedIdentity() == .this else { throw Failure.moveFailed(moved.output) }
-            return try finishInstall(from: from, moved: true, step: step)
+            // It moves itself, with these apps (moved into place, AllInOneIME Settings beside the input method; the input
+            // method where that version puts it), and puts everything back when it fails.
+            let moved = try run(executable(of: earlierInputMethod).path, ["--migrate-identity", incoming[0].app.path], timeout: 600)
+            guard moved.status == 0, installedIdentity() == .this, let app = installedInputMethod else { throw Failure.moveFailed(moved.output) }
+            return try finishInstall(app, from: from, moved: true, step: step)
         case let .tooOld(version):
             guard anyway else { throw Failure.anotherIdentity(version) }
-            let info = NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist"))
+            let info = NSDictionary(contentsOf: earlierInputMethod.appendingPathComponent("Contents/Info.plist"))
             replacedSource = info?["TISInputSourceID"] as? String ?? info?["CFBundleIdentifier"] as? String
         }
 
         step(tr("正在安装…", "Installing…"))
         stopInputMethod()
         // The old apps are moved aside first, so a failure on the way puts them back instead of
-        // leaving no input method at all (the in-app updater swaps them the same way).
+        // leaving no input method at all (the in-app updater swaps them the same way). An earlier identity's input method
+        // goes out of Input Methods (this one takes a path of its own).
         let swap: BundleSwap
         do {
-            swap = try BundleSwap.perform(placing: incoming.map { ($0.app, $0.to) }, replacing: [inputMethod, settingsApp],
+            swap = try BundleSwap.perform(placing: incoming.map { ($0.app, $0.to) },
+                                          replacing: [destination, settingsApp] + (replacedSource != nil ? [earlierInputMethod] : []),
                                           aside: staging.appendingPathComponent("previous", isDirectory: true))
         } catch let BundleSwap.Failure.notRestored(reason, folder) {
             keepStaging = true
@@ -178,8 +199,8 @@ enum Installer {
         adoptChinesePack(from: swap.movedAside.map(\.to))
         // The new input method has to start before the old one goes: one macOS won't run (a provisioning profile that
         // doesn't match its signature or entitlements) would leave no input method at all.
-        let started = try? run(executable.path, ["--version"], timeout: 30)  // as the updater's launch check
-        guard let started, started.status == 0, started.output == installedVersion() else {
+        let started = try? run(executable(of: destination).path, ["--version"], timeout: 30)  // as the updater's launch check
+        guard let started, started.status == 0, started.output == version else {
             let output = started.map { "\($0.status): \($0.output.prefix(200))" } ?? ""
             do {
                 try swap.rollBack(reason: "the new input method doesn't start (\(output))")
@@ -194,7 +215,7 @@ enum Installer {
         swap.commit()
         // In case macOS started the old copy again in between: from now on it starts the new one.
         stopInputMethod()
-        let output = try finishInstall(from: replacedSource == nil ? nil : from, moved: false, step: step)
+        let output = try finishInstall(destination, from: replacedSource == nil ? nil : from, moved: false, step: step)
         if let replacedSource {
             // The replaced install's input source: its bundle is gone, so it's out of the input sources too.
             let removed = onMain { disableInputSource(replacedSource) }
@@ -203,12 +224,13 @@ enum Installer {
         return output
     }
 
-    /// The installed apps registered with Launch Services and the input method by its own `--register`; after a move to
-    /// this system identity (`from`: the version moved from), what the input method that starts next reads of it.
-    static func finishInstall(from: String?, moved: Bool, step: (String) -> Void) throws -> String {
-        _ = try? run(lsregister, ["-f", inputMethod.path, settingsApp.path])
+    /// The installed apps (the input method at `app`) registered with Launch Services and the input method by its own
+    /// `--register`; after a move to this system identity (`from`: the version moved from), what the input method that
+    /// starts next reads of it.
+    static func finishInstall(_ app: URL, from: String?, moved: Bool, step: (String) -> Void) throws -> String {
+        _ = try? run(lsregister, ["-f", app.path, settingsApp.path])
         step(tr("正在注册输入法、部署词库…", "Registering the input method and deploying the dictionaries…"))
-        let register = try run(executable.path, ["--register"])
+        let register = try run(executable(of: app).path, ["--register"])
         guard register.status == 0 else { throw Failure.register(register.status, register.output) }
         if moved || from != nil {
             do {
@@ -242,10 +264,12 @@ enum Installer {
     }
 
     /// Disables the input method and removes it from the input sources, stops it, and deletes both
-    /// apps. Settings, the jargon list and learned words stay. Returns what was done to the input source.
+    /// apps (every copy of the input method in ~/Library/Input Methods with this bundle ID, and an earlier identity's).
+    /// Settings, the jargon list and learned words stay. Returns what was done to the input source.
     static func uninstall() throws -> String {
         var output = ""
         var disabled = false
+        let executable = executable(of: installedInputMethod ?? earlierInputMethod)
         if FileManager.default.isExecutableFile(atPath: executable.path),
            let result = try? run(executable.path, ["--disable"]) {
             output = result.output
@@ -257,7 +281,12 @@ enum Installer {
             output = [output, here].filter { !$0.isEmpty }.joined(separator: "\n")
         }
         stopInputMethod()
-        let apps = [inputMethod, settingsApp].filter(exists)
+        let copies = ((try? FileManager.default.contentsOfDirectory(at: inputMethods, includingPropertiesForKeys: nil)) ?? []).filter { app in
+            NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == bundleID
+        }
+        let apps = (copies + [earlierInputMethod, settingsApp]).filter(exists).reduce(into: [URL]()) { list, app in
+            if !list.contains(app) { list.append(app) }
+        }
         if !apps.isEmpty { _ = try? run(lsregister, ["-u"] + apps.map(\.path)) }
         for app in apps { try FileManager.default.removeItem(at: app) }
         return output

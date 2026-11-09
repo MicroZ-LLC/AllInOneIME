@@ -393,7 +393,8 @@ Raycast 的 mode 对应关系：`fullOutput` → `show`，`compact` 和 `silent`
   遇到不认识的主机密钥或要密码时会立刻失败。
 - 在终端里：`AllInOneIME --add-source <地址> [--path …] [--branch …] [--pin …]`（打印检查内容并启用；强制推送之后再运行一次就是重新检查）、
   `--update-sources`（快进每个检查过、没固定的来源）、
-  `--list-extensions`（程序是 `~/Library/Input Methods/AllInOneIME.app/Contents/MacOS/AllInOneIME`）。
+  `--list-extensions`（程序是 `~/Library/Input Methods/AllInOneIME Input.app/Contents/MacOS/AllInOneIME`；从 0.7.2
+  更新上来的是 `AllInOneIME.app`）。
 
 配置里是 `extensionSources`；仓库的结构见 [docs/extensions.md](docs/extensions.md#10-extension-sources)（英文）。
 
@@ -1178,9 +1179,13 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 
 从 0.7.2 起，Bundle ID 是 `com.allinoneime.inputmethod.AllInOneIME`，AllInOneIME 自己的系统身份（AllInOneIME 设置是
 `com.allinoneime.settings`，钥匙串访问组是 `9SR8N3UD5Y.com.allinoneime.shared`）：macOS 按它记住已添加的输入法和给它的权限。
-使用之前身份的最后一个版本 0.7.1 会把安装换到这个身份，把偏好设置和钥匙串项目带过来（通过它自己的更新，或者安装程序和
+使用之前身份的最后两个版本 0.7.1 和 0.7.1.1 会把安装换到这个身份，把偏好设置和钥匙串项目带过来（通过它自己的更新，或者安装程序和
 `make install` 调用的 `AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；这个版本依靠它做完这件事，只凭 bundle ID
-不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。0.7.1 存在登录钥匙串里的密钥，作为交接项放在
+不是自己的来认出另一个身份的安装（`Sources/AllInOneIMEMac/SystemIdentity.swift`）。输入法按 bundle ID 在 ~/Library/Input Methods 里找，
+不管文件夹叫什么（`Updater.installedInputMethod`；安装程序、`make install`、更新程序和 AllInOneIME 设置都这样找）：0.7.1.1 和新安装把它放在
+`AllInOneIME Input.app`，之前身份的版本从没用过这个路径，所以 macOS 马上把它的输入法记在它自己的 bundle ID 下（文字输入源按路径记输入法，
+每个在跑的进程都记着它在那个路径读过的 bundle：0.7.1 把 0.7.2 放在之前身份的路径 `AllInOneIME.app`，那里可能一直被记在旧 bundle ID 下，
+直到用户注销）。更新时保留它找到的文件夹。0.7.1 存在登录钥匙串里的密钥，作为交接项放在
 这个版本的访问组里：输入法启动时把每个导入登录钥匙串，成为自己的项目（macOS 不会为此询问），再删掉交接项；0.7.1 的清理没删掉的，
 列在 `~/Library/Application Support/AllInOneIME/identity-cleanup.json` 里，输入法启动时按里面列的标识删完，从不碰这个身份自己的东西
 （`Sources/AllInOneIMEMac/IdentityHandover.swift`、`IdentityFinish.swift`）。新的输入法只能由用户自己添加（0.7.1 不会请求启用它）：
