@@ -368,7 +368,7 @@ public enum KeySync {
 
 extension APIKeys {
     /// The label an item gets when the one it moves from had none.
-    static func label(account: String) -> String {
+    public static func label(account: String) -> String {
         Provider(rawValue: account).map { "AllInOneIME: \($0.displayName)" } ?? "AllInOneIME: \(account)"
     }
 }

@@ -2,9 +2,10 @@
 // `npx wrangler@4 deploy` in this folder.
 //
 // allinoneime.com (and www.): the site; /download, the newest release's disk image; /docs, the wiki;
-// /update.json and /update.json.sig, the in-app updater's manifest (public/, written and signed by `make update-manifest`
-// with the releases' own key: the app checks the signature, then the download against it, so this host is trusted
-// with nothing there either).
+// /update-v2.json and /update-v2.json.sig, the in-app updater's manifest (public/, written and signed by
+// `make update-manifest` with the releases' own key: the app checks the signature, then the download against it, so this
+// host is trusted with nothing there either), and /update.json and its .sig, the one versions before 0.7.1 read, which
+// stays at 0.7.1.
 // plugins.allinoneime.com: the plugin library (PluginLibrary.defaultBaseURL), the files of the
 // AllInOneIME-plugins repository as they are on its main branch; a push there is live within minutes.
 // The index is signed and the app checks every file against it, so this host is trusted with nothing.

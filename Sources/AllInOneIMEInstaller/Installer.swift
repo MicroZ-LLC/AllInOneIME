@@ -40,6 +40,14 @@ enum Installer {
 
     static var hasLegacyInstall: Bool { legacyApps.contains(where: exists) }
 
+    /// The installed input method has AllInOneIME's own system identity (0.7.2 on, `Migration.newIdentityInstalled`): a
+    /// newer version, never replaced by this one (that would go back to the identity before, its settings and keys
+    /// moved on with it).
+    static var newerIdentityInstalled: Bool {
+        exists(inputMethod)
+            && Migration.newIdentityInstalled(info: NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any])
+    }
+
     /// Doesn't follow a symbolic link at the end, so a dangling one counts as well.
     static func exists(_ url: URL) -> Bool {
         (try? FileManager.default.attributesOfItem(atPath: url.path)) != nil
@@ -59,6 +67,8 @@ enum Installer {
         case launch(String)
         /// Installing failed and an old app couldn't be moved back either; it was kept in `folder`.
         case notRestored(String, folder: String)
+        /// The installed version (`version`) is newer, with AllInOneIME's own system identity: nothing was installed.
+        case newerInstalled(String?)
 
         var errorDescription: String? {
             switch self {
@@ -80,6 +90,10 @@ enum Installer {
             case let .notRestored(reason, folder):
                 return tr("安装失败（\(reason)），原来的 App 也没能放回原处，现在在：\(folder)",
                           "Installing failed (\(reason)), and the previous apps couldn't be put back; they're in: \(folder)")
+            case let .newerInstalled(version):
+                let installed = version.map { " \($0)" } ?? ""
+                return tr("已安装的 AllInOneIME\(installed) 比 \(Installer.version) 新，所以这个安装程序不会替换它。要更新，请用 AllInOneIME 设置 →「关于」→「更新」。",
+                          "The installed AllInOneIME\(installed) is newer than \(Installer.version), so this installer doesn't replace it. To update, use AllInOneIME Settings → About → Update.")
             }
         }
     }
@@ -89,7 +103,10 @@ enum Installer {
     /// Replaces the installed apps (and the AIPinyin ones) with those in the payload, then registers
     /// the input method, which also adds it to the input sources and deploys the dictionaries.
     /// Returns what `AllInOneIME --register` printed; `step` reports progress.
+    /// An installed version with AllInOneIME's own system identity is newer (`newerIdentityInstalled`): nothing is
+    /// done (`Failure.newerInstalled`).
     static func install(step: (String) -> Void = { _ in }) throws -> String {
+        guard !newerIdentityInstalled else { throw Failure.newerInstalled(installedVersion()) }
         guard let payload else { throw Failure.payloadMissing }
         let manager = FileManager.default
         try manager.createDirectory(at: inputMethods, withIntermediateDirectories: true)

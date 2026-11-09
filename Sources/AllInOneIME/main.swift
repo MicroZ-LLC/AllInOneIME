@@ -38,12 +38,17 @@ let usage = """
                         older app's Contents/SharedSupport/rime) without downloading
       --version         print this bundle's version
       --check-update [--manifest-url URL] [--key BASE64]
-                        check for a new version as Settings → About does (signed update.json); plain
+                        check for a new version as Settings → About does (signed update-v2.json); plain
                         http is allowed to this Mac only, for a test server
       --install-update [--manifest-url URL] [--key BASE64] [--target-dir DIR] [--detach]
                         download, verify and install the update as About's Update button does; with
                         --target-dir, into DIR/Input Methods and DIR/Applications (a test install:
                         nothing is registered, the user's apps are left alone)
+      --migrate-identity APP [--target-dir DIR] | --migrate-identity --check
+                        move to the new system identity with APP (an AllInOneIME.app that has it, and
+                        AllInOneIME Settings.app beside it): settings and keychain items carried over,
+                        the apps swapped, the input source switched, then the old identity cleaned up;
+                        --check says this version can; --target-dir: a test install, as above
       --add-source URL [--path FOLDER] [--branch BRANCH] [--pin TAG-OR-COMMIT]
                         clone an extension source (ssh://, git@host:, https://, file://) with your
                         git, print what it holds and runs, and enable it (running this is the consent)
@@ -516,6 +521,12 @@ if arguments.first == "--keychain-probe" {
     exit(KeychainProbe.run(Array(arguments.dropFirst())))
 }
 
+// Hidden: one call of Text Input Sources for the update helper's move to the new identity (`ChildInputSources`), which
+// never calls them itself; nothing else runs.
+if arguments.first == InputSourceCommand.option {
+    exit(InputSourceCommand.run(Array(arguments.dropFirst())))
+}
+
 // Data from the AIPinyin days moves to the AllInOneIME folders before anything reads it.
 for (path, outcome) in LegacyData.migrate() where outcome != .nothingToMove {
     switch outcome {
@@ -610,6 +621,9 @@ case "--list-extensions":
 case "--apply-update":
     // The updater's helper (`UpdateHelper`), started by the input method on an update it staged.
     exit(UpdateHelper.run(Array(arguments.dropFirst())))
+case "--migrate-identity":
+    // The move to the new system identity (`MigrationCommand`), for the 0.7.2 installer.
+    exit(MigrationCommand.run(Array(arguments.dropFirst())))
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)

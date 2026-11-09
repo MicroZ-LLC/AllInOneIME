@@ -57,14 +57,17 @@ struct MacPlatformKeysTests {
     }
 }
 
-/// The keychain access group the Makefile signs the input method with is the one the core queries.
+/// The keychain access groups the Makefile signs the input method with: the one the core queries first, then the new
+/// identity's, which the move to it copies the keys into (`Migration`).
 struct KeychainGroupTests {
-    @Test func theMakefilesGroupIsTheCoresAccessGroup() throws {
+    @Test func theMakefilesGroupsAreTheCoresAccessGroupAndTheNewIdentitys() throws {
         let root = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         let makefile = try String(contentsOf: root.appendingPathComponent("Makefile"), encoding: .utf8)
-        let line = makefile.split(separator: "\n").first { $0.hasPrefix("KEYCHAIN_GROUP") }
-        let group = line?.split(separator: "=", maxSplits: 1).last?.trimmingCharacters(in: .whitespaces)
-        #expect(group == KeySync.accessGroup, "KEYCHAIN_GROUP in the Makefile (\(line ?? "none")) and KeySync.accessGroup differ")
+        let line = makefile.split(separator: "\n").first { $0.hasPrefix("KEYCHAIN_GROUPS") }
+        let groups = line?.split(separator: "=", maxSplits: 1).last?.split(separator: " ").map(String.init)
+        #expect(groups == [KeySync.accessGroup, Migration.new.keychainGroup],
+                "KEYCHAIN_GROUPS in the Makefile (\(line ?? "none")) isn't KeySync.accessGroup and Migration.new.keychainGroup")
+        #expect(Migration.old.keychainGroup == KeySync.accessGroup)
     }
 }

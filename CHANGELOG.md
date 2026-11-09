@@ -2,6 +2,21 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.1 (unreleased)
+
+### Changed
+
+- Updates (Settings → About → Update) can now bring the next version, which moves AllInOneIME to its new system identity: the bundle IDs macOS knows it by. The update carries your settings and the API keys saved in AllInOneIME over to the new identity first, then installs the new version, and only once it starts removes what was left under the old one; if anything fails before that, everything is put back as it was. Keys synced through iCloud Keychain move too: another Mac reads them once it has updated as well. Keys kept in the login keychain (key sync off) are handed over to the new version, so macOS doesn't ask for your login password to use them. Anything of the old identity that can't be removed right away is written down, and the new version removes it when it starts. macOS lets only you add the new version's input source (System Settings → Keyboard → Input Sources → + → English → AllInOneIME), and until you do, AllInOneIME can't be typed with: the new version shows you this step first. The old input source's entry stays in your input sources until then only so that it can be removed once you have; it no longer works. AllInOneIME now looks for updates at https://allinoneime.com/update-v2.json (earlier versions read update.json, which brings them this version).
+- The installer (and `make install`) no longer replaces a newer AllInOneIME that already has the new system identity: it says the installed version is newer and leaves it as it is.
+
+### Fixed
+
+- `@reply` no longer sends what you typed into a password field that secure input doesn't cover (some web and Electron ones) to the AI. Nothing in such a field is read for a command now, as when secure input is on.
+- Such a password field now keeps to secure input's rules: no AI rows after "@" (a password like `Qwerty!@abc123` no longer sends `abc123` to the AI when you press ⏎), AI commands and scripts don't get what you type there, and Translate as You Type puts it in as typed. An AI command typed there by its name goes in as typed, and ⏎ goes to the field.
+- When a request in Settings → Assistant is too long for Apple Intelligence and Amazon Bedrock is your provider but its AWS profile isn't on this Mac (or has no credentials in it), the page now says Bedrock isn't set up and to try a shorter request or set it up in Settings → AI, as for every other provider. Before, it said Bedrock couldn't answer instead. A missing or expired SSO sign-in still says to run `aws sso login`.
+- Settings → Assistant reads the AWS files that `AWS_CONFIG_FILE` and `AWS_SHARED_CREDENTIALS_FILE` name in your login shell, as the AWS Profile picker in Settings → AI and Bedrock's requests do: asking it to use a profile from them ("use my work AWS profile") now offers the change. Before, it read only `~/.aws`, so it found no profile or refused one of those files' as "no such profile in ~/.aws".
+- When a command inside another command's text fails (`@reply The answer is @py …`), the panel now says why in the interface language, as it does when the command runs on its own, after the command's name. Before, `@py`, `@js` and your run commands said in English that they ran longer than 10 seconds, printed too much or exited with an error and no message, and `@read` that it couldn't read the page, whatever the interface language.
+
 ## 0.7.0 (2026-11-07)
 
 ### Added

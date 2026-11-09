@@ -55,4 +55,30 @@ struct InputSourceListTests {
         #expect(NSArray(array: Array(removed.prefix(system.count))).isEqual(to: system))
         #expect(InputSourceList.removing(ours, from: system) == nil)
     }
+
+    /// An input source's entries go by its ID, and stay while Text Input Sources files another source under them (its
+    /// cache keeping the old bundle ID for the path the next identity's app took).
+    @Test func anEntryAnotherSourceIsFiledUnderStays() throws {
+        let next = "com.example.next.inputmethod"
+        let list = system + [InputSourceList.entry(bundleID: ours)]
+        let filedRight = [InputSourceList.Filed(id: next, bundleID: next), InputSourceList.Filed(id: ours, bundleID: ours),
+                          InputSourceList.Filed(id: "com.apple.keylayout.US", bundleID: nil)]
+        guard case let .removed(updated) = InputSourceList.removingSource(ours, from: list, filed: filedRight) else {
+            Issue.record("not removed")
+            return
+        }
+        #expect(bundleIDs(updated) == bundleIDs(system))
+        // The cache files the next one under the old bundle ID: its entry is the next one's too.
+        let bound = [InputSourceList.Filed(id: next, bundleID: ours)]
+        guard case let .filedUnder(other) = InputSourceList.removingSource(ours, from: list, filed: bound) else {
+            Issue.record("removed although another source is filed under it")
+            return
+        }
+        #expect(other == next)
+        guard case .unlisted = InputSourceList.removingSource(ours, from: system, filed: bound),
+              case .unlisted = InputSourceList.removingSource(ours, from: nil, filed: []) else {
+            Issue.record("nothing listed")
+            return
+        }
+    }
 }

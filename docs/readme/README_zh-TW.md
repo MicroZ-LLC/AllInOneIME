@@ -554,7 +554,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 - `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上（除非你選擇透過 iCloud 同步它們，見上文）的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 Settings → Assistant 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID（Notes 中備忘錄的 ID、檔案的路徑，或 Notion 頁面的位址）和第一行（最多 80 個字元），面板關閉時也一樣。打開面板絕不會向 Notion 查詢任何東西。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
-- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
+- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update-v2.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
 - 擴充功能來源：git 以你的身分在你的 Mac 上執行，而且只針對你加入的來源：每天為會自動檢查的來源 fetch 一次（固定版本的來源不會），以及你按 Check Now、Update 或 Re-clone 時。它只和儲存庫的主機連線，以你自己的 git 和 SSH 設定登入；你輸入的任何內容都不會隨之送出。
 - 透過 iCloud 同步（預設關閉）：只存到你自己的 iCloud 雲碟 `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`，由 Apple 同步到你的其他 Mac；不會有任何內容送到開發者的伺服器。存到那裡的有：`settings.json`（同步的設定，各自附上變更時間和每台 Mac 的隨機 ID；你的自訂指令，包括會執行程式的那些，它們仍然只在你選取時才執行）、`jargon.txt`（你的 Jargon 術語表）、`rime/`（每台 Mac 拼音學到的字詞的快照，Rime 資料夾中的其他東西一概不放：你的自訂短語和 Rime 設定留在 Mac 上），以及只有在你開啟時才會存的你對 AI 隱藏的字詞（在 `settings.json` 中）和 `questions.json`（最近的問題和答案，只有你的使用者帳號能讀取）。關閉這兩項後，它們會留在 iCloud 中，直到你移除為止（每個開關下方的「Remove from iCloud…」）。絕不存放：API 金鑰、權杖或密碼、擴充功能來源、擴充功能資料夾和外掛程式、不再打錯的 App、最近的 App、視窗狀態、同步開關。只有開啟「進階資料保護」時，iCloud 雲碟才是端對端加密。這台 Mac 自己的同步紀錄存放在 `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`。
 - 記錄檔不會記錄你輸入的內容。對於每個第三方輸入法，macOS 都會警告「The developer can access anything you type with this input source」（開發者可以取用你使用此輸入方式輸入的任何內容）；這是系統的通用警告。
@@ -594,15 +594,15 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 語言包有自己的程式庫，與外掛程式分開：儲存庫 [MicroZ-LLC/AllInOneIME-languages](https://github.com/MicroZ-LLC/AllInOneIME-languages)，透過 https://languages.allinoneime.com/ 提供，並以它們自己的金鑰簽署。`make pack` 建置封存檔；它會以發行資產的形式發佈在那裡（發行版本 `zh-pinyin-<version>`、`ko-hangul-<version>`、`hi-phonetic-<version>`），`swift Scripts/build-packs-index.swift <languages repo> build/packs/*.tar.xz.json` 會在那裡寫入 `packs.json`，並用鑰匙圈中語言包的金鑰（`allinoneime-languages-signing`）簽署成 `packs.json.sig`。App 會讀取 <https://languages.allinoneime.com/packs.json>，檢查簽章，再檢查封存檔的大小和 SHA-256。要從本機伺服器試用語言包：`--test-key` 會以測試金鑰簽署，再執行 `AllInOneIME --install-pack zh-pinyin --library http://127.0.0.1:8765/ --key <its public key> --packs-dir <folder>`。
 
-發佈新版本（App 內的更新程式會讀取 https://allinoneime.com/update.json，以發佈專用的金鑰簽署）：
+發佈新版本（App 內的更新程式會讀取 https://allinoneime.com/update-v2.json，以發佈專用的金鑰簽署）：
 
 1. 提高版本號（`AppVersion.swift` 和三個 Info.plist；`AppVersionTests` 會檢查它們是否一致）並更新更新日誌。
 2. `make dmg NOTARY_PROFILE=<profile>`：產生 `build/AllInOneIME-<version>.dmg` 及其 `.sha256`，以及 `build/AllInOneIME-<version>-update.zip`（兩個 App，和磁碟映像檔中的安裝程式所帶的一樣）。App 和映像檔會以鑰匙圈中的 Developer ID Application 憑證簽署，映像檔再以該 `xcrun notarytool` 鑰匙圈設定檔進行公證並裝訂（staple）。輸入法帶有 Developer ID 佈建描述檔（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），由它授予輸入法的鑰匙圈權限（entitlements）；如果描述檔沒有列出簽署用的憑證、沒有佈建所有裝置或剩不到 30 天（`Scripts/profile-entitlements.sh`），或簽章缺少鑰匙圈權限，建置就會停止，它也會執行一次簽署好的輸入法（描述檔不相符的話，macOS 會終止它）。`DIST_PROFILE` 是空的也會讓建置停止：沒有這些權限的版本會看不到所有已移到 iCloud 鑰匙圈的金鑰。描述檔只列出兩張 Developer ID G1 憑證：改用另一張（G2）簽署之前，請在開發者網站上建立列出它的新描述檔（手動建立：這個 App ID 的簽署不交給 Xcode 管理），並提交它。
 3. 把兩者上傳到 GitHub 的 `v<version>` release 並發佈。
-4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一兩句）：寫出 `site/public/update.json`（從 App 讀取的版本、build 和最低 macOS 版本，檔案的位址、大小和 SHA-256，發佈說明的位址和摘要），並用登入鑰匙圈中的金鑰（`allinoneime-releases-signing`；macOS 可能會詢問是否允許存取）簽署成 `update.json.sig`。兩個檔案都要提交。
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一兩句）：寫出 `site/public/update-v2.json`（從 App 讀取的版本、build 和最低 macOS 版本，檔案的位址、大小和 SHA-256，發佈說明的位址和摘要），並用登入鑰匙圈中的金鑰（`allinoneime-releases-signing`；macOS 可能會詢問是否允許存取）簽署成 `update-v2.json.sig`。兩個檔案都要提交。
 5. 等 release 的檔案可以下載後，再部署網站（`cd site && npx wrangler@4 deploy`）：App 每天檢查一次，`AllInOneIME --check-update` 會顯示它們看到的內容。
 
-App 在讀取 manifest 之前，會先用內建的公鑰核對它的簽章，絕不安裝不比現在新的版本，只透過 https 從 allinoneime.com 或本儲存庫的 GitHub release 檔案下載，而且只有在封存檔的大小和 SHA-256 與 manifest 相符、兩個 App 的 bundle ID、版本和程式碼簽章都通過檢查、新的輸入法能啟動時，才會安裝。之後輸入法會把工作交給自己的執行檔擔任輔助程式（`--apply-update`），它會等輸入法結束，像安裝程式一樣替換 App（舊的先移到一旁，出錯就放回去），再註冊新的。要用本機伺服器試試：`make update-test`，或使用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再執行 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update.json --key <its public key> --target-dir <folder>`。
+App 在讀取 manifest 之前，會先用內建的公鑰核對它的簽章，絕不安裝不比現在新的版本，只透過 https 從 allinoneime.com 或本儲存庫的 GitHub release 檔案下載，而且只有在封存檔的大小和 SHA-256 與 manifest 相符、兩個 App 的 bundle ID、版本和程式碼簽章都通過檢查、新的輸入法能啟動時，才會安裝。之後輸入法會把工作交給自己的執行檔擔任輔助程式（`--apply-update`），它會等輸入法結束，像安裝程式一樣替換 App（舊的先移到一旁，出錯就放回去），再註冊新的。要用本機伺服器試試：`make update-test`，或使用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再執行 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`。
 
 Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 用它來記住已加入的輸入方式和授予它的權限，所以更改它就得重新加入輸入法並再次授予權限。
 

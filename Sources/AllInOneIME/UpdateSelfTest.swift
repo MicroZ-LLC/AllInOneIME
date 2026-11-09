@@ -33,6 +33,8 @@ extension SelfTest {
               "an update for a newer macOS isn't offered")
         UIText.choice = "en"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 is available", "the panel's notice")
+        let refused = UpdateText.describe(UpdateError.invalidApp("AllInOneIME.app doesn't start"))
+        check(refused.components(separatedBy: "nothing was changed").count == 2, "a refused update says nothing was changed once (\(refused))")
         UIText.choice = "zh"
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 可以更新了"
               && UpdateText.describe(UpdateError.hashMismatch).hasPrefix("下载的文件"), "…in Chinese too")
@@ -50,6 +52,7 @@ extension SelfTest {
             ("needs-macos", .needsNewerSystem(UpdateManifest.sample(version: "9.9.0", minimumSystem: "99.0")), nil),
             ("updated", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true)),
             ("rolled-back", .upToDate, UpdateResult(from: AppVersion.string, to: "9.9.0", ok: false, error: "it didn't start")),
+            ("not-started", .upToDate, UpdateResult(from: "0.6.2", to: AppVersion.string, ok: true, launchError: "open exited 1: -600")),
         ]
         var rendered = 0
         for (name, state, result) in states {

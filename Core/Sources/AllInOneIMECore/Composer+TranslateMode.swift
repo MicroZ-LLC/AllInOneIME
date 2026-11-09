@@ -13,7 +13,8 @@ import Foundation
 extension Composer {
     /// Translate as You Type takes what would go into the field now into its draft instead: it's on, nothing else is being
     /// written (an @ command, a command's selection, results), the language typed isn't the one it translates into,
-    /// the input isn't Code (where it can't run) and secure input is off.
+    /// the input isn't Code (where it can't run) and secure input is off, nor is the field known as a password field
+    /// (`secureInputActive`).
     var modeCollects: Bool {
         guard let session = translateMode, draft.isEmpty, selection == nil, !isLevelTwo, !coding else { return false }
         return !inputLanguage.matches(session.target, chinese: chineseCharacters) && !secureInputActive()

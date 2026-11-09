@@ -4,9 +4,11 @@ import Foundation
 import FoundationNetworking
 #endif
 
-/// `update.json` (https://allinoneime.com/update.json, from the site's public/ folder): the newest release, written
-/// and signed by `Scripts/build-update-manifest.swift` (`make update-manifest`) with the releases' own Ed25519
-/// key, apart from the plugins' and the language packs'. Only ever built from bytes whose signature was verified.
+/// The update manifest (https://allinoneime.com/update-v2.json from 0.7.1 on, update.json before it; the site's public/
+/// folder): the newest release, written and signed by `Scripts/build-update-manifest.swift` (`make update-manifest`)
+/// with the releases' own Ed25519 key, apart from the plugins' and the language packs'. Only ever built from bytes whose
+/// signature was verified. update.json, which 0.7.0 and earlier read, names 0.7.1 for good: they refuse apps with
+/// other bundle IDs than theirs (`AppIdentity`), and 0.7.1 is the last version with those.
 public struct UpdateManifest: Decodable, Equatable, Sendable {
     public var schema: Int
     public var generated: String?
@@ -48,7 +50,9 @@ public enum UpdateError: Error, LocalizedError, Equatable {
     case sizeMismatch
     case hashMismatch
     case unpack(String)
-    /// The archive's apps aren't the ones the manifest names (bundle ID, version, signature, or they don't start).
+    /// The archive's apps aren't the ones the manifest names (bundle ID, version, signature, or they don't start). Its
+    /// description doesn't say whether anything changed: the About page's text for a refused update says nothing was, a
+    /// failure after the swap says what is back.
     case invalidApp(String)
     /// This copy isn't the installed one (~/Library/Input Methods/AllInOneIME.app): nothing to update in place.
     case notInstalled
@@ -69,7 +73,7 @@ public enum UpdateError: Error, LocalizedError, Equatable {
         case .sizeMismatch: return "The download's size doesn't match the signed manifest; nothing was changed"
         case .hashMismatch: return "The download doesn't match the signed manifest; nothing was changed"
         case let .unpack(detail): return "Couldn't unpack the update: \(detail)"
-        case let .invalidApp(detail): return "The update isn't a valid AllInOneIME: \(detail); nothing was changed"
+        case let .invalidApp(detail): return "The update isn't a valid AllInOneIME: \(detail)"
         case .notInstalled: return "This copy of AllInOneIME isn't the installed one; download the installer instead"
         case .cancelled: return "Cancelled"
         }
@@ -154,21 +158,49 @@ public enum UpdateAvailability: Equatable, Sendable {
     case needsNewerSystem
 }
 
+/// The Mac apps' system identity: the bundle IDs of the input method (its input source ID too) and of AllInOneIME
+/// Settings. Every version up to 0.7.1 has AIPinyin's (`legacy`), the input method's first name; 0.7.2 has AllInOneIME's
+/// own (`allInOneIME`). 0.7.1 is the bridge: the last version with the old identity, whose updater installs one with
+/// the new identity (`Updater.accepts`).
+public struct AppIdentity: Equatable, Hashable, Sendable {
+    public var inputMethod: String
+    public var settings: String
+
+    public init(inputMethod: String, settings: String) {
+        self.inputMethod = inputMethod
+        self.settings = settings
+    }
+
+    public static let legacy = AppIdentity(inputMethod: "com.aipinyin.inputmethod.AIPinyin", settings: "com.aipinyin.settings")
+    public static let allInOneIME = AppIdentity(inputMethod: "com.allinoneime.inputmethod.AllInOneIME",
+                                                settings: "com.allinoneime.settings")
+    /// Every identity an update may carry (`Updater.accepts` says which, over which).
+    public static let known = [legacy, allInOneIME]
+
+    /// The known identity whose input method has `bundleID`; nil for any other.
+    public static func of(inputMethod bundleID: String?) -> AppIdentity? {
+        known.first { $0.inputMethod == bundleID }
+    }
+}
+
 /// The apps of an update, unpacked and checked, ready to be swapped in.
 public struct UpdatePayload: Equatable, Sendable {
     public var inputMethod: URL
     public var settingsApp: URL
+    /// The bundle IDs they have (`Updater.accepts`).
+    public var identity: AppIdentity
 
-    public init(inputMethod: URL, settingsApp: URL) {
+    public init(inputMethod: URL, settingsApp: URL, identity: AppIdentity = Updater.identity) {
         self.inputMethod = inputMethod
         self.settingsApp = settingsApp
+        self.identity = identity
     }
 }
 
 /// AllInOneIME's own updates: the signed manifest, and its archive, downloaded and checked. The manifest's
 /// signature is checked with the key built into the app before it is read; the archive is unpacked only once
-/// its size and sha256 match the manifest, and its apps are used only when their bundle IDs, versions and code
-/// signatures check out. A version that isn't newer than this one is never installed. Swapping the apps in
+/// its size and sha256 match the manifest, and its apps are used only when their bundle IDs (`accepts`), versions and
+/// code signatures check out. A version that isn't newer than this one is never installed. Swapping the apps in
 /// is the input method's (`--apply-update`, with `BundleSwap`). Where the manifest is is the shell's
 /// (`manifestURL`: each platform's apps have their own).
 public struct Updater: Sendable {
@@ -181,8 +213,17 @@ public struct Updater: Sendable {
     public static let maxArchiveBytes: Int64 = 1 << 30
     public static let inputMethodName = "AllInOneIME.app"
     public static let settingsAppName = "AllInOneIME Settings.app"
-    public static let bundleID = "com.aipinyin.inputmethod.AIPinyin"
-    public static let settingsBundleID = "com.aipinyin.settings"
+    /// This version's own bundle IDs.
+    public static let identity = AppIdentity.legacy
+    public static let bundleID = identity.inputMethod
+    public static let settingsBundleID = identity.settings
+
+    /// Whether an update whose apps have `payload`'s bundle IDs may replace apps that have `installed`'s: the same
+    /// identity, or AIPinyin's replaced by AllInOneIME's (0.7.1, the bridge, installing 0.7.2). Never back to the old
+    /// identity, and never a third (`AppIdentity.of` knows two).
+    public static func accepts(_ payload: AppIdentity, over installed: AppIdentity) -> Bool {
+        payload == installed || (installed == .legacy && payload == .allInOneIME)
+    }
 
     public var manifestURL: URL
     public var publicKey: Data
@@ -217,7 +258,7 @@ public struct Updater: Sendable {
 
     // MARK: Manifest
 
-    /// Downloads update.json and its signature and returns the manifest, once the signature checks out.
+    /// Downloads the manifest and its signature and returns the manifest, once the signature checks out.
     /// The bytes come back too: the input method keeps them to show the notice after a restart.
     public func fetchManifest() async throws -> (manifest: UpdateManifest, data: Data, signature: Data) {
         guard UpdateURLPolicy.allowsManifest(manifestURL, allowsLocalHTTP: allowsLocalHTTP) else {
@@ -361,19 +402,25 @@ struct ManifestRedirects: Sendable {
 }
 
 /// What `--apply-update` left behind for the input method that starts next: whether the update went in, and
-/// if not, why (the previous version is back). JSON in `UpdateResult.url`.
+/// if not, why (the previous version is back); and whether the helper got the input method started again. JSON in
+/// `UpdateResult.url`.
 public struct UpdateResult: Codable, Equatable, Sendable {
     public var from: String
     public var to: String
     public var ok: Bool
     public var error: String?
+    /// Why the input method wasn't running once the helper had started it again (nil: it was, or it wasn't the helper's
+    /// to start): it ran only once macOS or the user started it.
+    public var launchError: String?
     public var date: Date
 
-    public init(from: String, to: String, ok: Bool, error: String? = nil, date: Date = Platform.current.clock.now) {
+    public init(from: String, to: String, ok: Bool, error: String? = nil, launchError: String? = nil,
+                date: Date = Platform.current.clock.now) {
         self.from = from
         self.to = to
         self.ok = ok
         self.error = error
+        self.launchError = launchError
         self.date = date
     }
 

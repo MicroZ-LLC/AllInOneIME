@@ -64,14 +64,15 @@ extension AllInOneIMEInputController {
     /// The app of the field being typed in.
     private var modeApp: String? { (clientOverride ?? client())?.bundleIdentifier() }
 
-    /// A key went down. With the mode on here while secure input is on elsewhere, nothing collects (text goes in as
-    /// typed): said once each time. (In the app holding it the input method is paused, and says so itself.)
+    /// A key went down. With the mode on here while secure input is on elsewhere, or in a field known as a password field
+    /// (`InputSession.nothingLeavesDevice`), nothing collects (text goes in as typed): said once each time. (In the app
+    /// holding it the input method is paused, and says so itself.)
     @MainActor
     func translateModeKeyDown() {
         guard composer.translateMode != nil else { return }
         TranslateModeShared.listOpen = false  // a key closes the chip's list, and does what it does
         scheduleChipRefresh()
-        guard services.secureInputActive() else {
+        guard session.nothingLeavesDevice() else {
             TranslateModeShared.toldSecureInput = false
             return
         }
@@ -191,7 +192,7 @@ extension AllInOneIMEInputController {
         let languages = (from.map { UIText.name(OutputLanguage($0, chinese: chinese)) + " → " } ?? "")
             + UIText.name(session.target, typing: chinese)
         let why = !allowed ? tr(" · 这个 App 里关了 AI，照原样上屏", " · AI is off in this app, text goes in as typed")
-            : services.secureInputActive() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
+            : self.session.nothingLeavesDevice() ? tr(" · 系统安全输入开着，暂时照原样上屏", " · secure input is on, text goes in as typed for now") : ""
         let text = tr("边打边译 已开启：\(languages) · 再长按 Shift 关闭", "Translate as You Type on: \(languages) · hold Shift again to turn off")
         showNotice(text + why, client: nil, lasting: why.isEmpty ? TranslateModeShared.noticeLasting : nil)
     }
