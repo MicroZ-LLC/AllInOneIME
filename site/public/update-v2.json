@@ -1,0 +1,15 @@
+{
+  "build" : "25",
+  "generated" : "2026-11-09T00:09:34Z",
+  "minimumSystemVersion" : "14.0",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.2",
+  "schema" : 1,
+  "sha256" : "9c58aec95e29803bc44a28086aaa0d5df2d1816b73be54373f129eed4c3ab7f2",
+  "size" : 30592696,
+  "summary" : {
+    "en" : "AllInOneIME's own system identity. Your settings and keys come with you; afterwards add AllInOneIME once in System Settings → Keyboard → Input Sources (under English) and allow Accessibility again.",
+    "zh" : "AllInOneIME 换上了自己的系统身份，设置和密钥都会带过来。更新后请在 系统设置 → 键盘 → 输入法（英语下面）添加一次 AllInOneIME，并重新允许辅助功能。"
+  },
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.2/AllInOneIME-0.7.2-update.zip",
+  "version" : "0.7.2"
+}
