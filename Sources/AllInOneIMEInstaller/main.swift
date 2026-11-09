@@ -47,8 +47,8 @@ func runFromTerminal(install: Bool) -> Int32 {
         if install {
             let output = try Installer.install { print($0) }
             print(output)
-            // --register prints how to add it by hand when it couldn't enable it; not when it's
-            // enabled but couldn't go into the list.
+            // --register prints how to add it by hand when it isn't enabled (it never enables it); not
+            // when it's enabled but couldn't go into the list.
             let state = Installer.inputSourceState()
             if state.enabled && !state.listed { print("\n" + manualAddHint) }
             print("\n" + tr("AllInOneIME \(newVersion) 装好了。", "AllInOneIME \(newVersion) is installed."))

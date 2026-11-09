@@ -110,8 +110,9 @@ enum Installer {
     // MARK: Install and uninstall
 
     /// Replaces the installed apps (and the AIPinyin ones) with those in the payload, then registers
-    /// the input method, which also adds it to the input sources and deploys the dictionaries.
-    /// Returns what `AllInOneIME --register` printed; `step` reports progress.
+    /// the input method, which also keeps it in the input sources once the user has added it (it
+    /// never enables it) and deploys the dictionaries. Returns what `AllInOneIME --register`
+    /// printed; `step` reports progress.
     /// An installed version with AllInOneIME's own system identity is newer (`newerIdentityInstalled`): nothing is
     /// done (`Failure.newerInstalled`).
     static func install(step: (String) -> Void = { _ in }) throws -> String {
