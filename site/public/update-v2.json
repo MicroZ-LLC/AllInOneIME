@@ -1,15 +1,15 @@
 {
-  "build" : "25",
-  "generated" : "2026-11-09T00:09:34Z",
+  "build" : "27",
+  "generated" : "2026-11-09T04:26:21Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.2",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.2.1",
   "schema" : 1,
-  "sha256" : "9c58aec95e29803bc44a28086aaa0d5df2d1816b73be54373f129eed4c3ab7f2",
-  "size" : 30592696,
+  "sha256" : "8f269ca6376d5bde352541b655b5f8b4084792348b8824fabcf2f6b2397daef5",
+  "size" : 30637276,
   "summary" : {
-    "en" : "AllInOneIME's own system identity. Your settings and keys come with you; afterwards add AllInOneIME once in System Settings → Keyboard → Input Sources (under English) and allow Accessibility again.",
-    "zh" : "AllInOneIME 换上了自己的系统身份，设置和密钥都会带过来。更新后请在 系统设置 → 键盘 → 输入法（英语下面）添加一次 AllInOneIME，并重新允许辅助功能。"
+    "en" : "AllInOneIME's own system identity, now without a logout. Your settings and keys come with you; afterwards add AllInOneIME once in System Settings → Keyboard → Input Sources (under English) and allow Accessibility again.",
+    "zh" : "AllInOneIME 换上了自己的系统身份，现在不用注销。设置和密钥都会带过来；更新后请在 系统设置 → 键盘 → 输入法（英语下面）添加一次 AllInOneIME，并重新允许辅助功能。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.2/AllInOneIME-0.7.2-update.zip",
-  "version" : "0.7.2"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.2.1/AllInOneIME-0.7.2.1-update.zip",
+  "version" : "0.7.2.1"
 }
