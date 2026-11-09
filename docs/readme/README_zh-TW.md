@@ -527,6 +527,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `fuzzyPinyin` | 模糊拼音配對：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `useSelection` | @ 指令處理欄位中選取的文字（見「對選取的文字使用指令」） | `true` |
 | `checkForUpdates` | 每天在背景檢查一次新版本；你沒按下之前不會安裝任何東西 | `true` |
+| `sendsInstallID` | 檢查更新時，下載 manifest 的請求會帶上這台 Mac 的隨機安裝 ID，用來統計安裝數（見「隱私」）；關閉會刪除它。不會同步 | `true` |
 | `agent` | `@agent` 要把文字交給哪個程式設計 agent（Settings → Agent）：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
 | `agentCommand` | 自訂 agent 的指令，你輸入的內容會作為最後一個引數加在後面，例如 `["muse", "--"]` | `[]` |
 | `agentPageContext` | `@agent` 在 Google Chrome 中把網頁一起帶上（欄位、它的表單或區段、選取的文字、看得到的文字；絕不包含密碼） | `true` |
@@ -554,7 +555,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 - `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上（除非你選擇透過 iCloud 同步它們，見上文）的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 Settings → Assistant 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID（Notes 中備忘錄的 ID、檔案的路徑，或 Notion 頁面的位址）和第一行（最多 80 個字元），面板關閉時也一樣。打開面板絕不會向 Notion 查詢任何東西。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
-- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update-v2.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
+- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update-v2.json 及其簽章，不會帶上你輸入的內容。下載 manifest 的請求會在 User-Agent 中帶一個識別碼，`AllInOneIME/<version> (install <id>)`：一個在這台 Mac 上隨機產生的 16 位十六進位數字，存放在輸入法自己的偏好設定中（不會同步），用來統計安裝數。在 Settings → Privacy 關閉「Send an anonymous install ID with the daily update check」（設定檔中的 `sendsInstallID`）就不再傳送，並刪除這個數字；再次開啟會產生一個新的。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
 - 擴充功能來源：git 以你的身分在你的 Mac 上執行，而且只針對你加入的來源：每天為會自動檢查的來源 fetch 一次（固定版本的來源不會），以及你按 Check Now、Update 或 Re-clone 時。它只和儲存庫的主機連線，以你自己的 git 和 SSH 設定登入；你輸入的任何內容都不會隨之送出。
 - 透過 iCloud 同步（預設關閉）：只存到你自己的 iCloud 雲碟 `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`，由 Apple 同步到你的其他 Mac；不會有任何內容送到開發者的伺服器。存到那裡的有：`settings.json`（同步的設定，各自附上變更時間和每台 Mac 的隨機 ID；你的自訂指令，包括會執行程式的那些，它們仍然只在你選取時才執行）、`jargon.txt`（你的 Jargon 術語表）、`rime/`（每台 Mac 拼音學到的字詞的快照，Rime 資料夾中的其他東西一概不放：你的自訂短語和 Rime 設定留在 Mac 上），以及只有在你開啟時才會存的你對 AI 隱藏的字詞（在 `settings.json` 中）和 `questions.json`（最近的問題和答案，只有你的使用者帳號能讀取）。關閉這兩項後，它們會留在 iCloud 中，直到你移除為止（每個開關下方的「Remove from iCloud…」）。絕不存放：API 金鑰、權杖或密碼、擴充功能來源、擴充功能資料夾和外掛程式、不再打錯的 App、最近的 App、視窗狀態、同步開關。只有開啟「進階資料保護」時，iCloud 雲碟才是端對端加密。這台 Mac 自己的同步紀錄存放在 `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`。
 - 記錄檔不會記錄你輸入的內容。對於每個第三方輸入法，macOS 都會警告「The developer can access anything you type with this input source」（開發者可以取用你使用此輸入方式輸入的任何內容）；這是系統的通用警告。
