@@ -21,8 +21,8 @@ public final class ItemIcons: @unchecked Sendable {
     private let tells: DispatchQueue
     /// Where a row's icon is read (`icon(requesting:)`), and where what is kept is read ahead (`prefetch`), apart: a
     /// folder's listing read ahead never holds up a row's icon, nor results waiting for theirs (`load`).
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.item-icons", qos: .userInitiated)
-    private let ahead = DispatchQueue(label: "com.aipinyin.inputmethod.item-icons.ahead", qos: .utility)
+    private let queue = DispatchQueue(label: "com.allinoneime.inputmethod.item-icons", qos: .userInitiated)
+    private let ahead = DispatchQueue(label: "com.allinoneime.inputmethod.item-icons.ahead", qos: .utility)
     private let lock = NSLock()
     /// Each path's icon (nil: it has none) and when it was last used (`clock`).
     private var kept: [String: (image: NSImage?, used: UInt64)] = [:]

@@ -686,5 +686,5 @@ public final class SettingsStore {
         save()
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "settings")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "settings")
 }

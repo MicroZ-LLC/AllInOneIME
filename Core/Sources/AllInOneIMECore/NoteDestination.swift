@@ -226,5 +226,5 @@ public enum NoteDestinations {
         }
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "notes")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "notes")
 }

@@ -199,7 +199,7 @@ public final class ClipboardRecorder {
     let source: ClipboardSource
     /// Where images are made ready, one at a time (a later copy never overtakes an earlier one); as soon as the system can,
     /// as ⌃V's look may be waiting for one (`quickImageWait`: a wait on the main thread lends the queue no priority).
-    static let imageQueue = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-images", qos: .userInitiated)
+    static let imageQueue = DispatchQueue(label: "com.allinoneime.inputmethod.clipboard-images", qos: .userInitiated)
     /// Runs an image's preparation (its PNG, id, thumbnail and files: `ClipboardHistoryStore.prepare`) and hands its result
     /// to the second closure on the main thread: off the main thread by default, so a large copy never holds typing up;
     /// a test's runs it at once.
@@ -336,7 +336,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// Counts the clears: an image made ready before one isn't added after it (`ClipboardRecorder.poll`).
     public private(set) var generation = 0
     /// Where the list's file is written and the images no longer in it deleted, in the order the changes were made.
-    private let writes = DispatchQueue(label: "com.aipinyin.inputmethod.clipboard-history", qos: .userInitiated)
+    private let writes = DispatchQueue(label: "com.allinoneime.inputmethod.clipboard-history", qos: .userInitiated)
     /// The ids of the images being made ready (`prepare` until `add` or `discard`): their files are never removed meanwhile.
     private let preparing = PreparingIDs()
     /// The kept images' folder, beside the list and named after it (clipboard-history-images for the user's): two stores
@@ -427,7 +427,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
             if !FileManager.default.fileExists(atPath: file.path) { try Platform.current.files.writePrivate(png, to: file) }
             if let thumbnail = Self.thumbnail(png) { try Platform.current.files.writePrivate(thumbnail, to: thumbnailURL(id)) }
         } catch {
-            CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+            CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
                 .error("clipboard history: could not save an image: \(String(describing: type(of: error)))")
             preparing.remove(id)
             return .notSaved
@@ -562,7 +562,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
             // Time Machine and other backups leave it out (a new file each write: marked each time).
             excludeFromBackup(url)
         } catch {
-            CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+            CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
                 .error("clipboard history: could not save it: \(String(describing: type(of: error)))")
         }
     }

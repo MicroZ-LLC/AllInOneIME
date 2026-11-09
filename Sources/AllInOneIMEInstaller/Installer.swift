@@ -8,10 +8,10 @@ import Security
 /// `make uninstall` does: the input method in ~/Library/Input Methods, 「AllInOneIME 设置」 in
 /// ~/Applications, registered and added to the user's input sources. No administrator password.
 enum Installer {
-    static let bundleID = "com.aipinyin.inputmethod.AIPinyin"
-    static let settingsBundleID = "com.aipinyin.settings"
-    /// The input method's process names, now and in the AIPinyin days (same bundle ID).
-    static let processNames = ["AllInOneIME", "AIPinyin"]
+    static let bundleID = Updater.bundleID
+    static let settingsBundleID = Updater.settingsBundleID
+    /// The input method's process name.
+    static let processNames = ["AllInOneIME"]
     static let lsregister =
         "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
@@ -21,9 +21,9 @@ enum Installer {
     static let inputMethod = inputMethods.appendingPathComponent("AllInOneIME.app")
     static let settingsApp = applications.appendingPathComponent("AllInOneIME Settings.app")
     static let executable = inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME")
-    /// Installed under the old name by earlier versions; removed on install and uninstall.
-    static let legacyApps = [inputMethods.appendingPathComponent("AIPinyin.app"),
-                             applications.appendingPathComponent("AI 拼音设置.app")]
+    /// What the input method that starts next reads of the install (`UpdateResult`), as of an update's: the one that
+    /// starts after a move to this system identity says which permissions to allow again.
+    static let result = home.appendingPathComponent("Library/Application Support/AllInOneIME/Updates.noindex/result.json")
 
     /// Both apps, zipped by `make installer-app`. An archive rather than the apps themselves: a
     /// second AllInOneIME.app (same bundle ID) on the disk image is one macOS might launch instead
@@ -38,14 +38,14 @@ enum Installer {
         NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String
     }
 
-    static var hasLegacyInstall: Bool { legacyApps.contains(where: exists) }
-
-    /// The installed input method has AllInOneIME's own system identity (0.7.2 on, `Migration.newIdentityInstalled`): a
-    /// newer version, never replaced by this one (that would go back to the identity before, its settings and keys
-    /// moved on with it).
-    static var newerIdentityInstalled: Bool {
-        exists(inputMethod)
-            && Migration.newIdentityInstalled(info: NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any])
+    /// The input method installed, by the bundle ID its Info.plist has (`SystemIdentity.installed`): another identity's
+    /// is asked whether it can move itself to this one (`--migrate-identity --check`, for 30 seconds at most).
+    static func installedIdentity() -> SystemIdentity.Installed {
+        let info = NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any]
+        return SystemIdentity.installed(info: exists(inputMethod) ? info ?? [:] : nil) {
+            guard let answer = try? run(executable.path, ["--migrate-identity", "--check"], timeout: 30), answer.status == 0 else { return nil }
+            return answer.output
+        }
     }
 
     /// Doesn't follow a symbolic link at the end, so a dangling one counts as well.
@@ -67,8 +67,12 @@ enum Installer {
         case launch(String)
         /// Installing failed and an old app couldn't be moved back either; it was kept in `folder`.
         case notRestored(String, folder: String)
-        /// The installed version (`version`) is newer, with AllInOneIME's own system identity: nothing was installed.
-        case newerInstalled(String?)
+        /// The installed version (another system identity's) didn't move itself to this one: what it said. It put
+        /// everything back, unless it says where the previous apps are.
+        case moveFailed(String)
+        /// The installed version has another system identity and can't move itself to this one (0.7.0 and earlier):
+        /// installing over it needs the user's yes (`install(anyway:)`).
+        case anotherIdentity(String?)
 
         var errorDescription: String? {
             switch self {
@@ -90,23 +94,30 @@ enum Installer {
             case let .notRestored(reason, folder):
                 return tr("安装失败（\(reason)），原来的 App 也没能放回原处，现在在：\(folder)",
                           "Installing failed (\(reason)), and the previous apps couldn't be put back; they're in: \(folder)")
-            case let .newerInstalled(version):
+            case let .moveFailed(output):
+                return tr("已安装的 AllInOneIME 没能换到新的系统身份，所以没有安装，原来的保持不变：",
+                          "The installed AllInOneIME couldn't move to its new system identity, so nothing was installed; it's as it was:")
+                    + (output.isEmpty ? "" : "\n\n" + output)
+            case let .anotherIdentity(version):
                 let installed = version.map { " \($0)" } ?? ""
-                return tr("已安装的 AllInOneIME\(installed) 比 \(Installer.version) 新，所以这个安装程序不会替换它。要更新，请用 AllInOneIME 设置 →「关于」→「更新」。",
-                          "The installed AllInOneIME\(installed) is newer than \(Installer.version), so this installer doesn't replace it. To update, use AllInOneIME Settings → About → Update.")
+                return tr("已安装的 AllInOneIME\(installed) 没法把保存的 API 密钥带到这个版本。请先更新它（AllInOneIME 设置 →「关于」→「更新」），或者用 --install-anyway 照样安装（之后要重新输入 API 密钥）。",
+                          "The installed AllInOneIME\(installed) can't carry its saved API keys over to this version. Update it first (AllInOneIME Settings → About → Update), or install anyway with --install-anyway (then enter the API keys again).")
             }
         }
     }
 
     // MARK: Install and uninstall
 
-    /// Replaces the installed apps (and the AIPinyin ones) with those in the payload, then registers
-    /// the input method, which also adds it to the input sources and deploys the dictionaries.
-    /// Returns what `AllInOneIME --register` printed; `step` reports progress.
-    /// An installed version with AllInOneIME's own system identity is newer (`newerIdentityInstalled`): nothing is
-    /// done (`Failure.newerInstalled`).
-    static func install(step: (String) -> Void = { _ in }) throws -> String {
-        guard !newerIdentityInstalled else { throw Failure.newerInstalled(installedVersion()) }
+    /// Replaces the installed apps with those in the payload, then registers the input method, which also adds it to the
+    /// input sources and deploys the dictionaries. Returns what `AllInOneIME --register` printed; `step` reports progress.
+    ///
+    /// An installed input method with another system identity (`SystemIdentity`, found by its bundle ID not being this
+    /// one's) isn't just replaced: one that can (0.7.1) moves itself to this identity with the payload's apps, carrying the
+    /// settings and keys over (`--migrate-identity`; nothing is installed when that fails, everything as it was); one
+    /// that can't (0.7.0 and earlier) is replaced only with `anyway` (the user's yes: its keys stay with it), and its
+    /// input source is then taken out of the input sources. Either way the input method that starts next says which
+    /// permissions to allow again (`result`).
+    static func install(anyway: Bool = false, step: (String) -> Void = { _ in }) throws -> String {
         guard let payload else { throw Failure.payloadMissing }
         let manager = FileManager.default
         try manager.createDirectory(at: inputMethods, withIntermediateDirectories: true)
@@ -132,15 +143,33 @@ enum Installer {
             try checkSignature(item.app, identifier: item.id)
         }
 
+        let installed = installedIdentity()
+        let from = installedVersion()
+        // The input source of an install with another identity replaced anyway: taken out after (its bundle is gone).
+        var replacedSource: String?
+        switch installed {
+        case .none, .this:
+            break
+        case .movable:
+            step(tr("正在搬设置和密钥…", "Moving your settings and keys…"))
+            // It moves itself, with these apps (moved into place, AllInOneIME Settings beside the input method), and puts
+            // everything back when it fails.
+            let moved = try run(executable.path, ["--migrate-identity", incoming[0].app.path], timeout: 600)
+            guard moved.status == 0, installedIdentity() == .this else { throw Failure.moveFailed(moved.output) }
+            return try finishInstall(from: from, moved: true, step: step)
+        case let .tooOld(version):
+            guard anyway else { throw Failure.anotherIdentity(version) }
+            let info = NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist"))
+            replacedSource = info?["TISInputSourceID"] as? String ?? info?["CFBundleIdentifier"] as? String
+        }
+
         step(tr("正在安装…", "Installing…"))
         stopInputMethod()
-        let legacy = legacyApps.filter(exists)
-        if !legacy.isEmpty { _ = try? run(lsregister, ["-u"] + legacy.map(\.path)) }
         // The old apps are moved aside first, so a failure on the way puts them back instead of
         // leaving no input method at all (the in-app updater swaps them the same way).
         let swap: BundleSwap
         do {
-            swap = try BundleSwap.perform(placing: incoming.map { ($0.app, $0.to) }, replacing: [inputMethod, settingsApp] + legacy,
+            swap = try BundleSwap.perform(placing: incoming.map { ($0.app, $0.to) }, replacing: [inputMethod, settingsApp],
                                           aside: staging.appendingPathComponent("previous", isDirectory: true))
         } catch let BundleSwap.Failure.notRestored(reason, folder) {
             keepStaging = true
@@ -161,14 +190,33 @@ enum Installer {
             throw Failure.launch(output)
         }
         // No second copy (same bundle ID) for macOS to find while the new one registers.
+        if replacedSource != nil { _ = try? run(lsregister, ["-u"] + swap.movedAside.map(\.to.path)) }
         swap.commit()
         // In case macOS started the old copy again in between: from now on it starts the new one.
         stopInputMethod()
-        _ = try? run(lsregister, ["-f", inputMethod.path, settingsApp.path])
+        let output = try finishInstall(from: replacedSource == nil ? nil : from, moved: false, step: step)
+        if let replacedSource {
+            // The replaced install's input source: its bundle is gone, so it's out of the input sources too.
+            let removed = onMain { disableInputSource(replacedSource) }
+            return [output, removed].filter { !$0.isEmpty }.joined(separator: "\n")
+        }
+        return output
+    }
 
+    /// The installed apps registered with Launch Services and the input method by its own `--register`; after a move to
+    /// this system identity (`from`: the version moved from), what the input method that starts next reads of it.
+    static func finishInstall(from: String?, moved: Bool, step: (String) -> Void) throws -> String {
+        _ = try? run(lsregister, ["-f", inputMethod.path, settingsApp.path])
         step(tr("正在注册输入法、部署词库…", "Registering the input method and deploying the dictionaries…"))
         let register = try run(executable.path, ["--register"])
         guard register.status == 0 else { throw Failure.register(register.status, register.output) }
+        if moved || from != nil {
+            do {
+                try UpdateResult(from: from ?? "?", to: version, ok: true).write(to: result)
+            } catch {
+                NSLog("AllInOneIME installer: could not write %@: %@", result.path, String(describing: error))
+            }
+        }
         return register.output
     }
 
@@ -194,8 +242,7 @@ enum Installer {
     }
 
     /// Disables the input method and removes it from the input sources, stops it, and deletes both
-    /// apps (and the AIPinyin ones). Settings, the jargon list and learned words stay. Returns what
-    /// was done to the input source.
+    /// apps. Settings, the jargon list and learned words stay. Returns what was done to the input source.
     static func uninstall() throws -> String {
         var output = ""
         var disabled = false
@@ -205,13 +252,12 @@ enum Installer {
             disabled = result.status == 0
         }
         if !disabled {
-            // Only the AIPinyin apps are left, or AllInOneIME couldn't do it: same bundle ID, so
-            // the same input source to take out.
-            let here = onMain(disableInputSource)
+            // AllInOneIME couldn't do it: the input source taken out here.
+            let here = onMain { disableInputSource() }
             output = [output, here].filter { !$0.isEmpty }.joined(separator: "\n")
         }
         stopInputMethod()
-        let apps = ([inputMethod, settingsApp] + legacyApps).filter(exists)
+        let apps = [inputMethod, settingsApp].filter(exists)
         if !apps.isEmpty { _ = try? run(lsregister, ["-u"] + apps.map(\.path)) }
         for app in apps { try FileManager.default.removeItem(at: app) }
         return output
@@ -219,8 +265,8 @@ enum Installer {
 
     // MARK: Input source (main thread only: Text Input Sources)
 
-    static func inputSources() -> [TISInputSource] {
-        let filter = [kTISPropertyInputSourceID as String: bundleID] as CFDictionary
+    static func inputSources(_ id: String = bundleID) -> [TISInputSource] {
+        let filter = [kTISPropertyInputSourceID as String: id] as CFDictionary
         return TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource] ?? []
     }
 
@@ -244,13 +290,13 @@ enum Installer {
     }
 
     /// What `AllInOneIME --disable` does (InputSourceRegistrar in the input method), for when there
-    /// is no AllInOneIME to run it.
-    static func disableInputSource() -> String {
-        var lines = inputSources().map { source in
+    /// is no AllInOneIME to run it; `id`: another input source's (an install replaced, as its Info.plist named it).
+    static func disableInputSource(_ id: String = bundleID) -> String {
+        var lines = inputSources(id).map { source in
             let status = TISDisableInputSource(source)
-            return status == 0 ? "disabled \(bundleID)" : "TISDisableInputSource failed: \(status)"
+            return status == 0 ? "disabled \(id)" : "TISDisableInputSource failed: \(status)"
         }
-        if let updated = InputSourceList.removing(bundleID, from: userList()) {
+        if let updated = InputSourceList.removing(id, from: userList()) {
             let domain = InputSourceList.domain as CFString
             CFPreferencesSetValue(InputSourceList.key as CFString, updated as CFArray, domain,
                                   kCFPreferencesCurrentUser, kCFPreferencesAnyHost)

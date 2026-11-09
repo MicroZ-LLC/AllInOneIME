@@ -418,7 +418,7 @@ Ctrl+Space で AllInOneIME に切り替わらない場合や、しばらくす�
 
 以前のバージョンから 0.6.3 へのアップデート：0.6.3 は Developer ID で署名された最初のバージョンなので、キーチェーンはまだこれを、あなたのキーを保存したアプリだと認識しません。保存した各キー（API キー、AllInOneIME Cloud のサインイン、拡張機能のパスワード）を初めて必要とするときに、macOS がログインパスワードを尋ねます。パスワードを入力して「Always Allow」（常に許可）をクリックしてください。その後は、以降のアップデートの後も含めて、再び尋ねられることはありません。Amazon Bedrock のキーは `~/.aws/credentials` にあるため、影響を受けません。ターミナルへの貼り付けと選択範囲の読み取りに使うアクセシビリティ（システム設定 → プライバシーとセキュリティ → アクセシビリティ）にも、1 つ手順が必要です。AllInOneIME が一覧にあれば削除し、求められたらもう一度オンにしてください。
 
-AIPinyin（AllInOneIME の以前の名前）をインストールしていた場合は、そのままインストールしてください。古い AIPinyin.app とその設定ランチャーは削除され、入力ソースの項目は新しい名前になるので、追加し直す必要はありません。設定、Jargon 用語リスト、学習した語は初回起動時に新しいフォルダ（`~/.config/allinoneime` など）に移され、古いフォルダはそれぞれ新しいフォルダへのリンクとして残ります。
+0.7.1 以前からのアップデート：0.7.2 以降、AllInOneIME は独自のシステム ID（macOS が識別に使うバンドル ID）を持ちます。0.7.1 は自分でアップデートするとき（Settings → About → Update）も、インストーラに頼まれたときも、この ID に移行し、設定と保存した API キーを引き継ぎます。それより前のバージョンはできないので、先に 0.7.1 にアップデートするか、そのままインストールして API キーを入力し直してください。どちらの場合も、macOS は AllInOneIME に許可した権限をもう一度確認し、AllInOneIME はどれが必要かを一度だけ知らせます。
 
 アンインストールするには、「Install AllInOneIME」を開いて「Uninstall…」（アンインストール…）をクリックします。設定と学習した語は保持されます。
 
@@ -603,7 +603,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 アプリはマニフェストを読む前に、内蔵の公開鍵でその署名を確認し、新しくないバージョンは決してインストールせず、https で allinoneime.com またはこのリポジトリの GitHub リリースのファイルからのみダウンロードし、アーカイブのサイズと SHA-256 がマニフェストと一致し、両方のアプリのバンドル ID、バージョン、コード署名が確認でき、新しい入力メソッドが起動したときにだけインストールします。その後、入力メソッドは自身の実行ファイルをヘルパーとして処理を引き継ぎ（`--apply-update`）、ヘルパーは入力メソッドの終了を待って、インストーラと同じようにアプリを入れ替え（古いものは脇に移し、失敗したら元に戻します）、新しいものを登録します。ローカルサーバで試すには：`make update-test`、または `Scripts/build-update-manifest.swift` の `--test-key` と `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>` を使います。
 
-バンドル ID は今も `com.aipinyin.inputmethod.AIPinyin` です。macOS はこれを使って追加済みの入力ソースと付与された権限を記憶しているため、変更すると入力メソッドの追加と権限の付与をやり直す必要があります。
+バンドル ID は 0.7.2 から `com.allinoneime.inputmethod.AllInOneIME` です（AllInOneIME Settings は `com.allinoneime.settings`、キーチェーンのアクセスグループは `9SR8N3UD5Y.com.allinoneime.shared`）。macOS はこれを使って追加済みの入力ソースと付与された権限を記憶します。以前の ID を持つ最後のバージョンである 0.7.1 が、インストールをこの ID に移行します（自身のアップデート、またはインストーラと `make install` が呼ぶ `AllInOneIME --migrate-identity <新しい AllInOneIME.app>` で）。それ以降のバージョンは、別の ID のインストールをバンドル ID だけで見分けます。
 
 ## ライセンス
 

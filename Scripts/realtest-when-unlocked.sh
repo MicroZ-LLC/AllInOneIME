@@ -3,7 +3,7 @@
 # reports the result. Started as a temporary launchd job by `make realtest-when-unlocked`, which
 # builds the harness first (a plain background process would not survive the shell that started
 # it). The job removes itself when done. Cancel with: make realtest-cancel
-LABEL=com.aipinyin.realtest-watch
+LABEL=com.allinoneime.realtest-watch
 REPO="$(cd "$(dirname "$0")/.." && pwd)"
 LOGS="$HOME/Library/Logs/AllInOneIME"
 OUT="$LOGS/realtest"
@@ -48,7 +48,7 @@ while :; do
     fi
     echo "[$(date)] make realtest-run exit $rc"
     echo "--- input method log during the test ---"
-    log show --start "$start" --style compact --info --predicate 'subsystem == "com.aipinyin.inputmethod.AIPinyin"' 2>/dev/null \
+    log show --start "$start" --style compact --info --predicate 'subsystem == "com.allinoneime.inputmethod.AllInOneIME"' 2>/dev/null \
         | cut -c1-200 | tail -60
     # make exits non-zero for an incomplete run too (realtest-run): the last line tells it from a failure.
     if [ "$rc" -eq 0 ] && grep -q '^REALTEST PASSED' "$OUT/output.txt"; then

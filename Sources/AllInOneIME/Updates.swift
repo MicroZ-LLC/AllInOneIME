@@ -25,9 +25,7 @@ import UserNotifications
 //    on the About page. Each step goes to update.log and to the unified log.
 //
 // Only the two apps change: the settings, language packs, learned words and extensions live elsewhere
-// (~/.config/allinoneime, ~/Library/Application Support/AllInOneIME) and are never touched. An update with the new system
-// identity (0.7.2 on) is installed by the migration instead (`Migration`, 0.7.1 only): it carries the preferences and the
-// keychain items over first, swaps the apps the same way, and cleans up the old identity once the new one is in.
+// (~/.config/allinoneime, ~/Library/Application Support/AllInOneIME) and are never touched.
 
 /// Where an update goes: the user's own folders, or a test's (`--target-dir`), which nothing else touches.
 struct UpdateLocations {
@@ -262,12 +260,9 @@ enum UpdateHelper {
         if !locations.isTest { stopInputMethod(locations, staged: staged) }
 
         // Checked again: they waited in a folder of the user's since the input method checked them. Signed by this app's
-        // team, as the installer checks them (none for an ad-hoc signed build, a developer's). Their identity this one's,
-        // or the new one (`Updater.accepts`).
-        let identity: AppIdentity
+        // team, as the installer checks them (none for an ad-hoc signed build, a developer's).
         do {
-            identity = try Updater.identity(of: new.inputMethod, over: Updater.identity)
-            for (app, id) in [(new.inputMethod, identity.inputMethod), (new.settingsApp, identity.settings)] {
+            for (app, id) in [(new.inputMethod, Updater.bundleID), (new.settingsApp, Updater.settingsBundleID)] {
                 guard NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
                     throw UpdateError.invalidApp("\(app.lastPathComponent) is missing")
                 }
@@ -275,18 +270,6 @@ enum UpdateHelper {
             }
         } catch {
             return finish("the staged update doesn't check out (\(error)); nothing was changed")
-        }
-
-        // The new system identity (0.7.2 on): the migration swaps the apps, after carrying the settings and keys over,
-        // and cleans up the old identity once the new one is in.
-        if identity != Updater.identity {
-            let report = migration(locations).run(identitySwitch(placing: new, version: to, staged: staged, locations: locations,
-                                                                 simulateFailure: simulateFailure))
-            if report.notRestored { keepStaged = true }
-            guard report.switched else {
-                return finish("\(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; AllInOneIME \(from) is back"))
-            }
-            return finish(nil)
         }
 
         let swap: BundleSwap
@@ -334,30 +317,6 @@ enum UpdateHelper {
         return finish(nil)
     }
 
-    /// The move to the new system identity (`Migration`): the user's, or a test install's (files in its folder stand for
-    /// the defaults, the keychain and the input sources).
-    static func migration(_ locations: UpdateLocations, say: @escaping (String) -> Void = UpdateHelper.say) -> Migration {
-        locations.isTest ? .test(root: locations.inputMethods.deletingLastPathComponent(), say: say) : .system(say: say)
-    }
-
-    /// The installed apps swapped for `new` (with the new identity) as an update swaps them, the previous ones waiting in
-    /// `staged`/previous: the migration's step c.
-    static func identitySwitch(placing new: UpdatePayload, version: String, staged: URL, locations: UpdateLocations,
-                               simulateFailure: String?) -> AppsSwitch {
-        let launchServices = { (option: String, apps: [URL]) in
-            if !locations.isTest, !apps.isEmpty { _ = UpdateProcess.run(lsregister, [option] + apps.map(\.path), timeout: 60) }
-        }
-        var placing: [(new: URL, destination: URL)] = [(new.inputMethod, locations.inputMethod)]
-        if BundleSwap.exists(new.settingsApp) { placing.append((new.settingsApp, locations.settingsApp)) }
-        return AppsSwitch(placing: placing, replacing: [locations.inputMethod, locations.settingsApp],
-                          aside: staged.appendingPathComponent("previous", isDirectory: true), inputMethod: locations.inputMethod,
-                          version: version,
-                          stop: { if !locations.isTest { stopInputMethod(locations, staged: staged) } },
-                          launchCheck: { try UpdateStaging.launchCheck($0, version: $1) },
-                          registered: { launchServices("-f", $0) }, unregistered: { launchServices("-u", $0) },
-                          simulateFailure: simulateFailure)
-    }
-
     /// The apps installed now registered with Launch Services, and the input method with the text input system by its own
     /// `--register`: what that said.
     static func registerInstalled(_ locations: UpdateLocations) -> UpdateProcess.Result {
@@ -392,89 +351,15 @@ enum UpdateHelper {
         for pid in pids where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
-    /// The input method's processes started from the installed copy (or from it where it waits aside), not this one: of
-    /// either identity (after a move to the new one, both may be running).
+    /// The input method's processes started from the installed copy (or from it where it waits aside), not this one.
     static func inputMethodPIDs(_ locations: UpdateLocations, staged: URL) -> [pid_t] {
         let installed = locations.inputMethod.resolvingSymlinksInPath().path
         let aside = staged.resolvingSymlinksInPath().path + "/"
-        return AppIdentity.known.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0.inputMethod) }
-            .compactMap { app -> pid_t? in
-                guard app.processIdentifier != getpid(), !app.isTerminated, let path = app.bundleURL?.resolvingSymlinksInPath().path,
-                      path == installed || path.hasPrefix(aside) else { return nil }
-                return app.processIdentifier
-            }
-    }
-}
-
-// MARK: - The new identity
-
-/// `--migrate-identity APP [--target-dir DIR]`: the move to the new system identity (`Migration`) with APP, an
-/// AllInOneIME.app that has it (the 0.7.2 installer's, unpacked), moved into place as the installer moves its apps, and
-/// AllInOneIME Settings.app beside it too when it is there (the installed one goes either way: it would open the old
-/// input method). `--migrate-identity --check` says that this version can (`Migration.checkLine`): 0.7.0 and earlier
-/// answer that the option is unknown. With `--target-dir`, a test install's, as `--install-update`'s. Exits 0 once the
-/// new identity is installed (by this run or an earlier one; a cleanup step left is said, and done by the new version at
-/// its next launch from the record the run leaves, `CleanupRecord`, or by the next run), 1 when it isn't (everything as
-/// it was), 2 for a bad argument.
-enum MigrationCommand {
-    static func run(_ arguments: [String]) -> Int32 {
-        if arguments.first == "--check" {
-            print(Migration.checkLine)
-            return 0
+        return NSRunningApplication.runningApplications(withBundleIdentifier: Updater.bundleID).compactMap { app -> pid_t? in
+            guard app.processIdentifier != getpid(), !app.isTerminated, let path = app.bundleURL?.resolvingSymlinksInPath().path,
+                  path == installed || path.hasPrefix(aside) else { return nil }
+            return app.processIdentifier
         }
-        guard let path = arguments.first, !path.hasPrefix("--") else {
-            printError("usage: --migrate-identity APP [--target-dir DIR] | --migrate-identity --check")
-            return 2
-        }
-        let locations = option("--target-dir", in: arguments).map { UpdateLocations.test(root: URL(fileURLWithPath: $0).standardizedFileURL) } ?? .real
-        let app = URL(fileURLWithPath: path).standardizedFileURL
-        let settings = app.deletingLastPathComponent().appendingPathComponent(Updater.settingsAppName, isDirectory: true)
-        guard let version = UpdateStaging.version(of: app) else {
-            printError("✗ \(app.path) isn't an AllInOneIME.app")
-            return 2
-        }
-        guard BundleSwap.exists(locations.inputMethod) else {
-            printError("✗ no AllInOneIME in \(locations.inputMethods.path)")
-            return 1
-        }
-        // The new apps: the new identity, intact, signed by this app's team (none for an ad-hoc signed build), and the input
-        // method starts. Nothing is changed before.
-        let new = Migration.new.apps
-        do {
-            for (bundle, id) in [(app, new.inputMethod)] + (BundleSwap.exists(settings) ? [(settings, new.settings)] : []) {
-                guard NSDictionary(contentsOf: bundle.appendingPathComponent("Contents/Info.plist"))?["CFBundleIdentifier"] as? String == id else {
-                    throw UpdateError.invalidApp("\(bundle.lastPathComponent) doesn't have the new identity")
-                }
-                try CodeSignature.check(bundle, identifier: id, team: CodeSignature.ownTeamID)
-            }
-            try UpdateStaging.launchCheck(app, version: version)
-        } catch {
-            printError("✗ \(UpdateText.describe(error))")
-            return 1
-        }
-        let staged = locations.work.appendingPathComponent("identity-\(UUID().uuidString.prefix(8))", isDirectory: true)
-        // The input method stopped before its preferences and keys are copied: nothing changes under the copy.
-        if !locations.isTest { UpdateHelper.stopInputMethod(locations, staged: staged) }
-        let switcher = UpdateHelper.identitySwitch(placing: UpdatePayload(inputMethod: app, settingsApp: settings, identity: new),
-                                                   version: version, staged: staged, locations: locations, simulateFailure: nil)
-        let report = UpdateHelper.migration(locations, say: { line in
-            print(line)
-            fflush(stdout)
-            log.notice("migrate-identity: \(line, privacy: .public)")
-        }).run(switcher)
-        if !report.notRestored { try? FileManager.default.removeItem(at: staged) }
-        guard report.switched else {
-            printError("✗ \(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; everything is put back as it was"))
-            return 1
-        }
-        print(report.pending.isEmpty ? "✓ AllInOneIME \(version) is installed with the new identity"
-              : "✓ AllInOneIME \(version) is installed with the new identity; left for its next launch: "
-                + report.pending.map(\.rawValue).joined(separator: ", "))
-        if !report.inputSourceEnabled {
-            print("  its input source isn't enabled yet: macOS lets only you add it (System Settings → Keyboard → Input Sources → + "
-                  + "→ English → AllInOneIME); until you do, AllInOneIME can't be typed with")
-        }
-        return 0
     }
 }
 
@@ -630,6 +515,8 @@ final class UpdateController: ObservableObject {
     @Published var lastChecked: Date?
     /// What the last update did, shown on the About page after the restart.
     @Published var lastResult: UpdateResult?
+    /// What this launch shows first, of its own (`start`): the step to add the input source right after the move.
+    private(set) var firstShown = SystemIdentity.FirstShown.nothing
 
     var updater = Updater(manifestURL: Updater.defaultManifestURL)
     var locations = UpdateLocations.real
@@ -675,6 +562,25 @@ final class UpdateController: ObservableObject {
         }
         let result = lastResult
         Task { await notifier.restarted(after: result) }
+        // Moved to this system identity (from a version before it, by its update or the installer): macOS asks again for
+        // the permissions it keeps by bundle ID. Said once: About, its update row saying which (`UpdateText.moved`), with
+        // Troubleshoot outlined, which lists those still to allow, once the input method has started. Its input source not
+        // added yet (macOS leaves that to the user; nothing of AllInOneIME types until then): About from its top at once,
+        // that step the first thing shown (`InputSourceStepSection`; a settings window asked for at launch opens on it
+        // too, `firstShown`), and Troubleshoot outlined once it is added.
+        let status = InputSourceStatus.shared
+        firstShown = SystemIdentity.firstShown(after: result, inputSourceEnabled: !status.needsAdding)
+        switch firstShown {
+        case .nothing:
+            break
+        case .inputSourceStep:
+            log.notice("moved to this system identity: About shows the step to add the input source first, then the permissions")
+            DispatchQueue.main.async { SettingsWindow.shared.show(page: .about) }
+            status.whenAdded = { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+        case .permissions:
+            log.notice("moved to this system identity: the permissions are told on the About page")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { SettingsWindow.shared.show(page: .about, spot: .troubleshoot) }
+        }
         clearLeftovers()
         lastChecked = defaults.object(forKey: Self.successKey) as? Date
         if let data = defaults.data(forKey: Self.manifestKey), let signature = defaults.data(forKey: Self.signatureKey),
@@ -891,6 +797,18 @@ enum UpdateText {
         }
     }
 
+    /// After the move to this system identity (`SystemIdentity.moved`): the permissions macOS asks for again, as they
+    /// apply (voice input's only while it is offered), and where to see those still to allow; the commands named with the
+    /// trigger the settings have.
+    static var moved: String {
+        var text = UIText.triggered(tr("AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「英语」下面。",
+                      "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under English."))
+        if Features.voiceInput {
+            text += " " + tr("语音输入也会重新询问麦克风和语音识别。", "Voice input asks for the microphone and speech recognition again too.")
+        }
+        return text
+    }
+
     static func available(_ version: String) -> String {
         tr("AllInOneIME \(version) 可以更新了", "AllInOneIME \(version) is available")
     }
@@ -1008,6 +926,9 @@ struct UpdateSection: View {
                 if let failure = result.launchError {
                     Text(tr("更新后它没能自己重新启动（\(failure)），是之后才启动的。", "It didn't start again by itself after the update (\(failure)); it started later."))
                         .font(.callout).foregroundStyle(.secondary)
+                }
+                if SystemIdentity.moved(result) {
+                    Text(UpdateText.moved).font(.callout).foregroundStyle(.secondary)
                 }
             }
             .fixedSize(horizontal: false, vertical: true)

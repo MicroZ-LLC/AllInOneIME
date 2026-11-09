@@ -118,7 +118,7 @@ enum Issue52Child {
         let home = FileManager.default.temporaryDirectory.appendingPathComponent("issue52-home-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: home, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: home) }
-        let name = "com.aipinyin.inputmethod.issue52.\(UUID().uuidString)"
+        let name = "com.allinoneime.inputmethod.issue52.\(UUID().uuidString)"
         let result = try command(executable, [path.rawValue, kind.rawValue, name],
                                  environment: ["CFFIXED_USER_HOME": home.path, "HOME": home.path], timeout: 60)
         guard result.status == 0, let line = result.output.split(separator: "\n").last(where: { $0.hasPrefix("REPORT ") }) else {
@@ -217,7 +217,7 @@ import os
 
 // The input method's own, not compiled in: its log, whether secure input is on (it isn't), the config as its file has
 // it (clipboard history on, 20 kept).
-let log = Logger(subsystem: "com.aipinyin.inputmethod.issue52", category: "ime")
+let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
 enum SecureInput {
     static var isOn = false

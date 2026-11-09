@@ -51,7 +51,7 @@ public final class InputSession {
     }
     private static let progressLimit = Locked<TimeInterval>(initialState: 20)
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
     var log: CoreLog { Self.log }
 
     /// Level one's engine as `services.levelOne` gave it.

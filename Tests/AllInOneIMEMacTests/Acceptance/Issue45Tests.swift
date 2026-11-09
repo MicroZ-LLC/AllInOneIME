@@ -139,7 +139,7 @@ enum Issue45Child {
     /// `action` with `kind` on the clipboard: what the child saw, and how many times the copy's app was asked for its data.
     static func run(_ action: Action, _ kind: Kind) throws -> (report: Report, asked: Int) {
         let executable = try compiled.get()
-        let name = "com.aipinyin.inputmethod.issue45.\(UUID().uuidString)"
+        let name = "com.allinoneime.inputmethod.issue45.\(UUID().uuidString)"
         defer { NSPasteboard(name: NSPasteboard.Name(name)).releaseGlobally() }
         // The app the copy was made in, on the clipboard until the end.
         let log = FileManager.default.temporaryDirectory.appendingPathComponent("issue45-source-\(UUID().uuidString).log")

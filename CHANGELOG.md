@@ -2,6 +2,14 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.2 (unreleased)
+
+### Changed
+
+- AllInOneIME has its own system identity: new bundle IDs, the names macOS knows the input method and AllInOneIME Settings by, and a keychain access group of its own. Updating from 0.7.1 carries your settings and the API keys saved in AllInOneIME over (0.7.1 does it before it installs this version). From an earlier version, update to 0.7.1 first (Settings → About → Update); or the installer installs anyway, and you enter your API keys again. Keys synced through iCloud Keychain move too: another Mac reads them once it has updated as well.
+- macOS keeps permissions by bundle ID, so it asks again for those you gave AllInOneIME: Accessibility, Paste from Other Apps, Automation (Terminal, Notes, Messages), Contacts, Reminders and Notifications. After the update, AllInOneIME says once which, on its About page, and Troubleshoot lists those still to allow. The API keys kept in the login keychain (key sync off) come over without macOS asking for your login password: 0.7.1 hands them over, and this version takes them in when it starts. Whatever of the earlier identity 0.7.1 couldn't remove right away, this version removes when it starts.
+- macOS lets only you add the new input method, and AllInOneIME can't type until you have: right after the update, Settings → About opens with that one step first (One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → English → AllInOneIME, with a button that opens Keyboard settings), then the permissions to allow again. It goes away once AllInOneIME is in your input sources. The earlier identity's input source no longer works: its entry stays in your input sources only until then, to be taken out. In your input sources, AllInOneIME is listed under English.
+
 ## 0.7.1 (unreleased)
 
 ### Changed
@@ -554,15 +562,15 @@ English | [中文](CHANGELOG.zh-CN.md)
 - To upgrade, run `make install` as usual, without uninstalling first; it adds AllInOneIME to your input sources, so you usually don't need to add it by hand.
 - `translateKey` in the config is no longer read; `actionKey` replaces it, ⏎ by default. If you used Tap ⌥, ⌥Space or Space, choose it again under "Action key" in the settings.
 - The old "AI translation and rewrites" switch (`aiEnabled`) is no longer read, and sentence mode (`sentenceMode`) is off by default: after upgrading, you get no results without `@`. For the old behavior, turn on sentence mode.
-- Upgrading from an AIPinyin (AI 拼音) version: `make install` removes the old AIPinyin.app and "AI 拼音设置"; the added input source and the microphone permission are kept. On first launch, settings, the jargon list and learned words move to `~/.config/allinoneime` and `~/Library/Application Support/AllInOneIME`, logs to `~/Library/Logs/AllInOneIME`, and each old folder is left as a link to the new one.
+- Upgrading from a version with the app's first name: `make install` removes the old app and its settings launcher; the added input source and the microphone permission are kept. On first launch, settings, the jargon list and learned words move to `~/.config/allinoneime` and `~/Library/Application Support/AllInOneIME`, logs to `~/Library/Logs/AllInOneIME`, and each old folder is left as a link to the new one.
 
 ## 0.1.0
 
-All versions before 0.2.0 are labeled 0.1.0; the app was first called AIPinyin (AI 拼音).
+All versions before 0.2.0 are labeled 0.1.0; the app had another name at first.
 
 - A local pinyin input method based on librime 1.16.1 and rime-ice (雾凇拼音); typing never goes online.
 - Finish a sentence and press the "Translate key": it goes to Amazon Bedrock in your own AWS account (Claude Haiku 4.5 by default), which gives three English versions and several Chinese rewrites (Polish, Concise, Formal, Casual, Tactful).
-- A settings window, and "AI 拼音设置", a launcher that opens it.
+- A settings window, and a launcher that opens it.
 - Nothing is sent during secure input (password fields and the like).
 - "Default input" (Chinese pinyin / English) and "Output" (English / Chinese): text in the other language is translated, text in the same language is polished, and rewrites are in the language you typed. English typed in English mode also goes into the draft (`englishAI` turns this off).
 - The "Jargon" rewrite style: big-tech jargon in Chinese, Amazon-speak in English. It can use your own term list, and the candidate panel notes what the terms it used mean.

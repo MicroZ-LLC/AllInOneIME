@@ -7,7 +7,7 @@
 import AllInOneIMEText
 import AppKit
 
-let inputMethodID = "com.aipinyin.inputmethod.AIPinyin"
+let inputMethodID = "com.allinoneime.inputmethod.AllInOneIME"
 let home = FileManager.default.homeDirectoryForCurrentUser
 let installed = home.appendingPathComponent("Library/Input Methods/AllInOneIME.app")
 

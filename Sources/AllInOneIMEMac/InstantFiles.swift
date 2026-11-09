@@ -47,7 +47,7 @@ public final class InstantFiles: @unchecked Sendable {
     private let lister: @Sendable (_ query: String, _ limit: Int) -> [SearchResult]
     /// The folders listed lately, by their path (expanded, as `FileSearch.complete` reads it).
     private var listings: [String: Listing] = [:]
-    private let queue = DispatchQueue(label: "com.aipinyin.inputmethod.instant-files", qos: .utility)
+    private let queue = DispatchQueue(label: "com.allinoneime.inputmethod.instant-files", qos: .utility)
     private let lock = NSLock()
     /// The index's apps and places, dated; what `@open` opened that is there and isn't one of them, by path; the places'
     /// names, folded; every path of the history looked at; when they were made, and whether they are being made.

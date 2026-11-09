@@ -21,7 +21,7 @@ struct FileSearchRankingTests {
     var apps: [Found] { [calculator, systemSettings, terminal, notes] }
 
     @Test func keywordsAreSplitAtAnySpace() {
-        #expect(FileSearchRanking.keywords(in: "aipinyin readme") == ["aipinyin", "readme"])
+        #expect(FileSearchRanking.keywords(in: "allinoneime readme") == ["allinoneime", "readme"])
         #expect(FileSearchRanking.keywords(in: "  周报　2026  ") == ["周报", "2026"])  // full-width space, extra spaces
         #expect(FileSearchRanking.keywords(in: "a \t b\u{00A0}c") == ["a", "b", "c"])
         #expect(FileSearchRanking.keywords(in: "周报2026") == ["周报2026"])
@@ -29,9 +29,9 @@ struct FileSearchRankingTests {
     }
 
     @Test func nameSearchesAreTheLongestKeywordsEachOnce() {
-        #expect(FileSearchRanking.nameSearches(["aipinyin", "readme"]) == ["aipinyin", "readme"])
+        #expect(FileSearchRanking.nameSearches(["allinoneime", "readme"]) == ["allinoneime", "readme"])
         #expect(FileSearchRanking.nameSearches(["周报", "2026"]) == ["2026", "周报"])
-        #expect(FileSearchRanking.nameSearches(["a", "doc", "readme", "aipinyin", "md"]) == ["aipinyin", "readme", "doc"])
+        #expect(FileSearchRanking.nameSearches(["a", "doc", "readme", "allinoneime", "md"]) == ["allinoneime", "readme", "doc"])
         #expect(FileSearchRanking.nameSearches(["ab", "cd", "ef", "gh"]) == ["ab", "cd", "ef"])  // same length: as typed
         #expect(FileSearchRanking.nameSearches(["README", "readme", "Résumé", "resume"]) == ["README", "Résumé"])
         #expect(FileSearchRanking.nameSearches(["-v", "notes"]) == ["notes"])  // mdfind would take "-v" for an option
@@ -91,11 +91,11 @@ struct FileSearchRankingTests {
     }
 
     @Test func everyKeywordInThePathOneInTheName() {
-        let keywords = ["aipinyin", "readme"]
-        #expect(FileSearchRanking.matches("/Users/me/workspace/AIPinyin/README.md", keywords: keywords))
-        #expect(FileSearchRanking.matches("/Users/me/aipinyin-readme.txt", keywords: keywords))
-        #expect(!FileSearchRanking.matches("/Users/me/workspace/AIPinyin/notes.md", keywords: keywords))  // no "readme"
-        #expect(!FileSearchRanking.matches("/Users/me/aipinyin-readme/notes.md", keywords: keywords))  // neither in the name
+        let keywords = ["allinoneime", "readme"]
+        #expect(FileSearchRanking.matches("/Users/me/workspace/AllInOneIME/README.md", keywords: keywords))
+        #expect(FileSearchRanking.matches("/Users/me/allinoneime-readme.txt", keywords: keywords))
+        #expect(!FileSearchRanking.matches("/Users/me/workspace/AllInOneIME/notes.md", keywords: keywords))  // no "readme"
+        #expect(!FileSearchRanking.matches("/Users/me/allinoneime-readme/notes.md", keywords: keywords))  // neither in the name
         #expect(FileSearchRanking.matches("/Users/me/Documents/2026/周报-第3周.docx", keywords: ["周报", "2026"]))
         #expect(!FileSearchRanking.matches("/Users/me/Documents/周报.docx", keywords: ["周报", "2026"]))
         #expect(FileSearchRanking.matches("/Users/me/Jobs/Résumé Final.PDF", keywords: ["resume", "JOBS"]))  // case, accents
@@ -246,7 +246,7 @@ struct FileSearchRankingTests {
 
     @Test func aRecentChangeCountsLikeARecentUse() {
         // Editors and terminals don't record a use: the README edited yesterday beats a readme last opened in 2018.
-        let repo = Found(path: "/Users/me/workspace/AIPinyin/README.md", modified: date("2026-10-09T00:00:00Z"))
+        let repo = Found(path: "/Users/me/workspace/AllInOneIME/README.md", modified: date("2026-10-09T00:00:00Z"))
         let old = Found(path: "/Users/me/Downloads/readme.txt", lastUsed: date("2018-03-04T00:00:00Z"), modified: date("2018-03-01T00:00:00Z"))
         #expect(FileSearchRanking.rank([old, repo], keywords: ["readme"], history: OpenHistory()) == [repo, old])
         // The later of the two counts.
@@ -281,8 +281,8 @@ struct FileSearchRankingTests {
         #expect(FileSearchRanking.rank([x, y], keywords: ["notes"], history: OpenHistory()) == [x, y])
         #expect(FileSearchRanking.rank([y, x], keywords: ["notes"], history: OpenHistory()) == [y, x])
         // More of the keywords in the name first.
-        let both = Found(path: "/Users/me/AIPinyin-README.txt"), one = Found(path: "/Users/me/workspace/AIPinyin/README.md")
-        #expect(FileSearchRanking.rank([one, both], keywords: ["aipinyin", "readme"], history: OpenHistory()) == [both, one])
+        let both = Found(path: "/Users/me/AllInOneIME-README.txt"), one = Found(path: "/Users/me/workspace/AllInOneIME/README.md")
+        #expect(FileSearchRanking.rank([one, both], keywords: ["allinoneime", "readme"], history: OpenHistory()) == [both, one])
         // An app's other names count: 「设置」 starts its Chinese name 设置助理, not 系统设置.
         let assistant = Found(path: "/System/Applications/Utilities/Setup Assistant.app", names: ["Setup Assistant", "设置助理"])
         #expect(FileSearchRanking.rank([systemSettings, assistant], keywords: ["设置"], history: OpenHistory()) == [assistant, systemSettings])
@@ -316,20 +316,20 @@ struct FileSearchRankingTests {
     @Test func severalKeywordsSearchEachNameAndKeepWhatHasThemAll() {
         var searched: [[String]] = []
         let found = FileSearchRanking.search(
-            "aipinyin  readme", limit: 8, history: OpenHistory(), isCandidate: { !$0.contains("/Library/") },
+            "allinoneime  readme", limit: 8, history: OpenHistory(), isCandidate: { !$0.contains("/Library/") },
             byName: { keywords in
                 searched.append(keywords)
                 return [
-                    Found(path: "/Users/me/other/README.md"),  // no "aipinyin"
-                    Found(path: "/Users/me/workspace/AIPinyin/README.md"),
-                    Found(path: "/Users/me/workspace/AIPinyin/Package.swift"),  // no "readme"
-                    Found(path: "/Users/me/Library/AIPinyin/README.md"),  // not a candidate
-                    Found(path: "/Users/me/workspace/AIPinyin/README.md"),  // found by both searches
+                    Found(path: "/Users/me/other/README.md"),  // no "allinoneime"
+                    Found(path: "/Users/me/workspace/AllInOneIME/README.md"),
+                    Found(path: "/Users/me/workspace/AllInOneIME/Package.swift"),  // no "readme"
+                    Found(path: "/Users/me/Library/AllInOneIME/README.md"),  // not a candidate
+                    Found(path: "/Users/me/workspace/AllInOneIME/README.md"),  // found by both searches
                 ]
             },
             byContent: { _ in [] })
-        #expect(searched == [["aipinyin", "readme"]])
-        #expect(found.map(\.path) == ["/Users/me/workspace/AIPinyin/README.md"])
+        #expect(searched == [["allinoneime", "readme"]])
+        #expect(found.map(\.path) == ["/Users/me/workspace/AllInOneIME/README.md"])
         // One keyword: what Spotlight found by name is kept as it is (as before).
         #expect(search("计算器", names: [Found(path: "/System/Applications/Calculator.app")]).map(\.path)
             == ["/System/Applications/Calculator.app"])

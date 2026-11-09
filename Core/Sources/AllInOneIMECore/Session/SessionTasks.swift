@@ -139,7 +139,7 @@ public final class SessionTasks {
     /// The field's session is over: nothing more starts in a slot (until it takes the focus again, `reopen`).
     private var closed = false
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
     public init(deliver: @escaping @Sendable (SessionEvent) -> Void) {
         self.deliver = deliver

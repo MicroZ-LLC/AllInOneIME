@@ -259,7 +259,7 @@ struct Issue34Report: Encodable {
 
 /// The general pasteboard, a private one; Paste from Other Apps as the test says; the input method's reads counted.
 enum Issue34Clipboard {
-    static let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.aipinyin.inputmethod.issue34.\(UUID().uuidString)"))
+    static let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.allinoneime.inputmethod.issue34.\(UUID().uuidString)"))
     /// `NSPasteboard.AccessBehavior`'s raw value: default 0 (never asked), ask 1, alwaysAllow 2, alwaysDeny 3.
     static var behavior = 2
     static var reads = 0

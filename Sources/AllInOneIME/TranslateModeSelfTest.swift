@@ -82,7 +82,7 @@ extension SelfTest {
         // Shift down as the system has it while the timers run).
         (TranslateModeShared.pointer, TranslateModeShared.stickyKeys, TranslateModeShared.shiftHeld) = ({ .zero }, { false }, { true })
         // The language picked last: in the self-test's own defaults (the user's stay as they are).
-        let suite = "com.aipinyin.selftest.translatemode"
+        let suite = "com.allinoneime.selftest.translatemode"
         UserDefaults.standard.removePersistentDomain(forName: suite)
         TranslateModeShared.defaults = UserDefaults(suiteName: suite) ?? .standard
         // Everything left as it was found, for the sections after it: off, no press timed and no timer of one or of the

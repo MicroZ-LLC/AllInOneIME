@@ -174,7 +174,7 @@ enum Issue55Child {
     static func run(_ trigger: Trigger, _ window: Window) throws -> Report {
         let executable = try compiled.get()
         let fm = FileManager.default
-        let name = "com.aipinyin.inputmethod.issue55.\(UUID().uuidString)"
+        let name = "com.allinoneime.inputmethod.issue55.\(UUID().uuidString)"
         defer { NSPasteboard(name: NSPasteboard.Name(name)).releaseGlobally() }
         // The child's home: never the user's config.
         let home = fm.temporaryDirectory.appendingPathComponent("issue55-home-\(UUID().uuidString)", isDirectory: true)

@@ -872,7 +872,7 @@ extension Optional where Wrapped == String {
 }
 
 extension Config {
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "config")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "config")
 }
 
 extension CustomCommand {

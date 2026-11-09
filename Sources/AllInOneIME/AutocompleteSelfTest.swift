@@ -11,7 +11,7 @@ import os
 final class HarnessTextClient: NSObject, IMKTextInput {
     let window: NSWindow
     let textView: NSTextView
-    var bundleID = "com.aipinyin.selftest.harness"
+    var bundleID = "com.allinoneime.selftest.harness"
     /// How far up the rect for an empty range is told, off the caret's line (as Notes's has been); the line's rect
     /// (`attributes(forCharacterIndex:lineHeightRectangle:)`) stays right.
     var emptyRangeOffset: CGFloat = 0
@@ -420,13 +420,13 @@ extension SelfTest {
                 restore: { controller.services.secureInputActive = { false } })
         nothing("in a password field Accessibility tells, secure input off", prepare: { controller.passwordField = { true } },
                 restore: { controller.passwordField = { false } })
-        nothing("in a terminal", prepare: { harness.bundleID = "com.apple.Terminal" }, restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
+        nothing("in a terminal", prepare: { harness.bundleID = "com.apple.Terminal" }, restore: { harness.bundleID = "com.allinoneime.selftest.harness" })
         nothing("in a password manager", prepare: { harness.bundleID = "com.1password.1password" },
-                restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
+                restore: { harness.bundleID = "com.allinoneime.selftest.harness" })
         nothing("in a remote desktop", prepare: { harness.bundleID = "com.microsoft.rdc.macos" },
-                restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
+                restore: { harness.bundleID = "com.allinoneime.selftest.harness" })
         nothing("in a code editor not set to always", prepare: { harness.bundleID = "com.microsoft.VSCode" },
-                restore: { harness.bundleID = "com.aipinyin.selftest.harness" })
+                restore: { harness.bundleID = "com.allinoneime.selftest.harness" })
         nothing("in an app with no AI", prepare: { settings.appProfiles = [harness.bundleID: AppProfile(noAI: true)] },
                 restore: { settings.appProfiles = [:] })
         nothing("in an app set to never", prepare: { settings.appProfiles = [harness.bundleID: AppProfile(autocomplete: false)] },
@@ -456,13 +456,13 @@ extension SelfTest {
         controller.activateServer(harness)
         store.learn { learning in
             learning.restart()
-            for _ in 0..<29 { _ = learning.record(false, in: "com.aipinyin.selftest.harness") }
+            for _ in 0..<29 { _ = learning.record(false, in: "com.allinoneime.selftest.harness") }
         }
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
         check(ghost("ld, how are you?", within: 5), "a suggestion, the 30th in the app")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
-        check(store.stopped(in: "com.aipinyin.selftest.harness")
+        check(store.stopped(in: "com.allinoneime.selftest.harness")
               && controller.notice?.hasPrefix(tr("续写在「", "Autocomplete wasn't used in")) == true,
               "none taken: it stops there and says so (\(controller.notice ?? "none"))")
         // This App has no autocomplete of its own any more (Settings v2: Insert and No AI only); the switch is the menu's.
@@ -478,7 +478,7 @@ extension SelfTest {
         controller.activateServer(harness)
         settings.autocomplete = true
         controller.activateServer(harness)
-        check(!store.stopped(in: "com.aipinyin.selftest.harness") && store.metrics.turnedOn == turnedOn + 1,
+        check(!store.stopped(in: "com.allinoneime.selftest.harness") && store.metrics.turnedOn == turnedOn + 1,
               "turned on again by the search's Change: counted, and the app starts over")
         store.learn { $0.restart() }
 
@@ -508,7 +508,7 @@ extension SelfTest {
         let window = harness.window.frame
         let narrow = NSRect(x: window.minX, y: window.minY, width: 160, height: window.height)
         controller.fieldFrame = { narrow }
-        harness.bundleID = "com.aipinyin.selftest.narrow"
+        harness.bundleID = "com.allinoneime.selftest.narrow"
         controller.activateServer(harness)
         harness.text = "Hello wo"
         harnessType("r", controller, harness)
@@ -518,7 +518,7 @@ extension SelfTest {
               "a narrow field: cut at its edge (field to \(narrow.maxX), text \(narrowShown ? "\(GhostOverlay.shared.frame)" : "not shown"))")
         harnessKey(controller, harness, "\u{1B}", code: VirtualKey.escape)
         controller.fieldFrame = { nil }
-        harness.bundleID = "com.aipinyin.selftest.harness"
+        harness.bundleID = "com.allinoneime.selftest.harness"
         controller.activateServer(harness)
 
         testAutocompleteCloudSwitch(controller, harness, ghost: { ghost($0) })

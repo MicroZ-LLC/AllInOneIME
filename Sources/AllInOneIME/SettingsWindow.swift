@@ -2317,6 +2317,8 @@ struct SettingsView: View {
 
     /// The version, its updates, who makes it, where to read more.
     @ViewBuilder private var aboutSection: some View {
+        // The one step left while the input source isn't enabled (macOS lets only the user add it): first.
+        InputSourceStepSection(status: .shared)
         Section {
             VStack(spacing: 10) {
                 Image(nsImage: NSApp.applicationIconImage).resizable().frame(width: 96, height: 96)

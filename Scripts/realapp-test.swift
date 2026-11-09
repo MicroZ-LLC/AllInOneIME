@@ -13,7 +13,7 @@ import Carbon
 import FoundationModels
 #endif
 
-let imeID = "com.aipinyin.inputmethod.AIPinyin"
+let imeID = "com.allinoneime.inputmethod.AllInOneIME"
 
 func currentInputSourceID() -> String? {
     guard let source = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue(),
@@ -1264,7 +1264,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         // This app forgotten among those that couldn't take a typo back (a failed run before would keep typos off).
         let ime = UserDefaults(suiteName: imeID)
         let noTypos = "typeOutNoTyposApps"
-        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        let me = Bundle.main.bundleIdentifier ?? "com.allinoneime.realtest"
         ime?.set((ime?.stringArray(forKey: noTypos) ?? []).filter { $0 != me }, forKey: noTypos)
         let observer = NotificationCenter.default.addObserver(forName: NSText.didChangeNotification, object: textView,
                                                               queue: nil) { [weak self] _ in
@@ -1309,7 +1309,7 @@ final class Harness: NSObject, NSApplicationDelegate {
     ///     Chinese is the default, and @improve sends nothing (no AI), its draft kept; without them, pinyin again.
     func perAppSettings() {
         section("per-app settings (this app: English, no AI)")
-        let me = Bundle.main.bundleIdentifier ?? "com.aipinyin.realtest"
+        let me = Bundle.main.bundleIdentifier ?? "com.allinoneime.realtest"
         guard setConfig({ $0["appProfiles"] = [me: ["inputLanguage": "en", "noAI": true]] }) else {
             check(false, "config file readable, to give this app its own settings")
             return

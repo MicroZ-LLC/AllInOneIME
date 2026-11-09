@@ -131,7 +131,7 @@ public final class RimeService {
         isStarted = true
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "rime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "rime")
 
     /// rime-ice's lunar translator opens `lua/lunar.db` relative to the user folder, unlike its scripts,
     /// which librime also finds in the shared folder: a copy goes there (`prepareLunarDatabase`), before librime starts

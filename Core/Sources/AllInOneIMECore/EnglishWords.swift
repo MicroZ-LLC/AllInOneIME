@@ -324,7 +324,7 @@ public enum EnglishWords {
         /// Those whose write failed, in order, the latest `maxWords` and `RemovedCandidates.maxCount` at most: written
         /// before the next ones. On the queue only.
         private var kept: [(change: Change, url: URL)] = []
-        private let queue = DispatchQueue(label: "com.aipinyin.english-words", qos: .utility)
+        private let queue = DispatchQueue(label: "com.allinoneime.english-words", qos: .utility)
 
         public init(written: @escaping @Sendable (URL) -> Void = { _ in }) {
             self.written = written
@@ -427,7 +427,7 @@ public enum EnglishWords {
         }
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
     /// `list` with `typed` learned: at the end unless a word with its letters is there, within `maxWords`.
     static func learning(_ typed: String, into list: [String], added: [String]) -> [String] {

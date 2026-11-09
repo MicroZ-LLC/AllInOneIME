@@ -24,7 +24,7 @@ import os
 @MainActor
 final class KeyGuard {
     static let shared = KeyGuard()
-    private let log = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "KeyGuard")
+    private let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "KeyGuard")
 
     private var tap: CFMachPort?
     /// Keys whose key down the tap took: their key up is taken too.

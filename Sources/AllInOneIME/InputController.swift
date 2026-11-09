@@ -6,7 +6,7 @@ import Carbon
 import InputMethodKit
 import os
 
-let log = Logger(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
 /// One converter (one URLSession, one cache) shared by every input session in the process.
 let sharedConverter = Converter()
@@ -319,6 +319,8 @@ final class AllInOneIMEInputController: IMKInputController {
             apply(session.tellBuiltinRenames(), client: sender as? IMKTextInput)
             // Once a day at most, in the background: comparing two dates here, never on a keystroke.
             UpdateController.shared.checkIfDue()
+            // The step to add the input source, while it's shown: this text field says it is added now.
+            InputSourceStatus.shared.textFieldActivated()
         }
     }
 
@@ -643,7 +645,7 @@ final class AllInOneIMEInputController: IMKInputController {
                                 isRepeat: event.isARepeat, timestamp: event.timestamp)
         let now = ProcessInfo.processInfo.systemUptime
         if let handled = Self.keyEchoes.copy(of: key, now: now) {
-            // `log stream --level debug --predicate 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage
+            // `log stream --level debug --predicate 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage
             // BEGINSWITH "a keyDown came twice"'`: how long after the event's time the copy came, never the key.
             let late = (now - event.timestamp) * 1000
             log.debug("a keyDown came twice; the copy was dropped (\(late, format: .fixed(precision: 1), privacy: .public) ms after its time)")
@@ -735,7 +737,7 @@ final class AllInOneIMEInputController: IMKInputController {
         guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
                                           timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
             // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
-            // 'subsystem == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "modifier copy"'`): what
+            // 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "modifier copy"'`): what
             // shows a real app hands the copy over with the event's own time.
             let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
             log.debug("""
@@ -1343,7 +1345,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Where a panel of ours goes in `client` (`PanelAnchor`): the rect it tells (`toldAnchor`) where it is one to trust;
     /// else the caret Accessibility tells, the last rect to trust in this field, or the rect as told, and then the field
     /// is asked again a moment later (`reaskAnchor`). Said in the log, numbers only (`log stream --predicate 'subsystem
-    /// == "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`).
+    /// == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`).
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
         anchorToken += 1
@@ -1389,7 +1391,7 @@ final class AllInOneIMEInputController: IMKInputController {
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
-            // "com.aipinyin.inputmethod.AIPinyin" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
+            // "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
             log.debug("""
                 panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
                 marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \

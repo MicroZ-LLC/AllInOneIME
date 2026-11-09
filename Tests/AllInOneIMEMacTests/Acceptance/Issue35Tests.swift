@@ -215,7 +215,7 @@ import os
 
 // The input method's own, not compiled in: its log, whether secure input is on (Secure Keyboard Entry in a terminal),
 // the config as its file has it (clipboard history on, 20 kept).
-let log = Logger(subsystem: "com.aipinyin.inputmethod.issue35", category: "ime")
+let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
 enum SecureInput {
     static var isOn = false
@@ -238,7 +238,7 @@ struct Issue35Report: Encodable {
 
 /// The general pasteboard, a private one; Paste from Other Apps: Allow.
 enum Issue35Clipboard {
-    static let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.aipinyin.inputmethod.issue35.\(UUID().uuidString)"))
+    static let pasteboard = NSPasteboard(name: NSPasteboard.Name("com.allinoneime.inputmethod.issue35.\(UUID().uuidString)"))
     static var terminalGot: [String] = []
 
     static func install() {

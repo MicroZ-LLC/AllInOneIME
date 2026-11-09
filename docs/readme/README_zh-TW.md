@@ -419,7 +419,7 @@ two-way door = a decision you can undo at any time
 
 從較舊的版本更新到 0.6.3：0.6.3 是第一個以 Developer ID 簽署的版本，所以鑰匙圈還認不出它就是當初儲存你金鑰的那個 App。它第一次用到自己儲存的每把金鑰時（API 金鑰、AllInOneIME Cloud 的登入、擴充功能的密碼），macOS 會詢問你的登入密碼：輸入後按一下「Always Allow」（永遠允許）。之後不會再詢問，以後更新也不會。Amazon Bedrock 的金鑰在 `~/.aws/credentials` 中，不受影響。輔助使用（系統設定 → 隱私權與安全性 → 輔助使用）是貼到終端機和讀取選取文字時要用的，也需要一個步驟：如果 AllInOneIME 在列表中，請先移除，等系統詢問時再重新開啟。
 
-如果你裝過 AIPinyin（AllInOneIME 先前的名稱），直接安裝即可：舊的 AIPinyin.app 及其設定啟動器會被移除，輸入方式中的項目會換成新名稱，不需要重新加入。設定、Jargon 術語表和學到的詞會在第一次啟動時移到新的資料夾（`~/.config/allinoneime` 等），每個舊資料夾都會留下一個指向新資料夾的連結。
+從 0.7.1 或更早的版本更新：從 0.7.2 起，AllInOneIME 有了自己的系統身分（macOS 用來認它的 bundle ID）。0.7.1 不論是自己更新（Settings → About → Update），還是被安裝程式要求，都會換到這個身分，並把你的設定和儲存的 API 金鑰帶過來。更早的版本做不到：請先更新到 0.7.1，或照樣安裝後重新輸入 API 金鑰。無論哪種方式，macOS 都會重新詢問你給過 AllInOneIME 的權限，AllInOneIME 會告訴你一次是哪些。
 
 解除安裝時，打開「Install AllInOneIME」並按一下「Uninstall…」（解除安裝…）。設定和學到的詞會保留。
 
@@ -604,7 +604,7 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 App 在讀取 manifest 之前，會先用內建的公鑰核對它的簽章，絕不安裝不比現在新的版本，只透過 https 從 allinoneime.com 或本儲存庫的 GitHub release 檔案下載，而且只有在封存檔的大小和 SHA-256 與 manifest 相符、兩個 App 的 bundle ID、版本和程式碼簽章都通過檢查、新的輸入法能啟動時，才會安裝。之後輸入法會把工作交給自己的執行檔擔任輔助程式（`--apply-update`），它會等輸入法結束，像安裝程式一樣替換 App（舊的先移到一旁，出錯就放回去），再註冊新的。要用本機伺服器試試：`make update-test`，或使用 `Scripts/build-update-manifest.swift` 的 `--test-key`，再執行 `AllInOneIME --install-update --manifest-url http://127.0.0.1:<port>/update-v2.json --key <its public key> --target-dir <folder>`。
 
-Bundle ID 仍是 `com.aipinyin.inputmethod.AIPinyin`：macOS 用它來記住已加入的輸入方式和授予它的權限，所以更改它就得重新加入輸入法並再次授予權限。
+從 0.7.2 起，Bundle ID 是 `com.allinoneime.inputmethod.AllInOneIME`（AllInOneIME Settings 是 `com.allinoneime.settings`，鑰匙圈存取群組是 `9SR8N3UD5Y.com.allinoneime.shared`）：macOS 用它記住已加入的輸入方式和給它的權限。使用先前身分的最後一個版本 0.7.1，會把安裝換到這個身分（透過它自己的更新，或安裝程式和 `make install` 呼叫的 `AllInOneIME --migrate-identity <新的 AllInOneIME.app>`）；之後的版本只憑 Bundle ID 認出另一個身分的安裝。
 
 ## 授權
 

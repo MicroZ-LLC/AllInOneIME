@@ -83,7 +83,7 @@ final class ExtensionSourceController: ObservableObject {
 
     /// Posted by `--add-source` and `--update-sources` (another process) once they've written: Settings reads the config and
     /// the statuses again.
-    nonisolated static let changedNotification = Notification.Name("com.aipinyin.inputmethod.AIPinyin.extensionSourcesChanged")
+    nonisolated static let changedNotification = Notification.Name("com.allinoneime.inputmethod.AllInOneIME.extensionSourcesChanged")
 
     nonisolated static func postChanged() {
         DistributedNotificationCenter.default().postNotificationName(changedNotification, object: nil, userInfo: nil, deliverImmediately: true)

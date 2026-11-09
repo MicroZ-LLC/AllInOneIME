@@ -143,7 +143,7 @@ public final class Spotlight: @unchecked Sendable {
         static var dates: [CFString] { [kMDItemLastUsedDate!, kMDItemContentModificationDate!] }
 
         private let query: MDQuery
-        let queue = DispatchQueue(label: "com.aipinyin.inputmethod.spotlight-names", qos: .userInitiated)
+        let queue = DispatchQueue(label: "com.allinoneime.inputmethod.spotlight-names", qos: .userInitiated)
         /// Signalled when Spotlight is done, and by `stop`.
         private let ended = DispatchSemaphore(value: 0)
         /// What was read of the results so far (on `queue`); whether the query is over for its waiter (`run` returned, or

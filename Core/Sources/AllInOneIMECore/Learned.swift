@@ -26,7 +26,7 @@ public final class LearnedStore: @unchecked Sendable {
     /// What was changed waits to be written (`keepSoon`).
     private let writeWaiting = Locked(initialState: false)
     /// Where it is written: in order, off the caller's thread (a key's handling never waits for the disk).
-    private static let writes = DispatchQueue(label: "com.aipinyin.learned.store", qos: .utility)
+    private static let writes = DispatchQueue(label: "com.allinoneime.learned.store", qos: .utility)
 
     /// The store kept in `file` (nil: in memory only), reaching what `autocomplete` and `temperature` learned.
     public init(file: URL?, autocomplete: AutocompleteStore, temperature: TemperatureSupport) {
@@ -230,7 +230,7 @@ public final class LearnedStore: @unchecked Sendable {
         return try? JSONDecoder().decode(Contents.self, from: data)
     }
 
-    static let log = CoreLog(subsystem: "com.aipinyin.inputmethod.AIPinyin", category: "ime")
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
     // MARK: What the file holds
 

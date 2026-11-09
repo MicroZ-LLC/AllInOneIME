@@ -3770,53 +3770,6 @@
         }
       }
     },
-    "A newer AllInOneIME%@ is installed" : {
-      "comment" : "已经装了更新的 AllInOneIME%@ — Sources/AllInOneIMEInstaller/main.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ein neueres AllInOneIME%@ ist installiert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Ya está instalado un AllInOneIME%@ más reciente"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Un AllInOneIME%@ plus récent est installé"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "より新しい AllInOneIME%@ がインストールされています"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "더 최신 AllInOneIME%@가 설치되어 있습니다"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Um AllInOneIME%@ mais novo está instalado"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已經裝了較新的 AllInOneIME%@"
-          }
-        }
-      }
-    },
     "A notification says when it's done and opens it in Terminal; @tasks and the menu bar panel list these tasks." : {
       "comment" : "做完弹通知，点通知在终端里接着聊；@tasks 和菜单栏面板列出这些任务。 — Sources/AllInOneIME/AgentSettings.swift",
       "localizations" : {
@@ -5187,6 +5140,53 @@
         }
       }
     },
+    "AllInOneIME can't type until it's added, and only you can add it. If it isn't listed under English, log out or restart your Mac first. Then switch to it with Ctrl+Space or the 🌐 key." : {
+      "comment" : "加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。英语下面找不到它的话，先退出登录或重启 Mac 再加。加好以后用 Ctrl+空格 或 🌐 键切换到它。 — Sources/AllInOneIME/InputSourceStep.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bis dahin kann AllInOneIME nicht schreiben, und hinzufügen kannst nur du es. Wird es unter Englisch nicht angezeigt, melde dich zuerst ab oder starte den Mac neu. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hasta que lo añadas, AllInOneIME no puede escribir, y solo tú puedes añadirlo. Si no aparece en Inglés, cierra la sesión o reinicia el Mac primero. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tant qu’il n’est pas ajouté, AllInOneIME ne peut pas écrire, et vous seul pouvez l’ajouter. S'il n'apparaît pas sous Anglais, fermez d'abord la session ou redémarrez le Mac. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加するまで AllInOneIME で入力できません。追加できるのはあなただけです。「英語」に表示されない場合は、先にログアウトするか Mac を再起動してください。その後、Control+スペースまたは 🌐 キーで切り替えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가하기 전에는 AllInOneIME로 입력할 수 없으며, 추가는 사용자만 할 수 있습니다. 영어 아래에 보이지 않으면 먼저 로그아웃하거나 Mac을 재시동하세요. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Até ser adicionado, o AllInOneIME não consegue digitar, e só você pode adicioná-lo. Se não aparecer em Inglês, encerre a sessão ou reinicie o Mac primeiro. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入之前無法用 AllInOneIME 打字，而新的輸入法只能由你自己加入。英文底下找不到的話，先登出或重新啟動 Mac 再加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
+          }
+        }
+      }
+    },
     "AllInOneIME is uninstalled" : {
       "comment" : "AllInOneIME 已卸载 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -5371,6 +5371,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AllInOneIME 還不在你的輸入方式中，請自行加入一次：\n系統設定 → 鍵盤 → 文字輸入 → 輸入方式 → 編輯⋯ → +（左下角）→ 英文 → AllInOneIME → 加入\n之後用 Ctrl+Space 切換到它。"
+          }
+        }
+      }
+    },
+    "AllInOneIME moves to its own system identity: the installed version carries your settings and saved API keys over, and macOS asks again for the permissions you gave it." : {
+      "comment" : "AllInOneIME 会换到自己的系统身份：已安装的版本把你的设置和保存的 API 密钥带过来，macOS 会重新询问你给过它的权限。 — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME wechselt zu seiner eigenen Systemidentität: Die installierte Version nimmt deine Einstellungen und gespeicherten API-Schlüssel mit, und macOS fragt erneut nach den Berechtigungen, die du erteilt hast."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME pasa a tener su propia identidad del sistema: la versión instalada traslada tus ajustes y claves de API guardadas, y macOS vuelve a pedir los permisos que le diste."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME passe à sa propre identité système : la version installée transfère vos réglages et vos clés d’API enregistrées, et macOS redemande les autorisations que vous lui aviez accordées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME は独自のシステム ID に移行します。インストール済みのバージョンが設定と保存した API キーを引き継ぎ、macOS は以前許可した権限をもう一度確認します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME가 자체 시스템 ID로 바뀝니다. 설치된 버전이 설정과 저장된 API 키를 옮기며, macOS는 이전에 허용한 권한을 다시 묻습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O AllInOneIME passa para sua própria identidade do sistema: a versão instalada leva seus ajustes e as chaves de API salvas, e o macOS pede de novo as permissões que você deu."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 會換到自己的系統身分：已安裝的版本會把你的設定和儲存的 API 金鑰帶過來，macOS 會重新詢問你給過它的權限。"
+          }
+        }
+      }
+    },
+    "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under English." : {
+      "comment" : "AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「英语」下面。 — Sources/AllInOneIME/Updates.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME hat jetzt seine eigene Systemidentität, daher fragt macOS erneut nach den Berechtigungen, die du erteilt hast: Bedienungshilfen (Auswahl lesen, Autovervollständigung), Aus anderen Apps einsetzen (Zwischenablageverlauf), Automation (Terminal, Notizen und Nachrichten für @agent, @note und @imessage), Kontakte (@imessage), Erinnerungen (@reminder) und Mitteilungen (neue Versionen). Erlaube sie, wenn macOS fragt, oder unter Systemeinstellungen → Datenschutz & Sicherheit; „Probleme beheben …“ zeigt, welche noch fehlen. In deinen Eingabequellen steht es unter Englisch."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME tiene ahora su propia identidad del sistema, así que macOS vuelve a pedir los permisos que le diste: Accesibilidad (leer la selección, autocompletar), Pegar desde otras apps (historial del portapapeles), Automatización (Terminal, Notas y Mensajes, para @agent, @note y @imessage), Contactos (@imessage), Recordatorios (@reminder) y Notificaciones (versiones nuevas). Concédelos cuando macOS los pida, o en Ajustes del Sistema → Privacidad y seguridad; Solucionar problemas… muestra los que faltan. En tus fuentes de entrada aparece en Inglés."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME a désormais sa propre identité système : macOS redemande donc les autorisations que vous lui aviez accordées : Accessibilité (lire la sélection, saisie semi-automatique), Coller depuis d’autres apps (historique du presse-papiers), Automatisation (Terminal, Notes et Messages, pour @agent, @note et @imessage), Contacts (@imessage), Rappels (@reminder) et Notifications (nouvelles versions). Autorisez-les quand macOS les demande, ou dans Réglages Système → Confidentialité et sécurité ; Résoudre les problèmes… indique celles qui manquent encore. Dans vos méthodes de saisie, il figure sous Anglais."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME は独自のシステム ID になったため、macOS は以前許可した権限をもう一度確認します：アクセシビリティ（選択テキストの読み取り、オートコンプリート）、ほかのアプリからのペースト（クリップボード履歴）、オートメーション（@agent、@note、@imessage が使うターミナル、メモ、メッセージ）、連絡先（@imessage）、リマインダー（@reminder）、通知（新しいバージョン）。macOS に聞かれたら許可するか、システム設定 → プライバシーとセキュリティ で許可してください。「トラブルシューティング…」にまだ許可していないものが表示されます。入力ソースでは「英語」の下に表示されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME가 이제 자체 시스템 ID를 가지므로 macOS가 이전에 허용한 권한을 다시 묻습니다: 손쉬운 사용(선택한 텍스트 읽기, 자동 완성), 다른 앱에서 붙여넣기(클립보드 기록), 자동화(@agent, @note, @imessage에 쓰는 터미널, 메모, 메시지), 연락처(@imessage), 미리 알림(@reminder), 알림(새 버전). macOS가 물을 때 허용하거나 시스템 설정 → 개인정보 보호 및 보안에서 켜세요. ‘문제 해결…’에서 아직 허용하지 않은 항목을 볼 수 있습니다. 입력 소스에서는 영어 아래에 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O AllInOneIME agora tem sua própria identidade do sistema, então o macOS pede de novo as permissões que você deu: Acessibilidade (ler a seleção, preenchimento automático), Colar de Outros Apps (histórico da área de transferência), Automação (Terminal, Notas e Mensagens, para @agent, @note e @imessage), Contatos (@imessage), Lembretes (@reminder) e Notificações (novas versões). Permita quando o macOS pedir, ou em Ajustes do Sistema → Privacidade e Segurança; Solucionar Problemas… mostra as que ainda faltam. Nas suas fontes de entrada, ele aparece em Inglês."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 現在有了自己的系統身分，所以 macOS 會重新詢問你給過它的權限：輔助使用（讀取選取的文字、自動完成）、從其他 App 貼上（剪貼簿歷史）、自動化（@agent、@note 和 @imessage 用到的終端機、備忘錄和訊息）、聯絡人（@imessage）、提醒事項（@reminder）和通知（新版本）。macOS 詢問時選允許，或在 系統設定 → 隱私權與安全性 裡打開；「疑難排解⋯」會列出還沒允許的。在輸入方式列表裡，它在「英文」底下。"
           }
         }
       }
@@ -15454,6 +15548,53 @@
         }
       }
     },
+    "Install %@ anyway?" : {
+      "comment" : "照样安装 %@？ — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ trotzdem installieren?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Instalar la %@ de todos modos?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer la %@ quand même ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ をそのままインストールしますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 그대로 설치하겠습니까?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar a %@ mesmo assim?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要照樣安裝 %@ 嗎？"
+          }
+        }
+      }
+    },
     "Install AllInOneIME %@?" : {
       "comment" : "安装 AllInOneIME %@？ — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -15497,6 +15638,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要安裝 AllInOneIME %@ 嗎？"
+          }
+        }
+      }
+    },
+    "Install Anyway" : {
+      "comment" : "照样安装 — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trotzdem installieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar de todos modos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer quand même"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのままインストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그대로 설치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar Mesmo Assim"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照樣安裝"
+          }
+        }
+      }
+    },
+    "Install Anyway…" : {
+      "comment" : "照样安装… — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trotzdem installieren …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar de todos modos…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installer quand même…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのままインストール…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그대로 설치…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instalar Mesmo Assim…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "照樣安裝⋯"
           }
         }
       }
@@ -17391,6 +17626,54 @@
         }
       }
     },
+    "macOS lets only you add a new input method: System Settings → Keyboard → Input Sources (Edit…) → + → English → AllInOneIME → Add. Then switch to it with Ctrl+Space or the 🌐 key." : {
+      "comment" : "新的输入法只能由你自己添加：系统设置 → 键盘 → 输入法（编辑…）→ + → 英语 → AllInOneIME → 添加。之后用 Ctrl+空格 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/InputSourceStep.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur du kannst in macOS eine neue Eingabemethode hinzufügen: Systemeinstellungen → Tastatur → Eingabequellen (Bearbeiten …) → + → Englisch → AllInOneIME → Hinzufügen. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En macOS solo tú puedes añadir un método de entrada nuevo: Ajustes del Sistema → Teclado → Fuentes de entrada (Editar…) → + → Inglés → AllInOneIME → Añadir. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans macOS, vous seul pouvez ajouter une nouvelle méthode de saisie : Réglages Système → Clavier → Méthodes de saisie (Modifier…) → + → Anglais → AllInOneIME → Ajouter. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい入力方法を追加できるのはあなただけです：システム設定 → キーボード → 入力ソース（編集…）→ + → 英語 → AllInOneIME → 追加。その後、Control+スペースまたは 🌐 キーで切り替えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 입력기는 사용자만 추가할 수 있습니다: 시스템 설정 → 키보드 → 입력 소스(편집…) → + → 영어 → AllInOneIME → 추가. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No macOS, só você pode adicionar um método de entrada novo: Ajustes do Sistema → Teclado → Fontes de Entrada (Editar…) → + → Inglês → AllInOneIME → Adicionar. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新的輸入法只能由你自己加入：系統設定 → 鍵盤 → 輸入方式（編輯⋯）→ + → 英文 → AllInOneIME → 加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
+          }
+        }
+      }
+    },
     "Magic key: " : {
       "comment" : "魔法键： — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -18238,6 +18521,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "往右移"
+          }
+        }
+      }
+    },
+    "Moving your settings and keys…" : {
+      "comment" : "正在搬设置和密钥… — Sources/AllInOneIMEInstaller/Installer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen und Schlüssel werden übernommen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Trasladando tus ajustes y claves…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transfert de vos réglages et clés…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定とキーを移行しています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정과 키를 옮기는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Transferindo seus ajustes e chaves…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在搬移設定和金鑰⋯"
           }
         }
       }
@@ -20975,6 +21305,101 @@
         }
       }
     },
+    "One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → English → AllInOneIME" : {
+      "comment" : "还差一步：添加 AllInOneIME —— 系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME — Sources/AllInOneIME/InputSourceStep.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch ein Schritt: AllInOneIME hinzufügen – Systemeinstellungen → Tastatur → Eingabequellen → + → Englisch → AllInOneIME"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta un paso: añade AllInOneIME — Ajustes del Sistema → Teclado → Fuentes de entrada → + → Inglés → AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il reste une étape : ajoutez AllInOneIME — Réglages Système → Clavier → Méthodes de saisie → + → Anglais → AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あと1ステップ：AllInOneIME を追加 — システム設定 → キーボード → 入力ソース → + → 英語 → AllInOneIME"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 단계 남았습니다: AllInOneIME 추가 — 시스템 설정 → 키보드 → 입력 소스 → + → 영어 → AllInOneIME"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta um passo: adicione o AllInOneIME — Ajustes do Sistema → Teclado → Fontes de Entrada → + → Inglês → AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還差一步：加入 AllInOneIME —— 系統設定 → 鍵盤 → 輸入方式 → + → 英文 → AllInOneIME"
+          }
+        }
+      }
+    },
+    "One step left: add AllInOneIME to your input sources" : {
+      "comment" : "还差一步：把 AllInOneIME 添加到输入法 — Sources/AllInOneIME/InputSourceStep.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch ein Schritt: AllInOneIME zu deinen Eingabequellen hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta un paso: añade AllInOneIME a tus fuentes de entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il reste une étape : ajoutez AllInOneIME à vos méthodes de saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あと1ステップ：AllInOneIME を入力ソースに追加してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 단계 남았습니다: AllInOneIME를 입력 소스에 추가하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta um passo: adicione o AllInOneIME às suas fontes de entrada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還差一步：把 AllInOneIME 加入輸入法"
+          }
+        }
+      }
+    },
     "Only the hidden words sync now." : {
       "comment" : "现在只同步隐藏的词。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "localizations" : {
@@ -21352,7 +21777,7 @@
       }
     },
     "Open Keyboard Settings" : {
-      "comment" : "打开键盘设置 — Sources/AllInOneIMEInstaller/main.swift",
+      "comment" : "打开键盘设置 — Sources/AllInOneIME/InputSourceStep.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31009,49 +31434,143 @@
         }
       }
     },
-    "The installed AllInOneIME%@ is newer than %@, so this installer doesn't replace it. To update, use AllInOneIME Settings → About → Update." : {
-      "comment" : "已安装的 AllInOneIME%@ 比 %@ 新，所以这个安装程序不会替换它。要更新，请用 AllInOneIME 设置 →「关于」→「更新」。 — Sources/AllInOneIMEInstaller/Installer.swift",
+    "The installed AllInOneIME couldn't move to its new system identity, so nothing was installed; it's as it was:" : {
+      "comment" : "已安装的 AllInOneIME 没能换到新的系统身份，所以没有安装，原来的保持不变： — Sources/AllInOneIMEInstaller/Installer.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Das installierte AllInOneIME%1$@ ist neuer als %2$@, daher ersetzt dieses Installationsprogramm es nicht. Zum Aktualisieren verwende AllInOneIME-Einstellungen → Über → Aktualisieren."
+            "value" : "Das installierte AllInOneIME konnte nicht zu seiner neuen Systemidentität wechseln, daher wurde nichts installiert; alles ist wie vorher:"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El AllInOneIME%1$@ instalado es más reciente que la %2$@, así que este instalador no lo sustituye. Para actualizarlo, usa ajustes de AllInOneIME → Acerca de → Actualizar."
+            "value" : "El AllInOneIME instalado no pudo pasar a su nueva identidad del sistema, así que no se instaló nada; todo sigue como estaba:"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’AllInOneIME%1$@ installé est plus récent que la %2$@ : ce programme d’installation ne le remplace donc pas. Pour le mettre à jour, utilisez réglages d’AllInOneIME → À propos → Mettre à jour."
+            "value" : "L’AllInOneIME installé n’a pas pu passer à sa nouvelle identité système : rien n’a été installé, tout est resté tel quel :"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "インストール済みの AllInOneIME%1$@ は %2$@ より新しいため、このインストーラでは置き換えません。アップデートするには AllInOneIME設定 → 情報 → アップデート を使ってください。"
+            "value" : "インストール済みの AllInOneIME を新しいシステム ID に移行できなかったため、何もインストールしていません。元のままです："
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "설치된 AllInOneIME%1$@가 %2$@보다 최신이므로 이 설치 프로그램은 바꾸지 않습니다. 업데이트하려면 AllInOneIME 설정 → 정보 → 업데이트를 사용하세요."
+            "value" : "설치된 AllInOneIME를 새 시스템 ID로 옮기지 못해 아무것도 설치하지 않았습니다. 원래 상태 그대로입니다:"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O AllInOneIME%1$@ instalado é mais novo que a %2$@, então este instalador não o substitui. Para atualizar, use Ajustes do AllInOneIME → Sobre → Atualizar."
+            "value" : "O AllInOneIME instalado não conseguiu passar para a nova identidade do sistema, então nada foi instalado; está tudo como estava:"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已安裝的 AllInOneIME%1$@ 比 %2$@ 新，所以這個安裝程式不會取代它。要更新，請用 AllInOneIME 設定 →「關於」→「更新」。"
+            "value" : "已安裝的 AllInOneIME 沒能換到新的系統身分，所以沒有安裝，原本的維持不變："
+          }
+        }
+      }
+    },
+    "The installed AllInOneIME%@ can't carry its saved API keys over to %@, which has a new system identity. Update it first in AllInOneIME Settings → About → Update: that update carries your settings and keys over. Then open this installer again." : {
+      "comment" : "已安装的 AllInOneIME%@ 没法把保存的 API 密钥带到 %@：它换了新的系统身份。请先在 AllInOneIME 设置 →「关于」里点「更新」：那次更新会把设置和密钥一起带过来，之后再打开这个安装程序。 — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das installierte AllInOneIME%1$@ kann seine gespeicherten API-Schlüssel nicht in %2$@ mitnehmen, das eine neue Systemidentität hat. Aktualisiere es zuerst unter AllInOneIME-Einstellungen → Über → Aktualisieren: Dieses Update nimmt deine Einstellungen und Schlüssel mit. Öffne danach dieses Installationsprogramm erneut."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El AllInOneIME%1$@ instalado no puede llevar sus claves de API guardadas a la %2$@, que tiene una nueva identidad del sistema. Actualízalo primero en ajustes de AllInOneIME → Acerca de → Actualizar: esa actualización traslada tus ajustes y claves. Después vuelve a abrir este instalador."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’AllInOneIME%1$@ installé ne peut pas transférer ses clés d’API enregistrées vers la %2$@, qui a une nouvelle identité système. Mettez-le d’abord à jour dans réglages d’AllInOneIME → À propos → Mettre à jour : cette mise à jour transfère vos réglages et vos clés. Rouvrez ensuite ce programme d’installation."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済みの AllInOneIME%1$@ は、保存した API キーを新しいシステム ID を持つ %2$@ に引き継げません。先に AllInOneIME設定 → 情報 → アップデート でアップデートしてください。そのアップデートで設定とキーが引き継がれます。その後、このインストーラをもう一度開いてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치된 AllInOneIME%1$@는 저장된 API 키를 새 시스템 ID를 가진 %2$@(으)로 옮길 수 없습니다. 먼저 AllInOneIME 설정 → 정보 → 업데이트에서 업데이트하세요. 그 업데이트가 설정과 키를 옮깁니다. 그런 다음 이 설치 프로그램을 다시 여세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O AllInOneIME%1$@ instalado não consegue levar as chaves de API salvas para a %2$@, que tem uma nova identidade do sistema. Atualize-o primeiro em Ajustes do AllInOneIME → Sobre → Atualizar: essa atualização leva seus ajustes e chaves. Depois abra este instalador de novo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安裝的 AllInOneIME%1$@ 沒辦法把儲存的 API 金鑰帶到 %2$@：它換了新的系統身分。請先在 AllInOneIME 設定 →「關於」裡按「更新」：那次更新會把設定和金鑰一起帶過來，之後再打開這個安裝程式。"
+          }
+        }
+      }
+    },
+    "The installed AllInOneIME%@ can't carry its saved API keys over to this version. Update it first (AllInOneIME Settings → About → Update), or install anyway with --install-anyway (then enter the API keys again)." : {
+      "comment" : "已安装的 AllInOneIME%@ 没法把保存的 API 密钥带到这个版本。请先更新它（AllInOneIME 设置 →「关于」→「更新」），或者用 --install-anyway 照样安装（之后要重新输入 API 密钥）。 — Sources/AllInOneIMEInstaller/Installer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das installierte AllInOneIME%@ kann seine gespeicherten API-Schlüssel nicht in diese Version mitnehmen. Aktualisiere es zuerst (AllInOneIME-Einstellungen → Über → Aktualisieren) oder installiere trotzdem mit --install-anyway (dann gibst du die API-Schlüssel erneut ein)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El AllInOneIME%@ instalado no puede llevar sus claves de API guardadas a esta versión. Actualízalo primero (ajustes de AllInOneIME → Acerca de → Actualizar) o instala de todos modos con --install-anyway (después tendrás que volver a introducir las claves de API)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’AllInOneIME%@ installé ne peut pas transférer ses clés d’API enregistrées vers cette version. Mettez-le d’abord à jour (réglages d’AllInOneIME → À propos → Mettre à jour), ou installez quand même avec --install-anyway (il faudra alors saisir à nouveau les clés d’API)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インストール済みの AllInOneIME%@ は、保存した API キーをこのバージョンに引き継げません。先にアップデートするか（AllInOneIME設定 → 情報 → アップデート）、--install-anyway でそのままインストールしてください（その場合、API キーを入力し直す必要があります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치된 AllInOneIME%@는 저장된 API 키를 이 버전으로 옮길 수 없습니다. 먼저 업데이트하거나(AllInOneIME 설정 → 정보 → 업데이트) --install-anyway로 그대로 설치하세요(그러면 API 키를 다시 입력해야 합니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O AllInOneIME%@ instalado não consegue levar as chaves de API salvas para esta versão. Atualize-o primeiro (Ajustes do AllInOneIME → Sobre → Atualizar) ou instale mesmo assim com --install-anyway (depois digite as chaves de API de novo)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已安裝的 AllInOneIME%@ 沒辦法把儲存的 API 金鑰帶到這個版本。請先更新它（AllInOneIME 設定 →「關於」→「更新」），或用 --install-anyway 照樣安裝（之後要重新輸入 API 金鑰）。"
           }
         }
       }
@@ -31240,53 +31759,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新的輸入法無法啟動，因此沒有安裝（原本安裝的保持不變）。請從 Releases 重新下載。"
-          }
-        }
-      }
-    },
-    "The old AIPinyin (AI 拼音) is replaced; its settings and learned words move over." : {
-      "comment" : "旧的 AI 拼音（AIPinyin）会被替换，设置和学到的词会搬过来。 — Sources/AllInOneIMEInstaller/main.swift",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Das alte AIPinyin (AI 拼音) wird ersetzt; seine Einstellungen und gelernten Wörter werden übernommen."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se sustituye el antiguo AIPinyin (AI 拼音); sus ajustes y palabras aprendidas se trasladan."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "L’ancien AIPinyin (AI 拼音) est remplacé ; ses réglages et ses mots appris sont repris."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "旧AIPinyin（AI 拼音）は置き換えられ、設定と学習した単語は引き継がれます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "이전 AIPinyin (AI 拼音)은 대체되며, 설정과 학습한 단어는 옮겨집니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O antigo AIPinyin (AI 拼音) é substituído; os ajustes e as palavras aprendidas são transferidos."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "舊的 AIPinyin（AI 拼音）會被取代；它的設定和學到的詞會一併轉移過來。"
           }
         }
       }
@@ -34210,6 +34682,53 @@
         }
       }
     },
+    "Update the installed AllInOneIME first" : {
+      "comment" : "请先更新已安装的 AllInOneIME — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktualisiere zuerst das installierte AllInOneIME"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actualiza primero el AllInOneIME instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mettez d’abord à jour l’AllInOneIME installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先にインストール済みの AllInOneIME をアップデートしてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치된 AllInOneIME를 먼저 업데이트하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Atualize primeiro o AllInOneIME instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先更新已安裝的 AllInOneIME"
+          }
+        }
+      }
+    },
     "Update to %@" : {
       "comment" : "更新到 %@ — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -34874,6 +35393,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "語音輸入"
+          }
+        }
+      }
+    },
+    "Voice input asks for the microphone and speech recognition again too." : {
+      "comment" : "语音输入也会重新询问麦克风和语音识别。 — Sources/AllInOneIME/Updates.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Spracheingabe fragt auch erneut nach dem Mikrofon und der Spracherkennung."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La entrada de voz también vuelve a pedir el micrófono y el reconocimiento de voz."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La saisie vocale redemande aussi le micro et la reconnaissance vocale."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "音声入力も、マイクと音声認識をもう一度確認します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "음성 입력도 마이크와 음성 인식을 다시 묻습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A entrada por voz também pede de novo o microfone e o reconhecimento de fala."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "語音輸入也會重新詢問麥克風和語音辨識。"
           }
         }
       }
@@ -35773,6 +36339,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你自己的詞表：文字檔，每行一個詞，可以附上解釋（例如 bandwidth：精力、時間）。加入「行話」風格後，模型會優先使用這些詞，候選中也會加以解釋。"
+          }
+        }
+      }
+    },
+    "Your saved API keys aren't carried over: enter them again in Settings after installing. Your settings, jargon list and learned words are kept. macOS asks again for the permissions you gave it." : {
+      "comment" : "保存的 API 密钥带不过来：装好后要在设置里重新输入。设置、黑话库和学到的词都会保留。macOS 会重新询问你给过它的权限。 — Sources/AllInOneIMEInstaller/main.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deine gespeicherten API-Schlüssel werden nicht übernommen: Gib sie nach der Installation in den Einstellungen erneut ein. Deine Einstellungen, Jargonliste und gelernten Wörter bleiben erhalten. macOS fragt erneut nach den Berechtigungen, die du erteilt hast."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tus claves de API guardadas no se trasladan: vuelve a introducirlas en los ajustes después de instalar. Tus ajustes, lista de jerga y palabras aprendidas se conservan. macOS vuelve a pedir los permisos que le diste."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vos clés d’API enregistrées ne sont pas transférées : saisissez-les à nouveau dans les réglages après l’installation. Vos réglages, votre liste de jargon et vos mots appris sont conservés. macOS redemande les autorisations que vous lui aviez accordées."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存した API キーは引き継がれません。インストール後に設定で入力し直してください。設定、業界用語リスト、学習した単語は保持されます。macOS は以前許可した権限をもう一度確認します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저장된 API 키는 옮겨지지 않습니다. 설치한 뒤 설정에서 다시 입력하세요. 설정, 용어 목록, 학습한 단어는 유지됩니다. macOS는 이전에 허용한 권한을 다시 묻습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As chaves de API salvas não são levadas: digite-as de novo nos Ajustes depois de instalar. Seus ajustes, a lista de jargões e as palavras aprendidas são mantidos. O macOS pede de novo as permissões que você deu."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存的 API 金鑰帶不過來：裝好後要在設定裡重新輸入。你的設定、行話詞庫和學到的詞都會保留。macOS 會重新詢問你給過它的權限。"
           }
         }
       }
