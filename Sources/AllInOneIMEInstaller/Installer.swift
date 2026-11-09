@@ -40,12 +40,21 @@ enum Installer {
 
     static var hasLegacyInstall: Bool { legacyApps.contains(where: exists) }
 
-    /// The installed input method has AllInOneIME's own system identity (0.7.2 on, `Migration.newIdentityInstalled`): a
-    /// newer version, never replaced by this one (that would go back to the identity before, its settings and keys
-    /// moved on with it).
-    static var newerIdentityInstalled: Bool {
-        exists(inputMethod)
-            && Migration.newIdentityInstalled(info: NSDictionary(contentsOf: inputMethod.appendingPathComponent("Contents/Info.plist")) as? [String: Any])
+    /// An input method with AllInOneIME's own system identity (0.7.2 on, `Migration.newIdentityInstalled`), where it is
+    /// installed: at this version's path (0.7.1 moved it there) or at its own (`Migration.newInputMethodName`, 0.7.1.1
+    /// on); nil when there is none. A newer version, never replaced by this one (that would go back to the identity
+    /// before, its settings and keys moved on with it).
+    static var newerIdentityApp: URL? {
+        [inputMethod, inputMethods.appendingPathComponent(Migration.newInputMethodName)].first { app in
+            exists(app) && Migration.newIdentityInstalled(info: NSDictionary(contentsOf: app.appendingPathComponent("Contents/Info.plist")) as? [String: Any])
+        }
+    }
+
+    static var newerIdentityInstalled: Bool { newerIdentityApp != nil }
+
+    /// The version of the input method with the new identity installed (`newerIdentityApp`).
+    static func newerIdentityVersion() -> String? {
+        newerIdentityApp.flatMap { NSDictionary(contentsOf: $0.appendingPathComponent("Contents/Info.plist"))?["CFBundleShortVersionString"] as? String }
     }
 
     /// Doesn't follow a symbolic link at the end, so a dangling one counts as well.
@@ -106,7 +115,7 @@ enum Installer {
     /// An installed version with AllInOneIME's own system identity is newer (`newerIdentityInstalled`): nothing is
     /// done (`Failure.newerInstalled`).
     static func install(step: (String) -> Void = { _ in }) throws -> String {
-        guard !newerIdentityInstalled else { throw Failure.newerInstalled(installedVersion()) }
+        guard !newerIdentityInstalled else { throw Failure.newerInstalled(newerIdentityVersion()) }
         guard let payload else { throw Failure.payloadMissing }
         let manager = FileManager.default
         try manager.createDirectory(at: inputMethods, withIntermediateDirectories: true)

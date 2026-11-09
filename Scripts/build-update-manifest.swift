@@ -1,9 +1,10 @@
 #!/usr/bin/env swift
 // Writes and signs the in-app updater's manifest (Updater in AllInOneIMECore) for the site (site/public/, served at
-// https://allinoneime.com/): update-v2.json, which 0.7.1 and later read, and, for an archive whose apps have the old
-// system identity (0.7.1's, the last version with it), update.json too, which 0.7.0 and earlier read: they install no
-// other bundle IDs, so update.json names 0.7.1 for good, and 0.7.1 moves AllInOneIME to the new identity. An archive
-// with the new identity leaves update.json as it is. `make update-manifest` runs it.
+// https://allinoneime.com/): for an archive whose apps have the old system identity (0.7.1.1's, the last version with
+// it), update.json, which 0.7.0 and earlier read: they install no other bundle IDs, so update.json names the last of the
+// old identity for good, and that version moves AllInOneIME to the new identity; for an archive with the new identity
+// (0.7.2 on), update-v2.json, which 0.7.1 and later read. Each leaves the other file as it is. `make update-manifest`
+// runs it.
 //
 //   swift Scripts/build-update-manifest.swift --out DIR --zip ZIP --url URL --notes URL
 //        --summary-en TEXT --summary-zh TEXT
@@ -161,11 +162,13 @@ let signature = try! privateKey.signature(for: data)
 precondition(privateKey.publicKey.isValidSignature(signature, for: data))
 let out = URL(fileURLWithPath: outPath, isDirectory: true)
 try! FileManager.default.createDirectory(at: out, withIntermediateDirectories: true)
-for name in identity == oldIdentity ? ["update-v2.json", "update.json"] : ["update-v2.json"] {
+for name in identity == oldIdentity ? ["update.json"] : ["update-v2.json"] {
     try! data.write(to: out.appendingPathComponent(name))
     try! Data((signature.base64EncodedString() + "\n").utf8).write(to: out.appendingPathComponent(name + ".sig"))
     print("✓ \(out.path)/\(name): AllInOneIME \(version) (\(build)), \(archive.count) bytes, sha256 \(sha256), signed into \(name).sig")
 }
 if identity == newIdentity {
-    print("  update.json left as it is: the versions that read it install the old identity's apps only (it names 0.7.1)")
+    print("  update.json left as it is: the versions that read it install the old identity's apps only")
+} else {
+    print("  update-v2.json left as it is: the versions that read it (0.7.1 on) update to the new identity")
 }

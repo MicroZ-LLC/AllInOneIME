@@ -124,9 +124,10 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
         let installed = Installer.installedVersion() ?? ""
         // A newer version with AllInOneIME's own system identity: never replaced by this one.
         if Installer.newerIdentityInstalled {
-            let version = installed.isEmpty ? "" : " \(installed)"
+            let newer = Installer.newerIdentityVersion()
+            let version = newer.map { " \($0)" } ?? ""
             finish(tr("已经装了更新的 AllInOneIME\(version)", "A newer AllInOneIME\(version) is installed"),
-                   Installer.Failure.newerInstalled(Installer.installedVersion()).localizedDescription, style: .warning)
+                   Installer.Failure.newerInstalled(newer).localizedDescription, style: .warning)
             return
         }
         let alert = NSAlert()

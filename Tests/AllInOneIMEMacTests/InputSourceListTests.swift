@@ -56,29 +56,34 @@ struct InputSourceListTests {
         #expect(InputSourceList.removing(ours, from: system) == nil)
     }
 
-    /// An input source's entries go by its ID, and stay while Text Input Sources files another source under them (its
-    /// cache keeping the old bundle ID for the path the next identity's app took).
-    @Test func anEntryAnotherSourceIsFiledUnderStays() throws {
-        let next = "com.example.next.inputmethod"
-        let list = system + [InputSourceList.entry(bundleID: ours)]
-        let filedRight = [InputSourceList.Filed(id: next, bundleID: next), InputSourceList.Filed(id: ours, bundleID: ours),
-                          InputSourceList.Filed(id: "com.apple.keylayout.US", bundleID: nil)]
-        guard case let .removed(updated) = InputSourceList.removingSource(ours, from: list, filed: filedRight) else {
-            Issue.record("not removed")
-            return
-        }
-        #expect(bundleIDs(updated) == bundleIDs(system))
-        // The cache files the next one under the old bundle ID: its entry is the next one's too.
-        let bound = [InputSourceList.Filed(id: next, bundleID: ours)]
-        guard case let .filedUnder(other) = InputSourceList.removingSource(ours, from: list, filed: bound) else {
-            Issue.record("removed although another source is filed under it")
-            return
-        }
-        #expect(other == next)
-        guard case .unlisted = InputSourceList.removingSource(ours, from: system, filed: bound),
-              case .unlisted = InputSourceList.removingSource(ours, from: nil, filed: []) else {
-            Issue.record("nothing listed")
-            return
-        }
+    /// Every entry of an input source, in each of the keys that name the user's input sources (enabled, selected, the
+    /// recent ones, the one saved as current), goes at once; the other entries and keys stay as they are. The copy reads back
+    /// as it was.
+    @Test func everyEntryOfAnInputSourceGoesAtOnceAndACopyReadsBack() throws {
+        let beta = ours + "Beta"
+        let layout: [String: Any] = ["InputSourceKind": "Keyboard Layout", "KeyboardLayout ID": 0, "KeyboardLayout Name": "U.S."]
+        let values: [String: Any] = [
+            InputSourceList.key: system + [InputSourceList.entry(bundleID: ours), InputSourceList.entry(bundleID: beta)],
+            "AppleSelectedInputSources": [InputSourceList.entry(bundleID: ours)],
+            "AppleInputSourceHistory": [InputSourceList.entry(bundleID: ours), layout],
+            "AppleSavedCurrentInputSource": InputSourceList.entry(bundleID: ours),
+            "AppleCurrentKeyboardLayoutInputSourceID": "com.apple.keylayout.US",
+        ]
+        let (before, after) = InputSourceList.removingEntries(of: ours, from: values)
+        #expect(Set(before.keys) == Set(InputSourceList.entryKeys))
+        #expect(bundleIDs(try #require(after[InputSourceList.key] as? [[String: Any]])) == bundleIDs(system) + [beta])
+        #expect((after["AppleSelectedInputSources"] as? [[String: Any]])?.isEmpty == true)
+        #expect(NSArray(array: try #require(after["AppleInputSourceHistory"] as? [[String: Any]])).isEqual(to: [layout]))
+        // The saved current one was its entry alone: the key goes.
+        #expect(after["AppleSavedCurrentInputSource"] == nil && before["AppleSavedCurrentInputSource"] != nil)
+        // Nothing of another input source, and no other key.
+        #expect(InputSourceList.removingEntries(of: "com.example.none", from: values).before.isEmpty)
+        #expect(InputSourceList.removingEntries(of: beta, from: values).before.keys.sorted() == [InputSourceList.key])
+        #expect(InputSourceList.removingEntries(of: ours, from: [:]).before.isEmpty)
+
+        let copy = InputSourceEntries(before)
+        #expect(NSDictionary(dictionary: copy.values).isEqual(to: before) && !copy.isEmpty)
+        let decoded = try JSONDecoder().decode(InputSourceEntries.self, from: JSONEncoder().encode(copy))
+        #expect(decoded == copy && InputSourceEntries([:]).isEmpty)
     }
 }

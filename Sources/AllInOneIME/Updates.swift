@@ -42,6 +42,8 @@ struct UpdateLocations {
     var isTest: Bool
 
     var inputMethod: URL { inputMethods.appendingPathComponent(Updater.inputMethodName, isDirectory: true) }
+    /// Where the move to the new system identity puts its input method (`Migration.newInputMethodName`): a path of its own.
+    var newInputMethod: URL { inputMethods.appendingPathComponent(Migration.newInputMethodName, isDirectory: true) }
     var settingsApp: URL { applications.appendingPathComponent(Updater.settingsAppName, isDirectory: true) }
     var result: URL { work.appendingPathComponent("result.json") }
 
@@ -224,6 +226,8 @@ enum UpdateHelper {
         let to = UpdateStaging.version(of: new.inputMethod) ?? "?"
         say("updating AllInOneIME \(from) → \(to) in \(locations.inputMethods.path)\(locations.isTest ? " (test)" : "")")
         var keepStaged = false
+        // The input method installed at the end: at its own path once moved to the new identity.
+        var installed = locations.inputMethod
 
         func finish(_ error: String?) -> Int32 {
             if let error { say("✗ \(error)") } else { say("✓ AllInOneIME \(to) is installed") }
@@ -242,9 +246,9 @@ enum UpdateHelper {
             // alone unless the settings window is wanted (`open` then only shows it). Else a new instance, looked for
             // until it runs: one that doesn't is said in the result, which it reads once it is started some other way.
             let running = !inputMethodPIDs(locations, staged: staged).isEmpty
-            if !locations.isTest, BundleSwap.exists(locations.inputMethod), reopenSettings || !running {
-                let executable = locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME")
-                if let failure = UpdateRelaunch.start(locations.inputMethod, newInstance: !running, settings: reopenSettings,
+            if !locations.isTest, BundleSwap.exists(installed), reopenSettings || !running {
+                let executable = installed.appendingPathComponent("Contents/MacOS/AllInOneIME")
+                if let failure = UpdateRelaunch.start(installed, newInstance: !running, settings: reopenSettings,
                                                       open: { let run = UpdateProcess.run("/usr/bin/open", $0, timeout: 30); return (run.status, run.output) },
                                                       running: { !UpdateRelaunch.processes(running: executable).isEmpty }) {
                     say("✗ the input method didn't start again: \(failure); it starts once it is chosen in the input menu or "
@@ -277,15 +281,16 @@ enum UpdateHelper {
             return finish("the staged update doesn't check out (\(error)); nothing was changed")
         }
 
-        // The new system identity (0.7.2 on): the migration swaps the apps, after carrying the settings and keys over,
-        // and cleans up the old identity once the new one is in.
+        // The new system identity (0.7.2 on): the migration swaps the apps, after carrying the settings and keys over (the
+        // new input method at a path of its own), and cleans up the old identity once the new one is in.
         if identity != Updater.identity {
-            let report = migration(locations).run(identitySwitch(placing: new, version: to, staged: staged, locations: locations,
-                                                                 simulateFailure: simulateFailure))
+            let switcher = identitySwitch(placing: new, version: to, staged: staged, locations: locations, simulateFailure: simulateFailure)
+            let report = migration(locations).run(switcher)
             if report.notRestored { keepStaged = true }
             guard report.switched else {
                 return finish("\(report.error ?? "the move to the new identity failed")" + (report.notRestored ? "" : "; AllInOneIME \(from) is back"))
             }
+            installed = switcher.inputMethod
             return finish(nil)
         }
 
@@ -341,17 +346,18 @@ enum UpdateHelper {
     }
 
     /// The installed apps swapped for `new` (with the new identity) as an update swaps them, the previous ones waiting in
-    /// `staged`/previous: the migration's step c.
+    /// `staged`/previous: the migration's step c. The new input method goes to its own path (`newInputMethod`; anything
+    /// there is moved aside with the previous apps), the old one out of Input Methods; AllInOneIME Settings where it was.
     static func identitySwitch(placing new: UpdatePayload, version: String, staged: URL, locations: UpdateLocations,
                                simulateFailure: String?) -> AppsSwitch {
         let launchServices = { (option: String, apps: [URL]) in
             if !locations.isTest, !apps.isEmpty { _ = UpdateProcess.run(lsregister, [option] + apps.map(\.path), timeout: 60) }
         }
-        var placing: [(new: URL, destination: URL)] = [(new.inputMethod, locations.inputMethod)]
+        var placing: [(new: URL, destination: URL)] = [(new.inputMethod, locations.newInputMethod)]
         if BundleSwap.exists(new.settingsApp) { placing.append((new.settingsApp, locations.settingsApp)) }
-        return AppsSwitch(placing: placing, replacing: [locations.inputMethod, locations.settingsApp],
-                          aside: staged.appendingPathComponent("previous", isDirectory: true), inputMethod: locations.inputMethod,
-                          version: version,
+        return AppsSwitch(placing: placing, replacing: [locations.inputMethod, locations.settingsApp, locations.newInputMethod],
+                          aside: staged.appendingPathComponent("previous", isDirectory: true), inputMethod: locations.newInputMethod,
+                          oldInputMethod: locations.inputMethod, version: version,
                           stop: { if !locations.isTest { stopInputMethod(locations, staged: staged) } },
                           launchCheck: { try UpdateStaging.launchCheck($0, version: $1) },
                           registered: { launchServices("-f", $0) }, unregistered: { launchServices("-u", $0) },
@@ -392,15 +398,16 @@ enum UpdateHelper {
         for pid in pids where kill(pid, 0) == 0 { kill(pid, SIGKILL) }
     }
 
-    /// The input method's processes started from the installed copy (or from it where it waits aside), not this one: of
-    /// either identity (after a move to the new one, both may be running).
+    /// The input method's processes started from the installed copy (or from it where it waits aside, or from where the
+    /// move to the new identity puts it), not this one: of either identity (after a move to the new one, both may be
+    /// running).
     static func inputMethodPIDs(_ locations: UpdateLocations, staged: URL) -> [pid_t] {
-        let installed = locations.inputMethod.resolvingSymlinksInPath().path
+        let installed = Set([locations.inputMethod, locations.newInputMethod].map { $0.resolvingSymlinksInPath().path })
         let aside = staged.resolvingSymlinksInPath().path + "/"
         return AppIdentity.known.flatMap { NSRunningApplication.runningApplications(withBundleIdentifier: $0.inputMethod) }
             .compactMap { app -> pid_t? in
                 guard app.processIdentifier != getpid(), !app.isTerminated, let path = app.bundleURL?.resolvingSymlinksInPath().path,
-                      path == installed || path.hasPrefix(aside) else { return nil }
+                      installed.contains(path) || path.hasPrefix(aside) else { return nil }
                 return app.processIdentifier
             }
     }
@@ -409,7 +416,8 @@ enum UpdateHelper {
 // MARK: - The new identity
 
 /// `--migrate-identity APP [--target-dir DIR]`: the move to the new system identity (`Migration`) with APP, an
-/// AllInOneIME.app that has it (the 0.7.2 installer's, unpacked), moved into place as the installer moves its apps, and
+/// AllInOneIME.app that has it (the 0.7.2 installer's, unpacked), moved into place as the installer moves its apps (the
+/// input method to a path of its own, `Migration.newInputMethodName`), and
 /// AllInOneIME Settings.app beside it too when it is there (the installed one goes either way: it would open the old
 /// input method). `--migrate-identity --check` says that this version can (`Migration.checkLine`): 0.7.0 and earlier
 /// answer that the option is unknown. With `--target-dir`, a test install's, as `--install-update`'s. Exits 0 once the
@@ -433,7 +441,7 @@ enum MigrationCommand {
             printError("✗ \(app.path) isn't an AllInOneIME.app")
             return 2
         }
-        guard BundleSwap.exists(locations.inputMethod) else {
+        guard BundleSwap.exists(locations.inputMethod) || BundleSwap.exists(locations.newInputMethod) else {
             printError("✗ no AllInOneIME in \(locations.inputMethods.path)")
             return 1
         }

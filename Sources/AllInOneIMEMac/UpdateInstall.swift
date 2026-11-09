@@ -4,7 +4,8 @@ import AllInOneIMECore
 /// Installing an update on the Mac: its archive unpacked with ditto, its apps checked (Info.plist, code signature).
 extension Updater {
     /// The Mac apps' update manifest (site/public/update-v2.json, signed). update.json, which 0.7.0 and earlier read,
-    /// stays at 0.7.1: they don't install apps with the new bundle IDs (`AppIdentity`).
+    /// names the last version with the old identity (0.7.1.1): they don't install apps with the new bundle IDs
+    /// (`AppIdentity`).
     public static let defaultManifestURL = URL(string: "https://allinoneime.com/update-v2.json")!
 
     /// Unpacks the (verified) archive into `folder` (empty) with the system's ditto, without the download's

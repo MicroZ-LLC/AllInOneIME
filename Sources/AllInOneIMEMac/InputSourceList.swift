@@ -1,3 +1,5 @@
+import Foundation
+
 /// The input sources the user has added: `AppleEnabledInputSources` in `com.apple.HIToolbox`
 /// (what System Settings → Keyboard → Input Sources edits).
 ///
@@ -36,34 +38,44 @@ public enum InputSourceList {
         return list.filter { $0[bundleIDKey] as? String != bundleID }
     }
 
-    /// An input source as Text Input Sources files it: its ID, and the bundle ID it has for it.
-    public struct Filed: Equatable, Sendable {
-        public var id: String
-        public var bundleID: String?
+    /// The keys of `domain` that name the input sources the user has had: those enabled (`key`), the one selected, the
+    /// recent ones (Ctrl+Space's order) and the one saved as current. An input method without input modes is named by its
+    /// bundle ID (`Bundle ID`, its input source ID) in each.
+    public static let entryKeys = [key, "AppleSelectedInputSources", "AppleInputSourceHistory", "AppleSavedCurrentInputSource"]
 
-        public init(id: String, bundleID: String?) {
-            self.id = id
-            self.bundleID = bundleID
+    /// `values` (`entryKeys`' as `domain` has them) without any entry of `bundleID`: `before`, the values of the keys that
+    /// had one, and `after`, what they become (a list without those entries; a key whose value was such an entry alone,
+    /// the saved current one, is absent: it goes). Both empty when none has one.
+    public static func removingEntries(of bundleID: String, from values: [String: Any]) -> (before: [String: Any], after: [String: Any]) {
+        var before: [String: Any] = [:], after: [String: Any] = [:]
+        for key in entryKeys {
+            if let list = values[key] as? [[String: Any]], contains(list, bundleID: bundleID) {
+                before[key] = list
+                after[key] = list.filter { $0[bundleIDKey] as? String != bundleID }
+            } else if let entry = values[key] as? [String: Any], entry[bundleIDKey] as? String == bundleID {
+                before[key] = entry
+            }
         }
+        return (before, after)
+    }
+}
+
+/// Some of `com.apple.HIToolbox`'s keys (`InputSourceList.entryKeys`) as they were before an input source's entries were
+/// taken out of them: a copy to put back. A property list, so that it can be written down and passed between processes.
+public struct InputSourceEntries: Codable, Equatable, Sendable {
+    /// The keys' values (a binary property list of a dictionary).
+    public var plist: Data
+
+    public init(_ values: [String: Any]) {
+        plist = (try? PropertyListSerialization.data(fromPropertyList: values, format: .binary, options: 0)) ?? Data()
     }
 
-    public enum Removal {
-        /// Nothing listed for it (or no list).
-        case unlisted
-        /// The list without its entries.
-        case removed([[String: Any]])
-        /// Text Input Sources files this other input source under its entry's bundle ID: left.
-        case filedUnder(String)
+    public init(plist: Data) { self.plist = plist }
+
+    public var values: [String: Any] {
+        (try? PropertyListSerialization.propertyList(from: plist, format: nil)) as? [String: Any] ?? [:]
     }
 
-    /// The list without the entries of the input source `id` (an input method without input modes, listed by its bundle
-    /// ID, which is its input source ID). Unless Text Input Sources (`filed`: every input source installed) files another
-    /// one under that bundle ID: its cache can keep the bundle ID an app had for its path after another app took that
-    /// path (AllInOneIME's new identity in place of the old one), and then that entry is what the other one is enabled
-    /// by.
-    public static func removingSource(_ id: String, from list: [[String: Any]]?, filed: [Filed]) -> Removal {
-        guard let updated = removing(id, from: list) else { return .unlisted }
-        if let other = filed.first(where: { $0.id != id && $0.bundleID == id }) { return .filedUnder(other.id) }
-        return .removed(updated)
-    }
+    /// No key had an entry of it.
+    public var isEmpty: Bool { values.isEmpty }
 }

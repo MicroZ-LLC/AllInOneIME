@@ -166,10 +166,11 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
     public var updated = Date()
     /// The bundle IDs of the identity before: an app among `apps` is deleted only when it has one of them.
     public var bundleIDs: [String] = []
-    /// The input source to disable and take out of the user's input sources (by its input source ID), once the new
-    /// version's own is enabled: macOS lets only the user add a new input method, and until then the old one's entry may
-    /// be what its source is filed under.
+    /// The input source to disable and take out of the user's input sources (by its input source ID).
     public var inputSource: String?
+    /// Its entries in the user's input sources as they were before the switch took them out (0.7.1.1 on): a copy to put
+    /// back if the switch is rolled back. Not something to remove.
+    public var inputSourceEntries: InputSourceEntries?
     /// The user defaults domains to remove (their files too, once emptied).
     public var defaultsDomains: [String] = []
     /// The apps to unregister and delete: the previous apps where the swap left them, and other copies.
@@ -186,8 +187,8 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
     public init() {}
 
     enum CodingKeys: String, CodingKey {
-        case format, handedOver, updated, bundleIDs, inputSource, defaultsDomains, apps, launchAgents, keychainGroup, keychainItems
-        case loginKeys, caches
+        case format, handedOver, updated, bundleIDs, inputSource, inputSourceEntries, defaultsDomains, apps, launchAgents, keychainGroup
+        case keychainItems, loginKeys, caches
     }
 
     /// A list missing from the file is empty (a record written before it was added).
@@ -198,6 +199,7 @@ public struct CleanupRecord: Codable, Equatable, Sendable {
         updated = try values.decodeIfPresent(Date.self, forKey: .updated) ?? Date()
         bundleIDs = try values.decodeIfPresent([String].self, forKey: .bundleIDs) ?? []
         inputSource = try values.decodeIfPresent(String.self, forKey: .inputSource)
+        inputSourceEntries = try values.decodeIfPresent(InputSourceEntries.self, forKey: .inputSourceEntries)
         defaultsDomains = try values.decodeIfPresent([String].self, forKey: .defaultsDomains) ?? []
         apps = try values.decodeIfPresent([String].self, forKey: .apps) ?? []
         launchAgents = try values.decodeIfPresent([LaunchAgent].self, forKey: .launchAgents) ?? []

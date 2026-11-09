@@ -7,8 +7,8 @@ import FoundationNetworking
 /// The update manifest (https://allinoneime.com/update-v2.json from 0.7.1 on, update.json before it; the site's public/
 /// folder): the newest release, written and signed by `Scripts/build-update-manifest.swift` (`make update-manifest`)
 /// with the releases' own Ed25519 key, apart from the plugins' and the language packs'. Only ever built from bytes whose
-/// signature was verified. update.json, which 0.7.0 and earlier read, names 0.7.1 for good: they refuse apps with
-/// other bundle IDs than theirs (`AppIdentity`), and 0.7.1 is the last version with those.
+/// signature was verified. update.json, which 0.7.0 and earlier read, names the last version with the old identity for
+/// good (0.7.1.1): they refuse apps with other bundle IDs than theirs (`AppIdentity`).
 public struct UpdateManifest: Decodable, Equatable, Sendable {
     public var schema: Int
     public var generated: String?
@@ -159,9 +159,9 @@ public enum UpdateAvailability: Equatable, Sendable {
 }
 
 /// The Mac apps' system identity: the bundle IDs of the input method (its input source ID too) and of AllInOneIME
-/// Settings. Every version up to 0.7.1 has AIPinyin's (`legacy`), the input method's first name; 0.7.2 has AllInOneIME's
-/// own (`allInOneIME`). 0.7.1 is the bridge: the last version with the old identity, whose updater installs one with
-/// the new identity (`Updater.accepts`).
+/// Settings. Every version up to 0.7.1.1 has AIPinyin's (`legacy`), the input method's first name; 0.7.2 has
+/// AllInOneIME's own (`allInOneIME`). 0.7.1 and 0.7.1.1 are the bridge: the last versions with the old identity, whose
+/// updater installs one with the new identity (`Updater.accepts`).
 public struct AppIdentity: Equatable, Hashable, Sendable {
     public var inputMethod: String
     public var settings: String

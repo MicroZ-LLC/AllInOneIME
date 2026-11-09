@@ -1473,13 +1473,13 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    The profile lists the two Developer ID G1 certificates only: before signing with another (G2), make a new profile in
    the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists it, and commit it.
 3. Upload both to the GitHub release `v<version>` and publish it.
-4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
-   `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
-   the release notes' address and the summary) and signs it into `update-v2.json.sig` with the key from the login keychain
-   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both. 0.7.1 and later read update-v2.json;
-   `update.json` (and its `.sig`), which 0.7.0 and earlier read, is written as well only for a release whose apps still
-   have the old system identity, 0.7.1 (the last version those can install), and is left as it is from 0.7.2 on: it names
-   0.7.1 for good, which moves AllInOneIME to the new identity.
+4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes the update
+   manifest (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256, the release
+   notes' address and the summary) and signs it into its `.sig` with the key from the login keychain
+   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both. This version's apps have the old system
+   identity (the last version with it, which moves AllInOneIME to the new identity): its manifest is `site/public/update.json`,
+   which 0.7.0 and earlier read (they install no other bundle IDs). `update-v2.json`, which 0.7.1 and later read, is the
+   new identity's (0.7.2 on) and is left as it is.
 5. Deploy the site (`cd site && npx wrangler@4 deploy`), only once the release's assets download: the apps check once a day,
    and `AllInOneIME --check-update` shows what they see.
 
@@ -1500,13 +1500,19 @@ handover item, which 0.7.2 imports into the login keychain at launch as its own,
 new input source, never asking for it to be enabled (macOS lets only the user add a new input method; asked to, it only
 opens System Settings), with Text Input Sources asked in a process of its own, so that the helper can start the new
 version afterwards, and what it says logged; and only then removes the old identity's
-(`Sources/AllInOneIMEMac/Migration.swift`); any failure before the new input method starts puts everything back. What the
-cleanup couldn't remove stays listed in `~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which 0.7.2
-finishes at launch. Until the user adds the new input source, which 0.7.2 asks first (System Settings → Keyboard → Input
-Sources → + → English → AllInOneIME), no AllInOneIME input source works: the old one's entry stays in the input sources
-only to be taken out then, its app gone. The 0.7.2 installer asks an installed 0.7.1 to do the same
+(`Sources/AllInOneIMEMac/Migration.swift`); any failure before the new input method starts puts everything back. The new
+input method goes to `~/Library/Input Methods/AllInOneIME Input.app`, a path no app of the old identity ever had (its name
+stays AllInOneIME): every process keeps the bundle it once read for a path, and Text Input Sources' shared cache, which
+they all rewrite, files an input method by its path, so at the old one's path the new input source would stay filed under
+the old bundle ID until the user logs out. Before the swap the user's keyboard layout is selected (every app leaves the
+old input method while it is still there); right after the new input source is registered, every entry of the old one
+(enabled, selected, the recent ones, the one saved as current, in `com.apple.HIToolbox`) is taken out at once, a copy
+kept in the cleanup record to put back on a rollback. What the cleanup couldn't remove stays listed in
+`~/Library/Application Support/AllInOneIME/identity-cleanup.json`, which 0.7.2 finishes at launch. Until the user adds the
+new input source, which 0.7.2 asks first (System Settings → Keyboard → Input Sources → + → English → AllInOneIME), no
+AllInOneIME input source works. The 0.7.2 installer asks an installed 0.7.1 to do the same
 (`AllInOneIME --migrate-identity <the new AllInOneIME.app>`), and the 0.7.1 installer and `make install` never install
-over 0.7.2 (the installed version is newer). macOS asks again for the permissions it keeps by bundle ID.
+over 0.7.2 or later, at either path (the installed version is newer). macOS asks again for the permissions it keeps by bundle ID.
 
 ## License
 

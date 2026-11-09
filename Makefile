@@ -336,12 +336,11 @@ update-zip:
 	rm -rf "$(PAYLOAD_DIR)"
 	@echo "Built $(UPDATE_ZIP) ($$(du -h "$(UPDATE_ZIP)" | cut -f1 | tr -d ' '))"
 
-# site/public/update-v2.json and update-v2.json.sig: the update manifest (Scripts/build-update-manifest.swift), signed
-# with the releases' key from the login keychain, for the update archive as uploaded to the v<version> release on GitHub.
-# 0.7.1 and later read it. update.json (and .sig), which 0.7.0 and earlier read, is written too only for an archive
-# whose apps have the old system identity: 0.7.1's, the last version those can install (they refuse other bundle IDs),
-# which moves AllInOneIME to the new identity. From 0.7.2 on it is left as it is, naming 0.7.1 for good: an old
-# version updates to 0.7.1, and 0.7.1 to the newest.
+# The update manifest (Scripts/build-update-manifest.swift), signed with the releases' key from the login keychain, for
+# the update archive as uploaded to the v<version> release on GitHub. This version has the old system identity (the last
+# one with it, which moves AllInOneIME to the new identity): its manifest is site/public/update.json (and .sig), which
+# 0.7.0 and earlier read (they refuse other bundle IDs). update-v2.json, which 0.7.1 and later read, is the new
+# identity's (0.7.2 on), left as it is: an old version updates to this one, and this one to the newest.
 # Its summary, in a sentence or two each: make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"
 # Deploy the site afterwards (site/: npx wrangler@4 deploy); the apps check it once a day.
 RELEASE_DOWNLOADS := https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v$(VERSION)
@@ -462,13 +461,18 @@ install: install-check app settings-app
 	@for i in 1 2 3 4 5 6 7 8 9 10; do pgrep -x -U "$$(id -u)" $(APP_NAME) >/dev/null && break; sleep 0.5; done; \
 		pid=$$(pgrep -x -U "$$(id -u)" $(APP_NAME)) && echo "running:     pid $$pid" || echo "warning: $(APP_NAME) isn't running; switch to it once (Ctrl+Space)"
 
+# Where the new identity is: at this version's path (0.7.1 moved it there) or at its own (NEW_IDENTITY_APP,
+# Migration.newInputMethodName, 0.7.1.1 on).
+NEW_IDENTITY_APP := $(INSTALL_DIR)/AllInOneIME Input.app
 install-check:
-	@theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
-	if [ "$$theirs" = "$(NEW_IDENTITY_IME)" ]; then \
-		installed=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$(INSTALLED_APP)/Contents/Info.plist" 2>/dev/null || true); \
-		echo "error: the installed AllInOneIME $$installed is newer than $(VERSION) (it has AllInOneIME's own system identity), so it isn't replaced; to update it, use AllInOneIME Settings → About → Update" >&2; \
-		exit 1; \
-	fi
+	@for app in "$(INSTALLED_APP)" "$(NEW_IDENTITY_APP)"; do \
+		theirs=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$$app/Contents/Info.plist" 2>/dev/null || true); \
+		if [ "$$theirs" = "$(NEW_IDENTITY_IME)" ]; then \
+			installed=$$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$$app/Contents/Info.plist" 2>/dev/null || true); \
+			echo "error: the installed AllInOneIME $$installed is newer than $(VERSION) (it has AllInOneIME's own system identity), so it isn't replaced; to update it, use AllInOneIME Settings → About → Update" >&2; \
+			exit 1; \
+		fi; \
+	done
 
 uninstall:
 	-"$(INSTALLED_APP)/Contents/MacOS/$(APP_NAME)" --disable
