@@ -11,7 +11,7 @@ struct SystemIdentityTests {
         var asked = 0
         func check(_ answer: String?) -> () -> String? { { asked += 1; return answer } }
         #expect(SystemIdentity.installed(info: nil, check: check(nil)) == .none)
-        #expect(SystemIdentity.installed(info: ["CFBundleIdentifier": Updater.bundleID, "CFBundleShortVersionString": "0.7.3"],
+        #expect(SystemIdentity.installed(info: ["CFBundleIdentifier": Updater.bundleID, "CFBundleShortVersionString": "0.7.2.1"],
                                          check: check(nil)) == .this)
         // This identity's is never asked to move.
         #expect(asked == 0)
@@ -27,7 +27,7 @@ struct SystemIdentityTests {
         #expect(SystemIdentity.moved(UpdateResult(from: "0.7.1", to: "0.7.2", ok: true)))
         #expect(SystemIdentity.moved(UpdateResult(from: "0.6.9", to: "0.7.4", ok: true)))
         #expect(!SystemIdentity.moved(UpdateResult(from: "0.7.1", to: "0.7.2", ok: false, error: "rolled back")))
-        #expect(!SystemIdentity.moved(UpdateResult(from: "0.7.2", to: "0.7.3", ok: true)))
+        #expect(!SystemIdentity.moved(UpdateResult(from: "0.7.2", to: "0.7.2.1", ok: true)))
         // The helper's "none" (nothing was installed) and an unreadable version aren't a version before it.
         #expect(!SystemIdentity.moved(UpdateResult(from: "none", to: "0.7.2", ok: true)))
         #expect(!SystemIdentity.moved(UpdateResult(from: "?", to: "0.7.2", ok: true)))
@@ -39,7 +39,7 @@ struct SystemIdentityTests {
         let moved = UpdateResult(from: "0.7.1", to: "0.7.2", ok: true)
         #expect(SystemIdentity.firstShown(after: moved, inputSourceEnabled: false) == .inputSourceStep)
         #expect(SystemIdentity.firstShown(after: moved, inputSourceEnabled: true) == .permissions)
-        for result in [nil, UpdateResult(from: "0.7.2", to: "0.7.3", ok: true), UpdateResult(from: "0.7.1", to: "0.7.2", ok: false)] {
+        for result in [nil, UpdateResult(from: "0.7.2", to: "0.7.2.1", ok: true), UpdateResult(from: "0.7.1", to: "0.7.2", ok: false)] {
             #expect(SystemIdentity.firstShown(after: result, inputSourceEnabled: false) == .nothing)
             #expect(SystemIdentity.firstShown(after: result, inputSourceEnabled: true) == .nothing)
         }

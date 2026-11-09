@@ -2,7 +2,7 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## 0.7.3 (unreleased)
+## 0.7.2.1 (unreleased)
 
 ### Changed
 
