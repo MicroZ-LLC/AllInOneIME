@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Settings → Privacy: sensitive values hidden from the AI before a request is sent (`Redaction`: one switch, and the
 /// user's own words), the apps without AI, what `@agent` takes from Chrome, the recent questions kept, the English
-/// words learned, and what else this Mac learned (Learned…).
+/// words learned, what else this Mac learned (Learned…), and the install ID the update check sends.
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
     /// The words field, as typed (`SettingsModel.wordsField`): saved on Return, when it or the window loses the focus,
@@ -102,6 +102,20 @@ struct PrivacySection: View {
         }
         .disabled(!model.canSave)
         .onChange(of: model.config.learnsEnglishWords) { model.save() }
+        Section {
+            // In the update check's request (`UpdateController.installID`); off forgets the ID kept.
+            Toggle(isOn: $model.config.sendsInstallID) {
+                titled(.installID)
+            }
+            .settingsRow(.installID, shown: model.spot)
+        } header: {
+            SectionTitle(tr("发给 allinoneime.com 的内容", "What Goes to allinoneime.com"), icon: SettingsPage.privacy.icon)
+        }
+        .disabled(!model.canSave)
+        .onChange(of: model.config.sendsInstallID) {
+            model.save()
+            if !model.config.sendsInstallID { UpdateController.shared.forgetInstallID() }
+        }
     }
 
     /// The kinds hidden with the switch on, each kept in the config as its own (`RedactionSettings`).

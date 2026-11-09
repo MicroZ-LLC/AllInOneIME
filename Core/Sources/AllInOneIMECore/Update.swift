@@ -150,6 +150,27 @@ public enum UpdateSchedule {
     }
 }
 
+/// This Mac's install ID, sent with the update check (`Updater.installID`) so that installs can be counted: 16 random
+/// lowercase hex digits (64 bits), never derived from the hardware, the account or anything else. The shell keeps it in
+/// the input method's own defaults (each Mac its own, never synced) and forgets it when sending it is turned off
+/// (`Config.sendsInstallID`); turned on again, a new one is made.
+public enum InstallID {
+    public static let length = 16
+
+    /// A new one, from the system's random numbers.
+    public static func make() -> String {
+        var generator = SystemRandomNumberGenerator()
+        let hex = String(generator.next() as UInt64, radix: 16)
+        return String(repeating: "0", count: length - hex.count) + hex
+    }
+
+    /// Whether `text` is one: anything else kept (by hand, say) is replaced, never sent.
+    public static func isValid(_ text: String?) -> Bool {
+        guard let text, text.utf8.count == length else { return false }
+        return text.allSatisfy { "0123456789abcdef".contains($0) }
+    }
+}
+
 /// What a check found.
 public enum UpdateAvailability: Equatable, Sendable {
     case upToDate
@@ -198,16 +219,27 @@ public struct Updater: Sendable {
     public var systemVersion: String
     /// Plain http to this Mac (a test server): only for the developer commands and tests.
     public var allowsLocalHTTP: Bool
+    /// This Mac's install ID (`InstallID`), when it is sent: only the manifest's request carries it, in its User-Agent
+    /// (`manifestUserAgent`). Nil (or not an install ID): every request as it always was.
+    public var installID: String?
 
     public init(manifestURL: URL, publicKey: Data = Updater.publicKey,
                 configuration: URLSessionConfiguration? = nil, currentVersion: String = AppVersion.string,
-                systemVersion: String = Updater.thisSystem, allowsLocalHTTP: Bool = false) {
+                systemVersion: String = Updater.thisSystem, allowsLocalHTTP: Bool = false, installID: String? = nil) {
         self.manifestURL = manifestURL
         self.publicKey = publicKey
         self.configuration = configuration ?? Self.makeConfiguration()
         self.currentVersion = currentVersion
         self.systemVersion = systemVersion
         self.allowsLocalHTTP = allowsLocalHTTP
+        self.installID = installID
+    }
+
+    /// The manifest request's User-Agent with the install ID ("AllInOneIME/0.7.3 (install 0123456789abcdef)"); nil
+    /// without one.
+    public var manifestUserAgent: String? {
+        guard let installID, InstallID.isValid(installID) else { return nil }
+        return "AllInOneIME/\(currentVersion) (install \(installID))"
     }
 
     public static var thisSystem: String {
@@ -230,7 +262,7 @@ public struct Updater: Sendable {
             throw UpdateError.invalidManifest(manifestURL.absoluteString)
         }
         let signatureURL = URL(string: manifestURL.absoluteString + ".sig")!
-        let data = try await fetch(manifestURL, limit: Self.maxManifestBytes)
+        let data = try await fetch(manifestURL, limit: Self.maxManifestBytes, userAgent: manifestUserAgent)
         let signature: Data
         do {
             signature = try await fetch(signatureURL, limit: 4096)
@@ -323,13 +355,16 @@ public struct Updater: Sendable {
 
     /// A small file (the manifest, its signature) of at most `limit` bytes: refused as soon as it's longer, as it
     /// comes, never read whole first. Redirects only to the same host or allinoneime.com (`ManifestRedirects`).
-    private func fetch(_ url: URL, limit: Int) async throws -> Data {
+    /// `userAgent`: the manifest's, with the install ID; nil leaves the system's.
+    private func fetch(_ url: URL, limit: Int, userAgent: String? = nil) async throws -> Data {
         let session = URLSession(configuration: configuration)
         defer { session.finishTasksAndInvalidate() }
         var data = Data()
         do {
             let redirects = ManifestRedirects(from: url, allowsLocalHTTP: allowsLocalHTTP)
-            let (bytes, response) = try await HTTPStream.bytes(for: URLRequest(url: url), session: session, redirect: { redirects.request($0) })
+            var request = URLRequest(url: url)
+            if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+            let (bytes, response) = try await HTTPStream.bytes(for: request, session: session, redirect: { redirects.request($0) })
             let status = (response as? HTTPURLResponse)?.statusCode ?? 0
             guard status == 200 else { throw UpdateError.http(status: status, file: url.lastPathComponent) }
             guard response.expectedContentLength <= Int64(limit) else { throw UpdateError.tooLarge(url.lastPathComponent) }
