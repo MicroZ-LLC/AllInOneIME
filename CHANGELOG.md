@@ -2,6 +2,13 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.1.1 (unreleased)
+
+### Changed
+
+- The move to AllInOneIME's own system identity (the next update) no longer needs a logout or a restart. After the move from 0.7.1, macOS could go on taking the new version for the old one until you logged out, so English didn't list it to be added. Now the new version gets a place of its own in ~/Library/Input Methods (`AllInOneIME Input.app`; everywhere you see it, it's still called AllInOneIME), and macOS knows it at once. Just before the move, AllInOneIME switches you to your keyboard layout; right after, the old AllInOneIME leaves your input sources (it can't be used any more). All that's left for you is to add AllInOneIME once: System Settings → Keyboard → Input Sources → + → English → AllInOneIME. The new version shows you this step first. If anything goes wrong during the move, everything is put back as it was, the old input source included.
+- Versions before 0.7.1 update to this one (update.json), and this one updates to the new identity.
+
 ## 0.7.1 (unreleased)
 
 ### Changed

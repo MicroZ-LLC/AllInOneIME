@@ -2,6 +2,13 @@
 
 [English](CHANGELOG.md) | 中文
 
+## 0.7.1.1（未发布）
+
+### 变更
+
+- 换到 AllInOneIME 自己的系统身份（下一次更新）不用再注销或重启了。从 0.7.1 换过去以后，macOS 可能一直把新版本当成旧的，直到你注销，所以「英语」下面找不到它来添加。现在新版本在 ~/Library/Input Methods 里有自己的位置（`AllInOneIME Input.app`；你在哪里看到它，名字都还是 AllInOneIME），macOS 马上就认得它。换之前，AllInOneIME 先把你切到键盘布局；换完马上把旧的 AllInOneIME 从输入法列表里拿掉（它已经不能用了）。你只需要添加一次 AllInOneIME：系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME。新版本会先告诉你这一步。换的过程中出任何问题，都会全部恢复原样，旧输入法也一样。
+- 0.7.1 以前的版本会更新到这个版本（update.json），再由它换到新身份。
+
 ## 0.7.1（未发布）
 
 ### 变更
