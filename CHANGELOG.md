@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.3 (unreleased)
 
+### Changed
+
+- New installs put the input method in ~/Library/Input Methods/AllInOneIME Input.app (everywhere you see it, it's still called AllInOneIME): a place no earlier version used, so macOS lists it under English to be added right away, with no logout or restart. The move from 0.7.1.1 puts it there too. If you have 0.7.2, it stays where it is (AllInOneIME.app): updates, the installer, `make install` and AllInOneIME Settings find it there as before, and an update keeps it there. Installing over 0.7.0 or earlier anyway puts it in the new place and takes the old one out of Input Methods.
+
 ### Fixed
 
 - The keyboard layout you pick for French in Settings → Input (`keyboardLayouts` in the config) is now saved at once and typed with from the next field. Before, French kept typing AZERTY until another setting was saved or Settings was closed, and if the config was rewritten meanwhile (Settings → Assistant, iCloud sync, a learned word) the pick was lost and the picker showed AZERTY again.
