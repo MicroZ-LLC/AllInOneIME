@@ -12,6 +12,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - The keyboard layout you pick for French in Settings → Input (`keyboardLayouts` in the config) is now saved at once and typed with from the next field. Before, French kept typing AZERTY until another setting was saved or Settings was closed, and if the config was rewritten meanwhile (Settings → Assistant, iCloud sync, a learned word) the pick was lost and the picker showed AZERTY again.
 - While your config file doesn't parse (a comma typed twice, or `"learnsEnglishWords": "false"` with the value in quotes), English words are no longer learned against your settings. A word typed twice meanwhile waits in memory, and once the file parses again it goes into `englishWords` only if the file allows it: learning on, an app without No AI, none of your hidden words in it. Before, the defaults went for your settings meanwhile, so a word was learned with learning off, in an app with No AI, or holding a hidden word, and written into the file. Autocomplete's switch isn't taken as turned off and on again either: the apps where it stopped stay stopped (Privacy → Learned…), and nothing is counted.
+- While AllInOneIME isn't in your input sources, an update, the installer and `make install` no longer open System Settings → Keyboard by themselves. macOS doesn't let them add it, and it opened with no window of AllInOneIME's saying why. Adding it is left to you, as before: the installer says how, with a button that opens Keyboard settings, and Settings → About shows the step until it's done.
 
 ## 0.7.2 (unreleased)
 

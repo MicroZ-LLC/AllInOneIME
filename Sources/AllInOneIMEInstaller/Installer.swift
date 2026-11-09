@@ -125,8 +125,9 @@ enum Installer {
 
     // MARK: Install and uninstall
 
-    /// Replaces the installed apps with those in the payload, then registers the input method, which also adds it to the
-    /// input sources and deploys the dictionaries. Returns what `AllInOneIME --register` printed; `step` reports progress.
+    /// Replaces the installed apps with those in the payload, then registers the input method, which also keeps it in the
+    /// input sources once the user has added it (it never enables it) and deploys the dictionaries. Returns what
+    /// `AllInOneIME --register` printed; `step` reports progress.
     ///
     /// An installed input method with another system identity (`SystemIdentity`, found by its bundle ID not being this
     /// one's) isn't just replaced: one that can (0.7.1) moves itself to this identity with the payload's apps, carrying the

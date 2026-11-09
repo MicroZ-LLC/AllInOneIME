@@ -1146,11 +1146,11 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
    an app downloaded from the internet: click Open. (Versions before 0.6.3 weren't notarized: each had to be allowed
    once in System Settings → Privacy & Security → Open Anyway.)
 
-After that, AllInOneIME is enabled and in your input sources; switch to it with Ctrl+Space
-(the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings → Keyboard).
-If the installer tells you to add it by hand, this Mac doesn't let programs enable it, so add it once yourself:
-System Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → English → AllInOneIME
-(it types pinyin too once you add Chinese in Settings → Input).
+Then add it to your input sources once yourself (macOS lets only you add an input method; the installer shows this step,
+with a button that opens Keyboard settings): System Settings → Keyboard → Text Input → Input Sources → Edit… → +
+(bottom left) → English → AllInOneIME (it types pinyin too once you add Chinese in Settings → Input). After that, switch
+to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings →
+Keyboard). An update, or installing again, keeps it in your input sources.
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
@@ -1193,7 +1193,7 @@ cd AllInOneIME
 make install
 ```
 
-`make install` downloads librime and the rime-ice dictionaries and verifies them, builds, and installs into the same places, adding it to your input sources the same way.
+`make install` downloads librime and the rime-ice dictionaries and verifies them, builds, and installs into the same places; you add it to your input sources the same way.
 The app it installs has no Chinese dictionaries (they're the Chinese language pack): an install that had them keeps them as the pack; otherwise `make install-pack` installs the pack from the checkout's dictionaries, without a download.
 `make status` shows the installed version (`version:`) and whether it's in your input sources (`listed:`). To uninstall: `make uninstall`.
 
