@@ -153,6 +153,16 @@ public enum EnglishWords {
         return config.learnsEnglishWords && config.allowsAI(in: field.app) ? config : nil
     }
 
+    /// Whether `typed`, learned in `app` while the settings were only the defaults (`Held`: their file didn't parse), is
+    /// learned by the user's settings, `config`, read again: as `learns` has them, with learning on, in an app with AI,
+    /// and still learnable with their words (`known`), hidden words, fuzzy pinyin and the candidates removed.
+    static func allows(_ typed: String, in app: String?, config: Config, known: Set<String>, dictionary: EnglishDictionary,
+                       removed: Set<String>) -> Bool {
+        config.learnsEnglishWords && config.allowsAI(in: app)
+            && learnable(typed, known: known, dictionary: dictionary, hidden: config.redaction.customWords,
+                         fuzzy: config.fuzzyPinyin, removed: removed)
+    }
+
     /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or
     /// a mark and a space, a mark or ⏎) is learned: by the rule letters put in as typed while typing pinyin are (`learns`:
     /// the second time, the first only remembered; never during secure input, in a password field, a terminal, a remote
@@ -222,6 +232,30 @@ public enum EnglishWords {
             }
             keys.append(k, keepingLast: Self.limit)
             return false
+        }
+    }
+
+    /// Words learned (`learns`) while the settings were only the defaults (their file doesn't parse: a comma left in an
+    /// editor), each with the app it was typed in: neither offered nor written then, as the defaults aren't the user's
+    /// settings (learning may be off there, the app one with no AI, the word one of their hidden words). Held until a
+    /// session reads the user's settings again, which learns those they allow (`allows`) and forgets the rest; the latest
+    /// `TypedOnce.limit`. In memory only, shared by the fields of one launch (`SessionServices.englishWordsHeld`),
+    /// forgotten when the app quits. Main thread only, as the session.
+    public final class Held: @unchecked Sendable {
+        private var words: [(typed: String, app: String?)] = []
+
+        public init() {}
+
+        var isEmpty: Bool { words.isEmpty }
+
+        func hold(_ typed: String, in app: String?) {
+            words.append((typed, app), keepingLast: TypedOnce.limit)
+        }
+
+        /// Those held, oldest first, no longer held.
+        func take() -> [(typed: String, app: String?)] {
+            defer { words = [] }
+            return words
         }
     }
 

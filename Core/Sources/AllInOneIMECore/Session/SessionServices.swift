@@ -55,6 +55,10 @@ public struct SessionServices {
     /// The letters put in as typed once (learned the second time), shared by every field of a launch: the shell gives one
     /// for them all; the default is these services' own.
     public var englishTypedOnce: EnglishWords.TypedOnce
+    /// The words learned while the settings were only the defaults (their file doesn't parse), held until the user's
+    /// allow them (`EnglishWords.Held`), shared by every field of a launch: the shell gives one for them all; the default
+    /// is these services' own.
+    public var englishWordsHeld: EnglishWords.Held
 
     // MARK: What is kept
 
@@ -222,6 +226,7 @@ public struct SessionServices {
         learnEnglishWord = { _ in }
         removeCandidate = { _ in }
         englishTypedOnce = EnglishWords.TypedOnce()
+        englishWordsHeld = EnglishWords.Held()
         page = { _ in nil }
         pastesInTerminal = { false }
         needsTheUser = { ($0 as? NoteError)?.needsTheUser ?? false }
