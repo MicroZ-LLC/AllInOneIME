@@ -507,7 +507,9 @@ public struct SuggestionsServices {
     public var settings: () -> SuggestionsSettings
     /// Whether `settings` are the user's: false while their file doesn't parse and the shell reads the defaults instead,
     /// when nothing is forgotten nor its cached list deleted for what they say (`SuggestionsStore.prune`: the defaults
-    /// approve no source). The default: yes.
+    /// approve no source). The session's settings (`SessionServices.loadSettings`) are the same: while they aren't the
+    /// user's, no English word is learned (`EnglishWords.Held`) and autocomplete's switch isn't seen
+    /// (`AutocompleteStore.saw`). The default: yes.
     public var settingsValid: () -> Bool
     /// The time now.
     public var now: @Sendable () -> Date
