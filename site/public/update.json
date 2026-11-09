@@ -1,15 +1,15 @@
 {
-  "build" : "24",
-  "generated" : "2026-11-09T00:09:33Z",
+  "build" : "23",
+  "generated" : "2026-11-08T00:19:11Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.1",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.0",
   "schema" : 1,
-  "sha256" : "7943bf029a202f8f67cc930e5b8344057905b40087d17e21762e70721d3296cc",
-  "size" : 30728612,
+  "sha256" : "71188fda8bc5e211796a66678d55443b5c1d5803a5b8ceb8539d124e42a386c8",
+  "size" : 30289853,
   "summary" : {
-    "en" : "Prepares the move to AllInOneIME's own system identity (the next update), and keeps password fields private: nothing typed in one goes to the AI.",
-    "zh" : "为换到 AllInOneIME 自己的系统身份做准备（下一次更新），并保护密码框：在里面打的字不会发给 AI。"
+    "en" : "One @ for everything: type @ and what you want, no command names to learn. Also a new panel look, Traditional Chinese, removing candidates for good, image previews in clipboard history, and a notification when a new version is out.",
+    "zh" : "一个 @ 搞定：打 @ 再打你想要的，不用记命令名。还有新的面板外观、繁体中文、永久删除候选词、剪贴板历史的大图预览，以及有新版本时的通知。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.1/AllInOneIME-0.7.1-update.zip",
-  "version" : "0.7.1"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.0/AllInOneIME-0.7.0-update.zip",
+  "version" : "0.7.0"
 }
