@@ -3,7 +3,7 @@ import os
 import Testing
 @testable import AllInOneIMECore
 
-// Acceptance tests for the @question conversation and the one ⇧⏎ rule (0.6.4), written from the spec
+// Acceptance tests for the @question conversation (0.6.4) and its 0.7.3 answer keys, written from the spec
 // (spec-question-chat.md with its CHANGE 1 and CHANGE 2, and the coordinator's decisions after it), independently of
 // the implementation's own tests. Each test names the clause it checks ("conv" the conversation, "keys" CHANGE 1's keys,
 // "req" the requests, "ctx" the context limit, "limit" the round limit, "handoff" continuing elsewhere, "hist" the
@@ -292,11 +292,11 @@ final class QCRig {
         await key(enterKey)
     }
 
-    /// Types `question` after the answer shown and asks it with ⇧⏎.
+    /// Types `question` after the answer shown and asks it with ⏎.
     @discardableResult
     func followUp(_ question: String) async -> [Composer.Effect] {
         await type(question)
-        return await key(qcShiftReturn)
+        return await key(enterKey)
     }
 
     /// A conversation of `rounds` rounds: "q1", then "q2" … as follow-ups.
@@ -428,9 +428,9 @@ struct QuestionChatAcceptanceTests {
 
     // MARK: The conversation
 
-    /// conv: the answer in, typing goes on as the next question (not a refine), ⇧⏎ asks it, and the transcript grows a
+    /// conv: the answer in, typing goes on as the next question (not a refine), ⏎ asks it, and the transcript grows a
     /// round at a time, oldest first, the latest answer selected.
-    @Test func conv_typingAfterAnAnswerIsAFollowUpThatShiftReturnAsksAndTheTranscriptGrows() async throws {
+    @Test func conv_typingAfterAnAnswerIsAFollowUpThatReturnAsksAndTheTranscriptGrows() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
         #expect(rig.requestCount == 1 && rig.c.isQuestionChat && rig.c.chatRound == 1)
@@ -438,7 +438,7 @@ struct QuestionChatAcceptanceTests {
         // Typing: a line for the next question; nothing is sent yet.
         await rig.type("who made it")
         #expect(rig.c.refineLine == "who made it" && rig.requestCount == 1 && rig.c.isLevelTwo)
-        let ask = await rig.key(qcShiftReturn)
+        let ask = await rig.key(enterKey)
         #expect(QCRig.asks(ask) && rig.requestCount == 2)
         #expect(rig.c.chatRound == 2 && rig.c.chatRounds.map(\.question) == ["what is rust", "who made it"])
         #expect(rig.c.chatRounds.map(\.answer) == [qcAnswer("what is rust"), qcAnswer("who made it")])
@@ -454,14 +454,14 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.committed.isEmpty)
     }
 
-    /// conv: pinyin in the next question goes through the engine as usual; ⇧⏎ asks what it makes.
+    /// conv: pinyin in the next question goes through the engine as usual; ⏎ asks what it makes.
     @Test func conv_aFollowUpCanBeTypedInPinyin() async throws {
         let rig = QCRig()
         await rig.ask("greet me")
         rig.shiftTap(at: 10)  // to Chinese
         await rig.type("nihao")
         #expect(rig.requestCount == 1)
-        await rig.key(qcShiftReturn)
+        await rig.key(enterKey)
         #expect(rig.requestCount == 2)
         #expect(rig.requests.last?.lastUser == "你好", "sent \(rig.requests.last?.lastUser.debugDescription ?? "nil")")
         #expect(rig.c.chatRounds.last?.question == "你好")
@@ -471,7 +471,9 @@ struct QuestionChatAcceptanceTests {
     @Test func keys_spaceIsASpaceWhileTypingAndInsertsWithNothingTyped() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
-        await rig.type("who made it")
+        await rig.type("who made")
+        await rig.key(spaceKey)
+        await rig.type("it")
         #expect(rig.c.refineLine == "who made it" && rig.committed.isEmpty)
         await rig.key(escKey)  // clears it
         #expect(rig.c.isLevelTwo && rig.committed.isEmpty)
@@ -479,12 +481,12 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.committed == [qcAnswer("what is rust")] && !rig.c.isComposing)
     }
 
-    /// CHANGE 1/2: ⏎ inserts the selected answer even with a follow-up half typed, which is dropped (nothing asked).
-    @Test func keys_returnInsertsTheSelectedAnswerAndDropsAHalfTypedFollowUp() async throws {
+    /// ⇧⏎ inserts the selected answer even with a follow-up half typed, which is dropped (nothing asked).
+    @Test func keys_shiftReturnInsertsTheSelectedAnswerAndDropsAHalfTypedFollowUp() async throws {
         let rig = QCRig()
         await rig.converse(2)
         await rig.type("and th")
-        let insert = await rig.key(enterKey)
+        let insert = await rig.key(qcShiftReturn)
         #expect(!QCRig.asks(insert) && rig.requestCount == 2)
         #expect(rig.committed == [qcAnswer("q2")], "inserted \(rig.committed)")
         #expect(!rig.committed.joined().contains("and th") && !rig.c.isComposing)
@@ -501,8 +503,8 @@ struct QuestionChatAcceptanceTests {
         }
     }
 
-    /// CHANGE 1: ↑/↓ move between the answers (the selection starts on the latest) and ⏎ inserts the one selected.
-    @Test func keys_upAndDownMoveBetweenAnswersAndReturnInsertsIt() async throws {
+    /// ↑/↓ move between the answers (the selection starts on the latest) and ⇧⏎ inserts the one selected.
+    @Test func keys_upAndDownMoveBetweenAnswersAndShiftReturnInsertsIt() async throws {
         let rig = QCRig()
         await rig.converse(3)
         #expect(rig.selected == qcAnswer("q3"))
@@ -512,7 +514,7 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.selected == qcAnswer("q1"))
         await rig.key(downKey)
         #expect(rig.selected == qcAnswer("q2"))
-        await rig.key(enterKey)
+        await rig.key(qcShiftReturn)
         #expect(rig.committed == [qcAnswer("q2")] && rig.requestCount == 3)
     }
 
@@ -547,31 +549,26 @@ struct QuestionChatAcceptanceTests {
         QCStubProtocol.enqueue(rig.host, .answer(long))
         await rig.ask("explain")
         #expect(rig.c.choices.count == 1)
-        await rig.key(enterKey)
+        await rig.key(qcShiftReturn)
         #expect(rig.committed.count == 1)
         #expect(rig.committed.first?.contains("Line one") == true && rig.committed.first?.contains("Line three") == true)
     }
 
-    /// CHANGE 2 (over CHANGE 1): ⇧⏎ with nothing typed keeps its global meaning, inserting what was typed as typed;
-    /// nothing is asked.
-    @Test func keys_shiftReturnWithNothingTypedInsertsAsTyped() async throws {
+    /// ⏎ with nothing typed inserts nothing and keeps the conversation panel.
+    @Test func keys_returnWithNothingTypedKeepsTheConversation() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
-        let typed = rig.c.draft
-        #expect(typed == "@question what is rust")
-        let out = await rig.key(qcShiftReturn)
+        let out = await rig.key(enterKey)
         #expect(!QCRig.asks(out) && rig.requestCount == 1)
-        #expect(rig.committed == [typed], "inserted \(rig.committed)")
-        #expect(!rig.c.isComposing)
+        #expect(rig.committed.isEmpty && rig.c.isQuestionChat && rig.c.isComposing)
         // At a later round too.
         let later = QCRig()
         await later.converse(2)
-        let draft = later.c.draft
-        await later.key(qcShiftReturn)
-        #expect(later.requestCount == 2 && later.committed == [draft])
+        await later.key(enterKey)
+        #expect(later.requestCount == 2 && later.committed.isEmpty && later.c.isQuestionChat)
     }
 
-    /// Coordinator: the action key (⌥Space here) still sends a typed follow-up; ⏎ inserts.
+    /// Coordinator: the action key (⌥Space here) and ⏎ send a typed follow-up.
     @Test func keys_theActionKeySendsATypedFollowUp() async throws {
         let rig = QCRig(actionKey: .optionSpace)
         await rig.pick("q")
@@ -583,7 +580,7 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.requestCount == 2 && rig.c.chatRounds.last?.question == "who made it")
         await rig.type("and")
         await rig.key(enterKey)
-        #expect(rig.requestCount == 2 && rig.committed == [qcAnswer("who made it")])
+        #expect(rig.requestCount == 3 && rig.committed.isEmpty && rig.c.chatRounds.last?.question == "and")
     }
 
     // MARK: Esc
@@ -823,7 +820,7 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.c.showsHandoff && rig.c.chatAtLimit)
         // A 6th question isn't asked here.
         await rig.type("tell me more")
-        let out = await rig.key(qcShiftReturn)
+        let out = await rig.key(enterKey)
         #expect(rig.requestCount == 5 && !QCRig.asks(out))
         #expect(!rig.committed.contains { $0.contains("tell me more") })
     }
@@ -840,17 +837,17 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.requestCount == 5)
     }
 
-    /// Coordinator (after review, unchanged by the agent hand-off): ⇧⏎ with text at the round limit only shows the
+    /// Coordinator (after review, unchanged by the agent hand-off): ⏎ with text at the round limit only shows the
     /// choices: no agent is started, nothing opened or copied, the text stays for the hand-off, and ⌘1–⌘9 is needed to
     /// pick where it goes.
-    @Test func limit_shiftReturnWithTextAtTheLimitOnlyShowsTheChoices() async throws {
+    @Test func limit_returnWithTextAtTheLimitOnlyShowsTheChoices() async throws {
         // The default choices with two agents installed: @agent's (Claude Code by default) on ⌘1, then Gemini CLI.
         let rig = QCRig(programs: ["claude", "gemini"])
         await rig.converse(5)
         await rig.type("tell me more")
-        let out = await rig.key(qcShiftReturn)
-        #expect(qcLeavesThePanel(out).isEmpty, "⇧⏎ at the limit did: \(qcLeavesThePanel(out))")
-        #expect(rig.launched.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty, "⇧⏎ at the limit launched a hand-off")
+        let out = await rig.key(enterKey)
+        #expect(qcLeavesThePanel(out).isEmpty, "⏎ at the limit did: \(qcLeavesThePanel(out))")
+        #expect(rig.launched.isEmpty && rig.opened.isEmpty && rig.copied.isEmpty, "⏎ at the limit launched a hand-off")
         #expect(rig.requestCount == 5 && rig.committed.isEmpty)
         #expect(rig.c.isQuestionChat && rig.c.showsHandoff, "the choices should be shown")
         #expect(rig.c.refineText == "tell me more", "the text typed should stay, for the hand-off")
@@ -859,11 +856,11 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.claudeCode.count == 1 && rig.claudeCode.first?.hasSuffix("tell me more") == true)
     }
 
-    /// limit: ⏎ still inserts the selected answer at the limit, and digits still pick answers there.
-    @Test func limit_returnAndDigitsStillInsertAnswersAtTheLimit() async throws {
+    /// limit: ⇧⏎ still inserts the selected answer at the limit, and digits still pick answers there.
+    @Test func limit_shiftReturnAndDigitsStillInsertAnswersAtTheLimit() async throws {
         let rig = QCRig()
         await rig.converse(5)
-        await rig.key(enterKey)
+        await rig.key(qcShiftReturn)
         #expect(rig.committed == [qcAnswer("q5")])
         let digits = QCRig()
         await digits.converse(5)
@@ -889,7 +886,7 @@ struct QuestionChatAcceptanceTests {
         await two.followUp("q2")
         #expect(two.c.showsHandoff && two.c.chatAtLimit)
         await two.type("q3")
-        await two.key(qcShiftReturn)
+        await two.key(enterKey)
         #expect(two.requestCount == 2)
 
         let ten = QCRig { $0.questionRounds = 10 }
@@ -977,7 +974,7 @@ struct QuestionChatAcceptanceTests {
         let later = QCRig()
         await later.ask("q1")
         await later.type("q2")
-        let asked = later.c.handleKeyDown(qcShiftReturn).effects
+        let asked = later.c.handleKeyDown(enterKey).effects
         let id = try #require(asked.lazy.compactMap { if case let .startRefine(_, id) = $0 { return id } else { return nil } }.first)
         let duringFollowUp = later.c.handleKeyDown(qcCommandReturn)
         #expect(duringFollowUp.handled, "⌘⏎ during a follow-up's answer went to the app")
@@ -1560,7 +1557,7 @@ struct QuestionChatAcceptanceTests {
         await rig.key(k("1"))
         #expect(rig.c.chatRounds == rounds && rig.c.showsHandoff && rig.c.chatAtLimit)
         await rig.type("more")
-        await rig.key(qcShiftReturn)
+        await rig.key(enterKey)
         #expect(rig.requestCount == 0)
     }
 
@@ -1568,7 +1565,7 @@ struct QuestionChatAcceptanceTests {
     @Test func hist_commandRReasksASavedAnswer() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
-        await rig.key(enterKey)
+        await rig.key(qcShiftReturn)
         #expect(rig.requestCount == 1)
         for key in [k("r", mods: .command), k("R", mods: [.command, .shift])] {
             rig.newField()
@@ -1611,7 +1608,7 @@ struct QuestionChatAcceptanceTests {
     @Test func hist_commandRReasksASavedThreadPastTheCache() async throws {
         let rig = QCRig()
         await rig.converse(2)
-        await rig.key(enterKey)
+        await rig.key(qcShiftReturn)
         #expect(rig.requestCount == 2)
         rig.newField()
         await rig.pick("q")
@@ -1631,7 +1628,7 @@ struct QuestionChatAcceptanceTests {
         await rig.key(k("r"))
         #expect(rig.requestCount == 0 && rig.c.refineLine == "r")
         await rig.type("ust history")
-        await rig.key(qcShiftReturn)
+        await rig.key(enterKey)
         #expect(rig.requests.last?.messages.map(\.text) == ["what is rust", "A language.", "rust history"])
     }
 

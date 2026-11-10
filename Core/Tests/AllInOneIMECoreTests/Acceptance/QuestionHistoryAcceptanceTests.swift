@@ -232,12 +232,12 @@ final class QHHarness {
         await press(Self.tab)
     }
 
-    /// "@question <text>" ⏎, then (`insert`) ⏎ again inserts the answer. A minute passes after.
+    /// "@question <text>" ⏎, then (`insert`) ⇧⏎ inserts the answer. A minute passes after.
     func ask(_ text: String, insert: Bool = true) async {
         await startQuestion()
         await type(text)
         await press(enterKey)
-        if insert, composer.phase == .choosing { await press(enterKey) }
+        if insert, composer.phase == .choosing { await press(acceptanceShiftReturn) }
         clock.now += 60
     }
 
@@ -431,7 +431,7 @@ struct QuestionHistoryAcceptanceTests {
         await h.press(downKey)
         await h.press(enterKey)
         #expect(h.answerShown == "saved answer to What is Rust?")
-        await h.press(enterKey)  // inserted: the draft is done
+        await h.press(acceptanceShiftReturn)  // inserted: the draft is done
         #expect(h.committed == ["saved answer to What is Rust?"] && !h.composer.isComposing)
         // Later, the same words as a new question: nothing is picked, ⏎ asks them.
         await h.startQuestion()
@@ -455,7 +455,7 @@ struct QuestionHistoryAcceptanceTests {
 
     // MARK: 3. Picking a saved question
 
-    /// Spec 3: a digit with nothing typed shows the saved answer at once; no request; ⏎ inserts it.
+    /// Spec 3: a digit with nothing typed shows the saved answer at once; no request; ⇧⏎ inserts it.
     @Test func digitPickShowsTheSavedAnswerWithoutARequest() async throws {
         let h = try QHHarness()
         for q in ["first question", "second question", "third question"] { await h.ask(q) }
@@ -467,7 +467,7 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.answerShown == "A2: second question")
         #expect(h.composer.savedAnswerDate != nil)
         #expect(h.requests.count == 3 && !h.askedSomething(since: mark))
-        await h.press(enterKey)
+        await h.press(acceptanceShiftReturn)
         #expect(h.committed.last == "A2: second question" && !h.composer.isComposing)
         #expect(h.requests.count == 3 && !h.askedSomething(since: mark))
     }
@@ -755,7 +755,7 @@ struct QuestionHistoryAcceptanceTests {
         await h.type("What is Rust?")
         await h.press(enterKey)
         #expect(h.requests.count == 1 && h.answerShown == "A1: What is Rust?")
-        await h.press(enterKey)
+        await h.press(acceptanceShiftReturn)
         #expect(h.committed == ["A1: What is Rust?"])
         #expect(h.savedQuestions == ["What is Rust?"])
     }
@@ -785,11 +785,11 @@ struct QuestionHistoryAcceptanceTests {
         let h = try QHHarness()
         let second = Date(timeIntervalSince1970: 1_791_000_000)
         h.clock.now = second.addingTimeInterval(0.9)
-        await h.startQuestion(); await h.type("earlier one"); await h.press(enterKey); await h.press(enterKey)
+        await h.startQuestion(); await h.type("earlier one"); await h.press(enterKey); await h.press(acceptanceShiftReturn)
         h.clock.now = second.addingTimeInterval(0.1)  // same second (a clock that stepped back a little, even)
-        await h.startQuestion(); await h.type("later one"); await h.press(enterKey); await h.press(enterKey)
+        await h.startQuestion(); await h.type("later one"); await h.press(enterKey); await h.press(acceptanceShiftReturn)
         h.clock.now = second.addingTimeInterval(0.5)
-        await h.startQuestion(); await h.type("latest one"); await h.press(enterKey); await h.press(enterKey)
+        await h.startQuestion(); await h.type("latest one"); await h.press(enterKey); await h.press(acceptanceShiftReturn)
         #expect(h.savedQuestions == ["latest one", "later one", "earlier one"])
         h.newField()
         await h.startQuestion()
@@ -813,7 +813,7 @@ struct QuestionHistoryAcceptanceTests {
         await h.startQuestion()
         await h.press(k("1"))
         #expect(h.answerShown == long)
-        await h.press(enterKey)
+        await h.press(acceptanceShiftReturn)
         #expect(h.committed.last == long && h.requests.count == 1)
     }
 

@@ -12,7 +12,7 @@ import AllInOneIMECore
 // implementation's changes don't edit it. (Crypto: swift-crypto, which the core depends on; on Apple platforms it is
 // CryptoKit.)
 
-/// ⇧⏎: sends a follow-up (an @question conversation's next question, or a refine) once one is typed (0.6.4).
+/// ⇧⏎: inserts an @question conversation's highlighted answer; with other AI results, sends a typed refine.
 public let acceptanceShiftReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
 
 /// 0.6.4 added a rule about live data (the weather, news, prices …) at the end of @question's system prompt, and only
