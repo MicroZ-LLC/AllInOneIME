@@ -58,7 +58,7 @@ public struct Config: Codable, Equatable, Sendable {
         chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
     }
 
-    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, or a Shuangpin scheme.
+    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, or Zhuyin.
     public var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
 
     /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
@@ -220,7 +220,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// languages say, read each time, until one is picked (Settings → Input → Chinese).
     public var chineseCharacters: ChineseCharacters?
     /// How Chinese is typed in pinyin (`PinyinScheme`, Settings → Input → Chinese → Typing): nil (or "full") for full
-    /// pinyin, else the Shuangpin scheme's id, librime's schema ("double_pinyin_flypy"). `typedPinyin` reads it.
+    /// pinyin, else the scheme's id, librime's schema (Shuangpin's "double_pinyin_flypy", Zhuyin's "bopomofo").
+    /// `typedPinyin` reads it.
     public var pinyinScheme: String?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.

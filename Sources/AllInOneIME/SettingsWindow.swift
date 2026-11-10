@@ -2265,7 +2265,7 @@ struct SettingsView: View {
             }
             switch language {
             case .chinese:
-                // Full pinyin or a Shuangpin scheme (`PinyinScheme`), beside the characters.
+                // Full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`), beside the characters.
                 Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
                     ForEach(PinyinScheme.allCases, id: \.self) { scheme in
                         Text(scheme.name(in: UIText.language)).tag(scheme)

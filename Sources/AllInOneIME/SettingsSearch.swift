@@ -158,10 +158,12 @@ enum SettingsSpot: String, CaseIterable {
     private var keywords: String {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
-        // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them.
+        // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them; Zhuyin by its
+        // other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ).
         case .pinyinScheme:
             return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
-                + PinyinScheme.shuangpin.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
+                + "zhuyin bopomofo daqian taiwan 注音 注音符號 注音符号 大千 標準 标准 ㄅㄆㄇ 台灣 台湾 "
+                + PinyinScheme.others.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
         case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"

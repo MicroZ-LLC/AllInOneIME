@@ -337,10 +337,13 @@ public final class SettingsStore {
         save()
     }
 
-    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin or a Shuangpin scheme), saved. The shell deploys
-    /// its schema, as it applies fuzzy pinyin; the next key types with it.
+    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme or Zhuyin), saved. The shell
+    /// deploys its schema, as it applies fuzzy pinyin; the next key types with it. Zhuyin picked by one who never picked
+    /// the characters (`Config.chineseCharacters` absent: the system's languages') picks Taiwan's with it, as Taiwan types
+    /// Zhuyin; the user can change them after. Characters picked before stay.
     public func setPinyinScheme(_ scheme: PinyinScheme) {
         config.pinyinScheme = scheme.setting
+        if scheme == .zhuyin, config.chineseCharacters == nil { config.chineseCharacters = .taiwan }
         save()
     }
 

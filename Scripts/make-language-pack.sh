@@ -5,13 +5,17 @@
 #
 #   make-language-pack.sh DATA ID VERSION MIN_APP_VERSION UPSTREAM URL OUT
 #
-# rime-ice's Lua scripts are left out: they are code, and the app carries its own copy (SharedSupport/rime-lua).
+# rime-ice's Lua scripts are left out: they are code, and the app carries its own copy (SharedSupport/rime-lua). So are
+# the files EXCLUDE names (the Zhuyin data beside rime-ice's: the app carries it, SharedSupport/rime-zhuyin).
 set -eu
 data=$1 id=$2 version=$3 min_app=$4 upstream=$5 url=$6 out=$7
 
 stage=$(mktemp -d)
 trap 'rm -rf "$stage"' EXIT
-rsync -a --exclude lua --exclude '*.userdb' --exclude user.yaml --exclude installation.yaml "$data/" "$stage/"
+excluded=""
+for name in ${EXCLUDE:-}; do excluded="$excluded --exclude $name"; done
+# shellcheck disable=SC2086 # one word each
+rsync -a --exclude lua --exclude '*.userdb' --exclude user.yaml --exclude installation.yaml $excluded "$data/" "$stage/"
 printf '{"id":"%s","upstream":"%s","version":"%s"}\n' "$id" "$upstream" "$version" > "$stage/pack.json"
 
 # The app refuses a pack with links or code (LanguagePackStore.validate): fail here first.

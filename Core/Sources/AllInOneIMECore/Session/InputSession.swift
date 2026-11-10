@@ -464,6 +464,7 @@ public final class InputSession {
         case let .engine(fresh):
             engine = fresh
             selectedSchema = nil
+            composer.pinyinScheme = .full  // a new session types full pinyin until it takes another schema
             composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
@@ -714,7 +715,7 @@ public final class InputSession {
         emit(.keyboardLayout)
     }
 
-    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin or a Shuangpin scheme), from
+    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme or Zhuyin), from
     /// the next key on: its engine given the scheme's schema (`PinyinEngine.selectSchema`) when the settings name another
     /// than it was given, or it is a new one, with nothing composed (else the next key with nothing composed does). One
     /// it can't take (not deployed yet: the shell deploys it once the setting changes, and the engine made after that
@@ -723,8 +724,11 @@ public final class InputSession {
         let scheme = config.typedPinyin
         guard let engine, scheme.schema != selectedSchema, !composer.isComposing else { return }
         selectedSchema = scheme.schema
-        // An engine without schemas (a test's, Windows' for now) types full pinyin anyway.
-        if !(englishWords ?? engine).selectSchema(scheme.schema), scheme.isShuangpin {
+        // An engine without schemas (a test's, Windows' for now) types full pinyin anyway. The composer reads the keys as
+        // the schema taken does (Zhuyin's digits).
+        if (englishWords ?? engine).selectSchema(scheme.schema) {
+            composer.pinyinScheme = scheme
+        } else if scheme != .full {
             log.notice("level one can't type with \(scheme.schema) yet: it types as before")
         }
     }

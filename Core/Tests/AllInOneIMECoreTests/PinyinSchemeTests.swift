@@ -3,18 +3,20 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Shuangpin (`PinyinScheme`) beside full pinyin: the schemes, the letters read as each reads them (what isn't learned as
-/// an English word, where one goes among the candidates), the files that deploy them (the schema list, the patch made
-/// for the scheme's schema) and the interface text in every language the catalog has. librime on rime-ice's own schemas:
-/// `ShuangpinSchemaTests` in the shell's Rime tests.
+/// Shuangpin and Zhuyin (`PinyinScheme`) beside full pinyin: the schemes, the letters read as each reads them (what isn't
+/// learned as an English word, where one goes among the candidates), the files that deploy them (the schema list, the
+/// patch made for the scheme's schema; Zhuyin's own) and the interface text in every language the catalog has. librime
+/// on rime-ice's own schemas: `ShuangpinSchemaTests` in the shell's Rime tests; on rime-bopomofo's, `ZhuyinSchemaTests`.
 struct PinyinSchemeTests {
     @Test func theSchemesAreRimeIcesSchemas() {
         #expect(PinyinScheme.allCases.map(\.schema) == ["rime_ice", "double_pinyin_flypy", "double_pinyin", "double_pinyin_mspy",
                                                          "double_pinyin_sogou", "double_pinyin_abc", "double_pinyin_jiajia",
-                                                         "double_pinyin_ziguang"])
+                                                         "double_pinyin_ziguang", "bopomofo"])
         #expect(PinyinScheme(setting: nil) == .full && PinyinScheme(setting: "full") == .full && PinyinScheme(setting: "wubi86") == .full)
         #expect(PinyinScheme(setting: "double_pinyin_mspy") == .microsoft && PinyinScheme.microsoft.setting == "double_pinyin_mspy")
         #expect(PinyinScheme.full.setting == nil && !PinyinScheme.full.isShuangpin && PinyinScheme.shuangpin.count == 7)
+        #expect(!PinyinScheme.zhuyin.isShuangpin && PinyinScheme.others == PinyinScheme.shuangpin + [.zhuyin])
+        #expect(PinyinScheme.zhuyin.schemaList == ["rime_ice", "bopomofo"] && PinyinScheme.zhuyin.algebra.isEmpty)
         var config = Config.default
         config.pinyinScheme = "wubi86"  // a later version's: full pinyin here, and not kept
         let reread = try? JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
@@ -73,6 +75,99 @@ struct PinyinSchemeTests {
         try Data(full.utf8).write(to: shared.appendingPathComponent("rime_ice.schema.yaml"))
         try Data(xiaohe.utf8).write(to: shared.appendingPathComponent("double_pinyin_flypy.schema.yaml"))
         return (shared, user)
+    }
+
+    /// rime-bopomofo's schema, as much of it as the patch reads: its switches (the characters' a switch of four options).
+    private static let bopomofo = """
+        schema:
+          schema_id: bopomofo
+        switches:
+          - name: ascii_mode
+            reset: 0
+            states: [ 中文, 西文 ]
+          - name: full_shape
+            states: [ 半角, 全角 ]
+          - options:
+              - zh_hant
+              - zh_hans
+              - zh_hant_hk
+              - zh_hant_tw
+            states:
+              - 傳統漢字
+              - 简化字
+              - 香港字形
+              - 臺灣字形
+            abbrev: [ 漢, 简, 港, 臺 ]
+          - name: ascii_punct
+            states: [ 。，, ．， ]
+        engine:
+          processors:
+            - ascii_composer
+
+        """
+
+    @Test func zhuyinsCharactersAreAnOptionOfItsSwitch() {
+        #expect(ChineseCharacters.optionSwitch(with: "zh_hant_tw", inSchema: Self.bopomofo)?.index == 2)
+        #expect(ChineseCharacters.optionSwitch(with: "zh_hans", inSchema: Self.bopomofo)?.options == ["zh_hant", "zh_hans", "zh_hant_hk", "zh_hant_tw"])
+        #expect(ChineseCharacters.optionSwitch(with: "zh_hant_tw", inSchema: "switches:\n- name: ascii_mode\n- options: [zh_hant, zh_hant_tw]\n")?.index == 1)
+        #expect(ChineseCharacters.optionSwitch(with: "zh_hant_tw", inSchema: "switches:\n  - name: traditionalization\n") == nil)
+        // Taiwan's: the fourth option, t2tw, the quotation marks; Hong Kong's the third; Simplified the second, converted too.
+        let taiwan = ChineseCharacters.taiwan.patch(schema: Self.bopomofo) ?? ""
+        #expect(taiwan.contains("  switches/@2/reset: 3\n") && taiwan.contains("  zh_hant_tw/opencc_config: t2tw.json\n"))
+        #expect(taiwan.contains("「") && !taiwan.contains("traditionalize"))
+        #expect(ChineseCharacters.hongkong.patch(schema: Self.bopomofo)?.contains("  switches/@2/reset: 2\n  zh_hant_hk/opencc_config: t2hk.json\n") == true)
+        let simplified = ChineseCharacters.simplified.patch(schema: Self.bopomofo) ?? ""
+        #expect(simplified.contains("  switches/@2/reset: 1\n  zh_hans/opencc_config: t2s.json\n") && !simplified.contains("「"))
+        #expect(["t2tw.json", "t2hk.json", "t2s.json"].allSatisfy(ChineseCharacters.openCCFiles.contains))
+    }
+
+    @Test func zhuyinHasAPatchOfItsOwn() throws {
+        let (shared, user) = try folders()
+        defer { try? FileManager.default.removeItem(at: shared.deletingLastPathComponent()) }
+        try Data(Self.bopomofo.utf8).write(to: shared.appendingPathComponent("bopomofo.schema.yaml"))
+        let schema = shared.appendingPathComponent("rime_ice.schema.yaml")
+        let patch = user.appendingPathComponent("bopomofo.custom.yaml")
+        #expect(try FuzzyPinyin.apply(["f-h"], characters: .taiwan, scheme: .zhuyin, schema: schema, userDir: user) == .written)
+        let text = try String(contentsOf: patch, encoding: .utf8)
+        #expect(text.hasPrefix(FuzzyPinyin.marker + "\n"))
+        // Its characters and the filter of the candidates removed, its translators without rime-ice's custom phrases; no
+        // fuzzy pinyin (rime-ice's patch keeps it).
+        #expect(text.contains("switches/@2/reset: 3") && text.contains("zh_hant_tw/opencc_config: t2tw.json"))
+        #expect(text.contains("lua_filter@*\(RemovedCandidates.luaFilter)"))
+        #expect(text.contains("engine/translators: [ punct_translator, reverse_lookup_translator, script_translator ]"))
+        #expect(!text.contains("derive/") && !text.contains("custom_phrase\n"))
+        #expect(try String(contentsOf: user.appendingPathComponent(FuzzyPinyin.fileName), encoding: .utf8).contains("\"derive/^f/h/\""))
+        // Simplified: converted too. Another scheme: Zhuyin's gone; the user's own left as it is.
+        #expect(try FuzzyPinyin.apply(["f-h"], characters: .simplified, scheme: .zhuyin, schema: schema, userDir: user) == .written)
+        #expect(try String(contentsOf: patch, encoding: .utf8).contains("zh_hans/opencc_config: t2s.json"))
+        #expect(try FuzzyPinyin.apply(["f-h"], characters: .simplified, scheme: .xiaohe, schema: schema, userDir: user) == .written)
+        #expect(!FileManager.default.fileExists(atPath: patch.path))
+        let mine = "patch:\n  menu/page_size: 9\n"
+        try Data(mine.utf8).write(to: patch)
+        #expect(try FuzzyPinyin.apply(["f-h"], characters: .simplified, scheme: .zhuyin, schema: schema, userDir: user) == .written)
+        #expect(!FileManager.default.fileExists(atPath: user.appendingPathComponent("double_pinyin_flypy.custom.yaml").path))
+        #expect(try FuzzyPinyin.apply(["f-h"], characters: .simplified, scheme: .zhuyin, schema: schema, userDir: user) == .unchanged)
+        #expect(try String(contentsOf: patch, encoding: .utf8) == mine)
+        // Listed beside full pinyin.
+        #expect(try PinyinScheme.applySchemaList(.zhuyin, userDir: user) == .written)
+        #expect(PinyinScheme.listedSchemas(try String(contentsOf: user.appendingPathComponent("default.custom.yaml"), encoding: .utf8))
+                == ["rime_ice", "bopomofo"])
+    }
+
+    /// Zhuyin's keys are digits and punctuation too, and its letters no word: none among its candidates, nothing put in
+    /// as typed learned, and its digits librime's whatever the page.
+    @Test func noEnglishWordsAmongZhuyinsCandidates() {
+        let base = SpelledOutEngine()
+        base.dictionary = ["bed": ["貝德"]]
+        let engine = EnglishWordsEngine(base: base, dictionary: EnglishDictionary([]), words: ["Bedrock"], removedCandidates: ["貝德"])
+        var learned: [String] = []
+        engine.rawCommitted = { learned.append($0) }
+        #expect(engine.selectSchema("bopomofo") && engine.scheme == .zhuyin)
+        for letter in "bed".utf8 { _ = engine.processKey(Int32(letter), mask: 0) }
+        #expect(!engine.snapshot().candidates.map(\.text).contains("Bedrock"))
+        _ = engine.processKey(RimeKey.returnKey, mask: 0)
+        _ = engine.takeCommit()
+        #expect(learned.isEmpty)
     }
 
     @Test func theSchemeIsListedBesideFullPinyin() throws {
@@ -169,7 +264,7 @@ private final class SpelledOutEngine: PinyinEngine {
 
     func selectSchema(_ id: String) -> Bool {
         selected.append(id)
-        return id == "double_pinyin_flypy" || id == "rime_ice"
+        return ["double_pinyin_flypy", "rime_ice", "bopomofo"].contains(id)
     }
 
     func snapshot() -> EngineSnapshot {

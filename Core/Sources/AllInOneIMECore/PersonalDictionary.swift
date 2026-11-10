@@ -115,7 +115,7 @@ public struct PersonalDictionaryStore: Sendable {
 
     /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary, and the characters
     /// (`characters`, `ChineseCharacters.patch`) go in the same file. With a Shuangpin scheme (`scheme`), the same patch
-    /// for its schema too (`schemePatch`).
+    /// for its schema too (`schemePatch`); with Zhuyin, its own (`zhuyinPatchText`).
     @discardableResult
     public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified,
                                  scheme: PinyinScheme = .full) throws -> FuzzyPinyin.Outcome {
@@ -137,8 +137,8 @@ public struct PersonalDictionaryStore: Sendable {
             let patchChange = changes.first { $0.url == patch }
             let previous = try contentsIfPresent(patch)
             let wanted = patchChange?.data
-            // The wrapper repaired, or a Shuangpin scheme's patch written or removed: deployed again too.
-            let schemePatches = Set(PinyinScheme.shuangpin.map(schemePatch))
+            // The wrapper repaired, or a Shuangpin scheme's or Zhuyin's patch written or removed: deployed again too.
+            let schemePatches = Set(PinyinScheme.others.map(schemePatch))
             let otherChange = try changes.contains { change in
                 guard change.url == wrapper || schemePatches.contains(change.url) else { return false }
                 return try contentsIfPresent(change.url) != change.data
@@ -180,7 +180,7 @@ public struct PersonalDictionaryStore: Sendable {
     private var manifest: URL { folder.appendingPathComponent("manifest.json") }
     private var wrapper: URL { userDirectory.appendingPathComponent(Self.dictionaryName + ".dict.yaml") }
     private var patch: URL { userDirectory.appendingPathComponent(FuzzyPinyin.fileName) }
-    /// A Shuangpin scheme's patch (`PinyinScheme`): rime-ice's (`patch`), made for its schema.
+    /// A Shuangpin scheme's patch (`PinyinScheme`): rime-ice's (`patch`), made for its schema; Zhuyin's, its own.
     private func schemePatch(_ scheme: PinyinScheme) -> URL { userDirectory.appendingPathComponent("\(scheme.schema).custom.yaml") }
     private func tableURL(_ item: Stored) -> URL { tableURL(token: item.token) }
     private func tableURL(token: String) -> URL { folder.appendingPathComponent(token + ".dict.yaml") }
@@ -323,7 +323,7 @@ public struct PersonalDictionaryStore: Sendable {
         return owned
     }
 
-    /// Whether `url`, a Shuangpin scheme's patch, is this app's to write or remove: none there, or one with its first line
+    /// Whether `url`, a Shuangpin scheme's or Zhuyin's patch, is this app's to write or remove: none there, or one with its first line
     /// (`FuzzyPinyin.marker`). One without it (or a link) is the user's, left as it is.
     private func ownsSchemePatch(_ url: URL) throws -> Bool {
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return true }
@@ -348,9 +348,9 @@ public struct PersonalDictionaryStore: Sendable {
         changes.append(Change(url: patch, data: patchText(for: state, fuzzyPinyin: fuzzyPinyin, characters: characters,
                                                           schemaText: schemaText).map { Data($0.utf8) }))
         // The Shuangpin scheme typed with: the same patch, made for its schema (its own spelling rules after fuzzy
-        // pinyin's, its own place of the Traditional switch). The others' of this app's removed: only what is used is
-        // deployed. The user's own left as they are.
-        for other in PinyinScheme.shuangpin {
+        // pinyin's, its own place of the Traditional switch); Zhuyin, its own. The others' of this app's removed: only
+        // what is used is deployed. The user's own left as they are.
+        for other in PinyinScheme.others {
             let url = schemePatch(other)
             guard try ownsSchemePatch(url) else { continue }
             guard other == scheme else {
@@ -358,8 +358,9 @@ public struct PersonalDictionaryStore: Sendable {
                 continue
             }
             let file = schema.deletingLastPathComponent().appendingPathComponent("\(other.schema).schema.yaml")
-            let text = patchText(for: state, fuzzyPinyin: fuzzyPinyin, characters: characters,
-                                 schemaText: (try? String(contentsOf: file, encoding: .utf8)) ?? "")
+            let schemaText = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let text = other == .zhuyin ? zhuyinPatchText(characters: characters, schemaText: schemaText)
+                : patchText(for: state, fuzzyPinyin: fuzzyPinyin, characters: characters, schemaText: schemaText)
             changes.append(Change(url: url, data: text.map { Data($0.utf8) }))
         }
         if state.dictionaries.isEmpty {
@@ -375,7 +376,7 @@ public struct PersonalDictionaryStore: Sendable {
             }
         }
         let build = userDirectory.appendingPathComponent("build", isDirectory: true)
-        for (customization, compiled) in [(patch, PinyinScheme.fullSchema)] + PinyinScheme.shuangpin.map({ (schemePatch($0), $0.schema) }) {
+        for (customization, compiled) in [(patch, PinyinScheme.fullSchema)] + PinyinScheme.others.map({ (schemePatch($0), $0.schema) }) {
             guard let change = changes.first(where: { $0.url == customization }), try contentsIfPresent(customization) != change.data
             else { continue }
             // Rime's config freshness uses second-resolution file times. A quick import or fuzzy
@@ -407,6 +408,20 @@ public struct PersonalDictionaryStore: Sendable {
         text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
         text += traditional ?? ""
         return withRemovedFilter(text)
+    }
+
+    /// Zhuyin's patch (`PinyinScheme.zhuyin`, rime-bopomofo's schema: `schemaText`): its characters (its own switch,
+    /// `ChineseCharacters.patch`), the filter of the candidates removed, and its translators without rime-ice's custom
+    /// phrases (custom_phrase.txt beside them, in pinyin letters and Simplified characters, which its schema would find
+    /// by Zhuyin's keys: "u", ㄧ, would offer 有). Not fuzzy pinyin, nor the personal dictionaries: those are pinyin
+    /// spellings of rime-ice's dictionary, which Zhuyin's (terra_pinyin, in Traditional characters, with tones) isn't.
+    /// The translators are the schema's own but that one (rime-bopomofo's at the commit the Makefile pins). Nil without
+    /// the schema (nothing to patch).
+    private func zhuyinPatchText(characters: ChineseCharacters, schemaText: String) -> String? {
+        guard !schemaText.isEmpty else { return nil }
+        let translators = "  # Without rime-ice's custom phrases (custom_phrase.txt: pinyin letters, which would be Zhuyin keys here).\n"
+            + "  engine/translators: [ punct_translator, reverse_lookup_translator, script_translator ]\n"
+        return withRemovedFilter(FuzzyPinyin.marker + "\npatch:\n" + translators + (characters.patch(schema: schemaText) ?? ""))
     }
 
     /// `text`, the patch (nil: none), with AllInOneIME's filter of the candidates removed (`RemovedCandidates.luaFilter`)

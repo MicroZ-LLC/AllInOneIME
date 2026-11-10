@@ -77,6 +77,11 @@ enum RimeDirectories {
     static var code: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
     }
+    /// The app's Zhuyin data (rime-bopomofo's schema and what it needs: `PinyinScheme.zhuyinData`), linked into the pack
+    /// (`LanguagePackStore.linkData`); compiled only where Zhuyin is picked (the schema list).
+    static var zhuyin: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-zhuyin")
+    }
     /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
     static var openCC: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
@@ -93,8 +98,8 @@ enum RimeDirectories {
 /// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, for the
 /// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC), and for the filter of the
 /// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too; for full
-/// pinyin's schema and the Shuangpin scheme typed with (`PinyinScheme`), whose schema is deployed beside it (the schema
-/// list, `default.custom.yaml`).
+/// pinyin's schema and the Shuangpin scheme or Zhuyin typed with (`PinyinScheme`), whose schema is deployed beside it
+/// (the schema list, `default.custom.yaml`).
 enum RimeFuzzy {
     /// The characters the patch was last written for (`follow`).
     static let written = ChineseCharacters.Written()
@@ -127,8 +132,8 @@ enum RimeFuzzy {
     /// The last `write` wrote the schema list anew (another scheme picked): librime deploys it.
     private(set) static var schemaListWritten = false
 
-    /// The schemas deployed (`PinyinScheme.applySchemaList`): full pinyin's, and the Shuangpin scheme's. Whether it was
-    /// written anew.
+    /// The schemas deployed (`PinyinScheme.applySchemaList`): full pinyin's, and the Shuangpin scheme's or Zhuyin's.
+    /// Whether it was written anew.
     private static func writeSchemaList(_ scheme: PinyinScheme) -> Bool {
         do {
             switch try PinyinScheme.applySchemaList(scheme, userDir: RimeDirectories.user) {
@@ -145,7 +150,7 @@ enum RimeFuzzy {
     }
 
     /// Changed in the settings: written, and Rime deployed again when it changed (about a second; a Shuangpin scheme
-    /// deployed for the first time, its spellings too, a moment more).
+    /// deployed for the first time, its spellings too, a moment more; Zhuyin, its dictionaries, a couple of seconds).
     @discardableResult
     static func apply(_ ids: [String], characters: ChineseCharacters, scheme: PinyinScheme) -> FuzzyPinyin.Outcome? {
         let outcome = write(ids, characters: characters, scheme: scheme)

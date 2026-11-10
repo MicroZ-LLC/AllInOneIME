@@ -271,6 +271,27 @@ public struct LanguagePackStore: Sendable {
         }
         if let code { try fm.createSymbolicLink(at: link, withDestinationURL: code) }
     }
+
+    /// Links in the pack's folder to the data files `names` the app carries in `folder` beside the pack's (Zhuyin's,
+    /// `PinyinScheme.zhuyinData`, in `Contents/SharedSupport/rime-zhuyin`), where librime reads its shared data; a link
+    /// to a file the app doesn't have (`folder` nil, or without it) removed. Called before every engine start, as
+    /// `linkCode`, so a moved or updated app is followed. Only links are ever replaced or removed (the pack holds none,
+    /// `validate`): a file of the pack's own with the name stays.
+    public func linkData(_ pack: LanguagePack, from folder: URL?, names: [String]) throws {
+        let fm = FileManager.default
+        for name in names {
+            let link = self.folder(pack).appendingPathComponent(name)
+            let source = folder?.appendingPathComponent(name)
+            let wanted = source.flatMap { fm.fileExists(atPath: $0.path) ? $0 : nil }
+            if let current = try? fm.destinationOfSymbolicLink(atPath: link.path) {
+                if (CorePaths.isSeparator("\\") ? current.replacingOccurrences(of: "\\", with: "/") : current) == wanted?.path { continue }
+                try fm.removeItem(at: link)
+            } else if (try? fm.attributesOfItem(atPath: link.path)) != nil {
+                continue  // the pack's own
+            }
+            if let wanted { try fm.createSymbolicLink(at: link, withDestinationURL: wanted) }
+        }
+    }
 }
 
 /// Upgrades from versions that bundled the Chinese data: who keeps pinyin.

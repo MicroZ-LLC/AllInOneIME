@@ -514,6 +514,12 @@ public final class Composer {
     /// sets it): ← → move along it and ↑↓ turn the page (`horizontalKey`), as in macOS's own panel. False here: a
     /// composer on its own keeps the keys of a column.
     public var horizontalCandidates = false
+    /// How level one types Chinese (`Config.pinyinScheme`): the scheme whose schema its engine took last (the session sets
+    /// it, `PinyinEngine.selectSchema`). Full pinyin here: a composer on its own.
+    public var pinyinScheme: PinyinScheme = .full
+    /// Level one types Chinese in Zhuyin now (`PinyinScheme.zhuyin`, not in its Latin mode): digits and punctuation are
+    /// its keys too (a tone, ㄅ, ㄝ…), and Latin letters are never pinyin, nor words.
+    var typesZhuyin: Bool { pinyinScheme == .zhuyin && engine?.language == .chinese && !engineState.isAsciiMode }
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
     /// The issue `@reportissue` shows before it opens the page (its title and `IssueReport.lines`).
@@ -2259,6 +2265,7 @@ public final class Composer {
         if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         // One @: the magic key and a text (Composer+OneAt.swift).
         if let response = handleOneAtKey(event, composing: composing) { return response }
+        if let response = typeOneAtInZhuyin(event, composing: composing, afterVoice: afterVoice) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
         if event.key == .enter || event.key == .keypadEnter, modifiers.isEmpty,
@@ -2343,11 +2350,25 @@ public final class Composer {
     /// English. Only with nothing but those letters composed, on the candidates' first page (where librime's "-" turns
     /// no page back). Nil: the key goes to the engine as before.
     private func endForSuggestionPrefix(_ event: KeyEvent, _ engine: PinyinEngine) -> Response? {
-        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0,
+        // Zhuyin's "-" and "." are ㄦ and ㄡ, and its keys no prefix.
+        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0, !typesZhuyin,
               event.modifiers.subtracting([.capsLock, .shift]).subtracting(.sides).isEmpty,
               let text = event.printableText, ["-", "_", "."].contains(text),
               finishesSuggestionPrefix(engine.rawInput + text) else { return nil }
         return .consumed(finishAsTyped(engine.rawInput + text) + [.updateMarkedText])
+    }
+
+    /// One @ while Zhuyin is typed (`typesZhuyin`): its text is Latin letters, command names found by them as with pinyin
+    /// ("@im" finds @improve, `@base64`), and no Zhuyin in it in this version, so no candidates under it either. A key
+    /// librime would take as Zhuyin goes into the text as typed. Nil: the key is as usual (Space, ⏎, ⌫, the list's keys
+    /// were the draft's before this); after a command written ("@improve "), its text is Zhuyin again.
+    private func typeOneAtInZhuyin(_ event: KeyEvent, composing: Bool, afterVoice: Bool) -> Response? {
+        guard typesZhuyin, !composing, oneAt != nil, event.key != .space, event.key != .enter, event.key != .keypadEnter,
+              event.modifiers.subtracting([.capsLock, .shift]).isEmpty, let text = event.printableText, text.count == 1,
+              let c = text.first, c.isASCII, !c.isWhitespace else { return nil }
+        if let response = handleDraftKey(event, afterVoice: afterVoice) { return response }
+        appendTyped(text, afterVoice: afterVoice)
+        return .consumed([.updateMarkedText, .showPanel])
     }
 
     private enum HorizontalKey {

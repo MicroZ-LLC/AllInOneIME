@@ -118,10 +118,12 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
 
     /// The OpenCC files the configs need, each config with its dictionaries: what the app carries
     /// (Contents/SharedSupport/opencc) and copies into the Rime user folder. s2tw.json (Taiwan's characters without its
-    /// words) comes along for whoever sets it in their own patch.
+    /// words) comes along for whoever sets it in their own patch. The t2* ones are Zhuyin's (`fromTraditional`), whose
+    /// dictionary is in Traditional characters.
     public static let openCCFiles = [
         "s2twp.json", "s2hk.json", "s2tw.json",
         "STPhrases.ocd2", "STCharacters.ocd2", "TWPhrases.ocd2", "TWVariants.ocd2", "HKVariants.ocd2",
+        "t2tw.json", "t2hk.json", "t2s.json", "TSPhrases.ocd2", "TSCharacters.ocd2",
     ]
 
     /// The OpenCC files these characters convert with: their config and the dictionaries it names (of `openCCFiles`);
@@ -163,22 +165,87 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     /// rime-ice's switch for its Traditional output (`switches` in its schema, and `traditionalize/option_name`).
     static let switchName = "traditionalization"
 
+    /// The option of rime-bopomofo's switch of characters (Zhuyin's schema, `PinyinScheme.zhuyin`, whose dictionary is in
+    /// Traditional characters: one switch of four options, `zh_hant` none) these characters are, each the name of the
+    /// schema's filter that converts into them, and its OpenCC config (`t2s.json`, `t2tw.json`, `t2hk.json`).
+    var fromTraditional: (option: String, openCC: String) {
+        switch self {
+        case .simplified: return ("zh_hans", "t2s.json")
+        case .taiwan: return ("zh_hant_tw", "t2tw.json")
+        case .hongkong: return ("zh_hant_hk", "t2hk.json")
+        }
+    }
+
     /// The lines of the `patch:` of rime-ice's schema (`rime_ice.custom.yaml`, written with fuzzy pinyin's:
     /// `PersonalDictionaryStore.applyFuzzyPinyin`) for these characters: the switch on at the start of every session, found
     /// in the schema by its name (`switchIndex`), its OpenCC config, and the quotation marks Taiwan and Hong Kong write
-    /// (" 「」, ' 『』) in both widths. Nil for Simplified, and for a schema without the switch.
+    /// (" 「」, ' 『』) in both widths. Nil for Simplified, and for a schema without the switch. On Zhuyin's schema
+    /// (rime-bopomofo's, its characters' switch of options instead, `optionSwitch`), its option for them at the start of
+    /// every session (`fromTraditional`: Simplified too, which it converts into) and its config, with the same quotation
+    /// marks for Traditional ones.
     public func patch(schema: String) -> String? {
-        guard let config = openCCConfig, let index = Self.switchIndex(Self.switchName, inSchema: schema) else { return nil }
-        var lines = [
-            "  # \(name(in: "en")) characters: Settings → Input → Chinese → Characters.",
-            "  switches/@\(index)/reset: 1",
-            "  traditionalize/opencc_config: \(config)",
-        ]
+        var lines = ["  # \(name(in: "en")) characters: Settings → Input → Chinese → Characters."]
+        if let index = Self.switchIndex(Self.switchName, inSchema: schema) {
+            guard let config = openCCConfig else { return nil }
+            lines += ["  switches/@\(index)/reset: 1", "  traditionalize/opencc_config: \(config)"]
+        } else {
+            let (option, config) = fromTraditional
+            guard let (index, options) = Self.optionSwitch(with: option, inSchema: schema),
+                  let reset = options.firstIndex(of: option) else { return nil }
+            lines += ["  switches/@\(index)/reset: \(reset)", "  \(option)/opencc_config: \(config)"]
+            if !isTraditional { return lines.joined(separator: "\n") + "\n" }
+        }
         for shape in ["half_shape", "full_shape"] {
             lines.append("  \"punctuator/\(shape)/\\\"\": { pair: [ \"「\", \"」\" ] }")
             lines.append("  \"punctuator/\(shape)/'\": { pair: [ \"『\", \"』\" ] }")
         }
         return lines.joined(separator: "\n") + "\n"
+    }
+
+    /// The place of the switch of options with `option` among them in the schema's `switches` list (from 0), as a patch
+    /// names it (`switches/@2`), and its options in order (what its `reset` counts); nil when it has none. Its options are
+    /// written one a line under `options:` (`- zh_hant`) or in a list on its line (`options: [zh_hant, zh_hans]`).
+    static func optionSwitch(with option: String, inSchema text: String) -> (index: Int, options: [String])? {
+        var inSwitches = false, itemIndent: Int?, index = -1
+        // The options of the switch read so far, and the indent of its `options:` while the lines under it are read.
+        var options: [String] = [], listIndent: Int?
+        for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let indent = line.prefix(while: { $0 == " " }).count
+            var content = line.trimmingCharacters(in: .whitespaces)
+            if content.isEmpty || content.hasPrefix("#") { continue }
+            if let comment = content.range(of: " #") { content = String(content[..<comment.lowerBound]) }
+            let item = content.hasPrefix("- ") && indent == (itemIndent ?? indent)
+            // A key at the top starts or ends the list (whose items may start there too: `- name: …` not indented).
+            if indent == 0, !(inSwitches && item) {
+                if inSwitches, options.contains(option) { return (index, options) }
+                inSwitches = content.hasPrefix("switches:")
+                continue
+            }
+            guard inSwitches else { continue }
+            if let at = listIndent, indent >= at, !item, content.hasPrefix("- ") {
+                options.append(content.dropFirst(2).trimmingCharacters(in: .whitespaces))
+                continue
+            }
+            listIndent = nil
+            var key = content, keyIndent = indent
+            if item {
+                if options.contains(option) { return (index, options) }
+                itemIndent = indent
+                index += 1
+                options = []
+                key = content.dropFirst(2).trimmingCharacters(in: .whitespaces)
+                keyIndent = indent + 2
+            }
+            guard key.hasPrefix("options:") else { continue }
+            let rest = key.dropFirst("options:".count).trimmingCharacters(in: .whitespaces)
+            if rest.hasPrefix("[") {
+                options = rest.trimmingCharacters(in: CharacterSet(charactersIn: "[] ")).split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+            } else {
+                listIndent = keyIndent
+            }
+        }
+        return inSwitches && options.contains(option) ? (index, options) : nil
     }
 
     /// The place of the switch `name` in the schema's `switches` list (from 0), as a patch names it (`switches/@2`);

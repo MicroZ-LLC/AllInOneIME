@@ -357,13 +357,13 @@ public final class RimeService {
     }
 
     /// A previous maintenance job may have recreated the cache after Settings invalidated it.
-    /// Do this only for a requested settings activation, after that job has actually finished. The Shuangpin schemes'
-    /// too (`PinyinScheme`), which the same patch changes, where one was compiled.
+    /// Do this only for a requested settings activation, after that job has actually finished. The Shuangpin schemes' and
+    /// Zhuyin's too (`PinyinScheme`), which the same writer patches, where one was compiled.
     private func invalidateGeneratedSchema() throws {
         guard let userDataDir else { return }
         let fm = FileManager.default
         let build = userDataDir.appendingPathComponent("build", isDirectory: true)
-        for schema in [PinyinScheme.fullSchema] + PinyinScheme.shuangpin.map(\.schema) {
+        for schema in [PinyinScheme.fullSchema] + PinyinScheme.others.map(\.schema) {
             let compiled = build.appendingPathComponent("\(schema).schema.yaml")
             do {
                 let directory = try fm.attributesOfItem(atPath: build.path)
@@ -518,14 +518,17 @@ public final class RimeSession: PinyinEngine {
 
     /// The session types with a Shuangpin scheme (`selectSchema`): two keys a syllable, its preedit spelled out.
     private var shuangpin: Bool { schema.flatMap(PinyinScheme.init(rawValue:))?.isShuangpin ?? false }
+    /// The session types Zhuyin (rime-bopomofo's schema): its fluency editor commits only on Return, the composition
+    /// converted; a pick, Space (its `toggle_selection`) and a ⇧digit only confirm a part, all of it too.
+    private var zhuyin: Bool { schema == PinyinScheme.zhuyin.schema }
 
     /// Whether what is typed is learned into librime's user dictionary, as librime has it (true). Off (a field an input
     /// method is to keep nothing of: a private window's), nothing of it reaches the dictionary. librime learns a
     /// composition as it commits it, so it never commits one with a word picked or converted: a pick that ends the
     /// composition leaves it confirmed (its `_auto_commit` off, as its fluid editor has it), and its text is taken from
     /// there and the composition cleared; so are `commitComposition`'s, Space's on a composition all confirmed and
-    /// Return's on one with a part picked (what librime would commit). What it commits without learning comes as before:
-    /// the letters as typed with nothing picked (Return), punctuation on its own.
+    /// Return's on one with a part picked, or any in Zhuyin (what librime would commit). What it commits without learning
+    /// comes as before: the letters as typed with nothing picked (Return), punctuation on its own.
     public var learns = true {
         didSet {
             guard learns != oldValue, isCurrentGeneration else { return }
@@ -554,11 +557,13 @@ public final class RimeSession: PinyinEngine {
         shiftTap = shift
         // Set again if librime set it back (a schema loaded again sets its editor's).
         if api.pointee.get_option(id, "_auto_commit") != 0 { api.pointee.set_option(id, "_auto_commit", 0) }
-        let editing = Self.editingKeys.contains(keycode) || mask & RimeKey.controlMask != 0
+        let zhuyin = self.zhuyin
+        let editing = Self.editingKeys.contains(keycode) || mask & RimeKey.controlMask != 0 || zhuyin && keycode == RimeKey.space
         if let before = composition() {
-            if keycode == RimeKey.returnKey, mask & RimeKey.controlMask == 0, before.picked {
-                // Return: librime commits the part picked and the letters after it, and learns the part.
-                put(before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
+            if keycode == RimeKey.returnKey, mask & RimeKey.controlMask == 0, before.picked || zhuyin {
+                // Return: librime commits the part picked and the letters after it, and learns the part; in Zhuyin it
+                // commits all of it as converted (its `commit_composition`), and learns it.
+                put(zhuyin ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
                 return true
             }
             if before.isConfirmed, !editing {
@@ -568,7 +573,8 @@ public final class RimeSession: PinyinEngine {
             }
         }
         let handled = api.pointee.process_key(id, keycode, mask) != 0
-        if !editing, let after = composition(), after.isConfirmed { put(after.preview) }
+        // A pick that confirms all of it is rime-ice's commit (its express editor's); Zhuyin's waits for Return.
+        if !editing, !zhuyin, let after = composition(), after.isConfirmed { put(after.preview) }
         return handled
     }
 
@@ -693,7 +699,7 @@ public final class RimeSession: PinyinEngine {
     public func selectCandidate(onPage index: Int) -> Bool {
         guard isCurrentGeneration else { return false }
         let selected = api.pointee.select_candidate_on_current_page(id, index) != 0
-        if !learns, let after = composition(), after.isConfirmed { put(after.preview) }
+        if !learns, !zhuyin, let after = composition(), after.isConfirmed { put(after.preview) }
         return selected
     }
 

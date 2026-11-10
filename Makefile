@@ -50,10 +50,28 @@ RIME_ICE_ZIP    := rime-ice-$(RIME_ICE_TAG)-full.zip
 RIME_ICE_SHA256 := 675d23b070be00e1b800f9a6db033ef98f4493cd5b568ed8aa3b3541769c46ac
 # OpenCC's data (Apache-2.0) for Traditional characters (Settings → Input → Chinese → Characters): the conversions the
 # app offers and their dictionaries, from librime's own build of its dependencies for the same release. The .ocd2
-# format follows the OpenCC linked into librime, so never OpenCC's own releases or master.
+# format follows the OpenCC linked into librime, so never OpenCC's own releases or master. The t2* ones are Zhuyin's:
+# its dictionary is in Traditional characters, made Taiwan's, Hong Kong's or Simplified.
 RIME_DEPS_TARBALL := rime-deps-de4700e-macOS-universal.tar.bz2
 RIME_DEPS_SHA256  := 087e753056f092f644cc4a470f64ecf2cd9de18e684b220e0588f86f6b91dfcc
-OPENCC_FILES      := s2twp.json s2hk.json s2tw.json STPhrases.ocd2 STCharacters.ocd2 TWPhrases.ocd2 TWVariants.ocd2 HKVariants.ocd2
+OPENCC_FILES      := s2twp.json s2hk.json s2tw.json STPhrases.ocd2 STCharacters.ocd2 TWPhrases.ocd2 TWVariants.ocd2 HKVariants.ocd2 \
+                     t2tw.json t2hk.json t2s.json TSPhrases.ocd2 TSCharacters.ocd2
+
+# Zhuyin (Settings → Input → Chinese (pinyin) → Typing), LGPL-3.0, each repository at a pinned commit: rime-bopomofo's
+# `bopomofo` schema (the Standard/Daqian keys) and its spelling rules (zhuyin.yaml), the dictionary it types from
+# (rime-terra-pinyin's terra_pinyin.dict.yaml), the dictionary its reverse lookup by strokes reads (rime-stroke's) and the
+# word list that weighs the words of both (rime-essay's essay.txt). The app carries them (Contents/SharedSupport/
+# rime-zhuyin, linked into the Chinese pack: `LanguagePackStore.linkData`), not the pack; librime compiles them where
+# Zhuyin is picked (a couple of seconds). Each repository's LICENSE and AUTHORS go with them (rime-zhuyin/<repository>/).
+RIME_BOPOMOFO_COMMIT     := 6085c9a38a4a728047862b33d67eee18aa86f3b9
+RIME_BOPOMOFO_SHA256     := 5fc0719e8fe9b2eb8aa05c505ffb2b39d972e637951531182dd7d745a83bda51
+RIME_TERRA_PINYIN_COMMIT := 723e51bc266cf9464530c1ddedb856aa18e3da34
+RIME_TERRA_PINYIN_SHA256 := 34dd53684366f2e6b6598fa019ab68171aaa738da064768fab0d4349530f5841
+RIME_STROKE_COMMIT       := 1e8fff9b9494ddec23b0cbc526bcfd8171a6fd48
+RIME_STROKE_SHA256       := 1347a57ab4cf269be9b1c49ce50facfe60617207f2780604fe82914070da8a80
+RIME_ESSAY_COMMIT        := 054920de4f54c9e5994276a96a4fc2a35cb51aa3
+RIME_ESSAY_SHA256        := 3339b40aae91b0216d393aeccc6a8f7daad56a1f3a5e1ffcf464c80690d1b6ce
+ZHUYIN_FILES := bopomofo.schema.yaml zhuyin.yaml terra_pinyin.dict.yaml stroke.schema.yaml stroke.dict.yaml essay.txt
 
 # Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
 # say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
@@ -65,7 +83,10 @@ RIME_LIB   := $(RIME_DIST)/lib/librime.1.dylib
 RIME_DATA  := $(DEPS)/rime-data
 RIME_BUILT := $(RIME_DATA)/build/rime_ice.table.bin
 OPENCC_DATA := $(DEPS)/opencc
-OPENCC_BUILT := $(OPENCC_DATA)/s2twp.json
+# The last of them: a folder from before one was added is unpacked again.
+OPENCC_BUILT := $(OPENCC_DATA)/$(lastword $(OPENCC_FILES))
+ZHUYIN_DATA  := $(DEPS)/rime-zhuyin
+ZHUYIN_BUILT := $(RIME_DATA)/bopomofo.schema.yaml
 
 # The Chinese language pack (Core/Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
@@ -85,7 +106,7 @@ PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/do
 
 all: app
 
-deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT)
+deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT) $(ZHUYIN_BUILT)
 
 $(RIME_LIB):
 	mkdir -p $(DEPS)
@@ -109,6 +130,26 @@ $(RIME_BUILT): $(RIME_LIB) Resources/rime/default.custom.yaml
 	rm -f $(RIME_DATA)/user.yaml $(RIME_DATA)/installation.yaml
 	rm -rf $(RIME_DATA)/*.userdb
 	test -f $@
+
+# $(call zhuyin-repo,NAME,COMMIT,SHA256,FILES): rime/NAME's archive at COMMIT, checked; its FILES into ZHUYIN_DATA, its
+# LICENSE and AUTHORS into ZHUYIN_DATA/NAME.
+define zhuyin-repo
+	[ -f $(DEPS)/$(1)-$(2).tar.gz ] || curl -fsSL -o $(DEPS)/$(1)-$(2).tar.gz https://github.com/rime/$(1)/archive/$(2).tar.gz
+	echo "$(3)  $(DEPS)/$(1)-$(2).tar.gz" | shasum -a 256 -c -
+	mkdir -p $(ZHUYIN_DATA)/$(1)
+	tar xzf $(DEPS)/$(1)-$(2).tar.gz -C $(ZHUYIN_DATA) --strip-components 1 $(addprefix $(1)-$(2)/,$(4))
+	tar xzf $(DEPS)/$(1)-$(2).tar.gz -C $(ZHUYIN_DATA)/$(1) --strip-components 1 $(1)-$(2)/LICENSE $(1)-$(2)/AUTHORS
+endef
+
+# Zhuyin's data in ZHUYIN_DATA, as the app carries it, and beside rime-ice's, where the Rime tests and the self-test read
+# it (`make pack` leaves it out).
+$(ZHUYIN_BUILT): $(RIME_BUILT)
+	rm -rf $(ZHUYIN_DATA) && mkdir -p $(ZHUYIN_DATA)
+	$(call zhuyin-repo,rime-bopomofo,$(RIME_BOPOMOFO_COMMIT),$(RIME_BOPOMOFO_SHA256),bopomofo.schema.yaml zhuyin.yaml)
+	$(call zhuyin-repo,rime-terra-pinyin,$(RIME_TERRA_PINYIN_COMMIT),$(RIME_TERRA_PINYIN_SHA256),terra_pinyin.dict.yaml)
+	$(call zhuyin-repo,rime-stroke,$(RIME_STROKE_COMMIT),$(RIME_STROKE_SHA256),stroke.schema.yaml stroke.dict.yaml)
+	$(call zhuyin-repo,rime-essay,$(RIME_ESSAY_COMMIT),$(RIME_ESSAY_SHA256),essay.txt)
+	cp $(addprefix $(ZHUYIN_DATA)/,$(ZHUYIN_FILES)) $(RIME_DATA)/
 
 # Only the OpenCC files the app uses (ChineseCharacters.openCCFiles in the core), out of the asset's share/opencc.
 $(OPENCC_BUILT):
@@ -184,6 +225,9 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	# its Apache-2.0 notice is in THIRD_PARTY_NOTICES.md.
 	mkdir -p "$(APP)/Contents/SharedSupport/opencc"
 	cp $(addprefix $(OPENCC_DATA)/,$(OPENCC_FILES)) "$(APP)/Contents/SharedSupport/opencc/"
+	# Zhuyin's data (LGPL-3.0, each repository's LICENSE and AUTHORS in a folder of its name), linked into the Chinese
+	# pack (`LanguagePackStore.linkData`); its notice is in THIRD_PARTY_NOTICES.md.
+	ditto $(ZHUYIN_DATA) "$(APP)/Contents/SharedSupport/rime-zhuyin"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
@@ -402,7 +446,7 @@ check-ios:
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
 # Scripts/build-packs-index.swift. The minimum app version is this one.
 pack: $(RIME_BUILT)
-	Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
+	EXCLUDE="$(ZHUYIN_FILES)" Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
 
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)
