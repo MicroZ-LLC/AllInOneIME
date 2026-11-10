@@ -65,6 +65,9 @@ public struct SessionServices {
     /// The command usage as kept (the order of the command list), and keeping it.
     public var loadCommandUsage: () -> CommandUsage
     public var saveCommandUsage: (CommandUsage) -> Void
+    /// A use counted on this Mac (`UsageStats`: how many commands were run and things put in from the clipboard history,
+    /// never what): the menu bar panel's line for the last 7 days. Nothing by default.
+    public var recordUsage: (UsageStats.Event) -> Void
     /// The recent `@question`s as kept, and keeping one.
     public var loadQuestionHistory: () -> QuestionHistory
     public var recordQuestion: (QuestionHistory.Entry) -> Void
@@ -247,6 +250,7 @@ public struct SessionServices {
         noteSaved = { _ in }
         loadCommandUsage = { CommandUsage() }
         saveCommandUsage = { _ in }
+        recordUsage = { _ in }
         loadQuestionHistory = { QuestionHistory() }
         recordQuestion = { _ in }
         loadOpenHistory = { OpenHistory() }

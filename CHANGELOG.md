@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.2.1 (unreleased)
 
+### Added
+
+- The menu bar panel has a line on top for the last 7 days: how many commands you ran (and how many of them used AI) and how many times you put something in from the clipboard history, like "Last 7 days: commands 132 (AI 21) · clipboard 48". The input method only counts per day, on this Mac: never the commands, what you typed or what you copied. Kept for 30 days, never synced and never sent anywhere.
+
 ### Changed
 
 - New installs put the input method in ~/Library/Input Methods/AllInOneIME Input.app (everywhere you see it, it's still called AllInOneIME): a place no earlier version used, so macOS lists it under English to be added right away, with no logout or restart. The move from 0.7.1.1 puts it there too. If you have 0.7.2, it stays where it is (AllInOneIME.app): updates, the installer, `make install` and AllInOneIME Settings find it there as before, and an update keeps it there. Installing over 0.7.0 or earlier anyway puts it in the new place and takes the old one out of Input Methods.

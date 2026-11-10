@@ -24406,6 +24406,53 @@
         }
       }
     },
+    "Last 7 days: commands %@ (AI %@) · clipboard %@" : {
+      "comment" : "近 7 天：命令 %@ 次（用 AI %@ 次）· 剪贴板 %@ 次 — Sources/AllInOneIMECore/UsageStats.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Letzte 7 Tage: Befehle %1$@ (KI %2$@) · Zwischenablage %3$@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Últimos 7 días: comandos %1$@ (IA %2$@) · portapapeles %3$@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "7 derniers jours : commandes %1$@ (IA %2$@) · presse-papiers %3$@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "過去 7 日間：コマンド %1$@ 回（AI %2$@ 回）· クリップボード %3$@ 回"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최근 7일: 명령 %1$@회 (AI %2$@회) · 클립보드 %3$@회"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Últimos 7 dias: comandos %1$@ (IA %2$@) · área de transferência %3$@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "近 7 天：命令 %1$@ 次（用 AI %2$@ 次）· 剪貼簿 %3$@ 次"
+          }
+        }
+      }
+    },
     "Last error: " : {
       "comment" : "上次出错： — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
       "localizations" : {
