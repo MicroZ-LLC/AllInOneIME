@@ -21017,6 +21017,100 @@
         }
       }
     },
+    "Full pinyin" : {
+      "comment" : "全拼 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Pinyin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin completo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin complet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin completo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼"
+          }
+        }
+      }
+    },
+    "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc). It changes at once, and your learned words, fuzzy pinyin, characters and English words work either way." : {
+      "comment" : "全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）。换了马上生效，学过的词、模糊音、字形和英文词照样能用。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Pinyin schreibt jede Silbe aus (nihao); Shuangpin tippt jede mit zwei Tasten (Xiaohe: nihc). Die Änderung gilt sofort, und gelernte Wörter, unscharfes Pinyin, Schriftzeichen und englische Wörter funktionieren mit beidem."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El pinyin completo escribe cada sílaba entera (nihao); el Shuangpin escribe cada una con dos teclas (Xiaohe: nihc). El cambio es inmediato, y tus palabras aprendidas, el pinyin aproximado, los caracteres y las palabras en inglés funcionan con ambos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le pinyin complet écrit chaque syllabe en entier (nihao) ; le Shuangpin tape chacune en deux touches (Xiaohe : nihc). Le changement est immédiat, et vos mots appris, le pinyin approximatif, les caractères et les mots anglais fonctionnent dans les deux cas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼は音節をすべてつづります（nihao）。双拼は各音節を2つのキーで打ちます（小鶴双拼：nihc）。切り替えはすぐに反映され、学習した語、あいまいピンイン、字体、英単語はどちらでも使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음은 음절을 모두 입력합니다(nihao). 쌍병(Shuangpin)은 음절마다 두 키로 입력합니다(샤오허: nihc). 바꾸면 바로 적용되며, 학습한 단어, 퍼지 병음, 자형, 영어 단어는 어느 쪽에서나 그대로 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pinyin completo escreve cada sílaba inteira (nihao); o Shuangpin digita cada uma com duas teclas (Xiaohe: nihc). A mudança vale na hora, e suas palavras aprendidas, o pinyin aproximado, os caracteres e as palavras em inglês funcionam com os dois."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼把每個音節拼全（nihao）；雙拼每個音節打兩個鍵（小鶴雙拼：nihc）。換了馬上生效，學過的詞、模糊音、字形和英文詞照樣能用。"
+          }
+        }
+      }
+    },
     "Fuzzy pinyin" : {
       "comment" : "模糊音 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -41786,6 +41880,335 @@
         }
       }
     },
+    "Shuangpin – Microsoft" : {
+      "comment" : "双拼 – 微软 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – Microsoft"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – Microsoft"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 微軟"
+          }
+        }
+      }
+    },
+    "Shuangpin – Pinyin Jiajia" : {
+      "comment" : "双拼 – 拼音加加 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 拼音加加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 핀인자자(拼音加加)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 拼音加加"
+          }
+        }
+      }
+    },
+    "Shuangpin – Sogou" : {
+      "comment" : "双拼 – 搜狗 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 搜狗"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 써우거우(搜狗)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 搜狗"
+          }
+        }
+      }
+    },
+    "Shuangpin – Xiaohe" : {
+      "comment" : "双拼 – 小鹤 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 小鶴"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 샤오허(小鹤)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 小鶴"
+          }
+        }
+      }
+    },
+    "Shuangpin – Zhineng ABC" : {
+      "comment" : "双拼 – 智能ABC — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 智能ABC"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 즈넝 ABC"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 智能ABC"
+          }
+        }
+      }
+    },
+    "Shuangpin – Ziguang" : {
+      "comment" : "双拼 – 紫光 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 紫光"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 쯔광(紫光)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 紫光"
+          }
+        }
+      }
+    },
+    "Shuangpin – Ziranma" : {
+      "comment" : "双拼 – 自然码 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 自然碼"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 쯔란마(自然码)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 自然碼"
+          }
+        }
+      }
+    },
     "sign in in Settings" : {
       "comment" : "在设置里登录 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -52149,6 +52572,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "逐字打出"
+          }
+        }
+      }
+    },
+    "Typing" : {
+      "comment" : "输入方式 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingabeweise"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力方式"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入方式"
           }
         }
       }

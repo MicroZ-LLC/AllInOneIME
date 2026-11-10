@@ -60,6 +60,9 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
+    /// The schema it was last given (`selectPinyinScheme`): given again only when the settings name another, or to a new
+    /// engine. Nil: none given yet.
+    private var selectedSchema: String?
     /// The candidates removed level one is given (`Composer.removedCandidates`): the settings' list, given again only when
     /// it changes, with those removed it doesn't have yet (left out at once, written a moment later: in this field, and
     /// in any the shell tells aren't written yet), so that neither a new engine nor a list read before they were written
@@ -452,6 +455,7 @@ public final class InputSession {
         composer.engine = nil
         engine = nil
         englishWords = nil
+        selectedSchema = nil
     }
 
     private func ensureLevelOne() {
@@ -459,6 +463,7 @@ public final class InputSession {
         switch services.levelOne() {
         case let .engine(fresh):
             engine = fresh
+            selectedSchema = nil
             composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
@@ -467,6 +472,7 @@ public final class InputSession {
         case .none:
             engine = nil
             englishWords = nil
+            selectedSchema = nil
             if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
                 composer.engine = LatinEngine()
                 appliedDefaultInput = nil
@@ -647,6 +653,7 @@ public final class InputSession {
         }
         // The candidates the user removed, left out by level one whatever its engine.
         takeRemovedCandidates(config.removedCandidates, unwritten: unwritten)
+        selectPinyinScheme(config)
         if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
@@ -705,6 +712,21 @@ public final class InputSession {
             learningApplied()
         }
         emit(.keyboardLayout)
+    }
+
+    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin or a Shuangpin scheme), from
+    /// the next key on: its engine given the scheme's schema (`PinyinEngine.selectSchema`) when the settings name another
+    /// than it was given, or it is a new one, with nothing composed (else the next key with nothing composed does). One
+    /// it can't take (not deployed yet: the shell deploys it once the setting changes, and the engine made after that
+    /// takes it) isn't asked for again by this engine; it types as before.
+    private func selectPinyinScheme(_ config: Config) {
+        let scheme = config.typedPinyin
+        guard let engine, scheme.schema != selectedSchema, !composer.isComposing else { return }
+        selectedSchema = scheme.schema
+        // An engine without schemas (a test's, Windows' for now) types full pinyin anyway.
+        if !(englishWords ?? engine).selectSchema(scheme.schema), scheme.isShuangpin {
+            log.notice("level one can't type with \(scheme.schema) yet: it types as before")
+        }
     }
 
     /// The Code input's pack (`Config.codingLanguage`), when it is installed: its rows are Code's. Nil: no Code here.
@@ -987,6 +1009,7 @@ public final class InputSession {
             }
             missingCheckWaiting = false
             composer.commandUsage = services.loadCommandUsage()  // another field may have run commands
+            selectPinyinScheme(config)  // Shuangpin picked, or full pinyin again: from this key on
             composer.remembersQuestions = config.rememberQuestions
             applyChatSettings(config)
             composer.questionHistory = services.loadQuestionHistory()  // asked in another field, or cleared

@@ -357,24 +357,27 @@ public final class RimeService {
     }
 
     /// A previous maintenance job may have recreated the cache after Settings invalidated it.
-    /// Do this only for a requested settings activation, after that job has actually finished.
+    /// Do this only for a requested settings activation, after that job has actually finished. The Shuangpin schemes'
+    /// too (`PinyinScheme`), which the same patch changes, where one was compiled.
     private func invalidateGeneratedSchema() throws {
         guard let userDataDir else { return }
         let fm = FileManager.default
         let build = userDataDir.appendingPathComponent("build", isDirectory: true)
-        let compiled = build.appendingPathComponent("rime_ice.schema.yaml")
-        do {
-            let directory = try fm.attributesOfItem(atPath: build.path)
-            guard directory[.type] as? FileAttributeType == .typeDirectory else {
-                throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: build.path])
+        for schema in [PinyinScheme.fullSchema] + PinyinScheme.shuangpin.map(\.schema) {
+            let compiled = build.appendingPathComponent("\(schema).schema.yaml")
+            do {
+                let directory = try fm.attributesOfItem(atPath: build.path)
+                guard directory[.type] as? FileAttributeType == .typeDirectory else {
+                    throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: build.path])
+                }
+                let file = try fm.attributesOfItem(atPath: compiled.path)
+                guard file[.type] as? FileAttributeType == .typeRegular else {
+                    throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: compiled.path])
+                }
+                try fm.removeItem(at: compiled)
+            } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
+                // A first deployment, or the store already removed this generated cache.
             }
-            let file = try fm.attributesOfItem(atPath: compiled.path)
-            guard file[.type] as? FileAttributeType == .typeRegular else {
-                throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: compiled.path])
-            }
-            try fm.removeItem(at: compiled)
-        } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
-            // A first deployment, or the store already removed this generated cache.
         }
     }
 
@@ -484,6 +487,38 @@ public final class RimeSession: PinyinEngine {
     /// False after librime dropped the session (e.g. during a re-deploy).
     public var isValid: Bool { isCurrentGeneration && api.pointee.find_session(id) != 0 }
 
+    /// The schema the session types with ("rime_ice", "double_pinyin_flypy"); nil when librime can't say.
+    public var schema: String? {
+        guard isCurrentGeneration else { return nil }
+        var buffer = [CChar](repeating: 0, count: 256)
+        guard api.pointee.get_current_schema(id, &buffer, buffer.count) != 0 else { return nil }
+        return String(cString: buffer)
+    }
+
+    /// Types with librime's schema `id` from the next key on (`PinyinEngine.selectSchema`: full pinyin's `rime_ice`, a
+    /// Shuangpin scheme's: `PinyinScheme`), what is composed dropped; the options without a reset of their own stay as
+    /// they were (Latin mode), the candidates removed too (a property of the session). Only one deployed: librime would
+    /// take any id, and one it hasn't compiled (left out of the schema list) types nothing at all. False then, and the
+    /// schema in use stays.
+    public func selectSchema(_ id: String) -> Bool {
+        guard isCurrentGeneration else { return false }
+        if schema == id { return true }
+        guard Self.isDeployed(id, api: api), api.pointee.select_schema(self.id, id) != 0 else { return false }
+        return schema == id
+    }
+
+    /// Whether librime has compiled the schema `id` (`build/<id>.schema.yaml`, which the schema list deploys): what it
+    /// opens of it names it.
+    static func isDeployed(_ id: String, api: UnsafeMutablePointer<RimeApi>) -> Bool {
+        var config = RimeConfig()
+        guard api.pointee.schema_open(id, &config) != 0 else { return false }
+        defer { _ = api.pointee.config_close(&config) }
+        return api.pointee.config_get_cstring(&config, "schema/schema_id").map { String(cString: $0) } == id
+    }
+
+    /// The session types with a Shuangpin scheme (`selectSchema`): two keys a syllable, its preedit spelled out.
+    private var shuangpin: Bool { schema.flatMap(PinyinScheme.init(rawValue:))?.isShuangpin ?? false }
+
     /// Whether what is typed is learned into librime's user dictionary, as librime has it (true). Off (a field an input
     /// method is to keep nothing of: a private window's), nothing of it reaches the dictionary. librime learns a
     /// composition as it commits it, so it never commits one with a word picked or converted: a pick that ends the
@@ -511,7 +546,7 @@ public final class RimeSession: PinyinEngine {
             // A tap of Shift (rime-ice: `Shift_L: commit_code`): librime commits the part picked and the letters after
             // it, and learns the part. Put in here; librime then only switches to Latin.
             if shift, shiftTap, let before = composition(), before.picked {
-                put(before.converted + before.lettersAfterThePick(input: rawInput))
+                put(before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
             }
             shiftTap = false
             return api.pointee.process_key(id, keycode, mask) != 0
@@ -523,7 +558,7 @@ public final class RimeSession: PinyinEngine {
         if let before = composition() {
             if keycode == RimeKey.returnKey, mask & RimeKey.controlMask == 0, before.picked {
                 // Return: librime commits the part picked and the letters after it, and learns the part.
-                put(before.converted + before.lettersAfterThePick(input: rawInput))
+                put(before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
                 return true
             }
             if before.isConfirmed, !editing {
@@ -564,11 +599,17 @@ public final class RimeSession: PinyinEngine {
         var converted: String { String(decoding: preedit[..<min(selection.lowerBound, preedit.count)], as: UTF8.self) }
 
         /// The letters typed after what is picked (`input`'s end), as many as the preedit shows after it, without
-        /// librime's delimiters (" '"): what its Return commits after the part picked.
-        func lettersAfterThePick(input: String) -> String {
+        /// librime's delimiters (" '"): what its Return commits after the part picked. In a Shuangpin scheme
+        /// (`shuangpin`) the preedit spells out the syllables ("xiang ma" for "xlma"): two keys for each it shows, but
+        /// one for a syllable begun (the letters typed are odd in number: what is picked took two for each of its).
+        func lettersAfterThePick(input: String, shuangpin: Bool = false) -> String {
             let delimiters: Set<Character> = [" ", "'"]
             let shown = String(decoding: preedit[min(selection.lowerBound, preedit.count)...], as: UTF8.self)
             var count = shown.filter { !delimiters.contains($0) }.count
+            if shuangpin {
+                let syllables = shown.split(whereSeparator: delimiters.contains).count
+                count = 2 * syllables - input.filter { !delimiters.contains($0) }.count % 2
+            }
             var letters: [Character] = []
             for character in input.reversed() where count > 0 {
                 letters.insert(character, at: 0)

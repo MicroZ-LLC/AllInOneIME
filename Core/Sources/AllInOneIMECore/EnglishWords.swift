@@ -45,13 +45,15 @@ public enum EnglishWords {
     /// Whether `typed`, letters the user put in as they are (`EnglishWordsEngine.rawCommitted`), is learned: Latin letters
     /// only, 3 to `maxLearned` of them, a word not offered already (`known`, by key) nor in rime-ice's dictionary, not one
     /// the user removed (`removed`, by key: `RemovedCandidates.keys`), not pinyin (`Pinyin.isPinyin`: "nihao", "yyds";
-    /// with the user's fuzzy pinyin, `fuzzy`: "fongxian" with f ↔ h), with a vowel, and nothing like a secret
-    /// (`looksSecret`, the user's hidden words included, anywhere in it).
+    /// with the user's fuzzy pinyin, `fuzzy`: "fongxian" with f ↔ h; as the scheme typed reads letters, `scheme`: "vsgo"
+    /// in Xiaohe's Shuangpin), with a vowel, and nothing like a secret (`looksSecret`, the user's hidden words included,
+    /// anywhere in it).
     public static func learnable(_ typed: String, known: Set<String>, dictionary: EnglishDictionary, hidden: [String],
-                                 fuzzy: [String] = [], removed: Set<String> = []) -> Bool {
+                                 fuzzy: [String] = [], scheme: PinyinScheme = .full, removed: Set<String> = []) -> Bool {
         guard (3...maxLearned).contains(typed.count), typed.allSatisfy({ $0.isASCII && $0.isLetter }) else { return false }
         let k = key(typed)
-        return !known.contains(k) && !dictionary.contains(k) && !removed.contains(k) && !Pinyin.isPinyin(k, fuzzy: fuzzy)
+        return !known.contains(k) && !dictionary.contains(k) && !removed.contains(k)
+            && !Pinyin.isPinyin(k, fuzzy: fuzzy, scheme: scheme)
             && k.contains(where: { "aeiouy".contains($0) }) && !looksSecret(typed, hidden: hidden)
     }
 
@@ -132,7 +134,7 @@ public enum EnglishWords {
         guard let config = learningConfig(in: field, secureInput: secureInput, config: config) else { return false }
         return !dictionary.contains(typed)  // most words typed in English mode: told before the words offered are gone through
             && learnable(typed, known: known(), dictionary: dictionary, hidden: config.redaction.customWords,
-                         fuzzy: config.fuzzyPinyin, removed: removed())
+                         fuzzy: config.fuzzyPinyin, scheme: config.typedPinyin, removed: removed())
             && typedOnce.again(typed)
     }
 
@@ -160,7 +162,7 @@ public enum EnglishWords {
                        removed: Set<String>) -> Bool {
         config.learnsEnglishWords && config.allowsAI(in: app)
             && learnable(typed, known: known, dictionary: dictionary, hidden: config.redaction.customWords,
-                         fuzzy: config.fuzzyPinyin, removed: removed)
+                         fuzzy: config.fuzzyPinyin, scheme: config.typedPinyin, removed: removed)
     }
 
     /// Whether a word typed in English mode (`EnglishModeWords`: letters that went straight to the app, between a space or
@@ -680,7 +682,9 @@ enum Pinyin {
 
     /// How rime-ice's speller reads pinyin with the user's fuzzy pinyin (`Config.fuzzyPinyin`, `FuzzyPinyin`): the
     /// syllables as spelled, and as its rules derive them, each rule applied to what the ones before it gave: the fuzzy
-    /// pairs' first, then rime-ice's own (`algebra`), as `FuzzyPinyin.patch` puts them.
+    /// pairs' first, then rime-ice's own (`algebra`), as `FuzzyPinyin.patch` puts them. In a Shuangpin scheme
+    /// (`PinyinScheme`), as the scheme's schema reads them: the fuzzy pairs' rules, then the scheme's (`PinyinScheme.algebra`,
+    /// which make each syllable its two keys).
     struct Reading: Sendable {
         let spellings: Set<String>
         /// The beginnings of the spellings: what may end pinyin still being typed ("zhon").
@@ -688,14 +692,19 @@ enum Pinyin {
         /// The longest spelling, in letters.
         let longest: Int
 
-        init(fuzzy: [String]) {
+        init(fuzzy: [String], scheme: PinyinScheme = .full) {
             var out = Pinyin.syllables
-            for (pattern, template) in FuzzyPinyin.derivations(fuzzy) + Pinyin.algebra {
-                let regex = try! NSRegularExpression(pattern: pattern)
-                for spelling in out {
-                    let range = NSRange(location: 0, length: (spelling as NSString).length)
-                    guard regex.firstMatch(in: spelling, range: range) != nil else { continue }
-                    out.insert(regex.stringByReplacingMatches(in: spelling, range: range, withTemplate: template))
+            if scheme.isShuangpin {
+                let rules = FuzzyPinyin.pairs.filter { fuzzy.contains($0.id) }.flatMap(\.rules) + scheme.algebra
+                out = SpellingAlgebra.apply(rules, to: out)
+            } else {
+                for (pattern, template) in FuzzyPinyin.derivations(fuzzy) + Pinyin.algebra {
+                    let regex = try! NSRegularExpression(pattern: pattern)
+                    for spelling in out {
+                        let range = NSRange(location: 0, length: (spelling as NSString).length)
+                        guard regex.firstMatch(in: spelling, range: range) != nil else { continue }
+                        out.insert(regex.stringByReplacingMatches(in: spelling, range: range, withTemplate: template))
+                    }
                 }
             }
             spellings = out
@@ -704,12 +713,14 @@ enum Pinyin {
         }
     }
 
-    /// The reading for the fuzzy pairs `fuzzy` (ids; those not known left out), made once for each set of them.
-    static func reading(fuzzy: [String]) -> Reading {
+    /// The reading for the fuzzy pairs `fuzzy` (ids; those not known left out) in `scheme`, made once for each set of
+    /// them.
+    static func reading(fuzzy: [String], scheme: PinyinScheme = .full) -> Reading {
         let pairs = FuzzyPinyin.known(fuzzy)
-        if let made = readings.withLock({ $0[pairs] }) { return made }
-        let made = Reading(fuzzy: pairs)
-        readings.withLock { $0[pairs] = made }
+        let key = [scheme.rawValue] + pairs
+        if let made = readings.withLock({ $0[key] }) { return made }
+        let made = Reading(fuzzy: pairs, scheme: scheme)
+        readings.withLock { $0[key] = made }
         return made
     }
     private static let readings = Locked<[[String]: Reading]>(initialState: [:])
@@ -719,24 +730,26 @@ enum Pinyin {
 
     /// Whether `letters` (lowercased) is pinyin, with the fuzzy pairs `fuzzy`: spellings only ("nihao", "xiaomi",
     /// "zheige", "zhogn"), or, up to four letters, spellings and initials ("rug" ru-g, "mac" ma-c, "llm"), which rime-ice
-    /// takes for pinyin before an English word (its `reduce_english_filter`).
-    static func isPinyin(_ letters: String, fuzzy: [String] = []) -> Bool {
-        let reading = reading(fuzzy: fuzzy)
+    /// takes for pinyin before an English word (its `reduce_english_filter`). In a Shuangpin scheme, its spellings only
+    /// (Xiaohe's "nihc", "vsgo"): rime-ice's Shuangpin schemas have no abbreviations.
+    static func isPinyin(_ letters: String, fuzzy: [String] = [], scheme: PinyinScheme = .full) -> Bool {
+        let reading = reading(fuzzy: fuzzy, scheme: scheme)
         let s = Array(letters)
         return splits(s, reading, allowing: { reading.spellings.contains($0) })
-            || s.count <= 4 && splits(s, reading, allowing: { reading.spellings.contains($0) || initials.contains($0) })
+            || !scheme.isShuangpin && s.count <= 4
+            && splits(s, reading, allowing: { reading.spellings.contains($0) || initials.contains($0) })
     }
 
     /// Whether `letters` is pinyin still being typed: pinyin (`isPinyin`), or spellings then the beginning of one
     /// (`endsInASpellingBegun`).
-    static func isPinyinBeingTyped(_ letters: String, fuzzy: [String] = []) -> Bool {
-        isPinyin(letters, fuzzy: fuzzy) || endsInASpellingBegun(letters, fuzzy: fuzzy)
+    static func isPinyinBeingTyped(_ letters: String, fuzzy: [String] = [], scheme: PinyinScheme = .full) -> Bool {
+        isPinyin(letters, fuzzy: fuzzy, scheme: scheme) || endsInASpellingBegun(letters, fuzzy: fuzzy, scheme: scheme)
     }
 
     /// Whether `letters` is spellings, or none, then the beginning of one ("zhongg", "openr" o-pen-r, "zhon"): what
     /// `isPinyinBeingTyped` adds to `isPinyin`, for a caller that has asked that already.
-    static func endsInASpellingBegun(_ letters: String, fuzzy: [String] = []) -> Bool {
-        let reading = reading(fuzzy: fuzzy)
+    static func endsInASpellingBegun(_ letters: String, fuzzy: [String] = [], scheme: PinyinScheme = .full) -> Bool {
+        let reading = reading(fuzzy: fuzzy, scheme: scheme)
         let s = Array(letters)
         return (0..<s.count).contains { cut in
             (cut == 0 || splits(Array(s[..<cut]), reading, allowing: { reading.spellings.contains($0) }))

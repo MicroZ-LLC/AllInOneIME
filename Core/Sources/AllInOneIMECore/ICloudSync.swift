@@ -45,7 +45,7 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "keyboardLayouts", "candidateLayout",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout",
         "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
@@ -947,7 +947,7 @@ public enum ICloudSync {
         guard let value else {
             // Only what the config may leave out can be deleted.
             return key.hasPrefix(appPrefix)
-                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters"].contains(key)
+                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters", "pinyinScheme"].contains(key)
                 ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
@@ -1045,6 +1045,10 @@ public enum ICloudSync {
         case "chineseCharacters":
             guard case let .string(name) = value else { return .wrongType }
             return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil
+        case "pinyinScheme":
+            // Deleted, or "full": full pinyin. A scheme a newer version added is refused, this Mac's kept.
+            guard case let .string(name) = value else { return .wrongType }
+            return PinyinScheme(rawValue: name) == nil ? .unknownValue : nil
         case "suggestionsInsert":
             return insertProblem(value)
         case "redaction":

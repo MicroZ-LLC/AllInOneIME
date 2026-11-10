@@ -72,6 +72,10 @@ public protocol PinyinEngine: AnyObject {
     func setAsciiMode(_ on: Bool)
     /// The language it types when not in its ASCII mode: Chinese (librime), Hindi (`HindiEngine`).
     var language: Language { get }
+    /// Types with the schema `id` from the next key on (librime's: "rime_ice" for full pinyin, "double_pinyin_flypy"
+    /// for Xiaohe's Shuangpin: `PinyinScheme.schema`), what is composed dropped. False when it can't (the schema isn't
+    /// deployed): it types as before.
+    func selectSchema(_ id: String) -> Bool
 }
 
 extension PinyinEngine {
@@ -80,6 +84,8 @@ extension PinyinEngine {
     public func deleteCandidate(onPage index: Int) -> Bool { false }
     /// One that can't leaves it to `EnglishWordsEngine`, which leaves them out of what it shows.
     public func setRemovedCandidates(_ texts: [String]) {}
+    /// An engine with one way of typing has no schema to change to.
+    public func selectSchema(_ id: String) -> Bool { false }
 }
 
 extension String {

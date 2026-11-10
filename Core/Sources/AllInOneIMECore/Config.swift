@@ -58,6 +58,9 @@ public struct Config: Codable, Equatable, Sendable {
         chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
     }
 
+    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, or a Shuangpin scheme.
+    public var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
+
     /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
     public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
 
@@ -216,6 +219,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// it), for pinyin's candidates and whatever reasons about the language typed (`typedChinese`); nil: as the system's
     /// languages say, read each time, until one is picked (Settings → Input → Chinese).
     public var chineseCharacters: ChineseCharacters?
+    /// How Chinese is typed in pinyin (`PinyinScheme`, Settings → Input → Chinese → Typing): nil (or "full") for full
+    /// pinyin, else the Shuangpin scheme's id, librime's schema ("double_pinyin_flypy"). `typedPinyin` reads it.
+    public var pinyinScheme: String?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
@@ -390,6 +396,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.questionContinueIn = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
+        self.pinyinScheme = nil
         self.englishWords = []
         self.addedEnglishWords = []
         self.learnsEnglishWords = true
@@ -429,7 +436,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, keyboardLayouts, candidateLayout
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
@@ -522,6 +529,8 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version doesn't know (a later one's) follows the system, not an error.
         chineseCharacters = (try? c.decodeIfPresent(String.self, forKey: .chineseCharacters)).flatMap { $0 }
             .flatMap(ChineseCharacters.init(rawValue:))
+        // Full pinyin for "full", and for a scheme this version doesn't know (a later one's), not an error.
+        pinyinScheme = PinyinScheme(setting: (try? c.decodeIfPresent(String.self, forKey: .pinyinScheme)).flatMap { $0 }).setting
         // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
@@ -719,6 +728,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
         try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
+        // Only Shuangpin: a file from before the setting doesn't gain the key, nor one back on full pinyin.
+        try c.encodeIfPresent(typedPinyin.setting, forKey: .pinyinScheme)
         // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
         // doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }

@@ -337,6 +337,13 @@ public final class SettingsStore {
         save()
     }
 
+    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin or a Shuangpin scheme), saved. The shell deploys
+    /// its schema, as it applies fuzzy pinyin; the next key types with it.
+    public func setPinyinScheme(_ scheme: PinyinScheme) {
+        config.pinyinScheme = scheme.setting
+        save()
+    }
+
     // MARK: Rewrite styles
 
     public func isStyleOn(_ style: RewriteStyle) -> Bool {

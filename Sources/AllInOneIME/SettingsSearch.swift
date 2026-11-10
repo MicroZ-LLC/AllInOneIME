@@ -7,7 +7,7 @@ import SwiftUI
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
     // General
-    case inputLanguages, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
+    case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
@@ -25,7 +25,8 @@ enum SettingsSpot: String, CaseIterable {
     /// The page it's on.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage: return .input
+        case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
+             .codingLanguage: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
@@ -48,7 +49,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The input whose chip holds it.
     var chip: Input? {
         switch self {
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
+        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -59,6 +60,7 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
+        case .pinyinScheme: return UIText.pinyinSchemeLabel
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
@@ -115,6 +117,7 @@ enum SettingsSpot: String, CaseIterable {
     /// What its row says, where that doesn't depend on the settings: one sentence, also searched.
     var note: String? {
         switch self {
+        case .pinyinScheme: return UIText.pinyinSchemeHelp
         case .chineseCharacters: return UIText.chineseCharactersHelp
         case .fuzzyPinyin: return tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之")
         case .personalDictionaries: return tr("UTF-8 Rime .dict.yaml，最多 32 MiB", "UTF-8 Rime .dict.yaml, up to 32 MiB")
@@ -155,6 +158,10 @@ enum SettingsSpot: String, CaseIterable {
     private var keywords: String {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
+        // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them.
+        case .pinyinScheme:
+            return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
+                + PinyinScheme.shuangpin.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
         case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
@@ -256,7 +263,8 @@ enum SettingsSpot: String, CaseIterable {
         case .model: return config.provider != .hosted && config.provider != .apple
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return config.inputLanguages.contains(.chinese)
+        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates:
+            return config.inputLanguages.contains(.chinese)
         case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
         case .webSearch: return Command.webSearchOffered
         default: return true

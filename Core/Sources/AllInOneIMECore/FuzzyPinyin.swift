@@ -83,9 +83,10 @@ public enum FuzzyPinyin {
     }
 
     /// Writes (or removes) the patch in `userDir` for `ids`, and for the characters typed (`characters`: Traditional ones
-    /// are in the same file, `ChineseCharacters.patch`); the caller deploys Rime again unless `.unchanged`.
-    public static func apply(_ ids: [String], characters: ChineseCharacters = .simplified, schema schemaURL: URL,
-                             userDir: URL) throws -> Outcome {
-        try PersonalDictionaryStore(userDirectory: userDir, schema: schemaURL).applyFuzzyPinyin(ids, characters: characters)
+    /// are in the same file, `ChineseCharacters.patch`), for rime-ice's schema (`schemaURL`) and the Shuangpin scheme typed
+    /// with (`scheme`: `PinyinScheme`, its schema beside rime-ice's); the caller deploys Rime again unless `.unchanged`.
+    public static func apply(_ ids: [String], characters: ChineseCharacters = .simplified, scheme: PinyinScheme = .full,
+                             schema schemaURL: URL, userDir: URL) throws -> Outcome {
+        try PersonalDictionaryStore(userDirectory: userDir, schema: schemaURL).applyFuzzyPinyin(ids, characters: characters, scheme: scheme)
     }
 }

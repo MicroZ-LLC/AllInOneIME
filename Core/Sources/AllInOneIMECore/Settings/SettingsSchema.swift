@@ -329,6 +329,12 @@ struct SettingsSchema {
             store.config.candidateLayout = value.string.flatMap(CandidateArrangement.init(rawValue:)) ?? store.config.candidateLayout
         }
         if config.inputLanguages.contains(.chinese) {
+            // Full pinyin or a Shuangpin scheme, beside the characters (`PinyinScheme`): the Mac deploys it (Windows not yet).
+            add(choice("pinyinScheme", UIText.pinyinSchemeLabel, UIText.pinyinSchemeHelp, value: .string(config.typedPinyin.rawValue),
+                       choices: PinyinScheme.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }, platforms: [.mac]),
+                to: &fields) { value in
+                store.setPinyinScheme(PinyinScheme(setting: value.string))
+            }
             // As the system's languages say until one is picked (`Config.typedChinese`).
             add(choice("chineseCharacters", UIText.chineseCharactersLabel, UIText.chineseCharactersHelp,
                        value: .string(chinese.rawValue),

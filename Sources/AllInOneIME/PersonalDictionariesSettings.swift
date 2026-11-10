@@ -56,18 +56,18 @@ final class PersonalDictionariesModel: ObservableObject {
 
     func importDictionary(from source: URL, fuzzyPinyin: [String]) async {
         guard !isWorking, hasChinesePack else { return }
-        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese
+        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese, scheme = LiveConfig.current.typedPinyin
         await change(store: store) {
-            _ = try store.importDictionary(from: source, fuzzyPinyin: fuzzyPinyin, characters: characters)
+            _ = try store.importDictionary(from: source, fuzzyPinyin: fuzzyPinyin, characters: characters, scheme: scheme)
             return try store.list()
         }
     }
 
     func removeDictionary(named name: String, fuzzyPinyin: [String]) async {
         guard !isWorking, hasChinesePack else { return }
-        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese
+        let store = dictionaryStore(), characters = LiveConfig.current.typedChinese, scheme = LiveConfig.current.typedPinyin
         await change(store: store) {
-            try store.removeDictionary(named: name, fuzzyPinyin: fuzzyPinyin, characters: characters)
+            try store.removeDictionary(named: name, fuzzyPinyin: fuzzyPinyin, characters: characters, scheme: scheme)
             return try store.list()
         }
     }
@@ -96,10 +96,10 @@ final class PersonalDictionariesModel: ObservableObject {
         // latest saved choice before deployment, using the same writer that preserves these imports;
         // not from the defaults of a config file that doesn't parse (left as the import wrote it then).
         if let valid = LiveConfig.currentIfValid {
-            let currentFuzzy = valid.fuzzyPinyin, characters = valid.typedChinese
+            let currentFuzzy = valid.fuzzyPinyin, characters = valid.typedChinese, scheme = valid.typedPinyin
             do {
                 let outcome = try await Task.detached(priority: .utility) {
-                    try store.applyFuzzyPinyin(currentFuzzy, characters: characters)
+                    try store.applyFuzzyPinyin(currentFuzzy, characters: characters, scheme: scheme)
                 }.value
                 if outcome == .userFile { throw PersonalDictionaryError.managedFile(FuzzyPinyin.fileName) }
             } catch {
