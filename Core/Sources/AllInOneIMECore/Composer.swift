@@ -421,6 +421,9 @@ public final class Composer {
     public var pickedAgent: AgentKind?
     /// What the hand-off says, in the interface language (set by the controller).
     public var chatMessages = ChatMessages.chinese
+    /// AllInOneIME's user guide as a file (`Converter.userGuideFile`, set by the controller; nil: none): a coding agent a
+    /// conversation about AllInOneIME goes on in is told where it is (`ChatHandoff.guideNote`).
+    public var userGuidePath: String?
     /// ⌘⏎ showed where the conversation can go on before its last round (Esc hides it again).
     var handoffRequested = false
 

@@ -23,6 +23,9 @@ public final class Converter: Sendable {
     public typealias CredentialLoader = ChatClient.CredentialLoader
     /// The user's jargon list for a config (only asked for when the jargon (黑话) style is on).
     public typealias JargonLoader = @Sendable (_ config: Config) -> [JargonEntry]
+    /// The text of AllInOneIME's user guide, as the shell ships it (`UserGuide`; nil: none). Only `@question` reads it,
+    /// and only for a question about AllInOneIME.
+    public typealias UserGuideLoader = @Sendable () -> String?
 
     // Internal, not private: Translate as You Type's request (TranslateMode.swift) goes through them too.
     let client: ChatClient
@@ -30,6 +33,10 @@ public final class Converter: Sendable {
     let loadCredentials: CredentialLoader
     let loadKey: ChatClient.KeyLoader
     private let loadJargon: JargonLoader
+    private let loadUserGuide: UserGuideLoader
+    /// The user guide as a file (the shell's bundled copy; nil: none): what a coding agent an @question conversation goes
+    /// on in is pointed to (`ChatHandoff.guideNote`), since it reads files itself.
+    public let userGuideFile: URL?
     let cache = Locked(initialState: LRUCache(capacity: 64))
 
     public init(
@@ -38,6 +45,8 @@ public final class Converter: Sendable {
         loadCredentials: @escaping CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0) },
         loadKey: @escaping ChatClient.KeyLoader = { try APIKeys.load($0, for: $1) },
         loadJargon: @escaping JargonLoader = { JargonLibrary.load(from: $0.jargonURL) },
+        loadUserGuide: @escaping UserGuideLoader = { nil },
+        userGuideFile: URL? = nil,
         appleModel: any AppleModelBackend = AppleModel.system,
         appleClock: any Clock<Duration> = ContinuousClock()
     ) {
@@ -46,6 +55,8 @@ public final class Converter: Sendable {
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey
         self.loadJargon = loadJargon
+        self.loadUserGuide = loadUserGuide
+        self.userGuideFile = userGuideFile
     }
 
     /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. `app`: the bundle id of the app it's
@@ -172,8 +183,12 @@ public final class Converter: Sendable {
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
             + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns)))
-        let request = chat ? QuestionChat.request(first: input, turns: turns, config: config)
-            : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config)
+        // A question about AllInOneIME: the parts of its user guide that answer it best go with it (`UserGuide`); the
+        // request for any other question is as it always was.
+        let questions = chat ? QuestionChat.rounds(first: input, turns: turns, latest: nil).map(\.question) : [input]
+        let guide = command == .question ? guideExcerpts(questions) : nil
+        let request = chat ? QuestionChat.request(first: input, turns: turns, config: config, guide: guide)
+            : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config, guide: guide)
             : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
         var protected = redaction?.protect(request, sent: lastMessage) ?? request
         // The on-device model's context is small: a long conversation is fitted into it, older rounds shortened first
@@ -213,6 +228,14 @@ public final class Converter: Sendable {
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
             hidden: hidden, shortened: shortened))
+    }
+
+    /// The excerpts of the user guide for an @question conversation's `questions` (`UserGuide.excerpts`): nil when none
+    /// is about AllInOneIME, or there is no guide (it's read only for one that is).
+    private func guideExcerpts(_ questions: [String]) -> String? {
+        let asked = questions.map(UserGuide.question(in:)).joined(separator: "\n")
+        guard UserGuide.isAbout(asked), let text = loadUserGuide() else { return nil }
+        return UserGuide(text: text).excerpts(for: asked)
     }
 
     /// A refine's turns hidden (`Redaction.hide`) after the request's own texts, in the order sent: each answer's lines,

@@ -8,8 +8,16 @@ import os
 
 let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
-/// One converter (one URLSession, one cache) shared by every input session in the process.
-let sharedConverter = Converter()
+/// One converter (one URLSession, one cache) shared by every input session in the process. @question reads the app's
+/// user guide for a question about AllInOneIME.
+let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url)
+
+/// AllInOneIME's user guide as the app ships it (Contents/Resources/user-guide.md, copied there by the Makefile), read
+/// once, when a question first needs it.
+enum BundledUserGuide {
+    static let url = Bundle.main.url(forResource: "user-guide", withExtension: "md")
+    static let text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+}
 
 /// Carries a main-thread-only object out of `MainActor.assumeIsolated` (we never leave the main thread).
 struct MainThreadBox<T>: @unchecked Sendable {

@@ -7,6 +7,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Added
 
 - Shuangpin: Settings → Input → Chinese (pinyin) → Typing picks full pinyin or one of rime-ice's Shuangpin schemes (Xiaohe, Ziranma, Microsoft, Sogou, Zhineng ABC, Pinyin Jiajia, Ziguang), from the next key on, with your learned words, removed candidates, personal dictionaries, characters, fuzzy pinyin and English words as before (`pinyinScheme` in the config, synced like the other Input settings).
+- `@question` knows AllInOneIME: a question about the app itself ("how do I turn on Shuangpin", "change the magic key") is answered from the two or three best-matching sections of a short user guide the app ships (Resources/user-guide.md, English and Chinese), picked on the Mac; any other question is sent exactly as before.
 
 ### Changed
 

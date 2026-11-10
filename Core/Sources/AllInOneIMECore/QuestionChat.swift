@@ -48,9 +48,10 @@ public enum QuestionChat {
     // MARK: - The request
 
     /// The request for the next answer: @question's own (`Prompt.commandRequest`), with the rounds so far as user and
-    /// assistant turns before `question`. With no rounds it is exactly the normal @question request.
-    public static func request(_ rounds: [Round], question: String, config: Config) -> ConverseRequest {
-        var request = Prompt.commandRequest(.question, input: question, config: config)
+    /// assistant turns before `question`. With no rounds it is exactly the normal @question request. `guide`: excerpts of
+    /// the user guide, for a conversation about AllInOneIME (`UserGuide`).
+    public static func request(_ rounds: [Round], question: String, config: Config, guide: String? = nil) -> ConverseRequest {
+        var request = Prompt.commandRequest(.question, input: question, config: config, guide: guide)
         let earlier = rounds.flatMap {
             [ConverseRequest.Message(role: "user", text: $0.question), ConverseRequest.Message(role: "assistant", text: $0.answer)]
         }
@@ -59,9 +60,9 @@ public enum QuestionChat {
     }
 
     /// `turns` (a refinement of `.command(.question, first)`) as the request for the answer to the last turn's question.
-    public static func request(first: String, turns: [Refinement.Turn], config: Config) -> ConverseRequest {
+    public static func request(first: String, turns: [Refinement.Turn], config: Config, guide: String? = nil) -> ConverseRequest {
         let all = rounds(first: first, turns: turns, latest: nil)
-        return request(Array(all.dropLast()), question: all.last?.question ?? first, config: config)
+        return request(Array(all.dropLast()), question: all.last?.question ?? first, config: config, guide: guide)
     }
 
     /// Bump when the request's shape changes (part of the cache key).
