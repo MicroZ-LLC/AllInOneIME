@@ -92,6 +92,13 @@ struct ShuangpinTests {
     }
 
     @Test func typingChoiceIsLocalizedInSevenInterfaceLanguages() throws {
+        let package = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+        let catalog = try Data(contentsOf: package.appendingPathComponent("Resources/Localizable.xcstrings"))
+        let tables = try StringCatalog.tables(from: catalog)
+        let labels = ["fr": "Saisie", "de": "Eingabeweise", "es": "Escritura", "ja": "入力方式", "ko": "입력 방식"]
+        let englishChoices = PinyinScheme.allCases.map { $0.name(in: "en") }
+        let englishHelp = UIText.$scopedLanguage.withValue("en") { UIText.pinyinSchemeHelp }
         for language in ["zh", "en", "fr", "de", "es", "ja", "ko"] {
             let (service, url) = try service(language: language)
             defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
@@ -99,14 +106,21 @@ struct ShuangpinTests {
             #expect(!field.label.isEmpty && !(field.help ?? "").isEmpty, "\(language)")
             #expect(field.choices?.count == 8, "\(language)")
             #expect(field.choices?.allSatisfy { !$0.label.isEmpty } == true, "\(language)")
-            if language != "en" {
-                #expect(field.label != "Typing", "\(language) must translate the field label")
-                #expect(field.choices?.first?.label != "Full pinyin", "\(language) must translate the full-pinyin choice")
-            }
             if language == "zh" {
                 #expect(field.label == "输入方式")
                 #expect(field.choices?.first?.label == "全拼")
                 #expect(field.choices?.contains { $0.label.contains("小鹤") } == true)
+            } else if language == "en" {
+                #expect(field.label == "Typing")
+                #expect(field.choices?.first?.label == "Full pinyin")
+            } else {
+                // Core tests have no installed translation table. The app compiles this catalog into its bundle.
+                let table = try #require(tables[language], "\(language)")
+                #expect(table["Typing"] == labels[language], "\(language) field label")
+                #expect(table["Full pinyin"]?.isEmpty == false && table["Full pinyin"] != "Full pinyin",
+                        "\(language) full-pinyin choice")
+                #expect(table[englishHelp]?.isEmpty == false, "\(language) field help")
+                #expect(englishChoices.allSatisfy { table[$0]?.isEmpty == false }, "\(language) scheme choices")
             }
         }
     }
