@@ -78,10 +78,15 @@ struct ShuangpinTests {
         let field = try #require(document.field("pinyinScheme"))
         #expect(field.label == "Typing")
         #expect(field.value == .string("full"))
-        #expect(field.choices?.map(\.value) == (["full"] + schemes).map(AIConfig.JSONValue.string))
-        #expect(field.choices?.map(\.label) == ["Full pinyin", "Shuangpin – Xiaohe", "Shuangpin – Ziranma",
-                                                "Shuangpin – Microsoft", "Shuangpin – Sogou", "Shuangpin – Zhineng ABC",
-                                                "Shuangpin – Pinyin Jiajia", "Shuangpin – Ziguang"])
+        let choices = try #require(field.choices)
+        let required = Array(zip((["full"] + schemes).map(AIConfig.JSONValue.string),
+                                 ["Full pinyin", "Shuangpin – Xiaohe", "Shuangpin – Ziranma",
+                                  "Shuangpin – Microsoft", "Shuangpin – Sogou", "Shuangpin – Zhineng ABC",
+                                  "Shuangpin – Pinyin Jiajia", "Shuangpin – Ziguang"]))
+        for (value, label) in required {
+            #expect(choices.contains { $0.value == value && $0.label == label })
+        }
+        #expect(choices.contains { $0.value == .string("bopomofo") })
         let section = try #require(document.sections.first { $0.fields.contains { $0.id == "chineseCharacters" } })
         let ids = section.fields.map(\.id)
         let typing = try #require(ids.firstIndex(of: "pinyinScheme"))
@@ -104,7 +109,10 @@ struct ShuangpinTests {
             defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
             let field = try #require(service.document().field("pinyinScheme"), "\(language)")
             #expect(!field.label.isEmpty && !(field.help ?? "").isEmpty, "\(language)")
-            #expect(field.choices?.count == 8, "\(language)")
+            let choices = try #require(field.choices, "\(language)")
+            for id in ["full"] + schemes + ["bopomofo"] {
+                #expect(choices.contains { $0.value == .string(id) }, "\(language) \(id)")
+            }
             #expect(field.choices?.allSatisfy { !$0.label.isEmpty } == true, "\(language)")
             if language == "zh" {
                 #expect(field.label == "输入方式")
