@@ -164,14 +164,19 @@ extension Composer {
         }
         if selected != nil || screenshot != nil, let shown = chatRounds.first, !rounds.isEmpty { rounds[0].question = shown.question }
         let followUp = refineText
-        guard let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected,
-                                                                                     screenshot: screenshot),
+        func handoffPrompt(guide: String? = nil) -> String {
+            ChatHandoff.prompt(rounds, followUp: followUp, selection: selected, screenshot: screenshot, guide: guide)
+        }
+        guard let action = ChatHandoff.action(destination, prompt: handoffPrompt(),
                                               copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected,
                                                                          screenshot: screenshot),
                                               atAgent: pickedAgent) else { return [] }
         let done = finish(committing: "", selection: .kept)
         switch action {
-        case let .agent(agent, prompt):
+        case let .agent(agent, sent):
+            // A coding agent reads files: for a conversation about AllInOneIME it is told where the user guide is.
+            let asked = (rounds.map(\.question) + [followUp]).map(UserGuide.question(in:)).joined(separator: "\n")
+            let prompt = userGuidePath.flatMap { UserGuide.isAbout(asked) ? handoffPrompt(guide: $0) : nil } ?? sent
             // Claude Code by its own effect (the one it always had); the others by theirs.
             let start: Effect = agent == .claude ? .continueInClaudeCode(prompt: prompt) : .continueInAgent(agent, prompt: prompt)
             return done + [start, .notice(messages.opened(agent))]

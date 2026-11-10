@@ -128,11 +128,21 @@ public enum ChatHandoff {
     }
 
     /// The first message of the conversation where it goes on: the selected text and the screenshot's text it was about
-    /// (if any), the rounds, "Let's continue this discussion.", and the follow-up typed, if any.
+    /// (if any), the rounds, "Let's continue this discussion.", and the follow-up typed, if any. `guide`: the path of
+    /// AllInOneIME's user guide, for a coding agent and a conversation about AllInOneIME (`guideNote`), before
+    /// "Let's continue this discussion.".
     public static func prompt(_ rounds: [QuestionChat.Round], followUp: String = "", selection: String? = nil,
-                              screenshot: String? = nil) -> String {
+                              screenshot: String? = nil, guide: String? = nil) -> String {
         let next = followUp.trimmingCharacters(in: .whitespacesAndNewlines)
-        return markdown(rounds, selection: selection, screenshot: screenshot) + "\n\n" + continuation + (next.isEmpty ? "" : "\n\n" + next)
+        return markdown(rounds, selection: selection, screenshot: screenshot) + (guide.map { "\n\n" + guideNote($0) } ?? "")
+            + "\n\n" + continuation + (next.isEmpty ? "" : "\n\n" + next)
+    }
+
+    /// What a coding agent is told of a conversation about AllInOneIME (`UserGuide.isAbout`): where the app's user guide
+    /// is (`Converter.userGuideFile`). It reads files, so it gets the whole guide instead of @question's excerpts; the web
+    /// can't read the Mac's files, and gets neither.
+    public static func guideNote(_ path: String) -> String {
+        "AllInOneIME's user guide is at \(path): read it for questions about AllInOneIME (its settings, keys and commands)."
     }
 
     /// What "copy" puts on the clipboard: the selected text and the screenshot's text (if any), the rounds, and the
