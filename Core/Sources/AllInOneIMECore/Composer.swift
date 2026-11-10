@@ -2890,6 +2890,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
+        if let response = handleChatReturn(event) { return response }
         if let response = handleRefineKey(event) { return response }
         switch event.key {
         case .space:
@@ -2951,14 +2952,25 @@ public final class Composer {
         return .consumed(back + next.effects)
     }
 
+    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
+    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
+    private func handleChatReturn(_ event: KeyEvent) -> Response? {
+        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
+        switch event.modifiers.subtracting(.capsLock) {
+        case []: return .consumed(continueChat())
+        case .shift: return .consumed(commitChoice(at: highlighted))
+        default: return nil
+        }
+    }
+
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
     /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown, Space and
     /// digits picking them); once there is one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
     /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every key does what
     /// it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a refine runs
     /// the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts pinyin (it
-    /// is sent once the results are in) and Esc goes back to the results before the running refine, as always. Nil: the
-    /// key acts as usual.
+    /// is sent once the results are in) and Esc goes back to the results before the running refine, as always. In a
+    /// conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
@@ -3018,7 +3030,7 @@ public final class Composer {
 
     /// ⇧⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
-    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; at its last
+    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way by ⏎; at its last
     /// round, or with where it can go on shown (⌘⏎), nothing is asked: the choices are shown (`showsHandoff`), the line
     /// stays as the hand-off's first message, and only ⌘1–⌘5 send it.
     /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
@@ -3637,10 +3649,11 @@ public final class Composer {
 
     /// The action key: pinyin still being typed is converted as Space would pick it, then the draft's
     /// @ command runs. In level two it accepts like Space; during dictation the command runs once the
-    /// transcript is final. Nil without an @ command: the key is then the app's, as in any input method.
+    /// transcript is final. In an @question conversation it is ⏎ there: it goes on (`continueChat`). Nil without an @
+    /// command: the key is then the app's, as in any input method.
     func actionKeyPressed() -> [Effect]? {
         guard let engine else { return nil }
-        if isLevelTwo { return acceptInLevelTwo() }
+        if isLevelTwo { return isQuestionChat ? continueChat() : acceptInLevelTwo() }
         if oneAt != nil { return oneAtActionKey() }
         if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches, run: true) }
         guard draftCommand != nil else { return nil }
@@ -3693,8 +3706,8 @@ public final class Composer {
     /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
     /// its text, like Esc; one put right in the settings opens them).
     private func acceptInLevelTwo() -> [Effect] {
-        // A refine instruction or a follow-up typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎
-        // does; ⏎ inserts, the line going with the rest (on an empty line every action key inserts).
+        // A refine instruction typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎ does; ⏎ inserts,
+        // the line going with the rest (on an empty line every action key inserts). (A conversation's: `continueChat`.)
         if typesRefine, actionKey != .enter, !refineText.isEmpty || engineState.isComposing { return runRefine() }
         if case .failed = phase {
             // Trying again would fail the same way until the settings change: it opens them where they do.

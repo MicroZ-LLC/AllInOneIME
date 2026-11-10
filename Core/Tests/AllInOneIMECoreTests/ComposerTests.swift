@@ -907,7 +907,7 @@ struct ComposerTests {
         #expect(c.markedText == "question › nihao" && c.draft == "@question ")  // shown without its "@"; nihao is pinyin
         #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: "你好", id: 1))
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好是问候语。")]), isFinal: true, id: 1)
-        #expect(commits(c.handleKeyDown(enterKey)) == ["你好是问候语。"])
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["你好是问候语。"])  // ⇧⏎ inserts an answer (0.7.3)
         // @improve is the translation; dictation fills a command.
         let (i, _) = composer(key: .enter)
         _ = i.handleKeyDown(at)
@@ -1580,7 +1580,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
         #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
         #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"
-        #expect(commits(c.handleKeyDown(enterKey)) == ["“你好”是问候语。"])
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["“你好”是问候语。"])
         // 0 inserts the question; without an answer the request failed.
         let (d, _) = palette("q")
         _ = d.handleKeyDown(tab)

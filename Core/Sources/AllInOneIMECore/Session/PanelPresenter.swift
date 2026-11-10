@@ -114,9 +114,10 @@ public struct PanelPresenter {
             }
             model.highlighted = state.highlighted
             model.horizontal = composer.horizontalCandidates
+            // (In a conversation ⏎ asks and ⇧⏎ inserts: `Composer.continueChat`.)
             model.footer = composer.isQuestionChat
-                ? t.tr("空格 选词 · \(shiftEnter) 追问 · \(enter) 上屏答案 · Esc 清除拼音",
-                       "Space picks · \(shiftEnter) ask · \(enter) insert the answer · Esc clear the pinyin")
+                ? t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 清除拼音",
+                       "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc clear the pinyin")
                 : t.tr("空格 选词 · \(shiftEnter) 按这句修改结果 · \(enter) 上屏 · Esc 清除拼音",
                        "Space picks · \(shiftEnter) refine · \(enter) insert · Esc clear the pinyin")
         } else if composer.isLevelTwo {
@@ -622,17 +623,18 @@ public struct PanelPresenter {
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + t.tr(" · \(enter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(enter) insert · \(pick) pick · \(copy) copy · Esc back")
+                + t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
-                ? t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
-                       "\(shiftEnter) ask · \(enter) insert · \(again) re-ask · \(copy) copy · Esc back")
-                : t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(pick) 选 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
-                       "\(shiftEnter) ask · \(enter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
+                ? t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
+                       "\(enter) ask · \(shiftEnter) insert · \(again) re-ask · \(copy) copy · Esc back")
+                : t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
+                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
-            model.footer = t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
-                                "\(shiftEnter) ask · \(enter) insert · \(pick) pick · \(copy) copy · Esc back")
+            // ⏎ asks the question typed (with nothing typed it does nothing), ⇧⏎ inserts the answer selected.
+            model.footer = t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
+                                "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []

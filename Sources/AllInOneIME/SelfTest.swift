@@ -225,7 +225,7 @@ enum SelfTest {
         }
     }
 
-    /// ⇧Return: the draft as typed, without AI.
+    /// ⇧Return: the draft as typed, without AI (in an @question conversation: the answer selected).
     static func shiftEnter(_ c: AllInOneIMEInputController, _ client: FakeTextClient) -> Bool {
         press(c, client, "\r", code: VirtualKey.returnKey, flags: .shift)
     }
@@ -1184,8 +1184,8 @@ enum SelfTest {
             readmeSnapshot("11-question", controller, client, in: snapshotDirectory)
             copy()
             check(copied == [answer?.text ?? ""] && controller.composer.phase == .choosing, "⌘C copies the answer and keeps it up")
-            _ = enter(controller, client)
-            check(client.inserted.last == answer?.text && client.marked.isEmpty, "⏎ inserts the answer")
+            _ = shiftEnter(controller, client)
+            check(client.inserted.last == answer?.text && client.marked.isEmpty, "⇧⏎ inserts the answer")
         }
         controller.commitComposition(client)
         needing(.composing)
@@ -2257,7 +2257,7 @@ enum SelfTest {
         }
         let before = client.inserted
         if let answer = ask() {
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)  // an @question answer goes in on ⇧⏎
             _ = pump(timeout: 1) { !pasted.isEmpty }
             check(answer.contains("\n") && pasted == [answer] && client.inserted == before,
                   "an answer with line breaks goes into a terminal as a paste (\(pasted.map { $0.replacingOccurrences(of: "\n", with: "\\n") }))")
@@ -2269,7 +2269,7 @@ enum SelfTest {
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 5_000_000) }
         (pasted, client.inserted) = ([], [])
         if let answer = ask() {
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             _ = pump(timeout: 10) { !controller.isTypingOut }
             let breaks = answer.filter { $0 == "\n" }.count
             check(breaks > 0 && pasted == Array(repeating: "\n", count: breaks)

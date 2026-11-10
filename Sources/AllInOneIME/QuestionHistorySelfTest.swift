@@ -30,8 +30,8 @@ extension SelfTest {
         _ = enter(controller, client)
         guard finishConversion(controller, "@question to keep") else { return }
         let answer = controller.composer.choices.last?.text ?? ""
-        _ = enter(controller, client)
-        check(client.inserted.last == answer, "⏎ inserts the answer")
+        _ = shiftEnter(controller, client)
+        check(client.inserted.last == answer, "⇧⏎ inserts the answer")
         let kept = QuestionHistoryStore.history.entries
         let permissions = (try? FileManager.default.attributesOfItem(atPath: QuestionHistoryStore.url.path))?[.posixPermissions] as? Int
         check(kept.count == 1 && kept.first?.question == "一加一等于几" && kept.first?.answer == answer && permissions == 0o600,

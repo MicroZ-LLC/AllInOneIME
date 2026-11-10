@@ -342,7 +342,7 @@ struct PanelPresenterTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("A systems language.")]), isFinal: true, id: 1)
         for (question, answer) in followUps {
             for ch in question { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
-            let started = c.handleKeyDown(shiftEnterKey).effects.lazy.compactMap { effect -> Int? in
+            let started = c.handleKeyDown(enterKey).effects.lazy.compactMap { effect -> Int? in
                 if case let .startRefine(_, id) = effect { return id } else { return nil }
             }.first
             if let started { _ = c.receive(ConversionResult(versions: [CandidateLine(answer)]), isFinal: true, id: started) }
@@ -366,7 +366,8 @@ struct PanelPresenterTests {
         #expect(en.model(for: c).highlighted == 1, "↑: the first answer")
         #expect(model.input == PanelModel.Input(prompt: "question 3/5 › ", text: "", caret: 0))
         #expect(model.handoff == nil && model.header.isEmpty)
-        #expect(model.footer == "⇧⏎ ask · ⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+        #expect(model.footer == "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+        #expect(zh.model(for: c).footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回")
         for ch in "when" { _ = c.handleKeyDown(k(String(ch))) }
         #expect(en.model(for: c).input == PanelModel.Input(prompt: "question 3/5 › ", text: "when", caret: 4))
         #expect(zh.model(for: c).input?.prompt == "追问 3/5 › ")
@@ -383,16 +384,16 @@ struct PanelPresenterTests {
         #expect(handoff.choices.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"])
         #expect(handoff.choices.map(\.name) == ["Claude Code", "Claude", "ChatGPT", "Gemini", "Copy"])
         #expect(model.input == nil, "nothing typed to take along")
-        #expect(model.footer == "⌘1–⌘5 continue · ⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        #expect(model.footer == "⌘1–⌘5 continue · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc back")
         // What is typed goes along: its line under the choices.
         for ch in "and" { _ = c.handleKeyDown(k(String(ch))) }
         let typed = en.model(for: c)
         #expect(typed.input == PanelModel.Input(prompt: "then › ", text: "and", caret: 3))
-        #expect(typed.footer == "⌘1–⌘5 continue, with what you typed · ⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        #expect(typed.footer == "⌘1–⌘5 continue, with what you typed · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc back")
         // On Windows, picked with Ctrl.
         let onWindows = windows(c)
         #expect(onWindows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
-        #expect(onWindows.footer == "Ctrl+1–5 continue, with what you typed · Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
+        #expect(onWindows.footer == "Ctrl+1–5 continue, with what you typed · Shift+Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
         // Before the last round, ⌘⏎ shows them.
         let early = conversation(handoff: [.copy])
         #expect(en.model(for: early).handoff == nil)

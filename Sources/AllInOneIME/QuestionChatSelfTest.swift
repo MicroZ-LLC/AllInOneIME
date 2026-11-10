@@ -53,7 +53,7 @@ extension SelfTest {
     }
 
     /// An @question conversation through the controller, with canned answers (`CannedChatModel`): typing after the
-    /// answer is the next question, ⇧⏎ asks it as user and assistant turns, the panel grows into 问/答 rows with the next
+    /// answer is the next question, ⏎ asks it as user and assistant turns, the panel grows into 问/答 rows with the next
     /// question's line on top and its round, every answer can be picked (↑, ⌘C), Esc goes back a round, the third
     /// round (`questionRounds` 3 here) offers where to go on (⌘1 the agent `@agent` hands to, then the other agents
     /// "installed", the web and copying; nothing is started or opened here), a long conversation is shortened for a small
@@ -99,7 +99,7 @@ extension SelfTest {
         }
         func followUp(_ question: String) -> Bool {
             type(question, controller, client)
-            _ = shiftEnter(controller, client)
+            _ = enter(controller, client)
             return finishConversion(controller, "follow-up: \(question)")
         }
         func command(_ characters: String, code: UInt16) -> Bool {
@@ -112,15 +112,15 @@ extension SelfTest {
         check(panel.transcript && panel.rows.map(\.text) == ["问：what is rust", "答：" + answers["what is rust"]!]
               && panel.rows.map(\.label) == ["", "1"] && panel.highlighted == 1,
               "round 1: the question and its answer, numbered (\(panel.rows.map(\.text)))")
-        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⇧⏎ 追问 · ⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
+        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
               "the next question's line on top, with its round; the footer's keys (\(panel.inputText ?? "-") | \(panel.footer))")
 
         type("who made", controller, client)
         check(controller.panelModel().inputText == "追问 2/3 › who made▏" && controller.composer.phase == .choosing,
               "typing goes into the next question (\(controller.panelModel().inputText ?? "-"))")
         type(" it", controller, client)
-        _ = shiftEnter(controller, client)
-        check(controller.composer.isQuestionChat && controller.composer.chatRound == 2, "⇧⏎ asks it as round 2")
+        _ = enter(controller, client)
+        check(controller.composer.isQuestionChat && controller.composer.chatRound == 2, "⏎ asks it as round 2")
         guard finishConversion(controller, "@question, round 2") else { return }
         if let request = model.requests.last {
             check(request.examples.map(\.prompt) == ["what is rust"] && request.examples.map(\.response) == [answers["what is rust"]!]
@@ -214,15 +214,20 @@ extension SelfTest {
         controller.applySettings()
         controller.composer.setInputMode(.english)
 
-        // Esc goes back a round; ⏎ inserts the answer selected, dropping a half-typed question.
+        // Esc goes back a round; ⏎ with nothing typed keeps the conversation; ⇧⏎ inserts the answer selected, dropping a
+        // half-typed question.
         ask("what is rust")
         guard finishConversion(controller, "@question, from the cache") else { return }
         guard followUp("who made it") else { return }
         _ = escape(controller, client)
         check(controller.composer.chatRound == 1, "Esc with nothing typed goes back a round")
-        type("half typed", controller, client)
+        let before = client.inserted.count
         _ = enter(controller, client)
-        check(client.inserted.last == answers["what is rust"] && !controller.composer.isComposing, "⏎ inserts the selected answer, the half-typed question dropped")
+        check(client.inserted.count == before && controller.composer.isQuestionChat && controller.composer.chatRound == 1,
+              "⏎ with nothing typed inserts nothing, the conversation stays")
+        type("half typed", controller, client)
+        _ = shiftEnter(controller, client)
+        check(client.inserted.last == answers["what is rust"] && !controller.composer.isComposing, "⇧⏎ inserts the selected answer, the half-typed question dropped")
 
         // A long conversation for a small context: shortened, and said so; the panel scrolls within half the screen.
         let long = String(repeating: "This answer goes on and on to fill the model's small context. ", count: 30)

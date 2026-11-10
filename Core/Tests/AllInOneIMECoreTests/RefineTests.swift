@@ -259,7 +259,8 @@ struct RefineTests {
             let answer = ConversionResult(versions: [CandidateLine("Rust is a systems programming language.")])
             _ = c.receive(answer, isFinal: true, id: 1)
             _ = type("in Japanese", c)
-            let run = started(c.handleKeyDown(shiftEnterKey).effects)
+            // ⇧⏎ sends it; in an @question conversation ⏎ does (0.7.3).
+            let run = started(c.handleKeyDown(command == .question ? enterKey : shiftEnterKey).effects)
             #expect(run?.0 == Refinement(request: .command(command, input: "what is rust"),
                                          turns: [Refinement.Turn(answer: answer, instruction: "in Japanese")]))
             _ = c.receive(ConversionResult(versions: [CandidateLine("Rust はシステム言語です。")]), isFinal: true, id: 2)

@@ -924,7 +924,7 @@ struct InputSessionTests {
             #expect(host.composer.choices.contains { $0.text == "Canberra is the capital." } && host.session.lastElapsed != nil,
                     "\(host.composer.choices.map(\.text))")
             host.type("shorter")
-            host.press(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift))
+            host.press(FakeHost.enter)  // ⏎ asks a follow-up (0.7.3)
             #expect(host.settle { stub.requests.count == 2 && host.composer.phase == .choosing }, "asked again (\(stub.requests.count))")
             #expect(stub.requests.last.map { "\($0)".contains("shorter") } == true, "with the follow-up")
         }

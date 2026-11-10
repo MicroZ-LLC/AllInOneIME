@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import AllInOneIMECore
 
-/// ⇧⏎: sends a follow-up (an @question conversation's next question, or a refine) once one is typed.
+/// ⇧⏎: sends a refine once one is typed; in an @question conversation, inserts the answer selected (0.7.3).
 let shiftEnterKey = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .shift)
 
 /// An @question conversation in the panel (`QuestionChat`, `Composer+QuestionChat.swift`): the request of each round, the
@@ -43,11 +43,11 @@ struct QuestionChatTests {
         return c
     }
 
-    /// Types `question` and asks it with ⇧⏎; answered with `reply`.
+    /// Types `question` and asks it with ⏎; answered with `reply`.
     @discardableResult
     func followUp(_ c: Composer, _ question: String, reply: String) -> Refinement? {
         type(question, c)
-        let run = started(c.handleKeyDown(shiftEnterKey).effects)
+        let run = started(c.handleKeyDown(enterKey).effects)
         if let run { _ = c.receive(answer(reply), isFinal: true, id: run.1) }
         return run?.0
     }
@@ -201,13 +201,13 @@ struct QuestionChatTests {
 
     // MARK: - Keys
 
-    @Test func typingAfterTheAnswerIsTheNextQuestionAndShiftReturnAsksIt() {
+    @Test func typingAfterTheAnswerIsTheNextQuestionAndReturnAsksIt() {
         let c = asked()
         #expect(c.chatRounds == [QuestionChat.Round(question: "what is rust", answer: "A systems language.")] && c.chatRound == 1)
         #expect(c.choices.map(\.label) == ["1"] && c.choices.map(\.kind) == [.answer] && c.highlighted == 0)
         type("who made it", c)
         #expect(c.refineLine == "who made it" && c.phase == .choosing && c.typesRefine)
-        let run = c.handleKeyDown(shiftEnterKey).effects
+        let run = c.handleKeyDown(enterKey).effects
         let refinement = Refinement(request: .command(.question, input: "what is rust"),
                                     turns: [Refinement.Turn(answer: answer("A systems language."), instruction: "who made it")])
         #expect(run == [.startRefine(refinement, id: 2), .showPanel])
@@ -215,18 +215,18 @@ struct QuestionChatTests {
         // While it comes in: the earlier answer and the one coming, which can't be picked yet (and is selected).
         _ = c.receive(ConversionResult(versions: [CandidateLine("Graydon", isComplete: false)]), isFinal: false, id: 2)
         #expect(c.choices.map(\.isComplete) == [true, false] && c.highlighted == 1)
-        #expect(commits(c.handleKeyDown(enterKey)).isEmpty)
+        #expect(commits(c.handleKeyDown(shiftEnterKey)).isEmpty && commits(c.handleKeyDown(enterKey)).isEmpty)
         _ = c.receive(answer("Graydon Hoare."), isFinal: true, id: 2)
         #expect(c.chatRounds.map(\.question) == ["what is rust", "who made it"])
         #expect(c.choices.map(\.text) == ["A systems language.", "Graydon Hoare."] && c.choices.map(\.label) == ["1", "2"])
         #expect(c.highlighted == 1 && c.copyableText == "Graydon Hoare.")
     }
 
-    @Test func returnInsertsTheSelectedAnswerAndDropsWhatIsTyped() {
+    @Test func shiftReturnInsertsTheSelectedAnswerAndDropsWhatIsTyped() {
         let c = asked()
         followUp(c, "who made it", reply: "Graydon Hoare.")
         type("and when", c)
-        #expect(commits(c.handleKeyDown(enterKey)) == ["Graydon Hoare."] && c.phase == .idle && c.refineText.isEmpty)
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["Graydon Hoare."] && c.phase == .idle && c.refineText.isEmpty)
         // Space with nothing typed inserts too; with something typed it's a space in the question.
         let d = asked()
         type("why", d)
@@ -241,11 +241,11 @@ struct QuestionChatTests {
         followUp(c, "who made it", reply: "Graydon Hoare.")
         followUp(c, "when", reply: "In 2006.")
         #expect(c.choices.map(\.label) == ["1", "2", "3"] && c.highlighted == 2)
-        // ↑ moves the selection to an earlier answer; ⌘C copies it; ⏎ inserts it.
+        // ↑ moves the selection to an earlier answer; ⌘C copies it; ⇧⏎ inserts it.
         _ = c.handleKeyDown(upKey)
         #expect(c.highlighted == 1 && c.copyableText == "Graydon Hoare.")
         #expect(c.handleKeyDown(k("c", mods: .command)).effects.first == .copy("Graydon Hoare."))
-        #expect(commits(c.handleKeyDown(enterKey)) == ["Graydon Hoare."])
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["Graydon Hoare."])
         // A digit inserts its round's answer at once; a click too.
         let d = asked()
         followUp(d, "who made it", reply: "Graydon Hoare.")
@@ -259,13 +259,51 @@ struct QuestionChatTests {
         #expect(f.refineText == "in 2" && f.isLevelTwo)
     }
 
-    @Test func shiftReturnWithNothingTypedInsertsAsTyped() {
+    @Test func returnWithNothingTypedDoesNothing() {
         let c = asked()
-        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["@question what is rust"] && c.phase == .idle)
-        // After a round too: as typed is the draft (the first question).
+        #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.isQuestionChat && c.chatRound == 1)
+        // After a round too; ⇧⏎ then inserts the answer selected, not the draft as typed.
         let d = asked()
         followUp(d, "who made it", reply: "Graydon Hoare.")
-        #expect(commits(d.handleKeyDown(shiftEnterKey)) == ["@question what is rust"])
+        #expect(d.handleKeyDown(enterKey).effects == [.showPanel] && d.isQuestionChat && d.chatRound == 2)
+        #expect(commits(d.handleKeyDown(shiftEnterKey)) == ["Graydon Hoare."])
+    }
+
+    @Test func theActionKeyIsReturnInAConversation() {
+        // ⌥Space here: a question typed is asked; with nothing typed nothing happens; ⏎ the same.
+        let c = Composer(engine: FakeEngine(), actionKey: .optionSpace)
+        c.remembersQuestions = false
+        c.setInputMode(.english)
+        let optionSpace = KeyEvent(keyCode: VirtualKey.space, characters: " ", charactersIgnoringModifiers: " ", modifiers: .option)
+        _ = c.handleKeyDown(at)
+        type("question", c)
+        _ = c.handleKeyDown(tab)
+        type("what is rust", c)
+        _ = c.handleKeyDown(optionSpace)
+        _ = c.receive(answer("A systems language."), isFinal: true, id: 1)
+        #expect(c.handleKeyDown(optionSpace).effects == [.showPanel] && c.isQuestionChat && c.chatRound == 1)
+        #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.isQuestionChat && c.chatRound == 1)
+        type("who made it", c)
+        #expect(started(c.handleKeyDown(optionSpace).effects)?.0.turns.map(\.instruction) == ["who made it"])
+        _ = c.receive(answer("Graydon Hoare."), isFinal: true, id: 2)
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["Graydon Hoare."])
+        // A tap of ⌥, the same.
+        let t = Composer(engine: FakeEngine(), actionKey: .optionTap)
+        t.remembersQuestions = false
+        t.setInputMode(.english)
+        _ = t.handleKeyDown(at)
+        type("question", t)
+        _ = t.handleKeyDown(tab)
+        type("what is rust", t)
+        _ = t.handleKeyDown(enterKey)
+        _ = t.receive(answer("A systems language."), isFinal: true, id: 1)
+        func tap(_ at: TimeInterval) -> [Composer.Effect] {
+            _ = t.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [.option, .leftOption], timestamp: at)
+            return t.handleFlagsChanged(keyCode: VirtualKey.leftOption, modifiers: [], timestamp: at + 0.1)
+        }
+        #expect(commits(tap(1)).isEmpty && t.isQuestionChat && t.chatRound == 1)
+        type("who", t)
+        #expect(started(tap(2))?.0.turns.map(\.instruction) == ["who"])
     }
 
     @Test func escClearsTheQuestionThenGoesBackARoundThenLeaves() {
@@ -286,12 +324,12 @@ struct QuestionChatTests {
     @Test func aFailedFollowUpKeepsTheRoundsAndPutsTheQuestionBack() {
         let c = asked()
         type("who made it", c)
-        _ = c.handleKeyDown(shiftEnterKey)
+        _ = c.handleKeyDown(enterKey)
         _ = c.fail("timeout", id: 2)
         #expect(c.phase == .choosing && c.chatRound == 1 && c.refineText == "who made it" && c.refineError == "timeout")
         // In an app with no AI nothing is asked.
         c.aiRefusal = { "No AI in this app" }
-        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.refineError == "No AI in this app")
+        #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.refineError == "No AI in this app")
     }
 
     @Test func aFollowUpCanBeLongerThanARefineInstruction() {
@@ -315,8 +353,8 @@ struct QuestionChatTests {
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
         type("nihao", c)
         #expect(c.refineIsComposing && c.refineLine == "nihao")
-        // ⇧⏎ converts the pinyin and asks.
-        let run = started(c.handleKeyDown(shiftEnterKey).effects)
+        // ⏎ converts the pinyin and asks.
+        let run = started(c.handleKeyDown(enterKey).effects)
         #expect(run?.0.turns.last?.instruction == "你好")
     }
 
@@ -327,9 +365,9 @@ struct QuestionChatTests {
         #expect(!c.showsHandoff && !c.chatAtLimit)
         followUp(c, "who made it", reply: "Graydon Hoare.")
         #expect(c.chatAtLimit && c.showsHandoff && c.chatRound == 2)
-        // Typing doesn't ask a third question, nor does ⇧⏎ launch anything: the choices stay up, the text kept for them.
+        // Typing doesn't ask a third question, nor does ⏎ launch anything: the choices stay up, the text kept for them.
         type("go deeper", c)
-        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
+        #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
         #expect(c.isLevelTwo && c.chatRound == 2)
         // ⌘1 (Claude Code here) goes on there with it.
         let effects = c.handleKeyDown(command(1)).effects
@@ -385,21 +423,21 @@ struct QuestionChatTests {
         #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff && !c.chatAtLimit)
         _ = c.handleKeyDown(escKey)
         #expect(!c.showsHandoff && c.isLevelTwo && c.chatRound == 1)
-        // Shown, a follow-up typed goes with the hand-off; ⇧⏎ asks nothing and launches nothing then.
+        // Shown, a follow-up typed goes with the hand-off; ⏎ asks nothing and launches nothing then.
         _ = c.handleKeyDown(commandReturn)
         type("more", c)
-        #expect(c.handleKeyDown(shiftEnterKey).effects == [.showPanel] && c.showsHandoff && c.chatRound == 1 && c.refineText == "more")
+        #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.showsHandoff && c.chatRound == 1 && c.refineText == "more")
         let effects = c.handleKeyDown(command(3)).effects
         let url = effects.compactMap { if case let .openLink(u) = $0 { return u } else { return nil } }.first
         #expect(url?.host == "chatgpt.com" && url?.absoluteString.hasSuffix("discussion.%0A%0Amore") == true)
     }
 
     @Test func everyEscAtTheLastRoundDoesSomething() {
-        // ⇧⏎ with a follow-up at the limit, then Esc: the follow-up goes; the next Esc goes back a round.
+        // ⏎ with a follow-up at the limit, then Esc: the follow-up goes; the next Esc goes back a round.
         let c = asked(rounds: 2)
         followUp(c, "who made it", reply: "Graydon Hoare.")
         type("more", c)
-        _ = c.handleKeyDown(shiftEnterKey)
+        _ = c.handleKeyDown(enterKey)
         _ = c.handleKeyDown(escKey)
         #expect(c.refineText.isEmpty && c.showsHandoff && c.chatRound == 2)
         _ = c.handleKeyDown(escKey)
@@ -474,7 +512,7 @@ struct QuestionChatTests {
         _ = c.receive(answer("A systems language."), isFinal: true, id: 1)
         // A follow-up coming in: the same.
         type("who", c)
-        _ = c.handleKeyDown(shiftEnterKey)
+        _ = c.handleKeyDown(enterKey)
         #expect(c.isRefining && c.handleKeyDown(commandReturn) == .consumed() && !c.showsHandoff)
         _ = c.receive(answer("Graydon."), isFinal: true, id: 2)
         // In: the choices.
@@ -553,7 +591,7 @@ struct QuestionChatTests {
         c.remembersQuestions = true
         c.now = { Date(timeIntervalSince1970: 5) }
         type("who made it", c)
-        _ = c.handleKeyDown(shiftEnterKey)
+        _ = c.handleKeyDown(enterKey)
         let effects = c.receive(answer("Graydon Hoare."), isFinal: true, id: 2)
         let thread = [QuestionChat.Round(question: "what is rust", answer: "A systems language."),
                       QuestionChat.Round(question: "who made it", answer: "Graydon Hoare.")]
@@ -578,7 +616,7 @@ struct QuestionChatTests {
         #expect(c.showsSavedAnswer && c.isQuestionChat && c.chatRounds == thread && c.highlighted == 1)
         // R starts the next question, as any letter (⌘R asks again).
         type("rationale", c)
-        let run = started(c.handleKeyDown(shiftEnterKey).effects)
+        let run = started(c.handleKeyDown(enterKey).effects)
         #expect(run?.0.request == .command(.question, input: "what is rust") && run?.0.turns.map(\.instruction) == ["who made it", "rationale"])
         let effects = c.receive(answer("Safety."), isFinal: true, id: run?.1 ?? 0)
         #expect(!c.showsSavedAnswer && c.chatAtLimit)
