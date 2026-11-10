@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.3 (unreleased)
 
+### Added
+
+- Shuangpin: Settings → Input → Chinese (pinyin) → Typing picks full pinyin or one of rime-ice's Shuangpin schemes (Xiaohe, Ziranma, Microsoft, Sogou, Zhineng ABC, Pinyin Jiajia, Ziguang), from the next key on, with your learned words, removed candidates, personal dictionaries, characters, fuzzy pinyin and English words as before (`pinyinScheme` in the config, synced like the other Input settings).
+
 ### Changed
 
 - In an `@question` conversation, ⏎ now asks the follow-up you typed (with nothing typed it does nothing) and ⇧⏎ inserts the highlighted answer; before, it was the other way round. Other commands keep their keys.
