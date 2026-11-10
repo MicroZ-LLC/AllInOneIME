@@ -4,6 +4,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.3 (unreleased)
 
+### Added
+
+- `@question` knows AllInOneIME: a question about the app itself ("how do I turn on Shuangpin", "change the magic key") is answered from the two or three best-matching sections of a short user guide the app ships (Resources/user-guide.md, English and Chinese), picked on the Mac; any other question is sent exactly as before.
+
 ### Changed
 
 - In an `@question` conversation, ⏎ now asks the follow-up you typed (with nothing typed it does nothing) and ⇧⏎ inserts the highlighted answer; before, it was the other way round. Other commands keep their keys.
