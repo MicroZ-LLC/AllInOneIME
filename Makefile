@@ -156,15 +156,17 @@ strings-check:
 redaction-words:
 	cd $(CORE) && swift Scripts/make-redaction-words.swift
 
-app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns
+app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns Resources/user-guide.md
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/check-weak-links.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
-	# The licenses travel with the binaries (librime's BSD license asks for its notice).
-	cp Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns LICENSE THIRD_PARTY_NOTICES.md "$(APP)/Contents/Resources/"
+	# The licenses travel with the binaries (librime's BSD license asks for its notice). The user guide is what @question
+	# reads for a question about AllInOneIME (UserGuide in the core).
+	cp Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns Resources/user-guide.md LICENSE THIRD_PARTY_NOTICES.md \
+		"$(APP)/Contents/Resources/"
 	for lang in en zh-Hans; do \
 		mkdir -p "$(APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/$$lang.lproj/InfoPlist.strings" "$(APP)/Contents/Resources/$$lang.lproj/"; \
