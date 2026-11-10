@@ -119,6 +119,8 @@ struct DashboardSources {
     /// (`AutocompleteSwitch.modelName`, `AutocompleteSwitch.destination`).
     var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.modelName(LiveConfig.current) }
     var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.destination(LiveConfig.current) }
+    /// What was used on this Mac in the last 7 days, in one line (`UsageStats.summary`); nil while nothing was counted.
+    var usageSummary: @MainActor () -> String? = { UsageStatsStore.stats.summary(language: UIText.language) }
     /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
     var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
 
@@ -246,6 +248,8 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var autocompleteSummary: String?
     @Published private(set) var autocompleteModel: String?
     @Published private(set) var autocompleteDestination: String?
+    /// What was used in the last 7 days (`DashboardSources.usageSummary`), read as it drops down.
+    @Published private(set) var usageSummary: String?
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
         didSet { if listHeight != oldValue { resize() } }
@@ -357,6 +361,7 @@ final class FloatingPanel: ObservableObject {
         now = sources.now()
         (autocomplete, autocompleteSummary, autocompleteModel) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel())
         autocompleteDestination = sources.autocompleteDestination()
+        usageSummary = sources.usageSummary()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
@@ -1120,6 +1125,10 @@ struct FloatingPanelView: View {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
             if let update = updates.available { updateNotice(update) }
+            if let usage = panel.usageSummary {
+                // Counted on this Mac only: how many, never what.
+                Text(usage).font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
             autocompleteSwitch
             ExtensionSourceNotice(sources: extensionSources) { panel.click { SettingsWindow.shared.show(page: .commands) } }
             section(tr("笔记", "Notes", key: "panel.notes"), CommandIcons.icon(for: .note)) { notes }

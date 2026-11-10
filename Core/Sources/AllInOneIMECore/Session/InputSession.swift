@@ -1317,8 +1317,9 @@ public final class InputSession {
                 handOff(prompt, to: .claude)
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
-            case .commandUsed:
+            case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
+                services.recordUsage(.command(usesAI: composer.commands.first { $0.name == name }?.usesAI ?? false))
             case let .candidateRemoved(text):
                 // Left out in this field already, also under a new engine and a list read before it is written; kept for
                 // every field a moment later, never while the key is handled (left out there meanwhile:

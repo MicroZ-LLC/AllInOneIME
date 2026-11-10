@@ -99,6 +99,21 @@ struct ClipboardHistorySessionTests {
         }
     }
 
+    /// What is put in from the history counts once for the menu bar panel's last 7 days (`SessionServices.recordUsage`),
+    /// however many rows go in together; the panel hidden with Esc counts nothing.
+    @Test func whatIsPutInIsCounted() async {
+        await inEnglish {
+            let counted = Locked<[UsageStats.Event]>(initialState: [])
+            let host = host { $0.recordUsage = { event in counted.withLock { $0.append(event) } } }
+            host.press(FakeHost.controlV)
+            #expect(host.press(FakeHost.escape) && counted.withLock { $0 }.isEmpty)
+            host.press(FakeHost.controlV)
+            host.press(FakeHost.shiftDown)
+            #expect(host.press(FakeHost.enter) && host.document == "beta\ngamma", "\(host.document)")
+            #expect(counted.withLock { $0 } == [.clipboard], "\(counted.withLock { $0 })")
+        }
+    }
+
     /// ↓ and ↑ go around the ends; each says the key put nothing in (`rowsTookKey`).
     @Test func arrowsGoAroundTheEnds() async {
         await inEnglish {

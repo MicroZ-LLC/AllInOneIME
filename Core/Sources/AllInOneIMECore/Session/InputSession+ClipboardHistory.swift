@@ -295,6 +295,7 @@ extension InputSession {
                 // As ⌃V pastes an image into a command: `@reply` reads it as a screenshot.
                 log.notice("clipboard history: a kept image, into a command")
                 if let data = services.clipboardHistory.imageData(image.id) {
+                    services.recordUsage(.clipboard)
                     perform(composer.pasteAnywhere(.image(data)) ?? [.showPanel])
                 } else {
                     emit(.panel(composer.wantsPanel ? panelModel() : nil))
@@ -303,15 +304,18 @@ extension InputSession {
             case let .keptImage(image, _)?:
                 emit(.panel(nil))
                 log.notice("clipboard history: a kept image pasted (\(image.bytes) bytes)")
+                services.recordUsage(.clipboard)
                 emit(.platform(.pasteImage(id: image.id)))
             case .image? where command:
                 // Today's ⌃V in a command: the clipboard read, its image as `@reply` reads it.
                 log.notice("clipboard history: the image, as ⌃V in a command")
+                services.recordUsage(.clipboard)
                 perform(composer.pasteAnywhere(nil) ?? [.showPanel])
             case .image?:
                 emit(.panel(nil))
                 if services.clipboardHistory.canPassPasteKey() {
                     log.notice("clipboard history: the image, ⌃V given to the app")
+                    services.recordUsage(.clipboard)
                     emit(.platform(.passPasteKey))
                 }
             case .permission?:
@@ -325,6 +329,7 @@ extension InputSession {
         let text = texts.count == 1 ? texts[0] : texts.map(Self.withoutEndingLineBreaks).joined(separator: "\n")
         clipboard = ClipboardHistoryField(reads: clipboard.reads)
         log.notice("clipboard history: \(texts.count) put in (\(text.count) characters\(command ? ", into a command" : ""))")
+        services.recordUsage(.clipboard)
         if command {
             perform(composer.pasteAnywhere(.text(text)) ?? [.showPanel])
             return

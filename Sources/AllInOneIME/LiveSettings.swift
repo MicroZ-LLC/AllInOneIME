@@ -97,6 +97,23 @@ enum CommandUsageStore {
     }
 }
 
+/// What was used, counted on this Mac only (`UsageStats`: how many commands ran and things went in from the clipboard
+/// history, never what): the menu bar panel's line for the last 7 days. Shared by every text field and kept across
+/// launches in the input method's own defaults; never synced.
+enum UsageStatsStore {
+    private static let key = "usageStats"
+    static var stats: UsageStats = {
+        guard let data = UserDefaults.standard.data(forKey: key),
+              let stats = try? JSONDecoder().decode(UsageStats.self, from: data) else { return UsageStats() }
+        return stats
+    }()
+
+    static func record(_ event: UsageStats.Event) {
+        stats.record(event)
+        if let data = try? JSONEncoder().encode(stats) { UserDefaults.standard.set(data, forKey: key) }
+    }
+}
+
 /// The config file as of now, re-read only when it changed (checked by modification date).
 /// A file that doesn't parse reads as the defaults here; conversions report the error.
 enum LiveConfig {

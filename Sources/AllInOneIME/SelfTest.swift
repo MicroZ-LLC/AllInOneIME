@@ -1668,6 +1668,7 @@ enum SelfTest {
             field.services.loadSettings = { SelfTest.settings }
             field.services.loadCommandUsage = { CommandUsage() }
             field.services.saveCommandUsage = { _ in }
+            field.services.recordUsage = { _ in }
             field.services.secureInputActive = { false }
             field.readClipboard = { .text("买牛奶") }
             field.copyText = { copied.append($0) }
@@ -1697,6 +1698,7 @@ enum SelfTest {
             terminal.services.loadSettings = { SelfTest.settings }
             terminal.services.loadCommandUsage = { CommandUsage() }
             terminal.services.saveCommandUsage = { _ in }
+            terminal.services.recordUsage = { _ in }
             terminal.services.secureInputActive = { false }
             terminal.readClipboard = { .text(lines) }
             terminal.copyText = { copied.append($0) }
@@ -2712,6 +2714,7 @@ enum SelfTest {
         controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
         controller.services.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
         controller.services.saveCommandUsage = { _ in }
+        controller.services.recordUsage = { _ in }  // the user's own counts (the menu bar panel's last 7 days) left alone
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
         controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
         controller.warmsUpVision = false  // the real clipboard's types left alone (the @reply section reads its own)

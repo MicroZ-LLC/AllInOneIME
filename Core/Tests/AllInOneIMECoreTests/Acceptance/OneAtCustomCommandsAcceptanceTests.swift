@@ -108,6 +108,9 @@ struct OneAtCustomCommandsAcceptanceTests {
         let extensions: ExtensionIndex
         /// The command usage as kept (`SessionServices.loadCommandUsage`, `saveCommandUsage`).
         let usage = Locked(initialState: CommandUsage())
+        /// What was counted for the menu bar panel's last 7 days (`SessionServices.recordUsage`).
+        let usageEvents = Locked<[UsageStats.Event]>(initialState: [])
+        var counted: [UsageStats.Event] { usageEvents.withLock { $0 } }
         /// What the user's programs, terminal, plugins and scripts were given: "shout hello", "terminal zsh -c ls",
         /// "wordcount hello", "tsconv 1700000000".
         let ran = Locked<[String]>(initialState: [])
@@ -180,6 +183,7 @@ struct OneAtCustomCommandsAcceptanceTests {
             services.programInstalled = { _ in true }
             services.loadCommandUsage = { world.usage.withLock { $0 } }
             services.saveCommandUsage = { usage in world.usage.withLock { $0 = usage } }
+            services.recordUsage = { event in world.usageEvents.withLock { $0.append(event) } }
             services.plugins = { _ in world.plugins }
             services.loadExtensions = { _, _ in extensions }
             services.runProgram = { command, input in
@@ -377,6 +381,23 @@ struct OneAtCustomCommandsAcceptanceTests {
     /// `@name text`, ⏎, for each kind: a prompt command's instruction and the text reach the AI; a `run` command's program
     /// gets the text; a `terminal` command's runs in a terminal with it; a `link` command opens its address with the text
     /// in it; a snippet goes in (with the text where it says `{input}`).
+    /// Each run is counted for the menu bar panel's last 7 days (`SessionServices.recordUsage`), as one that sends text to
+    /// a model or not: `@shout` runs a program, `@formal` asks the AI. How many only: the event carries no text.
+    @Test func eachRunIsCountedForTheMenuBarPanel() async {
+        await inEnglish {
+            let world = World()
+            let shout = world.field(english: true)
+            shout.type("@shout hello")
+            shout.press(FakeHost.enter)
+            #expect(shout.host.settle(timeout: 5) { world.runs == ["shout hello"] }, "\(world.runs)")
+            #expect(world.counted == [.command(usesAI: false)], "\(world.counted)")
+            let formal = world.field(english: true)
+            formal.type("@formal thank you for the gift")
+            #expect(formal.returnSends() != nil)
+            #expect(world.counted == [.command(usesAI: false), .command(usesAI: true)], "\(world.counted)")
+        }
+    }
+
     @Test func eachKindIsStillStartedByItsNameThenItsText() async {
         await inEnglish {
             let world = World()

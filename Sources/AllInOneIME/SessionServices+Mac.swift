@@ -85,6 +85,7 @@ extension SessionServices {
         }
         services.loadCommandUsage = { CommandUsageStore.usage }
         services.saveCommandUsage = { CommandUsageStore.save($0) }
+        services.recordUsage = { UsageStatsStore.record($0) }
         services.loadQuestionHistory = { QuestionHistoryStore.history }
         services.recordQuestion = { QuestionHistoryStore.record($0) }
         services.loadOpenHistory = { OpenHistoryStore.history }
