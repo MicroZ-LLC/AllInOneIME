@@ -35012,6 +35012,7 @@
     },
     "question › " : {
       "comment" : "追问 ›  — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

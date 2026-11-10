@@ -131,11 +131,12 @@ two. What is structure is data, for each shell to lay out and draw its own way:
 | `rows` | `label`, `text`, `comment`, `kind` (candidate, original, translation), `isComplete`, `icon`, `pickable`, `choice` | a column, or side by side (`horizontal`) |
 | `highlighted`, `transcript` | the row picked; the rows are a conversation (no taller than half the screen, scrolled to the last) | |
 | `status` | `none`, `loading`, `hint`, `list` (a hint and its items), `error` | under the rows; a list's items after "· " |
-| `candidates` | the pinyin candidates on one line while they are composed with rows that aren't them (one @'s, after the magic key) | on the side nearest the caret, the rows on the far side: below the caret at the top, under the input line (the header still just above the rows); above it under the rows and the status, just above the footer; as small as the header |
+| `candidates` | the pinyin candidates on one line while they are composed with rows that aren't them (one @'s, after the magic key; the results, or a conversation, a follow-up is typed after) | on the side nearest the caret, the rows on the far side: below the caret at the top, under the input line (the header still just above the rows); above it under the rows and the status, just above the footer; as small as the header |
 | `footer`, `detail` | what the keys do; on its right the page, the time a result took, a notice | |
 
 A click on a row: the shell sends `.pick` with the row's index, and the session picks its `choice` (what
-`Composer.choose(index:)` takes: the row's own index, a conversation's answer by its round, none for its question).
+`Composer.pickClicked` takes: the row's own index, a conversation's answer by its round, none for its question; while a
+follow-up's pinyin is composed after results, the result, not a candidate).
 
 An icon (`IconToken`) is a `color` and one `glyph`: `.builtin`, one of the core's own icons named for what it stands
 for (`IconToken.Builtin`: its names are the list a shell maps to its icon set; `appleSymbol` is each one's SF Symbol),

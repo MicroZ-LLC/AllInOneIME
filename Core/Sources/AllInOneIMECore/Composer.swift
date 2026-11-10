@@ -440,7 +440,8 @@ public final class Composer {
         return false
     }
 
-    /// Pinyin of a refine instruction is being typed: the panel shows the engine's candidates.
+    /// Pinyin of a refine instruction (or a conversation's next question) is being typed: the panel keeps the results,
+    /// the engine's candidates on a line of their own (`PanelModel.candidates`).
     public var refineIsComposing: Bool { typesRefine && engineState.isComposing }
 
     /// The refine line as the panel shows it: the instruction so far and the pinyin being typed (nil: none started).
@@ -1870,8 +1871,23 @@ public final class Composer {
     /// A row clicked in the panel (`index` among the rows it shows): picked as its digit would pick it, or as the
     /// action key would pick it highlighted where digits are text (a list's rows, `@open`'s results as you type).
     /// The rows are those of the panel's model, in its order: level two, the engine's candidates, the command
-    /// list, a script's list, `@open`'s results, the recipients.
+    /// list, a script's list, `@open`'s results, the recipients. While a follow-up's pinyin is composed after results
+    /// (`refineIsComposing`): its candidate `index`, on the line of them (`PanelModel.candidates`).
     public func choose(index: Int) -> [Effect] { forField(chooseRow(index)) }
+
+    /// A row of the panel clicked, by what a click on it picks (`PanelModel.Row.choice`), as the shells report it:
+    /// `choose(index:)`, but while a follow-up's pinyin is composed after results the rows are still the results (its
+    /// candidates are on a line of their own): the one clicked is picked as with the line typed, which goes, its pinyin too.
+    public func pickClicked(_ choice: Int) -> [Effect] {
+        guard refineIsComposing else { return choose(index: choice) }
+        return forField(commitChoice(at: choice))
+    }
+
+    /// A row of the panel right-clicked, by its `PanelModel.Row.choice`: `deleteCandidate(index:)`, but nothing while a
+    /// follow-up's pinyin is composed after results (the rows are the results then, none of the engine's).
+    public func deleteClicked(_ choice: Int) -> [Effect] {
+        refineIsComposing ? [] : deleteCandidate(index: choice)
+    }
 
     /// A row right-clicked in the panel (`index` among the rows it shows), or the highlighted one's ⌃⌦: the engine's
     /// candidate removed for good (`EnglishWordsEngine.deleteCandidate`: on `removedCandidates`, never shown again, any
@@ -1897,7 +1913,7 @@ public final class Composer {
 
     /// `choose`, before `forField`.
     private func chooseRow(_ index: Int) -> [Effect] {
-        // While a refine instruction's pinyin is typed the panel shows its candidates.
+        // While a refine instruction's pinyin is typed: its candidates (a row clicked is a result: `pickClicked`).
         if refineIsComposing, let engine {
             guard engine.selectCandidate(onPage: index) else { return [] }
             return afterEngineChange(engine, effects: [])
@@ -2967,8 +2983,9 @@ public final class Composer {
     }
 
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
-    /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown, Space and
-    /// digits picking them); once there is one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
+    /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown on a line of
+    /// their own beside the results, Space and digits picking them, ↑↓ still moving among the results); once there is
+    /// one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
     /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every key does what
     /// it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a refine runs
     /// the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts pinyin (it
@@ -2989,6 +3006,8 @@ public final class Composer {
                 engineState = engine.snapshot()
                 return .consumed([.showPanel])
             }
+            // ↑↓ move among the results, as among one @'s rows: the candidates are on a line of their own, Space picks the first.
+            if event.key == .arrow(.up) || event.key == .arrow(.down), modifiers.isEmpty { return nil }
             return .consumed(typeIntoRefine(event))
         }
         if refineText.isEmpty {

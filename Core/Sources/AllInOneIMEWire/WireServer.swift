@@ -683,7 +683,7 @@ public final class WireServer: @unchecked Sendable {
             guard let row = Int(words[2]), let connection = lock.guarded({ connections[id] }) else { return false }
             connection.queue.sync {
                 guard let sid = connection.focused, let session = connection.sessions[sid]?.session else { return }
-                session.run(from: .click) { $0.choose(index: row) }
+                session.run(from: .click) { $0.pickClicked(row) }
             }
             drainAll()
             return true

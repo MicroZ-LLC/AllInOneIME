@@ -32,7 +32,7 @@ public struct PanelModel: Equatable, Sendable {
         /// A click picks it and the pointer over it highlights it; not a line a script printed or a list's information,
         /// which nothing picks.
         public var pickable: Bool
-        /// What a click on it picks: the index `Composer.choose(index:)` takes, which the session finds here for the row
+        /// What a click on it picks: the index `Composer.pickClicked` takes, which the session finds here for the row
         /// a shell says was clicked (`SessionEvent.pick`). The row's own index, but in a conversation, whose rows are its
         /// questions and answers, an answer's round, and nil for a question.
         public var choice: Int?
@@ -181,8 +181,8 @@ public struct PanelModel: Equatable, Sendable {
     /// has attached (a screenshot's two), the refinements so far.
     public var header: [String]
     /// The pinyin candidates on one line ("1 你好   2 拟好 …"), while they are composed with rows that aren't them (one @'s
-    /// after the magic key), on the side of the panel nearest the caret, the rows on the far side: the word is picked
-    /// first, then what to do with it. Below the caret, at the top, under the input line; above it, under the rows and the
+    /// after the magic key; results, or a conversation, a follow-up is typed after), on the side of the panel nearest the
+    /// caret, the rows on the far side: the word is picked first, then what to do with it. Below the caret, at the top, under the input line; above it, under the rows and the
     /// status, just above the footer. The header (a selection's line) stays just above the rows either way. Nil: none
     /// (plain typing's candidates are the rows).
     public var candidates: String?

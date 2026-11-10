@@ -12,6 +12,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 ### Changed
 
 - In an `@question` conversation, ⏎ now asks the follow-up you typed (with nothing typed it does nothing) and ⇧⏎ inserts the highlighted answer; before, it was the other way round. Other commands keep their keys.
+- A follow-up typed in pinyin after results (the next question in an `@question` conversation, an instruction after `@improve` or a prompt command) no longer replaces the panel with its candidates: the conversation or the results stay where they were, and the candidates show as a one-line strip on the side nearest the caret, as with one @. Digits and Space pick a candidate, ⏎, ⇧⏎ and Esc work as before, ↑↓ move among the answers or results, and a click picks the row clicked.
 
 ## 0.7.2.1 (unreleased)
 

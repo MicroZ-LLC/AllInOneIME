@@ -242,16 +242,16 @@ public final class InputSession {
                 // Clipboard history's rows and suggestions' put in what a click picks.
                 if clipboardPick(row) || suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
-                // round, nothing for a question.
+                // round, nothing for a question; a result while a follow-up's pinyin is composed (`pickClicked`).
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
-                perform(composer.choose(index: choice))
+                perform(composer.pickClicked(choice))
             case let .delete(row):
                 // Clipboard history's rows and suggestions' are none of the engine's.
                 guard !clipboard.shown, !suggesting.shown else { return }
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
-                perform(composer.deleteCandidate(index: choice))
+                perform(composer.deleteClicked(choice))
             case let .scroll(steps):
                 panelWheelAt = services.uptime()
                 // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.

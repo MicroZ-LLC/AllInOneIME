@@ -283,9 +283,9 @@ public final class ComposerSession: @unchecked Sendable {
         pushOutputs(outputs)
     }
 
-    /// A row clicked in the engine's panel (`Composer.choose(index:)`).
+    /// A row clicked in the engine's panel, by its `PanelModel.Row.choice` (`Composer.pickClicked`).
     public func choose(row: Int) {
-        feed(from: .click) { $0.choose(index: row) }
+        feed(from: .click) { $0.pickClicked(row) }
     }
 
     // MARK: - Effects → outputs
