@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.3 (unreleased)
+
+### Changed
+
+- In an `@question` conversation, ⏎ now asks the follow-up you typed (with nothing typed it does nothing) and ⇧⏎ inserts the highlighted answer; before, it was the other way round. Other commands keep their keys.
+
 ## 0.7.2.1 (unreleased)
 
 ### Changed
