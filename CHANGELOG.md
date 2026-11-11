@@ -25,6 +25,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - `@improve`'s rewrite styles are numbered on from the rows before them, as shown: after two versions they are 3, 4 … (they were 4, 5 …, skipping 3), and a digit picks the row shown with it.
 - In an `@question` conversation, where it can go on ("Continue in Claude or another AI") shows each choice's key on a small keycap, as the footer's keys, with its name after it, and a click on one goes on there as its ⌘ digit does. Before, they were a line of large plain text, and a click on them did nothing.
+- Changing the way of typing (Settings → Input → Chinese (pinyin) → Typing), fuzzy pinyin or the characters, or importing a personal dictionary, while Rime is still deploying (just after an update, or after the change before it; iCloud sync too) no longer makes that deployment fail, so Troubleshoot no longer reports "Rime dictionary failed to load" and "Rime deployment failed" for it. Typing worked all along: the next deployment had the change.
 
 ## 0.7.2.1 (2026-11-08)
 

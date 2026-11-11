@@ -70,6 +70,9 @@ public final class RimeService {
     private var invalidateSchemaWanted = false
     private var redeployPoll: DispatchWorkItem?
     private let redeployLock = NSLock()
+    /// When the last deployment was asked of librime (`start_maintenance`): what this app wrote since may not be in what
+    /// it compiled (`PersonalDictionaryStore.datePatches`). Set by `start` and as a redeploy starts (one at a time).
+    private var deployedSince: Date?
     /// Called as a redeploy is about to start librime's maintenance (the tests': another thread asks for one right then).
     var beforeMaintenance: (() -> Void)?
     /// A redeploy is asked for or being started: not ready.
@@ -123,6 +126,10 @@ public final class RimeService {
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         api.pointee.initialize(nil)
+        let asked = Date()
+        do { try PersonalDictionaryStore.datePatches(userDirectory: userDataDir, since: nil) }
+        catch { Self.log.error("the Rime patches' times not set: \(error.localizedDescription)") }
+        deployedSince = asked
         _ = api.pointee.start_maintenance(fullCheck ? 1 : 0)
         self.sharedDataDir = sharedDataDir
         self.userDataDir = userDataDir
@@ -290,7 +297,9 @@ public final class RimeService {
 
     /// Re-deploys everything (e.g. after editing files in the user directory). Existing sessions are
     /// dropped first so none is used while data is rebuilt; controllers create new ones when ready.
-    /// Session ids are reused by librime, so the generation marks every older session as dead.
+    /// Session ids are reused by librime, so the generation marks every older session as dead. What this app wrote since
+    /// the last deployment is compiled anew, written in the second librime recorded or not (`datePatches`);
+    /// `invalidateGeneratedSchema`: all of it, written since or not (the personal dictionaries').
     public func redeploy(invalidateGeneratedSchema: Bool = false) {
         guard isStarted else { return }
         redeployLock.lock()
@@ -340,44 +349,23 @@ public final class RimeService {
         }
         if let sharedDataDir, let userDataDir { Self.supplyLunarDatabase(sharedDataDir: sharedDataDir, userDataDir: userDataDir) }
         if let openCCDir, let userDataDir { Self.supplyOpenCC(from: openCCDir, userDataDir: userDataDir) }
-        if invalidateSchema {
-            do { try invalidateGeneratedSchema() }
+        // Only now, librime not deploying, are the patches made to look changed to it: removing what it compiled of them
+        // when they were written raced with a deployment under way.
+        let asked = Date()
+        if let userDataDir {
+            do { try PersonalDictionaryStore.datePatches(userDirectory: userDataDir, since: deployedSince, all: invalidateSchema) }
             catch {
-                setDeploymentStatus(.failed, error: "build/rime_ice.schema.yaml: " + error.localizedDescription)
+                setDeploymentStatus(.failed, error: error.localizedDescription)
                 return
             }
         }
+        deployedSince = asked
         generation += 1
         api.pointee.cleanup_all_sessions()
         setDeploymentStatus(.deploying)
         beforeMaintenance?()
         if api.pointee.start_maintenance(1) == 0, deploymentStatus == .deploying {
             setDeploymentStatus(.failed)
-        }
-    }
-
-    /// A previous maintenance job may have recreated the cache after Settings invalidated it.
-    /// Do this only for a requested settings activation, after that job has actually finished. The Shuangpin schemes' and
-    /// Zhuyin's too (`PinyinScheme`), which the same writer patches, where one was compiled.
-    private func invalidateGeneratedSchema() throws {
-        guard let userDataDir else { return }
-        let fm = FileManager.default
-        let build = userDataDir.appendingPathComponent("build", isDirectory: true)
-        for schema in [PinyinScheme.fullSchema] + PinyinScheme.others.map(\.schema) {
-            let compiled = build.appendingPathComponent("\(schema).schema.yaml")
-            do {
-                let directory = try fm.attributesOfItem(atPath: build.path)
-                guard directory[.type] as? FileAttributeType == .typeDirectory else {
-                    throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: build.path])
-                }
-                let file = try fm.attributesOfItem(atPath: compiled.path)
-                guard file[.type] as? FileAttributeType == .typeRegular else {
-                    throw CocoaError(.fileWriteNoPermission, userInfo: [NSFilePathErrorKey: compiled.path])
-                }
-                try fm.removeItem(at: compiled)
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {
-                // A first deployment, or the store already removed this generated cache.
-            }
         }
     }
 

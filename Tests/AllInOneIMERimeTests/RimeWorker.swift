@@ -10,7 +10,7 @@ import Darwin
 /// scenarios, by name: `LunarDatabaseTests.scenarios`, `PersonalDictionaryBuildTests.scenarios`, `RedeployTests.scenarios`,
 /// `TraditionalChineseRimeTests.scenarios`, `RemovedCandidatesFilterRimeTests.scenarios`,
 /// `RemovedDerivedCandidatesRimeTests.scenarios`, `ShuangpinSchemaTests.scenarios`, `ZhuyinSchemaTests.scenarios`,
-/// `CandidateKeysSchemeTests.scenarios`.
+/// `CandidateKeysSchemeTests.scenarios`, `DeploymentLogTests.scenarios`.
 enum RimeWorker {
     static let scenarioKey = "ALLINONEIME_RIME_WORKER"
     static let rootKey = "ALLINONEIME_RIME_WORKER_ROOT"
@@ -27,6 +27,7 @@ enum RimeWorker {
         .merging(ShuangpinSchemaTests.scenarios) { first, _ in first }
         .merging(ZhuyinSchemaTests.scenarios) { first, _ in first }
         .merging(CandidateKeysSchemeTests.scenarios) { first, _ in first }
+        .merging(DeploymentLogTests.scenarios) { first, _ in first }
 
     /// Runs `scenario` in `root` (made here) and waits for it: it must exit cleanly, having run.
     static func run(_ scenario: String, root: URL) throws {
