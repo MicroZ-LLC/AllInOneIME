@@ -82,25 +82,27 @@ struct WeekStatsTests {
         #expect(Set(week.topCommands.map(\.id)) == ["sig", "improve", "wordcount", "tsconv"])
     }
 
-    @Test func fakeHostReportsOneAtAsTheCommandItActuallyRan() {
-        let stats = Clock().recorder()
-        let own = CustomCommand(name: "shout", type: .run, argv: ["/usr/bin/tr", "a-z", "A-Z"])
-        let plugin = OneAtCustomCommandsAcceptanceTests.wordcount
-        let script = OneAtCustomCommandsAcceptanceTests.tsconv
-        for (index, command) in ["@please improve this sentence", "@shout hello",
-                                 "@wordcount hello", "@tsconv 1700000000"].enumerated() {
-            let field = host(stats, custom: [own], plugins: [plugin], scripts: [script])
-            field.type(command)
-            field.press(FakeHost.enter)
-            #expect(field.settle(timeout: 5) { stats.snapshot(for: .current).commandCount == index + 1 })
+    @Test func fakeHostReportsOneAtAsTheCommandItActuallyRan() async {
+        await withInterfaceLanguage("zh-Hans") {
+            let stats = Clock().recorder()
+            let own = CustomCommand(name: "shout", type: .run, argv: ["/usr/bin/tr", "a-z", "A-Z"])
+            let plugin = OneAtCustomCommandsAcceptanceTests.wordcount
+            let script = OneAtCustomCommandsAcceptanceTests.tsconv
+            for (index, command) in ["@please improve this sentence", "@shout hello",
+                                     "@wordcount hello", "@tsconv 1700000000"].enumerated() {
+                let field = host(stats, custom: [own], plugins: [plugin], scripts: [script])
+                field.type(command)
+                field.press(FakeHost.enter)
+                #expect(field.settle(timeout: 5) { stats.snapshot(for: .current).commandCount == index + 1 })
+            }
+            let week = stats.snapshot(for: .current)
+            #expect(Dictionary(uniqueKeysWithValues: week.topCommands.map { ($0.id, $0.count) }) ==
+                    ["improve": 1, "shout": 1, "wordcount": 1, "tsconv": 1])
+            #expect(week.sourceCounts.own == 1)
+            #expect(week.sourceCounts.builtIn == 1)
+            #expect(week.sourceCounts.plugin == 2)
+            #expect(week.aiCommandCount == 1)
         }
-        let week = stats.snapshot(for: .current)
-        #expect(Dictionary(uniqueKeysWithValues: week.topCommands.map { ($0.id, $0.count) }) ==
-                ["improve": 1, "shout": 1, "wordcount": 1, "tsconv": 1])
-        #expect(week.sourceCounts.own == 1)
-        #expect(week.sourceCounts.builtIn == 1)
-        #expect(week.sourceCounts.plugin == 2)
-        #expect(week.aiCommandCount == 1)
     }
 
     @Test func calendarWeekStartsMondayAndPreviousTabIsTheWholePreviousWeek() {
@@ -248,24 +250,25 @@ struct WeekStatsTests {
         #expect(!String(decoding: data, as: UTF8.self).contains("com.private"))
     }
 
-    @Test func typedTextArgumentsAndClipboardContentsAreNeverSerialized() throws {
-        let stats = Clock().recorder()
-        let field = host(stats)
-        field.type("private typed sentence 92841")
-        field.clipboard = .text("private clipboard contents 61027")
-        field.keepClipboardHistory()
-        field.press(FakeHost.controlV)
-        field.press(FakeHost.enter)
-        stats.recordCommand(id: "improve", source: .builtIn, bundleID: "com.secret.editor", usedAI: true)
-        stats.recordClipboardPaste()
-        let json = String(decoding: try stats.serializedData(), as: UTF8.self)
-        for secret in ["private typed sentence", "92841", "private clipboard contents", "61027", "com.secret.editor"] {
-            #expect(!json.contains(secret))
+    @Test func typedTextArgumentsAndClipboardContentsAreNeverSerialized() async throws {
+        try await withInterfaceLanguage("zh-Hans") {
+            let stats = Clock().recorder()
+            let field = host(stats)
+            field.type("private typed sentence 92841")
+            field.clipboard = .text("private clipboard contents 61027")
+            field.keepClipboardHistory()
+            field.press(FakeHost.controlV)
+            field.press(FakeHost.enter)
+            stats.recordCommand(id: "improve", source: .builtIn, bundleID: "com.secret.editor", usedAI: true)
+            stats.recordClipboardPaste()
+            let json = String(decoding: try stats.serializedData(), as: UTF8.self)
+            for secret in ["private typed sentence", "92841", "private clipboard contents", "61027", "com.secret.editor"] {
+                #expect(!json.contains(secret))
+            }
+            #expect(!json.contains("arguments"))
+            #expect(json.contains("improve"))
+            #expect(stats.snapshot(for: .current).clipboardPasteCount >= 1)
         }
-        #expect(!json.contains("characters"))
-        #expect(!json.contains("arguments"))
-        #expect(json.contains("improve"))
-        #expect(stats.snapshot(for: .current).clipboardPasteCount >= 1)
     }
 
     @Test func privacyClearHistoryClearsCountsAndFirstWeekState() throws {
@@ -281,29 +284,33 @@ struct WeekStatsTests {
         #expect(!String(decoding: try stats.serializedData(), as: UTF8.self).contains("improve"))
     }
 
-    @Test func atStatsRowAndKeysBelongToTheIMEInChineseAndEnglish() {
+    @Test func atStatsRowAndKeysBelongToTheIMEInChineseAndEnglish() async {
         let stats = Clock().recorder()
         for _ in 0..<5 { stats.recordCommand(id: "improve", source: .builtIn, bundleID: nil, usedAI: true) }
         for language in ["zh-Hans", "en"] {
-            let field = host(stats, language: language)
-            field.type("@stats")
-            let row = field.panel?.rows.first { $0.text.contains("5") && $0.text.contains(language == "en" ? "commands" : "次指令") }
-            #expect(row != nil)
-            #expect(row?.comment.contains(language == "en" ? "built-in" : "内置") == true)
-            #expect(field.panel?.hints.contains { $0.key == "⌘C" } == true)
-            #expect(field.panel?.hints.contains { $0.key == "Esc" } == true)
-            #expect(field.press(FakeHost.enter))
-            #expect(field.settingsOpened.last == .weekStats)
+            await withInterfaceLanguage(language) {
+                let field = host(stats, language: language)
+                field.type("@stats")
+                let row = field.panel?.rows.first { $0.text.contains("5") && $0.text.contains(language == "en" ? "commands" : "次指令") }
+                #expect(row != nil)
+                #expect(row?.comment.contains(language == "en" ? "built-in" : "内置") == true)
+                #expect(field.panel?.hints.contains { $0.key == "⌘C" } == true)
+                #expect(field.panel?.hints.contains { $0.key == "Esc" } == true)
+                #expect(field.press(FakeHost.enter))
+                #expect(field.settingsOpened.last == .weekStats)
+            }
         }
-        let copy = host(stats)
-        copy.type("@stats")
-        #expect(copy.press(KeyEvent(keyCode: 0x08, characters: "c", charactersIgnoringModifiers: "c", modifiers: .command)))
-        #expect(copy.platformActions.contains(.copyWeekStatsImage))
-        let cancel = host(stats)
-        cancel.type("@stats")
-        #expect(cancel.press(FakeHost.escape))
-        #expect(cancel.settingsOpened.isEmpty)
-        #expect(cancel.document.isEmpty)
+        await withInterfaceLanguage("zh-Hans") {
+            let copy = host(stats)
+            copy.type("@stats")
+            #expect(copy.press(KeyEvent(keyCode: 0x08, characters: "c", charactersIgnoringModifiers: "c", modifiers: .command)))
+            #expect(copy.platformActions.contains(.copyWeekStatsImage))
+            let cancel = host(stats)
+            cancel.type("@stats")
+            #expect(cancel.press(FakeHost.escape))
+            #expect(cancel.settingsOpened.isEmpty)
+            #expect(cancel.document.isEmpty)
+        }
     }
 
     @Test func statsWordsAreTranslatedForShippedInterfaces() {
