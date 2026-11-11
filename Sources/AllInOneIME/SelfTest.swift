@@ -2645,6 +2645,9 @@ enum SelfTest {
         LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteSwitch.store, temperature: TemperatureSupport(file: nil))
         LearnedShared.store.learnsStartingInputs = false
         (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
+        // The candidate panel too, wherever a section makes it invisible and click-through (its alpha 0): kept so as it
+        // comes up, and the window server isn't asked whether it can be seen (`CandidatePanel.checkPresence`).
+        CandidatePanel.invisible = true
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""

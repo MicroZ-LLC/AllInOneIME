@@ -28212,49 +28212,49 @@
         }
       }
     },
-    "Runs it once on the sample, as the action key would (with the same time limits), and shows what it gives here: nothing is inserted or opened." : {
-      "comment" : "用样例运行一次，和按执行键一样（同样的时限），结果只显示在这里：不上屏，也不打开。 — Sources/AllInOneIME/CommandEditor.swift",
+    "Runs it once on the sample, as the action key would (with the same time limit; a terminal command runs in the background and stops after 10 seconds), and shows what it gives here: nothing is inserted or opened." : {
+      "comment" : "用样例运行一次，和按执行键一样（同样的时限；terminal 命令在后台运行，10 秒后停下），结果只显示在这里：不上屏，也不打开。 — Sources/AllInOneIME/CommandEditor.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Führt den Befehl einmal mit dem Beispiel aus, wie die Aktionstaste (mit denselben Zeitlimits), und zeigt das Ergebnis hier: Nichts wird eingefügt oder geöffnet."
+            "value" : "Führt den Befehl einmal mit dem Beispiel aus, wie die Aktionstaste (mit demselben Zeitlimit; ein terminal-Befehl läuft im Hintergrund und stoppt nach 10 Sekunden), und zeigt das Ergebnis hier: Nichts wird eingefügt oder geöffnet."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lo ejecuta una vez con el ejemplo, como la tecla de acción (con los mismos límites de tiempo), y muestra aquí el resultado: no se inserta ni se abre nada."
+            "value" : "Lo ejecuta una vez con el ejemplo, como la tecla de acción (con el mismo límite de tiempo; un comando terminal se ejecuta en segundo plano y se detiene a los 10 segundos), y muestra aquí el resultado: no se inserta ni se abre nada."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’exécute une fois sur l’exemple, comme la touche d’action (avec les mêmes délais), et affiche ici le résultat : rien n’est inséré ni ouvert."
+            "value" : "L’exécute une fois sur l’exemple, comme la touche d’action (avec le même délai ; une commande terminal s’exécute en arrière-plan et s’arrête après 10 secondes), et affiche ici le résultat : rien n’est inséré ni ouvert."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "実行キーと同じように（同じ制限時間で）サンプルで 1 回実行し、結果をここに表示します。何も挿入したり開いたりしません。"
+            "value" : "実行キーと同じように（同じ制限時間で。terminal コマンドはバックグラウンドで実行し、10 秒で止まります）サンプルで 1 回実行し、結果をここに表示します。何も挿入したり開いたりしません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "실행 키를 누를 때처럼(같은 시간 제한으로) 샘플로 한 번 실행하고 결과를 여기에 표시합니다. 아무것도 입력하거나 열지 않습니다."
+            "value" : "실행 키를 누를 때처럼(같은 시간 제한으로, terminal 명령은 백그라운드에서 실행되고 10초 후 멈춥니다) 샘플로 한 번 실행하고 결과를 여기에 표시합니다. 아무것도 입력하거나 열지 않습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Executa uma vez com o exemplo, como a tecla de ação faria (com os mesmos limites de tempo), e mostra o resultado aqui: nada é inserido nem aberto."
+            "value" : "Executa uma vez com o exemplo, como a tecla de ação faria (com o mesmo limite de tempo; um comando terminal roda em segundo plano e para após 10 segundos), e mostra o resultado aqui: nada é inserido nem aberto."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "用範例執行一次，和按執行鍵一樣（同樣的時限），結果只顯示在這裡：不會插入，也不會打開。"
+            "value" : "用範例執行一次，和按執行鍵一樣（同樣的時限；terminal 命令在背景執行，10 秒後停下），結果只顯示在這裡：不會插入，也不會打開。"
           }
         }
       }

@@ -363,8 +363,8 @@ struct CommandEditor: View {
                 EmptyView()
             }
         } footer: {
-            Text(tr("用样例运行一次，和按执行键一样（同样的时限），结果只显示在这里：不上屏，也不打开。",
-                    "Runs it once on the sample, as the action key would (with the same time limits), and shows what it gives here: nothing is inserted or opened."))
+            Text(tr("用样例运行一次，和按执行键一样（同样的时限；terminal 命令在后台运行，10 秒后停下），结果只显示在这里：不上屏，也不打开。",
+                    "Runs it once on the sample, as the action key would (with the same time limit; a terminal command runs in the background and stops after 10 seconds), and shows what it gives here: nothing is inserted or opened."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
         }
