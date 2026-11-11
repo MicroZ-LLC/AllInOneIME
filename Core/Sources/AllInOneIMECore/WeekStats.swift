@@ -245,8 +245,8 @@ public final class WeekStats: @unchecked Sendable {
         calendar.startOfDay(for: calendar.date(byAdding: .day, value: days, to: calendar.startOfDay(for: date)) ?? date)
     }
 
-    /// "2026-11-10": a day, and nothing finer.
-    static func key(_ date: Date, calendar: Calendar) -> String {
+    /// "2026-11-10": a day, and nothing finer (the file's days, the name of a picture saved).
+    public static func key(_ date: Date, calendar: Calendar) -> String {
         let parts = calendar.dateComponents([.year, .month, .day], from: date)
         func two(_ value: Int?) -> String { value.map { $0 < 10 ? "0\($0)" : "\($0)" } ?? "00" }
         return "\(parts.year ?? 0)-\(two(parts.month))-\(two(parts.day))"

@@ -188,10 +188,7 @@ public struct WeekStatsText: Equatable, Sendable {
     public var atStatsTitle: String { menuBarTitle }
     /// Beside it: "比上周同期多 18%"; nil without a comparison.
     public var atStatsComparison: String? { week.comparison == nil ? nil : comparison }
-    /// What `@stats`'s keys do: ⏎ opens the page, ⌘C copies the picture, Esc cancels; ⏎'s word on the row.
-    public var openStatsHint: String { words.openStats }
-    public var copyImageHint: String { words.copyImageHint }
-    public var cancelHint: String { words.cancel }
+    /// ⏎'s word on `@stats`'s row (its keys are said in the panel's footer: `PanelPresenter`).
     public var openAction: String { words.open }
 }
 
@@ -474,13 +471,11 @@ struct WeekStatsWords: Sendable {
     }
     var plugins: String { pick(["插件", "Plugins", "外掛", "プラグイン", "플러그인", "Plug-ins", "Plug-ins", "Plugins", "Plug-ins"]) }
     func sourceSummary(_ own: String, _ builtIn: String, _ plugins: String) -> String {
-        InterfaceText.fill(pick(["我的命令 %1$@ · 内置 %2$@ · 插件 %3$@", "%1$@ yours · %2$@ built-in · %3$@ from plugins",
-                                 "我的命令 %1$@ · 內建 %2$@ · 外掛 %3$@", "自分のコマンド %1$@ · 組み込み %2$@ · プラグイン %3$@",
-                                 "내 명령 %1$@ · 기본 제공 %2$@ · 플러그인 %3$@", "Eigene %1$@ · Integriert %2$@ · Plug-ins %3$@",
-                                 "Mes commandes %1$@ · Intégrées %2$@ · Plug-ins %3$@",
-                                 "Mis comandos %1$@ · Integrados %2$@ · Plugins %3$@",
-                                 "Meus comandos %1$@ · Integrados %2$@ · Plug-ins %3$@"]), [own, builtIn, plugins])
-            ?? "\(own) · \(builtIn) · \(plugins)"
+        fill(["我的命令 %1$@ · 内置 %2$@ · 插件 %3$@", "%1$@ yours · %2$@ built-in · %3$@ from plugins",
+              "我的命令 %1$@ · 內建 %2$@ · 外掛 %3$@", "自分のコマンド %1$@ · 組み込み %2$@ · プラグイン %3$@",
+              "내 명령 %1$@ · 기본 제공 %2$@ · 플러그인 %3$@", "Eigene %1$@ · Integriert %2$@ · Plug-ins %3$@",
+              "Mes commandes %1$@ · Intégrées %2$@ · Plug-ins %3$@", "Mis comandos %1$@ · Integrados %2$@ · Plugins %3$@",
+              "Meus comandos %1$@ · Integrados %2$@ · Plug-ins %3$@"], own, builtIn, plugins)
     }
 
     func pastes(_ count: Int) -> String {
