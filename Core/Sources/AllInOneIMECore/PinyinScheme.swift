@@ -60,6 +60,10 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     public static let zhuyinData = ["bopomofo.schema.yaml", "zhuyin.yaml", "terra_pinyin.dict.yaml", "stroke.schema.yaml",
                                     "stroke.dict.yaml", "essay.txt"]
 
+    /// The keys a Zhuyin syllable starts with (rime-bopomofo's `speller/initials`): ㄅ to ㄦ, the digits and
+    /// punctuation among them too; not a tone's (Space, 6, 3, 4, 7).
+    static let zhuyinInitials = Set("1qaz2wsxedcrfv5tgbyhnujm8ik,9ol.0p;/-")
+
     /// The librime schema it types with: rime-ice's own (`fullSchema`) for full pinyin, else the scheme's.
     public var schema: String { self == .full ? Self.fullSchema : rawValue }
 
