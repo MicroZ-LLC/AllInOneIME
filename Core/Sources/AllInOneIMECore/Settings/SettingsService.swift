@@ -521,7 +521,7 @@ public final class SettingsService: @unchecked Sendable {
     /// "confirmed": true}`. One that sends it to the AI (`CommandTrial.asks`) runs only with `confirmed`; without, it is
     /// answered `confirm` with the question to ask ("This sends the sample to …"), and nothing is sent. What it
     /// printed (or why it gave nothing) is the answer's message, and the item's detail until it runs again or the
-    /// command is saved or deleted; nothing is inserted or opened anywhere.
+    /// command is saved or deleted (which stops one under way); nothing is inserted or opened anywhere.
     private func commandTest(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         let sample: String, confirmed: Bool
         switch action.value {
@@ -539,20 +539,22 @@ public final class SettingsService: @unchecked Sendable {
             return .failure(SettingsProblem(.confirm, field: action.field, message: CommandTrial.confirmation(config)))
         }
         let ask = commandTestAI ?? { command, sample in try await CommandTrial.ask(command, sample: sample, config: config) }
-        let status: SettingsStore.TestStatus
+        let status: SettingsStore.TestStatus, answer: Result<SettingsActionOutcome, SettingsProblem>
         do {
-            status = .passed(try await CommandTrial.run(command, sample: sample, ask: ask))
+            let output = try await CommandTrial.run(command, sample: sample, ask: ask)
+            (status, answer) = (.passed(output), .success(SettingsActionOutcome(message: "✓ " + output)))
         } catch {
-            status = .failed(UIText.describe(error))
+            let reason = UIText.describe(error)
+            (status, answer) = (.failed(reason), .failure(SettingsProblem(.failed, field: action.field, message: "✗ " + reason)))
         }
-        // Stopped (`cancel`, or another run of it): what it found isn't shown.
-        guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
-        locked { tests[SettingsSchema.testKey(action.field, item: command.name)] = status }
-        switch status {
-        case let .passed(text): return .success(SettingsActionOutcome(message: "✓ " + text))
-        case let .failed(text): return .failure(SettingsProblem(.failed, field: action.field, message: "✗ " + text))
-        case .idle, .running: return .success(SettingsActionOutcome())
+        // Stopped (`cancel`, another run of it, the command saved or deleted: `forgetTest`): what it found isn't shown.
+        // Asked under the lock a save stops it under, so that one never lands on the command as it is after.
+        let shown = locked { () -> Bool in
+            guard !Task.isCancelled else { return false }
+            tests[SettingsSchema.testKey(action.field, item: command.name)] = status
+            return true
         }
+        return shown ? answer : .failure(Self.cancelled(action.field))
     }
 
     /// The plugin library opened: what it offers this version.
@@ -644,7 +646,7 @@ public final class SettingsService: @unchecked Sendable {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
             }
-            tests[SettingsSchema.testKey(action.field, item: name)] = nil  // its last Test run's, of a command now gone
+            forgetTest(action.field, name)  // its last Test run's, of a command now gone
             return saving(action.field) {
                 store.deleteCommand(named: name)
                 return nil
@@ -669,11 +671,20 @@ public final class SettingsService: @unchecked Sendable {
             return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(problem)))
         }
         // Its last Test run's outcome was the command's as it was.
-        for name in [action.item, command.name].compactMap({ $0 }) { tests[SettingsSchema.testKey(action.field, item: name)] = nil }
+        for name in [action.item, command.name].compactMap({ $0 }) { forgetTest(action.field, name) }
         return saving(action.field) {
             store.saveCommand(command, editing: action.item)
                 ? nil : SettingsProblem(.badValue, field: action.field, message: UIText.describe(.nameTaken))
         }.map { SettingsActionOutcome() }
+    }
+
+    /// The custom command `name` saved anew or deleted: its last Test run's outcome gone, and one still running stopped
+    /// (answered `cancelled`): what either found was the command's as it was, never the one's of that name after.
+    private func forgetTest(_ field: String, _ name: String) {
+        tests[SettingsSchema.testKey(field, item: name)] = nil
+        let stopped = runs.keys.filter { $0.field == field && $0.item?.lowercased() == name.lowercased() }
+        for run in stopped { runs.removeValue(forKey: run)?.stop(Self.cancelled(field)) }
+        if !stopped.isEmpty { revisionValue += 1 }
     }
 
     // MARK: Checks
