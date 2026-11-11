@@ -253,6 +253,8 @@ final class FloatingPanel: ObservableObject {
 
     private(set) var window: DashboardWindow?
     private var observers: [NSObjectProtocol] = []
+    /// Put back on screen as the candidate panel is (GitHub #61), while it's dropped down.
+    private var screenEvents: ScreenEvents?
     /// Records the notes @note saves, on or off (`recordSavedNotes`).
     private var noteRecorder: NSObjectProtocol?
     private var reminderTimer: Timer?
@@ -301,7 +303,7 @@ final class FloatingPanel: ObservableObject {
     /// Whether anything of it still runs but the record of saved notes (the self-test checks that closed
     /// means closed).
     var isIdle: Bool {
-        observers.isEmpty && reminderTimer == nil && agentTimer == nil && changeTimer == nil && messageTimer == nil
+        observers.isEmpty && screenEvents == nil && reminderTimer == nil && agentTimer == nil && changeTimer == nil && messageTimer == nil
             && window == nil && outsideClicks.isEmpty && scrollMonitor == nil
     }
 
@@ -366,6 +368,7 @@ final class FloatingPanel: ObservableObject {
         let window = makeWindow()
         window.setFrame(PanelPlacement.below(anchor, size: CGSize(width: Self.width, height: height),
                                              visible: NSScreen.screens.map(\.visibleFrame)), display: false)
+        CandidatePanel.unhideAppIfHidden()
         window.orderFrontRegardless()
         observe(window)
         reminderTimer = repeating(reminderInterval) { $0.tick() }
@@ -378,6 +381,7 @@ final class FloatingPanel: ObservableObject {
     private func shut() {
         observers.forEach(NotificationCenter.default.removeObserver)
         observers = []
+        screenEvents = nil
         for timer in [reminderTimer, agentTimer, changeTimer, messageTimer] { timer?.invalidate() }
         (reminderTimer, agentTimer, changeTimer, messageTimer) = (nil, nil, nil, nil)
         window?.orderOut(nil)
@@ -443,6 +447,13 @@ final class FloatingPanel: ObservableObject {
         // Displays changed (one unplugged, the resolution): closed, like a menu; the icon opens it again.
         on(NSApplication.didChangeScreenParametersNotification) { panel, _ in panel.closeDropDown() }
         on(.allInOneIMEInterfaceLanguageChanged) { panel, _ in panel.language = UIText.language }
+        // The Mac or its displays woke, another Space, the app hidden: ordered in again, the app shown again first if it
+        // was hidden, never activated (displays changed close it, above).
+        screenEvents = ScreenEvents { [weak self] in
+            guard let self, self.isShowing, let window = self.window else { return }
+            CandidatePanel.unhideAppIfHidden()
+            window.orderFrontRegardless()
+        }
         // Seen again after a while unseen (the screen unlocked, the display awake): what changed meanwhile.
         on(NSWindow.didChangeOcclusionStateNotification, window) { panel, _ in
             guard panel.isOnScreen else {
