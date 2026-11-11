@@ -1733,7 +1733,8 @@ public final class Composer {
     /// Shift pressed and released on its own (within half a second, so holding Shift for a
     /// Shift-click selection doesn't count) switches the engine between Chinese and Latin input.
     /// Words already picked are kept and remaining letters are committed as typed (librime's
-    /// `commit_code`). The right Option key held on its own records speech until it is released.
+    /// `commit_code`); in Zhuyin what is composed is committed converted (`commit_text`).
+    /// The right Option key held on its own records speech until it is released.
     /// With the `optionTap` action key, either Option key pressed and released on its own sends
     /// the sentence (a hold of the right one still dictates).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
@@ -2855,8 +2856,9 @@ public final class Composer {
         let before = engine.snapshot()
         let latin = before.isAsciiMode
         // librime's own Shift handling (rime-ice: `Shift_L: commit_code`) keeps the words already
-        // picked and commits the remaining letters as typed. rime-ice ignores Shift_R, so Shift_L
-        // stands for either key.
+        // picked and commits the remaining letters as typed; Zhuyin's (its patch: `commit_text`)
+        // commits what is composed, converted. rime-ice ignores Shift_R, so Shift_L stands for
+        // either key.
         _ = engine.processKey(RimeKey.shiftL, mask: 0)
         _ = engine.processKey(RimeKey.shiftL, mask: RimeKey.releaseMask)
         var effects: [Effect] = []

@@ -137,6 +137,9 @@ struct PinyinSchemeTests {
         #expect(text.contains("engine/translators: [ punct_translator, reverse_lookup_translator, script_translator ]"))
         #expect(!text.contains("derive/") && !text.contains("custom_phrase\n"))
         #expect(try String(contentsOf: user.appendingPathComponent(FuzzyPinyin.fileName), encoding: .utf8).contains("\"derive/^f/h/\""))
+        // A tap of Shift commits what is composed, converted (rime-ice's: the keys typed); full pinyin's as rime-ice's.
+        #expect(text.contains("  ascii_composer/switch_key: { Caps_Lock: clear, Shift_L: commit_text, Shift_R: commit_text, Control_L: noop, Control_R: noop }\n"))
+        #expect(try !String(contentsOf: user.appendingPathComponent(FuzzyPinyin.fileName), encoding: .utf8).contains("ascii_composer"))
         // Simplified: converted too. Another scheme: Zhuyin's gone; the user's own left as it is.
         #expect(try FuzzyPinyin.apply(["f-h"], characters: .simplified, scheme: .zhuyin, schema: schema, userDir: user) == .written)
         #expect(try String(contentsOf: patch, encoding: .utf8).contains("zh_hans/opencc_config: t2s.json"))

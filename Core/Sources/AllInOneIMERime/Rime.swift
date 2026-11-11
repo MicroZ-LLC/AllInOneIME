@@ -519,7 +519,8 @@ public final class RimeSession: PinyinEngine {
     /// The session types with a Shuangpin scheme (`selectSchema`): two keys a syllable, its preedit spelled out.
     private var shuangpin: Bool { schema.flatMap(PinyinScheme.init(rawValue:))?.isShuangpin ?? false }
     /// The session types Zhuyin (rime-bopomofo's schema): its fluency editor commits only on Return, the composition
-    /// converted; a pick, Space (its `toggle_selection`) and a ⇧digit only confirm a part, all of it too.
+    /// converted (a tap of Shift too, here: `processKey`); a pick, Space (its `toggle_selection`) and a ⇧digit only
+    /// confirm a part, all of it too.
     private var zhuyin: Bool { schema == PinyinScheme.zhuyin.schema }
 
     /// Whether what is typed is learned into librime's user dictionary, as librime has it (true). Off (a field an input
@@ -543,13 +544,24 @@ public final class RimeSession: PinyinEngine {
 
     public func processKey(_ keycode: Int32, mask: Int32) -> Bool {
         guard isCurrentGeneration else { return false }
-        guard !learns else { return api.pointee.process_key(id, keycode, mask) != 0 }
         let shift = keycode == RimeKey.shiftL || keycode == RimeKey.shiftR
+        if learns, shift, mask & RimeKey.releaseMask != 0, zhuyin {
+            // Zhuyin's tap of Shift (its patch: `commit_text`) only confirms what is composed, converted: its fluency
+            // editor commits on Return. Committed here as Return commits it, and learned.
+            let latin = api.pointee.get_option(id, "ascii_mode") != 0
+            let handled = api.pointee.process_key(id, keycode, mask) != 0
+            if (api.pointee.get_option(id, "ascii_mode") != 0) != latin, composition() != nil {
+                _ = api.pointee.commit_composition(id)
+            }
+            return handled
+        }
+        guard !learns else { return api.pointee.process_key(id, keycode, mask) != 0 }
         if mask & RimeKey.releaseMask != 0 {
             // A tap of Shift (rime-ice: `Shift_L: commit_code`): librime commits the part picked and the letters after
-            // it, and learns the part. Put in here; librime then only switches to Latin.
-            if shift, shiftTap, let before = composition(), before.picked {
-                put(before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
+            // it, and learns the part; in Zhuyin (`commit_text`) all of it converted, as Return. Put in here; librime then
+            // only switches to Latin.
+            if shift, shiftTap, let before = composition(), before.picked || zhuyin {
+                put(zhuyin ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
             }
             shiftTap = false
             return api.pointee.process_key(id, keycode, mask) != 0

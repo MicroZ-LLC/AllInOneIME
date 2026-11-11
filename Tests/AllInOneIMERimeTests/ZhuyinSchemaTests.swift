@@ -115,6 +115,28 @@ struct ZhuyinSchemaTests {
             let first = try #require(type("su3cl3").candidates.first?.text)
             #expect(session.processKey(RimeKey.returnKey, mask: 0))
             #expect(session.takeCommit() == first)
+            // A tap of Shift (either: its patch) commits what is composed, converted, not the keys typed, and switches
+            // to Latin; after Space's pick the same. Taiwan's forms: 我們, not 我们. A Shift held for ⇧1 is no tap.
+            #expect(patch.contains("Shift_L: commit_text, Shift_R: commit_text"))
+            func tapShift() -> String? {
+                _ = session.processKey(RimeKey.shiftL, mask: 0)
+                _ = session.processKey(RimeKey.shiftL, mask: RimeKey.releaseMask)
+                return session.takeCommit()
+            }
+            _ = type("su3cl3")
+            #expect(tapShift() == "你好")
+            #expect(session.snapshot().isAsciiMode && !session.snapshot().isComposing && session.rawInput.isEmpty)
+            session.setAsciiMode(false)
+            #expect(type("ji3ap7").candidates.first?.text == "我們")
+            _ = session.processKey(RimeKey.space, mask: 0)
+            #expect(tapShift() == "我們" && session.snapshot().isAsciiMode)
+            session.setAsciiMode(false)
+            _ = type("su3")
+            _ = session.processKey(RimeKey.shiftL, mask: 0)
+            _ = session.processKey(0x21, mask: RimeKey.shiftMask)
+            _ = session.processKey(0x21, mask: RimeKey.shiftMask | RimeKey.releaseMask)
+            _ = session.processKey(RimeKey.shiftL, mask: RimeKey.releaseMask)
+            #expect(session.takeCommit() == nil && session.snapshot().isComposing && !session.snapshot().isAsciiMode)
             // The candidates removed are left out.
             session.setRemovedCandidates(["你好"])
             #expect(!words("su3cl3").contains("你好"))
@@ -128,7 +150,25 @@ struct ZhuyinSchemaTests {
             #expect(session.takeCommit() == unlearned && !session.snapshot().isComposing)
             _ = type("su3")
             #expect(session.selectCandidate(onPage: 0) && session.takeCommit() == nil && session.snapshot().isComposing)
+            _ = type("su3cl3")
+            #expect(tapShift() == "你好" && session.snapshot().isAsciiMode && !session.snapshot().isComposing)
+            session.setAsciiMode(false)
+            _ = type("ji3ap7")
+            _ = session.processKey(RimeKey.space, mask: 0)
+            #expect(tapShift() == "我們")
+            session.setAsciiMode(false)
             session.learns = true
+            // The app's tap of Shift (`Composer`): what is composed goes in converted.
+            let composer = Composer(engine: session, actionKey: .enter)
+            composer.pinyinScheme = .zhuyin
+            session.clearComposition()
+            for character in "su3cl3" { _ = composer.handleKeyDown(key(character)) }
+            #expect(composer.engineState.isComposing)
+            _ = composer.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+            let tap = composer.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+            #expect(tap.contains(.commit("你好")), "\(tap)")
+            #expect(composer.engineState.isAsciiMode && !composer.engineState.isComposing)
+            session.setAsciiMode(false)
 
             // Full pinyin again on the same session (its patch kept), and the list back to it alone (Zhuyin's removed).
             #expect(session.selectSchema("rime_ice"))

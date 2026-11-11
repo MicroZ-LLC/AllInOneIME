@@ -421,7 +421,11 @@ public struct PersonalDictionaryStore: Sendable {
         guard !schemaText.isEmpty else { return nil }
         let translators = "  # Without rime-ice's custom phrases (custom_phrase.txt: pinyin letters, which would be Zhuyin keys here).\n"
             + "  engine/translators: [ punct_translator, reverse_lookup_translator, script_translator ]\n"
-        return withRemovedFilter(FuzzyPinyin.marker + "\npatch:\n" + translators + (characters.patch(schema: schemaText) ?? ""))
+        // A tap of Shift: what is composed goes in converted, as macOS's own Zhuyin has it, not the keys typed (rime-ice's
+        // default.yaml: `Shift_L: commit_code`). The schema's map replaces default.yaml's whole: its other keys as rime-ice's.
+        let shift = "  # A tap of Shift commits what is composed, converted (rime-ice's: the keys typed).\n"
+            + "  ascii_composer/switch_key: { Caps_Lock: clear, Shift_L: commit_text, Shift_R: commit_text, Control_L: noop, Control_R: noop }\n"
+        return withRemovedFilter(FuzzyPinyin.marker + "\npatch:\n" + translators + shift + (characters.patch(schema: schemaText) ?? ""))
     }
 
     /// `text`, the patch (nil: none), with AllInOneIME's filter of the candidates removed (`RemovedCandidates.luaFilter`)
