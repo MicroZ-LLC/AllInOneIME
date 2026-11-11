@@ -783,7 +783,7 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 
 ## This week's stats (new)
 
-<img src="docs/en/week-stats.png" width="520" alt="This week's stats as a picture: 132 commands, 18% more than the same days last week, bars Monday to Sunday, the commands run most, where they came from and the clipboard history pastes">
+<img src="docs/en/week-stats.png" width="520" alt="This week's stats as a picture: 132 commands, 18% more than the same days last week, 12,340 characters typed, bars Monday to Sunday, the commands run most, where they came from and the clipboard history pastes">
 
 How much you use AllInOneIME, week by week, and a picture of it to share. Settings → This Week (the first page in the
 sidebar) shows the calendar week, Monday to Sunday in your time zone:
@@ -791,6 +791,11 @@ sidebar) shows the calendar week, Monday to Sunday in your time zone:
 - How many commands you ran, and how that compares with last week up to the same weekday ("↑18% vs. the same days last
   week"; nothing when last week had none on those days; the first week says it's compared from next week on and which
   day counting started). How many days you used it, and in how many apps.
+- How many characters you typed through AllInOneIME, under that ("12,340 characters typed"; not shown while there are
+  none): each Chinese character picked, each letter, digit and punctuation mark typed through it, never spaces or line
+  breaks. Not what commands, AI answers, snippets, autocomplete or clipboard history put in (only what you typed
+  yourself), nothing while secure input is on (password fields), nothing where the input method lets every key
+  through (without a language pack).
 - A bar for each day, today named; days still to come and days without a command as a short gray bar.
 - The 5 commands run most, each with its own icon and color as the command list shows it, then "4 more commands, 32
   runs in all" (or, with few, where to find every command: type @ at the start of a text field).
@@ -805,8 +810,9 @@ page keeps their names); it's remembered by the page, not a setting in config.js
 command it ran. `@stats` shows the same in the @ list, and the menu bar panel has the week on top.
 
 What is counted, on this Mac only: each command run (its name, where it comes from, whether it used AI), per day; the
-apps it ran in, as salted hashes of their bundle IDs (only how many is shown); clipboard history pastes. Never what you
-typed, a command's text, what was pasted, or a time finer than the day. See [Privacy](#privacy).
+apps it ran in, as salted hashes of their bundle IDs (only how many is shown); clipboard history pastes; the characters
+you typed, as one number a day (counted as they go in, in memory). Never what you typed, a command's text, what was
+pasted, or a time finer than the day. See [Privacy](#privacy).
 
 ## Menu bar panel
 
@@ -1445,7 +1451,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well. `@note` to a folder writes a file on this Mac (it syncs if the folder does, as an iCloud Drive or Obsidian Sync folder would). `@note` to Notion sends the note to Notion (api.notion.com, with your integration's token, kept in the keychain), and only then: not during secure input.
 - `@reportissue` (and "Report an Issue…") posts nothing itself: it opens GitHub's new-issue page in your browser, prefilled with the title you typed and the versions, languages, provider kind and counts listed above (`@reportissue` shows them in the candidate panel first; the menu item and Settings open the page directly). Opening the page gives GitHub that prefilled text in its address; the issue is only posted when you click Submit there.
-- This week's stats (Settings → This Week, `@stats`, the menu bar panel's row) count each command run (its name, whether it is your own, built-in or a plugin's, whether it used AI), the apps they ran in as salted hashes of their bundle IDs (the salt is random, kept with the counts; only how many apps is shown) and the clipboard history pastes, per day, for the last 8 calendar weeks, in `~/Library/Application Support/AllInOneIME/usage.json` (readable only by your user account), not in config.json. Never what you typed, a command's text or what was pasted, never a time finer than the day. They stay on this Mac: never synced (not with iCloud either), never sent. The picture goes only where you copy or save it. Settings → Privacy → Learned… lists them; Forget there, or Forget All, deletes them.
+- This week's stats (Settings → This Week, `@stats`, the menu bar panel's row) count each command run (its name, whether it is your own, built-in or a plugin's, whether it used AI), the apps they ran in as salted hashes of their bundle IDs (the salt is random, kept with the counts; only how many apps is shown), the clipboard history pastes and how many characters you typed through the input method (a number only, never the characters themselves, never in password fields), per day, for the last 8 calendar weeks, in `~/Library/Application Support/AllInOneIME/usage.json` (readable only by your user account), not in config.json. Never what you typed, a command's text or what was pasted, never a time finer than the day. They stay on this Mac: never synced (not with iCloud either), never sent. The picture goes only where you copy or save it. Settings → Privacy → Learned… lists them; Forget there, or Forget All, deletes them.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings (General → In these apps, Privacy → Apps without AI), the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
 - What the input method learns on this Mac stays on this Mac, never in the config file and never synced: each app's starting input (and the switches toward one), the apps where typos couldn't be fixed and the suggestion rows you picked, in `~/Library/Application Support/AllInOneIME/learned.json` (app IDs, inputs, counts and times, and for a picked row what it matched, such as an issue number or an item of your list; never text you typed), and with them the apps where autocomplete stopped by itself and the models that refuse a temperature (kept where they were before). What 0.6.6 and earlier kept elsewhere moves in at the first launch. Settings → Privacy → Learned… lists all of it, with Forget for each and Forget All.
