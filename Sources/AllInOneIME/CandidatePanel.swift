@@ -253,7 +253,7 @@ final class CandidatePanel: NSPanel {
 /// Draws the candidate list: the core's `PanelModel`, with the icons as the Mac draws them (`Icon`), its caret as "▏"
 /// and the choices where a conversation can go on as lines of text (`PanelModel.inputText`). Layout is computed when the
 /// model changes; drawing is appearance-aware. Every list looks one way: the highlighted row a soft wash of the system's
-/// accent color, the numbers on keycaps, the footer a few keys on keycaps.
+/// accent color, the numbers on keycaps, the footer a few keys on keycaps; stronger with Increase contrast (`palette`).
 final class CandidateView: NSView {
     /// An SF Symbol, drawn in `color` on a square of it, lightly tinted.
     struct Icon: Equatable {
@@ -355,6 +355,86 @@ final class CandidateView: NSView {
     static let background = NSColor(name: "AllInOneIMEPanelBackground") { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? NSColor(white: 0.16, alpha: 0.98) : NSColor(white: 0.995, alpha: 0.98)
+    }
+
+    /// The colors that make the panel easy to read, as `palette` gives them for an appearance.
+    struct Palette {
+        /// The comment after a row's text ("黑话", jargon), and the numbers of the pinyin candidates' pills.
+        var rowComment: NSColor
+        var pillNumber: NSColor
+        /// The highlighted row (and pill): its fill, its border (nil: none) and how wide.
+        var selectedFill: NSColor
+        var selectedBorder: NSColor?
+        var selectedBorderWidth: CGFloat
+        /// Text in the accent color on the highlighted row (what ⏎ does) and pill (its number).
+        var selectedInk: NSColor
+    }
+
+    /// The colors for `appearance`: the system's secondary gray for the small texts (about 3.9:1 on the panel), the
+    /// highlighted row a soft wash of the accent color at least 1.5:1 on the panel's background (`selectionTint`). With
+    /// Increase contrast (Accessibility → Display: `increaseContrast`), stronger: the label color for those texts and on
+    /// the highlighted row, and the row a solid, stronger tint of the accent with a 1 pt accent border.
+    static func palette(appearance: NSAppearance, increaseContrast: Bool) -> Palette {
+        let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        var accent = NSColor.controlAccentColor, panel = background, ink = accent
+        appearance.performAsCurrentDrawingAppearance {
+            accent = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
+            panel = background.usingColorSpace(.sRGB) ?? .white
+            ink = accentInk(dark: dark)
+        }
+        let tint = selectionTint(accent: accent, background: panel, dark: dark)
+        guard increaseContrast else {
+            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor,
+                           selectedFill: tint.color.withAlphaComponent(tint.alpha), selectedBorder: nil, selectedBorderWidth: 0,
+                           selectedInk: ink)
+        }
+        let solid = panel.withAlphaComponent(1).blended(withFraction: min(tint.alpha + 0.15, 0.7), of: tint.color) ?? tint.color
+        return Palette(rowComment: .labelColor, pillNumber: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
+                       selectedBorderWidth: 1, selectedInk: .labelColor)
+    }
+
+    /// Whether the panel is drawn with stronger colors (Accessibility → Display → Increase contrast).
+    static var increasesContrast: Bool { NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast }
+
+    /// The highlighted row's wash on `background` (both in sRGB): the accent at the least alpha, from as light as it
+    /// always was (14% on light, 28% on dark), that sets it off 1.6:1 from the background (WCAG's ratio; 1.5 wanted, and a
+    /// little more for the glass); an accent too light on light (yellow) or too dark on dark for that even at half,
+    /// darkened (lightened) until it is. Worked out once for each accent and appearance.
+    private static func selectionTint(accent: NSColor, background: NSColor, dark: Bool) -> (color: NSColor, alpha: CGFloat) {
+        let key = TintKey(accent: [accent.redComponent, accent.greenComponent, accent.blueComponent], dark: dark)
+        if let tint = tints[key] { return tint }
+        var tint = (color: accent, alpha: CGFloat(0.5))
+        search: for shade in stride(from: CGFloat(0), through: 0.9, by: 0.1) {
+            let color = shade == 0 ? accent : accent.blended(withFraction: shade, of: dark ? .white : .black) ?? accent
+            for alpha in stride(from: dark ? CGFloat(0.28) : 0.14, through: 0.5, by: 0.01)
+            where contrast(color.withAlphaComponent(alpha), over: background) >= 1.6 {
+                tint = (color, alpha)
+                break search
+            }
+        }
+        tints[key] = tint
+        return tint
+    }
+
+    private struct TintKey: Hashable {
+        var accent: [CGFloat]
+        var dark: Bool
+    }
+    private static var tints: [TintKey: (color: NSColor, alpha: CGFloat)] = [:]
+
+    /// WCAG's contrast ratio of `color` (its alpha over `background`) against `background`, both in sRGB.
+    static func contrast(_ color: NSColor, over background: NSColor) -> CGFloat {
+        guard let color = color.usingColorSpace(.sRGB), let background = background.usingColorSpace(.sRGB) else { return 1 }
+        func luminance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGFloat {
+            func linear(_ v: CGFloat) -> CGFloat { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        }
+        let a = color.alphaComponent
+        func over(_ c: CGFloat, _ b: CGFloat) -> CGFloat { c * a + b * (1 - a) }
+        let front = luminance(over(color.redComponent, background.redComponent), over(color.greenComponent, background.greenComponent),
+                              over(color.blueComponent, background.blueComponent))
+        let back = luminance(background.redComponent, background.greenComponent, background.blueComponent)
+        return (max(front, back) + 0.05) / (min(front, back) + 0.05)
     }
 
     private struct RowLayout {
@@ -882,7 +962,7 @@ final class CandidateView: NSView {
             // No-break spaces and word joiners: when the line wraps, the comment ("黑话", jargon) moves as one
             // piece together with the last word instead of breaking between its characters.
             let glued = "\u{00A0}\u{00A0}" + comment.map(String.init).joined(separator: "\u{2060}")
-            text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.tertiaryLabelColor]))
+            text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: palette.rowComment]))
         }
         return text
     }
@@ -956,13 +1036,15 @@ final class CandidateView: NSView {
 
     // MARK: - Drawing
 
-    /// The accent color as text (`accentInk`), for the drawing under way.
-    private var ink = NSColor.controlAccentColor
+    /// The colors for the drawing under way (`palette`): as the appearance has them, and Increase contrast.
+    private lazy var palette = Self.palette(appearance: effectiveAppearance, increaseContrast: Self.increasesContrast)
+    /// The accent color as text on the highlighted row (`Palette.selectedInk`), for the drawing under way.
+    private var ink: NSColor { palette.selectedInk }
 
     override func draw(_ dirtyRect: NSRect) {
         let dark = isDark
         let accent = NSColor.controlAccentColor
-        ink = Self.accentInk(dark: dark)
+        palette = Self.palette(appearance: effectiveAppearance, increaseContrast: Self.increasesContrast)
         let shape = NSBezierPath(
             roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25), xRadius: Metrics.cornerRadius - 0.25, yRadius: Metrics.cornerRadius - 0.25)
         if drawsBackground {
@@ -1007,8 +1089,7 @@ final class CandidateView: NSView {
         // Selected: what the key that picks takes. Moving, it slides there from the row it was on.
         if let index = model.highlighted, rowLayouts.indices.contains(index) {
             let frame = slidingFrame(to: rowLayouts[index].frame)
-            accent.withAlphaComponent(dark ? 0.28 : 0.14).setFill()
-            NSBezierPath(roundedRect: frame, xRadius: radius(frame), yRadius: radius(frame)).fill()
+            drawSelection(frame, radius: radius(frame))
         }
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             drawRow(model.rows[index], index: index, layout: layout, dark: dark)
@@ -1103,13 +1184,16 @@ final class CandidateView: NSView {
     /// The pinyin candidates' pills, the highlighted one (what Space picks: `PanelModel.candidatesHighlighted`) in the
     /// accent's tint, what Space does at the end of the line, and a hairline between them and the rows.
     private func drawPills(in frame: NSRect, dark: Bool) {
-        let accent = NSColor.controlAccentColor
         let lineInset = Metrics.padding + Metrics.rowInsetX
         for (index, pill) in pills.enumerated() {
             let highlighted = index == model.candidatesHighlighted
-            (highlighted ? accent.withAlphaComponent(dark ? 0.28 : 0.14) : NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05)).setFill()
-            NSBezierPath(roundedRect: pill.frame, xRadius: 8, yRadius: 8).fill()
-            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: highlighted ? ink : .tertiaryLabelColor)
+            if highlighted {
+                drawSelection(pill.frame, radius: 8)
+            } else {
+                NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05).setFill()
+                NSBezierPath(roundedRect: pill.frame, xRadius: 8, yRadius: 8).fill()
+            }
+            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: highlighted ? ink : palette.pillNumber)
             let height = ceil(Fonts.pill.ascender - Fonts.pill.descender)
             text.draw(at: NSPoint(x: pill.frame.minX + Metrics.pillInsetX, y: pill.frame.midY - height / 2))
         }
@@ -1166,6 +1250,18 @@ final class CandidateView: NSView {
         }
         let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
         text.draw(at: NSPoint(x: x, y: origin.y - text.size().height / 2))
+    }
+
+    /// The highlighted row's (or pill's) wash in `frame`, and its border with Increase contrast (`palette`).
+    private func drawSelection(_ frame: NSRect, radius: CGFloat) {
+        palette.selectedFill.setFill()
+        NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius).fill()
+        guard let border = palette.selectedBorder, palette.selectedBorderWidth > 0 else { return }
+        let inset = palette.selectedBorderWidth / 2
+        let shape = NSBezierPath(roundedRect: frame.insetBy(dx: inset, dy: inset), xRadius: radius - inset, yRadius: radius - inset)
+        shape.lineWidth = palette.selectedBorderWidth
+        border.setStroke()
+        shape.stroke()
     }
 
     /// `key` centered on a rounded square (`frame`), filled, and outlined with a hairline when `stroke` is given.
