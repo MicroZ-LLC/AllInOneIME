@@ -90,7 +90,7 @@ struct ComposerTests {
                                       rewrites: [Rewrite(style: "简洁", line: CandidateLine("好"))])
         _ = c.receive(result, isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .translation("ja"), .translation("en"), .rewrite("简洁")])
-        #expect(c.choices.map(\.label) == ["0", "1", "2", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])  // numbered on, as shown
         #expect(c.highlighted == 1)  // the first translation, not the original
     }
 
@@ -246,16 +246,16 @@ struct ComposerTests {
         _ = d.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "你好。"), ("正式", "您好。")])),
                       isFinal: true, id: 1)
-        // "你好。" is the original plus a full stop: hidden, and the formal rewrite takes label 4.
-        #expect(d.choices.map(\.label) == ["0", "1", "4"])
+        // "你好。" is the original plus a full stop: hidden, and the formal rewrite takes the next label, 2.
+        #expect(d.choices.map(\.label) == ["0", "1", "2"])
         #expect(d.choices.last?.kind == .rewrite("正式"))
-        #expect(commits(d.handleKeyDown(k("4"))) == ["您好。"])
+        #expect(commits(d.handleKeyDown(k("2"))) == ["您好。"])
 
         let (e, _) = translating()
         _ = e.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "您好！"), ("正式", "您好。")])),
                       isFinal: true, id: 1)
-        #expect(e.choices.map(\.label) == ["0", "1", "4"])  // 正式 (formal) repeats the 润色 (polish) wording
+        #expect(e.choices.map(\.label) == ["0", "1", "2"])  // 正式 (formal) repeats the 润色 (polish) wording
         #expect(e.choices.last?.kind == .rewrite("润色"))
     }
 
@@ -265,7 +265,7 @@ struct ComposerTests {
                                        rewrites: rewrites([("委婉", "你好呀，打扰啦"), ("口语", "嗨～")])),
                       isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .version, .rewrite("委婉"), .rewrite("口语")])
-        #expect(c.choices.map(\.label) == ["0", "1", "4", "5"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])
     }
 
     @Test func rewritesAppearOnceComplete() {
@@ -276,7 +276,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "你好呀！")]) + rewrites([("简洁", "嗨")], complete: false)),
                       isFinal: false, id: 1)
-        #expect(c.choices.map(\.label) == ["0", "1", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2"])
         _ = c.receive(final, isFinal: true, id: 1)
         #expect(c.choices.map(\.label) == ["0", "1", "2", "3", "4", "5", "6"])
         #expect(c.phase == .choosing)
@@ -564,7 +564,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("Hi there!"), CandidateLine("Hello!")],
                                        rewrites: rewrites([("润色", "Hi there."), ("简洁", "Hey.")])),
                       isFinal: true, id: 1)
-        #expect(c.choices.map(\.label) == ["0", "1", "2", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])
         #expect(c.choices.last?.text == "Hey.")
     }
 

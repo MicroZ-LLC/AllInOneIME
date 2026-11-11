@@ -1067,7 +1067,8 @@ public final class Composer {
     }
 
     /// Level-two rows: "0" the sentence as typed, "1"–"3" the versions in the output language, then
-    /// the rewrites in the configured styles, numbered on from 4. A rewrite is shown once it has fully
+    /// the rewrites in the configured styles, numbered on after the last row shown (two versions: 3, 4 …, as the
+    /// panel shows them, and the digit picks the row with it). A rewrite is shown once it has fully
     /// arrived, and only if it changes the wording (not just punctuation) and repeats no other row.
     /// For `@question` / `@agent`: "0" the text sent and "1" the answer; for `@open`: the files found;
     /// for `@reminder`: "1" the reminder to add.
@@ -1115,12 +1116,11 @@ public final class Composer {
                               isComplete: translation.line.isComplete))
             label += 1
         }
-        var next = max(4, label)
-        for rewrite in result.rewrites where rewrite.line.isComplete && next <= 9 {
+        for rewrite in result.rewrites where rewrite.line.isComplete && label <= 9 {
             let key = rewrite.line.text.wordingKey
             guard !key.isEmpty, shownWordings.insert(key).inserted else { continue }
-            out.append(Choice(label: String(next), kind: .rewrite(rewrite.style), text: rewrite.line.text, isComplete: true))
-            next += 1
+            out.append(Choice(label: String(label), kind: .rewrite(rewrite.style), text: rewrite.line.text, isComplete: true))
+            label += 1
         }
         return out
     }
