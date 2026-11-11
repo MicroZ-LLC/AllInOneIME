@@ -136,6 +136,48 @@ struct ClipboardHistoryFilterTests {
         }
     }
 
+    /// A longer history (more text than `ClipboardFilter.atOnceLength`) is never read on a key: what its rows are found
+    /// by is worked out off the session's thread from when the panel opens, and each key's rows are found there too.
+    /// The filter shows at once, the rows it keeps once they're found, for what is typed by then (no count before); an
+    /// earlier panel's never land on one opened after. A short history is filtered on the key, as before.
+    @Test func aLongerHistoryIsFilteredOffTheKey() async throws {
+        try await withInterfaceLanguage("en") {
+            let long = String(repeating: "长文本 long text ", count: 800)
+            #expect(long.utf8.count > ClipboardFilter.atOnceLength)
+            let texts = ["你好世界", long, "memo 1", "nihao"]
+            let h = host(texts)
+            #expect(h.session.clipboard.index != nil && host(["你好世界", "nihao"]).session.clipboard.index == nil)
+            h.type("niha")
+            // Nothing worked out on the keys: the filter shows, the rows are those before, without a count yet.
+            #expect(h.session.clipboard.keys == nil)
+            #expect(h.panel?.input?.text == "niha" && h.panel?.rows.count == 4 && h.panel?.detail == "Clipboard")
+            h.type("o")
+            #expect(h.settle { h.panel?.detail == "Clipboard · 2 matches" })
+            #expect(h.panel?.rows.map(\.text) == ["你好世界", "nihao"] && h.panel?.highlighted == 0)
+            // ⌫ to no filter: every row at once.
+            for _ in 0..<5 { #expect(h.press(backspace)) }
+            #expect(h.panel?.rows.count == 4 && h.panel?.input == nil)
+            h.settle(timeout: 0.2) { false }  // what the keys before asked for, if any comes: not shown
+            #expect(h.panel?.rows.count == 4 && h.panel?.input == nil)
+
+            // Hidden before its rows are in, opened again on a short history: the earlier panel's never show there.
+            let held = host(texts)
+            held.type("nihao")
+            #expect(held.waitForAnswer { if case .task(_, .clipboardFiltered) = $0 { true } else { false } })
+            held.press(FakeHost.escape)
+            held.clipboardHistory = ["memo 2", "nihao 2"].enumerated().map { index, text in
+                ClipboardHistoryItem(text: text, copiedAt: held.clipboardNow.addingTimeInterval(-Double(index + 1) * 60))
+            }
+            held.clipboard = .text("memo 2")
+            #expect(held.press(FakeHost.controlV) && held.session.clipboard.index == nil)
+            held.settle { true }
+            #expect(held.panel?.rows.map(\.text) == ["memo 2", "nihao 2"] && held.panel?.input == nil)
+            held.type("nihao")
+            held.settle { true }
+            #expect(held.panel?.rows.map(\.text) == ["nihao 2"])
+        }
+    }
+
     @Test func theFooterSaysTypingFiltersAndWhatIsLeft() async throws {
         try await withInterfaceLanguage("en") {
             let h = host((1...8).map { "memo \($0)" })

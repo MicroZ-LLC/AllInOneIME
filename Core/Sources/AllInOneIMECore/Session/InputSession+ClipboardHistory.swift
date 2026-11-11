@@ -38,9 +38,13 @@ struct ClipboardHistoryField {
     /// The first row shown (a page of `ListPage.size` at a time, as a command's list).
     var top = 0
     /// What is typed to filter the rows (0.7.3, `InputSession.clipboardFilters`; "": none), and what each of `all` is found
-    /// by (`ClipboardFilter.key`), worked out on the first key that filters.
+    /// by (`ClipboardFilter.key`), worked out on the first key that filters. A longer history's (not
+    /// `ClipboardFilter.filtersAtOnce`) off the session's thread from when the panel opens (`index`), the rows each
+    /// filter keeps found there too: the filter `rows` were found by (`found`) is the one before until they are in.
     var filter = ""
     var keys: [ClipboardFilter.Key?]?
+    var index: ClipboardFilter.Index?
+    var found = ""
     /// The panel shows the rows; a command's text takes the row (else it goes into the field); the first showing on
     /// this device (its footer says where the history is kept); ⌃V can go to the app for the image row, as the shell
     /// said when the panel opened (asked again on ⏎).
@@ -113,9 +117,14 @@ extension InputSession {
         guard clipboardOpensIn() == reading.command else { return }
         let rows = clipboardRows(content)
         guard !rows.isEmpty else { return say(composer.messages.nothingToPaste) }
+        tasks.cancel(.clipboardFilter)  // an earlier panel's filter: never these rows'
         clipboard = ClipboardHistoryField(reads: clipboard.reads, rows: rows, all: rows, shown: true, command: reading.command,
                                           first: services.clipboardHistory.firstShowing(),
                                           passesPasteKey: rows.contains(where: \.isImage) && services.clipboardHistory.canPassPasteKey())
+        // A longer history: what its rows are found by, worked out off the session's thread from now.
+        if clipboardFilters, !ClipboardFilter.filtersAtOnce(rows) {
+            clipboard.index = ClipboardFilter.Index(rows, language: UIText.language)
+        }
         log.notice("clipboard history: shown (\(rows.count) rows\(reading.command ? ", in a command" : ""))")
         emit(.panel(clipboardPanel()))
     }
@@ -261,22 +270,41 @@ extension InputSession {
         return true
     }
 
-    /// The rows the filter keeps (`ClipboardFilter`; all of them with none), the first chosen, a selection ended.
+    /// The rows the filter keeps (`ClipboardFilter`; all of them with none). A longer history's are found off the
+    /// session's thread (`ClipboardFilter.Index`), the rows shown meanwhile those before (`clipboardFound`).
     private func clipboardFiltered() {
-        if clipboard.filter.isEmpty {
-            clipboard.rows = clipboard.all
-        } else {
-            if clipboard.keys == nil {
-                let language = UIText.language
-                clipboard.keys = clipboard.all.map { ClipboardFilter.key($0, language: language) }
+        tasks.cancel(.clipboardFilter)
+        let filter = clipboard.filter
+        if filter.isEmpty { return clipboardKeeps(clipboard.all, filter) }
+        if let index = clipboard.index {
+            tasks.start(.clipboardFilter) { post in
+                if let rows = await index.rows(filter) { post(.clipboardFiltered(rows, filter: filter)) }
             }
-            let (filter, keys) = (clipboard.filter, clipboard.keys ?? [])
-            clipboard.rows = zip(clipboard.all, keys).compactMap { row, key in
-                key.map { ClipboardFilter.matches($0, filter) } == true ? row : nil
-            }
+            return
         }
+        if clipboard.keys == nil {
+            let language = UIText.language
+            clipboard.keys = clipboard.all.map { ClipboardFilter.key($0, language: language) }
+        }
+        let keys = clipboard.keys ?? []
+        clipboardKeeps(zip(clipboard.all, keys).compactMap { row, key in
+            key.map { ClipboardFilter.matches($0, filter) } == true ? row : nil
+        }, filter)
+    }
+
+    /// The rows `filter` keeps in a longer history, found off the session's thread (`clipboardFiltered`; by their place
+    /// in `all`): shown, unless the panel is gone or another filter is typed by now (its rows on their way).
+    func clipboardFound(_ found: [Int], filter: String) {
+        guard clipboard.shown, filter == clipboard.filter else { return }
+        clipboardKeeps(found.compactMap { clipboard.all.indices.contains($0) ? clipboard.all[$0] : nil }, filter)
+        emit(.panel(clipboardPanel()))
+    }
+
+    /// `rows` shown, those `filter` keeps: the first chosen, a selection ended.
+    private func clipboardKeeps(_ rows: [ClipboardHistoryField.Row], _ filter: String) {
+        (clipboard.rows, clipboard.found) = (rows, filter)
         (clipboard.chosen, clipboard.anchor, clipboard.top) = (0, nil, 0)
-        log.notice("clipboard history: filtered (\(clipboard.filter.count) characters, \(clipboard.rows.count) of \(clipboard.all.count) rows)")
+        log.notice("clipboard history: filtered (\(filter.count) characters, \(rows.count) of \(clipboard.all.count) rows)")
     }
 
     /// ⌃V again (the panel showing, or before the clipboard was read for it): in a command the composer's (nil: today's
@@ -331,6 +359,7 @@ extension InputSession {
     /// The panel hidden (→, Esc, ⌃V again, another key, the field left): the composer's panel back in a command.
     func clipboardHide() {
         let shown = clipboard.shown
+        tasks.cancel(.clipboardFilter)
         clipboard = ClipboardHistoryField(reads: clipboard.reads)
         if shown { emit(.panel(composer.wantsPanel ? panelModel() : nil)) }
     }
@@ -465,7 +494,8 @@ extension InputSession {
         }
         var detail = t.tr("剪贴板", "Clipboard")
         if !selected.isEmpty { detail += t.tr(" · 已选 \(selected.count) 条", " · \(selected.count) selected") }
-        if filtered {
+        // How many match once they are found (a longer history's: `clipboardFound`), not the rows shown till then.
+        if filtered, clipboard.found == clipboard.filter {
             detail += all == 0 ? t.tr(" · 没有匹配", " · no match")
                 : all == 1 ? t.tr(" · 1 条匹配", " · 1 match") : t.tr(" · \(all) 条匹配", " · \(all) matches")
         }

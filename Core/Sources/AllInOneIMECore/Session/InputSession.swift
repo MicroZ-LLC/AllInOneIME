@@ -1611,6 +1611,8 @@ public final class InputSession {
             warmDue(head, target: target, focus: focus)
         case .pluginsScanned:
             pluginsScanned()
+        case let .clipboardFiltered(rows, filter):
+            clipboardFound(rows, filter: filter)
         }
     }
 
