@@ -54,13 +54,23 @@ import Foundation
 //   end a selection; ⇧↓ ⇧↑ extend the selection from the row chosen when it started (stopping at the ends); with more
 //   rows than a page ← → turn it (0.7.3: the page before or after, its first row chosen, a selection ended; ← on the
 //   first page and → on the last stay); ⏎, keypad Enter or Tab put in the selection (or the chosen row); Esc, and → on
-//   one page, hide the panel (the composer's panel back in a command); ⌃V again hides it and pastes as the app does: outside a command, with `canPassPasteKey`, the app's own paste
-//   key (`PlatformAction.passPasteKey`, handled; 0.6.8.2), without it the key isn't handled (the app's ⌃V); in a command
-//   the composer has it (today's ⌃V). Each key the panel takes that puts nothing in says `rowsTookKey` first; one that puts
-//   text in, `rowByKey`. ⌃⌦ while pinyin is composed (in a command) only hides it: it would delete a candidate the panel
-//   hid (`Composer.deleteCandidate`). Any other key hides the panel and goes on as it would (digits are typed, never pick). The wheel
+//   one page, hide the panel (the composer's panel back in a command); ⌃V again hides it and pastes as the app does:
+//   outside a command, with `canPassPasteKey`, the app's own paste key (`PlatformAction.passPasteKey`, handled; 0.6.8.2),
+//   without it the key isn't handled (the app's ⌃V); in a command the composer has it (today's ⌃V). Each key the panel
+//   takes that puts nothing in says `rowsTookKey` first; one that puts text in, `rowByKey`. ⌃⌦ while pinyin is composed
+//   (in a command) only hides it: it would delete a candidate the panel hid (`Composer.deleteCandidate`). Any other key
+//   hides the panel and goes on as it would (digits are typed, never pick), but the filter's. The wheel
 //   (`SessionEvent.scroll`) moves the choice, stopping at the ends; a click (`SessionEvent.pick(index among those shown)`)
 //   puts that row in, alone.
+// - The filter (0.7.3, owner feedback #1; `InputSession.clipboardFilters`): outside a command, with more rows than a
+//   page, a letter, digit or mark typed (Shift too, whatever the input: no pinyin is composed) goes into a filter, Space
+//   too once one is typed, and ⌫ takes its last character back (with none typed, Space and ⌫ hide the panel and go on, as
+//   any other key). The rows are those it keeps (`ClipboardFilter`: a text in any case anywhere in it, one with Chinese in
+//   it by its pinyin too, spelled or by initials; an image by "image", "图片", its row's words or its size), newest first,
+//   the first chosen, the keys above, `choice`, the page and the selection theirs; `input` the filter ("filter › git",
+//   its caret at its end); `detail` "Clipboard · 2 matches" ("1 match", "no match") before the page. None kept: no rows,
+//   ⏎ and Tab put nothing in, `footer` "⌫ deletes · Esc hides". The footer of more rows than a page before a filter is
+//   typed: "⏎ inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides". Nothing is read for it.
 // - What goes in: the rows selected that are text, in the order they were copied (oldest first: the reverse of the
 //   rows'), each without the line breaks at its end, joined with "\n"; one row: its text as it was copied. Outside a
 //   command a `commit` (the shell's rows' insertion path: in a terminal with line breaks or tabs a paste where it can

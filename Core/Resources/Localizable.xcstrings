@@ -48,6 +48,53 @@
         }
       }
     },
+    " · %@ matches" : {
+      "comment" : " · %@ 条匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ coincidencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ résultats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@件一致"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@개 일치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ correspondências"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 條符合"
+          }
+        }
+      }
+    },
     " · %@ puts it on the clipboard" : {
       "comment" : " · %@ 放到剪贴板 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -142,6 +189,53 @@
         }
       }
     },
+    " · 1 match" : {
+      "comment" : " · 1 条匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 coincidencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 résultat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1件一致"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1개 일치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 correspondência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 條符合"
+          }
+        }
+      }
+    },
     " · 90%% within %@ ms" : {
       "comment" : " · 九成在 %@ ms 内 — Sources/AllInOneIMECore/Autocomplete.swift",
       "localizations" : {
@@ -232,6 +326,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : " · 結尾為 %@"
+          }
+        }
+      }
+    },
+    " · no match" : {
+      "comment" : " · 没有匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · kein Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · sin coincidencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · aucun résultat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 一致なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 일치 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · nenhuma correspondência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 沒有符合"
           }
         }
       }
@@ -3343,6 +3484,53 @@
         }
       }
     },
+    "%@ deletes · Esc hides" : {
+      "comment" : "%@ 删字 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ löscht · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ borra · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ efface · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で削除 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삭제 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ apaga · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刪字 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ didn't accept the API key: check it in Settings → Commands" : {
       "comment" : "%@ 不接受这个 API key：在设置 → 命令里检查一下 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -3809,6 +3997,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 插入 · ↑↓ 選擇 · ← → 翻頁 · ⇧↓ 多選 · Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ← → 翻页 · 打字筛选 · ⇧↓ 多选 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ← → blättern · tippen zum Filtern · ⇧↓ wählt mehr · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ← → pasar página · escribe para filtrar · ⇧↓ elige más · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ← → changer de page · tapez pour filtrer · ⇧↓ en choisit plus · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ← → でページ送り · 入力で絞り込み · ⇧↓ で複数選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ← → 페이지 넘기기 · 입력으로 필터링 · ⇧↓ 여러 개 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ← → mudam de página · digite para filtrar · ⇧↓ escolhe mais · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ← → 翻頁 · 打字篩選 · ⇧↓ 多選 · Esc 隱藏"
           }
         }
       }
@@ -20447,6 +20682,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "其他 Mac 同步的檔案仍在下載中"
+          }
+        }
+      }
+    },
+    "filter › " : {
+      "comment" : "筛选 ›  — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter › "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtro › "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtre › "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込み › "
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터 › "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtro › "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選 › "
           }
         }
       }
