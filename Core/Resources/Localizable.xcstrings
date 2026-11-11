@@ -54564,49 +54564,49 @@
         }
       }
     },
-    "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, - = turn the page." : {
-      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+    "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page." : {
+      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wortkandidaten (Pinyin, Hindi) untereinander: ↑↓ auswählen, - = blättern."
+            "value" : "Wortkandidaten (Pinyin, Hindi) untereinander: ↑↓ auswählen, ← → oder - = blättern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidatos de palabras (pinyin, hindi) uno debajo de otro: ↑↓ elegir, - = pasar página."
+            "value" : "Candidatos de palabras (pinyin, hindi) uno debajo de otro: ↑↓ elegir, ← → o - = pasar página."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidats de mots (pinyin, hindi) les uns sous les autres : ↑↓ pour choisir, - = pour changer de page."
+            "value" : "Candidats de mots (pinyin, hindi) les uns sous les autres : ↑↓ pour choisir, ← → ou - = pour changer de page."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "語の候補（ピンイン、ヒンディー語）を縦に並べます：↑↓で選択、- =でページ送り。"
+            "value" : "語の候補（ピンイン、ヒンディー語）を縦に並べます：↑↓で選択、← →または- =でページ送り。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "단어 후보(병음, 힌디어)를 위아래로 배열: ↑↓ 이동, - = 페이지 넘기기."
+            "value" : "단어 후보(병음, 힌디어)를 위아래로 배열: ↑↓ 이동, ← → 또는 - = 페이지 넘기기."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidatos de palavras (pinyin, hindi) um embaixo do outro: ↑↓ selecionam, - = mudam de página."
+            "value" : "Candidatos de palavras (pinyin, hindi) um embaixo do outro: ↑↓ selecionam, ← → ou - = mudam de página."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選字（拼音、印地語）的候選字由上往下排：↑↓ 選字，- = 翻頁。"
+            "value" : "選字（拼音、印地語）的候選字由上往下排：↑↓ 選字，← → 或 - = 翻頁。"
           }
         }
       }

@@ -4,7 +4,9 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Candidates in a row (`Config.candidateLayout`): ← → move the highlight and ↑↓ turn the page, the engine given
-/// the keys of a column for that; in a column every key is as before.
+/// the keys of a column for that; in a column ↑↓ move and ← → turn the page. One @'s candidates and a follow-up's, a line of
+/// pills, are a row in either layout. (With the real librime: CandidateKeysRimeTests.)
+@Suite(MacTerms())
 struct HorizontalCandidatesTests {
     let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
     let right = KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")
@@ -27,10 +29,27 @@ struct HorizontalCandidatesTests {
         #expect(c.engineState.highlighted == 1 && c.engineState.isComposing && c.draft.isEmpty)
     }
 
-    @Test func aColumnIsAsBefore() {
+    @Test func arrowsInAColumn() {
+        // ↑↓ are the engine's own (down the column, on to the next page from the last); ← → turn the page.
         let (c, e) = pinyin(horizontal: false)
-        for key in [right, left, downKey, upKey] { _ = c.handleKeyDown(key) }
-        #expect(e.keys.map(\.keycode) == [RimeKey.right, RimeKey.left, RimeKey.down, RimeKey.up])
+        for key in [right, left, downKey, upKey] { #expect(c.handleKeyDown(key).handled) }
+        #expect(e.keys.map(\.keycode) == [RimeKey.pageDown, RimeKey.pageUp, RimeKey.down, RimeKey.up])
+        _ = c.handleKeyDown(downKey)
+        #expect(c.engineState.highlighted == 1 && c.engineState.isComposing && c.draft.isEmpty)
+        // ⌥← ⌥→ stay librime's (a syllable at a time), as in a row.
+        e.keys = []
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}", modifiers: .option))
+        #expect(e.keys.map(\.keycode) == [RimeKey.right])
+    }
+
+    @Test(arguments: [false, true])
+    func theSameKeysPutNothingIn(horizontal: Bool) {
+        // Every arrow and page key leaves the composition as it is: nothing is picked or committed.
+        let (c, _) = pinyin(horizontal: horizontal)
+        for key in [right, left, downKey, upKey, k("="), k("-")] {
+            let response = c.handleKeyDown(key)
+            #expect(response.handled && commits(response.effects).isEmpty && c.engineState.isComposing && c.draft.isEmpty)
+        }
     }
 
     @Test func onlyPlainArrowsWhileAWordIsTyped() {
@@ -66,6 +85,72 @@ struct HorizontalCandidatesTests {
         // One page of spellings: ↑↓ do nothing (they don't put the word in).
         let down = c.handleKeyDown(downKey), up = c.handleKeyDown(upKey)
         #expect(down.handled && up.handled && commits(down.effects + up.effects).isEmpty && c.engineState.isComposing)
+    }
+
+    @Test func hindiInAColumn() {
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.hindiTables = PackData.hindi
+        c.inputLanguages = [.english, .hindi]
+        c.setInputMode(.hindi)
+        for ch in "kamra" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(downKey)
+        #expect(c.engineState.highlighted == 1)
+        // One page of spellings: ← → turn none (nor put the word in).
+        let on = c.handleKeyDown(right), back = c.handleKeyDown(left)
+        #expect(on.handled && back.handled && commits(on.effects + back.effects).isEmpty && c.engineState.highlighted == 1)
+    }
+
+    /// One @'s pinyin candidates are a line of pills: a row in either layout, ← → moving along it (on to the next page
+    /// from its last), - = turning its page; ↑↓ stay one @'s rows'. The pill highlighted is what Space picks.
+    @Test(arguments: [false, true])
+    func oneAtsCandidatesAreARow(horizontal: Bool) throws {
+        let engine = FakeEngine()
+        let c = Composer(engine: engine, voiceEnabled: false, actionKey: .enter)
+        c.commands = Command.builtins
+        c.horizontalCandidates = horizontal
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        for ch in "nihao" { _ = c.handleKeyDown(k(String(ch))) }
+        try #require(c.oneAt != nil && c.engineState.isComposing && c.engineState.candidates.count > 1)
+        engine.keys = []
+        let row = c.oneAtHighlighted
+        for key in [right, left, k("="), k("-")] { #expect(c.handleKeyDown(key).handled) }
+        #expect(engine.keys.map(\.keycode) == [RimeKey.down, RimeKey.up, 0x3D, 0x2D])
+        #expect(c.oneAtHighlighted == row && c.engineState.isComposing)
+        // ↑↓: one @'s rows, not the candidates.
+        engine.keys = []
+        _ = c.handleKeyDown(downKey)
+        #expect(engine.keys.isEmpty && c.oneAtHighlighted == row + 1)
+        // → highlights the second pill: the panel shows it so.
+        _ = c.handleKeyDown(right)
+        let model = PanelPresenter(config: .default, language: "en").model(for: c)
+        #expect(c.engineState.highlighted == 1 && model.candidatesHighlighted == 1 && model.candidates == "1 你好   2 拟好")
+    }
+
+    /// A follow-up's pinyin after results: its candidates are a line of pills too, ← → moving along it in either layout.
+    @Test(arguments: [false, true])
+    func aFollowUpsCandidatesAreARow(horizontal: Bool) throws {
+        let engine = FakeEngine()
+        let c = Composer(engine: engine, actionKey: .enter)
+        c.horizontalCandidates = horizontal
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
+        for ch in "i" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
+        for ch in "hello" { _ = c.handleKeyDown(k(String(ch))) }
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("Hi."), CandidateLine("Howdy.")]), isFinal: true, id: 1)
+        try #require(c.canRefine)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: .shift, timestamp: 1)
+        _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [], timestamp: 1.1)
+        for ch in "nihao" { _ = c.handleKeyDown(k(String(ch))) }
+        try #require(c.refineIsComposing)
+        let highlighted = c.highlighted
+        engine.keys = []
+        _ = c.handleKeyDown(right)
+        #expect(engine.keys.map(\.keycode) == [RimeKey.down] && c.engineState.highlighted == 1 && c.highlighted == highlighted)
+        #expect(PanelPresenter(config: .default, language: "en").model(for: c).candidatesHighlighted == 1)
+        _ = c.handleKeyDown(left)
+        #expect(engine.keys.map(\.keycode) == [RimeKey.down, RimeKey.up] && c.refineLine == "nihao")
     }
 
     @Test func theSetting() throws {

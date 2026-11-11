@@ -1919,16 +1919,16 @@ enum SelfTest {
     }
 
     /// The candidates in a row (`candidateLayout`): the panel is a line of cells under the caret, ← → move the
-    /// highlight and ↑↓ turn the page; in a column, → stays librime's (the cursor in the pinyin). Nothing is picked,
-    /// so nothing is learned.
+    /// highlight and ↑↓ turn the page; in a column, → turns the page. Nothing is picked, so nothing is learned.
     static func testHorizontalCandidates(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("candidates in a row", needs: .composing)
         let panel = CandidatePanel.shared
         func arrow(_ code: UInt16) { press(controller, client, "", code: code) }
         type("nihao", controller, client)
         arrow(VirtualKey.right)
-        check(controller.composer.engineState.highlighted == 0 && !controller.panelModel().horizontal,
-              "in a column, → doesn't move the highlight (highlighted \(controller.composer.engineState.highlighted))")
+        check(controller.composer.engineState.highlighted == 0 && controller.composer.engineState.pageNumber == 1
+              && !controller.panelModel().horizontal,
+              "in a column, → turns the page (page \(controller.composer.engineState.pageNumber + 1), highlighted \(controller.composer.engineState.highlighted))")
         let columnSize = panel.view.contentSize
         _ = escape(controller, client)
         settings.candidateLayout = .horizontal

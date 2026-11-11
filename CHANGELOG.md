@@ -14,6 +14,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - In an `@question` conversation, ⏎ now asks the follow-up you typed (with nothing typed it does nothing) and ⇧⏎ inserts the highlighted answer; before, it was the other way round. Other commands keep their keys.
 - A follow-up typed in pinyin after results (the next question in an `@question` conversation, an instruction after `@improve` or a prompt command) no longer replaces the panel with its candidates: the conversation or the results stay where they were, and the candidates show as a one-line strip on the side nearest the caret, as with one @. Digits and Space pick a candidate, ⏎, ⇧⏎ and Esc work as before, ↑↓ move among the answers or results, and a click picks the row clicked.
+- The candidates' keys work as in macOS's own input methods in both layouts. Vertical: ← → now turn the page, as - = do (they moved the cursor in the pinyin; ⌥← ⌥→ still move it a syllable at a time). One @'s line of candidates, and a follow-up's, is a row in either layout: ← → move along it, on to the next page from its last, and the candidate highlighted is the one Space picks. On a first page with English words on it, ← (↑ when vertical) from the next page's first candidate goes back to the page's last, not to the word at its start.
 
 ## 0.7.2.1 (unreleased)
 

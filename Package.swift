@@ -89,7 +89,7 @@ let package = Package(
         ),
         .testTarget(
             name: "AllInOneIMERimeTests",
-            dependencies: [core("AllInOneIMERime"), core("AllInOneIMECore")],
+            dependencies: [core("AllInOneIMERime"), core("AllInOneIMECore"), core("AllInOneIMETestSupport")],
             swiftSettings: [.swiftLanguageMode(.v5)],
             linkerSettings: [
                 weakFoundationModels,

@@ -1100,16 +1100,16 @@ final class CandidateView: NSView {
         }
     }
 
-    /// The pinyin candidates' pills, the first (what Space picks) in the accent's tint, what Space does at the end of
-    /// the line, and a hairline between them and the rows.
+    /// The pinyin candidates' pills, the highlighted one (what Space picks: `PanelModel.candidatesHighlighted`) in the
+    /// accent's tint, what Space does at the end of the line, and a hairline between them and the rows.
     private func drawPills(in frame: NSRect, dark: Bool) {
         let accent = NSColor.controlAccentColor
         let lineInset = Metrics.padding + Metrics.rowInsetX
         for (index, pill) in pills.enumerated() {
-            let first = index == 0
-            (first ? accent.withAlphaComponent(dark ? 0.28 : 0.14) : NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05)).setFill()
+            let highlighted = index == model.candidatesHighlighted
+            (highlighted ? accent.withAlphaComponent(dark ? 0.28 : 0.14) : NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05)).setFill()
             NSBezierPath(roundedRect: pill.frame, xRadius: 8, yRadius: 8).fill()
-            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: first ? ink : .tertiaryLabelColor)
+            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: highlighted ? ink : .tertiaryLabelColor)
             let height = ceil(Fonts.pill.ascender - Fonts.pill.descender)
             text.draw(at: NSPoint(x: pill.frame.minX + Metrics.pillInsetX, y: pill.frame.midY - height / 2))
         }

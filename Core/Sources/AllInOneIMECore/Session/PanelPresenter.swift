@@ -546,6 +546,7 @@ public struct PanelPresenter {
     private func candidatesLine(_ composer: Composer, into model: inout PanelModel) {
         guard composer.engineState.isComposing, composer.oneAt != nil || composer.refineIsComposing else { return }
         model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
+        model.candidatesHighlighted = composer.engineState.highlighted
         model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("选词", "picks a word"))
     }
 

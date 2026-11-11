@@ -186,6 +186,8 @@ public struct PanelModel: Equatable, Sendable {
     /// status, just above the footer. The header (a selection's line) stays just above the rows either way. Nil: none
     /// (plain typing's candidates are the rows).
     public var candidates: String?
+    /// The candidate of `candidates` highlighted, by its place on the line (what Space picks; ← → move it).
+    public var candidatesHighlighted: Int
     public var footer: String
     /// On the footer's right: the page, the time a result took, a notice.
     public var detail: String?
@@ -209,7 +211,7 @@ public struct PanelModel: Equatable, Sendable {
     public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil,
                 handoff: Handoff? = nil, header: [String] = [], candidates: String? = nil, footer: String = "", detail: String? = nil,
                 horizontal: Bool = false, transcript: Bool = false, chip: Chip? = nil, hints: [Hint] = [], note: String? = nil,
-                candidatesHint: Hint? = nil, pending: Int = 0) {
+                candidatesHint: Hint? = nil, pending: Int = 0, candidatesHighlighted: Int = 0) {
         self.rows = rows
         self.highlighted = highlighted
         self.status = status
@@ -217,6 +219,7 @@ public struct PanelModel: Equatable, Sendable {
         self.handoff = handoff
         self.header = header
         self.candidates = candidates
+        self.candidatesHighlighted = candidatesHighlighted
         self.footer = footer
         self.detail = detail
         self.horizontal = horizontal

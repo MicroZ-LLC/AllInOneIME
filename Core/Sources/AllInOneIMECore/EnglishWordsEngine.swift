@@ -286,7 +286,29 @@ public final class EnglishWordsEngine: PinyinEngine {
         if !raw.isEmpty { rawBefore = raw }
         if let handled = onPage(keycode, mask: mask) { return handled }
         let arrow = (keycode == RimeKey.up || keycode == RimeKey.down) && mask == 0
-        return changing(arrow: arrow) { base.processKey(keycode, mask: mask) }
+        guard arrow, keycode == RimeKey.up else { return changing(arrow: arrow) { base.processKey(keycode, mask: mask) } }
+        let page = base.snapshot().pageNumber
+        let handled = changing(arrow: true) { base.processKey(keycode, mask: mask) }
+        if base.snapshot().pageNumber < page { highlightLastShown() }
+        return handled
+    }
+
+    /// librime's ↑ from its page's first candidate went back a page: the highlight on that page's last row shown (a word
+    /// after librime's candidates, else librime's last, where its ↑ put it), not where a page laid out anew has it (on a
+    /// word that comes first).
+    private func highlightLastShown() {
+        let snap = base.snapshot(), raw = base.rawInput
+        let entries = layout(snap, raw: raw)
+        laidOutFor = laidOutKey(snap, raw: raw)
+        cursor = nil
+        guard let last = entries.indices.last else { return }
+        switch entries[last] {
+        case .word:
+            cursor = last
+        case let .base(i):
+            highlightBase(i)
+            laidOutFor = laidOutKey(base.snapshot(), raw: raw)  // librime's preedit follows its highlight
+        }
     }
 
     /// A key that moves on the page or picks from it when the page shown isn't librime's; nil: librime's.

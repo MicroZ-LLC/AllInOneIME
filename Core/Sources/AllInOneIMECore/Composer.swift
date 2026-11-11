@@ -511,8 +511,8 @@ public final class Composer {
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
     /// The engine's candidates are shown in a row (`Config.candidateLayout`, horizontal by default; the controller
-    /// sets it): ← → move along it and ↑↓ turn the page (`horizontalKey`), as in macOS's own panel. False here: a
-    /// composer on its own keeps the keys of a column.
+    /// sets it): ← → move along it and ↑↓ turn the page; in a column ↑↓ move and ← → turn the page (`candidateKey`), as in
+    /// macOS's own panel. False here: a composer on its own has the keys of a column.
     public var horizontalCandidates = false
     /// How level one types Chinese (`Config.pinyinScheme`): the scheme whose schema its engine took last (the session sets
     /// it, `PinyinEngine.selectSchema`). Full pinyin here: a composer on its own.
@@ -2308,8 +2308,9 @@ public final class Composer {
         if composing { rimeEvent.modifiers.remove(.capsLock) }
         // ⇧Return is "as typed" (the action key may be Return): librime gets a plain Return.
         if event.key == .enter || event.key == .keypadEnter { rimeEvent.modifiers.remove(.shift) }
-        if composing, horizontalCandidates, !engineState.candidates.isEmpty, modifiers.isEmpty {
-            switch horizontalKey(event.key, engine) {
+        // One @'s pinyin candidates are a line of pills, a row in either layout (↑↓ are its rows': `handleOneAtKey`).
+        if composing, !engineState.candidates.isEmpty, modifiers.isEmpty {
+            switch candidateKey(event.key, engine, inARow: horizontalCandidates || oneAt != nil) {
             case let .send(key)?: rimeEvent = rimeEvent.replacingKey(key)
             case .nothing?: return .consumed()
             case nil: break
@@ -2372,22 +2373,26 @@ public final class Composer {
         return .consumed([.updateMarkedText, .showPanel])
     }
 
-    private enum HorizontalKey {
+    private enum CandidateKey {
         /// The engine gets this key instead.
         case send(Key)
         /// Nothing to do (no other page).
         case nothing
     }
 
-    /// An arrow key on candidates in a row: ← → are the previous and next candidate (the engine's ↑↓ in a column,
-    /// on to the next page from the last), ↑↓ the previous and next page (its Page Up and Down). Hindi's spellings are
-    /// one page: ↑↓ do nothing there. Nil for the other keys, which act as in a column (-/= turn the page there too).
-    private func horizontalKey(_ key: Key, _ engine: PinyinEngine) -> HorizontalKey? {
+    /// An arrow key on the engine's candidates, as macOS's own panel has them. In a row (`inARow`): ← → are the previous
+    /// and next candidate (the engine's ↑↓, which go on from a page's last to the next page's first and back from its
+    /// first to the previous page's last), ↑↓ the previous and next page (its Page Up and Down). In a column ↑↓ are the
+    /// engine's own (the same, down the column) and ← → turn the page; the cursor in the pinyin moves with ⌥← ⌥→ (a
+    /// syllable at a time) in either. Hindi's spellings are one page: its page keys do nothing. Nil for the other keys
+    /// (- = turn the page in either).
+    private func candidateKey(_ key: Key, _ engine: PinyinEngine, inARow: Bool) -> CandidateKey? {
+        let page: (Key) -> CandidateKey = { engine.language == .hindi ? .nothing : .send($0) }
         switch key {
-        case .arrow(.left): return .send(.arrow(.up))
-        case .arrow(.right): return .send(.arrow(.down))
-        case .arrow(.up): return engine.language == .hindi ? .nothing : .send(.pageUp)
-        case .arrow(.down): return engine.language == .hindi ? .nothing : .send(.pageDown)
+        case .arrow(.left): return inARow ? .send(.arrow(.up)) : page(.pageUp)
+        case .arrow(.right): return inARow ? .send(.arrow(.down)) : page(.pageDown)
+        case .arrow(.up): return inARow ? page(.pageUp) : nil
+        case .arrow(.down): return inARow ? page(.pageDown) : nil
         default: return nil
         }
     }
@@ -3054,8 +3059,14 @@ public final class Composer {
         }
     }
 
-    /// A key typed into the refine line: through the engine (pinyin, its punctuation), or as it is.
+    /// A key typed into the refine line: through the engine (pinyin, its punctuation), or as it is. Its candidates are a
+    /// line of pills, a row in either layout: ← → move along it (`candidateKey`; ↑↓ are the results').
     private func typeIntoRefine(_ event: KeyEvent) -> [Effect] {
+        var event = event
+        if let engine, engineState.isComposing, !engineState.candidates.isEmpty, event.modifiers.subtracting(.capsLock).isEmpty,
+           case let .send(key)? = candidateKey(event.key, engine, inARow: true) {
+            event = event.replacingKey(key)
+        }
         guard let engine, let key = RimeKey.map(event) else {
             if let text = event.printableText { appendRefine(text) }
             return [.showPanel]
