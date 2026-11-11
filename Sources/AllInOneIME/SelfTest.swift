@@ -2634,6 +2634,8 @@ enum SelfTest {
         // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
         ClipboardHistoryShared.isolated = true  // no history but a check's own: never the user's clipboard or file
+        // This week's stats counted in a file of the self-test's own: the user's are neither shown nor changed.
+        WeekStatsShared.use(WeekStatsStore(applicationSupportDirectory: snapshotDirectory.appendingPathComponent("week-stats")))
         // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
         // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()

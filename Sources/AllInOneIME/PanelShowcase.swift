@@ -26,6 +26,9 @@ enum PanelShowcase {
         back.level = .normal
         back.orderFrontRegardless()
 
+        // This week's row on top: the design's sample week, never the user's counts.
+        let week = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-week-\(UUID().uuidString)")
+        WeekStatsShared.use(WeekStatsSamples.store(in: week), icons: WeekStatsSamples.icon)
         let stand = PanelStandIns()
         stand.sample(chinese: chinese)
         let panel = FloatingPanel(sources: stand.sources)
@@ -231,6 +234,8 @@ enum SettingsPageImages {
         // What is learned (Privacy → Learned…): samples, in memory, never the user's.
         let learnedSamples = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-learned-\(UUID().uuidString)")
         LearnedShared.store = LearnedSamples.store(in: learnedSamples)
+        // This week's stats (This Week, Privacy → Learned…): the design's sample week, never the user's counts.
+        WeekStatsShared.use(WeekStatsSamples.store(in: learnedSamples.appendingPathComponent("week-stats")), icons: WeekStatsSamples.icon)
         // Extension sources: samples, never the user's (their statuses only shown, never saved).
         model.config.extensionSources = ExtensionSourceSamples.sources
         for source in model.config.extensionSources { ExtensionSources.enable(source, in: &model.config) }

@@ -48,7 +48,7 @@ struct LearnedSheet: View {
         VStack(spacing: 0) {
             Form {
                 Section {
-                    if model.learned.isEmpty {
+                    if model.learned.isEmpty && !model.weekStatsKept {
                         Text(Self.nothing).foregroundStyle(.secondary)
                     }
                     ForEach(Array(model.learned.enumerated()), id: \.offset) { _, item in
@@ -56,6 +56,14 @@ struct LearnedSheet: View {
                             Button(tr("忘掉", "Forget")) { model.forget(item) }
                         } label: {
                             Text(item.text).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    // This week's stats (Settings → This Week): counts only, on this Mac.
+                    if model.weekStatsKept {
+                        LabeledContent {
+                            Button(tr("忘掉", "Forget")) { model.forgetWeekStats() }
+                        } label: {
+                            Text(WeekStatsText.learnedRow(language: UIText.language)).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 } header: {
@@ -71,7 +79,7 @@ struct LearnedSheet: View {
             .scrollContentBackground(.hidden)
             HStack {
                 Button(tr("全部忘掉", "Forget All")) { model.forgetAllLearned() }
-                    .disabled(model.learned.isEmpty)
+                    .disabled(model.learned.isEmpty && !model.weekStatsKept)
                 Spacer()
                 Button(tr("完成", "Done"), action: done).keyboardShortcut(.defaultAction)
             }

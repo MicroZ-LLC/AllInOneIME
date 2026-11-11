@@ -89,6 +89,8 @@ extension SessionServices {
         services.recordQuestion = { QuestionHistoryStore.record($0) }
         services.loadOpenHistory = { OpenHistoryStore.history }
         services.recordOpen = { OpenHistoryStore.record($0) }
+        // This week's stats: counted in memory, written a moment later off the key's thread (`WeekStatsStore`).
+        services.weekStats = WeekStatsShared.store.stats
         services.loadRecentHandles = { RecentRecipients.handles }
         services.saveRecentHandles = { RecentRecipients.handles = $0 }
         services.secureInputActive = { SecureInput.isOn }

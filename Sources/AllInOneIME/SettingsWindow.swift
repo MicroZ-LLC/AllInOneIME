@@ -36,9 +36,20 @@ final class SettingsModel: ObservableObject {
     /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
     /// was last shown or something was forgotten.
     @Published private(set) var learned: [LearnedItem] = []
+    /// Whether this week's stats keep any count (`WeekStatsShared`): Learned… lists them too.
+    @Published private(set) var weekStatsKept = false
 
     func refreshLearned() {
         learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
+        let week = WeekStatsShared.store.stats.snapshot(for: .current)
+        weekStatsKept = WeekStatsShared.store.stats.hasCommands || week.firstRecordedDay != nil
+    }
+
+    /// Forget on the stats' row: every count of the weeks kept, and their file.
+    func forgetWeekStats() {
+        weekStatsKept = false
+        let store = WeekStatsShared.store
+        Task { try? await store.clearHistory() }
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an
@@ -51,7 +62,9 @@ final class SettingsModel: ObservableObject {
     /// Forget All: everything learned on this Mac.
     func forgetAllLearned() {
         LearnedShared.store.forgetAll()
+        forgetWeekStats()  // this week's stats too: Privacy's clearing of what this Mac kept
         refreshLearned()
+        weekStatsKept = false
     }
 
     /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
@@ -2456,6 +2469,10 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
+            // This week's stats: a page of its own, as the design lays it out (no cards of settings).
+            if page == .week {
+                WeekStatsPage().id("\(page.rawValue)-\(UIText.language)")
+            } else {
             ScrollViewReader { proxy in
                 packDialogs(Form {
                     loadErrorSection
@@ -2463,6 +2480,7 @@ struct SettingsView: View {
                     ProblemBanners(assistant: assistant, page: page)
                     ChangeCard(assistant: assistant)
                     switch page {
+                    case .week: EmptyView()  // `WeekStatsPage`, above
                     case .general:
                         // The keys first, then the menu bar and the interface language (the owner, 0.6.7).
                         keysSection
@@ -2509,6 +2527,7 @@ struct SettingsView: View {
                 // A page starts at its top, and is drawn anew in the other interface language: controls of their
                 // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
                 .id("\(page.rawValue)-\(UIText.language)"))
+            }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -3629,12 +3648,15 @@ func titled(_ spot: SettingsSpot) -> some View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
+    /// This week's stats (`WeekStatsPage`), first: how much AllInOneIME was used, as a picture to share.
+    case week
     case general, input, ai, privacy, commands, advanced, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .week: return WeekStatsText.sidebarTitle(language: UIText.language)
         case .general: return tr("通用", "General")
         case .input: return tr("输入", "Input")
         case .ai: return tr("AI", "AI")
@@ -3647,6 +3669,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var icon: CandidateView.Icon {
         switch self {
+        case .week: return CommandIcons.icon(for: .stats)
         case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
         case .input: return CandidateView.Icon(symbol: "keyboard.fill", color: .systemBlue)
         case .ai: return CommandIcons.provider

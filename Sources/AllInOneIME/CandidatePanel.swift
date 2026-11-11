@@ -333,6 +333,8 @@ final class CandidateView: NSView {
         static let selectedEnglish = NSFont.systemFont(ofSize: 15, weight: .medium)
         static let selectedChinese = NSFont.systemFont(ofSize: 14, weight: .medium)
         static let comment = NSFont.systemFont(ofSize: 12)
+        /// A row's second line (`PanelModel.Row.secondLine`).
+        static let secondLine = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         static let label = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         static let status = NSFont.systemFont(ofSize: 13)
         static let footer = NSFont.systemFont(ofSize: 12)
@@ -1031,6 +1033,10 @@ final class CandidateView: NSView {
             let glued = "\u{00A0}\u{00A0}" + comment.map(String.init).joined(separator: "\u{2060}")
             text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: palette.rowComment]))
         }
+        // The end of the comment on a line of its own, under the text (`@stats`'s sources).
+        if let second = row.secondLine, !second.isEmpty, !header {
+            text.append(NSAttributedString(string: "\n" + second, attributes: [.font: Fonts.secondLine, .foregroundColor: palette.rowComment]))
+        }
         return text
     }
 
@@ -1039,6 +1045,12 @@ final class CandidateView: NSView {
     /// enough); what follows its tag ("黑话 · …").
     private func shownComment(_ row: PanelModel.Row, header: Bool) -> String {
         if header || row.lead != nil || row.commentDescribes { return "" }
+        if let second = row.secondLine, !second.isEmpty, row.comment.hasSuffix(second) {
+            // What the second line says isn't said again after the text.
+            var rest = String(row.comment.dropLast(second.count))
+            if rest.hasSuffix(" · ") { rest.removeLast(3) }
+            return rest
+        }
         guard let tag = row.tag, row.comment.hasPrefix(tag.text) else { return row.comment }
         let rest = row.comment.dropFirst(tag.text.count)
         return String(rest.hasPrefix(" · ") ? rest.dropFirst(3) : rest)

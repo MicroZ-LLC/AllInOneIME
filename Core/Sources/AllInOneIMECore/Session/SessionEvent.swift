@@ -184,6 +184,9 @@ public enum PlatformAction: Equatable, Sendable {
     /// A kept image (`ClipboardHistoryImage.id`) pasted: put on the clipboard and the app's paste key posted, the clipboard
     /// put back after; where the key can't be posted, left on the clipboard for the user's own paste (0.6.8.2).
     case pasteImage(id: String)
+    /// This week's stats as a picture on the clipboard (`@stats`'s ⌘C): the card the settings page copies, as it is set
+    /// there (the user's own command names hidden or not).
+    case copyWeekStatsImage
 }
 
 /// Dictation `id`, as the platform hears it.

@@ -43,12 +43,14 @@ public struct PanelPresenter {
     public var scriptStatus: (ScriptCommand) -> String?
     /// Translate as You Type's chip in this field, if it's shown here.
     public var chip: () -> TranslateMode.Chip?
+    /// This week's stats, for `@stats`'s row (nil: none kept here; the row is the command's as any other).
+    public var weekStats: () -> WeekStats.Snapshot?
 
     public init(config: Config, language: String, terms: PlatformTerms = Platform.current.terms, app: String? = nil,
                 notice: String? = nil, elapsed: TimeInterval? = nil, fromCache: Bool = false, hidden: Int = 0,
                 shortened: Bool = false, agent: AgentKind = .claude, agentCommand: [String] = [],
                 jargon: @escaping () -> [JargonEntry] = { [] }, scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil },
-                chip: @escaping () -> TranslateMode.Chip? = { nil }) {
+                chip: @escaping () -> TranslateMode.Chip? = { nil }, weekStats: @escaping () -> WeekStats.Snapshot? = { nil }) {
         self.config = config
         self.language = language
         self.terms = terms
@@ -63,6 +65,7 @@ public struct PanelPresenter {
         self.jargon = jargon
         self.scriptStatus = scriptStatus
         self.chip = chip
+        self.weekStats = weekStats
     }
 
     /// The most of an earlier question or answer of a conversation shown (the latest answer is shown whole, up to
@@ -503,6 +506,13 @@ public struct PanelPresenter {
         if !all.isEmpty || composer.selection != nil, !composer.engineState.isComposing {
             model.hints = [PanelModel.Hint("→", t.tr("交还给 App", "back to the app"))]
         }
+        // `@stats`'s row: its keys are the input method's, ⏎ opens the page, ⌘C copies the picture, Esc cancels.
+        if composer.oneAtStatsHighlighted {
+            let words = WeekStatsWords(language: language), copy = terms.copy
+            model.footer = "\(enter) \(words.openStats) · \(copy) \(words.copyImageHint) · Esc \(words.cancel)"
+            model.hints = [PanelModel.Hint(enter, words.openStats), PanelModel.Hint(copy, words.copyImageHint),
+                           PanelModel.Hint("Esc", words.cancel)]
+        }
     }
 
     /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
@@ -512,6 +522,13 @@ public struct PanelPresenter {
         func named(_ command: Command) -> String { trigger + command.name }
         switch action {
         case let .command(command):
+            if command == .stats, let week = weekStats() {
+                // `@stats`: the week in a line, how it compares beside it, where the commands came from under it.
+                let text = WeekStatsText(week, language: language)
+                return Row(label: "", text: text.atStatsTitle,
+                           comment: (text.atStatsComparison.map { $0 + " · " } ?? "") + text.sourceSummary, kind: .candidate,
+                           icon: IconToken.command(.stats), action: text.openAction, secondLine: text.sourceSummary)
+            }
             // The name alone, as the command list shows it; its summary's examples written with the trigger in use. ⏎ picks
             // it, or runs one that takes no text. A built-in's name says enough: its summary may be left out.
             let runs = command.script?.input == ScriptCommand.Input.none

@@ -178,6 +178,8 @@ extension Composer {
             return .consumed([.showPanel])
         case .escape:
             if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
+            // `@stats`'s row cancels: nothing goes in (its keys are the input method's, as its panel says).
+            if oneAtStatsHighlighted { return .consumed(finish(committing: "")) }
             // The magic key alone is given up, as before; a text stays as typed, pinyin composed as its letters.
             guard lone else { return .consumed(finishOneAsTyped()) }
             draft = ""
@@ -215,6 +217,19 @@ extension Composer {
         guard plain, let text = event.printableText, let c = text.first, text.count == 1 else { return nil }
         if c.isLetter || c.isNumber || c == "(" || !c.isASCII { return nil }
         return commitPalette(then: event)
+    }
+
+    /// Whether the highlighted row is `@stats`'s: ⏎ (and Tab) open the page, ⌘C copies the picture, Esc cancels, its name
+    /// typed as letters or composed as pinyin alike.
+    public var oneAtStatsHighlighted: Bool {
+        guard oneAt != nil else { return false }
+        let rows = oneAtRows
+        return rows.indices.contains(oneAtHighlighted) && rows[oneAtHighlighted] == .command(.stats)
+    }
+
+    /// ⌘C on `@stats`'s row: the draft goes (nothing is typed in), the shell puts the picture on the clipboard.
+    func copyWeekStats() -> [Effect] {
+        finish(committing: "") + [.copyWeekStatsImage, .notice(WeekStatsWords(language: messages.language).imageCopied), used(.stats)]
     }
 
     /// The action key on one @ (nil: not written): the highlighted row, as ⏎ does it, right after the magic key too.

@@ -49,6 +49,9 @@ public struct PanelModel: Equatable, Sendable {
         public var commentDescribes: Bool
         /// Smaller, before the text: what an arithmetic result answers ("23*17", its text "= 391"). Nil: none.
         public var lead: String?
+        /// The end of `comment` on a line of its own, under the text (`@stats`'s row: where the week's commands came
+        /// from). A shell that draws it leaves it out of the comment after the text. Nil: none.
+        public var secondLine: String?
 
         /// A tag on a row: its text, and what it is for a shell that tints it (a rewrite style's `RewriteStyle.tag`:
         /// "POLISH", "CONCISE", "FORMAL" …; "": none, neutral).
@@ -64,7 +67,7 @@ public struct PanelModel: Equatable, Sendable {
 
         public init(label: String, text: String, comment: String = "", kind: Kind, isComplete: Bool = true,
                     icon: IconToken? = nil, pickable: Bool = true, choice: Int? = nil, action: String? = nil, tag: Tag? = nil,
-                    commentDescribes: Bool = false, lead: String? = nil) {
+                    commentDescribes: Bool = false, lead: String? = nil, secondLine: String? = nil) {
             self.label = label
             self.text = text
             self.comment = comment
@@ -77,6 +80,7 @@ public struct PanelModel: Equatable, Sendable {
             self.tag = tag
             self.commentDescribes = commentDescribes
             self.lead = lead
+            self.secondLine = secondLine
         }
     }
 

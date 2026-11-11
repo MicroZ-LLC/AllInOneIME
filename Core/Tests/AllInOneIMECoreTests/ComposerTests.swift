@@ -1226,7 +1226,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 16)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 17)
         // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
@@ -1252,7 +1252,8 @@ struct ComposerTests {
         #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.oneAtHighlighted == 15 && a.oneAtFirstVisible == 9)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 16 && a.oneAtFirstVisible == 10)  // around to the last, scrolled to it
+        _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1392,7 +1393,7 @@ struct ComposerTests {
         let respond = CustomCommand(name: "respond", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, respond]).map(\.program)
             == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app", nil,
-                "python3", nil])  // @py needs python3 too
+                nil, "python3", nil])  // @py needs python3 too
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
@@ -1419,8 +1420,8 @@ struct ComposerTests {
         e.commands = catalog
         _ = e.handleKeyDown(at)
         type("s", e)
-        #expect(e.paletteMatches.map(\.name) == ["settings", "sh", "translate", "question", "js", "tasks", "imessage", "reportissue",
-                                              "respond"])  // names starting with s first
+        #expect(e.paletteMatches.map(\.name) == ["settings", "stats", "sh", "translate", "question", "js", "tasks", "imessage",
+                                              "reportissue", "respond"])  // names starting with s first
         // Picking from the list doesn't count: only running does.
         _ = e.handleKeyDown(tab)
         #expect(e.commandUsage.score("sh") == 0)
@@ -1529,7 +1530,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.oneAtRows.count == 17 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
+        #expect(c.oneAtRows.count == 18 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
         for _ in 0..<7 { _ = c.handleKeyDown(downKey) }  // past the seventh: scrolls by one
         #expect(c.oneAtHighlighted == 7 && c.oneAtFirstVisible == 1)
         #expect(names(c.oneAtVisible) == ["translate", "question", "agent", "open", "reply", "note", "reminder"])
@@ -1539,10 +1540,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 16 && d.oneAtFirstVisible == 10)
-        #expect(names(d.oneAtVisible) == ["tasks", "settings", "imessage", "reportissue", "alpha", "bravo", "charlie"])
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 17 && d.oneAtFirstVisible == 11)
+        #expect(names(d.oneAtVisible) == ["settings", "imessage", "reportissue", "stats", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.oneAtHighlighted == 14 && d.oneAtFirstVisible == 10)  // still in view: no scrolling
+        #expect(d.oneAtHighlighted == 15 && d.oneAtFirstVisible == 11)  // still in view: no scrolling
         _ = d.choose(index: 4)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.

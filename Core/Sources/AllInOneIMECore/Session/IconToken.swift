@@ -14,7 +14,7 @@ public struct IconToken: Equatable, Sendable {
     ///
     /// - the built-in commands: `improve`, `translate`, `question`, `reply`, `agent`, `open`, `read`, `note`,
     ///   `reminder`, `python`, `javascript`, `webSearch`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`,
-    ///   and `command` for one without an icon of its own;
+    ///   `stats`, and `command` for one without an icon of its own;
     /// - plugins and custom commands, by what they are: `plugin`, `link`, `prompt`, `run`, `terminal`, `snippet`;
     /// - script extensions, by what they do: `scriptInsert`, `scriptShow`, `scriptList`, `scriptSilent`,
     ///   `scriptBackground`, `scriptStatus` (one with a status line);
@@ -22,7 +22,7 @@ public struct IconToken: Equatable, Sendable {
     /// - an image (clipboard history): `image`.
     public enum Builtin: String, CaseIterable, Sendable {
         case improve, translate, question, reply, agent, open, read, note, reminder, python, javascript, webSearch, tasks
-        case settings, message, reportIssue, command
+        case settings, message, reportIssue, stats, command
         case plugin, link, prompt, run, terminal, snippet
         case scriptInsert, scriptShow, scriptList, scriptSilent, scriptBackground, scriptStatus
         case done, working, needsYou
@@ -48,6 +48,7 @@ public struct IconToken: Equatable, Sendable {
             case .settings: return "gearshape.fill"
             case .message: return "message.fill"
             case .reportIssue: return "exclamationmark.bubble.fill"
+            case .stats: return "chart.bar.fill"
             case .command: return "command"
             case .plugin: return "puzzlepiece.extension.fill"
             case .link: return "link"
@@ -162,6 +163,7 @@ extension IconToken {
         case .settings: return IconToken(.settings, color: .gray)
         case .imessage: return IconToken(.message, color: .green)
         case .reportIssue: return IconToken(.reportIssue, color: .orange)
+        case .stats: return IconToken(.stats, color: .orange)
         default: return IconToken(.command, color: .gray)
         }
     }

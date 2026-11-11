@@ -516,7 +516,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
             notice(tr("Windows 版还没有设置窗口：设置在 config.json 里", "No settings window on Windows yet: the settings are in config.json"), in: session)
         case let .previewReminder(_, id), let .listAgents(id):
             session.feed { [notOnWindows] in $0.fail(notOnWindows, id: id) }
-        case .addReminder, .sendMessage, .startBackgroundAgent:
+        case .addReminder, .sendMessage, .startBackgroundAgent, .copyWeekStatsImage:
             notice(notOnWindows, in: session)
         case let .recognizeText(_, id):
             session.feed { [notOnWindows] in $0.recognitionFailed(notOnWindows, id: id) }

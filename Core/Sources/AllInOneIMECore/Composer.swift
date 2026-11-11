@@ -5,6 +5,8 @@ import Foundation
 public enum SettingsPlace: String, Equatable, Sendable {
     /// The languages `@translate` translates into.
     case translationLanguages
+    /// This week's stats (`WeekStats`): `@stats`, the menu bar panel's row.
+    case weekStats
 }
 
 /// Two-level input state machine.
@@ -134,6 +136,8 @@ public final class Composer {
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
         /// Put `text` on the clipboard (⌘C on a result, or a note that can't be inserted: `Messages.noteNotSaved`).
         case copy(String)
+        /// Put this week's stats on the clipboard as a picture (⌘C on `@stats`'s row: `PlatformAction.copyWeekStatsImage`).
+        case copyWeekStatsImage
         /// Read the clipboard for the draft (⌘V) and hand it to `pasted(_:id:)` (`ClipboardContent`: its text, else an
         /// image), after the key has been answered: the system may ask the user first.
         case readClipboard(id: Int)
@@ -1739,6 +1743,10 @@ public final class Composer {
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", let text = copyableText {
             return .consumed([.copy(text), .notice(messages.copied)])  // the result stays up
         }
+        // ⌘C on `@stats`'s row: the week's picture on the clipboard, nothing typed in (Composer+OneAt.swift).
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", oneAtStatsHighlighted {
+            return .consumed(copyWeekStats())
+        }
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
             return response
         }
@@ -2648,9 +2656,9 @@ public final class Composer {
         let command = matches[index ?? paletteHighlighted]
         let palette = self.palette  // read once, before the draft becomes "@name "
         let nested = palette != nil
-        // Nothing to write after it: picked, it's done (only at the start of a draft).
+        // Nothing to write after it: picked, it's done (only at the start of a draft). `@stats` opens on its page.
         if command.kind == .settings, !nested {
-            return finish(committing: "") + [.openSettings, used(command)]
+            return finish(committing: "") + [command == .stats ? .openSettingsAt(.weekStats) : .openSettings, used(command)]
         }
         // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
         if run, command.snippet?.needsTyping == false, !nested {
@@ -3262,7 +3270,7 @@ public final class Composer {
         if let screenshot, command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
         if command.kind == .message { return startMessage(command, input: input) }
         if command.kind == .settings, !isLevelTwo {
-            return .consumed(finish(committing: "") + [.openSettings, used(command)])
+            return .consumed(finish(committing: "") + [command == .stats ? .openSettingsAt(.weekStats) : .openSettings, used(command)])
         }
         // The task list needs nothing after the command.
         if command.kind == .agents, !isLevelTwo {

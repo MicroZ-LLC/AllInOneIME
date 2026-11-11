@@ -749,7 +749,7 @@ struct FoundScriptsTests {
             host.press(FakeHost.at)
             host.type("stat")
             let visible = host.composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command.script?.name } else { nil } }
-            #expect(visible.count == Composer.oneAtRowsShown, "\(visible)")
+            #expect(visible.count == Composer.oneAtRowsShown - 1, "\(visible)")  // the built-in @stats first
             #expect(asked.withLock { $0 }.last == visible, "\(asked.withLock { $0 })")
             for _ in 0..<Composer.oneAtRowsShown { host.press(FakeHost.down) }
             let scrolled = host.composer.oneAtVisible.compactMap { if case let .command(command) = $0 { command.script?.name } else { nil } }

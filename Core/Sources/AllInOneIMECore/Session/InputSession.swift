@@ -85,6 +85,8 @@ public final class InputSession {
     var suggesting = SuggestionsField()
     /// Clipboard history's panel in this field (InputSession+ClipboardHistory.swift).
     var clipboard = ClipboardHistoryField()
+    /// The runs counted for this week's stats while their request hasn't answered yet (InputSession+WeekStats.swift).
+    var weekStatsRuns = WeekStatsRuns()
     /// Whether ⌃V's panel may open in the field of the key, as the shell tells it before it hands the paste-anywhere key
     /// on (`isPasteAnywhere`): false where it couldn't keep the keys the panel takes from the app (the Mac: a Chromium or
     /// Electron page that tells no caret, or doesn't read back what is before it, where nothing can be marked during
@@ -1285,7 +1287,8 @@ public final class InputSession {
             case let .startBackgroundScript(command, arguments, query):
                 startInBackground(command, arguments: arguments, query: query)
             case let .detachScript(id):
-                // The field was left while a `show` runs: it goes on, and says when it's done.
+                // The field was left while a `show` runs: it goes on, and says when it's done (counted as run).
+                runAnswered(id, fromCache: false)
                 if let run = scriptRun, run.request == id {
                     services.detachScript(run.run)
                     tasks.cancel(.script)
@@ -1347,8 +1350,9 @@ public final class InputSession {
                 handOff(prompt, to: .claude)
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
-            case .commandUsed:
+            case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
+                countRun(name, in: effects)
             case let .candidateRemoved(text):
                 // Left out in this field already, also under a new engine and a list read before it is written; kept for
                 // every field a moment later, never while the key is handled (left out there meanwhile:
@@ -1386,6 +1390,8 @@ public final class InputSession {
                 addToReminders(reminder, input: input)
             case let .copy(text):
                 emit(.copy(text))
+            case .copyWeekStatsImage:
+                emit(.platform(.copyWeekStatsImage))
             case let .sendMessage(recipient, text, command):
                 sendMessage(text, to: recipient, command: command)
             case let .readClipboard(id):
@@ -1539,6 +1545,7 @@ public final class InputSession {
     private func received(_ update: TaskUpdate, from id: TaskID) {
         switch update {
         case let .converted(update, request):
+            runAnswered(request, fromCache: update.fromCache)
             lastHidden = update.hidden
             lastShortened = update.shortened
             if update.isFinal {
@@ -1548,6 +1555,7 @@ public final class InputSession {
             }
             perform(composer.receive(update.result, isFinal: update.isFinal, id: request))
         case let .failed(error, request):
+            runFailed(request)
             if id.slot == .script, scriptRun?.request == request { scriptRun = nil }
             preparingScripts[request] = nil  // a script waiting for its environment (that couldn't be made) never starts
             let message: String
@@ -1559,10 +1567,12 @@ public final class InputSession {
             }
             perform(composer.fail(message, id: request))
         case let .searched(results, request):
+            runAnswered(request, fromCache: false)
             perform(composer.receiveSearch(results, id: request))
         case let .environment(environment, request):
             startScript(request, environment: environment)
         case let .script(update, request):
+            runAnswered(request, fromCache: false)
             if update.isFinal {
                 lastElapsed = Date().timeIntervalSince(scriptStarted)
                 if scriptRun?.request == request { scriptRun = nil }
@@ -1898,7 +1908,7 @@ public final class InputSession {
         return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
                               fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, agent: agent,
                               agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
-                              chip: services.translateChip)
+                              chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }
 
     private func showPanel() {

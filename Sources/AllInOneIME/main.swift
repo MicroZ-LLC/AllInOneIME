@@ -193,6 +193,7 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
         SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
+        WeekStatsShared.store.flushNow()  // this week's counts not written yet
     }
 }
 
@@ -216,6 +217,7 @@ private let terminationSignal: DispatchSourceSignal = {
         _ = saved.wait(timeout: .now() + 0.5)
         CommandRunner.stopAll()
         SessionServices.englishWordsWriter.drain(within: 0.5)
+        WeekStatsShared.store.flushNow()
         _exit(0)
     }
     return source
@@ -602,6 +604,10 @@ case "--settings-image":
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent, doctor: doctor)
     }
+case "--week-stats-images":
+    // This week's stats as the design shows them, with its sample week (`WeekStatsImages`).
+    let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-week-stats")
+    MainActor.assumeIsolated { WeekStatsImages.run(output: directory) }
 case "--page-context":
     // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is
     // sent). Needs Accessibility for the process that runs it.

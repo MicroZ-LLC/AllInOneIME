@@ -600,10 +600,11 @@ extension SelfTest {
         let rig = AssistantRig(snapshotDirectory, name: "assistant-page.json", config: start)
         rig.facts = troubledFacts
         defer { rig.restore() }
-        let pages: [SettingsPage] = [.general, .input, .ai, .privacy, .commands, .advanced, .about]
+        let pages: [SettingsPage] = [.week, .general, .input, .ai, .privacy, .commands, .advanced, .about]
         check(SettingsPage.allCases == pages && SettingsView.firstPage == .general
               && SettingsPage(rawValue: "assistant") == nil && SettingsPage(rawValue: "apps") == nil,
-              "seven pages in order, General first, no Assistant or Apps page (\(SettingsPage.allCases.map(\.rawValue)))")
+              "eight pages in order, This Week first in the sidebar, Settings opening on General, no Assistant or Apps page "
+              + "(\(SettingsPage.allCases.map(\.rawValue)))")
         check(SettingsSpot.search("doctor", trigger: "@", config: start).first == .troubleshoot
               && SettingsSpot.search("诊断", trigger: "@", config: start).first == .troubleshoot,
               "searching for doctor or 诊断 finds About → Troubleshoot")

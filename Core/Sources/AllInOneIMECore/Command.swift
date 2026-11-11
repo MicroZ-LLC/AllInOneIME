@@ -118,6 +118,10 @@ public struct Command: Hashable, Sendable {
     /// The settings window.
     public static let settings = Command(name: "settings", kind: .settings)
 
+    /// This week's stats (`WeekStats`): its row in the list says how many commands ran this week; picked, the settings
+    /// open on the page (a settings command too), ⌘C copies the picture.
+    public static let stats = Command(name: "stats", kind: .settings)
+
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
@@ -133,7 +137,7 @@ public struct Command: Hashable, Sendable {
 
     /// `@reply` after the first five: the list opens on the ones it always had.
     public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .read, .note, .reminder,
-                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue, .stats]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
     /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and

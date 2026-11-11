@@ -400,7 +400,7 @@ public final class ComposerSession: @unchecked Sendable {
         case .startCommand, .search, .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent,
              .launchInTerminal, .startBackgroundAgent, .listAgents, .openSettings, .openSettingsAt, .saveNote,
              .previewReminder, .addReminder, .startRun, .startScript, .startBackgroundScript, .sendMessage,
-             .rememberQuestion, .reask, .startPlan, .copy, .readClipboard, .startVoice, .armVoice:
+             .rememberQuestion, .reask, .startPlan, .copy, .copyWeekStatsImage, .readClipboard, .startVoice, .armVoice:
             return true
         default:
             return false

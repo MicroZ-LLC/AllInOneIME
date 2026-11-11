@@ -457,7 +457,7 @@ struct IconTokenTests {
     @Test func theBuiltInsAreTheListAShellMaps() {
         #expect(IconToken.Builtin.allCases.map(\.rawValue) == [
             "improve", "translate", "question", "reply", "agent", "open", "read", "note", "reminder", "python", "javascript",
-            "webSearch", "tasks", "settings", "message", "reportIssue", "command", "plugin", "link", "prompt", "run",
+            "webSearch", "tasks", "settings", "message", "reportIssue", "stats", "command", "plugin", "link", "prompt", "run",
             "terminal", "snippet", "scriptInsert", "scriptShow", "scriptList", "scriptSilent", "scriptBackground",
             "scriptStatus", "done", "working", "needsYou", "image",
         ])

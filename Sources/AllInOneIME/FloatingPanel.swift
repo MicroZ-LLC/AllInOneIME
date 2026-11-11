@@ -121,6 +121,12 @@ struct DashboardSources {
     var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.destination(LiveConfig.current) }
     /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
     var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
+    /// This week's stats' row at the top ("本周 132 次指令 ↑18%"; nil before the first command is counted).
+    var weekStats: @MainActor () -> WeekStatsMenuBar.Row? = {
+        WeekStatsMenuBar.row(stats: WeekStatsShared.store.stats, language: UIText.language)
+    }
+    /// Where a click on it goes: Settings → This Week.
+    var openWeekStats: @MainActor () -> Void = { SettingsWindow.shared.show(page: .week) }
 
     @MainActor static var live: DashboardSources {
         DashboardSources(
@@ -241,6 +247,8 @@ final class FloatingPanel: ObservableObject {
     /// The command trigger its text names commands with ("用 @note 存的笔记…"), as the settings had it when it opened or
     /// was refreshed.
     @Published private(set) var commandTrigger = "@"
+    /// This week's stats' row (`DashboardSources.weekStats`), as when the panel was last refreshed.
+    @Published private(set) var weekStats: WeekStatsMenuBar.Row?
     /// Autocomplete's switch as it is, and what was counted of it, read as it drops down.
     @Published private(set) var autocomplete = false
     @Published private(set) var autocompleteSummary: String?
@@ -354,6 +362,7 @@ final class FloatingPanel: ObservableObject {
     private func open(below anchor: CGRect) {
         language = UIText.language
         commandTrigger = sources.commandTrigger()
+        weekStats = sources.weekStats()
         now = sources.now()
         (autocomplete, autocompleteSummary, autocompleteModel) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel())
         autocompleteDestination = sources.autocompleteDestination()
@@ -491,6 +500,7 @@ final class FloatingPanel: ObservableObject {
     func refresh() {
         now = sources.now()
         commandTrigger = sources.commandTrigger()
+        weekStats = sources.weekStats()
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         refreshReminders()
         lookAtTasks(force: true)
@@ -1116,6 +1126,7 @@ struct FloatingPanelView: View {
 
     private var lists: some View {
         VStack(alignment: .leading, spacing: 12) {
+            if let row = panel.weekStats { weekStatsRow(row) }
             if let message = panel.message {
                 Text(message).font(.system(size: 11)).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
@@ -1415,6 +1426,34 @@ struct FloatingPanelView: View {
         .background(card.fill(Color.white.opacity(dark ? 0.06 : 0.42)))
         .overlay(card.strokeBorder(Color.white.opacity(dark ? 0.08 : 0.6), lineWidth: 0.5))
         .shadow(color: .black.opacity(dark ? 0.2 : 0.05), radius: 3, y: 1)
+    }
+
+    /// This week's stats, first: "本周 132 次指令 ↑18% ›" on a wash of the accent color; a click opens Settings → This Week.
+    private func weekStatsRow(_ row: WeekStatsMenuBar.Row) -> some View {
+        Button { panel.click { panel.sources.openWeekStats() } } label: {
+            HStack(spacing: 8) {
+                IconView(icon: CommandIcons.icon(for: .stats), size: 22)
+                Text(row.title).font(.system(size: 13, weight: .semibold)).lineLimit(1).truncationMode(.tail)
+                Spacer(minLength: 4)
+                if let percent = row.percent {
+                    HStack(spacing: 2) {
+                        if let trend = row.trend, trend != .same {
+                            Image(systemName: trend == .up ? "arrow.up" : "arrow.down").font(.system(size: 9, weight: .bold))
+                        }
+                        Text(percent).font(.system(size: 12, weight: .semibold).monospacedDigit())
+                    }
+                    .foregroundStyle(Color.accentColor)
+                }
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold)).foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 40)
+            .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.accentColor.opacity(scheme == .dark ? 0.2 : 0.09)))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(row.spoken)
+        .accessibilityHint(WeekStatsText.pageTitle(language: UIText.language))
     }
 
     /// "AllInOneIME 0.7.0 is available": a click opens Settings → About, where Update is.

@@ -74,6 +74,10 @@ public struct SessionServices {
     /// The handles last messaged (`@imessage`), and keeping them.
     public var loadRecentHandles: () -> [String]
     public var saveRecentHandles: ([String]) -> Void
+    /// This week's stats (`WeekStats`): each command run and clipboard history paste is counted there, and `@stats`
+    /// shows them. The shell gives one for every field, kept in a file of its own off the key's thread; the default is
+    /// these services' own, in memory.
+    public var weekStats: WeekStats
 
     // MARK: The system
 
@@ -253,6 +257,7 @@ public struct SessionServices {
         recordOpen = { _ in }
         loadRecentHandles = { [] }
         saveRecentHandles = { _ in }
+        weekStats = WeekStats()
         secureInputActive = { false }
         pointerUsedWithin = { _ in false }
         buttonUsedWithin = { _ in false }
