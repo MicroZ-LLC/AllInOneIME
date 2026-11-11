@@ -26,7 +26,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@improve`'s rewrite styles are numbered on from the rows before them, as shown: after two versions they are 3, 4 … (they were 4, 5 …, skipping 3), and a digit picks the row shown with it.
 - In an `@question` conversation, where it can go on ("Continue in Claude or another AI") shows each choice's key on a small keycap, as the footer's keys, with its name after it, and a click on one goes on there as its ⌘ digit does. Before, they were a line of large plain text, and a click on them did nothing.
 
-## 0.7.2.1 (unreleased)
+## 0.7.2.1 (2026-11-08)
 
 ### Changed
 
@@ -38,7 +38,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - While your config file doesn't parse (a comma typed twice, or `"learnsEnglishWords": "false"` with the value in quotes), English words are no longer learned against your settings. A word typed twice meanwhile waits in memory, and once the file parses again it goes into `englishWords` only if the file allows it: learning on, an app without No AI, none of your hidden words in it. Before, the defaults went for your settings meanwhile, so a word was learned with learning off, in an app with No AI, or holding a hidden word, and written into the file. Autocomplete's switch isn't taken as turned off and on again either: the apps where it stopped stay stopped (Privacy → Learned…), and nothing is counted.
 - While AllInOneIME isn't in your input sources, an update, the installer and `make install` no longer open System Settings → Keyboard by themselves. macOS doesn't let them add it, and it opened with no window of AllInOneIME's saying why. Adding it is left to you, as before: the installer says how, with a button that opens Keyboard settings, and Settings → About shows the step until it's done.
 
-## 0.7.2 (unreleased)
+## 0.7.2 (2026-11-08)
 
 ### Changed
 
@@ -46,7 +46,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - macOS keeps permissions by bundle ID, so it asks again for those you gave AllInOneIME: Accessibility, Paste from Other Apps, Automation (Terminal, Notes, Messages), Contacts, Reminders and Notifications. After the update, AllInOneIME says once which, on its About page, and Troubleshoot lists those still to allow. The API keys kept in the login keychain (key sync off) come over without macOS asking for your login password: 0.7.1 hands them over, and this version takes them in when it starts. Whatever of the earlier identity 0.7.1 couldn't remove right away, this version removes when it starts.
 - macOS lets only you add the new input method, and AllInOneIME can't type until you have: right after the update, Settings → About opens with that one step first (One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → English → AllInOneIME, with a button that opens Keyboard settings), then the permissions to allow again. It goes away once AllInOneIME is in your input sources. The earlier identity's input source no longer works: its entry stays in your input sources only until then, to be taken out. In your input sources, AllInOneIME is listed under English.
 
-## 0.7.1 (unreleased)
+## 0.7.1 (2026-11-08)
 
 ### Changed
 
