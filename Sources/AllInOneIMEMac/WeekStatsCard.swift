@@ -4,9 +4,9 @@ import AppKit
 /// This week's card, drawn: Settings → This Week shows it (`style` `.page`), and the picture `WeekStatsShareImage` copies
 /// or saves is it (`.share`, 640 × 540 points), so the two are the same card. As the owner's design lays it out (Main,
 /// ShareCard, FirstWeek): the days and the version on top; the headline, the week's number and how it compares, the days
-/// and apps, the bars Monday to Sunday on the left; the commands run most, each with its own icon as the command list
-/// draws it, on the right; where they came from and how many used AI; the clipboard history pastes at the bottom. In the
-/// system's fonts and colors (the label colors, the accent color) of the appearance it's drawn in.
+/// and apps, the characters typed, the bars Monday to Sunday on the left; the commands run most, each with its own icon
+/// as the command list draws it, on the right; where they came from and how many used AI; the clipboard history pastes at
+/// the bottom. In the system's fonts and colors (the label colors, the accent color) of the appearance it's drawn in.
 ///
 /// Drawn with AppKit's text and Core Graphics into the current graphics context, flipped, on any thread: the picture is
 /// made off the main thread too.
@@ -14,7 +14,7 @@ public struct WeekStatsCard: @unchecked Sendable {
     public enum Style: Sendable {
         /// On the settings page: today named and bold, the card's own background and border.
         case page
-        /// The picture: every day named, the footer at the bottom of 540 points.
+        /// The picture: every day named, 540 points tall, the card in the middle of it.
         case share
     }
 
@@ -55,7 +55,12 @@ public struct WeekStatsCard: @unchecked Sendable {
 
     /// How tall the card is `width` points wide: the picture's 540; the page's as its content needs.
     public func height(forWidth width: CGFloat) -> CGFloat {
-        if style == .share { return Self.shareSize.height }
+        style == .share ? Self.shareSize.height : contentHeight(width)
+    }
+
+    /// What the card's content takes `width` points wide, its padding included: the days, the columns, where from and
+    /// the pastes, each after the one before.
+    private func contentHeight(_ width: CGFloat) -> CGFloat {
         let inner = width - 2 * padding
         return padding + 16 + Self.gap + columnsHeight(inner) + Self.gap + 1 + Self.gap + 58 + Self.gap + 1 + Self.gap + 18 + padding
     }
@@ -78,6 +83,9 @@ public struct WeekStatsCard: @unchecked Sendable {
             rect.fill()
         }
         var y = inner.minY
+        // The picture is as tall whatever the week: its content in the middle of it, the pastes right under where from
+        // (no band between them).
+        if style == .share { y += max(((rect.height - contentHeight(rect.width)) / 2).rounded(), 0) }
         // The days, and the version.
         let version = attributed(text.versionLabel, Fonts.small, palette.secondary)
         let versionWidth = ceil(version.size().width)
@@ -95,20 +103,11 @@ public struct WeekStatsCard: @unchecked Sendable {
         CGRect(x: inner.minX, y: y, width: inner.width, height: 1).fill()
         y += 1 + Self.gap
         drawSources(CGRect(x: inner.minX, y: y, width: inner.width, height: 58), palette)
-        y += 58
-        if style == .share {
-            // At the bottom, a line over it.
-            let top = inner.maxY - 18 - 14 - 1
-            palette.separator.setFill()
-            CGRect(x: inner.minX, y: top, width: inner.width, height: 1).fill()
-            drawFooter(CGRect(x: inner.minX, y: top + 15, width: inner.width, height: 18), palette)
-        } else {
-            y += Self.gap
-            palette.separator.setFill()
-            CGRect(x: inner.minX, y: y, width: inner.width, height: 1).fill()
-            y += 1 + Self.gap
-            drawFooter(CGRect(x: inner.minX, y: y, width: inner.width, height: 18), palette)
-        }
+        y += 58 + Self.gap
+        palette.separator.setFill()
+        CGRect(x: inner.minX, y: y, width: inner.width, height: 1).fill()
+        y += 1 + Self.gap
+        drawFooter(CGRect(x: inner.minX, y: y, width: inner.width, height: 18), palette)
     }
 
     // MARK: The left column
@@ -116,12 +115,6 @@ public struct WeekStatsCard: @unchecked Sendable {
     /// The headline's block and the bars: as tall as either column needs.
     private func columnsHeight(_ width: CGFloat) -> CGFloat {
         max(leftHeight, rightHeight((width - Self.columnGap) / 2))
-    }
-
-    private var hasComparisonLine: Bool { text.comparison != nil }
-
-    private var leftHeight: CGFloat {
-        20 + 8 + 64 + 8 + (hasComparisonLine ? 22 + 8 : 0) + 16 + 18 + 16 + 4 + Self.barHeight + 4 + 16
     }
 
     private func drawLeft(_ rect: CGRect, _ palette: Palette) {
@@ -149,8 +142,26 @@ public struct WeekStatsCard: @unchecked Sendable {
             y += 22 + 8
         }
         draw(attributed(text.activity, Fonts.small, palette.secondary), x: rect.minX, y: y, width: rect.width, line: 16)
-        y += 16 + 18
+        y += 16
+        // "打了 12,340 个字" under it, when any were typed.
+        if let characters = text.charactersTyped {
+            y += Self.lineGap
+            draw(attributed(characters, Fonts.small, palette.secondary), x: rect.minX, y: y, width: rect.width, line: 16)
+            y += 16
+        }
+        y += 18
         drawBars(CGRect(x: rect.minX, y: y, width: rect.width, height: 16 + 4 + Self.barHeight + 4 + 16), palette)
+    }
+
+    private var hasComparisonLine: Bool { text.comparison != nil }
+    private var hasCharactersLine: Bool { text.charactersTyped != nil }
+    /// Between two lines of small text, one under the other.
+    private static let lineGap: CGFloat = 4
+
+    /// What `drawLeft` draws, from the headline to the weekdays under the bars.
+    private var leftHeight: CGFloat {
+        20 + 8 + 64 + 8 + (hasComparisonLine ? 22 + 8 : 0) + 16 + (hasCharactersLine ? Self.lineGap + 16 : 0) + 18
+            + 16 + 4 + Self.barHeight + 4 + 16
     }
 
     /// The comparison's pill: an arrow and the percent, in the accent color on a wash of it. Its width.

@@ -185,6 +185,8 @@ public final class InputSession {
         composer.readFieldText = { [weak self] in self?.readFieldText() }
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
+        // This week's stats: the characters typed, as a number (InputSession+WeekStats.swift).
+        composer.typedIntoField = { [weak self] typed in self?.countTyped(typed) }
         composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
         composer.instantResults = { [weak self] query in
             guard let services = self?.services else { return [] }
@@ -1060,6 +1062,10 @@ public final class InputSession {
             response = Composer.Response(effects: response.effects + typed, handled: false)
         }
         followEnglishTyping(key, english: english, passedOn: !response.handled)
+        // A key let through to the app types its text there: typed through the input method where level one has a
+        // language's engine (in English mode, a digit or a mark with nothing composed …); without one (no language pack,
+        // librime still deploying), every key goes straight to the app and none is counted.
+        if !response.handled, engine != nil, let typed = key.printableText { countTyped(typed) }
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { intoField(text) } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         // What went into the field with this key: what the input method put in, and the key's own text if the app types it.

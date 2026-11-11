@@ -7,7 +7,8 @@ import Foundation
 ///     sent a request to an AI provider; one @'s rows count as the command they ran;
 ///   - the apps it was used in, as salted hashes of their bundle ids (`salt`, random, kept with the counts): the page
 ///     shows how many, never which;
-///   - the pastes from clipboard history.
+///   - the pastes from clipboard history;
+///   - how many characters the user typed through the input method (`recordTypedCharacters`): one number a day.
 /// Never what was typed, a command's text, what was pasted, or a time finer than the day. The last `weeksKept` calendar
 /// weeks (Monday to Sunday, in the calendar's time zone) are kept; older days are dropped as new ones are counted. The
 /// shell keeps it in a file of its own on the device (`serializedData`, `restore`), never synced or sent; a record
@@ -106,6 +107,20 @@ public final class WeekStats: @unchecked Sendable {
         tell()
     }
 
+    /// `count` characters the user typed went into a field through the input method (the session tells them as they go
+    /// in: `InputSession.countTyped`), added to today's number. Only the number: never which, nor where.
+    public func recordTypedCharacters(_ count: Int) {
+        guard count > 0 else { return }
+        let today = day(of: now())
+        record.withLock { record in
+            // A day's first count drops the days no longer kept; the others only add.
+            if record.days[today.key] == nil { prune(&record, today: today) }
+            record.days[today.key, default: Day()].charactersTyped += count
+            if record.since == nil { record.since = today.key }
+        }
+        tell()
+    }
+
     /// Everything counted forgotten (Settings → Privacy's Forget All): the next week shown is a first week again. The
     /// salt stays (nothing it hashed is kept).
     public func clearHistory() {
@@ -170,7 +185,7 @@ public final class WeekStats: @unchecked Sendable {
 
         var commands: [String: (source: CommandSource, runs: Int)] = [:]
         var sources = Snapshot.SourceCounts()
-        var ai = 0, pastes = 0
+        var ai = 0, pastes = 0, characters = 0
         var apps = Set<String>()
         for day in days {
             for (id, runs) in day.commands {
@@ -180,6 +195,7 @@ public final class WeekStats: @unchecked Sendable {
             }
             apps.formUnion(day.apps)
             pastes += day.clipboardPastes
+            characters += day.charactersTyped
         }
         let ranked = commands.map { Snapshot.CommandCount(id: $0.key, source: $0.value.source, count: $0.value.runs) }
             .sorted { ($1.count, $0.id) < ($0.count, $1.id) }
@@ -203,7 +219,7 @@ public final class WeekStats: @unchecked Sendable {
             },
             commandCount: sources.total, aiCommandCount: ai, sourceCounts: sources, distinctAppCount: apps.count,
             topCommands: top, otherCommands: Snapshot.OtherCommands(count: rest.count, total: rest.reduce(0) { $0 + $1.count }),
-            comparison: comparison, firstRecordedDay: first, clipboardPasteCount: pastes,
+            comparison: comparison, firstRecordedDay: first, clipboardPasteCount: pastes, charactersTyped: characters,
             isFirstWeek: first.map { $0 >= monday } ?? true, calendar: calendar)
     }
 
@@ -247,6 +263,9 @@ public final class WeekStats: @unchecked Sendable {
         let first = Self.key(add(days: -7 * (Self.weeksKept - 1), to: monday(of: today.date)), calendar: calendar)
         // The keys sort as their days do.
         if record.days.keys.contains(where: { $0 < first }) { record.days = record.days.filter { $0.key >= first } }
+        // Nor the first day counted once it's older than they are: counting started before all the days kept (no week
+        // shown is a first week then), and no older day stays in the file.
+        if let since = record.since, since < first { record.since = first }
     }
 
     private func appHash(_ bundleID: String?, salt: Data) -> String? {
@@ -282,11 +301,13 @@ public final class WeekStats: @unchecked Sendable {
         init(salt: Data) { self.salt = salt }
     }
 
-    /// One day's counts: each command's runs, the apps (salted hashes), the clipboard history pastes.
+    /// One day's counts: each command's runs, the apps (salted hashes), the clipboard history pastes, the characters
+    /// typed.
     private struct Day: Codable {
         var commands: [String: Runs] = [:]
         var apps: [String] = []
         var clipboardPastes = 0
+        var charactersTyped = 0
 
         init() {}
 
@@ -295,6 +316,8 @@ public final class WeekStats: @unchecked Sendable {
             commands = try container.decodeIfPresent([String: Runs].self, forKey: .commands) ?? [:]
             apps = try container.decodeIfPresent([String].self, forKey: .apps) ?? []
             clipboardPastes = max(try container.decodeIfPresent(Int.self, forKey: .clipboardPastes) ?? 0, 0)
+            // A file from before 0.7.4's characters has none; one made by hand can't make a week's sum overflow.
+            charactersTyped = min(max(try container.decodeIfPresent(Int.self, forKey: .charactersTyped) ?? 0, 0), Int(Int32.max))
         }
 
         var runCount: Int { commands.values.reduce(0) { $0 + $1.runs } }
@@ -404,6 +427,8 @@ extension WeekStats {
         /// The first day anything was counted (nil: nothing yet).
         public var firstRecordedDay: Date?
         public var clipboardPasteCount: Int
+        /// The characters typed through the input method in the week (`recordTypedCharacters`).
+        public var charactersTyped: Int
         /// Counting started in this week (or hasn't yet): there is no week before to compare it with.
         public var isFirstWeek: Bool
         /// The calendar its days are in (their time zone).

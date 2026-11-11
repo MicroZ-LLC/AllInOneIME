@@ -263,11 +263,19 @@ enum WeekStatsSamples {
                 app += 1
             }
         }
+        // The characters typed on each of `counts`' days, Monday (0) on, of the week `week` weeks from this one.
+        func typed(_ counts: [Int], week: Int = 0) {
+            for (day, count) in counts.enumerated() where count > 0 {
+                clock.now = WeekStats.defaultCalendar().date(byAdding: .day, value: 7 * week + day - 4, to: friday) ?? friday
+                stats.recordTypedCharacters(count)
+            }
+        }
         if firstWeek {
-            // Counting since Thursday: 7 commands on 2 days in 3 apps, 4 of them with AI, 3 pastes.
+            // Counting since Thursday: 7 commands on 2 days in 3 apps, 4 of them with AI, 3 pastes, 2,380 characters.
             run("improve", .builtIn, ai: true, times: 4, on: 3, in: 0)
             run("sig", .own, ai: false, times: 2, on: 4, in: 2)
             run("open", .builtIn, ai: false, times: 1, on: 4, in: 4)
+            typed([0, 0, 0, 1_460, 920])
             clock.now = friday
             for _ in 0..<3 { stats.recordClipboardPaste() }
             return store
@@ -289,6 +297,9 @@ enum WeekStatsSamples {
         for (id, source, ai, days) in week {
             for (day, count) in days.enumerated() { run(id, source, ai: ai, times: count, on: day) }
         }
+        // Characters typed: 11,870 last week, 12,340 this week so far.
+        typed([2_610, 2_480, 2_150, 2_390, 1_840, 300, 100], week: -1)
+        typed([2_840, 2_510, 1_960, 3_120, 1_910])
         clock.now = friday
         for _ in 0..<47 { stats.recordClipboardPaste() }
         return store

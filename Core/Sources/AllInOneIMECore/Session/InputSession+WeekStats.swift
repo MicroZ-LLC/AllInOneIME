@@ -5,6 +5,7 @@ import Foundation
 /// and whether it sent a request to an AI provider. One that starts a request is counted when the request first answers
 /// (a cached answer sent nothing: no AI then), and not when it fails or is given up before; one that is done at once
 /// (a snippet, a link, an app opened) at once. `@stats` itself isn't counted: looking at the week doesn't change it.
+/// The characters the user types through the input method are counted as they go in (`InputSession.countTyped`).
 struct WeekStatsRuns {
     struct Run {
         var id: String
@@ -63,5 +64,24 @@ extension InputSession {
 
     private func record(_ run: WeekStatsRuns.Run, fromCache: Bool) {
         services.weekStats.recordCommand(id: run.id, source: run.source, bundleID: run.app, usedAI: run.ai && !fromCache)
+    }
+
+    // MARK: Characters typed
+
+    /// `text` the user typed went into the field through the input method: told by the composer
+    /// (`Composer.typedIntoField`: a candidate picked, a draft put in as typed …), or a key it let through to the app as
+    /// typed (`key`, with a language's engine in level one). Its characters, but for spaces and line breaks, are added to
+    /// this week's stats as a number, in memory (the shell writes it later); never during secure input or in a field
+    /// known as a password field (`nothingLeavesDevice`). What a command, an answer, a snippet, autocomplete, a suggestion
+    /// row or clipboard history puts in is never told here.
+    func countTyped(_ text: String) {
+        guard !nothingLeavesDevice() else { return }
+        services.weekStats.recordTypedCharacters(Self.typedCharacters(in: text))
+    }
+
+    /// The characters of `text` this week's stats count: each one (a Chinese character, a letter, a digit, a mark, an
+    /// emoji) but spaces and line breaks.
+    static func typedCharacters(in text: String) -> Int {
+        text.reduce(0) { $1.isWhitespace || $1.isNewline ? $0 : $0 + 1 }
     }
 }

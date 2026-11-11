@@ -98,6 +98,11 @@ public struct WeekStatsText: Equatable, Sendable {
 
     /// "5 天都用了 · 在 8 个 App 里".
     public var activity: String { words.daysUsed(week.daysUsed) + " · " + words.apps(week.distinctAppCount) }
+    /// Under it: "打了 12,340 个字", the characters typed through the input method in the week (the number grouped as
+    /// the language groups it); nil when there are none. Not on the menu bar panel's row or `@stats`'s.
+    public var charactersTyped: String? {
+        week.charactersTyped > 0 ? words.charactersTyped(week.charactersTyped) : nil
+    }
 
     /// The week's days ("11 月 9 日 – 15 日").
     public var dateRange: String {
@@ -165,6 +170,7 @@ public struct WeekStatsText: Equatable, Sendable {
         var parts = [(forShare ? shareHeadline : headline) + " " + count + " " + countUnit]
         if let comparison { parts.append(comparison) }
         parts.append(activity)
+        if let charactersTyped { parts.append(charactersTyped) }
         parts.append(week.shareCommands(hideOwnCommandNames: forShare && hideOwnCommandNames, language: language)
             .map { "\($0.displayName) \($0.count)" }.joined(separator: ", "))
         parts.append(sourceSummary)
@@ -219,10 +225,33 @@ struct WeekStatsWords: Sendable {
         InterfaceText.fill(values[index], arguments) ?? InterfaceText.fill(values[1], arguments) ?? values[1]
     }
 
-    /// One of two forms by `count`: French and Portuguese take 0 and 1 as one, the others only 1.
-    private func plural(_ count: Int, _ one: [String], _ other: [String]) -> String {
+    /// One of two forms by `count`: French and Portuguese take 0 and 1 as one, the others only 1. `number`: the count
+    /// as shown (`grouped`), else its digits.
+    private func plural(_ count: Int, _ one: [String], _ other: [String], number: String? = nil) -> String {
         let single = ["fr", "pt-BR"].contains(code) ? count == 0 || count == 1 : count == 1
-        return fill(single ? one : other, "\(count)")
+        return fill(single ? one : other, number ?? "\(count)")
+    }
+
+    /// `count` with its thousands grouped as the language writes them: "12,340" (Chinese, Japanese, Korean, English),
+    /// "12.340" (German, Spanish, Portuguese; Spanish leaves four digits alone: "1234"), "12 340" (French, a narrow
+    /// no-break space). The same on every platform (no locale data needed).
+    func grouped(_ count: Int) -> String {
+        let digits = String(abs(count))
+        let separator: String
+        switch code {
+        case "de", "pt-BR": separator = "."
+        case "es": separator = digits.count > 4 ? "." : ""
+        case "fr": separator = "\u{202F}"
+        default: separator = ","
+        }
+        var groups: [Substring] = []
+        var end = digits.endIndex
+        while end > digits.startIndex {
+            let start = digits.index(end, offsetBy: -3, limitedBy: digits.startIndex) ?? digits.startIndex
+            groups.insert(digits[start..<end], at: 0)
+            end = start
+        }
+        return (count < 0 ? "-" : "") + groups.joined(separator: separator)
     }
 
     // The order of each list: zh-Hans, en, zh-Hant, ja, ko, de, fr, es, pt-BR.
@@ -399,6 +428,13 @@ struct WeekStatsWords: Sendable {
                 "dans %@ apps", "en %@ apps", "em %@ apps"])
     }
 
+    func charactersTyped(_ count: Int) -> String {
+        plural(count, ["打了 %@ 个字", "%@ character typed", "打了 %@ 個字", "%@ 文字を入力", "%@자 입력", "%@ Zeichen getippt",
+                       "%@ caractère saisi", "%@ carácter escrito", "%@ caractere digitado"],
+               ["打了 %@ 个字", "%@ characters typed", "打了 %@ 個字", "%@ 文字を入力", "%@자 입력", "%@ Zeichen getippt",
+                "%@ caractères saisis", "%@ caracteres escritos", "%@ caracteres digitados"], number: grouped(count))
+    }
+
     var mostUsed: String {
         pick(["常用指令", "Most Used", "常用指令", "よく使うコマンド", "자주 쓰는 명령", "Meistgenutzt", "Les plus utilisées",
               "Los más usados", "Mais usados"])
@@ -537,11 +573,13 @@ struct WeekStatsWords: Sendable {
 
     /// Settings → Privacy → Learned…'s row for them.
     func kept(weeks: Int) -> String {
-        fill(["本周统计：最近 %@ 周用了多少次指令（只有次数）", "This week's stats: how much you used it over the last %@ weeks (counts only)",
-              "本週統計：最近 %@ 週用了多少次指令（只有次數）", "今週の統計：過去 %@ 週間の利用回数（回数のみ）",
-              "이번 주 통계: 최근 %@주 동안의 사용 횟수(횟수만)", "Wochenstatistik: Nutzung der letzten %@ Wochen (nur Anzahl)",
-              "Statistiques de la semaine\u{00A0}: usage des %@ dernières semaines (nombres seulement)",
-              "Estadísticas de la semana: uso de las últimas %@ semanas (solo cantidades)",
-              "Estatísticas da semana: uso das últimas %@ semanas (só contagens)"], "\(weeks)")
+        fill(["本周统计：最近 %@ 周用了多少次指令、打了多少字（只有数字）",
+              "This week's stats: how much you used it and how many characters you typed over the last %@ weeks (numbers only)",
+              "本週統計：最近 %@ 週用了多少次指令、打了多少字（只有數字）", "今週の統計：過去 %@ 週間の利用回数と入力文字数（数のみ）",
+              "이번 주 통계: 최근 %@주 동안의 사용 횟수와 입력한 글자 수(숫자만)",
+              "Wochenstatistik: Nutzung und getippte Zeichen der letzten %@ Wochen (nur Zahlen)",
+              "Statistiques de la semaine\u{00A0}: usage et caractères saisis des %@ dernières semaines (nombres seulement)",
+              "Estadísticas de la semana: uso y caracteres escritos de las últimas %@ semanas (solo cantidades)",
+              "Estatísticas da semana: uso e caracteres digitados das últimas %@ semanas (só contagens)"], "\(weeks)")
     }
 }

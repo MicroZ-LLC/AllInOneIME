@@ -322,7 +322,7 @@ extension Composer {
     private func finishOneAsTyped() -> [Effect] {
         var text = draft
         if let engine, engine.snapshot().isComposing { text += engine.rawInput }
-        return finish(committing: text, selection: .kept)
+        return finish(committing: text, selection: .kept, typed: text)
     }
 
     // MARK: Spotlight's files

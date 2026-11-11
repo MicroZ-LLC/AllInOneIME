@@ -666,6 +666,13 @@ public final class Composer {
     /// source that may show rows here ("PROJ-"): the composition then goes in as typed and the token starts
     /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
     public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
+    /// Told the text the user typed as it goes into the field (`Effect.commit`), for this week's stats, which count its
+    /// characters (`InputSession.countTyped`): a candidate picked, what the engine puts in as typed (its marks, its
+    /// letters on ⏎), a Hangul syllable, a dead key's letter, a draft put in as typed (Esc, ⇧⏎, the field left), the
+    /// part of a row Code held that was typed. Never a command's output, an answer, a snippet, a value, a transcript,
+    /// nor a draft with text the user didn't type in it (`draftHasOutsideText`). Set by the session; a composer on its
+    /// own tells no one.
+    public var typedIntoField: (String) -> Void = { _ in }
     /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
     /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
     /// and Code's letters go straight in.
@@ -1647,7 +1654,7 @@ public final class Composer {
 
     /// Finished Hangul: into the command's text, or into the document.
     private func typeFinished(_ text: String) -> [Effect] {
-        guard !draft.isEmpty || modeCollects(text) else { return [.commit(text)] }
+        guard !draft.isEmpty || modeCollects(text) else { return asTyped([.commit(text)]) }
         appendTyped(text)
         setLevelOnePhase()
         return []
@@ -1717,14 +1724,14 @@ public final class Composer {
             pendingAccent = nil
             setLevelOnePhase()
             if let text = event.composed {
-                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed([.commit(text)])) }
+                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed(asTyped([.commit(text)]))) }
                 appendTyped(text)
                 setLevelOnePhase()
                 return .done(.consumed([.updateMarkedText] + (codeWord == nil ? [.showPanel] : [])))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
             if event.key == .backspace || event.key == .escape { return .done(.consumed([.updateMarkedText])) }
-            guard !draft.isEmpty || modeCollects(accent) else { return .then([.commit(accent)]) }
+            guard !draft.isEmpty || modeCollects(accent) else { return .then(asTyped([.commit(accent)])) }
             insertIntoDraft(accent)
             return .then([.updateMarkedText])
         }
@@ -2129,7 +2136,7 @@ public final class Composer {
     /// ⏎ on a failure put right in the settings: the sentence goes in as typed, as 0 puts it on any failure (the settings
     /// take the focus, and a field left puts the draft in as it is, the command too), and they open there.
     private func openFailureFix(_ place: SettingsPlace) -> [Effect] {
-        finish(committing: selection == nil ? sentText : "") + [.openSettingsAt(place)]
+        finish(committing: selection == nil ? sentText : "", typed: sentText) + [.openSettingsAt(place)]
     }
 
     /// The reminder read from the `@reminder` text (`.previewReminder`): one row to confirm (Space, ⏎ or 1
@@ -2230,7 +2237,8 @@ public final class Composer {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
-        return effects + finishAsTyped(text)
+        // A transcript in it: what was said isn't typed (none of it is counted).
+        return effects + finishAsTyped(text, typed: spoken.isEmpty)
     }
 
     /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
@@ -2272,7 +2280,7 @@ public final class Composer {
         guard let accent = pendingAccent else { return [] }
         pendingAccent = nil
         if !isLevelTwo { setLevelOnePhase() }
-        guard !draft.isEmpty else { return [.commit(accent)] }
+        guard !draft.isEmpty else { return asTyped([.commit(accent)]) }
         insertIntoDraft(accent)
         return [.updateMarkedText]
     }
@@ -2286,10 +2294,10 @@ public final class Composer {
     /// Ends the composition inserting `text`, the draft as typed (and what is still being typed after it). A note
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
-    func finishAsTyped(_ text: String) -> [Effect] {
+    func finishAsTyped(_ text: String, typed: Bool = true) -> [Effect] {
         // With a selection nothing goes in: no "@improve …" over it (the field keeps it as it is).
         guard draftIsNoteWithLines, let content = parse(text)?.content else {
-            return finish(committing: text, leaving: true, selection: .kept)
+            return finish(committing: text, leaving: true, selection: .kept, typed: typed ? text : nil)
         }
         let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
         return finish(committing: "", leaving: true, selection: .kept) + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
@@ -2712,12 +2720,14 @@ public final class Composer {
 
     /// Leaves one @'s list (`handleOneAtKey`): what was typed ("@", "@abc") goes in as typed, then `event` acts as usual.
     func commitPalette(then event: KeyEvent) -> Response {
-        let effects = finish(committing: draft)
+        let effects = finish(committing: draft, typed: draft)
         let next = handleLevelOne(event)
         // A terminal wouldn't act on the key after the "@…" went in (`appTakesKeysAfterInsert`): a key that types goes in
         // with it, and one that doesn't (an arrow) only ends the list, the "@…" going in once the key is done.
         guard !next.handled, !appTakesKeysAfterInsert else { return Response(effects: effects + next.effects, handled: next.handled) }
         let text = event.printableText
+        // The key's text goes in with it, by the input method: typed all the same.
+        if let text, effects.contains(where: { if case .commit = $0 { true } else { false } }) { typedIntoField(text) }
         let afterKey = effects.flatMap { effect -> [Effect] in
             guard case let .commit(typed) = effect else { return [effect] }
             return text.map { [.commit(typed + $0)] } ?? [.updateMarkedText, .commitAfterKey(typed)]
@@ -2861,6 +2871,7 @@ public final class Composer {
             insertIntoDraft(text)
             return []
         }
+        typedIntoField(text)
         return [.commit(text)]
     }
 
@@ -3034,7 +3045,8 @@ public final class Composer {
                 // A message is never inserted: ⏎ tries again.
                 if activeCommand?.kind == .message { return .consumed(startAction().effects) }
                 // With a selection, it stays as it was.
-                return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: selection == nil ? sentText : ""))
+                return .consumed(activeCommand?.kind == .reminder ? backToDraft()
+                                 : finish(committing: selection == nil ? sentText : "", typed: sentText))
             }
             // ⇧⏎ with no follow-up typed on an AI's results: as typed, as everywhere (one typed is sent: `handleRefineKey`).
             if event.modifiers.subtracting(.capsLock) == .shift, phase == .choosing,
@@ -3934,7 +3946,11 @@ public final class Composer {
     /// Ends the composition, inserting `text`, and clears the engine. `leaving`: the field is left (or everything
     /// committed): a `show` script still running keeps going in the background (`detachScript`). With a selection (the
     /// draft was in the panel), `text` replaces it, or (`end`; by default when `text` is empty) it's kept as it is.
-    func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil) -> [Effect] {
+    /// `typed`: what of `text` the user typed (it goes in as typed: `typedIntoField`), unless the draft has text they
+    /// didn't type; nil for an output, an answer, a value.
+    func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil,
+                typed: String? = nil) -> [Effect] {
+        let typed = draftHasOutsideText ? nil : typed  // read before the draft goes
         let selected = selection
         selection = nil
         selectionPending = false
@@ -3976,10 +3992,20 @@ public final class Composer {
         effects.append(.hidePanel)
         if let selected {
             // Nothing was marked in the field: only what replaces the selection goes in.
-            if (end ?? (text.isEmpty ? .kept : .replaced)) == .replaced { effects.append(.replaceSelection(text, selected)) }
+            if (end ?? (text.isEmpty ? .kept : .replaced)) == .replaced {
+                effects.append(.replaceSelection(text, selected))
+                if let typed { typedIntoField(typed) }
+            }
         } else {
             effects.append(text.isEmpty ? .updateMarkedText : .commit(text))
+            if let typed, !text.isEmpty { typedIntoField(typed) }
         }
+        return effects
+    }
+
+    /// `effects`, whose commits are what the user typed (`typedIntoField`).
+    func asTyped(_ effects: [Effect]) -> [Effect] {
+        for case let .commit(text) in effects { typedIntoField(text) }
         return effects
     }
 }
