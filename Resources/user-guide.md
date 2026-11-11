@@ -123,9 +123,9 @@ Settings → General: Show in Menu Bar: the icon whose panel lists your notes, r
 设置 →「通用」：「在菜单栏显示图标」：点图标下拉出笔记、提醒、Claude 任务和续写开关。「界面语言」：跟随系统，或选一种语言。「通过 iCloud 同步」（默认关）：设置、自定义命令和学到的词在你所有的 Mac 上都一样，只经过你自己的 iCloud 云盘；隐藏的词和最近的问题要你打开才同步；⋯ 菜单里有「立即同步」。设置 →「高级」：「逐字上屏」「候选排列」「使用选中的文字」「配置文件」和「Rime 用户目录」（「打开」）。
 
 ## Updates / 更新
-Settings → About → Updates: Check for updates automatically (once a day, on by default; nothing installs until you click), Notify me when a new version is out, and Check for Updates. Update to X downloads the signed release, checks it, installs it and restarts the input method, keeping your settings and data; a failed update rolls back. The update check sends nothing you typed and no identifiers.
+Settings → About → Updates: Check for updates automatically (once a day, on by default; nothing installs until you click), Notify me when a new version is out, and Check for Updates. Update to X downloads the signed release, checks it, installs it and restarts the input method, keeping your settings and data; a failed update rolls back. The update check sends nothing you typed; its request carries one identifier, a random install ID made on this Mac (never synced), so installs can be counted. Settings → Privacy → Send an anonymous install ID with the daily update check: off stops it and deletes the ID.
 
-设置 →「关于」→「更新」：「自动检查更新」（每天一次，默认开；你点之前什么都不装）、「有新版本时通知我」和「检查更新」。「更新到 X」下载签过名的版本，检查后安装并重启输入法，设置和数据都保留；更新失败会退回原来的版本。检查更新不发送你打的字，也不带任何标识。
+设置 →「关于」→「更新」：「自动检查更新」（每天一次，默认开；你点之前什么都不装）、「有新版本时通知我」和「检查更新」。「更新到 X」下载签过名的版本，检查后安装并重启输入法，设置和数据都保留；更新失败会退回原来的版本。检查更新不发送你打的字；请求里只带一个标识：本机随机生成的匿名安装 ID（不同步），用来统计安装数。设置 →「隐私」→「每日检查更新时附带匿名安装 ID」：关掉就不再发送，并删掉这个 ID。
 
 ## Troubleshooting / 排查问题
 Settings → About → Troubleshoot… checks the setup on this Mac and offers fixes; describe a problem there and the AI can look at it too. Report an Issue… (About, the input menu, or @reportissue) opens a prefilled GitHub issue. Not under English in Input Sources: log out and in, then add it. A panel's keys reach the app: allow Accessibility. ⌥Space taken by Alfred or Raycast: pick Tap ⌥ as the action key. In terminals use ⌃V, not ⌘V. Selected text misbehaves in an app: turn off Use the selected text. In password fields (secure input) keys go in as typed and nothing goes to the AI.
