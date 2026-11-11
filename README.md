@@ -88,6 +88,7 @@ commands below start with it (`~improve`), and so does the app's own text that n
 | `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Commands → Agent (@agent): Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Claude Code runs in the background and notifies me" there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. In Google Chrome it takes the page along: the address and title, the field you typed in with its form or section (★ marks where you are), the selected text and what's visible in the window — never a password field, never the whole page — so `@agent why doesn't this work` in a sign-in form's username field is about that field, and `@agent why is this blocked` on a pipeline page is about that page; the agent judges which. The page's text goes to the agent as read, marked as coming from the web (not as instructions from you). It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there, turned back off after (Settings → Privacy → "@agent and @reply take the Chrome page along" turns it all off). The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
 | `@tasks` | Lists the background Claude tasks (working / done / waiting for you) with their last replies; ⏎ opens one in Terminal, ⌘C copies the reply. The list shows at once as last seen and is brought up to date as Claude Code answers |
 | `@settings` | Opens the settings window right away (picking it is enough) |
+| `@stats` | This week's stats in one row: how many commands you ran this week and how that compares with the same days last week, where they came from on a second line. ⏎ opens Settings → This Week, ⌘C copies the picture (as Copy Image there), Esc cancels; see [This week's stats](#this-weeks-stats-new) |
 | `@open` | Lists matching files, folders and apps as you type (Spotlight). Several keywords work, separated by spaces: each must be in the path, at least one in the name (a standard folder's name counts for what's in it: `downloads pdf` finds the PDFs in Downloads). Apps and the standard folders are also found by their Chinese names, and a Chinese interface shows them that way. What you opened with `@open` comes first, then apps and those folders, then recently used or changed files; when the names find two files or fewer and no app or folder of those, the files in your home folder are searched by content too, those rows marked "content"; when there's nothing else, ⏎ lists them to pick from instead of opening the first. With a web address (`github.com`, `localhost:3000`, `https://…`), the first row is "open in the browser" and contents aren't searched; a file named exactly that (say `MANIFEST.in`) comes first. Text starting with `~/` or `/` is a path: its folder is listed as soon as it's read, never on the key you type, and the next keys narrow that listing at once (a link to a server's folder is listed as a file), Tab completes it and goes into folders; ⏎ opens, ⌘C copies the path. Spotlight looks on this Mac's own disks, not on a server's volumes |
 | `@note` | Saves the text to the Notes app, in a folder named AllInOneIME (made when missing), or where Settings → Commands → Notes (@note) says: Notion, or a folder of Markdown files (an Obsidian vault or any folder); nothing is inserted. Pasted text keeps its line breaks, up to 20000 characters |
 | `@reminder` | Adds a reminder to the Reminders app, in a list named AllInOneIME. Write the time in the text; it's read on the Mac, and a row shows what was read: ⏎ or Space adds it, Esc goes back to edit. With a time, it has an alarm then; with only a date, it's all day |
@@ -604,7 +605,10 @@ something, never naming them.
 
 ### Settings (new)
 
-Settings has seven pages, in this order in the sidebar, and opens on General:
+Settings has eight pages, in this order in the sidebar, and opens on General:
+
+- **This Week**: [this week's stats](#this-weeks-stats-new), with This Week / Last Week, the picture to copy or save, and
+  "Hide my command names in the image".
 
 - **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
   to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
@@ -777,13 +781,41 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
 - The settings search's Change: … ("sync through iCloud") turns it on or off; what syncs is only chosen in Settings →
   General. In the config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`, `keys`).
 
+## This week's stats (new)
+
+<img src="docs/en/week-stats.png" width="520" alt="This week's stats as a picture: 132 commands, 18% more than the same days last week, bars Monday to Sunday, the commands run most, where they came from and the clipboard history pastes">
+
+How much you use AllInOneIME, week by week, and a picture of it to share. Settings → This Week (the first page in the
+sidebar) shows the calendar week, Monday to Sunday in your time zone:
+
+- How many commands you ran, and how that compares with last week up to the same weekday ("↑18% vs. the same days last
+  week"; nothing when last week had none on those days; the first week says it's compared from next week on and which
+  day counting started). How many days you used it, and in how many apps.
+- A bar for each day, today named; days still to come and days without a command as a short gray bar.
+- The 5 commands run most, each with its own icon and color as the command list shows it, then "4 more commands, 32
+  runs in all" (or, with few, where to find every command: type @ at the start of a text field).
+- Where they came from: your own commands, built-in ones and plugins (script extensions count as plugins), as a split
+  bar, and how many of them sent a request to an AI provider.
+- How many times you pasted from clipboard history: counts only, never what was pasted.
+
+Last Week shows the whole week before. **Copy Image** puts the card on the clipboard as a picture (640 × 540 points, PNG
+at twice the pixels, light or dark as your Mac is, in the first person: "This week I used"), **Save as Image…** saves it
+as a PNG. **Hide my command names in the image** shows your own commands there as "My command 1", "My command 2" … (the
+page keeps their names); it's remembered by the page, not a setting in config.json. A command run with one @ counts as the
+command it ran. `@stats` shows the same in the @ list, and the menu bar panel has the week on top.
+
+What is counted, on this Mac only: each command run (its name, where it comes from, whether it used AI), per day; the
+apps it ran in, as salted hashes of their bundle IDs (only how many is shown); clipboard history pastes. Never what you
+typed, a command's text, what was pasted, or a time finer than the day. See [Privacy](#privacy).
+
 ## Menu bar panel
 
 <img src="docs/en/panel-swipe.png" width="520" alt="The menu bar panel: frosted glass, with notes, reminders and Claude tasks on cards; a row swiped left shows its Remove button">
 
 Click AllInOneIME's icon in the menu bar (the ∞-and-cursor mark, without a box; the boxed one is the input source) and the panel drops down under it; a click elsewhere closes it:
 
-- Autocomplete: its switch, on top, with the model it asks, where the text goes and how many suggestions were shown and taken (see [Autocomplete](#autocomplete-beta-new)).
+- This week, on top: "132 commands this week ↑18% ›"; click it for Settings → This Week (see [This week's stats](#this-weeks-stats-new)). Not shown before the first command is counted.
+- Autocomplete: its switch, with the model it asks, where the text goes and how many suggestions were shown and taken (see [Autocomplete](#autocomplete-beta-new)).
 - Notes: the notes saved with `@note`, the newest 5; click one to open it where it went: in Notes, in Obsidian or the file's own app, or the Notion page. A file that's gone is no longer listed.
 - Reminders: the reminders not done yet in the AllInOneIME list of Reminders (`@reminder` adds to that list), the soonest due first, 8 shown; click the circle to tick one off, or the title to open Reminders.
 - Claude Tasks: like `@tasks`, the background Claude tasks (what `@agent` hands off to Claude Code), up to 30, 5 shown at a time: scroll for more, or search their titles and replies in the search box; with their progress and the first line of the last reply; click one to open it in Terminal and go on.
@@ -1413,6 +1445,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - In password fields macOS switches to its own keyboard (U.S. or ABC) and back when you leave them. Whenever the app you type in holds secure input, AllInOneIME doesn't compose text: keys go in as typed. And while the system is in secure input (password fields, Terminal's Secure Keyboard Entry, etc.), nothing is sent to the AI.
 - `@note` and `@reminder` don't go to the AI: AllInOneIME hands the text only to Notes and Reminders on this Mac, and reads the reminder's time on the Mac too (whether those apps sync it to your other devices depends on their accounts, such as iCloud). So they work during secure input as well. `@note` to a folder writes a file on this Mac (it syncs if the folder does, as an iCloud Drive or Obsidian Sync folder would). `@note` to Notion sends the note to Notion (api.notion.com, with your integration's token, kept in the keychain), and only then: not during secure input.
 - `@reportissue` (and "Report an Issue…") posts nothing itself: it opens GitHub's new-issue page in your browser, prefilled with the title you typed and the versions, languages, provider kind and counts listed above (`@reportissue` shows them in the candidate panel first; the menu item and Settings open the page directly). Opening the page gives GitHub that prefilled text in its address; the issue is only posted when you click Submit there.
+- This week's stats (Settings → This Week, `@stats`, the menu bar panel's row) count each command run (its name, whether it is your own, built-in or a plugin's, whether it used AI), the apps they ran in as salted hashes of their bundle IDs (the salt is random, kept with the counts; only how many apps is shown) and the clipboard history pastes, per day, for the last 8 calendar weeks, in `~/Library/Application Support/AllInOneIME/usage.json` (readable only by your user account), not in config.json. Never what you typed, a command's text or what was pasted, never a time finer than the day. They stay on this Mac: never synced (not with iCloud either), never sent. The picture goes only where you copy or save it. Settings → Privacy → Learned… lists them; Forget there, or Forget All, deletes them.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings (General → In these apps, Privacy → Apps without AI), the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
 - What the input method learns on this Mac stays on this Mac, never in the config file and never synced: each app's starting input (and the switches toward one), the apps where typos couldn't be fixed and the suggestion rows you picked, in `~/Library/Application Support/AllInOneIME/learned.json` (app IDs, inputs, counts and times, and for a picked row what it matched, such as an issue number or an item of your list; never text you typed), and with them the apps where autocomplete stopped by itself and the models that refuse a temperature (kept where they were before). What 0.6.6 and earlier kept elsewhere moves in at the first launch. Settings → Privacy → Learned… lists all of it, with Forget for each and Forget All.

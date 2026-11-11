@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.4 (unreleased)
+
+### Added
+
+- This week's stats: Settings → This Week, the first page in the sidebar, shows how much you used AllInOneIME this calendar week (Monday to Sunday, your time zone): how many commands ran and how that compares with last week up to the same weekday (hidden when last week had none then; the first week says it's compared from next week on, and which day counting started), on how many days and in how many apps, a bar for each day, the 5 commands run most with their own icons and the rest in one line, where they came from (your own, built-in, plugins and script extensions) with how many used AI, and the clipboard history pastes. Last Week shows the week before. Copy Image puts the card on the clipboard as a PNG (640 × 540 points at 2×, light or dark as the Mac is, "This week I used"), Save as Image… saves it; "Hide my command names in the image" shows your own commands there as "My command 1", "My command 2" … (remembered by the page, not in config.json). Once a command is counted, the menu bar panel shows "132 commands this week ↑18% ›" on top (a click opens the page), and the new built-in `@stats` shows the same in the @ list, with where the commands came from: ⏎ opens the page, ⌘C copies the picture, Esc cancels. A one @ row counts as the command it ran; `@stats` itself isn't counted. Only counts are kept, per day, for 8 weeks, in `~/Library/Application Support/AllInOneIME/usage.json` (0600): each command's name, source and AI use, the apps as salted hashes of their bundle IDs, the pastes; never what you typed or pasted, never a time finer than the day, never synced or sent. The file is written a moment after a count, never while a key is handled. Settings → Privacy → Learned… lists the stats, and Forget All deletes them.
+
 ## 0.7.3 (2026-11-10)
 
 ### Added
