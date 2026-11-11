@@ -28230,7 +28230,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "L’exécute une fois sur l’exemple, comme la touche d’action (avec le même délai ; une commande terminal s’exécute en arrière-plan et s’arrête après 10 secondes), et affiche ici le résultat : rien n’est inséré ni ouvert."
+            "value" : "L’exécute une fois sur l’exemple, comme la touche d’action (avec le même délai ; une commande terminal s’exécute en arrière-plan et s’arrête après 10 secondes), et affiche ici le résultat : rien n’est inséré ni ouvert."
           }
         },
         "ja" : {
