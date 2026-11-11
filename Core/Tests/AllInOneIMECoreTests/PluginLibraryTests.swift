@@ -7,7 +7,8 @@ import Testing
 /// Serves canned responses by full URL (the library fetches several files from one host); anything else
 /// is a 404. Each test uses its own host, so tests run in parallel.
 final class LibraryStubProtocol: URLProtocol, @unchecked Sendable {
-    private static let state = OSAllocatedUnfairLock(initialState: (responses: [String: (Int, Data)](), asked: [String]()))
+    private static let state = OSAllocatedUnfairLock(initialState: (responses: [String: (Int, Data)](), asked: [String](),
+                                                                    userAgents: [String: String]()))
 
     static func serve(_ url: String, _ body: Data, status: Int = 200) {
         state.withLock { $0.responses[url] = (status, body) }
@@ -15,6 +16,11 @@ final class LibraryStubProtocol: URLProtocol, @unchecked Sendable {
 
     static func asked(host: String) -> [String] {
         state.withLock { $0.asked.filter { URL(string: $0)?.host == host } }
+    }
+
+    /// The User-Agent `url` was last asked for with, if the request set one.
+    static func userAgent(_ url: String) -> String? {
+        state.withLock { $0.userAgents[url] }
     }
 
     static func session() -> URLSession {
@@ -30,6 +36,7 @@ final class LibraryStubProtocol: URLProtocol, @unchecked Sendable {
         let url = request.url!
         let (status, body) = Self.state.withLock { state -> (Int, Data) in
             state.asked.append(url.absoluteString)
+            state.userAgents[url.absoluteString] = request.value(forHTTPHeaderField: "User-Agent")
             return state.responses[url.absoluteString] ?? (404, Data("Not Found".utf8))
         }
         let response = HTTPURLResponse(url: url, statusCode: status, httpVersion: "HTTP/1.1", headerFields: [:])!

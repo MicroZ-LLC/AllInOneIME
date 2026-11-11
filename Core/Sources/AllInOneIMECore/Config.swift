@@ -260,6 +260,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// and Don't Show Again, which turns this off (Settings → About turns it on again). Only while `checkForUpdates` is
     /// on. On by default, also for a file from before the setting; written into the file only when off.
     public var notifiesUpdates: Bool
+    /// The update check's request for the manifest carries this Mac's install ID (`InstallID`, in its User-Agent), so
+    /// that installs can be counted; off (Settings → Privacy), it carries none and the ID kept is forgotten. On by default,
+    /// also for a file from before the setting; written into the file only when off.
+    public var sendsInstallID: Bool
     /// An @ command started with text selected in the field works on that text, which stays selected and as it is
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
@@ -410,6 +414,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
         self.notifiesUpdates = true
+        self.sendsInstallID = true
         self.useSelection = true
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
@@ -439,7 +444,7 @@ public struct Config: Codable, Equatable, Sendable {
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
-        case checkForUpdates, notifiesUpdates, useSelection, appProfiles
+        case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case autocomplete
@@ -551,6 +556,7 @@ public struct Config: Codable, Equatable, Sendable {
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
+        sendsInstallID = try c.decodeIfPresent(Bool.self, forKey: .sendsInstallID) ?? d.sendsInstallID
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
@@ -746,6 +752,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         // Only once turned off: a file from before the switch doesn't gain the key.
         if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
+        // Only once turned off, as `notifiesUpdates`.
+        if !sendsInstallID { try c.encode(sendsInstallID, forKey: .sendsInstallID) }
         try c.encode(useSelection, forKey: .useSelection)
         // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
         let profiles = appProfiles.filter { !$0.value.isEmpty }

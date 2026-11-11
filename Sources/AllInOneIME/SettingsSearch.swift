@@ -14,7 +14,7 @@ enum SettingsSpot: String, CaseIterable {
     // AI
     case provider, model, apiKey, awsProfile, baseURL, testConnection
     // Privacy
-    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned
+    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned, installID
     // Commands
     case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
     // Advanced
@@ -32,7 +32,7 @@ enum SettingsSpot: String, CaseIterable {
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
             return .general
         case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
-        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned:
+        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
             return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
             return .commands
@@ -95,6 +95,7 @@ enum SettingsSpot: String, CaseIterable {
         case .rememberQuestions: return tr("记住最近的问题", "Remember recent questions")
         case .learnEnglishWords: return tr("学习英文词", "Learn English words")
         case .learned: return tr("学到的内容", "Learned")
+        case .installID: return tr("每日检查更新时附带匿名安装 ID", "Send an anonymous install ID with the daily update check")
         case .customCommands: return tr("你的命令", "Your Commands")
         case .agent: return UIText.triggered(tr("@agent 交给", "@agent hands it to"))
         case .questionContinueIn: return tr("对话接着在哪里聊", "Continue a conversation in")
@@ -145,6 +146,9 @@ enum SettingsSpot: String, CaseIterable {
         case .learned:
             return tr("从你的用法里学到的，比如 App 用哪种输入开始、你选过的建议行，只存在这台 Mac 上。",
                       "What was learned from how you type, such as the input an app starts in or the rows you picked, kept on this Mac only.")
+        case .installID:
+            return tr("一个本机随机生成的编号，只用于统计安装数，不含其他信息。",
+                      "A random number made on this Mac, so we can count installs. Nothing else is sent.")
         case .typeOut: return Self.typeOutNote
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
@@ -199,6 +203,7 @@ enum SettingsSpot: String, CaseIterable {
         case .pageContext: return "@agent @reply chrome page context accessibility 网页 辅助功能"
         case .rememberQuestions: return "@question recent questions history forget 最近的问题 提问 记录 历史 忘掉"
         case .learnEnglishWords: return "learn english words 学习 英文词"
+        case .installID: return "install id anonymous count installs statistics update check user agent 安装 编号 匿名 统计 安装数 检查更新"
         case .learned: return "learned forget starts in starting input autocomplete stopped typos picked rows suggestions temperature models 学到的内容 忘掉 开始 输入 续写 停下 打错 选过的行 建议 模型"
         case .customCommands: return "custom commands prompt program terminal link snippet 自定义 命令 程序 终端 网页"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed background notify tasks @tasks claude tasks 编程 交给 终端 已安装 后台 通知 任务"
