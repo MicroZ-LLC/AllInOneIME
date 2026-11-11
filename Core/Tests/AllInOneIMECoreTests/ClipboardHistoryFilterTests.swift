@@ -4,8 +4,8 @@ import Testing
 import AllInOneIMETestSupport
 
 /// Clipboard history's filter and pages beyond the acceptance tests: pinyin in mixed text, a long text, Chinese input
-/// with marks typed, pages of what a filter keeps, ⇧↓ past a page's end and a page turned with a selection, where typing
-/// doesn't filter (a page of rows, a command), and the footers that say so.
+/// with marks typed, pages of what a filter keeps, ⇧↓ past a page's end and a page turned with a selection, a page of rows
+/// filtered as more, where typing doesn't filter (a command), and the footers that say so.
 @Suite(.serialized)
 struct ClipboardHistoryFilterTests {
     private let backspace = KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}")
@@ -114,13 +114,17 @@ struct ClipboardHistoryFilterTests {
         }
     }
 
-    @Test func aPageOfRowsOrACommandKeepsTypingAsBefore() async throws {
+    @Test func aPageOfRowsFiltersAsMoreAndACommandKeepsTypingAsBefore() async throws {
         try await withInterfaceLanguage("en") {
             let few = host(["one", "two", "three", "four", "five"])
-            #expect(few.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
+            #expect(few.panel?.footer == "⏎ inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides")
             few.appTypesKeys = true
-            few.press(KeyEvent(keyCode: 0, characters: "t"))
-            #expect(few.panel == nil && few.document == "t")
+            #expect(few.press(KeyEvent(keyCode: 0, characters: "t")))
+            #expect(few.panel?.input?.text == "t" && few.panel?.rows.map(\.text) == ["two", "three"] && few.document.isEmpty)
+            #expect(few.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
+            #expect(few.press(backspace) && few.panel?.rows.count == 5)
+            few.press(backspace)
+            #expect(few.panel == nil)  // nothing typed: ⌫ hides it and goes on, as on more rows
 
             let command = host((1...8).map { "memo \($0)" })
             command.press(FakeHost.escape)

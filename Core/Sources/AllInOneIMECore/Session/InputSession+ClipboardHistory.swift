@@ -161,8 +161,8 @@ extension InputSession {
     }
 
     /// While the panel shows: ↓ ↑ move the choice around the ends (a selection ends), ⇧↓ ⇧↑ extend the selection from the
-    /// row chosen when it started, with more rows than a page ← → turn it (`ListPage`; a selection ends), typing filters a
-    /// history of more than a page outside a command (`clipboardFilterKey`), ⏎ keypad Enter and Tab put in what is
+    /// row chosen when it started, with more rows than a page ← → turn it (`ListPage`; a selection ends), typing filters the
+    /// history outside a command, however many rows it has (`clipboardFilterKey`), ⏎ keypad Enter and Tab put in what is
     /// selected (nothing where the filter keeps no row), Esc (and → on one page) hide the panel, ⌃V again hides it and
     /// pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
     /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command
@@ -235,9 +235,8 @@ extension InputSession {
     }
 
     /// Whether typing filters the rows (0.7.3): outside a command (⌃V there keeps its keys: what is typed goes into the
-    /// command's text), in a history of more rows than a page (on one page every row is in sight, and a key goes on as
-    /// typed, as before).
-    var clipboardFilters: Bool { !clipboard.command && ListPage.turns(clipboard.all.count) }
+    /// command's text), however many rows the history has (a page of them too: the same keys whatever its length).
+    var clipboardFilters: Bool { !clipboard.command }
 
     /// A key that types the filter (`clipboardFilters`): a letter, digit or mark (Shift too), as it is whatever the input
     /// (no pinyin is composed in it); Space once something is typed; ⌫ the last character back. Each says `rowsTookKey`.
@@ -453,9 +452,12 @@ extension InputSession {
                 ? t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides")
                 : t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides")
         } else if clipboardFilters, !filtered {
-            // Typing filters the rows (more than a page of them): said, before ⇧↓.
-            footer = t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · 打字筛选 · ⇧↓ 多选 · Esc 隐藏",
-                          "\(enter) inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides")
+            // Typing filters the rows: said, before ⇧↓.
+            footer = paged
+                ? t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · 打字筛选 · ⇧↓ 多选 · Esc 隐藏",
+                       "\(enter) inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides")
+                : t.tr("\(enter) 插入 · ↑↓ 选择 · 打字筛选 · ⇧↓ 多选 · → 或 Esc 隐藏",
+                       "\(enter) inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides")
         } else {
             footer = paged
                 ? t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · ⇧↓ 多选 · Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ← → page · ⇧↓ selects more · Esc hides")

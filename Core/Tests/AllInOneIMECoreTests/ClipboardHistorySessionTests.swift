@@ -159,7 +159,8 @@ struct ClipboardHistorySessionTests {
     }
 
     /// → and Esc hide the panel, the key taken, nothing put in; ⌃V again hides it and isn't taken (the app has ⌃V: vim, the
-    /// shell); another key (a digit) hides it and goes on as it would, never picking.
+    /// shell); a digit goes into the filter (0.7.3, however many rows), never picking; another key (Space with nothing
+    /// typed) hides it and goes on as it would.
     @Test func rightEscapeAndControlVAgain() async {
         await inEnglish {
             for key in [FakeHost.right, FakeHost.escape] {
@@ -184,8 +185,16 @@ struct ClipboardHistorySessionTests {
             digit.composer.setInputMode(.english)
             digit.appTypesKeys = true
             digit.press(FakeHost.controlV)
-            #expect(!digit.press(KeyEvent(keyCode: 0x12, characters: "1")), "a digit is typed by the app")
-            #expect(digit.document == "1" && digit.panel == nil, "\(digit.document)")
+            #expect(digit.press(KeyEvent(keyCode: 0x12, characters: "1")), "a digit filters the rows")
+            #expect(digit.panel?.input?.text == "1" && digit.panel?.rows.isEmpty == true && digit.document.isEmpty,
+                    "\(digit.document)")
+            #expect(!digit.outputs.contains(.rowByKey), "never picking")
+            let space = host()
+            space.composer.setInputMode(.english)
+            space.appTypesKeys = true
+            space.press(FakeHost.controlV)
+            #expect(!space.press(FakeHost.space), "Space is typed by the app")
+            #expect(space.document == " " && space.panel == nil, "\(space.document)")
         }
     }
 

@@ -64,7 +64,7 @@ A new install writes English; to type Chinese (pinyin), French, Korean or Hindi 
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed it does nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
-| ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); with more than 5, typing filters them (a Chinese text by its pinyin too). ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
+| ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); typing filters them (a Chinese text by its pinyin too). ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
 | ← → | In a command's list once the command is picked (a script extension's or a plugin's rows, `@open`'s results, `@tasks`, `@imessage`'s recipients) and in clipboard history, with more rows than the 5 shown: the previous / next page, its first row chosen (← stays on the first page, → on the last); the footer says `← → page` and which rows show (`6–10 / 12`), and ↑↓ still move a row at a time. On one page they're as before: they move the cursor in the text after the command, and → at its end hides the list, as Esc. The command list, suggestion rows, pinyin candidates and AI results keep their own ← → |
 | ⌘V | The app's Paste. In a command it appends the clipboard text at once, no history, except where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and pastes into the app as usual; use ⌃V there |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
@@ -1085,17 +1085,16 @@ suggestions use, and puts in the one you choose.
   top, once.
 - **Keys:** the same in every app and input, as in a command's list: ↓ ↑ choose (the wheel or the trackpad too), ⏎ or
   Tab puts the chosen one in, ← → turn the page (the first row of the new one chosen), Esc hides the panel, and so does
-  → when the rows fit on one page. Digits never pick: with 5 rows or fewer they're typed (the panel hides), with more
-  they filter. A click puts in the row clicked.
-- **Filter (0.7.3):** with more rows than the 5 shown, outside a command, what you type filters them: letters, digits and
-  punctuation, in any case, anywhere in the text. A text with Chinese in it is found by its pinyin too, in full or by
-  initials (`nihao` or `nh` finds 你好, `fabu v2` or `fb v2` finds 发布 v2), and with Chinese input on what you type goes
-  into the filter as letters, no pinyin composed; an image by `image`, `图片` or its size (`1280`). The filter shows on
-  the panel's top line and the footer's right says how many match (`Clipboard · 3 matches`, or `no match`). Space goes
-  into it once something is typed, ⌫ takes a character back (with nothing typed, Space and ⌫ are as before: the panel
-  hides and the key goes on), and ↑↓, ← →, ⏎, Tab, ⇧↓ ⇧↑ and a click work on the rows it keeps, numbered and paged
-  afresh; Esc hides the panel. Nothing new is read: it searches only what the history keeps. With 5 rows or fewer, or in
-  a command (⌃V after `@improve `), a key you type hides the panel and goes on as before.
+  → when the rows fit on one page. Digits never pick: they filter, as letters do. A click puts in the row clicked.
+- **Filter (0.7.3):** outside a command, what you type filters the rows, however many there are (one or two too):
+  letters, digits and punctuation, in any case, anywhere in the text. A text with Chinese in it is found by its pinyin
+  too, in full or by initials (`nihao` or `nh` finds 你好, `fabu v2` or `fb v2` finds 发布 v2), and with Chinese input on
+  what you type goes into the filter as letters, no pinyin composed; an image by `image`, `图片` or its size (`1280`). The
+  filter shows on the panel's top line and the footer's right says how many match (`Clipboard · 3 matches`, or
+  `no match`). Space goes into it once something is typed, ⌫ takes a character back (with nothing typed, Space and ⌫ are
+  as before: the panel hides and the key goes on), and ↑↓, ← →, ⏎, Tab, ⇧↓ ⇧↑ and a click work on the rows it keeps,
+  numbered and paged afresh; Esc hides the panel. Nothing new is read: it searches only what the history keeps. In a
+  command (⌃V after `@improve `), a key you type hides the panel and goes on as before.
 - **Several at once:** ⇧↓ and ⇧↑ choose more from the row you're on; the rows chosen are marked ✓, and ⏎ puts them all
   in, one per line, in the order you copied them (oldest first).
 - **What goes in:** the text as you copied it, typed in (the clipboard is unchanged), the way suggestion rows go in, so

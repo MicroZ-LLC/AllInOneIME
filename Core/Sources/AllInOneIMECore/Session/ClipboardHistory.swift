@@ -46,10 +46,11 @@ import Foundation
 //   at a time, a page (`ListPage`, as a command's list: 0.7.3), scrolled to keep the chosen one in view; `detail`
 //   "Clipboard", with several selected " · 3 selected" after it, with more rows than a page " · 1–5 / 20" last (a short
 //   last page turned to: " · 11–12 / 12"); a notice takes its place while up, as on suggestions' rows. `footer` the keys
-//   ("⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides"; with several selected "⏎ inserts them, one per line ·
-//   ⇧↑⇧↓ select · → or Esc hides"; with more rows than a page "… · ← → page · … · Esc hides"); the first time the panel
-//   shows on the device (`firstShowing`), "Kept on this Mac only; turn it off in Settings → General → Clipboard history"
-//   instead, for that showing. (English texts: the interface language "en".)
+//   ("⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides", "type to filter" before ⇧↓ where typing filters; with
+//   several selected "⏎ inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides"; with more rows than a page "… · ← →
+//   page · … · Esc hides"); the first time the panel shows on the device (`firstShowing`), "Kept on this Mac only; turn
+//   it off in Settings → General → Clipboard history" instead, for that showing. (English texts: the interface language
+//   "en".)
 // - Keys while it shows (no other modifier; Caps Lock and the sides don't count): ↓ ↑ move the choice around the ends and
 //   end a selection; ⇧↓ ⇧↑ extend the selection from the row chosen when it started (stopping at the ends); with more
 //   rows than a page ← → turn it (0.7.3: the page before or after, its first row chosen, a selection ended; ← on the
@@ -62,15 +63,16 @@ import Foundation
 //   hides the panel and goes on as it would (digits are typed, never pick), but the filter's. The wheel
 //   (`SessionEvent.scroll`) moves the choice, stopping at the ends; a click (`SessionEvent.pick(index among those shown)`)
 //   puts that row in, alone.
-// - The filter (0.7.3, owner feedback #1; `InputSession.clipboardFilters`): outside a command, with more rows than a
-//   page, a letter, digit or mark typed (Shift too, whatever the input: no pinyin is composed) goes into a filter, Space
-//   too once one is typed, and ⌫ takes its last character back (with none typed, Space and ⌫ hide the panel and go on, as
-//   any other key). The rows are those it keeps (`ClipboardFilter`: a text in any case anywhere in it, one with Chinese in
-//   it by its pinyin too, spelled or by initials; an image by "image", "图片", its row's words or its size), newest first,
-//   the first chosen, the keys above, `choice`, the page and the selection theirs; `input` the filter ("filter › git",
-//   its caret at its end); `detail` "Clipboard · 2 matches" ("1 match", "no match") before the page. None kept: no rows,
-//   ⏎ and Tab put nothing in, `footer` "⌫ deletes · Esc hides". The footer of more rows than a page before a filter is
-//   typed: "⏎ inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides". Nothing is read for it.
+// - The filter (0.7.3, owner feedback #1; `InputSession.clipboardFilters`): outside a command, however many rows (one
+//   or two too), a letter, digit or mark typed (Shift too, whatever the input: no pinyin is composed) goes into a
+//   filter, Space too once one is typed, and ⌫ takes its last character back (with none typed, Space and ⌫ hide the
+//   panel and go on, as any other key). The rows are those it keeps (`ClipboardFilter`: a text in any case anywhere in
+//   it, one with Chinese in it by its pinyin too, spelled or by initials; an image by "image", "图片", its row's words or
+//   its size), newest first, the first chosen, the keys above, `choice`, the page and the selection theirs; `input` the
+//   filter ("filter › git", its caret at its end); `detail` "Clipboard · 2 matches" ("1 match", "no match") before the
+//   page. None kept: no rows, ⏎ and Tab put nothing in, `footer` "⌫ deletes · Esc hides". The footer before a filter is
+//   typed: "⏎ inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides" (more rows than a page: "⏎
+//   inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides"). Nothing is read for it.
 // - What goes in: the rows selected that are text, in the order they were copied (oldest first: the reverse of the
 //   rows'), each without the line breaks at its end, joined with "\n"; one row: its text as it was copied. Outside a
 //   command a `commit` (the shell's rows' insertion path: in a terminal with line breaks or tabs a paste where it can

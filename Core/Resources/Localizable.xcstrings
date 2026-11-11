@@ -4095,6 +4095,53 @@
         }
       }
     },
+    "%@ inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · 打字筛选 · ⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · tippen zum Filtern · ⇧↓ wählt mehr · → oder Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · escribe para filtrar · ⇧↓ elige más · → o Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · tapez pour filtrer · ⇧↓ en choisit plus · → ou Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · 入力で絞り込み · ⇧↓ で複数選択 · → か Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · 입력으로 필터링 · ⇧↓ 여러 개 선택 · → 또는 Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · digite para filtrar · ⇧↓ escolhe mais · → ou Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · 打字篩選 · ⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides" : {
       "comment" : "%@ 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
