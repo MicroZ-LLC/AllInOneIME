@@ -310,11 +310,12 @@ struct CommandEditor: View {
         .frame(width: 560, height: 600)
         .task(id: commandLine) { await checkProgram() }
         .task(id: type) { await checkProgram() }
-        // What a Test run showed is the command's as it was: gone once what it runs changes.
+        // What a Test run showed is the command's as it was, on the sample as it was: stopped and gone once what it
+        // runs, or the sample, changes (what it gives later isn't shown: `testRun`).
         .onChange(of: runnable) { stopTrial() }
+        .onChange(of: sample) { stopTrial() }
         .onDisappear { trialTask?.cancel() }
-        .confirmationDialog(tr("这会把样例发给\(UIText.name(config.provider))", "This sends the sample to \(UIText.name(config.provider))"),
-                            isPresented: $confirmingAI, titleVisibility: .visible) {
+        .confirmationDialog(CommandTrial.confirmation(config), isPresented: $confirmingAI, titleVisibility: .visible) {
             Button(tr("运行", "Run")) { testRun(confirmed: true) }
             Button(tr("取消", "Cancel"), role: .cancel) {}
         }
@@ -389,6 +390,7 @@ struct CommandEditor: View {
             } catch {
                 outcome = .failed(UIText.describe(error))
             }
+            // Stopped (what it runs or the sample changed, another run, the editor closed): not the form's now.
             guard !Task.isCancelled else { return }
             trial = outcome
         }
