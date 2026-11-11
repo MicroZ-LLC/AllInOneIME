@@ -186,18 +186,43 @@ struct PinyinSchemeTests {
         #expect(try PinyinScheme.applySchemaList(.xiaohe, userDir: user) == .unchanged)
         #expect(try PinyinScheme.applySchemaList(.microsoft, userDir: user) == .written && listed() == ["rime_ice", "double_pinyin_mspy"])
         #expect(try PinyinScheme.applySchemaList(.full, userDir: user) == .written && listed() == ["rime_ice"])
-        // The Chinese pack's copy (and an earlier version's, whatever its comment): full pinyin's alone, this app's.
+        // The Chinese pack's copy, as it is now and under the app's first name: full pinyin's alone, this app's.
         let pack = "# Written by AllInOneIME: only the full-pinyin schema is used (its dictionaries are prebuilt\n"
             + "# into the app bundle, so deployment on first use is quick).\npatch:\n  schema_list:\n    - schema: rime_ice\n"
         try Data(pack.utf8).write(to: list)
         #expect(try PinyinScheme.applySchemaList(.full, userDir: user) == .unchanged)
-        try Data(("# Written by an earlier name of the app\n" + pack).utf8).write(to: list)
+        #expect(try PinyinScheme.applySchemaList(.zhuyin, userDir: user) == .written && listed() == ["rime_ice", "bopomofo"])
+        try Data(pack.replacingOccurrences(of: "AllInOneIME", with: "AI" + "Pinyin").utf8).write(to: list)
         #expect(try PinyinScheme.applySchemaList(.xiaohe, userDir: user) == .written && listed() == ["rime_ice", "double_pinyin_flypy"])
         // The user's own list: left as it is.
         let own = "patch:\n  schema_list:\n    - schema: luna_pinyin\n    - schema: rime_ice\n"
         try Data(own.utf8).write(to: list)
         #expect(try PinyinScheme.applySchemaList(.xiaohe, userDir: user) == .userFile)
         #expect(try String(contentsOf: list, encoding: .utf8) == own)
+    }
+
+    /// A list of the user's own that names full pinyin's alone, with their notes in it (or the pack's copy edited)
+    /// isn't this app's: picking Shuangpin or Zhuyin leaves it as it is (it types once the user lists the scheme
+    /// there).
+    @Test func theUsersOwnFullPinyinListIsLeftAlone() throws {
+        let (shared, user) = try folders()
+        defer { try? FileManager.default.removeItem(at: shared.deletingLastPathComponent()) }
+        try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
+        let list = user.appendingPathComponent("default.custom.yaml")
+        let pack = try #require(PinyinScheme.earlierSchemaLists.last)
+        let theirs = [
+            "# My Rime setup: keep rime_ice first.\npatch:\n  schema_list:\n    - schema: rime_ice\n",
+            "patch:\n  schema_list:\n    - schema: rime_ice\n",
+            pack.replacingOccurrences(of: "is quick).", with: "is quick).\n# Mine now: luna_pinyin later."),
+            pack + "\n",
+        ]
+        for text in theirs {
+            try Data(text.utf8).write(to: list)
+            for scheme in [PinyinScheme.xiaohe, .zhuyin, .full] {
+                #expect(try PinyinScheme.applySchemaList(scheme, userDir: user) == .userFile, "\(scheme) over \(text.debugDescription)")
+                #expect(try String(contentsOf: list, encoding: .utf8) == text)
+            }
+        }
     }
 
     @Test func theSchemeHasThePatchOfItsOwnSchema() throws {
