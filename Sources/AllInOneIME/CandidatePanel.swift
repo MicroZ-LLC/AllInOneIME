@@ -1,10 +1,28 @@
 import AllInOneIMECore
 import AppKit
+import os
 import QuartzCore
 
 /// Borderless, non-activating floating panel shown under the insertion point (above it when there's no room below).
+/// It makes sure it can be seen as it comes up (GitHub #61): the window server's own record of it can be lost while
+/// AppKit has it up (display sleep and wake, the displays changed, Spaces), the app hidden (Hide Others) or its alpha
+/// left at 0, with nothing to bring it back but a restart; it puts itself back instead (`checkPresence`, `resurface`).
 final class CandidatePanel: NSPanel {
-    static let shared = CandidatePanel()
+    /// The panel every field shows in. A fresh window takes its place where the window server lost this one for good
+    /// (`replace`): looked up each time, never kept.
+    private(set) static var shared = CandidatePanel()
+
+    /// The self-test's: invisible and click-through on purpose (someone may be using the Mac), as `GhostOverlay.invisible`.
+    /// Without it a panel with no alpha as it comes up is made visible again, and the window server is asked whether it
+    /// can be seen (`checkPresence`).
+    static var invisible = false
+
+    /// What it asks of the app and of the window server: AppKit's and the window server's own; a stand-in's in the tests.
+    static var surroundings = Surroundings()
+
+    /// How long after the window server first says the panel can't be seen it is asked again, before anything is done
+    /// (what was on its way to the window server may not have been there yet).
+    static var recheckDelay: TimeInterval = 0.25
 
     /// Which side of the caret the panel is on.
     enum Side: Equatable {
@@ -17,7 +35,7 @@ final class CandidatePanel: NSPanel {
         get { view.pointer.owner }
         set { view.pointer.take(by: newValue, .none) }
     }
-    let view = CandidateView()
+    let view: CandidateView
     private var pendingHide: DispatchWorkItem?
     private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
     /// The side the panel is on while it shows, and the caret line it went there for: kept while typing on that line, as
@@ -41,8 +59,20 @@ final class CandidatePanel: NSPanel {
     /// Told after each `show` and as it hides: what shows beside it follows it (`ImagePreview`, clipboard history's larger
     /// picture of an image).
     var onPresent: (() -> Void)?
+    /// Told as a fresh window takes this one's place (`replace`), with it: whatever keeps this panel (`ImagePreview`)
+    /// keeps that one instead.
+    var onReplace: ((CandidatePanel) -> Void)?
 
-    init() {
+    /// A check of whether it can be seen under way (`checkPresence`): one at a time.
+    private var checkingPresence = false
+    /// The window server's answers not to be gone by until then: a fresh window didn't help either (`presence`).
+    private static var presenceIgnoredUntil = Date.distantPast
+    private static let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+    private var screenEvents: ScreenEvents?
+
+    /// `view`: the rows it shows; a fresh window taking another's place (`replace`) shows that one's own.
+    init(view: CandidateView = CandidateView()) {
+        self.view = view
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 80),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -60,7 +90,9 @@ final class CandidatePanel: NSPanel {
         // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
         acceptsMouseMovedEvents = true
         view.drawsBackground = false
+        view.removeFromSuperview()
         contentView = Self.glass(around: view)
+        screenEvents = ScreenEvents { [weak self] in self?.resurface() }
     }
 
     /// The system's own material behind the rows, so the panel looks like the system's menus and follows
@@ -110,14 +142,20 @@ final class CandidatePanel: NSPanel {
             setFrame(nextFrame, display: true)
             invalidateShadow()
         }
+        // Coming up: the app shown again first if Hide Others hid it, never activated (GitHub #61). A window still ordered
+        // in from the last word is reused as it is, never ordered in again on the key (GitHub #23): whether the window
+        // server still has it is asked a moment later instead (`checkPresence`). Up already, nothing more.
+        if appearing { Self.unhideAppIfHidden() }
         if !isVisible { orderFrontRegardless() }
         if let presentation = hiddenPresentation {
             alphaValue = presentation.alpha
             ignoresMouseEvents = presentation.ignoresMouseEvents
             hiddenPresentation = nil
         }
+        if appearing, restoreLostAlpha() { Self.log.fault("candidate box not on screen: alpha 0; made visible again") }
         if appearing, alphaValue > 0 { animateAppearance(from: side) }
         onPresent?()
+        if appearing { checkPresence() }
     }
 
     /// As it comes up: a quick fade, growing to its size from 98% toward the caret, 120 ms, no bounce; none with Reduce
@@ -200,6 +238,182 @@ final class CandidatePanel: NSPanel {
         onPresent?()
     }
 
+    // MARK: - Seen as it shows (GitHub #61)
+
+    /// The app shown again if it is hidden (Hide Others, ⌥⌘H in another app, hides an agent app too, and its windows with
+    /// it), never activated: no window of ours takes focus from the app typed in. For each window that shows while typing.
+    static func unhideAppIfHidden() {
+        if surroundings.appHidden() { surroundings.unhideApp() }
+    }
+
+    /// No alpha while it shows, with no reason for it (not hidden between words: `hiddenPresentation`; not the self-test's
+    /// `invisible`): visible and clickable again. True: it had none.
+    @discardableResult
+    private func restoreLostAlpha() -> Bool {
+        guard alphaValue == 0, hiddenPresentation == nil, !Self.invisible else { return false }
+        alphaValue = 1
+        ignoresMouseEvents = false
+        return true
+    }
+
+    /// Back on screen as it shows: the app shown again (never activated), an alpha lost with no reason given back, and
+    /// ordered in (`reorder`: out and in again, the window server's record of it made anew).
+    private func putBack(reorder: Bool) {
+        Self.unhideAppIfHidden()
+        restoreLostAlpha()
+        if reorder { orderOut(nil) }
+        orderFrontRegardless()
+    }
+
+    /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`: the displays changed or
+    /// woke, the Mac woke, another Space, the app hidden): while it shows, put back at once and the window server asked.
+    private func resurface() {
+        guard isShowing else { return }
+        putBack(reorder: false)
+        checkPresence()
+    }
+
+    /// Whether it can be seen as it shows, the window server asked a turn of the run loop later (never on the key that
+    /// brought it up), then a moment later again if not (`recheckDelay`); still not: the log says why (a fault) and it is
+    /// put back, ordered out and in again; that not enough either, a fresh window takes its place (`replace`), what
+    /// restarting the app did. Not while invisible on purpose (`invisible`), nor where the window server tells nothing of
+    /// it to go by (the screen locked: `WindowServerView.unknown`).
+    func checkPresence() {
+        guard !checkingPresence else { return }
+        checkingPresence = true
+        DispatchQueue.main.async { [weak self] in self?.presence(.first) }
+    }
+
+    private enum PresenceStep { case first, again, reordered, fresh }
+
+    private func presence(_ step: PresenceStep) {
+        guard isShowing, !Self.invisible, Date() >= Self.presenceIgnoredUntil else {
+            checkingPresence = false
+            return
+        }
+        let surroundings = Self.surroundings
+        let server = surroundings.windowServer(windowNumber)
+        let absence = Self.absence(appHidden: surroundings.appHidden(), server: server, alpha: alphaValue, frame: frame)
+        if absence == nil, server == .unknown, step == .first {
+            // Nothing to go by yet (a window it was only just given has no frame there for a moment): once more, later.
+            return DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
+        }
+        guard let absence else {
+            if step == .reordered || step == .fresh {
+                Self.log.notice("candidate box back on screen (\(step == .fresh ? "a fresh window" : "ordered in again", privacy: .public))")
+            }
+            checkingPresence = false
+            return
+        }
+        switch step {
+        case .first:
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
+        case .again:
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public); ordered in again")
+            putBack(reorder: true)
+            DispatchQueue.main.async { [weak self] in self?.presence(.reordered) }
+        case .reordered:
+            checkingPresence = false
+            guard self === Self.shared else {
+                return Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), still, after ordering it in again")
+            }
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), still, after ordering it in again; a fresh window")
+            let fresh = replace()
+            fresh.checkingPresence = true
+            DispatchQueue.main.async { [weak fresh] in fresh?.presence(.fresh) }
+        case .fresh:
+            // Nothing left to do: its answers aren't gone by for a while, so no word puts the panel through all this again.
+            checkingPresence = false
+            Self.presenceIgnoredUntil = Date().addingTimeInterval(600)
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), even in a fresh window")
+        }
+    }
+
+    /// A fresh window in this one's place, as the shared panel (`shared`), showing what this one shows where it shows it,
+    /// with everything attached to it: the view itself (its rows, the pointer's owner and handlers, `onHover`),
+    /// `onPresent`, `onReplace`. This one is put away for good. What restarting the app did (GitHub #61), the session kept.
+    @discardableResult
+    func replace() -> CandidatePanel {
+        let fresh = CandidatePanel(view: view)
+        fresh.appearance = appearance
+        (fresh.alphaValue, fresh.ignoresMouseEvents) = (alphaValue, ignoresMouseEvents)
+        (fresh.hiddenPresentation, fresh.placed) = (hiddenPresentation, placed)
+        (fresh.onPresent, fresh.onReplace) = (onPresent, onReplace)
+        fresh.setFrame(frame, display: true)
+        if isVisible { fresh.orderFrontRegardless() }
+        pendingHide?.cancel()
+        pendingHide = nil
+        (onPresent, onReplace, screenEvents) = (nil, nil, nil)
+        orderOut(nil)
+        if Self.shared === self { Self.shared = fresh }
+        fresh.onReplace?(fresh)
+        fresh.onPresent?()
+        return fresh
+    }
+
+    /// Why a panel that shows can't be seen, from what the app and the window server say of it (`alpha`, `frame`: the
+    /// panel's own); nil: it can, or the window server tells nothing of it to go by.
+    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect) -> Absence? {
+        if appHidden { return .hiddenApp }
+        if alpha == 0 { return .transparent }
+        switch server {
+        case .missing: return .windowServerOff
+        case .unknown: return nil
+        case let .window(onScreen, serverAlpha, serverFrame):
+            if !onScreen { return .windowServerOff }
+            if serverAlpha < 0.01 { return .transparent }
+            // Somewhere else altogether (where a display was, off every screen). Its frame there can be a little off ours
+            // (a move on its way to it; the whole desktop drawn smaller behind a locked screen), never nowhere near it.
+            return serverFrame.intersects(frame) ? nil : .frame
+        }
+    }
+
+    /// Why it can't be seen, as the log says it.
+    enum Absence: String {
+        case hiddenApp = "hidden app"
+        case windowServerOff = "window server off"
+        case transparent = "alpha 0"
+        case frame = "frame"
+    }
+
+    /// A window as the window server has it.
+    enum WindowServerView: Equatable {
+        /// It has no window of that number.
+        case missing
+        /// It tells nothing of it to go by (no frame: a window it was only just given, or the screen locked).
+        case unknown
+        /// On screen or not, its alpha, and its frame in AppKit's screen coordinates.
+        case window(onScreen: Bool, alpha: CGFloat, frame: NSRect)
+    }
+
+    /// What the panel asks of the app and of the window server.
+    struct Surroundings {
+        /// Whether the app is hidden.
+        var appHidden: () -> Bool = { NSApp.isHidden }
+        /// Its windows shown again without activating it.
+        var unhideApp: () -> Void = { NSApp.unhideWithoutActivation() }
+        /// Window `number` as the window server has it.
+        var windowServer: (Int) -> WindowServerView = { CandidatePanel.windowServerView(of: $0) }
+    }
+
+    /// Window `number` as the window server has it (`CGWindowListCreateDescriptionFromArray`: whether it is on screen,
+    /// its alpha and its bounds, which run down from the top of the main display).
+    static func windowServerView(of number: Int) -> WindowServerView {
+        guard number > 0 else { return .missing }
+        var ids: [UnsafeRawPointer?] = [UnsafeRawPointer(bitPattern: UInt(number))]
+        guard let list = CFArrayCreate(nil, &ids, 1, nil),
+              let windows = CGWindowListCreateDescriptionFromArray(list) as? [[String: Any]] else { return .unknown }
+        guard let window = windows.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == number }) else {
+            return .missing
+        }
+        guard let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), !rect.isEmpty else { return .unknown }
+        let onScreen = (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+        let alpha = (window[kCGWindowAlpha as String] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 1
+        let top = NSScreen.screens.first?.frame.maxY ?? rect.maxY
+        return .window(onScreen: onScreen, alpha: alpha, frame: NSRect(x: rect.minX, y: top - rect.maxY, width: rect.width, height: rect.height))
+    }
+
     /// Where the panel goes for `anchor` as the view is laid out now, and on which side of the caret (the side it is on
     /// kept while `anchor` is on the same line: `placed`).
     private func placement(at anchor: NSRect) -> (frame: NSRect, side: Side) {
@@ -247,6 +461,30 @@ final class CandidatePanel: NSPanel {
     static func screen(for anchor: NSRect) -> NSScreen? {
         let anchor = usable(anchor)
         return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
+    }
+}
+
+/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
+/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
+/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
+/// while it shows: `handler`, on the main thread, as long as this is kept.
+final class ScreenEvents {
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+
+    init(_ handler: @escaping @MainActor () -> Void) {
+        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
+        let events: [(NotificationCenter, Notification.Name)] = [
+            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
+            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
+            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
+        ]
+        observers = events.map { center, name in
+            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
+        }
+    }
+
+    deinit {
+        for (center, observer) in observers { center.removeObserver(observer) }
     }
 }
 

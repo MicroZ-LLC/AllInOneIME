@@ -35,14 +35,27 @@ final class ImagePreview {
     private var updating = false
     /// What the log said last (`tell`).
     private var told: String?
+    /// Put back on screen as the panel is (GitHub #61), while it shows.
+    private var screenEvents: ScreenEvents?
 
-    /// Shows beside `panel` from now on.
+    /// Shows beside `panel` from now on, and beside the fresh window that takes its place if the window server loses it
+    /// (`CandidatePanel.replace`).
     func attach(to panel: CandidatePanel) {
         guard self.panel !== panel else { return }
         self.panel = panel
         window.level = panel.level
         panel.onPresent = { [weak self] in self?.update() }
+        panel.onReplace = { [weak self] fresh in self?.attach(to: fresh) }
         panel.view.onHover = { [weak self] _ in self?.update() }
+        if screenEvents == nil { screenEvents = ScreenEvents { [weak self] in self?.resurface() } }
+    }
+
+    /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`): ordered in again while it
+    /// shows, the app shown again first if it was hidden (never activated).
+    private func resurface() {
+        guard shown != nil, panel?.isShowing == true else { return }
+        CandidatePanel.unhideAppIfHidden()
+        window.orderFrontRegardless()
     }
 
     /// The panel shown or hidden, or the pointer onto another row: gone at once as the panel goes; else brought up to date
@@ -114,6 +127,8 @@ final class ImagePreview {
             window.setFrame(next.frame, display: true)
             window.invalidateShadow()
         }
+        // Coming up: the app shown again first if Hide Others hid it, never activated, as for the panel (GitHub #61).
+        if appearing { CandidatePanel.unhideAppIfHidden() }
         if !window.isVisible { window.orderFrontRegardless() }
         if appearing, window.alphaValue > 0 { animateAppearance(onTheRight: next.frame.minX >= panel.frame.maxX) }
     }
