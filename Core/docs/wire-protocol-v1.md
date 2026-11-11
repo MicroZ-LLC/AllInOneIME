@@ -595,7 +595,10 @@ given and sends back what the user did. It opens no sessions.
   leave the others out of the `value` sent. An `info` field in it is text to show (the warning about programs). A
   `words` field of it (`argv`) may be sent as the line typed, a command line. A definition is checked when saved
   (§12.5). Send back the keys of the item's `value` the schema doesn't name (`icon`, `color`) as they were: what isn't
-  sent isn't kept.
+  sent isn't kept. The Mac's document names them too (`platforms` `mac`): `icon` (`text`: an SF Symbols name or one
+  emoji, its `choices` the common symbols, null its kind's icon) and `color` (`choice`: the system's named colors, null
+  its kind's); and there each item that runs something (all but `suggestions`) has `test`, the field `textActions`
+  `["test"]` with `placeholder` the sample box's hint (§12.5).
 - **Canonical form** (§1): what a field doesn't have is left out, and so is a `value` that is null: no `value` means
   null (a text not set, "follow the system").
 
@@ -708,6 +711,7 @@ given and sends back what the user did. It opens no sessions.
 | `configBroken` | the config file can't be read; nothing is changed until it is fixed |
 | `failed` | taken, but not done: the file couldn't be written (the settings are then as the file has them, `saveError` says why), the secret store refused, a test failed |
 | `cancelled` | an action that takes a while stopped by `cancel`, or by the same action again |
+| `confirm` | not done: it needs the user's go-ahead, which `message` asks for ("This sends the sample to Claude API"); agreed, send it again with it (a command's `test`: `confirmed`) |
 | `stale` | made on a `revision` the settings have moved on from, or on a `shown` list that can't be merged (`ordered` words changed since): nothing changed |
 
 ### 12.5 Actions (`settingsAction`)
@@ -722,6 +726,7 @@ given and sends back what the user did. It opens no sessions.
 | `remove` | `plugins.installed` | `item` | removes the plugin |
 | `save` | `commands.custom` | `value` (the command's definition, as `config.json` has it and the field's `schema` describes; `argv` may be the command line as typed), `item` (its name before; none for a new one) | saves it with the command editor's rules: a name taken, an empty prompt … are `badValue` |
 | `delete` | `commands.custom` | `item` | deletes the command |
+| `test` | `commands.custom`'s items (the Mac's document) | `item`; `value`: the sample (the text after the command, or the selection), or `{"sample": …, "confirmed": true}` | runs the command once on the sample as the action key would, with its limits, inserting and opening nothing: what it gives (a program's output, a link's address, a snippet's text, the AI's answer) is the `message` ("✓ …") and the item's `detail`; an AI instruction without `confirmed` is answered `confirm`, nothing sent |
 | `add` | `apps.profiles`, `extensions.folders` | `value`: the app (its program, "notepad.exe", or its id), the folder's path | an app listed with its own fields (saved once one is set), a folder read for extensions |
 | `remove` | `apps.profiles`, `extensions.folders` | `item` | the app's settings, the folder |
 | `hide`, `show` | `extensions.folders` | `item` | a folder the Mac found (Spotlight), hidden or shown again |

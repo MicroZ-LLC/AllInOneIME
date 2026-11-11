@@ -321,6 +321,15 @@ They're kept in `customCommands` in the config file (`~/.config/allinoneime/conf
 - `run` and `terminal` type English letters by default (like `@open`; in Chinese mode, Chinese comes back after), and full-width punctuation becomes ASCII. Set `"ascii": false` to keep text as typed.
 - Programs run in your home folder with your login shell's PATH (so Homebrew, pyenv and nvm installs are found). `run` stops a program after 10 seconds (`timeoutSeconds`) or when it prints too much; Esc stops it at any time.
 - `summary` is the description in the command list (optional).
+- **Icon and color** (new): the editor's Icon picks an SF Symbol (search its name; common ones such as `terminal`, `globe`,
+  `bolt` come first), one emoji (Emoji…) or Default, the icon of the command's kind; Color picks one of the system colors
+  or Default. They're saved as `icon` (`"bolt"`, `"🧮"`) and `color` (`"purple"`; also `"#34C759"` by hand) and show in
+  the command list at once.
+- **Test run** (new): at the bottom of the editor, type a sample (the text you'd write after the command, or the
+  selection) and click Test run. The command runs once as the action key would run it, with the same time limits, and
+  what it gives shows there: what a program prints (a `terminal` command runs in the background here, not in Terminal),
+  the address a `link` opens, the text a `snippet` inserts, the AI's answer, or the error. Nothing is inserted or opened.
+  An AI instruction first asks "This sends the sample to …" (Run / Cancel). `suggestions` has Refresh Now instead.
 - When the program in `argv` isn't found (say, no `python3`), the command isn't offered and `@python …` is inserted as text; once it's installed, the command appears in the next text field.
 
 `run` and `terminal` run code on your Mac: only add commands you wrote and trust. They, too, run only when you press the action key, and never during secure input.

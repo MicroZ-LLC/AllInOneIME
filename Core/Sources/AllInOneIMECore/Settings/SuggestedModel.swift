@@ -24,7 +24,7 @@ public struct SuggestedModel: Identifiable, Hashable, Sendable {
                 SuggestedModel(id: "claude-opus-5-5", title: "Claude Opus 5.5", note: tr("最强，最慢最贵", "Most capable, slowest, priciest")),
             ]
         case .gemini:
-            return [SuggestedModel(id: "gemini-3.8-flash", title: "Gemini 3.8 Flash", note: tr("默认", "Default"))]
+            return [SuggestedModel(id: "gemini-3.8-flash", title: "Gemini 3.8 Flash", note: tr("默认", "Default", key: "choice.default"))]
         case .hosted, .apple:
             return []  // the service (the system) picks the model
         case .openai:

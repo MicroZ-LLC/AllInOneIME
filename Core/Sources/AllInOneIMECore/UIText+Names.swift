@@ -344,6 +344,28 @@ extension UIText {
     /// A custom command without a summary of its own, by what it does.
     public static func customKind(_ custom: CustomCommand) -> String { words.customKind(custom) }
 
+    /// An icon's named color (`IconToken.Color.names`), as a custom command's editor offers it; another color by its
+    /// value ("#34C759").
+    public static func name(_ color: IconToken.Color) -> String {
+        switch color {
+        case .red: return tr("红色", "Red")
+        case .orange: return tr("橙色", "Orange")
+        case .yellow: return tr("黄色", "Yellow")
+        case .green: return tr("绿色", "Green")
+        case .mint: return tr("薄荷绿", "Mint")
+        case .teal: return tr("水鸭蓝", "Teal")
+        case .cyan: return tr("青色", "Cyan")
+        case .blue: return tr("蓝色", "Blue")
+        case .indigo: return tr("靛蓝", "Indigo")
+        case .purple: return tr("紫色", "Purple")
+        case .pink: return tr("粉色", "Pink")
+        case .brown: return tr("棕色", "Brown")
+        case .gray: return tr("灰色", "Gray")
+        case let .grayscale(white): return String(format: "%.0f%%", white * 100)
+        case let .rgb(red, green, blue): return String(format: "#%02X%02X%02X", red, green, blue)
+        }
+    }
+
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.
     public static func action(_ command: Command, input: Language, config: Config, draft: String = "") -> String {

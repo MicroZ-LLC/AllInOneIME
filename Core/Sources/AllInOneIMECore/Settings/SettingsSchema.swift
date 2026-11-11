@@ -181,6 +181,17 @@ struct SettingsSchema {
         return field
     }
 
+    /// What a test's last outcome is kept by (`tests`): its field's id, or for one of an item's (a custom command's Test
+    /// run), the field's and the item's.
+    static func testKey(_ field: String, item: String?) -> String { item.map { field + "/" + $0 } ?? field }
+
+    /// A test's outcome as an item's detail shows it: its first lines (what a program printed may be long).
+    static func shortened(_ text: String) -> String {
+        let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
+        let kept = lines.prefix(6).joined(separator: "\n")
+        return kept.count > 400 ? String(kept.prefix(400)) + "…" : kept + (lines.count > 6 ? "\n…" : "")
+    }
+
     /// A Test button's last outcome, as the Mac shows it.
     func outcome(_ id: String) -> String? {
         switch tests[id] {
@@ -724,7 +735,14 @@ struct SettingsSchema {
         var fields: [Field] = []
         var list = Field(id: "commands.custom", kind: .items, label: UIText.triggered(tr("自定义 @ 命令", "Custom @ Commands")))
         list.actions = [SettingsAction.save]
-        list.schema = Self.commandSchema(terms)
+        // The Mac's only (Windows' editor is to follow): a command's icon and color, and its Test run on a sample typed
+        // beside it (`CommandTrial`).
+        list.schema = Self.commandSchema(terms).filter { on($0.platforms) }
+        let trials = platform == .mac
+        if trials {
+            list.textActions = [SettingsAction.test]
+            list.placeholder = tr("样例输入", "Sample input", key: "commandTrial.sample")
+        }
         list.items = config.customCommands.map { command in
             let value = (try? JSONEncoder().encode(command)).flatMap { try? JSONSerialization.jsonObject(with: $0) }.flatMap(JSON.init)
             // A suggestion source: how it is doing, or why it isn't used.
@@ -734,8 +752,11 @@ struct SettingsSchema {
                 + (state.map { "\n" + $0.text } ?? "")
                 + (Command.builtins.contains { $0.name == command.name.lowercased() }
                    ? "\n" + tr("和内置命令重名，不会生效，请改名", "Same name as a built-in command: rename it to use it") : "")
+                // Its last test run's outcome, its first lines.
+                + (outcome(Self.testKey("commands.custom", item: command.name)).map { "\n" + Self.shortened($0) } ?? "")
+            let test = trials && CommandTrial.offered(command.type) ? [SettingsAction.test] : []
             return SettingsDocument.Item(id: command.name, title: command.shownName(trigger: config.commandTrigger), detail: detail, value: value,
-                                         actions: [SettingsAction.save, SettingsAction.delete])
+                                         actions: [SettingsAction.save, SettingsAction.delete] + test)
         }
         // Those config.json has that can't be read (decision 25): why, and Delete only (no editor reads them).
         list.items? += config.refusedCustomCommands.enumerated().map { index, refused in
@@ -762,6 +783,19 @@ struct SettingsSchema {
             .map { Choice(value: $0, label: $1) }
         var summary = Field(id: "summary", kind: .text, label: tr("说明", "Description"))
         (summary.placeholder, summary.optional) = (tr("命令列表里显示，可以不填", "Shown in the command list (optional)"), true)
+        // Its icon in the command list (the Mac's): a symbol's name or one emoji, the common symbols offered; and a named
+        // color. Null: its kind's (`IconToken.custom`), the key left out of config.json.
+        let byDefault = Choice(value: .null, label: tr("默认", "Default", key: "choice.default"))
+        var icon = Field(id: "icon", kind: .text, label: tr("图标", "Icon", key: "commandIcon.icon"),
+                         help: tr("SF Symbols 里的名字（比如 terminal、globe），或者一个 emoji；不填就是这类命令的图标。",
+                                  "An SF Symbols name (terminal, globe …) or one emoji; empty, the icon of its kind."))
+        (icon.optional, icon.platforms) = (true, [.mac])
+        icon.choices = [byDefault] + IconToken.commandSymbols.map { Choice(value: .string($0), label: $0) }
+        var color = Field(id: "color", kind: .choice, label: tr("颜色", "Color", key: "commandIcon.color"))
+        (color.optional, color.platforms) = (true, [.mac])
+        color.choices = [byDefault] + IconToken.Color.names.compactMap { name in
+            IconToken.Color.named(name).map { Choice(value: .string(name), label: UIText.name($0)) }
+        }
         var prompt = Field(id: "prompt", kind: .text, label: tr("AI 指令", "AI instruction"),
                            help: terms.keyStyle == .symbols
                                ? tr("告诉 AI 怎么处理命令后面写的内容，比如「把用户的话写成一条礼貌简短的回复」。回答出现在候选里，⏎ 上屏。",
@@ -799,7 +833,7 @@ struct SettingsSchema {
                                  : tr("「运行程序」和「在终端窗口运行」会在这台电脑上执行命令：只加你自己写的、信得过的。它们只在你按执行键时运行，密码框里不运行。",
                                       "Programs run on this PC: add only commands you wrote and trust. They run only when you press the action key, never in password fields.")))
         programs.when = only("run", "terminal")
-        return [name, type, summary, prompt, text, url] + suggestionsSchema(terms, only: only("suggestions"), first: true)
+        return [name, type, summary, icon, color, prompt, text, url] + suggestionsSchema(terms, only: only("suggestions"), first: true)
             + [argv, stdin, timeout, ascii, programs] + suggestionsSchema(terms, only: only("suggestions"), first: false)
     }
 

@@ -139,6 +139,12 @@ public final class SettingsService: @unchecked Sendable {
         get { hooks.withLock { $0.extensionSourcesFolder } }
         set { hooks.withLock { $0.extensionSourcesFolder = newValue } }
     }
+    /// How a custom AI instruction's Test run asks the AI (once the user agreed): nil, the settings' provider, as its
+    /// real run does (`CommandTrial.ask`).
+    public var commandTestAI: CommandTrial.Asker? {
+        get { hooks.withLock { $0.commandTestAI } }
+        set { hooks.withLock { $0.commandTestAI = newValue } }
+    }
     /// The interface language the settings say (their `uiLanguage`, else the system's): what the document, the problems
     /// and the outcomes are in, whatever the process's own is (`UIText.scopedLanguage`). Windows' engine picks it as its
     /// panel does (Windows' own list of languages).
@@ -157,6 +163,7 @@ public final class SettingsService: @unchecked Sendable {
         var loadCredentials: Converter.CredentialLoader = { try await AWSCredentialResolver.shared.resolve(profile: $0, forceRefresh: true) }
         var notionSession: URLSession = NotionAPI.session
         var extensionSourcesFolder = ExtensionSources.directory
+        var commandTestAI: CommandTrial.Asker?
         var interfaceLanguage: @Sendable (Config) -> String = { config in
             InterfaceLanguage.code(forSetting: config.uiLanguage, shipped: UIText.shipped) ?? UIText.systemLanguage
         }
@@ -313,7 +320,8 @@ public final class SettingsService: @unchecked Sendable {
         changing {
             runs[run]?.stop(Self.cancelled(action.field))
             runs[run] = running
-            if action.name == SettingsAction.test { tests[action.field] = nil }  // the last outcome, gone while it runs
+            // The last outcome, gone while it runs.
+            if action.name == SettingsAction.test { tests[SettingsSchema.testKey(action.field, item: action.item)] = nil }
             revisionValue += 1
             // Started under the lock: a `cancel` finds it.
             running.task = Task { running.answer(await longAction(action)) }
@@ -471,10 +479,13 @@ public final class SettingsService: @unchecked Sendable {
         return provider
     }
 
-    /// Test Connection, the web search's Test, the Notion link's (its `value`: the link; none, the page kept).
+    /// Test Connection, the web search's Test, the Notion link's (its `value`: the link; none, the page kept), a custom
+    /// command's Test run (`commandTest`).
     private func test(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
         let status: SettingsStore.TestStatus
         switch action.field {
+        case "commands.custom":
+            return await commandTest(action)
         case "provider.test":
             let config = locked { store.config }
             status = await SettingsStore.testConnection(config, loadCredentials: loadCredentials)
@@ -499,6 +510,44 @@ public final class SettingsService: @unchecked Sendable {
         // Stopped (`cancel`, or another run of it): what it found isn't shown.
         guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
         locked { tests[action.field] = status }  // shown with the revision `running` moves when it is done
+        switch status {
+        case let .passed(text): return .success(SettingsActionOutcome(message: "✓ " + text))
+        case let .failed(text): return .failure(SettingsProblem(.failed, field: action.field, message: "✗ " + text))
+        case .idle, .running: return .success(SettingsActionOutcome())
+        }
+    }
+
+    /// A custom command's Test run (`item`: its name), on the sample its `value` is: the text, or `{"sample": text,
+    /// "confirmed": true}`. One that sends it to the AI (`CommandTrial.asks`) runs only with `confirmed`; without, it is
+    /// answered `confirm` with the question to ask ("This sends the sample to …"), and nothing is sent. What it
+    /// printed (or why it gave nothing) is the answer's message, and the item's detail until it runs again or the
+    /// command is saved or deleted; nothing is inserted or opened anywhere.
+    private func commandTest(_ action: SettingsAction) async -> Result<SettingsActionOutcome, SettingsProblem> {
+        let sample: String, confirmed: Bool
+        switch action.value {
+        case nil: (sample, confirmed) = ("", false)
+        case let .string(text)?: (sample, confirmed) = (text, false)
+        case let .object(keys)? where keys["sample"].map { $0.string != nil } ?? true:
+            (sample, confirmed) = (keys["sample"]?.string ?? "", keys["confirmed"]?.bool == true)
+        default: return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+        }
+        let (command, config) = locked { (store.config.customCommands.first { $0.name.lowercased() == action.item?.lowercased() }, store.config) }
+        guard let command, CommandTrial.offered(command.type) else {
+            return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
+        }
+        if CommandTrial.asks(command.type), !confirmed {
+            return .failure(SettingsProblem(.confirm, field: action.field, message: CommandTrial.confirmation(config)))
+        }
+        let ask = commandTestAI ?? { command, sample in try await CommandTrial.ask(command, sample: sample, config: config) }
+        let status: SettingsStore.TestStatus
+        do {
+            status = .passed(try await CommandTrial.run(command, sample: sample, ask: ask))
+        } catch {
+            status = .failed(UIText.describe(error))
+        }
+        // Stopped (`cancel`, or another run of it): what it found isn't shown.
+        guard !Task.isCancelled else { return .failure(Self.cancelled(action.field)) }
+        locked { tests[SettingsSchema.testKey(action.field, item: command.name)] = status }
         switch status {
         case let .passed(text): return .success(SettingsActionOutcome(message: "✓ " + text))
         case let .failed(text): return .failure(SettingsProblem(.failed, field: action.field, message: "✗ " + text))
@@ -595,6 +644,7 @@ public final class SettingsService: @unchecked Sendable {
             guard let name = action.item, store.config.customCommands.contains(where: { $0.name.lowercased() == name.lowercased() }) else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))
             }
+            tests[SettingsSchema.testKey(action.field, item: name)] = nil  // its last Test run's, of a command now gone
             return saving(action.field) {
                 store.deleteCommand(named: name)
                 return nil
@@ -618,6 +668,8 @@ public final class SettingsService: @unchecked Sendable {
                                          unread: store.config.unreadCustomCommandNames, trigger: store.config.commandTrigger) {
             return .failure(SettingsProblem(.badValue, field: action.field, message: UIText.describe(problem)))
         }
+        // Its last Test run's outcome was the command's as it was.
+        for name in [action.item, command.name].compactMap({ $0 }) { tests[SettingsSchema.testKey(action.field, item: name)] = nil }
         return saving(action.field) {
             store.saveCommand(command, editing: action.item)
                 ? nil : SettingsProblem(.badValue, field: action.field, message: UIText.describe(.nameTaken))

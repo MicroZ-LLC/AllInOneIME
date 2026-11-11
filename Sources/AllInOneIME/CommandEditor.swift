@@ -17,7 +17,8 @@ struct CommandEdit: Identifiable {
 
 /// The form for one custom @ command: its name, what it does (an instruction for the AI, a program
 /// to run, a program in Terminal, a web page to open, a text to insert, or suggestions from a program as a prefix is
-/// typed) and how. Saving hands the finished definition back.
+/// typed) and how, its icon and color in the command list, and a Test run on a sample (`CommandTrial`). Saving hands
+/// the finished definition back.
 struct CommandEditor: View {
     let original: CommandEdit
     /// The other custom commands, the installed plugins and the custom commands a later version wrote
@@ -59,8 +60,28 @@ struct CommandEditor: View {
     @State private var insert: String
     /// The program of the command line isn't on this Mac (looked up in the background).
     @State private var missingProgram: String?
+    /// Its icon in the command list: an SF Symbol's name or one emoji; nil, Default (its kind's: `IconToken.custom`).
+    @State private var icon: String?
+    /// Its icon's color: a named one (`IconToken.Color.names`, or one config.json has otherwise, kept); nil, Default.
+    @State private var color: String?
+    @State private var pickingIcon = false
+    /// The Test run's sample (the text after the command, or the selection), and what the run gave.
+    @State private var sample: String
+    @State private var trial: Trial?
+    @State private var trialTask: Task<Void, Never>?
+    /// An AI instruction's Test run, asked before the sample is sent.
+    @State private var confirmingAI = false
 
+    /// A Test run under way, or what it gave: what it would put in, or why it gave nothing.
+    enum Trial: Equatable {
+        case running
+        case passed(String)
+        case failed(String)
+    }
+
+    /// `sample` and `trial`: a Test run shown as done (the settings' images).
     init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], unread: [String] = [], config: Config = .default,
+         sample: String = "", trial: Trial? = nil,
          refreshNow: @escaping (String) -> Void = { _ in }, onSave: @escaping (CustomCommand) -> Bool) {
         original = edit
         self.others = others
@@ -85,15 +106,22 @@ struct CommandEditor: View {
         _queryMinChars = State(initialValue: c.queryMinChars ?? 3)
         _refresh = State(initialValue: c.refresh ?? "1h")
         _insert = State(initialValue: SuggestionSourceForm.text(c.insert))
+        _icon = State(initialValue: c.icon)
+        _color = State(initialValue: c.color)
+        _sample = State(initialValue: sample)
+        _trial = State(initialValue: trial)
     }
 
     /// The definition as the form has it now (nil: the command line has an open quote), over what the form doesn't show
-    /// (config.json's own: its icon and color, a stdin of its own, a source's `minChars` and `compare`) as it was.
+    /// (config.json's own: a stdin of its own, a source's `minChars` and `compare`) as it was.
     private var draft: CustomCommand? {
         var c = original.command.kept(as: type)
         c.name = name.trimmingCharacters(in: .whitespaces).lowercased()
         let description = summary.trimmingCharacters(in: .whitespaces)
         c.summary = description.isEmpty ? nil : description
+        // As config.json spells them; Default leaves the key out.
+        c.icon = icon.map { $0.trimmingCharacters(in: .whitespaces) }.flatMap { $0.isEmpty ? nil : $0 }
+        c.color = color
         switch type {
         case .prompt:
             c.prompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -163,6 +191,24 @@ struct CommandEditor: View {
                     .onChange(of: type) { latin = CustomCommand.typesLatinByDefault(type) }
                     TextField(tr("说明", "Description"), text: $summary,
                               prompt: Text(tr("命令列表里显示，可以不填", "Shown in the command list (optional)")))
+                    // Its icon in the command list, as it will show there.
+                    LabeledContent(tr("图标", "Icon")) {
+                        Button { pickingIcon = true } label: {
+                            HStack(spacing: 6) {
+                                IconTile(icon: CandidateView.Icon(IconToken.custom(appearance)))
+                                // A symbol by its name (an emoji shows as itself).
+                                if icon.map(IconToken.isEmoji) != true {
+                                    Text(icon ?? tr("默认", "Default")).foregroundStyle(.secondary)
+                                }
+                                Image(systemName: "chevron.up.chevron.down").imageScale(.small).foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.borderless)
+                        .popover(isPresented: $pickingIcon, arrowEdge: .bottom) {
+                            CommandIconPicker(icon: $icon, type: type, color: color) { pickingIcon = false }
+                        }
+                    }
+                    LabeledContent(tr("颜色", "Color")) { CommandColorPicker(color: $color, type: type) }
                 }
 
                 Section {
@@ -230,6 +276,7 @@ struct CommandEditor: View {
                         Toggle(tr("用英文字母输入（写代码、路径时）", "Type English letters (for code and paths)"), isOn: $latin)
                     }
                 }
+                if CommandTrial.offered(type) { testRunSection }
                 // How the source saved is doing (not a new one's, nor one being turned into another type).
                 if original.original != nil, original.command.type == .suggestions, type == .suggestions {
                     Section(tr("状态", "Status")) {
@@ -260,9 +307,98 @@ struct CommandEditor: View {
             }
             .padding()
         }
-        .frame(width: 560, height: 520)
+        .frame(width: 560, height: 600)
         .task(id: commandLine) { await checkProgram() }
         .task(id: type) { await checkProgram() }
+        // What a Test run showed is the command's as it was: gone once what it runs changes.
+        .onChange(of: runnable) { stopTrial() }
+        .onDisappear { trialTask?.cancel() }
+        .confirmationDialog(tr("这会把样例发给\(UIText.name(config.provider))", "This sends the sample to \(UIText.name(config.provider))"),
+                            isPresented: $confirmingAI, titleVisibility: .visible) {
+            Button(tr("运行", "Run")) { testRun(confirmed: true) }
+            Button(tr("取消", "Cancel"), role: .cancel) {}
+        }
+    }
+
+    /// What a Test run runs: the command as the form has it, but for what doesn't change a run (its name, description,
+    /// icon and color).
+    private var runnable: CustomCommand? {
+        draft.map { draft in
+            var c = draft
+            (c.name, c.summary, c.icon, c.color) = ("", nil, nil, nil)
+            return c
+        }
+    }
+
+    /// The icon as the command list will show it: its own, else its kind's.
+    private var appearance: CustomCommand { CustomCommand(name: name, type: type, icon: icon, color: color) }
+
+    /// Test run: the sample typed beside it, the command run once on it as the action key would run it, and what it
+    /// gives shown here (`CommandTrial`): nothing is inserted, opened or typed in an app. An AI instruction asks first.
+    private var testRunSection: some View {
+        Section {
+            HStack {
+                TextField(tr("样例输入", "Sample input"), text: $sample,
+                          prompt: Text(tr("命令后面写的内容，或者选中的文字", "The text after the command, or the selection")))
+                if trial == .running {
+                    ProgressView().controlSize(.small)
+                    Button(tr("取消", "Cancel")) { stopTrial() }
+                } else {
+                    Button(tr("试运行", "Test run")) { testRun() }.disabled(draft == nil)
+                }
+            }
+            switch trial {
+            case let .passed(output)?:
+                Text(output)
+                    .font(.callout.monospaced())
+                    .lineLimit(10)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            case let .failed(reason)?:
+                Label(reason, systemImage: "xmark.octagon.fill")
+                    .font(.callout).foregroundStyle(.red)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+            case .running?, nil:
+                EmptyView()
+            }
+        } footer: {
+            Text(tr("用样例运行一次，和按执行键一样（同样的时限），结果只显示在这里：不上屏，也不打开。",
+                    "Runs it once on the sample, as the action key would (with the same time limits), and shows what it gives here: nothing is inserted or opened."))
+                .font(.caption).foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// Runs the command as the form has it on the sample; an AI instruction only once the user agreed to send it.
+    private func testRun(confirmed: Bool = false) {
+        guard let command = draft else { return }
+        if CommandTrial.asks(command.type), !confirmed {
+            confirmingAI = true
+            return
+        }
+        trialTask?.cancel()
+        trial = .running
+        let (sample, config) = (sample, config)
+        trialTask = Task {
+            let outcome: Trial
+            do {
+                outcome = .passed(try await CommandTrial.run(command, sample: sample) { command, sample in
+                    try await CommandTrial.ask(command, sample: sample, config: config)
+                })
+            } catch {
+                outcome = .failed(UIText.describe(error))
+            }
+            guard !Task.isCancelled else { return }
+            trial = outcome
+        }
+    }
+
+    /// The Test run stopped (a program as Esc stops it), what it showed gone.
+    private func stopTrial() {
+        trialTask?.cancel()
+        trialTask = nil
+        trial = nil
     }
 
     /// "What it does": the six kinds of command (its label for accessibility; the row shows it).
@@ -298,6 +434,7 @@ struct CommandEditor: View {
         queryMinChars = example.queryMinChars ?? 3
         refresh = example.refresh ?? "1h"
         insert = SuggestionSourceForm.text(example.insert)
+        (icon, color) = (example.icon, example.color)
     }
 
     /// What the "Insert Placeholder" menu adds (at the text's caret).
@@ -427,5 +564,136 @@ struct PlainTextEditor: NSViewRepresentable {
             guard let view = notification.object as? NSTextView else { return }
             text.wrappedValue = view.string
         }
+    }
+}
+
+/// The Icon field's picker: the common SF Symbols (`IconToken.commandSymbols`), searched by name (any other symbol by its
+/// whole name), one emoji typed (Emoji…), or Default, the icon of the command's kind.
+struct CommandIconPicker: View {
+    @Binding var icon: String?
+    let type: CustomCommand.CommandType
+    let color: String?
+    /// Closes the popover.
+    var done: () -> Void = {}
+    @State private var searchText = ""
+    @State private var typingEmoji = false
+    @State private var emoji = ""
+    @FocusState private var emojiFocused: Bool
+
+    /// The symbols shown for `query`: the offered ones whose name has it, after the one it names whole (any symbol of
+    /// SF Symbols'), those this Mac has.
+    static func symbols(matching query: String) -> [String] {
+        let query = query.trimmingCharacters(in: .whitespaces).lowercased()
+        var shown = IconToken.commandSymbols.filter { query.isEmpty || $0.contains(query) }
+        if !query.isEmpty, !shown.contains(query) { shown.insert(query, at: 0) }
+        return shown.filter { NSImage(systemSymbolName: $0, accessibilityDescription: nil) != nil }
+    }
+
+    var body: some View {
+        let shown = Self.symbols(matching: searchText)
+        VStack(alignment: .leading, spacing: 10) {
+            TextField(tr("搜索符号", "Search Symbols"), text: $searchText, prompt: Text(tr("搜索 SF Symbols 名字", "Search SF Symbols names")))
+                .textFieldStyle(.roundedBorder)
+                .labelsHidden()
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(30), spacing: 4), count: 9), spacing: 4) {
+                    ForEach(shown, id: \.self) { name in
+                        Button {
+                            icon = name
+                            done()
+                        } label: {
+                            IconTile(icon: tile(.symbol(name, fallback: IconToken.custom(CustomCommand(name: "", type: type)).fallback)), size: 22)
+                                .frame(width: 30, height: 30)
+                                .background(RoundedRectangle(cornerRadius: 6).fill(icon == name ? Color.accentColor.opacity(0.25) : .clear))
+                        }
+                        .buttonStyle(.plain)
+                        .help(name)
+                        .accessibilityLabel(name)
+                    }
+                }
+            }
+            .frame(height: 200)
+            .overlay {
+                if shown.isEmpty { Text(tr("没有这个名字的符号", "No symbol by that name")).foregroundStyle(.secondary) }
+            }
+            Divider()
+            HStack {
+                Button(tr("默认", "Default")) {
+                    icon = nil
+                    done()
+                }
+                Button(tr("表情符号…", "Emoji…")) {
+                    typingEmoji = true
+                    emojiFocused = true
+                    // The system's emoji picker types into the field.
+                    NSApp.orderFrontCharacterPalette(nil)
+                }
+                if typingEmoji {
+                    TextField(tr("一个表情符号", "One emoji"), text: $emoji)
+                        .frame(width: 70)
+                        .focused($emojiFocused)
+                        .onChange(of: emoji) { take(emoji) }
+                }
+                Spacer()
+            }
+        }
+        .padding(12)
+        .frame(width: 330)
+    }
+
+    /// `glyph` on the command's color, as the list draws it.
+    private func tile(_ glyph: IconToken.Glyph) -> CandidateView.Icon {
+        CandidateView.Icon(IconToken(glyph, color: IconToken.custom(CustomCommand(name: "", type: type, color: color)).color))
+    }
+
+    /// The last emoji typed into the field, as the icon (anything else typed is left out).
+    private func take(_ typed: String) {
+        guard let last = typed.last.map(String.init), IconToken.isEmoji(last) else { return }
+        if emoji != last { emoji = last }
+        icon = last
+    }
+}
+
+/// The Color field: Default (the color of the command's kind), then the named colors as swatches (`IconToken.Color
+/// .names`), and a color config.json names otherwise ("#34C759"), kept while it is the one chosen.
+struct CommandColorPicker: View {
+    @Binding var color: String?
+    let type: CustomCommand.CommandType
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Button { color = nil } label: {
+                Text(tr("默认", "Default"))
+                    .font(.caption)
+                    .padding(.horizontal, 6).padding(.vertical, 2)
+                    .overlay(Capsule().strokeBorder(color == nil ? Color.accentColor : Color.secondary.opacity(0.4), lineWidth: color == nil ? 2 : 1))
+            }
+            .buttonStyle(.plain)
+            .help(tr("默认", "Default"))
+            ForEach(names, id: \.self) { name in
+                Button { color = name } label: { swatch(name) }
+                    .buttonStyle(.plain)
+                    .help(IconToken.Color.named(name).map(UIText.name) ?? name)
+                    .accessibilityLabel(IconToken.Color.named(name).map(UIText.name) ?? name)
+            }
+        }
+    }
+
+    /// The named colors, and the one chosen if it is another.
+    private var names: [String] {
+        guard let color, !IconToken.Color.names.contains(color.lowercased()), IconToken.Color.named(color) != nil else {
+            return IconToken.Color.names
+        }
+        return IconToken.Color.names + [color]
+    }
+
+    private func swatch(_ name: String) -> some View {
+        let chosen = color?.lowercased() == name.lowercased()
+        return Circle()
+            .fill(Color(nsColor: IconToken.Color.named(name).map(NSColor.icon) ?? .clear))
+            .frame(width: 16, height: 16)
+            .overlay(Circle().strokeBorder(Color.black.opacity(0.12), lineWidth: 0.5))
+            .padding(2)
+            .overlay(Circle().strokeBorder(chosen ? Color.accentColor : .clear, lineWidth: 2))
     }
 }

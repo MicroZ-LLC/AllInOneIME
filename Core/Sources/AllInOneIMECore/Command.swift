@@ -422,8 +422,9 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     /// `run`, `suggestions`: the program is stopped after this many seconds (default 10; a source's 20 at most, its
     /// query's 3).
     public var timeoutSeconds: Double?
-    /// Its icon in the command list: an SF Symbol name ("chart.bar"), and a color (a system color's
-    /// name, "blue", or "#RRGGBB"); unset, one for its type.
+    /// Its icon in the command list: an SF Symbol name ("chart.bar") or one emoji ("🧮"), and a color (a system color's
+    /// name, "blue", or "#RRGGBB"); unset, one for its type (`IconToken.custom`). Settings → Commands sets them (its
+    /// Icon and Color).
     public var icon: String?
     public var color: String?
     /// `link`: the web address, with `{input}` in its query (`LinkTemplate`).

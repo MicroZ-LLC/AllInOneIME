@@ -204,7 +204,8 @@ enum PanelShowcase {
 }
 
 /// `AllInOneIME --settings-image OUT-DIR [zh] [dark]`: every page of the settings window drawn offscreen,
-/// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words.
+/// `settings-<page>.png`, from the config file as it is (nothing is saved), with sample apps and hidden words; and the custom
+/// command editor (`renderCommandEditor`).
 @MainActor
 enum SettingsPageImages {
     static func run(output: URL, chinese: Bool, dark: Bool, extensions: String? = nil, update: String? = nil,
@@ -342,6 +343,44 @@ enum SettingsPageImages {
                                  to: output.appendingPathComponent("settings-input-\(input.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
+        renderCommandEditor(to: output, chinese: chinese, appearance: dark ? .darkAqua : .aqua)
         exit(0)
+    }
+
+    /// Settings → Commands → a command's Edit: a program with its icon and color chosen and a Test run done
+    /// (`settings-command-editor.png`), an AI instruction with an emoji and a failed run (`settings-command-editor-ai.png`),
+    /// and the Icon's picker (`settings-command-icon-picker.png`). Sample commands and outcomes: nothing is run or saved.
+    static func renderCommandEditor(to output: URL, chinese: Bool, appearance: NSAppearance.Name) {
+        let shout = CustomCommand(name: "shout", type: .run, summary: chinese ? "转成大写" : "Uppercase", argv: ["tr", "a-z", "A-Z"],
+                                  stdin: CustomCommand.placeholder + "\n", icon: "bolt", color: "purple")
+        render(CommandEditor(edit: CommandEdit(index: 0, command: shout), others: [], sample: "hello, world",
+                             trial: .passed("HELLO, WORLD")) { _ in true },
+               size: NSSize(width: 560, height: 600), to: output.appendingPathComponent("settings-command-editor.png"), appearance: appearance)
+        let polite = CustomCommand(name: "polite", type: .prompt, summary: chinese ? "礼貌回复" : "Polite reply",
+                                   prompt: "Write a short, polite reply to the user's message.", icon: "🙏", color: "teal")
+        var config = Config.default
+        config.provider = .anthropic
+        render(CommandEditor(edit: CommandEdit(index: 0, command: polite), others: [], config: config, sample: "Can we move the call?",
+                             trial: .failed(UIText.describe(ProviderError.missingKey(.anthropic)))) { _ in true },
+               size: NSSize(width: 560, height: 600), to: output.appendingPathComponent("settings-command-editor-ai.png"), appearance: appearance)
+        render(CommandIconPicker(icon: .constant("bolt"), type: .run, color: "purple"),
+               size: NSSize(width: 330, height: 300), to: output.appendingPathComponent("settings-command-icon-picker.png"), appearance: appearance)
+    }
+
+    /// `view` drawn offscreen in `appearance` into a PNG of `size`, on the window's background (a sheet's).
+    private static func render<V: View>(_ view: V, size: NSSize, to url: URL, appearance: NSAppearance.Name) {
+        let host = NSHostingView(rootView: view.background(Color(nsColor: .windowBackgroundColor)))
+        let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: size.width, height: size.height),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.appearance = NSAppearance(named: appearance)
+        window.alphaValue = 0
+        window.contentView = host
+        host.layoutSubtreeIfNeeded()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.8))
+        defer { window.close() }
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else { return }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        try? rep.representation(using: .png, properties: [:])?.write(to: url)
+        print("  \(url.path) (\(Int(size.width))×\(Int(size.height)))")
     }
 }

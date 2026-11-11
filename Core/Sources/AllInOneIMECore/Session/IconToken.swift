@@ -101,6 +101,11 @@ public struct IconToken: Equatable, Sendable {
             return byName[name.hasPrefix("system") ? String(name.dropFirst(6)) : name]
         }
 
+        /// The system's named colors, as config.json names them (`named` takes each): what a custom command's editor
+        /// offers (Settings → Commands, its Color).
+        public static let names = ["red", "orange", "yellow", "green", "mint", "teal", "cyan", "blue", "indigo", "purple", "pink",
+                                   "brown", "gray"]
+
         /// The colors `named` knows by name, made once: each row of the command list with a plugin's or a custom command's
         /// color asks, with each key.
         private static let byName: [String: Color] = [
@@ -194,7 +199,37 @@ extension IconToken {
         }
     }
 
-    /// A custom command's own icon, or one for its type, which its own falls back to.
+    /// The symbols a custom command's editor offers for its icon (Settings → Commands, its Icon), in SF Symbols'
+    /// vocabulary, the common ones first; any other name of it, or one emoji, is taken too (`CustomCommand.icon`).
+    public static let commandSymbols = [
+        "terminal", "doc.text", "globe", "link", "bolt", "star", "envelope", "calendar", "checklist", "magnifyingglass",
+        "wand.and.stars", "text.bubble",
+        "sparkles", "lightbulb", "book", "bookmark", "tag", "flag", "bell", "pin", "paperclip", "folder", "tray", "archivebox",
+        "doc", "doc.on.clipboard", "list.bullet", "note.text", "pencil", "highlighter", "scissors", "quote.bubble",
+        "bubble.left", "message", "phone", "video", "person", "person.2", "house", "building.2", "briefcase", "cart",
+        "creditcard", "dollarsign.circle", "chart.bar", "chart.pie", "clock", "timer", "alarm", "hourglass", "map",
+        "location", "airplane", "car", "tram", "cloud", "sun.max", "moon", "flame", "leaf", "heart", "hand.thumbsup",
+        "face.smiling", "gift", "graduationcap", "camera", "photo", "music.note", "mic", "speaker.wave.2", "film", "gamecontroller",
+        "paintbrush", "paintpalette", "hammer", "wrench.and.screwdriver", "gearshape", "slider.horizontal.3", "cpu", "memorychip",
+        "desktopcomputer", "laptopcomputer", "keyboard", "printer", "network", "server.rack", "externaldrive", "lock",
+        "key", "shield", "eye", "number", "textformat", "character.book.closed", "translate", "function", "sum",
+        "percent", "plus.forwardslash.minus", "curlybraces", "chevron.left.forwardslash.chevron.right", "command",
+        "arrow.right", "arrow.triangle.2.circlepath", "arrow.up.right.square", "square.and.arrow.up", "paperplane",
+        "tray.and.arrow.down", "trash", "checkmark.circle", "xmark.circle", "exclamationmark.triangle", "questionmark.circle",
+        "info.circle", "ant", "ladybug", "puzzlepiece", "cube", "shippingbox", "atom", "brain", "stethoscope", "pills",
+        "cross.case", "fork.knife", "cup.and.saucer", "pawprint", "tortoise", "hare", "dice", "die.face.5",
+    ]
+
+    /// Whether a custom command's `icon` is one emoji (drawn as it is) rather than a symbol's name: one character that
+    /// is an emoji ("🧮", "❤️", "1️⃣"), not a plain digit or letter.
+    public static func isEmoji(_ icon: String) -> Bool {
+        guard icon.count == 1, let first = icon.unicodeScalars.first else { return false }
+        let scalars = icon.unicodeScalars
+        return scalars.contains { $0.properties.isEmojiPresentation }
+            || (first.properties.isEmoji && (!first.isASCII || scalars.contains("\u{FE0F}")))
+    }
+
+    /// A custom command's own icon (a symbol, or one emoji), or one for its type, which its own falls back to.
     public static func custom(_ custom: CustomCommand) -> IconToken {
         let (kind, fallback): (Builtin, Color)
         switch custom.type {
@@ -205,7 +240,8 @@ extension IconToken {
         case .snippet: (kind, fallback) = (.snippet, .mint)
         case .suggestions: (kind, fallback) = (.scriptList, .orange)
         }
-        return IconToken(custom.icon.map { .symbol($0, fallback: kind) } ?? .builtin(kind), color: Color.named(custom.color) ?? fallback)
+        let glyph: Glyph = custom.icon.map { isEmoji($0) ? .emoji($0, fallback: kind) : .symbol($0, fallback: kind) } ?? .builtin(kind)
+        return IconToken(glyph, color: Color.named(custom.color) ?? fallback)
     }
 
     /// A background task's state in `@tasks`.
