@@ -19,6 +19,8 @@ public enum WeekStatsShareImage {
 
     public enum Failure: Error {
         case drawing
+        /// The clipboard didn't take it.
+        case pasteboard
     }
 
     /// The picture, as PNG data (any thread).
@@ -53,15 +55,18 @@ public enum WeekStatsShareImage {
     public static func copy(week: WeekStats.Snapshot, language: String, hideOwnCommandNames: Bool, appearance: Appearance,
                             icon: @escaping (WeekStats.Snapshot.CommandCount) -> IconToken = WeekStatsCard.builtInIcon,
                             to pasteboard: NSPasteboard = .general) throws {
-        put(try render(week: week, language: language, hideOwnCommandNames: hideOwnCommandNames, appearance: appearance, icon: icon),
-            on: pasteboard)
+        let png = try render(week: week, language: language, hideOwnCommandNames: hideOwnCommandNames, appearance: appearance,
+                             icon: icon)
+        guard put(png, on: pasteboard) else { throw Failure.pasteboard }
     }
 
-    /// A picture `render` made on `pasteboard`, as PNG and as TIFF.
-    public static func put(_ png: Data, on pasteboard: NSPasteboard = .general) {
+    /// A picture `render` made on `pasteboard`, as PNG and as TIFF: whether the PNG is there.
+    @discardableResult
+    public static func put(_ png: Data, on pasteboard: NSPasteboard = .general) -> Bool {
         pasteboard.clearContents()
         pasteboard.declareTypes([.png, .tiff], owner: nil)
-        pasteboard.setData(png, forType: .png)
+        guard pasteboard.setData(png, forType: .png) else { return false }
         if let tiff = NSBitmapImageRep(data: png)?.tiffRepresentation { pasteboard.setData(tiff, forType: .tiff) }
+        return true
     }
 }

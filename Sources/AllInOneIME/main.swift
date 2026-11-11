@@ -293,6 +293,14 @@ func runServer(showSettings: Bool = false) -> Never {
     // English words learned (candidates removed) while the config file didn't parse (or couldn't be written): written
     // once it parses again.
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
+    // This week's stats: the user's own commands deleted or renamed keep no name there, now and each time the config
+    // file is read anew (`WeekStatsShared.keepOwnCommands`).
+    let retryEnglishWords = LiveConfig.parsedAnew
+    LiveConfig.parsedAnew = {
+        retryEnglishWords()
+        WeekStatsShared.keepOwnCommands()
+    }
+    WeekStatsShared.keepOwnCommands()
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.

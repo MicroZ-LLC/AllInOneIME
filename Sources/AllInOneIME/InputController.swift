@@ -88,8 +88,10 @@ final class AllInOneIMEInputController: IMKInputController {
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
     /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
-    /// Puts this week's picture on the clipboard (`@stats`'s ⌘C; the self-test records it instead).
-    var copyWeekStatsImage: () -> Void = { MainActor.assumeIsolated { WeekStatsShared.copyImageSoon() } }
+    /// Puts this week's picture on the clipboard (`@stats`'s ⌘C), then tells whether it is there.
+    var copyWeekStatsImage: (@escaping @MainActor (Bool) -> Void) -> Void = { done in
+        MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
+    }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
@@ -1038,8 +1040,12 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .platform(.pasteImage(id)):
                 pasteKeptImage(id, into: target)
             case .platform(.copyWeekStatsImage):
-                // `@stats`'s ⌘C: the week's picture, as Settings → This Week copies it (its notice is the session's).
-                copyWeekStatsImage()
+                // `@stats`'s ⌘C: the week's picture, as Settings → This Week copies it; the session says it's copied once
+                // it is on the clipboard, or that it couldn't be (in the field typed in by then).
+                copyWeekStatsImage { [weak self] copied in
+                    guard let field = Self.activeController ?? self else { return }
+                    field.apply(field.session.weekStatsImageCopied(copied), client: nil)
+                }
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the

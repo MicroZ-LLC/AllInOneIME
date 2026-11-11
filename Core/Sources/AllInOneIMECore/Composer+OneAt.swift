@@ -227,9 +227,10 @@ extension Composer {
         return rows.indices.contains(oneAtHighlighted) && rows[oneAtHighlighted] == .command(.stats)
     }
 
-    /// ⌘C on `@stats`'s row: the draft goes (nothing is typed in), the shell puts the picture on the clipboard.
+    /// ⌘C on `@stats`'s row: the draft goes (nothing is typed in), the shell puts the picture on the clipboard and says
+    /// whether it is there once it is (`InputSession.weekStatsImageCopied`).
     func copyWeekStats() -> [Effect] {
-        finish(committing: "") + [.copyWeekStatsImage, .notice(WeekStatsWords(language: messages.language).imageCopied), used(.stats)]
+        finish(committing: "") + [.copyWeekStatsImage, used(.stats)]
     }
 
     /// The action key on one @ (nil: not written): the highlighted row, as ⏎ does it, right after the magic key too.

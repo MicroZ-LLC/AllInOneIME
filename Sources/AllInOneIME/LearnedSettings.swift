@@ -58,7 +58,7 @@ struct LearnedSheet: View {
                             Text(item.text).fixedSize(horizontal: false, vertical: true)
                         }
                     }
-                    // This week's stats (Settings → This Week): counts only, on this Mac.
+                    // This week's stats (Settings → This Week): counts and command names, on this Mac.
                     if model.weekStatsKept {
                         LabeledContent {
                             Button(tr("忘掉", "Forget")) { model.forgetWeekStats() }
@@ -69,8 +69,8 @@ struct LearnedSheet: View {
                 } header: {
                     SectionTitle(SettingsSpot.learned.title, icon: SettingsPage.privacy.icon)
                 } footer: {
-                    Text(tr("只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数和模型。忘掉的以后还会再学。",
-                            "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts and models. What you forget can be learned again."))
+                    Text(tr("只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数、模型和命令名。忘掉的以后还会再学。",
+                            "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts, models and command names. What you forget can be learned again."))
                         .font(.caption).foregroundStyle(.secondary)
                         .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
                 }

@@ -5,6 +5,8 @@ import Foundation
 /// and whether it sent a request to an AI provider. One that starts a request is counted when the request first answers
 /// (a cached answer sent nothing: no AI then), and not when it fails or is given up before; one that is done at once
 /// (a snippet, a link, an app opened) at once. `@stats` itself isn't counted: looking at the week doesn't change it.
+/// Nothing is counted in a field nothing may leave (`nothingLeavesDevice`: secure input, a known password field), and a
+/// run whose request answers after everything was forgotten (Forget All) isn't counted then (`WeekStats.era`).
 /// The characters the user types through the input method are counted as they go in (`InputSession.countTyped`).
 struct WeekStatsRuns {
     struct Run {
@@ -12,6 +14,8 @@ struct WeekStatsRuns {
         var source: WeekStats.CommandSource
         var app: String?
         var ai: Bool
+        /// The stats' `era` when it ran.
+        var era: Int
     }
 
     /// By the request each waits for.
@@ -36,10 +40,11 @@ extension Composer.Effect {
 extension InputSession {
     /// `name` ran (`commandUsed`) in the batch `effects`: counted once its request answers, or now.
     func countRun(_ name: String, in effects: [Composer.Effect]) {
-        guard name != Command.stats.name else { return }
+        guard name != Command.stats.name, !nothingLeavesDevice() else { return }
         let command = composer.commands.first { $0.name == name } ?? ([Command.edit] + Command.builtins).first { $0.name == name }
         let run = WeekStatsRuns.Run(id: name, source: command.map(WeekStats.CommandSource.init) ?? .own, app: app,
-                                    ai: command.map { $0.kind == .convert || $0.kind == .generate } ?? false)
+                                    ai: command.map { $0.kind == .convert || $0.kind == .generate } ?? false,
+                                    era: services.weekStats.era)
         guard let request = effects.lazy.compactMap(\.startedRequest).first else {
             record(run, fromCache: false)
             return
@@ -51,9 +56,9 @@ extension InputSession {
     }
 
     /// `request` answered (its first output, a list, a script's line; a script left running in the background): its runs
-    /// counted.
+    /// counted, unless the field is one nothing may leave by now.
     func runAnswered(_ request: Int, fromCache: Bool) {
-        guard let runs = weekStatsRuns.pending.removeValue(forKey: request) else { return }
+        guard let runs = weekStatsRuns.pending.removeValue(forKey: request), !nothingLeavesDevice() else { return }
         for run in runs { record(run, fromCache: fromCache) }
     }
 
@@ -63,7 +68,21 @@ extension InputSession {
     }
 
     private func record(_ run: WeekStatsRuns.Run, fromCache: Bool) {
-        services.weekStats.recordCommand(id: run.id, source: run.source, bundleID: run.app, usedAI: run.ai && !fromCache)
+        services.weekStats.recordCommand(id: run.id, source: run.source, bundleID: run.app, usedAI: run.ai && !fromCache,
+                                         era: run.era)
+    }
+
+    /// Something from clipboard history was pasted: counted (never what), but not in a field nothing may leave.
+    func countClipboardPaste() {
+        guard !nothingLeavesDevice() else { return }
+        services.weekStats.recordClipboardPaste()
+    }
+
+    /// `@stats`'s ⌘C done by the shell (`PlatformAction.copyWeekStatsImage`): `copied`, whether the picture is on the
+    /// clipboard now. Its notice says so then, and only then; else that it couldn't be copied.
+    public func weekStatsImageCopied(_ copied: Bool) -> [SessionOutput] {
+        let words = WeekStatsWords(language: composer.messages.language)
+        return showNotice(copied ? words.imageCopied : words.imageNotCopied)
     }
 
     // MARK: Characters typed

@@ -124,10 +124,12 @@ final class SettingsModel: ObservableObject {
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
     /// (`SettingsStore.save`), Words to hide typed in without ⏎ too (`flushWords`). Nothing is written when nothing
-    /// changed. The window then shows the file as it now is.
+    /// changed. The window then shows the file as it now is; a command of the user's deleted or renamed keeps no name in
+    /// this week's stats from then on (`WeekStatsShared.keepOwnCommands`).
     func save() {
         flushWords()
         store.save()
+        WeekStatsShared.keepOwnCommands()
     }
 
     /// Reads the config file again if something else changed it, so the window shows it and its next save

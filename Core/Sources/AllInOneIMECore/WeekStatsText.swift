@@ -45,8 +45,11 @@ public struct WeekStatsText: Equatable, Sendable {
     public var copyImageLabel: String { words.copyImage }
     /// "统计只存在这台 Mac 上，不同步，也不上传。"
     public var privacyNote: String { words.privacyNote }
-    /// The notice once the picture is on the clipboard.
+    /// Under it, what is kept: "只记次数和命令名，不记你打的字。"
+    public var keptNote: String { words.keptNote }
+    /// The notice once the picture is on the clipboard, and the one when it couldn't be put there.
     public var imageCopied: String { words.imageCopied }
+    public var imageNotCopied: String { words.imageNotCopied }
 
     // MARK: The card
 
@@ -529,6 +532,11 @@ struct WeekStatsWords: Sendable {
         pick(["已复制图片", "Image copied", "已拷貝圖片", "画像をコピーしました", "이미지를 복사했어요", "Bild kopiert", "Image copiée",
               "Imagen copiada", "Imagem copiada"])
     }
+    var imageNotCopied: String {
+        pick(["无法复制图片", "Couldn't copy the image", "無法拷貝圖片", "画像をコピーできませんでした", "이미지를 복사하지 못했어요",
+              "Bild konnte nicht kopiert werden", "Impossible de copier l’image", "No se pudo copiar la imagen",
+              "Não foi possível copiar a imagem"])
+    }
     var privacyNote: String {
         pick(["统计只存在这台 Mac 上，不同步，也不上传。", "These stats stay on this Mac: never synced, never uploaded.",
               "統計只存在這台 Mac 上，不同步，也不上傳。", "統計はこの Mac にだけ保存され、同期もアップロードもされません。",
@@ -537,6 +545,16 @@ struct WeekStatsWords: Sendable {
               "Ces statistiques restent sur ce Mac\u{00A0}: jamais synchronisées, jamais envoyées.",
               "Estas estadísticas se quedan en este Mac: nunca se sincronizan ni se suben.",
               "Estas estatísticas ficam neste Mac: nunca são sincronizadas nem enviadas."])
+    }
+
+    var keptNote: String {
+        pick(["只记次数和命令名，不记你打的字。", "Only counts and command names are kept, never what you type.",
+              "只記次數和命令名稱，不記你打的字。", "記録するのは回数とコマンド名だけで、入力した文字は記録しません。",
+              "횟수와 명령 이름만 기록하고, 입력한 내용은 기록하지 않아요.",
+              "Gespeichert werden nur Anzahlen und Befehlsnamen, nie der getippte Text.",
+              "Seuls les nombres et les noms de commandes sont gardés, jamais le texte saisi.",
+              "Solo se guardan cantidades y nombres de comandos, nunca lo que escribes.",
+              "Só são guardadas contagens e nomes de comandos, nunca o que você digita."])
     }
 
     func thisWeekCount(_ count: Int) -> String {
@@ -568,13 +586,14 @@ struct WeekStatsWords: Sendable {
 
     /// Settings → Privacy → Learned…'s row for them.
     func kept(weeks: Int) -> String {
-        fill(["本周统计：最近 %@ 周用了多少次指令、打了多少字（只有数字）",
-              "This week's stats: how much you used it and how many characters you typed over the last %@ weeks (numbers only)",
-              "本週統計：最近 %@ 週用了多少次指令、打了多少字（只有數字）", "今週の統計：過去 %@ 週間の利用回数と入力文字数（数のみ）",
-              "이번 주 통계: 최근 %@주 동안의 사용 횟수와 입력한 글자 수(숫자만)",
-              "Wochenstatistik: Nutzung und getippte Zeichen der letzten %@ Wochen (nur Zahlen)",
-              "Statistiques de la semaine\u{00A0}: usage et caractères saisis des %@ dernières semaines (nombres seulement)",
-              "Estadísticas de la semana: uso y caracteres escritos de las últimas %@ semanas (solo cantidades)",
-              "Estatísticas da semana: uso e caracteres digitados das últimas %@ semanas (só contagens)"], "\(weeks)")
+        fill(["本周统计：最近 %@ 周用了多少次指令、打了多少字（只记次数和命令名，不记你打的字）",
+              "This week's stats: how much you used it and how many characters you typed over the last %@ weeks (counts and command names, never what you typed)",
+              "本週統計：最近 %@ 週用了多少次指令、打了多少字（只記次數和命令名稱，不記你打的字）",
+              "今週の統計：過去 %@ 週間の利用回数と入力文字数（回数とコマンド名のみ。入力した文字は記録しません）",
+              "이번 주 통계: 최근 %@주 동안의 사용 횟수와 입력한 글자 수(횟수와 명령 이름만, 입력한 내용은 기록하지 않아요)",
+              "Wochenstatistik: Nutzung und getippte Zeichen der letzten %@ Wochen (nur Anzahlen und Befehlsnamen, nie der getippte Text)",
+              "Statistiques de la semaine\u{00A0}: usage et caractères saisis des %@ dernières semaines (nombres et noms de commandes seulement, jamais le texte saisi)",
+              "Estadísticas de la semana: uso y caracteres escritos de las últimas %@ semanas (solo cantidades y nombres de comandos, nunca lo que escribiste)",
+              "Estatísticas da semana: uso e caracteres digitados das últimas %@ semanas (só contagens e nomes de comandos, nunca o que você digitou)"], "\(weeks)")
     }
 }

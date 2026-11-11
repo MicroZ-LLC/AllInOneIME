@@ -2,11 +2,13 @@ import Crypto
 import Foundation
 
 /// This week's stats (0.7.4): how much AllInOneIME was used on this device, per local day, for Settings → This Week, the
-/// menu bar panel's row, `@stats` and the picture a user can share. Only counts are kept:
-///   - each command run, by its id (its name in the command list), where it comes from (`CommandSource`) and whether it
-///     sent a request to an AI provider; one @'s rows count as the command they ran;
-///   - the apps it was used in, as salted hashes of their bundle ids (`salt`, random, kept with the counts): the page
-///     shows how many, never which;
+/// menu bar panel's row, `@stats` and the picture a user can share. Counts and command names are kept:
+///   - each command run, by its id (its name in the command list) and where it comes from (`CommandSource`), and whether
+///     it sent a request to an AI provider; one @'s rows count as the command they ran. A command of the user's own
+///     deleted or renamed since loses its name (`keepCommands`): its runs stay, among the earlier commands of its source;
+///   - the apps it was used in, as salted hashes of their bundle ids: the page shows how many, never which. The salt
+///     (`salt`, random) isn't kept with the counts: the shell keeps it apart (the Mac: in the keychain), and hashes made
+///     with another are dropped when the counts are read back;
 ///   - the pastes from clipboard history;
 ///   - how many characters the user typed through the input method (`recordTypedCharacters`): one number a day.
 /// Never what was typed, a command's text, what was pasted, or a time finer than the day. The last `weeksKept` calendar
@@ -49,19 +51,28 @@ public final class WeekStats: @unchecked Sendable {
 
     private let now: () -> Date
     private let calendar: Calendar
-    private let record: Locked<Record>
+    private let state: Locked<State>
     private let listener = Locked<Listener?>(initialState: nil)
 
     /// `now` and `calendar` say which day it is (a test's, the system's by default); `salt` is what the bundle ids are
-    /// hashed with (nil: a random one, kept with the counts; `restore` takes the kept one).
+    /// hashed with (nil: a random one), which the shell keeps apart from the counts.
     public init(now: @escaping () -> Date = { Platform.current.clock.now }, calendar: Calendar = WeekStats.defaultCalendar(),
                 salt: Data? = nil) {
         self.now = now
         var calendar = calendar
         calendar.firstWeekday = 2
         self.calendar = calendar
-        record = Locked(initialState: Record(salt: salt ?? Self.randomSalt()))
+        state = Locked(initialState: State(salt: salt ?? Self.randomSalt()))
     }
+
+    /// What the bundle ids are hashed with now: the shell keeps it apart from the counts (`kept`). A new one after
+    /// `clearHistory`.
+    public var salt: Data { state.withLock { $0.salt } }
+
+    /// How many times everything counted was forgotten (`clearHistory`): a run counted once its request answers is
+    /// counted only in the era it started in (`recordCommand`'s `era`), so a late answer adds nothing to the counts
+    /// forgotten meanwhile.
+    public var era: Int { state.withLock { $0.era } }
 
     /// Told after each change (a record, a restore, a clear), on the thread that made it: the shell writes the file
     /// soon after, off the key's thread.
@@ -72,37 +83,37 @@ public final class WeekStats: @unchecked Sendable {
 
     // MARK: - Counting
 
-    /// A command ran: `id` its name, `bundleID` the app it ran in (nil: unknown), `usedAI` whether it sent a request
-    /// to an AI provider.
-    public func recordCommand(id: String, source: CommandSource, bundleID: String?, usedAI: Bool) {
+    /// A command ran: `id` its name, `source` where it comes from (the same name from two sources is counted as two
+    /// commands), `bundleID` the app it ran in (nil: unknown), `usedAI` whether it sent a request to an AI provider.
+    /// `era`: the `era` it started in, for a run counted once its request answers (nil: now); not counted if everything
+    /// was forgotten since.
+    public func recordCommand(id: String, source: CommandSource, bundleID: String?, usedAI: Bool, era: Int? = nil) {
         let id = id.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { return }
         let today = day(of: now())
-        record.withLock { record in
-            prune(&record, today: today)
-            var day = record.days[today.key] ?? Day()
-            var runs = day.commands[id] ?? Runs(source: source)
-            runs.source = source
-            runs.runs += 1
-            if usedAI { runs.ai += 1 }
-            day.commands[id] = runs
-            if let hash = appHash(bundleID, salt: record.salt), !day.apps.contains(hash) {
+        let counted = state.withLock { state -> Bool in
+            guard era.map({ $0 == state.era }) ?? true else { return false }
+            prune(&state.record, today: today)
+            var day = state.record.days[today.key] ?? Day()
+            day.commands[source.rawValue, default: [:]][id, default: Runs()].add(usedAI: usedAI)
+            if let hash = appHash(bundleID, salt: state.salt), !day.apps.contains(hash) {
                 day.apps.append(hash)
                 day.apps.sort()
             }
-            record.days[today.key] = day
-            if record.since == nil { record.since = today.key }
+            state.record.days[today.key] = day
+            if state.record.since == nil { state.record.since = today.key }
+            return true
         }
-        tell()
+        if counted { tell() }
     }
 
     /// Something was pasted from clipboard history.
     public func recordClipboardPaste() {
         let today = day(of: now())
-        record.withLock { record in
-            prune(&record, today: today)
-            record.days[today.key, default: Day()].clipboardPastes += 1
-            if record.since == nil { record.since = today.key }
+        state.withLock { state in
+            prune(&state.record, today: today)
+            state.record.days[today.key, default: Day()].clipboardPastes += 1
+            if state.record.since == nil { state.record.since = today.key }
         }
         tell()
     }
@@ -112,56 +123,105 @@ public final class WeekStats: @unchecked Sendable {
     public func recordTypedCharacters(_ count: Int) {
         guard count > 0 else { return }
         let today = day(of: now())
-        record.withLock { record in
+        state.withLock { state in
             // A day's first count drops the days no longer kept; the others only add.
-            if record.days[today.key] == nil { prune(&record, today: today) }
-            record.days[today.key, default: Day()].charactersTyped += count
-            if record.since == nil { record.since = today.key }
+            if state.record.days[today.key] == nil { prune(&state.record, today: today) }
+            state.record.days[today.key, default: Day()].charactersTyped += count
+            if state.record.since == nil { state.record.since = today.key }
         }
         tell()
     }
 
     /// Everything counted forgotten (Settings → Privacy's Forget All): the next week shown is a first week again. The
-    /// salt stays (nothing it hashed is kept).
+    /// salt goes too (a new one hashes the apps from now on), and the runs whose requests haven't answered yet are never
+    /// counted (`era`).
     public func clearHistory() {
-        record.withLock { record in
-            record.days = [:]
-            record.since = nil
+        let salt = Self.randomSalt()
+        state.withLock { state in
+            state.record = Record()
+            state.salt = salt
+            state.era += 1
         }
         tell()
+    }
+
+    /// The user's own commands there are now (`names`, of `source`): any other of that source counted in the weeks kept
+    /// (one since deleted or renamed) loses its name, its runs kept among the earlier commands of its source
+    /// (`Snapshot.otherCommands`), so that every total stays as it was.
+    public func keepCommands(_ names: Set<String>, from source: CommandSource) {
+        let changed = state.withLock { state -> Bool in
+            var changed = false
+            for (key, day) in state.record.days {
+                guard let commands = day.commands[source.rawValue] else { continue }
+                let gone = commands.filter { !names.contains($0.key) }
+                guard !gone.isEmpty else { continue }
+                var day = day
+                for runs in gone.values { day.earlier[source.rawValue, default: Runs()].add(runs) }
+                let kept = commands.filter { names.contains($0.key) }
+                day.commands[source.rawValue] = kept.isEmpty ? nil : kept
+                state.record.days[key] = day
+                changed = true
+            }
+            return changed
+        }
+        if changed { tell() }
     }
 
     /// Whether any command is counted in the weeks kept: the menu bar panel's row shows from the first.
     public var hasCommands: Bool {
         let today = day(of: now())
-        return record.withLock { record in
-            prune(&record, today: today)
-            return record.days.values.contains { !$0.commands.isEmpty }
+        return state.withLock { state in
+            prune(&state.record, today: today)
+            return state.record.days.values.contains { $0.runCount > 0 }
         }
     }
 
     // MARK: - Kept
 
-    /// What is kept, as JSON: the salt, the first day counted, and each day's counts by its date ("2026-11-10").
+    /// What is kept, as JSON: which salt the apps' hashes were made with (`saltCheck`, never the salt), the first day
+    /// counted, and each day's counts by its date ("2026-11-10").
     public func serializedData() throws -> Data {
-        let today = day(of: now())
-        let kept = record.withLock { record -> Record in
-            prune(&record, today: today)
-            return record
-        }
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        return try encoder.encode(kept)
+        let (record, salt) = pruned()
+        return try encode(record, salt: salt)
     }
 
-    /// What `serializedData` gave, back in place of what is counted now (the days older than kept dropped).
+    /// What the shell keeps, as one moment has it: the file's JSON (`serializedData`; nil when nothing is counted, and
+    /// no file is needed), and the salt its apps' hashes were made with, which it keeps apart.
+    public func kept() throws -> (data: Data?, salt: Data) {
+        let (record, salt) = pruned()
+        return (record.days.isEmpty && record.since == nil ? nil : try encode(record, salt: salt), salt)
+    }
+
+    /// What is counted in the weeks kept, and the salt, together.
+    private func pruned() -> (Record, Data) {
+        let today = day(of: now())
+        return state.withLock { state in
+            prune(&state.record, today: today)
+            return (state.record, state.salt)
+        }
+    }
+
+    private func encode(_ record: Record, salt: Data) throws -> Data {
+        var record = record
+        record.saltCheck = Self.check(salt)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        return try encoder.encode(record)
+    }
+
+    /// What `serializedData` gave, back in place of what is counted now (the days older than kept dropped). Apps hashed
+    /// with another salt than this one's (the salt lost, a file from elsewhere) are dropped: the week's apps start again.
     public func restore(from data: Data) throws {
         var restored = try JSONDecoder().decode(Record.self, from: data)
         restored.days = restored.days.filter { Self.date($0.key, calendar: calendar) != nil }
         let today = day(of: now())
-        record.withLock { record in
+        state.withLock { state in
+            if restored.saltCheck != Self.check(state.salt) {
+                for key in restored.days.keys { restored.days[key]?.apps = [] }
+            }
+            restored.saltCheck = nil
             prune(&restored, today: today)
-            record = restored
+            state.record = restored
         }
         tell()
     }
@@ -172,9 +232,9 @@ public final class WeekStats: @unchecked Sendable {
     /// how it compares with the week before (this week: so far, against the same days of last week).
     public func snapshot(for week: Week) -> Snapshot {
         let today = day(of: now())
-        let kept = record.withLock { record -> Record in
-            prune(&record, today: today)
-            return record
+        let kept = state.withLock { state -> Record in
+            prune(&state.record, today: today)
+            return state.record
         }
         let thisMonday = monday(of: today.date)
         let monday = week == .current ? thisMonday : add(days: -7, to: thisMonday)
@@ -183,24 +243,36 @@ public final class WeekStats: @unchecked Sendable {
         let todayIndex = week == .current ? dates.firstIndex { calendar.isDate($0, inSameDayAs: today.date) } : nil
         let days = dates.map { kept.days[Self.key($0, calendar: calendar)] ?? Day() }
 
-        var commands: [String: (source: CommandSource, runs: Int)] = [:]
+        // Each command by its name and source; the earlier commands (since deleted or renamed) by source.
+        var commands: [CommandKey: Int] = [:]
+        var renamed: [CommandSource: Int] = [:]
         var sources = Snapshot.SourceCounts()
         var ai = 0, pastes = 0, characters = 0
         var apps = Set<String>()
         for day in days {
-            for (id, runs) in day.commands {
-                commands[id] = (runs.source, (commands[id]?.runs ?? 0) + runs.runs)
-                sources.add(runs.runs, from: runs.source)
+            for (raw, runs) in day.commands {
+                guard let source = CommandSource(rawValue: raw) else { continue }
+                for (id, runs) in runs {
+                    commands[CommandKey(id: id, source: source), default: 0] += runs.runs
+                    sources.add(runs.runs, from: source)
+                    ai += runs.ai
+                }
+            }
+            for (raw, runs) in day.earlier {
+                guard let source = CommandSource(rawValue: raw) else { continue }
+                renamed[source, default: 0] += runs.runs
+                sources.add(runs.runs, from: source)
                 ai += runs.ai
             }
             apps.formUnion(day.apps)
             pastes += day.clipboardPastes
             characters += day.charactersTyped
         }
-        let ranked = commands.map { Snapshot.CommandCount(id: $0.key, source: $0.value.source, count: $0.value.runs) }
-            .sorted { ($1.count, $0.id) < ($0.count, $1.id) }
+        let ranked = commands.map { Snapshot.CommandCount(id: $0.key.id, source: $0.key.source, count: $0.value) }
+            .sorted { ($1.count, $0.id, $0.source.rawValue) < ($0.count, $1.id, $1.source.rawValue) }
         let top = Array(ranked.prefix(Snapshot.topLimit))
-        let rest = ranked.dropFirst(Snapshot.topLimit)
+        // The rest: the commands after the top ones, and the earlier commands of each source as one each.
+        let rest = ranked.dropFirst(Snapshot.topLimit).map(\.count) + renamed.values.filter { $0 > 0 }
 
         // So far this week (through today), against last week through the same weekday; a past week whole.
         let through = todayIndex ?? 6
@@ -218,7 +290,7 @@ public final class WeekStats: @unchecked Sendable {
                              isFuture: todayIndex.map { index > $0 } ?? false)
             },
             commandCount: sources.total, aiCommandCount: ai, sourceCounts: sources, distinctAppCount: apps.count,
-            topCommands: top, otherCommands: Snapshot.OtherCommands(count: rest.count, total: rest.reduce(0) { $0 + $1.count }),
+            topCommands: top, otherCommands: Snapshot.OtherCommands(count: rest.count, total: rest.reduce(0, +)),
             comparison: comparison, firstRecordedDay: first, clipboardPasteCount: pastes, charactersTyped: characters,
             isFirstWeek: first.map { $0 >= monday } ?? true, calendar: calendar)
     }
@@ -282,6 +354,14 @@ public final class WeekStats: @unchecked Sendable {
         return Data((0..<32).map { _ in UInt8.random(in: .min ... .max, using: &generator) })
     }
 
+    /// Which salt `salt` is, for the file (`Record.saltCheck`): a hash of it that tells two apart, never the salt.
+    private static func check(_ salt: Data) -> String {
+        SHA256.hash(data: Data("AllInOneIME week stats salt".utf8) + salt).prefix(8).map { byte in
+            let hex = String(byte, radix: 16)
+            return hex.count == 1 ? "0" + hex : hex
+        }.joined()
+    }
+
     private func tell() { listener.withLock { $0 }?.changed() }
 
     /// `changed` in a struct (a function kept in `Locked` as it is would gain a thunk on each write: `InterfaceText`).
@@ -289,22 +369,36 @@ public final class WeekStats: @unchecked Sendable {
         let changed: @Sendable () -> Void
     }
 
-    // MARK: - The file
-
-    /// What is kept: the salt, the first day counted (`since`), and the days.
-    private struct Record: Codable {
-        var version = 1
+    /// What is counted, the salt the apps are hashed with, and how many times everything was forgotten (`era`).
+    private struct State {
+        var record = Record()
         var salt: Data
-        var since: String?
-        var days: [String: Day] = [:]
-
-        init(salt: Data) { self.salt = salt }
+        var era = 0
     }
 
-    /// One day's counts: each command's runs, the apps (salted hashes), the clipboard history pastes, the characters
-    /// typed.
+    /// A command as the week ranks it: the same name from two sources is two.
+    private struct CommandKey: Hashable {
+        var id: String
+        var source: CommandSource
+    }
+
+    // MARK: - The file
+
+    /// What is kept: which salt the apps were hashed with (`saltCheck`, written with the file), the first day counted
+    /// (`since`), and the days.
+    private struct Record: Codable {
+        var version = 2
+        var saltCheck: String?
+        var since: String?
+        var days: [String: Day] = [:]
+    }
+
+    /// One day's counts: each command's runs by its source (`CommandSource`'s raw value) and name, the runs of the
+    /// earlier commands (since deleted or renamed: `keepCommands`) by their source, the apps (salted hashes), the
+    /// clipboard history pastes, the characters typed.
     private struct Day: Codable {
-        var commands: [String: Runs] = [:]
+        var commands: [String: [String: Runs]] = [:]
+        var earlier: [String: Runs] = [:]
         var apps: [String] = []
         var clipboardPastes = 0
         var charactersTyped = 0
@@ -313,23 +407,34 @@ public final class WeekStats: @unchecked Sendable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            commands = try container.decodeIfPresent([String: Runs].self, forKey: .commands) ?? [:]
+            commands = try container.decodeIfPresent([String: [String: Runs]].self, forKey: .commands) ?? [:]
+            earlier = try container.decodeIfPresent([String: Runs].self, forKey: .earlier) ?? [:]
             apps = try container.decodeIfPresent([String].self, forKey: .apps) ?? []
             clipboardPastes = max(try container.decodeIfPresent(Int.self, forKey: .clipboardPastes) ?? 0, 0)
             // A file from before 0.7.4's characters has none; one made by hand can't make a week's sum overflow.
             charactersTyped = min(max(try container.decodeIfPresent(Int.self, forKey: .charactersTyped) ?? 0, 0), Int(Int32.max))
         }
 
-        var runCount: Int { commands.values.reduce(0) { $0 + $1.runs } }
+        var runCount: Int {
+            let named = commands.values.reduce(0) { sum, runs in runs.values.reduce(sum) { $0 + $1.runs } }
+            return earlier.values.reduce(named) { $0 + $1.runs }
+        }
     }
 
     private struct Runs: Codable {
-        var source: CommandSource
         var runs = 0
         /// Of them, those that sent a request to an AI provider.
         var ai = 0
 
-        init(source: CommandSource) { self.source = source }
+        mutating func add(usedAI: Bool) {
+            runs += 1
+            if usedAI { ai += 1 }
+        }
+
+        mutating func add(_ other: Runs) {
+            runs += other.runs
+            ai += other.ai
+        }
     }
 }
 
@@ -381,7 +486,8 @@ extension WeekStats {
             public var count: Int
         }
 
-        /// The commands after the first `topLimit`: how many, and their runs together.
+        /// The commands after the first `topLimit`: how many, and their runs together (the earlier commands of a source,
+        /// since deleted or renamed, as one).
         public struct OtherCommands: Equatable, Sendable {
             public var count: Int
             public var total: Int

@@ -17056,49 +17056,49 @@
         }
       }
     },
-    "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts and models. What you forget can be learned again." : {
-      "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数和模型。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
+    "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts, models and command names. What you forget can be learned again." : {
+      "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数、模型和命令名。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nur auf diesem Mac gespeichert, nie synchronisiert und nie, was du tippst: nur Apps, Eingaben, Zählungen und Modelle. Was du vergisst, kann wieder gelernt werden."
+            "value" : "Nur auf diesem Mac gespeichert, nie synchronisiert und nie, was du tippst: nur Apps, Eingaben, Zählungen, Modelle und Befehlsnamen. Was du vergisst, kann wieder gelernt werden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se guarda solo en este Mac, nunca se sincroniza y nunca guarda lo que escribes: solo apps, entradas, recuentos y modelos. Lo que olvides puede volver a aprenderse."
+            "value" : "Se guarda solo en este Mac, nunca se sincroniza y nunca guarda lo que escribes: solo apps, entradas, recuentos, modelos y nombres de comandos. Lo que olvides puede volver a aprenderse."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Conservé sur ce Mac uniquement, jamais synchronisé, et jamais ce que vous tapez : seulement des apps, des saisies, des décomptes et des modèles. Ce que vous oubliez peut être appris à nouveau."
+            "value" : "Conservé sur ce Mac uniquement, jamais synchronisé, et jamais ce que vous tapez : seulement des apps, des saisies, des décomptes, des modèles et des noms de commandes. Ce que vous oubliez peut être appris à nouveau."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacだけに保存され、同期されず、入力した文字も保存しません：保存するのはApp、入力、回数、モデルだけです。忘れたものはまた学習されることがあります。"
+            "value" : "このMacだけに保存され、同期されず、入力した文字も保存しません：保存するのはApp、入力、回数、モデル、コマンド名だけです。忘れたものはまた学習されることがあります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac에만 보관되고 동기화되지 않으며, 입력한 내용은 저장하지 않습니다. 앱, 입력, 횟수, 모델만 저장합니다. 잊은 내용은 다시 학습될 수 있습니다."
+            "value" : "이 Mac에만 보관되고 동기화되지 않으며, 입력한 내용은 저장하지 않습니다. 앱, 입력, 횟수, 모델, 명령 이름만 저장합니다. 잊은 내용은 다시 학습될 수 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fica só neste Mac, nunca é sincronizado e nunca guarda o que você digita: só apps, entradas, contagens e modelos. O que você esquecer pode ser aprendido de novo."
+            "value" : "Fica só neste Mac, nunca é sincronizado e nunca guarda o que você digita: só apps, entradas, contagens, modelos e nomes de comandos. O que você esquecer pode ser aprendido de novo."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數和模型。忘掉的以後還會再學。"
+            "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數、模型和命令名稱。忘掉的以後還會再學。"
           }
         }
       }

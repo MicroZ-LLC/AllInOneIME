@@ -7,8 +7,8 @@ import UniformTypeIdentifiers
 /// This week's stats in the input method (`WeekStats`): the counts every text field adds to, the page's one preference,
 /// and the picture copied or saved.
 enum WeekStatsShared {
-    /// The counts on this Mac (~/Library/Application Support/AllInOneIME/usage.json, `WeekStatsStore`). The self-test and
-    /// the images use their own (`use`), never the user's.
+    /// The counts on this Mac (~/Library/Application Support/AllInOneIME/usage.json, `WeekStatsStore`, its salt in the
+    /// keychain). The self-test and the images use their own (`use`), never the user's.
     static var store: WeekStatsStore = WeekStatsStore()
     /// Settings → This Week's "Hide my command names in the image".
     static let preferences = WeekStatsPagePreferences()
@@ -18,20 +18,47 @@ enum WeekStatsShared {
     static func use(_ store: WeekStatsStore, icons: ((WeekStats.Snapshot.CommandCount) -> IconToken)? = nil) {
         self.store = store
         shownIcons = icons
+        isUsers = false
     }
 
     private static var shownIcons: ((WeekStats.Snapshot.CommandCount) -> IconToken)?
+    /// Whether `store` is the user's (not one `use` gave).
+    private static var isUsers = true
 
-    /// Each command's icon as the command list draws it, from the commands there are now (one gone since: its kind's).
-    /// The extensions as last indexed: nothing is scanned for it.
+    /// The user's own commands deleted or renamed since they ran keep no name in the stats: their runs are kept among the
+    /// earlier commands (`WeekStats.keepCommands`), by the config as it is (nothing while it doesn't parse). At launch,
+    /// when the config changes (`LiveConfig.parsedAnew`) and before the week is shown or copied; never in a store `use`
+    /// gave.
+    static func keepOwnCommands() {
+        guard isUsers, let config = LiveConfig.currentIfValid else { return }
+        store.stats.keepCommands(Set(config.customCommands.map(\.name)), from: .own)
+    }
+
+    /// `week` as it is now, shown or copied (`keepOwnCommands` first).
+    static func snapshot(_ week: WeekStats.Week) -> WeekStats.Snapshot {
+        keepOwnCommands()
+        return store.stats.snapshot(for: week)
+    }
+
+    /// A command by its name and where it comes from: the stats count the same name from two sources apart.
+    private struct CommandName: Hashable {
+        var id: String
+        var source: WeekStats.CommandSource
+    }
+
+    /// Each command's icon as the command list draws it, from the commands there are now (one gone since, or now from
+    /// elsewhere: its kind's). The extensions as last indexed: nothing is scanned for it.
     static func icons(_ config: Config = LiveConfig.current) -> (WeekStats.Snapshot.CommandCount) -> IconToken {
         if let shownIcons { return shownIcons }
         let index = LiveExtensions.current(config)
         let catalog = Command.catalog(config.customCommands, plugins: LivePlugins.current(),
                                       scripts: index.enabled(config.disabledExtensions),
                                       snippets: index.enabledSnippets(config.disabledExtensions))
-        let byName = Dictionary(catalog.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
-        return { command in byName[command.id].map(IconToken.command) ?? WeekStatsCard.builtInIcon(command) }
+        let byName = Dictionary(catalog.map { (CommandName(id: $0.name, source: WeekStats.CommandSource($0)), $0) },
+                                uniquingKeysWith: { first, _ in first })
+        return { command in
+            byName[CommandName(id: command.id, source: command.source)].map(IconToken.command) ?? WeekStatsCard.builtInIcon(command)
+        }
     }
 
     /// The week's picture on the clipboard, in the appearance the Mac is in, the user's names hidden if they asked
@@ -39,7 +66,7 @@ enum WeekStatsShared {
     @MainActor @discardableResult
     static func copyImage(_ week: WeekStats.Week = .current) -> Bool {
         do {
-            try WeekStatsShareImage.copy(week: store.stats.snapshot(for: week), language: UIText.language,
+            try WeekStatsShareImage.copy(week: snapshot(week), language: UIText.language,
                                          hideOwnCommandNames: preferences.hideOwnCommandNames,
                                          appearance: .current, icon: icons())
             return true
@@ -50,17 +77,24 @@ enum WeekStatsShared {
     }
 
     /// `@stats`'s ⌘C: `copyImage`, the picture made off the main thread once the key is answered, then put on the
-    /// clipboard there.
+    /// clipboard there; `done` told there whether it is.
     @MainActor
-    static func copyImageSoon() {
-        let (week, language, hide) = (store.stats.snapshot(for: .current), UIText.language, preferences.hideOwnCommandNames)
+    static func copyImageSoon(then done: @escaping @MainActor (Bool) -> Void) {
+        let (week, language, hide) = (snapshot(.current), UIText.language, preferences.hideOwnCommandNames)
         let (appearance, icon) = (WeekStatsShareImage.Appearance.current, icons())
         DispatchQueue.global(qos: .userInitiated).async {
             let png = try? WeekStatsShareImage.render(week: week, language: language, hideOwnCommandNames: hide,
                                                       appearance: appearance, icon: icon)
             DispatchQueue.main.async {
-                guard let png else { return NSLog("AllInOneIME: the week's picture couldn't be made") }
-                WeekStatsShareImage.put(png)
+                MainActor.assumeIsolated {
+                    guard let png else {
+                        NSLog("AllInOneIME: the week's picture couldn't be made")
+                        return done(false)
+                    }
+                    let copied = WeekStatsShareImage.put(png)
+                    if !copied { NSLog("AllInOneIME: the week's picture couldn't be put on the clipboard") }
+                    done(copied)
+                }
             }
         }
     }
@@ -68,7 +102,7 @@ enum WeekStatsShared {
     /// Save as Image…: the picture in a PNG where the user says (a save panel, over `window`).
     @MainActor
     static func saveImage(_ week: WeekStats.Week, over window: NSWindow?) {
-        let snapshot = store.stats.snapshot(for: week)
+        let snapshot = snapshot(week)
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.png]
         panel.canCreateDirectories = true
@@ -121,10 +155,14 @@ struct WeekStatsPage: View {
                     Spacer(minLength: 12)
                     Button(model.text.saveImageLabel) { model.save() }
                         .controlSize(.large)
-                    Button(model.copied ? model.text.imageCopied : model.text.copyImageLabel) { model.copy() }
+                    Button(model.copyLabel) { model.copy() }
                         .buttonStyle(.borderedProminent).controlSize(.large)
                 }
-                Text(model.text.privacyNote).font(.caption).foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(model.text.privacyNote)
+                    Text(model.text.keptNote)
+                }
+                .font(.caption).foregroundStyle(.secondary)
             }
             .padding(EdgeInsets(top: 20, leading: 24, bottom: 24, trailing: 24))
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -143,27 +181,28 @@ final class WeekStatsPageModel: ObservableObject {
     @Published var week: WeekStats.Week = .current {
         didSet { refresh() }
     }
-    @Published private(set) var snapshot = WeekStatsShared.store.stats.snapshot(for: .current)
+    @Published private(set) var snapshot = WeekStatsShared.snapshot(.current)
     @Published var hideOwnCommandNames = WeekStatsShared.preferences.hideOwnCommandNames {
         didSet { WeekStatsShared.preferences.hideOwnCommandNames = hideOwnCommandNames }
     }
-    /// Copy Image says it copied, for a moment.
-    @Published private(set) var copied = false
+    /// Copy Image says it copied (or couldn't), for a moment.
+    @Published private(set) var copied: Bool?
     private var icons = WeekStatsShared.icons()
 
     var text: WeekStatsText { WeekStatsText(snapshot, language: UIText.language) }
+    /// Copy Image's label, "Image copied" (or "Couldn't copy the image") for a moment after a click.
+    var copyLabel: String { copied.map { $0 ? text.imageCopied : text.imageNotCopied } ?? text.copyImageLabel }
     var card: WeekStatsCard { WeekStatsCard(week: snapshot, language: UIText.language, style: .page, icon: icons) }
 
     func refresh() {
-        let new = WeekStatsShared.store.stats.snapshot(for: week)
+        let new = WeekStatsShared.snapshot(week)
         if new != snapshot { snapshot = new }
     }
 
     func copy() {
         icons = WeekStatsShared.icons()
-        guard WeekStatsShared.copyImage(week) else { return }
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.copied = false }
+        copied = WeekStatsShared.copyImage(week)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in self?.copied = nil }
     }
 
     func save() {
