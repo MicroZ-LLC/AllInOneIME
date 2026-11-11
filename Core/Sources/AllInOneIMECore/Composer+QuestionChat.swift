@@ -137,8 +137,14 @@ extension Composer {
         }
         guard showsHandoff, let digit = event.charactersIgnoringModifiers.first?.wholeNumberValue,
               event.charactersIgnoringModifiers.count == 1, digit >= 1 else { return nil }
-        guard handoffChoices.indices.contains(digit - 1) else { return .consumed() }
-        return .consumed(handOff(to: handoffChoices[digit - 1]))
+        return .consumed(handOff(digit: digit))
+    }
+
+    /// Goes on where the choice `digit` (one-based: ⌘1, ⌘2 …) of those shown is: what its ⌘digit does, and a click on it
+    /// in the panel (`SessionEvent.handoff`). Nothing while they aren't shown, or past them.
+    public func handOff(digit: Int) -> [Effect] {
+        guard showsHandoff, handoffChoices.indices.contains(digit - 1) else { return [] }
+        return handOff(to: handoffChoices[digit - 1])
     }
 
     /// Goes on with the conversation in `destination`: the selected text and the screenshot's text the first question was

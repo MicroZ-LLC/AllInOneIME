@@ -41,6 +41,10 @@ struct CandidatePanelLayoutTests {
     @Test func aConversationStaysPutWhileItsNextQuestionsPinyinIsComposed() throws {
         try LayoutChild.run("conversation")
     }
+
+    @Test func whereAConversationGoesOnIsKeysToClickAboveTheRows() throws {
+        try LayoutChild.run("handoff")
+    }
 }
 
 private enum LayoutChild {
@@ -180,7 +184,7 @@ private enum LayoutChild {
         /// What a click at `point` picks.
         static func click(_ panel: CandidatePanel, at point: NSPoint) -> [Int] {
             var picked: [Int] = []
-            panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil))
+            panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: nil))
             panel.view.mouseDown(with: event(.leftMouseDown, panel, at: point))
             return picked
         }
@@ -257,7 +261,7 @@ private enum LayoutChild {
 
             // The wheel over the candidates' line moves the list as anywhere on the panel.
             var steps: [Int] = []
-            panel.take(by: panel, .init(select: nil, delete: nil, scroll: { steps.append($0) }, chip: nil))
+            panel.take(by: panel, .init(select: nil, delete: nil, scroll: { steps.append($0) }, chip: nil, handoff: nil))
             if let wheel = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0),
                let event = NSEvent(cgEvent: wheel) {
                 view.scrollWheel(with: event)
@@ -608,6 +612,48 @@ private enum LayoutChild {
         }
     }
 
+    extension Layout {
+        /// Where an @question conversation can go on, on top: its title, then each choice its key on a small keycap (the
+        /// footer's) and its name, three a line with five, all above the rows. The pointer over one highlights it and no
+        /// row; a click on it goes on there by its place, as its ⌘digit would, and picks no row.
+        static func handoff() {
+            let panel = CandidatePanel()
+            let view = panel.view
+            var model = chat(rounds: 2)
+            model.handoff = PanelModel.Handoff(title: "2 rounds in: continue in Claude or another AI", choices: [
+                .init(shortcut: "⌘1", name: "Claude Code"), .init(shortcut: "⌘2", name: "Gemini CLI"), .init(shortcut: "⌘3", name: "Claude"),
+                .init(shortcut: "⌘4", name: "ChatGPT"), .init(shortcut: "⌘5", name: "Copy")])
+            panel.show(model, anchor: high)
+            let targets = view.handoffTargets, rows = spans(panel)
+            expect(targets.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"], "every choice, in order: \(targets.map(\.shortcut))")
+            expect(rows.keys.sorted() == [1, 3], "the answers under the pointer: \(rows.keys.sorted())")
+            guard targets.count == 5, let first = rows[1] else { return }
+            let lines = targets.map(\.targetFrame.minY)
+            expect(Set(lines.prefix(3)).count == 1 && Set(lines.suffix(2)).count == 1 && lines[3] > lines[0],
+                   "three on the first line, two on the next: \(targets.map(\.targetFrame))")
+            for (index, target) in targets.enumerated() {
+                let digit = index + 1
+                expect(target.keycapFrame.height == CandidateView.Metrics.smallKeycapHeight && target.targetFrame.contains(target.keycapFrame),
+                       "⌘\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
+                expect(view.bounds.contains(target.targetFrame) && target.targetFrame.maxY < first.lowerBound,
+                       "⌘\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
+                if index % 3 != 0 {
+                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌘\(digit) apart from the one before it")
+                }
+                let point = NSPoint(x: target.targetFrame.midX, y: target.targetFrame.midY)
+                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌘\(digit) highlights it, no row")
+                var digits: [Int] = [], picked: [Int] = []
+                panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: { digits.append($0) }))
+                view.mouseDown(with: event(.leftMouseDown, panel, at: point))
+                expect(digits == [digit] && picked.isEmpty, "a click on ⌘\(digit) goes on there, no row picked: \(digits) \(picked)")
+            }
+            // Gone again (Esc): nothing of them left to click, the answers still are.
+            panel.show(chat(rounds: 2), anchor: high)
+            expect(view.handoffTargets.isEmpty && spans(panel).keys.sorted() == [1, 3], "without them, the answers as before")
+            panel.hide()
+        }
+    }
+
     extension PanelModel {
         func with(header: [String]) -> PanelModel {
             var model = self
@@ -629,6 +675,7 @@ private enum LayoutChild {
             case "width": Layout.width()
             case "row": Layout.row()
             case "conversation": Layout.conversation()
+            case "handoff": Layout.handoff()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)

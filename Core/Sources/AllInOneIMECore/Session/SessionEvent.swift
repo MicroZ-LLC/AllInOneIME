@@ -23,6 +23,9 @@ public enum SessionEvent: Sendable {
     /// the highlighted one (`Composer.deleteCandidate`). Nothing on clipboard history's rows, suggestions', or a row that
     /// isn't a candidate.
     case delete(Int)
+    /// One of where a conversation can go on (`PanelModel.handoff`) clicked, by its place (one-based): it goes on there as
+    /// its ⌘digit does (`Composer.handOff(digit:)`).
+    case handoff(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
     /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)

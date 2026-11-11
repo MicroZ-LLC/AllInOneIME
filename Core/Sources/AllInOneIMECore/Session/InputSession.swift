@@ -252,6 +252,8 @@ public final class InputSession {
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.deleteClicked(choice))
+            case let .handoff(digit):
+                perform(composer.handOff(digit: digit))
             case let .scroll(steps):
                 panelWheelAt = services.uptime()
                 // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.

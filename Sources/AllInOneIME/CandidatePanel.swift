@@ -251,9 +251,9 @@ final class CandidatePanel: NSPanel {
 }
 
 /// Draws the candidate list: the core's `PanelModel`, with the icons as the Mac draws them (`Icon`), its caret as "▏"
-/// and the choices where a conversation can go on as lines of text (`PanelModel.inputText`). Layout is computed when the
-/// model changes; drawing is appearance-aware. Every list looks one way: the highlighted row a soft wash of the system's
-/// accent color, the numbers on keycaps, the footer a few keys on keycaps; stronger with Increase contrast (`palette`).
+/// and where a conversation can go on as keys to press or click (`handoffTargets`). Layout is computed when the model
+/// changes; drawing is appearance-aware. Every list looks one way: the highlighted row a soft wash of the system's accent
+/// color, the numbers on keycaps, the footer a few keys on keycaps; stronger with Increase contrast (`palette`).
 final class CandidateView: NSView {
     /// An SF Symbol, drawn in `color` on a square of it, lightly tinted.
     struct Icon: Equatable {
@@ -308,6 +308,12 @@ final class CandidateView: NSView {
         static let hintGap: CGFloat = 14
         /// The sentence as typed, above the results (row 0): the room its hairline takes under it.
         static let headerRowGap: CGFloat = 5
+        /// Where a conversation can go on (`PanelModel.handoff`): the room around each one's keycap and name (all of it
+        /// takes a click), between two, and under the title.
+        static let handoffInsetX: CGFloat = 4
+        static let handoffInsetY: CGFloat = 3
+        static let handoffGap: CGFloat = 6
+        static let handoffTitleGap: CGFloat = 2
         /// The pinyin candidates' pills (`PanelModel.candidates`).
         static let pillHeight: CGFloat = 24
         static let pillInsetX: CGFloat = 8
@@ -341,6 +347,8 @@ final class CandidateView: NSView {
         static let lead = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         static let pill = NSFont.systemFont(ofSize: 14)
         static let pillLabel = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        /// Where a conversation can go on: each one's name, after its key.
+        static let handoff = NSFont.systemFont(ofSize: 13)
 
         /// The text's font; the highlighted row's a little heavier (rows are measured with it: as wide either way).
         static func text(for kind: PanelModel.Row.Kind, selected: Bool = false) -> NSFont {
@@ -522,6 +530,10 @@ final class CandidateView: NSView {
     private(set) var hoveredChip: ChipPart? {
         didSet { if hoveredChip != oldValue { needsDisplay = true } }
     }
+    /// Where a conversation can go on under the pointer (its index in `handoffTargets`), drawn lightly highlighted.
+    private(set) var hoveredHandoff: Int? {
+        didSet { if hoveredHandoff != oldValue { needsDisplay = true } }
+    }
     /// Where the chip's parts are (its source, the arrow, its target), and the whole of it.
     private(set) var chipFrames: (source: NSRect, arrow: NSRect, target: NSRect, whole: NSRect)?
     /// Scrolling not yet a whole row (a trackpad's small steps add up).
@@ -539,7 +551,20 @@ final class CandidateView: NSView {
     /// (`side`). Their pills, and what Space does at the line's end.
     private(set) var candidatesFrame: NSRect?
     private var pills: [(frame: NSRect, label: String, text: String)] = []
+    /// Where a conversation can go on (`PanelModel.handoff`), on top: its title, then each choice as a click takes it.
+    struct HandoffTarget {
+        var shortcut: String
+        var name: String
+        /// Its shortcut ("⌘1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
+        /// after it and the room around them.
+        var keycapFrame: NSRect
+        var targetFrame: NSRect
+    }
+    private var handoffTitleFrame: NSRect?
+    private(set) var handoffTargets: [HandoffTarget] = []
     private var inputFrame: NSRect?
+    /// The hairline under what is on top (where a conversation can go on, the line of input): its y; nil: neither.
+    private var topRuleY: CGFloat?
     /// The rows on their way (`PanelModel.pending`): each one's place, its keycap's and its bar's.
     private var skeletons: [(frame: NSRect, keycap: NSRect?, bar: NSRect)] = []
     /// A light passing over the bars while they wait (none with Reduce Motion).
@@ -610,6 +635,13 @@ final class CandidateView: NSView {
                 && model.candidates == nil
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
+        handoffTitleFrame = nil
+        handoffTargets = []
+        if let handoff = model.handoff {
+            let laidOut = layoutHandoff(handoff, top: y)
+            widest = max(widest, laidOut.width + p + Metrics.rowInsetX - inset)
+            y = laidOut.bottom
+        }
         inputFrame = nil
         if let input = inputString() {
             let size = Self.measure(input, minHeight: 0)
@@ -617,6 +649,7 @@ final class CandidateView: NSView {
             inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
+        topRuleY = model.handoff != nil || inputFrame != nil ? y : nil
         // The pinyin candidates shown with the rows, on the side nearest the caret (`side`): a strip of pills, the y under it.
         candidatesFrame = nil
         pills = []
@@ -728,7 +761,8 @@ final class CandidateView: NSView {
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now (the pointer asked once, for both).
         let location = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
-        (hovered, hoveredChip) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)))
+        (hovered, hoveredChip, hoveredHandoff) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)),
+                                                  location.flatMap(handoffTarget(at:)))
     }
 
     /// The chip at the top left: its source and target parts, the arrow between them, one line.
@@ -740,6 +774,39 @@ final class CandidateView: NSView {
         let arrowFrame = NSRect(x: sourceFrame.maxX, y: top, width: ceil(arrow.size().width), height: height)
         let targetFrame = NSRect(x: arrowFrame.maxX, y: top, width: ceil(target.size().width) + 2 * Metrics.chipInsetX, height: height)
         return (sourceFrame, arrowFrame, targetFrame, sourceFrame.union(targetFrame))
+    }
+
+    /// Where a conversation can go on, from `top`: its title, then its choices, each its key on a small keycap and its
+    /// name, up to 4 on a line (more, 3 a line, so the panel stays as wide). The y under them, and how wide they are from
+    /// the text's left.
+    private func layoutHandoff(_ handoff: PanelModel.Handoff, top: CGFloat) -> (bottom: CGFloat, width: CGFloat) {
+        let left = Metrics.padding + Metrics.rowInsetX
+        let title = Self.measure(handoffTitle(handoff), minHeight: 0)
+        handoffTitleFrame = NSRect(x: left, y: top + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: title.height)
+        var width = title.width
+        var y = top + Metrics.rowInsetY + title.height + (handoff.choices.isEmpty ? 0 : Metrics.handoffTitleGap)
+        let font = Fonts.handoff
+        let lineHeight = max(Metrics.smallKeycapHeight, ceil(font.ascender - font.descender + font.leading)) + 2 * Metrics.handoffInsetY
+        let perLine = handoff.choices.count <= 4 ? 4 : 3
+        var x = left - Metrics.handoffInsetX
+        for (index, choice) in handoff.choices.enumerated() {
+            if index > 0, index % perLine == 0 {
+                x = left - Metrics.handoffInsetX
+                y += lineHeight
+            } else if index > 0 {
+                x += Metrics.handoffGap
+            }
+            let key = Self.smallKeycapWidth(choice.shortcut)
+            let target = NSRect(x: x, y: y, width: Metrics.handoffInsetX * 2 + key + 5 + ceil(Self.width(choice.name, font)), height: lineHeight)
+            let keycap = NSRect(x: target.minX + Metrics.handoffInsetX, y: (target.midY - Metrics.smallKeycapHeight / 2).rounded(),
+                                width: key, height: Metrics.smallKeycapHeight)
+            handoffTargets.append(HandoffTarget(shortcut: choice.shortcut, name: choice.name, keycapFrame: keycap, targetFrame: target))
+            x = target.maxX
+            width = max(width, target.maxX - Metrics.handoffInsetX - left)
+        }
+        // The room under the last line: the rows' less what the targets have around them already.
+        if !handoff.choices.isEmpty { y += lineHeight - Metrics.handoffInsetY }
+        return (y + Metrics.rowInsetY, width)
     }
 
     /// The pinyin candidates ("1 你好   2 拟好 …") as pills in one line, from its left, and how wide the line is with what
@@ -985,7 +1052,12 @@ final class CandidateView: NSView {
     }
 
     private func inputString() -> NSAttributedString? {
-        model.inputText.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+        model.inputLine.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+    }
+
+    /// The title of where a conversation can go on, as small as the header's lines.
+    private func handoffTitle(_ handoff: PanelModel.Handoff) -> NSAttributedString {
+        NSAttributedString(string: handoff.title, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
     }
 
     private func headerString() -> NSAttributedString? {
@@ -1068,11 +1140,17 @@ final class CandidateView: NSView {
             }
         }
         let lineInset = Metrics.padding + Metrics.rowInsetX
+        if let handoffTitleFrame, let handoff = model.handoff {
+            handoffTitle(handoff).draw(with: handoffTitleFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        }
+        for (index, target) in handoffTargets.enumerated() {
+            drawHandoffTarget(target, hovered: index == hoveredHandoff, dark: dark)
+        }
         if let inputFrame, let input = inputString() {
             input.draw(with: inputFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
-            // Under it, a line as under a text being typed.
-            Self.hairline(y: inputFrame.maxY + Metrics.rowInsetY - 0.5, from: lineInset, to: bounds.width - lineInset)
         }
+        // Under them, a line as under a text being typed.
+        if let topRuleY { Self.hairline(y: topRuleY - 0.5, from: lineInset, to: bounds.width - lineInset) }
         if let headerFrame, let header = headerString() {
             header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
@@ -1083,7 +1161,7 @@ final class CandidateView: NSView {
         func radius(_ frame: NSRect) -> CGFloat { model.horizontal ? frame.height / 2 : Metrics.rowRadius }
         if let index = hovered, index != model.highlighted, rowLayouts.indices.contains(index) {
             let frame = rowLayouts[index].frame
-            accent.withAlphaComponent(dark ? 0.12 : 0.07).setFill()
+            Self.hoverFill(dark: dark).setFill()
             NSBezierPath(roundedRect: frame, xRadius: radius(frame), yRadius: radius(frame)).fill()
         }
         // Selected: what the key that picks takes. Moving, it slides there from the row it was on.
@@ -1244,12 +1322,23 @@ final class CandidateView: NSView {
         if !hint.key.isEmpty {
             let width = Self.smallKeycapWidth(hint.key)
             let key = NSRect(x: x, y: (origin.y - Metrics.smallKeycapHeight / 2).rounded(), width: width, height: Metrics.smallKeycapHeight)
-            Self.drawKeycap(hint.key, in: key, font: Fonts.key, radius: 4.5, fill: NSColor.labelColor.withAlphaComponent(dark ? 0.06 : 0.03),
-                            textColor: .secondaryLabelColor, stroke: NSColor.labelColor.withAlphaComponent(dark ? 0.28 : 0.2))
+            Self.drawSmallKeycap(hint.key, in: key, dark: dark)
             x += width + 5
         }
         let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
         text.draw(at: NSPoint(x: x, y: origin.y - text.size().height / 2))
+    }
+
+    /// One of where a conversation can go on: its key on a small keycap, as the footer's, and its name; under the pointer,
+    /// lightly highlighted as a row is (a click there does what its key does).
+    private func drawHandoffTarget(_ target: HandoffTarget, hovered: Bool, dark: Bool) {
+        if hovered {
+            Self.hoverFill(dark: dark).setFill()
+            NSBezierPath(roundedRect: target.targetFrame, xRadius: Metrics.keycapRadius, yRadius: Metrics.keycapRadius).fill()
+        }
+        Self.drawSmallKeycap(target.shortcut, in: target.keycapFrame, dark: dark)
+        let name = NSAttributedString(string: target.name, attributes: [.font: Fonts.handoff, .foregroundColor: NSColor.labelColor])
+        name.draw(at: NSPoint(x: target.keycapFrame.maxX + 5, y: target.targetFrame.midY - name.size().height / 2))
     }
 
     /// The highlighted row's (or pill's) wash in `frame`, and its border with Increase contrast (`palette`).
@@ -1262,6 +1351,17 @@ final class CandidateView: NSView {
         shape.lineWidth = palette.selectedBorderWidth
         border.setStroke()
         shape.stroke()
+    }
+
+    /// What the pointer is over (a row, where a conversation can go on): a lighter wash than the highlighted row's.
+    private static func hoverFill(dark: Bool) -> NSColor {
+        NSColor.controlAccentColor.withAlphaComponent(dark ? 0.12 : 0.07)
+    }
+
+    /// `key` on a small keycap (the footer's, where a conversation can go on), outlined.
+    private static func drawSmallKeycap(_ key: String, in frame: NSRect, dark: Bool) {
+        drawKeycap(key, in: frame, font: Fonts.key, radius: 4.5, fill: NSColor.labelColor.withAlphaComponent(dark ? 0.06 : 0.03),
+                   textColor: .secondaryLabelColor, stroke: NSColor.labelColor.withAlphaComponent(dark ? 0.28 : 0.2))
     }
 
     /// `key` centered on a rounded square (`frame`), filled, and outlined with a hairline when `stroke` is given.
@@ -1505,21 +1605,28 @@ final class CandidateView: NSView {
         return frames.source.contains(point) ? .source : frames.target.contains(point) ? .target : nil
     }
 
+    /// Where a conversation can go on at `point` (its index in `handoffTargets`), if any.
+    func handoffTarget(at point: NSPoint) -> Int? {
+        handoffTargets.firstIndex { $0.targetFrame.contains(point) }
+    }
+
     private func hover(_ event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        (hovered, hoveredChip) = (row(at: point), chipPart(at: point))
+        (hovered, hoveredChip, hoveredHandoff) = (row(at: point), chipPart(at: point), handoffTarget(at: point))
     }
 
     override func mouseMoved(with event: NSEvent) { hover(event) }
     override func mouseEntered(with event: NSEvent) { hover(event) }
-    override func mouseExited(with event: NSEvent) { (hovered, hoveredChip) = (nil, nil) }
+    override func mouseExited(with event: NSEvent) { (hovered, hoveredChip, hoveredHandoff) = (nil, nil, nil) }
 
-    /// A click picks the row as its digit would (`Composer.choose`), or a part of the chip (`pointer`); the text field
-    /// keeps the focus, the panel being non-activating and never key.
+    /// A click picks the row as its digit would (`Composer.choose`), a part of the chip, or where a conversation goes on as
+    /// its ⌘digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {
             pointer.chipClicked(part)
+        } else if let target = handoffTarget(at: point) {
+            pointer.handoffClicked(target + 1)
         } else if let index = row(at: point) {
             // A Control-click is a right-click.
             if event.modifierFlags.contains(.control) { pointer.rightClicked(index) } else { pointer.clicked(index) }
@@ -1579,9 +1686,17 @@ private final class ShimmerView: NSView {
 }
 
 extension PanelModel {
-    /// What the Mac draws on top, in the input line's font: where a conversation can go on, its title and its choices as
-    /// lines of text (up to 4 on a line, more 3 a line, so the panel stays as wide), then the line of input with "▏" at
-    /// its caret. Nil: neither.
+    /// The line of input as the Mac draws it, on top (under where a conversation can go on): its prompt and its text,
+    /// "▏" at its caret. Nil: none.
+    var inputLine: String? {
+        input.map { input in
+            input.prompt + (input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text)
+        }
+    }
+
+    /// What the Mac shows on top, as text: where a conversation can go on, its title and its choices as lines (up to 4 on
+    /// a line, more 3 a line, as they are laid out: each its key on a keycap and its name, `CandidateView.handoffTargets`),
+    /// then the line of input (`inputLine`). Nil: neither.
     var inputText: String? {
         var lines: [String] = []
         if let handoff {
@@ -1591,10 +1706,7 @@ extension PanelModel {
             lines.append(stride(from: 0, to: labels.count, by: perLine)
                 .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
         }
-        if let input {
-            let text = input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text
-            lines.append(input.prompt + text)
-        }
+        if let inputLine { lines.append(inputLine) }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 

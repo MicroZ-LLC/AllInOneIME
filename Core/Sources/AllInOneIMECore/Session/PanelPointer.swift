@@ -13,31 +13,36 @@
 public final class PanelPointer<ChipPart> {
     /// What the pointer does over the panel, nil where it does nothing: `select` a click on a row, `delete` a right-click
     /// (or a Control-click) on one, each with the row's index in the panel's rows; `scroll` the wheel or the trackpad over
-    /// the panel, rows to move (down positive; 0 short of a row); `chip` a click on a part of the chip.
+    /// the panel, rows to move (down positive; 0 short of a row); `chip` a click on a part of the chip; `handoff` a click
+    /// on one of where a conversation can go on (`PanelModel.handoff`), by its place (one-based, the digit of its ⌘digit).
     public struct Handlers {
         public var select: ((Int) -> Void)?
         public var delete: ((Int) -> Void)?
         public var scroll: ((Int) -> Void)?
         public var chip: ((ChipPart) -> Void)?
+        public var handoff: ((Int) -> Void)?
 
         /// Every one given, nil for none: none can be left out.
-        public init(select: ((Int) -> Void)?, delete: ((Int) -> Void)?, scroll: ((Int) -> Void)?, chip: ((ChipPart) -> Void)?) {
+        public init(select: ((Int) -> Void)?, delete: ((Int) -> Void)?, scroll: ((Int) -> Void)?, chip: ((ChipPart) -> Void)?,
+                    handoff: ((Int) -> Void)?) {
             self.select = select
             self.delete = delete
             self.scroll = scroll
             self.chip = chip
+            self.handoff = handoff
         }
 
         /// None: what no text field shows (a notice near the pointer).
-        public static var none: Handlers { Handlers(select: nil, delete: nil, scroll: nil, chip: nil) }
+        public static var none: Handlers { Handlers(select: nil, delete: nil, scroll: nil, chip: nil, handoff: nil) }
 
         /// What a text field's session shows, `send` handing the session an event: the wheel, always (`.scroll`); a click
-        /// and a right-click on a row (`.pick`, `.delete`) only where it shows rows to pick (`rows`: its candidates and
-        /// lists, not a notice or autocomplete's line); a click on the chip to `chip`.
+        /// and a right-click on a row (`.pick`, `.delete`) and a click on where a conversation can go on (`.handoff`) only
+        /// where it shows rows to pick (`rows`: its candidates and lists, not a notice or autocomplete's line); a click on
+        /// the chip to `chip`.
         public static func session(_ send: @escaping (SessionEvent) -> Void, rows: Bool = false,
                                    chip: ((ChipPart) -> Void)? = nil) -> Handlers {
             Handlers(select: rows ? { send(.pick($0)) } : nil, delete: rows ? { send(.delete($0)) } : nil,
-                     scroll: { send(.scroll($0)) }, chip: chip)
+                     scroll: { send(.scroll($0)) }, chip: chip, handoff: rows ? { send(.handoff($0)) } : nil)
         }
     }
 
@@ -59,4 +64,5 @@ public final class PanelPointer<ChipPart> {
     public func rightClicked(_ row: Int) { handlers.delete?(row) }
     public func scrolled(_ rows: Int) { handlers.scroll?(rows) }
     public func chipClicked(_ part: ChipPart) { handlers.chip?(part) }
+    public func handoffClicked(_ digit: Int) { handlers.handoff?(digit) }
 }

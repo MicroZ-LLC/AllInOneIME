@@ -125,7 +125,7 @@ two. What is structure is data, for each shell to lay out and draw its own way:
 | Field | What it is | The Mac draws it |
 |---|---|---|
 | `chip` | Translate as You Type's chip: the language typed and the one it goes into, each a part to click | a pill on top |
-| `handoff` | where an `@question` conversation can go on: a `title`, and `choices`, each a `shortcut` ("⌘1", "Ctrl+1") and a `name` | lines of text, four choices a line (three when there are more) |
+| `handoff` | where an `@question` conversation can go on: a `title`, and `choices`, each a `shortcut` ("⌘1", "Ctrl+1") and a `name` | its title small, then each choice its shortcut on a small keycap (the footer's) and its name, four a line (three when there are more); a click on one is `.handoff` |
 | `input` | the line of input: a `prompt` ("refine › "), the `text`, the `caret` in characters into it (nil: none, the command sent) | one line, "▏" at the caret |
 | `header` | lines above the rows, each its own: the selection, what the draft has attached (two for a screenshot), the refinements | one under the other, small |
 | `rows` | `label`, `text`, `comment`, `kind` (candidate, original, translation), `isComplete`, `icon`, `pickable`, `choice` | a column, or side by side (`horizontal`) |
@@ -136,7 +136,9 @@ two. What is structure is data, for each shell to lay out and draw its own way:
 
 A click on a row: the shell sends `.pick` with the row's index, and the session picks its `choice` (what
 `Composer.pickClicked` takes: the row's own index, a conversation's answer by its round, none for its question; while a
-follow-up's pinyin is composed after results, the result, not a candidate).
+follow-up's pinyin is composed after results, the result, not a candidate). A click on one of `handoff`'s choices: the
+shell sends `.handoff` with its place (one-based), and the session goes on there as its shortcut does
+(`Composer.handOff(digit:)`).
 
 An icon (`IconToken`) is a `color` and one `glyph`: `.builtin`, one of the core's own icons named for what it stands
 for (`IconToken.Builtin`: its names are the list a shell maps to its icon set; `appleSymbol` is each one's SF Symbol),

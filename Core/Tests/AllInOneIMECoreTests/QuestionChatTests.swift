@@ -416,6 +416,26 @@ struct QuestionChatTests {
         #expect(e.handleKeyDown(command(9)) == .consumed() && e.isLevelTwo)
     }
 
+    /// A click on one of them in the panel: the panel's pointer hands the session its place (`SessionEvent.handoff`), and
+    /// it does what its ⌘digit does; nothing while they aren't shown, or past them.
+    @Test func aClickOnWhereToGoOnDoesWhatItsCommandDigitDoes() {
+        var sent: [Int] = []
+        let handlers = PanelPointer<Int>.Handlers.session({ if case let .handoff(digit) = $0 { sent.append(digit) } }, rows: true)
+        handlers.handoff?(4)
+        #expect(sent == [4])
+        #expect(PanelPointer<Int>.Handlers.session({ _ in }).handoff == nil, "nothing to click where no rows are shown")
+
+        let c = asked(rounds: 2), d = asked(rounds: 2)
+        #expect(c.handOff(digit: 1).isEmpty && c.isLevelTwo, "not shown yet")
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        followUp(d, "who made it", reply: "Graydon Hoare.")
+        let key = d.handleKeyDown(command(4)).effects
+        #expect(c.handOff(digit: 4) == key && key.contains(.notice(c.chatMessages.copiedConversation)) && c.phase == .idle)
+        let e = asked(rounds: 2)
+        followUp(e, "who made it", reply: "Graydon Hoare.")
+        #expect(e.handOff(digit: 9).isEmpty && e.isLevelTwo)
+    }
+
     @Test func commandReturnShowsTheChoicesAtAnyRoundAndEscHidesThem() {
         let c = asked()
         // Not shown: ⌘1 is the app's.
