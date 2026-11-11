@@ -107,6 +107,8 @@ public struct PanelPresenter {
         // An @question conversation: its questions and answers, the next question's line (its pinyin's candidates on a
         // line of their own).
         if composer.isQuestionChat { return chatModel(for: composer) }
+        // A command's list, shown a page at a time from this row (`ListPage`): all its rows are made, then the page cut.
+        var pagedFrom: Int?
         if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
@@ -186,6 +188,7 @@ public struct PanelPresenter {
                 model.rows[index].pickable = Composer.picks(choice)
             }
             model.highlighted = composer.highlighted
+            if composer.choicesArePaged { pagedFrom = composer.choicesFirstShown }
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
@@ -377,6 +380,7 @@ public struct PanelPresenter {
                     kind: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
+            pagedFrom = composer.listFirstShown
             if list.items.isEmpty { model.status = .hint(t.tr("没有结果", "No results")) }
             let key = name(composer.actionKey)
             model.footer = t.tr("\(key) 选中这一项 · ↑↓ 选择 · Tab 补全 · \(copy) 复制 · Esc 取消",
@@ -389,6 +393,7 @@ public struct PanelPresenter {
                            icon: IconToken.item(result))
             }
             model.highlighted = composer.liveHighlight
+            pagedFrom = composer.liveFirstShown
             // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
             model.footer = composer.opensLiveResult
                 ? t.tr("\(enter) 打开 · Tab 补全路径 · ↑↓ 选择 · \(copy) 复制路径 · Esc 取消",
@@ -404,6 +409,7 @@ public struct PanelPresenter {
                     kind: .candidate)
             }
             model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
+            pagedFrom = composer.recipientFirstShown
             if let note = composer.recipientNote { model.status = .hint(note) }
             model.footer = t.tr("\(enter) / Tab 选择收件人 · ↑↓ · Esc 取消", "\(enter) / Tab pick the recipient · ↑↓ · Esc cancel")
         } else if !composer.questionMatches.isEmpty {
@@ -437,12 +443,32 @@ public struct PanelPresenter {
             + SessionText.attachmentHeader(composer, language: language, terms: terms)
             + [SessionText.refineHeader(composer, language: language)].compactMap { $0 }
         candidatesLine(composer, into: &model)
-        // A click on a row picks what its number would.
-        for index in model.rows.indices { model.rows[index].choice = index }
+        // A command's list on more than a page: the page shown, which rows they are on the right, the keys that turn it.
+        var firstRow = 0
+        if let first = pagedFrom, ListPage.turns(model.rows.count) {
+            let count = model.rows.count, window = ListPage.window(first: first, count: count)
+            model.rows = Array(model.rows[window])
+            model.highlighted = model.highlighted.flatMap { window.contains($0) ? $0 - window.lowerBound : nil }
+            firstRow = window.lowerBound
+            model.detail = [ListPage.position(window, count: count), model.detail].compactMap { $0 }.joined(separator: " · ")
+            pageKeys(&model)
+        }
+        // A click on a row picks what its number would (on a page of a list, the row's place in the whole list).
+        for index in model.rows.indices { model.rows[index].choice = firstRow + index }
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.
         if composer.inModeComposition { model.chip = chip().map { PanelModel.Chip($0, language: language) } }
         return model
+    }
+
+    /// The keys of a list on more than a page (`ListPage`): "← → page" in the footer after its ↑↓ (else after its first
+    /// key), and second among its keycaps where it has its own.
+    private func pageKeys(_ model: inout PanelModel) {
+        let keys = t.tr("← → 翻页", "← → page")
+        var parts = model.footer.isEmpty ? [] : model.footer.components(separatedBy: " · ")
+        parts.insert(keys, at: parts.firstIndex { $0.hasPrefix("↑↓") }.map { $0 + 1 } ?? min(1, parts.count))
+        model.footer = parts.joined(separator: " · ")
+        if !model.hints.isEmpty { model.hints.insert(PanelModel.Hint("← →", t.tr("翻页", "page")), at: min(1, model.hints.count)) }
     }
 
     // MARK: - One @

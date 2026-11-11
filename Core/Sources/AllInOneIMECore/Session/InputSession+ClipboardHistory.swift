@@ -31,7 +31,7 @@ struct ClipboardHistoryField {
     var rows: [Row] = []
     var chosen = 0
     var anchor: Int?
-    /// The first row shown (5 at a time, as suggestions' rows).
+    /// The first row shown (a page of `ListPage.size` at a time, as a command's list).
     var top = 0
     /// The panel shows the rows; a command's text takes the row (else it goes into the field); the first showing on
     /// this device (its footer says where the history is kept); ⌃V can go to the app for the image row, as the shell
@@ -153,8 +153,8 @@ extension InputSession {
     }
 
     /// While the panel shows: ↓ ↑ move the choice around the ends (a selection ends), ⇧↓ ⇧↑ extend the selection from the
-    /// row chosen when it started, ⏎ keypad Enter and Tab put in what is selected, → and Esc hide the panel, ⌃V again hides
-    /// it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
+    /// row chosen when it started, with more rows than a page ← → turn it (`ListPage`; a selection ends), ⏎ keypad Enter
+    /// and Tab put in what is selected, Esc (and → on one page) hide the panel, ⌃V again hides it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
     /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command the
     /// composer's: nil), ⌃⌦ with pinyin composed only hides it. Any other key hides it and goes on (nil): digits are typed, never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
@@ -178,6 +178,17 @@ extension InputSession {
                 clipboard.chosen = (clipboard.chosen + (down ? 1 : -1) + count) % count
             }
             clipboardReveal()
+            emit(.panel(clipboardPanel()))
+            return true
+        }
+        // More rows than a page: ← → the page before or after, its first row chosen; at the first ← and at the last → stay.
+        let leftOrRight = event.key == .arrow(.left) || event.key == .arrow(.right)
+        if leftOrRight, modifiers.isEmpty, ListPage.turns(clipboard.rows.count) {
+            clipboardTookKey()
+            if !clipboard.command { emit(.rowsTookKey) }
+            if let next = ListPage.turned(event.key == .arrow(.left) ? -1 : 1, first: clipboard.top, count: clipboard.rows.count) {
+                (clipboard.top, clipboard.chosen, clipboard.anchor) = (next, next, nil)
+            }
             emit(.panel(clipboardPanel()))
             return true
         }
@@ -242,15 +253,9 @@ extension InputSession {
         return true
     }
 
-    /// The rows shown moved just enough to have the chosen one among them.
+    /// The rows shown moved just enough to have the chosen one among them (`ListPage.first`).
     private func clipboardReveal() {
-        let shown = Self.shownSuggestionRows
-        if clipboard.chosen < clipboard.top {
-            clipboard.top = clipboard.chosen
-        } else if clipboard.chosen >= clipboard.top + shown {
-            clipboard.top = clipboard.chosen - shown + 1
-        }
-        clipboard.top = min(max(clipboard.top, 0), max(clipboard.rows.count - shown, 0))
+        clipboard.top = ListPage.first(top: clipboard.top, chosen: clipboard.chosen, count: clipboard.rows.count)
     }
 
     /// The rows selected (⇧↓ ⇧↑ from `anchor` to the chosen one), in the panel's order; else the chosen row.
@@ -347,14 +352,14 @@ extension InputSession {
 
     // MARK: - The panel
 
-    /// The panel while it shows: 5 rows at a time from `top`, the chosen one drawn selected, "✓" on those selected, no
-    /// number on a row (digits are typed); the keys in the footer (the first showing: where it's kept, how to turn it off),
-    /// on its right "Clipboard" with how many are selected and which rows show, or the notice.
+    /// The panel while it shows: a page of rows from `top` (`ListPage`), the chosen one drawn selected, "✓" on those
+    /// selected, no number on a row (digits are typed); the keys in the footer (the first showing: where it's kept, how to
+    /// turn it off), on its right "Clipboard" with how many are selected and which rows show, or the notice.
     func clipboardPanel() -> PanelModel? {
         guard clipboard.shown, !clipboard.rows.isEmpty else { return nil }
         let t = InterfaceWords(language: UIText.language)
-        let (all, shown) = (clipboard.rows.count, Self.shownSuggestionRows)
-        let window = clipboard.top..<min(clipboard.top + shown, all)
+        let all = clipboard.rows.count, paged = ListPage.turns(all)
+        let window = ListPage.window(first: ListPage.first(top: clipboard.top, chosen: clipboard.chosen, count: all), count: all)
         let selection = clipboardSelection()
         // Several selected: the texts among them, which go in (an image goes in alone, so it isn't marked).
         let texts = selection.filter { !clipboard.rows[$0].isImage && clipboard.rows[$0] != .permission }
@@ -374,13 +379,18 @@ extension InputSession {
             footer = t.tr("只存在这台 Mac 上；在设置 →「通用」→「剪贴板历史」里可以关掉",
                           "Kept on this Mac only; turn it off in Settings → General → Clipboard history")
         } else if !selected.isEmpty {
-            footer = t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides")
+            // More rows than a page: ← → turn it, Esc alone hides.
+            footer = paged
+                ? t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides")
+                : t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides")
         } else {
-            footer = t.tr("\(enter) 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
+            footer = paged
+                ? t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · ⇧↓ 多选 · Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ← → page · ⇧↓ selects more · Esc hides")
+                : t.tr("\(enter) 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
         }
         var detail = t.tr("剪贴板", "Clipboard")
         if !selected.isEmpty { detail += t.tr(" · 已选 \(selected.count) 条", " · \(selected.count) selected") }
-        if all > shown { detail += " · \(window.lowerBound + 1)–\(window.upperBound) / \(all)" }
+        if let position = ListPage.position(window, count: all) { detail += " · " + position }
         let highlighted = window.contains(clipboard.chosen) ? clipboard.chosen - window.lowerBound : nil
         return PanelModel(rows: rows, highlighted: highlighted, footer: footer, detail: notice ?? detail)
     }

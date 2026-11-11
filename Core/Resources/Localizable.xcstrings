@@ -3766,6 +3766,53 @@
         }
       }
     },
+    "%@ inserts · ↑↓ to pick · ← → page · ⇧↓ selects more · Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ← → 翻页 · ⇧↓ 多选 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ← → blättern · ⇧↓ wählt mehr · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ← → pasar página · ⇧↓ elige más · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ← → changer de page · ⇧↓ en choisit plus · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ← → でページ送り · ⇧↓ で複数選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ← → 페이지 넘기기 · ⇧↓ 여러 개 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ← → mudam de página · ⇧↓ escolhe mais · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ← → 翻頁 · ⇧↓ 多選 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides" : {
       "comment" : "%@ 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -3809,6 +3856,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 插入 · ↑↓ 選擇 · ⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides" : {
+      "comment" : "%@ 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt sie ein, je eine Zeile · ⇧↑⇧↓ wählen · ← → blättern · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ los inserta, uno por línea · ⇧↑⇧↓ eligen · ← → pasar página · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ les insère, un par ligne · ⇧↑⇧↓ choisissent · ← → changer de page · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で1行ずつ挿入 · ⇧↑⇧↓ で選択 · ← → でページ送り · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 한 줄에 하나씩 삽입 · ⇧↑⇧↓ 선택 · ← → 페이지 넘기기 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere, um por linha · ⇧↑⇧↓ escolhem · ← → mudam de página · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 一行一條插入 · ⇧↑⇧↓ 多選 · ← → 翻頁 · Esc 隱藏"
           }
         }
       }
@@ -6490,6 +6584,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%%.1f 秒：%%@%%@"
+          }
+        }
+      }
+    },
+    "← → page" : {
+      "comment" : "← → 翻页 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → blättern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → pasar página"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → changer de page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → でページ送り"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → 페이지 넘기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → mudam de página"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → 翻頁"
           }
         }
       }
@@ -32790,6 +32931,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸出"
+          }
+        }
+      }
+    },
+    "page" : {
+      "comment" : "翻页 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "blättern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pasar página"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "changer de page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ページ送り"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "페이지 넘기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mudar de página"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻頁"
           }
         }
       }

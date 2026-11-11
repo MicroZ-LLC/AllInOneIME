@@ -5,12 +5,15 @@ import Foundation
 /// now, never blinking: on the key that changed the text, what is known at once and the rows listed until then that still
 /// fit the new text (`show`); then what the text's source answers takes their place (`receive`); an answer for a text
 /// typed before only adds the rows that fit the text now. What the source answered for the last texts (`limit`) comes
-/// back at once with them. A highlight moved with ↑↓ stays on its row while that is listed, else it is on the first.
+/// back at once with them. A highlight moved with ↑↓ stays on its row while that is listed, else it is on the first. The
+/// panel shows them a page at a time (`ListPage`): ↑↓ scroll them, ← → turn the page (`turnPage`).
 public struct LiveRows<Row> {
     /// The rows listed, the text they are for (nil: none yet), and the highlighted one.
     public private(set) var rows: [Row] = []
     public private(set) var query: String?
     public private(set) var highlight = 0
+    /// Where the rows shown start, as the list was left (`firstShown`: moved to show the highlight).
+    private var top = 0
     /// ↑↓ moved the highlight (back to the first counts too): it stays on its row as rows come and go. Reset when the
     /// text changes.
     public private(set) var highlightMoved = false
@@ -66,27 +69,29 @@ public struct LiveRows<Row> {
         return true
     }
 
-    /// `rows` listed (the first `shown`): a highlight moved with ↑↓ stays on its row while it is there, else it's on the
-    /// first.
+    /// `rows` listed (the first `shown`): a highlight moved with ↑↓ stays on its row while it is there (the page shown
+    /// with it), else it's on the first.
     public mutating func list(_ new: [Row]) {
         let picked = highlightMoved && rows.indices.contains(highlight) ? id(rows[highlight]) : nil
         let new = Array(new.prefix(shown))
         rows = new
         if let picked, let index = new.firstIndex(where: { id($0) == picked }) {
             highlight = index
+            top = firstShown
         } else {
-            highlight = 0
-            highlightMoved = false
+            resetHighlight()
         }
     }
 
-    /// ↑ (-1) or ↓ (1) among the rows, round the ends; `allowed` the rows it may stop on (all by default).
+    /// ↑ (-1) or ↓ (1) among the rows, round the ends; `allowed` the rows it may stop on (all by default). The rows shown
+    /// scroll to it.
     public mutating func move(by step: Int, allowed: (Row) -> Bool = { _ in true }) {
         guard rows.contains(where: allowed) else { return }
         var index = highlight
         repeat { index = (index + step + rows.count) % rows.count } while !allowed(rows[index])
         highlight = index
         highlightMoved = true
+        top = firstShown
     }
 
     /// The highlight on `index` (a row picked otherwise: a click, the first that can be picked).
@@ -94,12 +99,28 @@ public struct LiveRows<Row> {
         guard rows.indices.contains(index) else { return }
         highlight = index
         highlightMoved = moved
+        top = firstShown
     }
 
     /// The highlight back on the first row, where it starts rather than moved to.
     public mutating func resetHighlight() {
         highlight = 0
         highlightMoved = false
+        top = 0
+    }
+
+    /// The first row the panel shows (`ListPage`): where the list was left, moved just enough to show the highlight.
+    public var firstShown: Int { ListPage.first(top: top, chosen: highlight, count: rows.count) }
+
+    /// ← (-1) or → (1) with more rows than a page: the page before or after the one shown, the highlight on its first row
+    /// `allowed` (else on its first). False: no page there (the first, the last), nothing moved.
+    @discardableResult
+    public mutating func turnPage(by step: Int, allowed: (Row) -> Bool = { _ in true }) -> Bool {
+        guard let next = ListPage.turned(step, first: firstShown, count: rows.count) else { return false }
+        top = next
+        highlight = ListPage.window(first: next, count: rows.count).first { allowed(rows[$0]) } ?? next
+        highlightMoved = true
+        return true
     }
 
     /// The rows listed go (the draft is done, or the text is no longer one this list is for); what the source answered

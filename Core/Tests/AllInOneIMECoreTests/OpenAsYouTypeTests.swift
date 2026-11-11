@@ -301,7 +301,7 @@ struct OpenAsYouTypeTests {
     }
 
     /// The rows listed are at most `Composer.liveRowLimit` (8), also while what is known at once for a new text and the
-    /// rows of the text before are listed together.
+    /// rows of the text before are listed together. The panel shows them a page at a time (`ListPage`).
     @Test func theRowsMergedAreEightAtMost() async {
         await withInterfaceLanguage("en") {
             let instant = (0..<8).map { SearchResult(name: "sun \($0).txt", path: "/Users/me/sun \($0).txt") }
@@ -309,9 +309,11 @@ struct OpenAsYouTypeTests {
             let stand = Stand(instant: ["s": instant], full: ["sa": older])
             let host = open(stand)
             host.type("sa")
-            #expect(host.settle { rows(host).count == 8 })
+            #expect(host.settle { host.composer.currentLiveResults.count == 8 })
+            #expect(rows(host).count == ListPage.size && host.panel?.detail == "1–5 / 8", "\(rows(host))")
             host.press(backspaceKey)
-            #expect(rows(host).count == Composer.liveRowLimit && host.composer.currentLiveResults.count == 8, "\(rows(host))")
+            #expect(host.composer.currentLiveResults.count == Composer.liveRowLimit, "\(host.composer.currentLiveResults.map(\.name))")
+            #expect(rows(host).count == ListPage.size && host.panel?.detail == "1–5 / 8", "\(rows(host))")
         }
     }
 

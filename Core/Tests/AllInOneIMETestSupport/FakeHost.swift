@@ -96,6 +96,17 @@ public final class FakeHost: @unchecked Sendable {
     private var afterKey: [() -> Void] = []
 
     public init(services: SessionServices, composer: Composer = Composer()) {
+        // The interface language the test picked before making the host (`UIText.choice`) stays the session's where the
+        // config names none: a focused field applies the config's, nil following the system's, which is this Mac's.
+        var services = services
+        if let chosen = UIText.choice {
+            let load = services.loadSettings
+            services.loadSettings = {
+                var config = load()
+                if config.uiLanguage == nil { config.uiLanguage = chosen }
+                return config
+            }
+        }
         let (inbox, arrived) = (inbox, arrived)
         session = InputSession(composer: composer, services: services, deliver: { event in
             inbox.withLock { $0.append(event) }

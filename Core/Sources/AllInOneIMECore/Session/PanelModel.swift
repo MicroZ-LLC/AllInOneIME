@@ -239,9 +239,9 @@ public struct PanelModel: Equatable, Sendable {
 
 extension PanelModel {
     /// The footer as a shell draws it with keycaps: `hints` and `note` where the presenter chose them, else read from
-    /// `footer`'s text: each of its parts (between " · ") that starts with a key, as that key ("⏎" for "空格 / ⏎ 上屏")
-    /// and the words after it; a part without one as its words (key ""), the first, when it says something is going on
-    /// ("生成中…"), as the note. Left out: ↑↓ and digits (every list moves and picks so), and Esc where another key is
+    /// `footer`'s text: each of its parts (between " · ") that starts with a key, as that key ("⏎" for "空格 / ⏎ 上屏", "← →"
+    /// for "← → 翻页") and the words after it; a part without one as its words (key ""), the first, when it says something
+    /// is going on ("生成中…"), as the note. Left out: ↑↓ and digits (every list moves and picks so), and Esc where another key is
     /// said (it always backs out); three at most. None: the footer is only words, drawn as they are.
     public var footerHints: (note: String?, hints: [Hint]) {
         if !hints.isEmpty || note != nil { return (note, hints) }
@@ -254,8 +254,13 @@ extension PanelModel {
                 if index == 0, part.hasSuffix("…") { note = part } else { parts.append((Hint("", part), false)) }
                 continue
             }
-            // The keys at its start ("空格 / ⏎", "Tab 或 ⏎", "→ or Esc"): the action key's if there, else the first.
+            // The keys at its start ("空格 / ⏎", "Tab 或 ⏎", "→ or Esc"): the action key's if there, else the first. "← →"
+            // (a list's page turned) is one.
             var keys = [first], rest = words.dropFirst()
+            if first == "←", rest.first == "→" {
+                keys = ["← →"]
+                rest = rest.dropFirst()
+            }
             while rest.count >= 2, ["/", "或", "or"].contains(rest[rest.startIndex]), Self.isKey(rest[rest.startIndex + 1]) {
                 keys.append(rest[rest.startIndex + 1])
                 rest = rest.dropFirst(2)

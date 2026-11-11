@@ -43,16 +43,18 @@ import Foundation
 //   ⏎ can't paste it, " · ⏎ puts it on the clipboard" after), its `icon` the thumbnail (`IconToken.Glyph.image`, else
 //   the image icon; the image on the clipboard has the image icon). The permission
 //   row: "To keep a history, allow Paste from Other Apps", "⏎ opens Privacy & Security", `pickable` false. 5 rows show
-//   at a time (`InputSession.shownSuggestionRows`), scrolled to keep the chosen one in view; `detail` "Clipboard", with
-//   several selected " · 3 selected" after it, with more rows than shown " · 1–5 / 20" last; a notice takes its place
-//   while up, as on suggestions' rows. `footer` the keys ("⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides";
-//   with several selected "⏎ inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides"); the first time the panel
+//   at a time, a page (`ListPage`, as a command's list: 0.7.3), scrolled to keep the chosen one in view; `detail`
+//   "Clipboard", with several selected " · 3 selected" after it, with more rows than a page " · 1–5 / 20" last (a short
+//   last page turned to: " · 11–12 / 12"); a notice takes its place while up, as on suggestions' rows. `footer` the keys
+//   ("⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides"; with several selected "⏎ inserts them, one per line ·
+//   ⇧↑⇧↓ select · → or Esc hides"; with more rows than a page "… · ← → page · … · Esc hides"); the first time the panel
 //   shows on the device (`firstShowing`), "Kept on this Mac only; turn it off in Settings → General → Clipboard history"
 //   instead, for that showing. (English texts: the interface language "en".)
 // - Keys while it shows (no other modifier; Caps Lock and the sides don't count): ↓ ↑ move the choice around the ends and
-//   end a selection; ⇧↓ ⇧↑ extend the selection from the row chosen when it started (stopping at the ends); ⏎, keypad
-//   Enter or Tab put in the selection (or the chosen row); → or Esc hide the panel (the composer's panel back in a
-//   command); ⌃V again hides it and pastes as the app does: outside a command, with `canPassPasteKey`, the app's own paste
+//   end a selection; ⇧↓ ⇧↑ extend the selection from the row chosen when it started (stopping at the ends); with more
+//   rows than a page ← → turn it (0.7.3: the page before or after, its first row chosen, a selection ended; ← on the
+//   first page and → on the last stay); ⏎, keypad Enter or Tab put in the selection (or the chosen row); Esc, and → on
+//   one page, hide the panel (the composer's panel back in a command); ⌃V again hides it and pastes as the app does: outside a command, with `canPassPasteKey`, the app's own paste
 //   key (`PlatformAction.passPasteKey`, handled; 0.6.8.2), without it the key isn't handled (the app's ⌃V); in a command
 //   the composer has it (today's ⌃V). Each key the panel takes that puts nothing in says `rowsTookKey` first; one that puts
 //   text in, `rowByKey`. ⌃⌦ while pinyin is composed (in a command) only hides it: it would delete a candidate the panel

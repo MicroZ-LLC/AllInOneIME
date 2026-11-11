@@ -539,6 +539,8 @@ public final class Composer {
     var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, shown: Composer.liveRowLimit, id: \.path)
     public var liveResults: [SearchResult] { live.rows }
     public var liveHighlight: Int { live.highlight }
+    /// The first of them the panel shows (`ListPage`).
+    public var liveFirstShown: Int { live.firstShown }
     static let recentLiveLimit = 32
     /// The most rows `@open` lists as its text is typed: what its full search finds (`FileSearch.run`), and what is known at
     /// once with the rows of the text before.
@@ -588,6 +590,8 @@ public final class Composer {
     public var recipientResults: [Recipient] { recipients.rows }
     public private(set) var recipientNote: String?
     public var recipientHighlight: Int { recipients.highlight }
+    /// The first of them the panel shows (`ListPage`).
+    public var recipientFirstShown: Int { recipients.firstShown }
     /// The recipients for a text found at once, in the address book as last read (the session sets it): nil while it
     /// isn't read yet (the search then answers, `receiveRecipients`).
     public var instantRecipients: (String) -> (rows: [Recipient], note: String?)? = { _ in nil }
@@ -717,6 +721,8 @@ public final class Composer {
     /// (`ScriptList.rerun`), and the text whose answer the action key waits for (`actOnList`).
     var lists = LiveRows<ScriptItem>(limit: Composer.recentListLimit, id: { $0.title + "\u{0}" + ($0.arg ?? "") })
     public var listHighlight: Int { lists.highlight }
+    /// The first of the list's rows the panel shows (`ListPage`).
+    public var listFirstShown: Int { lists.firstShown }
     private var listRerun: Double?
     private var listAnswered: String?
     private var listActsWhenAnswered: String?
@@ -810,7 +816,11 @@ public final class Composer {
     /// Hindi is the input language (its engine in place of librime).
     private var hindiActive = false
 
-    var highlightOverride: Int?
+    var highlightOverride: Int? {
+        didSet { if highlightOverride == nil { choicesTop = 0 } }
+    }
+    /// Where level two's rows shown start, when they are a list a page at a time (`choicesArePaged`), as it was left.
+    private var choicesTop = 0
     var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
@@ -1119,6 +1129,37 @@ public final class Composer {
     /// so an early Space or Return never commits something else by accident.
     public var highlighted: Int { highlighted(in: choices) }
 
+    /// Level two's rows are a command's list, shown a page at a time (`ListPage`): `@open`'s files, `@tasks`, what a script
+    /// extension listed. Not an AI's results, a reminder, a message to send, an issue, a conversation.
+    public var choicesArePaged: Bool {
+        guard isLevelTwo, !modeTranslating, !isQuestionChat else { return false }
+        switch activeCommand?.kind {
+        case .search?, .agents?:
+            return true
+        case .run? where activeCommand?.script != nil:
+            if case .list? = scriptOutput { return true }
+            return false
+        default:
+            return false
+        }
+    }
+
+    /// The first of level two's rows the panel shows, when they are paged (`choicesArePaged`): where they were left, moved
+    /// just enough to show the highlighted one.
+    public var choicesFirstShown: Int {
+        let all = choices
+        return ListPage.first(top: choicesTop, chosen: highlighted(in: all), count: all.count)
+    }
+
+    /// ← (-1) or → (1) on a list in level two on more than a page: the page before or after, its first row highlighted;
+    /// nothing at the first or the last.
+    private func turnChoicesPage(by step: Int) -> [Effect] {
+        guard let next = ListPage.turned(step, first: choicesFirstShown, count: choices.count) else { return [] }
+        highlightOverride = next
+        choicesTop = next
+        return [.showPanel]
+    }
+
     /// `highlighted`, with `all` the `choices` already worked out (each time they are, every row's wording is read).
     private func highlighted(in all: [Choice]) -> Int {
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
@@ -1417,8 +1458,8 @@ public final class Composer {
         recipientNote = nil
     }
 
-    /// Keys while a recipient is picked: ↑↓ move, Tab picks, so do digits after a name (a number
-    /// being typed takes them, from its "+" or "(" on). Nil: the key acts as usual.
+    /// Keys while a recipient is picked: ↑↓ move, ← → turn the page (`ListPage`), Tab picks, so do digits after a name (a
+    /// number being typed takes them, from its "+" or "(" on). Nil: the key acts as usual.
     private func handleRecipientKey(_ event: KeyEvent) -> Response? {
         guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
         let found = currentRecipients
@@ -1426,6 +1467,10 @@ public final class Composer {
         switch event.key {
         case .arrow(.up), .arrow(.down):
             recipients.move(by: event.key == .arrow(.up) ? -1 : 1)
+            return .consumed([.showPanel])
+        case .arrow(.left), .arrow(.right):
+            guard ListPage.turns(found.count) else { break }
+            recipients.turnPage(by: event.key == .arrow(.left) ? -1 : 1)
             return .consumed([.showPanel])
         case .tab:
             return .consumed(pickRecipient(at: recipientHighlight))
@@ -2686,11 +2731,16 @@ public final class Composer {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
         if let response = handleRecipientKey(event) { return response }
         if let response = handleQuestionKey(event) { return response }
-        // A script's list as you type: ↑↓ move among the rows to pick, Tab completes the highlighted row's text.
+        // A script's list as you type: ↑↓ move among the rows to pick, ← → turn its page (more rows than a page shows: the
+        // cursor stays), Tab completes the highlighted row's text.
         if let items = currentList?.items, !items.isEmpty, plain {
             switch event.key {
             case .arrow(.up), .arrow(.down):
                 moveListHighlight(by: event.key == .arrow(.up) ? -1 : 1, in: items)
+                return .consumed([.showPanel])
+            case .arrow(.left), .arrow(.right):
+                guard ListPage.turns(items.count) else { break }
+                lists.turnPage(by: event.key == .arrow(.left) ? -1 : 1, allowed: \.valid)
                 return .consumed([.showPanel])
             case .tab:
                 guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
@@ -2705,6 +2755,10 @@ public final class Composer {
             switch event.key {
             case .arrow(.up), .arrow(.down):
                 self.live.move(by: event.key == .arrow(.up) ? -1 : 1)
+                return .consumed([.showPanel])
+            case .arrow(.left), .arrow(.right):
+                guard ListPage.turns(live.count) else { break }
+                self.live.turnPage(by: event.key == .arrow(.left) ? -1 : 1)
                 return .consumed([.showPanel])
             case .tab:
                 return .consumed(completeLivePath())
@@ -2739,11 +2793,11 @@ public final class Composer {
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case .escape:
-            // The draft goes; a selection is left as it is.
-            if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
-            draft = ""
-            setLevelOnePhase()
-            return .consumed([.updateMarkedText, .hidePanel])
+            return .consumed(cancelDraft())
+        case .arrow(.right) where plain && tail.isEmpty && showsResultRows:
+            // A command's rows on one page (more turn it, above), the cursor at the end of the text: → hides them back to
+            // the app, as Esc does (the keys back, as on every panel's rows).
+            return .consumed(cancelDraft())
         case .arrow(.left), .arrow(.right), .home, .end:
             // The cursor moves in the text after the command, as in any text field.
             return .consumed(moveCursor(event))
@@ -2759,6 +2813,21 @@ public final class Composer {
         default:
             return nil
         }
+    }
+
+    /// Esc on a draft: it goes (nothing in the field); a selection is left as it is.
+    private func cancelDraft() -> [Effect] {
+        if selection != nil { return finish(committing: "", selection: .kept) }
+        draft = ""
+        setLevelOnePhase()
+        return [.updateMarkedText, .hidePanel]
+    }
+
+    /// Whether the panel shows a command's rows as its text is typed (once it's picked): a script's list, `@open`'s
+    /// results, the recipients, the recent questions. They're a page at a time (`ListPage`).
+    private var showsResultRows: Bool {
+        currentList?.items.isEmpty == false || !currentLiveResults.isEmpty || recipientQuery != nil && !currentRecipients.isEmpty
+            || !questionMatches.isEmpty
     }
 
     /// Collects the engine's commit and new state after it processed something.
@@ -2981,7 +3050,11 @@ public final class Composer {
         case .tab:
             return .consumed(moveHighlight(by: event.modifiers.contains(.shift) ? -1 : 1))
         case .arrow(.left), .arrow(.right), .home, .end, .forwardDelete:
-            return .consumed()
+            // A command's list on more than a page (`@open`'s, `@tasks`, a script's): ← → turn it.
+            let arrow = event.key == .arrow(.left) || event.key == .arrow(.right)
+            guard arrow, choicesArePaged, ListPage.turns(choices.count), event.modifiers.subtracting(.capsLock).isEmpty
+            else { return .consumed() }
+            return .consumed(turnChoicesPage(by: event.key == .arrow(.left) ? -1 : 1))
         default:
             break
         }
@@ -3838,6 +3911,7 @@ public final class Composer {
         guard count > 0 else { return [] }
         let current = min(highlighted(in: all), count - 1)
         highlightOverride = (current + delta + count) % count
+        choicesTop = choicesFirstShown  // a list a page at a time scrolls with it
         return [.showPanel]
     }
 
