@@ -3105,13 +3105,15 @@ public final class Composer {
 
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
     /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown on a line of
-    /// their own beside the results, Space and digits picking them, ↑↓ still moving among the results); once there is
+    /// their own beside the results, Space and digits picking them, ↑↓ still moving among the results), in Zhuyin any
+    /// key that starts a syllable (`PinyinScheme.zhuyinInitials`: 1 ㄅ, - ㄦ, as in level one); once there is
     /// one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
-    /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every key does what
-    /// it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a refine runs
-    /// the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts pinyin (it
-    /// is sent once the results are in) and Esc goes back to the results before the running refine, as always. In a
-    /// conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts as usual.
+    /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every other key
+    /// does what it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a
+    /// refine runs the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts
+    /// pinyin (it is sent once the results are in) and Esc goes back to the results before the running refine, as
+    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts
+    /// as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
@@ -3132,8 +3134,10 @@ public final class Composer {
             return .consumed(typeIntoRefine(event))
         }
         if refineText.isEmpty {
-            // Only a letter starts one: digits pick, Space inserts, other keys are as they were (⇧⏎ as typed).
-            guard let text = event.printableText, text.count == 1, text.first?.isLetter == true else { return nil }
+            // Only a letter starts one, or in Zhuyin a key that starts a syllable (its digits and punctuation too, as
+            // in level one): other digits pick, Space inserts, other keys are as they were (⇧⏎ as typed).
+            guard let text = event.printableText, text.count == 1, let c = text.first,
+                  c.isLetter || typesZhuyin && PinyinScheme.zhuyinInitials.contains(c) else { return nil }
             return .consumed(typeIntoRefine(event))
         }
         switch event.key {

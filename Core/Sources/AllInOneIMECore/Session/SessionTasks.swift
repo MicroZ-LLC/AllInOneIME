@@ -18,6 +18,9 @@ public struct TaskID: Hashable, Sendable {
         case script
         /// Autocomplete's request (`Autocomplete`): every key stops it.
         case autocomplete
+        /// Clipboard history's rows a filter keeps, found off the session's thread in a longer history
+        /// (`ClipboardFilter.Index`): each key that filters stops the one before.
+        case clipboardFilter
     }
 
     public let slot: Slot?
@@ -73,6 +76,9 @@ public enum TaskUpdate: Sendable {
     case completionsAnswered
     /// The plugins were looked for again (`SessionServices.rescanPlugins`): what was found is to be taken in.
     case pluginsScanned
+    /// The rows of clipboard history's panel `filter` keeps, by their place among those it opened with
+    /// (`ClipboardFilter.Index`).
+    case clipboardFiltered([Int], filter: String)
     /// A provider's connection may be opened now, by `head`, a HEAD made ready and not started (`Converter.warmHead`), as
     /// asked for `target` in the field's focus `focus`: checked again and started in one step (`InputSession.warmDue`).
     case warmDue(WarmHead, target: WarmTarget, focus: Int)

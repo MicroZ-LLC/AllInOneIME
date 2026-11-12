@@ -60,6 +60,10 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     public static let zhuyinData = ["bopomofo.schema.yaml", "zhuyin.yaml", "terra_pinyin.dict.yaml", "stroke.schema.yaml",
                                     "stroke.dict.yaml", "essay.txt"]
 
+    /// The keys a Zhuyin syllable starts with (rime-bopomofo's `speller/initials`): ㄅ to ㄦ, the digits and
+    /// punctuation among them too; not a tone's (Space, 6, 3, 4, 7).
+    static let zhuyinInitials = Set("1qaz2wsxedcrfv5tgbyhnujm8ik,9ol.0p;/-")
+
     /// The librime schema it types with: rime-ice's own (`fullSchema`) for full pinyin, else the scheme's.
     public var schema: String { self == .full ? Self.fullSchema : rawValue }
 
@@ -117,10 +121,17 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     }
 
     /// Whether `text`, the user folder's `default.custom.yaml`, is this app's to replace: written by it (`schemaListMarker`),
-    /// or the full-pinyin list alone, as the Chinese pack's copy and every earlier version had it (whatever its comments
-    /// say). Any other is the user's, left as it is.
+    /// or exactly the Chinese pack's copy, which librime's start put there (`earlierSchemaLists`). Any other is the
+    /// user's, left as it is, even one that lists full pinyin's alone (a comment of theirs in it, say).
     static func ownsSchemaList(_ text: String) -> Bool {
-        text.hasPrefix(schemaListMarker + "\n") || listedSchemas(text) == [fullSchema]
+        text.hasPrefix(schemaListMarker + "\n") || earlierSchemaLists.contains(text)
+    }
+
+    /// The Chinese pack's `default.custom.yaml` (Resources/rime), full pinyin's list alone, as every version has had
+    /// it: under the app's first name (spelled in pieces: `OldNameTests`), and AllInOneIME's since 0.7.2.
+    static let earlierSchemaLists = ["AI" + "Pinyin", "AllInOneIME"].map { name in
+        "# Written by \(name): only the full-pinyin schema is used (its dictionaries are prebuilt\n"
+            + "# into the app bundle, so deployment on first use is quick).\npatch:\n  schema_list:\n    - schema: rime_ice\n"
     }
 
     public enum ListOutcome: Equatable, Sendable {
