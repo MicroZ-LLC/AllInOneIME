@@ -130,7 +130,7 @@
      {
       "choices": [
        {
-        "label": "中文（拼音）",
+        "label": "中文",
         "value": "zh"
        },
        {
@@ -660,7 +660,7 @@
         "actions": [
          "remove"
         ],
-        "detail": "用中文（拼音）开始 · 改写：正式 · 不用 AI",
+        "detail": "用中文开始 · 改写：正式 · 不用 AI",
         "fields": [
          {
           "choices": [
@@ -673,7 +673,7 @@
             "value": "en"
            },
            {
-            "label": "中文（拼音）",
+            "label": "中文",
             "value": "zh"
            }
           ],

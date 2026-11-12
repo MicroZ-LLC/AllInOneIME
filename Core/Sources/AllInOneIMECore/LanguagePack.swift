@@ -16,7 +16,7 @@ public struct LanguagePack: Sendable, Equatable, Hashable, Identifiable {
     public static let chinesePinyin = LanguagePack(
         id: "zh-pinyin", language: .chinese,
         requiredFiles: ["pack.json", "default.yaml", "rime_ice.schema.yaml", "build/rime_ice.table.bin"],
-        name: LocalizedText(en: "Chinese (pinyin)", zh: "中文（拼音）"))
+        name: LocalizedText(en: "Chinese", zh: "中文"))
 
     /// Korean: the 2-set layout's keys and how jamo make syllables (`HangulTables`).
     public static let koreanHangul = LanguagePack(

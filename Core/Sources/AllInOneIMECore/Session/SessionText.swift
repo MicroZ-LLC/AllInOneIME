@@ -219,12 +219,12 @@ public enum SessionText {
 
     // MARK: - Menus and settings
 
-    /// An input language as the menu and the settings name it: "中文（拼音）", "英文"; Chinese typed in Traditional
-    /// characters (`chinese`, `Config.typedChinese`) "中文（拼音·繁體）".
+    /// An input language as the menu and the settings name it: "中文", "英文"; Chinese typed in Traditional
+    /// characters (`chinese`, `Config.typedChinese`) "中文（繁體）".
     public static func inputName(_ input: Language, language: String, chinese: ChineseCharacters = .simplified) -> String {
         let t = InterfaceWords(language: language)
         guard input == .chinese else { return t.name(input) }
-        return chinese.isTraditional ? t.tr("中文（拼音·繁體）", "Chinese (pinyin, Traditional)") : t.tr("中文（拼音）", "Chinese (pinyin)")
+        return chinese.isTraditional ? t.tr("中文（繁體）", "Chinese (Traditional)") : t.tr("中文", "Chinese", key: "inputLanguage.chinese")
     }
 
     /// The name of `input` in the interface language `language`: a language's (`inputName(_:language:chinese:)`), or Code's

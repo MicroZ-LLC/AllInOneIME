@@ -144,7 +144,7 @@ extension SettingsSchema {
     }
 
     /// An input as the settings name it, in the document's language: a language's name, Chinese with `config`'s characters
-    /// ("中文（拼音·繁體）"), or Code with `config`'s coding language ("Code (Python)").
+    /// ("中文（繁體）"), or Code with `config`'s coding language ("Code (Python)").
     static func inputName(_ input: Input, _ config: Config) -> String {
         SessionText.inputName(input, language: UIText.language, coding: config.codingLanguage.map { CodingLanguagePack.title(of: $0) },
                               chinese: config.typedChinese)

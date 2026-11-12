@@ -15356,96 +15356,102 @@
         }
       }
     },
-    "Chinese (pinyin, Traditional)" : {
-      "comment" : "中文（拼音·繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
+    "Chinese (Traditional)" : {
+      "comment" : "中文（繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinesisch (Pinyin, traditionell)"
+            "value" : "Chinesisch (traditionell)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chino (pinyin, tradicional)"
+            "value" : "Chino (tradicional)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinois (pinyin, traditionnel)"
+            "value" : "Chinois (traditionnel)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中国語（ピンイン・繁体字）"
+            "value" : "中国語（繁体字）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중국어 (병음·번체)"
+            "value" : "중국어 (번체)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinês (pinyin, tradicional)"
+            "value" : "Chinês (tradicional)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中文（拼音·繁體）"
+            "value" : "中文（繁體）"
           }
         }
       }
     },
-    "Chinese (pinyin)" : {
-      "comment" : "中文（拼音） — Sources/AllInOneIMECore/Session/SessionText.swift",
+    "inputLanguage.chinese" : {
+      "comment" : "中文 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinesisch (Pinyin)"
+            "value" : "Chinesisch"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chino (pinyin)"
+            "value" : "Chino"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinois (pinyin)"
+            "value" : "Chinois"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中国語（ピンイン）"
+            "value" : "中国語"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중국어 (병음)"
+            "value" : "중국어"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinês (pinyin)"
+            "value" : "Chinês"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中文（拼音）"
+            "value" : "中文"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese"
           }
         }
       }

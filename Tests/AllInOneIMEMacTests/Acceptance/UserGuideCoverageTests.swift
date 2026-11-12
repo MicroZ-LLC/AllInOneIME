@@ -19,7 +19,7 @@ struct UserGuideCoverageTests {
                       "clipboard history", "autocomplete", "Translate as You Type", "privacy", "updates"] {
             #expect(searchable.contains(topic.lowercased()), "guide omits \(topic)")
         }
-        #expect(guide.contains("Settings → Input → Chinese (pinyin) → Typing"))
+        #expect(guide.contains("Settings → Input → Chinese → Typing"))
 
         // Read the same SettingsDocument fields the SettingsService tests do, from isolated config files.
         // Different providers and input modes expose conditional fields that the default document misses.

@@ -153,7 +153,7 @@ struct PersonalDictionariesSection: View {
                 }
             }
             if !dictionaries.hasChinesePack {
-                Text(tr("先添加中文（拼音）并下载语言包。", "Add Chinese (pinyin) and download its language pack first."))
+                Text(tr("先添加中文并下载语言包。", "Add Chinese and download its language pack first."))
                     .font(.callout).foregroundStyle(.secondary)
             }
             if dictionaries.dictionaries.isEmpty {

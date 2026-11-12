@@ -291,13 +291,13 @@ struct ChineseCharactersTests {
         #expect(only.hasLanguageToTranslateInto)
     }
 
-    /// The input menu and Settings say so where it matters: 中文（拼音·繁體）.
+    /// The input menu and Settings say so where it matters: 中文（繁體）.
     @Test func theInputsName() {
-        #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文（拼音）")
-        #expect(SessionText.inputName(.chinese, language: "zh-Hans", chinese: .taiwan) == "中文（拼音·繁體）")
-        #expect(SessionText.inputName(.chinese, language: "en", chinese: .hongkong) == "Chinese (pinyin, Traditional)")
+        #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文")
+        #expect(SessionText.inputName(.chinese, language: "zh-Hans", chinese: .taiwan) == "中文（繁體）")
+        #expect(SessionText.inputName(.chinese, language: "en", chinese: .hongkong) == "Chinese (Traditional)")
         #expect(SessionText.inputName(.english, language: "en", chinese: .taiwan) == "English")
-        #expect(SessionText.inputName(.language(.chinese), language: "zh-Hans", coding: nil, chinese: .taiwan) == "中文（拼音·繁體）")
+        #expect(SessionText.inputName(.language(.chinese), language: "zh-Hans", coding: nil, chinese: .taiwan) == "中文（繁體）")
         #expect(ChineseCharacters.allCases.map { $0.name(in: "zh-Hans") } == ["简体", "繁體（台灣）", "繁體（香港）"])
         #expect(ChineseCharacters.allCases.map { $0.name(in: "en") } == ["Simplified", "Traditional (Taiwan)", "Traditional (Hong Kong)"])
     }

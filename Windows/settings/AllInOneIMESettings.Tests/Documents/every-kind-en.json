@@ -130,7 +130,7 @@
      {
       "choices": [
        {
-        "label": "Chinese (pinyin)",
+        "label": "Chinese",
         "value": "zh"
        },
        {
@@ -660,7 +660,7 @@
         "actions": [
          "remove"
         ],
-        "detail": "Starts in Chinese (pinyin) · Rewrites: Formal · No AI",
+        "detail": "Starts in Chinese · Rewrites: Formal · No AI",
         "fields": [
          {
           "choices": [
@@ -673,7 +673,7 @@
             "value": "en"
            },
            {
-            "label": "Chinese (pinyin)",
+            "label": "Chinese",
             "value": "zh"
            }
           ],
