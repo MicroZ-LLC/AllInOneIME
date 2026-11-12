@@ -9,7 +9,17 @@ import UniformTypeIdentifiers
 enum WeekStatsShared {
     /// The counts on this Mac (~/Library/Application Support/AllInOneIME/usage.json, `WeekStatsStore`, its salt in the
     /// keychain). The self-test and the images use their own (`use`), never the user's.
-    static var store: WeekStatsStore = WeekStatsStore()
+    /// Made on first use only: a `use` before it means the user's file and keychain item are never opened.
+    static var store: WeekStatsStore {
+        get {
+            if let given { return given }
+            let users = WeekStatsStore()
+            given = users
+            return users
+        }
+        set { given = newValue }
+    }
+    private static var given: WeekStatsStore?
     /// Settings → This Week's "Hide my command names in the image".
     static let preferences = WeekStatsPagePreferences()
 
