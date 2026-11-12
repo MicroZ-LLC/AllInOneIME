@@ -51,7 +51,7 @@ struct UserGuideSelectionTests {
 
     static let guide = """
         ## Shuangpin / 双拼
-        Settings → Input → Chinese (pinyin) → Typing.
+        Settings → Input → Chinese → Typing.
         ## Magic key / 魔法键
         Settings → General → Magic key.
         """

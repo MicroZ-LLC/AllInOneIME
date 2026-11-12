@@ -2001,7 +2001,7 @@ public final class Composer {
         return []
     }
 
-    /// Switches level one to Chinese (pinyin) or English input, e.g. to the configured default.
+    /// Switches level one to Chinese or English input, e.g. to the configured default.
     /// Ignored while something is being composed.
     public func setInputMode(_ language: Language) {
         guard engine != nil, !isComposing, hangul.isEmpty else { return }

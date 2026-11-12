@@ -16,7 +16,7 @@ struct UserGuideTests {
     ## Setup / 安装
     Add AllInOneIME in System Settings → Keyboard → Input Sources → English.
     ## Shuangpin / 双拼
-    Open Settings → Input → Chinese (pinyin) → Typing and choose a Shuangpin scheme.
+    Open Settings → Input → Chinese → Typing and choose a Shuangpin scheme.
     ## Magic key / 魔法键
     Open Settings → General → Magic key to change the command prefix.
     ## Autocomplete / 自动补全

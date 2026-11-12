@@ -47,7 +47,7 @@ import AllInOneIMETestSupport
 //   s5_screenTextReadsTraditionalFirst           OCR languages: zh-Hant first (and through a session's ⌃V)
 //   s5_webSearchAsksForTraditionalPages          search_lang zh-hant (zh-hans for Simplified)
 //   s5_remindReadsTraditionalForms               下個禮拜五下午三點, 這個禮拜五, 兩個小時以後; the title as typed
-//   s5_theInputIsNamedWithItsVariant             「中文（拼音·繁體）」 in the menu's and Settings' name, 「中文（拼音）」 otherwise
+//   s5_theInputIsNamedWithItsVariant             「中文（繁體）」 in the menu's and Settings' name, 「中文」 otherwise
 //
 // The model is the Claude API stubbed at the HTTP level (`RAStubProtocol`, RefineAcceptanceTests.swift: one host per
 // test), or Apple's on-device model stubbed (`StubAppleModel`). Sessions are `FakeHost`s whose pinyin engine is a
@@ -833,8 +833,8 @@ struct TraditionalChineseAcceptanceTests {
 
     @Test func s5_theInputIsNamedWithItsVariant() throws {
         let zh = InterfaceLanguage.code(chinese: true), en = InterfaceLanguage.code(chinese: false)
-        #expect(SessionText.inputName(.chinese, language: zh, chinese: .simplified) == "中文（拼音）")
-        #expect(SessionText.inputName(.chinese, language: zh, chinese: .taiwan) == "中文（拼音·繁體）")
+        #expect(SessionText.inputName(.chinese, language: zh, chinese: .simplified) == "中文")
+        #expect(SessionText.inputName(.chinese, language: zh, chinese: .taiwan) == "中文（繁體）")
         #expect(SessionText.inputName(.chinese, language: zh, chinese: .hongkong).contains("繁體"))
         #expect(SessionText.inputName(.chinese, language: en, chinese: .taiwan).contains("Traditional"))
         #expect(!SessionText.inputName(.chinese, language: en, chinese: .simplified).contains("Traditional"))
@@ -843,6 +843,6 @@ struct TraditionalChineseAcceptanceTests {
         let (service, url) = try service(#"{"provider": "anthropic", "uiLanguage": "zh", "inputLanguages": ["zh", "en"], "chineseCharacters": "taiwan"}"#)
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let languages = try #require(service.document().field("inputLanguages"))
-        #expect(languages.choices?.first { $0.value == .string("zh") }?.label == "中文（拼音·繁體）", "\(languages.choices ?? [])")
+        #expect(languages.choices?.first { $0.value == .string("zh") }?.label == "中文（繁體）", "\(languages.choices ?? [])")
     }
 }

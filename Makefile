@@ -57,7 +57,7 @@ RIME_DEPS_SHA256  := 087e753056f092f644cc4a470f64ecf2cd9de18e684b220e0588f86f6b9
 OPENCC_FILES      := s2twp.json s2hk.json s2tw.json STPhrases.ocd2 STCharacters.ocd2 TWPhrases.ocd2 TWVariants.ocd2 HKVariants.ocd2 \
                      t2tw.json t2hk.json t2s.json TSPhrases.ocd2 TSCharacters.ocd2
 
-# Zhuyin (Settings → Input → Chinese (pinyin) → Typing), LGPL-3.0, each repository at a pinned commit: rime-bopomofo's
+# Zhuyin (Settings → Input → Chinese → Typing), LGPL-3.0, each repository at a pinned commit: rime-bopomofo's
 # `bopomofo` schema (the Standard/Daqian keys) and its spelling rules (zhuyin.yaml), the dictionary it types from
 # (rime-terra-pinyin's terra_pinyin.dict.yaml), the dictionary its reverse lookup by strokes reads (rime-stroke's) and the
 # word list that weighs the words of both (rime-essay's essay.txt). The app carries them (Contents/SharedSupport/

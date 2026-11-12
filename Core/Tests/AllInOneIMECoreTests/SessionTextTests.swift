@@ -94,7 +94,7 @@ struct SessionTextTests {
         }
         let englishInEnglish = await withInterfaceLanguage("en") { SessionText.draftHint(c, config: .default, language: "en") }
         #expect(english == englishInEnglish)
-        #expect(english.hasPrefix("Tap ⌥ → ") && chinese == "Chinese (pinyin)")
+        #expect(english.hasPrefix("Tap ⌥ → ") && chinese == "Chinese")
     }
 
     @Test func menuAndSettingsRules() {
@@ -102,8 +102,8 @@ struct SessionTextTests {
         #expect(!SessionText.toggled("润色", in: ["正式", "润色"]).contains("润色"))
         #expect(SessionText.toggled(Language.english, in: [.chinese]) == [.chinese, .english])
         #expect(SessionText.toggled(Language.chinese, in: [.chinese]) == [.chinese])
-        #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文（拼音）")
-        #expect(SessionText.inputName(.chinese, language: "en") == "Chinese (pinyin)")
+        #expect(SessionText.inputName(.chinese, language: "zh-Hans") == "中文")
+        #expect(SessionText.inputName(.chinese, language: "en") == "Chinese")
         #expect(SessionText.inputName(.english, language: "en") == "English")
         #expect(SessionText.noticeDuration("x", long: true) == 12 && SessionText.noticeDuration("", long: false) == 1.2)
         #expect(SessionText.noticeDuration(String(repeating: "x", count: 200), long: false) == 5)

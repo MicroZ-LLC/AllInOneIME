@@ -380,7 +380,7 @@ final class Harness: NSObject, NSApplicationDelegate {
         return english
     }
 
-    /// English or Chinese (pinyin) as asked: Shift only when the field isn't in it already (a tap toggles, so it isn't
+    /// English or Chinese as asked: Shift only when the field isn't in it already (a tap toggles, so it isn't
     /// taken on trust). Whether the field is in it now.
     func switchTo(english: Bool) -> Bool {
         for _ in 0..<3 {

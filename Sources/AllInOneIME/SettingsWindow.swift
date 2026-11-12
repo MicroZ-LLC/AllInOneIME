@@ -3299,7 +3299,7 @@ struct CompatibleService: Identifiable {
 }
 
 /// Added languages as chips in the user's order, dragged to reorder: the first is marked
-/// ("中文（拼音）· 默认"), ⓧ removes one (not the last). The chip follows the pointer and the order
+/// ("中文 · 默认"), ⓧ removes one (not the last). The chip follows the pointer and the order
 /// changes where it's let go. The drag is tracked in AppKit (`DragHandle`): a grouped Form sits on a
 /// table view that takes mouse drags for itself, so neither SwiftUI's drag gesture nor its drag and
 /// drop ever start there.
