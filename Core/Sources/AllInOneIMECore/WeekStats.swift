@@ -1,7 +1,7 @@
 import Crypto
 import Foundation
 
-/// This week's stats (0.7.4): how much AllInOneIME was used on this device, per local day, for Settings → This Week, the
+/// This week's stats (0.7.3): how much AllInOneIME was used on this device, per local day, for Settings → This Week, the
 /// menu bar panel's row, `@stats` and the picture a user can share. Counts and command names are kept:
 ///   - each command run, by its id (its name in the command list) and where it comes from (`CommandSource`), and whether
 ///     it sent a request to an AI provider; one @'s rows count as the command they ran. A command of the user's own
@@ -257,7 +257,7 @@ public final class WeekStats: @unchecked Sendable {
 
     /// What `serializedData` gave, back in place of what is counted now (the days older than kept dropped). Apps hashed
     /// with another salt than this one's (the salt lost, a file from elsewhere) are dropped: the week's apps start again;
-    /// while the salt is unread (`saltUnread`) they are all kept as they are. A file of 0.7.4's first builds (version 1:
+    /// while the salt is unread (`saltUnread`) they are all kept as they are. A file of the first test builds (version 1:
     /// each command's source with its runs, the salt in the file) is read as well: its salt hashes the apps from then
     /// on, so that none is lost, and stays in the file until the shell keeps it apart (`keptApart`). Whether it is to be
     /// written again soon: one of an earlier version, or that carries its salt (the shell keeps it apart first). Throws
@@ -460,7 +460,7 @@ public final class WeekStats: @unchecked Sendable {
     /// What is kept: which salt the apps were hashed with (`saltCheck`, written with the file), the first day counted
     /// (`since`), and the days.
     private struct Record: Codable {
-        /// The file's version now: 1 was 0.7.4's first builds'.
+        /// The file's version now: 1 was the first test builds'.
         static let version = 2
 
         var version = Self.version
@@ -497,7 +497,7 @@ public final class WeekStats: @unchecked Sendable {
             earlier = try container.decodeIfPresent([String: Runs].self, forKey: .earlier) ?? [:]
             apps = try container.decodeIfPresent([String].self, forKey: .apps) ?? []
             clipboardPastes = max(try container.decodeIfPresent(Int.self, forKey: .clipboardPastes) ?? 0, 0)
-            // A file from before 0.7.4's characters has none; one made by hand can't make a week's sum overflow.
+            // A file from before the characters typed were counted has none; one made by hand can't make a week's sum overflow.
             charactersTyped = min(max(try container.decodeIfPresent(Int.self, forKey: .charactersTyped) ?? 0, 0), Int(Int32.max))
         }
 

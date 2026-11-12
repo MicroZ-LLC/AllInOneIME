@@ -7,7 +7,7 @@ import Foundation
 /// isn't in it: it is the input method's own keychain item, on this Mac only and never synced (`saltKeychain`); the file
 /// says only which salt it was (`WeekStats.serializedData`). A count only changes memory and asks for a write
 /// (`changed`); the file is written a moment later on a queue of its own, once for the counts of a while (`delay`), so
-/// no key waits for it. Read once, when the store is made: a file of 0.7.4's first builds is read too and written again
+/// no key waits for it. Read once, when the store is made: a file of the first test builds is read too and written again
 /// soon in this version (its salt in it until the keychain has it), one that can't be read is moved aside, never written
 /// over (`setAside`). A salt the keychain has but can't read (`init`) changes none of the apps kept.
 public final class WeekStatsStore: @unchecked Sendable {

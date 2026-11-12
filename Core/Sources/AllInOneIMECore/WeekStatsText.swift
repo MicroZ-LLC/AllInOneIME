@@ -124,7 +124,7 @@ public struct WeekStatsText: Equatable, Sendable {
         return dateRange
     }
 
-    /// "AllInOneIME 0.7.4", across from the days.
+    /// "AllInOneIME 0.7.3", across from the days.
     public var versionLabel: String { "AllInOneIME " + AppVersion.string }
 
     /// Over each bar: its count, or "–" for a day without any (and the days after today).
