@@ -3,8 +3,9 @@ import Testing
 @testable import AllInOneIMECore
 
 /// This week's stats read back from files of other versions: 0.7.4's first builds' (version 1: each command's source with
-/// its runs, the salt in the file) with every count, the apps too; a later version's refused, so that this one never
-/// writes over it with less.
+/// its runs, the salt in the file) with every count, the apps too, the salt left in the file until the shell keeps it
+/// apart; a later version's refused, so that this one never writes over it with less. And a file read while the shell
+/// can't read the salt it keeps: its apps kept as they are.
 struct WeekStatsFileTests {
     private static func calendar() -> Calendar {
         var calendar = Calendar(identifier: .gregorian)
@@ -43,7 +44,7 @@ struct WeekStatsFileTests {
 
     /// Every count of a file of version 1 is read: the commands with their sources and AI runs, the pastes, the
     /// characters, the first day, and the apps, by the file's salt, which hashes them from then on. Written again, it is
-    /// this version's, without the salt; read back with that salt, the same.
+    /// this version's, the salt in it until the shell keeps it apart, then without it; read back with that salt, the same.
     @Test func aFileOfTheFirstBuildsKeepsEveryCount() throws {
         let salt = Data((0..<32).map { UInt8(255 - $0) })
         let app = try Self.appHash("com.example.editor", salt: salt)
@@ -69,6 +70,16 @@ struct WeekStatsFileTests {
         stats.recordCommand(id: "foo", source: .own, bundleID: "com.example.editor", usedAI: false)
         #expect(stats.snapshot(for: .current).distinctAppCount == 1, "the same app, by the file's salt")
 
+        let carrying = try #require(JSONSerialization.jsonObject(with: stats.serializedData()) as? [String: Any])
+        #expect(carrying["version"] as? Int == 2)
+        #expect(carrying["salt"] as? String == salt.base64EncodedString(), "until the shell keeps it apart")
+        let lost = Self.stats()
+        #expect(try lost.restore(from: stats.serializedData()), "carrying its salt: written again")
+        #expect(lost.salt == salt && lost.snapshot(for: .current).distinctAppCount == 1)
+
+        #expect(stats.keptApart(Self.stats().salt) == false, "another salt")
+        #expect(stats.keptApart(salt), "written again, without it")
+        #expect(stats.keptApart(salt) == false)
         let data = try stats.serializedData()
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(object["version"] as? Int == 2)
@@ -78,6 +89,45 @@ struct WeekStatsFileTests {
         #expect(try again.restore(from: data) == false)
         #expect(again.snapshot(for: .current) == stats.snapshot(for: .current))
         #expect(again.snapshot(for: .previous) == stats.snapshot(for: .previous))
+    }
+
+    /// The shell couldn't read the salt it keeps: the apps of the file read then are kept as they are (none dropped for
+    /// this one's salt, none added), written back with the same hashes and the same `saltCheck`, and no salt is given to
+    /// be kept; read back by the salt they were made with, every app is there. Forget All ends it: a new salt, kept.
+    @Test func whileTheSaltIsUnreadTheFilesAppsAreKeptAsTheyAre() throws {
+        let salt = Data((0..<32).map { UInt8($0) })
+        let before = Self.stats(salt: salt)
+        before.recordCommand(id: "improve", source: .builtIn, bundleID: "com.example.editor", usedAI: true)
+        before.recordCommand(id: "sig", source: .own, bundleID: "com.example.mail", usedAI: false)
+        let file = try before.serializedData()
+
+        let unread = Self.stats()
+        unread.saltUnread()
+        #expect(!unread.countsApps)
+        #expect(try unread.restore(from: file) == false)
+        #expect(unread.snapshot(for: .current).distinctAppCount == 2, "none dropped")
+        unread.recordCommand(id: "improve", source: .builtIn, bundleID: "com.example.notes", usedAI: true)
+        #expect(unread.snapshot(for: .current).distinctAppCount == 2, "none added")
+        #expect(unread.snapshot(for: .current).commandCount == 3)
+        let (kept, given) = try unread.kept()
+        #expect(given == nil, "no salt to keep")
+        let data = try #require(kept)
+        let written = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let read = try #require(JSONSerialization.jsonObject(with: file) as? [String: Any])
+        #expect(written["saltCheck"] as? String == read["saltCheck"] as? String)
+        #expect(written["salt"] == nil)
+        let apps = { (object: [String: Any]) in (object["days"] as? [String: [String: Any]])?["2026-11-10"]?["apps"] as? [String] }
+        #expect(apps(written) == apps(read) && apps(read)?.count == 2)
+
+        let recovered = Self.stats(salt: salt)
+        try recovered.restore(from: data)
+        #expect(recovered.snapshot(for: .current).distinctAppCount == 2)
+        #expect(recovered.snapshot(for: .current).commandCount == 3)
+
+        unread.clearHistory()
+        unread.recordCommand(id: "sig", source: .own, bundleID: nil, usedAI: false)
+        #expect(try unread.kept().salt == unread.salt, "a new salt, to keep")
+        #expect(!unread.countsApps, "still none this run")
     }
 
     /// A file of a later version isn't read (this one would write it again with less); nothing counted is changed.

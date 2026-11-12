@@ -46,7 +46,7 @@ extension APIKeys.Keychain {
             kind: .synced,
             accounts: { (try? accounts(query(nil))) ?? [] },
             attributes: { account in attributes(query(account)) },
-            read: { account in read(query(account)) },
+            read: { account in try? readKey(query(account)) },
             write: { account, key, label, comment, ending, saved in
                 write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
                       adding: [kSecAttrAccessible as String: accessible])
@@ -60,7 +60,8 @@ extension APIKeys.Keychain {
                 add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved,
                     adding: [kSecAttrAccessible as String: accessible])
             },
-            listing: { try accounts(query(nil)) })
+            listing: { try accounts(query(nil)) },
+            reading: { account in try readKey(query(account)) })
     }
 
     /// Whether this process may use the shared access group (`KeySync.accessGroup`): its `keychain-access-groups`
@@ -116,16 +117,17 @@ extension APIKeys.Keychain {
             if let account { query[kSecAttrAccount as String] = account }
             return query
         }
+        @Sendable func reading(_ account: String) throws -> String? {
+            guard !asking else { return try readKey(query(account)) }
+            var silent = query(account)
+            silent[kSecUseAuthenticationUI as String] = (DeprecatedKeychainConstants.self as any AuthenticationUIFail.Type).fail
+            return try withoutAsking { try readKey(silent) }
+        }
         return APIKeys.Keychain(
             kind: .legacy,
             accounts: { (try? accounts(query(nil))) ?? [] },
             attributes: { account in attributes(query(account)) },
-            read: { account in
-                guard !asking else { return read(query(account)) }
-                var silent = query(account)
-                silent[kSecUseAuthenticationUI as String] = (DeprecatedKeychainConstants.self as any AuthenticationUIFail.Type).fail
-                return withoutAsking { read(silent) }
-            },
+            read: { account in try? reading(account) },
             write: { account, key, label, comment, ending, saved in
                 let set = { write(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:]) }
                 return asking ? set() : withoutAsking(set)
@@ -142,16 +144,17 @@ extension APIKeys.Keychain {
                 let set = { add(query(account), key: key, label: label, comment: comment, ending: ending, saved: saved, adding: [:]) }
                 return asking ? set() : withoutAsking(set)
             },
-            listing: { try accounts(query(nil)) })
+            listing: { try accounts(query(nil)) },
+            reading: reading)
     }
 
     /// `body` with the file-based keychain's prompts turned off for the process (on again after).
-    private static func withoutAsking<T>(_ body: () -> T) -> T {
+    private static func withoutAsking<T>(_ body: () throws -> T) rethrows -> T {
         #if os(macOS)
         SecKeychainSetUserInteractionAllowed(false)
         defer { SecKeychainSetUserInteractionAllowed(true) }
         #endif
-        return body()
+        return try body()
     }
 
     /// The accounts of the items `query` matches (none found: none); throws when they can't be listed (the keychain
@@ -183,13 +186,20 @@ extension APIKeys.Keychain {
                                       saved: APIKeys.saved(fromAttribute: found[kSecAttrDescription as String] as? String))
     }
 
-    private static func read(_ query: [String: Any]) -> String? {
+    /// The key of the item `query` matches (none found, or not text: nil); throws when it can't be read (a read that
+    /// would ask with asking off, the keychain locked, the entitlement missing), which `read` takes for none and
+    /// `reading` passes on.
+    private static func readKey(_ query: [String: Any]) throws -> String? {
         var query = query
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var item: CFTypeRef?
-        guard SecItemCopyMatching(query as CFDictionary, &item) == errSecSuccess, let data = item as? Data else { return nil }
-        return String(data: data, encoding: .utf8)
+        let status = SecItemCopyMatching(query as CFDictionary, &item)
+        if status == errSecItemNotFound { return nil }
+        guard status == errSecSuccess else {
+            throw APIKeys.KeychainError(status: status, message: SecCopyErrorMessageString(status, nil) as String?)
+        }
+        return (item as? Data).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     /// In place when there is an item, else a new one with `adding` besides. The save time goes in the description

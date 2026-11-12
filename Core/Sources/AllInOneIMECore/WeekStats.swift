@@ -8,7 +8,8 @@ import Foundation
 ///     deleted or renamed since loses its name (`keepCommands`): its runs stay, among the earlier commands of its source;
 ///   - the apps it was used in, as salted hashes of their bundle ids: the page shows how many, never which. The salt
 ///     (`salt`, random) isn't kept with the counts: the shell keeps it apart (the Mac: in the keychain), and hashes made
-///     with another are dropped when the counts are read back;
+///     with another are dropped when the counts are read back (but while the shell can't read the one it keeps:
+///     `saltUnread`);
 ///   - the pastes from clipboard history;
 ///   - how many characters the user typed through the input method (`recordTypedCharacters`): one number a day.
 /// Never what was typed, a command's text, what was pasted, or a time finer than the day. The last `weeksKept` calendar
@@ -66,7 +67,7 @@ public final class WeekStats: @unchecked Sendable {
     }
 
     /// What the bundle ids are hashed with now: the shell keeps it apart from the counts (`kept`). A new one after
-    /// `clearHistory`.
+    /// `clearHistory`. One that hashes nothing kept while the salt is unread (`saltUnread`).
     public var salt: Data { state.withLock { $0.salt } }
 
     /// How many times everything counted was forgotten (`clearHistory`): a run counted once its request answers is
@@ -75,11 +76,23 @@ public final class WeekStats: @unchecked Sendable {
     public var era: Int { state.withLock { $0.era } }
 
     /// Whether the apps commands run in are counted (their hashes kept): off when the shell couldn't keep the salt (the
-    /// Mac's keychain refused it), as no later run could read those hashes back. Commands, characters and pastes are
-    /// counted all the same.
+    /// Mac's keychain refused it), as no later run could read those hashes back, or read it (`saltUnread`). Commands,
+    /// characters and pastes are counted all the same.
     public var countsApps: Bool {
         get { state.withLock { $0.countsApps } }
         set { state.withLock { $0.countsApps = newValue } }
+    }
+
+    /// The shell couldn't read the salt it keeps (the keychain failed, rather than had none): this one (`salt`) hashes
+    /// nothing kept, until everything is forgotten (`clearHistory`). Told before `restore`: the apps of the file read
+    /// then are kept as they are, never dropped for another salt's, and written back saying the salt they were made
+    /// with (its `saltCheck`), so that a later run that reads the salt counts them again; no app is counted
+    /// (`countsApps`), and the shell keeps no salt (`kept`). A file that carries its salt (`restore`) gives it back.
+    public func saltUnread() {
+        state.withLock { state in
+            state.saltUnread = true
+            state.countsApps = false
+        }
     }
 
     /// Told after each change (a record, a restore, a clear), on the thread that made it: the shell writes the file
@@ -148,6 +161,7 @@ public final class WeekStats: @unchecked Sendable {
         state.withLock { state in
             state.record = Record()
             state.salt = salt
+            (state.saltUnread, state.heldCheck, state.saltInFile) = (false, nil, false)
             state.era += 1
         }
         tell()
@@ -192,64 +206,84 @@ public final class WeekStats: @unchecked Sendable {
 
     // MARK: - Kept
 
-    /// What is kept, as JSON: which salt the apps' hashes were made with (`saltCheck`, never the salt), the first day
-    /// counted, and each day's counts by its date ("2026-11-10").
+    /// What is kept, as JSON: which salt the apps' hashes were made with (`saltCheck`, never the salt; but a file of
+    /// version 1's salt, until the shell keeps it apart: `keptApart`), the first day counted, and each day's counts by
+    /// its date ("2026-11-10").
     public func serializedData() throws -> Data {
-        let (record, salt) = pruned()
-        return try encode(record, salt: salt)
+        try encode(pruned().record)
     }
 
     /// What the shell keeps, as one moment has it: the file's JSON (`serializedData`; nil when nothing is counted, and
-    /// no file is needed), and the salt its apps' hashes were made with, which it keeps apart.
-    public func kept() throws -> (data: Data?, salt: Data) {
+    /// no file is needed), and the salt its apps' hashes were made with, which it keeps apart (nil: unread,
+    /// `saltUnread`; the one it keeps is left as it is).
+    public func kept() throws -> (data: Data?, salt: Data?) {
         let (record, salt) = pruned()
-        return (record.days.isEmpty && record.since == nil ? nil : try encode(record, salt: salt), salt)
+        return (record.days.isEmpty && record.since == nil ? nil : try encode(record), salt)
     }
 
-    /// What is counted in the weeks kept, and the salt, together.
-    private func pruned() -> (Record, Data) {
-        let today = day(of: now())
-        return state.withLock { state in
-            prune(&state.record, today: today)
-            return (state.record, state.salt)
+    /// The shell keeps `salt` apart now (the Mac: the keychain took it), so the file needn't carry it: true when it did
+    /// until now (a file of version 1's salt, `restore`), and is to be written again, without it.
+    @discardableResult
+    public func keptApart(_ salt: Data) -> Bool {
+        state.withLock { state in
+            guard state.saltInFile, state.salt == salt else { return false }
+            state.saltInFile = false
+            return true
         }
     }
 
-    private func encode(_ record: Record, salt: Data) throws -> Data {
-        var record = record
-        record.saltCheck = Self.check(salt)
+    /// What is counted in the weeks kept, as the file says it (which salt the apps were hashed with; the salt itself
+    /// while the file carries it), and the salt (nil: unread).
+    private func pruned() -> (record: Record, salt: Data?) {
+        let today = day(of: now())
+        return state.withLock { state in
+            prune(&state.record, today: today)
+            var record = state.record
+            guard !state.saltUnread else {
+                record.saltCheck = state.heldCheck
+                return (record, nil)
+            }
+            record.saltCheck = Self.check(state.salt)
+            if state.saltInFile { record.salt = state.salt }
+            return (record, state.salt)
+        }
+    }
+
+    private func encode(_ record: Record) throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         return try encoder.encode(record)
     }
 
     /// What `serializedData` gave, back in place of what is counted now (the days older than kept dropped). Apps hashed
-    /// with another salt than this one's (the salt lost, a file from elsewhere) are dropped: the week's apps start again.
-    /// A file of 0.7.4's first builds (version 1: each command's source with its runs, the salt in the file) is read as
-    /// well: its salt hashes the apps from then on, so that none is lost. Whether it was one: the shell writes it again
-    /// soon, in this version, its salt kept apart. Throws for anything else, and for a file of a later version
-    /// (`LaterVersion`), which this one would write over with less.
+    /// with another salt than this one's (the salt lost, a file from elsewhere) are dropped: the week's apps start again;
+    /// while the salt is unread (`saltUnread`) they are all kept as they are. A file of 0.7.4's first builds (version 1:
+    /// each command's source with its runs, the salt in the file) is read as well: its salt hashes the apps from then
+    /// on, so that none is lost, and stays in the file until the shell keeps it apart (`keptApart`). Whether it is to be
+    /// written again soon: one of an earlier version, or that carries its salt (the shell keeps it apart first). Throws
+    /// for anything else, and for a file of a later version (`LaterVersion`), which this one would write over with less.
     @discardableResult
     public func restore(from data: Data) throws -> Bool {
         var restored = try JSONDecoder().decode(Record.self, from: data)
         guard restored.version <= Record.version else { throw LaterVersion(version: restored.version) }
         let earlier = restored.version < Record.version
-        let salt = restored.salt.flatMap { $0.count == 32 ? $0 : nil }
-        (restored.version, restored.salt) = (Record.version, nil)
+        let (salt, check) = (restored.salt.flatMap { $0.count == 32 ? $0 : nil }, restored.saltCheck)
+        (restored.version, restored.salt, restored.saltCheck) = (Record.version, nil, nil)
         restored.days = restored.days.filter { Self.date($0.key, calendar: calendar) != nil }
         let today = day(of: now())
         state.withLock { state in
             if let salt {
-                state.salt = salt
-            } else if restored.saltCheck != Self.check(state.salt) {
+                (state.salt, state.saltInFile, state.saltUnread, state.heldCheck) = (salt, true, false, nil)
+            } else if state.saltUnread {
+                state.heldCheck = check
+            } else if check != Self.check(state.salt) {
                 for key in restored.days.keys { restored.days[key]?.apps = [] }
             }
-            restored.saltCheck = nil
             prune(&restored, today: today)
             state.record = restored
         }
         tell()
-        return earlier
+        return earlier || salt != nil
     }
 
     /// A file of a later version than this one reads (`restore`): left as it is.
@@ -407,6 +441,12 @@ public final class WeekStats: @unchecked Sendable {
         var salt: Data
         var era = 0
         var countsApps = true
+        /// The file carries the salt (`Record.salt`): a file of version 1's, until the shell keeps it apart (`keptApart`).
+        var saltInFile = false
+        /// The shell couldn't read the salt (`saltUnread`): `salt` hashes nothing kept, and the file's apps are written
+        /// back as they were read, with the `saltCheck` they were read with (`heldCheck`; nil: none).
+        var saltUnread = false
+        var heldCheck: String?
     }
 
     /// A command as the week ranks it: the same name from two sources is two.
@@ -425,7 +465,8 @@ public final class WeekStats: @unchecked Sendable {
 
         var version = Self.version
         var saltCheck: String?
-        /// The salt itself, in a file of version 1 (read, never written).
+        /// The salt itself: in a file of version 1, and written in this version's until the shell keeps it apart
+        /// (`State.saltInFile`), so that a run that ends before loses none of the apps.
         var salt: Data?
         var since: String?
         var days: [String: Day] = [:]

@@ -5,7 +5,8 @@ import Testing
 
 /// What `WeekStatsStore` keeps where: the salt in the keychain (here one in memory), never in usage.json, Forget All
 /// ordered with the counts around it (none lost, none left unwritten), a file of an earlier version read with every count
-/// and one that can't be read kept aside, and a keychain that won't keep or delete the salt.
+/// (its salt in it until the keychain has it) and one that can't be read kept aside, and a keychain that won't read,
+/// keep or delete the salt.
 @Suite(.serialized)
 struct WeekStatsStoreKeepingTests {
     private static func calendar() -> Calendar {
@@ -28,19 +29,64 @@ struct WeekStatsStoreKeepingTests {
         WeekStatsStore(applicationSupportDirectory: root, now: { instant }, calendar: calendar(), keychain: keychain)
     }
 
-    /// A keychain in memory that refuses to write (`refusesWrites`) or delete (`refusesDeletes`) while told to.
+    /// A keychain in memory that refuses to read (`refusesReads`: the item is there, but can't be read), write
+    /// (`refusesWrites`) or delete (`refusesDeletes`) while told to.
     private final class Refusing: @unchecked Sendable {
+        var refusesReads = false
         var refusesWrites = false
         var refusesDeletes = false
         private(set) var keychain = APIKeys.Keychain.inMemory()
+        private let inside: @Sendable (String) -> String?
 
         init() {
-            let (write, delete) = (keychain.write, keychain.delete)
+            let (read, write, delete) = (keychain.read, keychain.write, keychain.delete)
+            inside = read
+            keychain.read = { [unowned self] account in refusesReads ? nil : read(account) }
+            keychain.reading = { [unowned self] account in
+                if refusesReads { throw APIKeys.KeychainError(status: -25308) }
+                return read(account)
+            }
             keychain.write = { [unowned self] account, key, label, comment, ending, saved in
                 refusesWrites ? .failed(-25308) : write(account, key, label, comment, ending, saved)
             }
             keychain.delete = { [unowned self] account in refusesDeletes ? .failed(-25244) : delete(account) }
         }
+
+        /// The salt the keychain has, whatever it refuses (nil: none).
+        var salt: Data? { inside(WeekStatsStore.saltAccount).flatMap { Data(base64Encoded: $0) } }
+    }
+
+    /// usage.json (or what would be written as it) as JSON.
+    private static func object(_ data: Data) throws -> [String: Any] {
+        try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+    }
+
+    private static func object(_ file: URL) throws -> [String: Any] {
+        try object(Data(contentsOf: file))
+    }
+
+    /// The hashes of the apps of 10 November in usage.json.
+    private static func apps(_ file: URL) throws -> [String]? {
+        try apps(object(file))
+    }
+
+    private static func apps(_ object: [String: Any]) -> [String]? {
+        (object["days"] as? [String: [String: Any]])?["2026-11-10"]?["apps"] as? [String]
+    }
+
+    /// usage.json in `root` as 0.7.4's first builds wrote it (version 1: each command's source with its runs, the salt
+    /// in the file): 10 November, a command run 3 times in one app, hashed with `salt` (`app`).
+    private static func firstBuildsFile(_ root: URL, salt: Data) throws -> (file: URL, app: [String]) {
+        let probe = WeekStats(now: { instant }, calendar: calendar(), salt: salt)
+        probe.recordCommand(id: "x", source: .builtIn, bundleID: "com.example.editor", usedAI: false)
+        let app = try #require(apps(object(probe.serializedData())))
+        let file = root.appendingPathComponent("AllInOneIME/usage.json")
+        try FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data("""
+        {"days":{"2026-11-10":{"apps":["\(app[0])"],"commands":{"foo":{"ai":1,"runs":3,"source":"own"}}}},\
+        "salt":"\(salt.base64EncodedString())","since":"2026-11-10","version":1}
+        """.utf8).write(to: file)
+        return (file, app)
     }
 
     /// The week stats' log lines `body` makes.
@@ -184,6 +230,74 @@ struct WeekStatsStoreKeepingTests {
         #expect(again.stats.snapshot(for: .current).distinctAppCount == 1, "the same app")
     }
 
+    /// usage.json of the first builds, and the keychain refuses its salt: the file is written again in this version with
+    /// the salt still in it (as the first builds had it), so that a store made again, the keychain refusing still, has
+    /// every app counted; once the keychain takes it, the salt leaves the file, and the apps are read back by it.
+    @Test func aFileOfTheFirstBuildsKeepsItsSaltInItUntilTheKeychainTakesIt() async throws {
+        let root = try Self.tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let salt = Data((0..<32).map { UInt8(255 - $0) })
+        let (file, app) = try Self.firstBuildsFile(root, salt: salt)
+
+        let refusing = Refusing()
+        refusing.refusesWrites = true
+        let store = Self.store(root, refusing.keychain)
+        #expect(store.stats.snapshot(for: .current).distinctAppCount == 1)
+        let heard = try await Self.logged { try await store.flush() }
+        #expect(heard.contains { $0.contains("didn't keep the apps' salt") }, "\(heard)")
+        #expect(refusing.salt == nil)
+        let written = try Self.object(file)
+        #expect(written["version"] as? Int == 2)
+        #expect(written["salt"] as? String == salt.base64EncodedString(), "the salt stays in the file")
+        #expect(try Self.apps(file) == app)
+
+        let restarted = Self.store(root, refusing.keychain)
+        #expect(restarted.stats.salt == salt)
+        #expect(restarted.stats.snapshot(for: .current).distinctAppCount == 1, "the app count kept after a restart")
+        #expect(restarted.stats.snapshot(for: .current).commandCount == 3)
+        try await restarted.flush()
+        #expect(try Self.object(file)["salt"] as? String == salt.base64EncodedString())
+
+        refusing.refusesWrites = false
+        let taken = Self.store(root, refusing.keychain)
+        try await taken.flush()  // written again: the salt carried
+        #expect(refusing.salt == salt)
+        #expect(try Self.object(file)["salt"] == nil, "out of the file once the keychain has it")
+        #expect(try Self.apps(file) == app)
+        let again = Self.store(root, refusing.keychain)
+        #expect(again.stats.snapshot(for: .current).distinctAppCount == 1)
+        again.stats.recordCommand(id: "foo", source: .own, bundleID: "com.example.editor", usedAI: false)
+        #expect(again.stats.snapshot(for: .current).distinctAppCount == 1, "the same app")
+    }
+
+    /// The same, the keychain refusing to read too: the file's salt counts its apps all the same, through restarts.
+    @Test func aFileOfTheFirstBuildsKeepsItsAppsWhenTheKeychainCantBeReadNorWritten() async throws {
+        let root = try Self.tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let salt = Data((0..<32).map { UInt8(255 - $0) })
+        let (file, app) = try Self.firstBuildsFile(root, salt: salt)
+
+        let refusing = Refusing()
+        try #require(refusing.keychain.write(WeekStatsStore.saltAccount, Data(repeating: 9, count: 32).base64EncodedString(),
+                                             "", "", nil, nil) == .ok)
+        (refusing.refusesReads, refusing.refusesWrites) = (true, true)
+        for _ in 0..<2 {
+            let store = Self.store(root, refusing.keychain)
+            #expect(store.stats.snapshot(for: .current).distinctAppCount == 1)
+            store.stats.recordCommand(id: "y", source: .builtIn, bundleID: "com.example.other", usedAI: false)
+            try await store.flush()
+            #expect(try Self.object(file)["salt"] as? String == salt.base64EncodedString())
+            #expect(try Self.apps(file) == app)
+        }
+        (refusing.refusesReads, refusing.refusesWrites) = (false, false)
+        let recovered = Self.store(root, refusing.keychain)
+        #expect(recovered.stats.snapshot(for: .current).distinctAppCount == 1)
+        try await recovered.flush()
+        #expect(refusing.salt == salt, "the file's salt, in place of the one there")
+        #expect(try Self.object(file)["salt"] == nil)
+        #expect(Self.store(root, refusing.keychain).stats.snapshot(for: .current).distinctAppCount == 1)
+    }
+
     /// usage.json that can't be read (broken, or a later version's) is moved aside as usage.json.unreadable-<day>, as it
     /// was, and the log says so; counting starts again in a new usage.json, never over it. Forget All deletes those too.
     @Test func aFileThatCantBeReadIsKeptAsideNeverWrittenOver() async throws {
@@ -221,7 +335,72 @@ struct WeekStatsStoreKeepingTests {
         #expect(left.isEmpty, "\(left)")
     }
 
-    // MARK: A keychain that won't keep or delete the salt
+    // MARK: A keychain that won't read, keep or delete the salt
+
+    /// The keychain has the salt but can't read it (locked, refused), where before it read it: the log says so, no salt
+    /// is made, the apps counted are kept as they are (shown, and written back with the same hashes and the same
+    /// `saltCheck`), none is counted this run, the salt there is neither written over nor deleted; a store made once the
+    /// keychain reads it again counts every app as before, and the commands counted meanwhile.
+    @Test func aSaltTheKeychainCantReadLosesNoApp() async throws {
+        let root = try Self.tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let refusing = Refusing()
+        let store = Self.store(root, refusing.keychain)
+        store.stats.recordCommand(id: "improve", source: .builtIn, bundleID: "com.example.a", usedAI: true)
+        store.stats.recordCommand(id: "sig", source: .own, bundleID: "com.example.b", usedAI: false)
+        try await store.flush()
+        let salt = try #require(refusing.salt)
+        let (check, apps) = try (Self.object(store.fileURL)["saltCheck"] as? String, Self.apps(store.fileURL))
+        #expect(check != nil && apps?.count == 2)
+
+        refusing.refusesReads = true
+        var unread: WeekStatsStore?
+        let heard = await Self.logged { unread = Self.store(root, refusing.keychain) }
+        #expect(heard.contains { $0.contains("couldn't read the apps' salt") && $0.contains("-25308") }, "\(heard)")
+        let reading = try #require(unread)
+        #expect(!reading.stats.countsApps)
+        #expect(reading.stats.snapshot(for: .current).distinctAppCount == 2, "the apps counted are kept")
+        reading.stats.recordCommand(id: "improve", source: .builtIn, bundleID: "com.example.c", usedAI: true)
+        #expect(reading.stats.snapshot(for: .current).distinctAppCount == 2, "none counted this run")
+        try await reading.flush()
+        let written = try Self.object(reading.fileURL)
+        #expect(written["saltCheck"] as? String == check)
+        #expect(written["salt"] == nil)
+        #expect(try Self.apps(reading.fileURL) == apps)
+        #expect(refusing.salt == salt, "neither written over nor deleted")
+
+        let restarted = Self.store(root, refusing.keychain)  // still refused: the same again
+        #expect(restarted.stats.snapshot(for: .current).distinctAppCount == 2)
+        refusing.refusesReads = false
+        let again = Self.store(root, refusing.keychain)
+        #expect(again.stats.salt == salt)
+        #expect(again.stats.snapshot(for: .current).distinctAppCount == 2)
+        #expect(again.stats.snapshot(for: .current).commandCount == 3)
+        again.stats.recordCommand(id: "sig", source: .own, bundleID: "com.example.a", usedAI: false)
+        #expect(again.stats.snapshot(for: .current).distinctAppCount == 2, "the same app, by the same salt")
+    }
+
+    /// Forget All while the salt can't be read: the counts, the file and the salt there go all the same; a count after
+    /// it gives the keychain a new salt (no app counted this run).
+    @Test func forgetAllForgetsASaltTheKeychainCantRead() async throws {
+        let root = try Self.tempRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let refusing = Refusing()
+        let store = Self.store(root, refusing.keychain)
+        store.stats.recordCommand(id: "improve", source: .builtIn, bundleID: "com.example.a", usedAI: true)
+        try await store.flush()
+
+        refusing.refusesReads = true
+        let unread = Self.store(root, refusing.keychain)
+        try await unread.clearHistory()
+        #expect(refusing.salt == nil)
+        #expect(!FileManager.default.fileExists(atPath: unread.fileURL.path))
+        unread.stats.recordCommand(id: "sig", source: .own, bundleID: "com.example.b", usedAI: false)
+        try await unread.flush()
+        #expect(refusing.salt == unread.stats.salt)
+        #expect(try Self.object(unread.fileURL)["salt"] == nil)
+        #expect(unread.stats.snapshot(for: .current).distinctAppCount == 0)
+    }
 
     /// The keychain refuses the salt: the log says so, the apps aren't counted for the rest of the run (no later run could
     /// read their hashes), the commands are, and the file is written. The salt isn't taken as kept: the next write gives
