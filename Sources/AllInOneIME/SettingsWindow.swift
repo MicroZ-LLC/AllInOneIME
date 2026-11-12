@@ -45,11 +45,11 @@ final class SettingsModel: ObservableObject {
         weekStatsKept = WeekStatsShared.store.stats.hasCommands || week.firstRecordedDay != nil
     }
 
-    /// Forget on the stats' row: every count of the weeks kept, and their file.
+    /// Forget on the stats' row: every count of the weeks kept, in memory at the click (a count straight after it is
+    /// kept), then their file (`WeekStatsStore.forgetAll`).
     func forgetWeekStats() {
         weekStatsKept = false
-        let store = WeekStatsShared.store
-        Task { try? await store.clearHistory() }
+        WeekStatsShared.store.forgetAll()
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an

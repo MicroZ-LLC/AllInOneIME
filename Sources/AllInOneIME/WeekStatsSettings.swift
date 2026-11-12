@@ -31,7 +31,7 @@ enum WeekStatsShared {
     /// gave.
     static func keepOwnCommands() {
         guard isUsers, let config = LiveConfig.currentIfValid else { return }
-        store.stats.keepCommands(Set(config.customCommands.map(\.name)), from: .own)
+        store.stats.keepCommands(WeekStats.ownCommandNames(config), from: .own)
     }
 
     /// `week` as it is now, shown or copied (`keepOwnCommands` first).

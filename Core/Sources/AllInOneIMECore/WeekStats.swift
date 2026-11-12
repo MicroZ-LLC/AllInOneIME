@@ -74,6 +74,14 @@ public final class WeekStats: @unchecked Sendable {
     /// forgotten meanwhile.
     public var era: Int { state.withLock { $0.era } }
 
+    /// Whether the apps commands run in are counted (their hashes kept): off when the shell couldn't keep the salt (the
+    /// Mac's keychain refused it), as no later run could read those hashes back. Commands, characters and pastes are
+    /// counted all the same.
+    public var countsApps: Bool {
+        get { state.withLock { $0.countsApps } }
+        set { state.withLock { $0.countsApps = newValue } }
+    }
+
     /// Told after each change (a record, a restore, a clear), on the thread that made it: the shell writes the file
     /// soon after, off the key's thread.
     public var changed: (@Sendable () -> Void)? {
@@ -96,7 +104,7 @@ public final class WeekStats: @unchecked Sendable {
             prune(&state.record, today: today)
             var day = state.record.days[today.key] ?? Day()
             day.commands[source.rawValue, default: [:]][id, default: Runs()].add(usedAI: usedAI)
-            if let hash = appHash(bundleID, salt: state.salt), !day.apps.contains(hash) {
+            if state.countsApps, let hash = appHash(bundleID, salt: state.salt), !day.apps.contains(hash) {
                 day.apps.append(hash)
                 day.apps.sort()
             }
@@ -167,6 +175,12 @@ public final class WeekStats: @unchecked Sendable {
         if changed { tell() }
     }
 
+    /// The names the user's own commands in `config` are counted by, as the command list has them (in lower case): what
+    /// `keepCommands` is told for them, and what a run counted once its request answers is checked against.
+    public static func ownCommandNames(_ config: Config) -> Set<String> {
+        Set(config.customCommands.map { $0.name.lowercased() })
+    }
+
     /// Whether any command is counted in the weeks kept: the menu bar panel's row shows from the first.
     public var hasCommands: Bool {
         let today = day(of: now())
@@ -211,12 +225,23 @@ public final class WeekStats: @unchecked Sendable {
 
     /// What `serializedData` gave, back in place of what is counted now (the days older than kept dropped). Apps hashed
     /// with another salt than this one's (the salt lost, a file from elsewhere) are dropped: the week's apps start again.
-    public func restore(from data: Data) throws {
+    /// A file of 0.7.4's first builds (version 1: each command's source with its runs, the salt in the file) is read as
+    /// well: its salt hashes the apps from then on, so that none is lost. Whether it was one: the shell writes it again
+    /// soon, in this version, its salt kept apart. Throws for anything else, and for a file of a later version
+    /// (`LaterVersion`), which this one would write over with less.
+    @discardableResult
+    public func restore(from data: Data) throws -> Bool {
         var restored = try JSONDecoder().decode(Record.self, from: data)
+        guard restored.version <= Record.version else { throw LaterVersion(version: restored.version) }
+        let earlier = restored.version < Record.version
+        let salt = restored.salt.flatMap { $0.count == 32 ? $0 : nil }
+        (restored.version, restored.salt) = (Record.version, nil)
         restored.days = restored.days.filter { Self.date($0.key, calendar: calendar) != nil }
         let today = day(of: now())
         state.withLock { state in
-            if restored.saltCheck != Self.check(state.salt) {
+            if let salt {
+                state.salt = salt
+            } else if restored.saltCheck != Self.check(state.salt) {
                 for key in restored.days.keys { restored.days[key]?.apps = [] }
             }
             restored.saltCheck = nil
@@ -224,6 +249,12 @@ public final class WeekStats: @unchecked Sendable {
             state.record = restored
         }
         tell()
+        return earlier
+    }
+
+    /// A file of a later version than this one reads (`restore`): left as it is.
+    public struct LaterVersion: Error, Sendable {
+        public var version: Int
     }
 
     // MARK: - A week
@@ -369,11 +400,13 @@ public final class WeekStats: @unchecked Sendable {
         let changed: @Sendable () -> Void
     }
 
-    /// What is counted, the salt the apps are hashed with, and how many times everything was forgotten (`era`).
+    /// What is counted, the salt the apps are hashed with, how many times everything was forgotten (`era`), and whether
+    /// the apps are counted (`countsApps`).
     private struct State {
         var record = Record()
         var salt: Data
         var era = 0
+        var countsApps = true
     }
 
     /// A command as the week ranks it: the same name from two sources is two.
@@ -387,8 +420,13 @@ public final class WeekStats: @unchecked Sendable {
     /// What is kept: which salt the apps were hashed with (`saltCheck`, written with the file), the first day counted
     /// (`since`), and the days.
     private struct Record: Codable {
-        var version = 2
+        /// The file's version now: 1 was 0.7.4's first builds'.
+        static let version = 2
+
+        var version = Self.version
         var saltCheck: String?
+        /// The salt itself, in a file of version 1 (read, never written).
+        var salt: Data?
         var since: String?
         var days: [String: Day] = [:]
     }
@@ -407,7 +445,14 @@ public final class WeekStats: @unchecked Sendable {
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            commands = try container.decodeIfPresent([String: [String: Runs]].self, forKey: .commands) ?? [:]
+            do {
+                commands = try container.decodeIfPresent([String: [String: Runs]].self, forKey: .commands) ?? [:]
+            } catch {
+                // Version 1's: each command by its name, its source with its runs.
+                for (id, runs) in try container.decode([String: EarlierRuns].self, forKey: .commands) {
+                    commands[runs.source, default: [:]][id, default: Runs()].add(Runs(runs: runs.runs, ai: runs.ai))
+                }
+            }
             earlier = try container.decodeIfPresent([String: Runs].self, forKey: .earlier) ?? [:]
             apps = try container.decodeIfPresent([String].self, forKey: .apps) ?? []
             clipboardPastes = max(try container.decodeIfPresent(Int.self, forKey: .clipboardPastes) ?? 0, 0)
@@ -419,6 +464,13 @@ public final class WeekStats: @unchecked Sendable {
             let named = commands.values.reduce(0) { sum, runs in runs.values.reduce(sum) { $0 + $1.runs } }
             return earlier.values.reduce(named) { $0 + $1.runs }
         }
+    }
+
+    /// A command's runs in a file of version 1: its source with them.
+    private struct EarlierRuns: Decodable {
+        var source: String
+        var runs: Int
+        var ai: Int
     }
 
     private struct Runs: Codable {

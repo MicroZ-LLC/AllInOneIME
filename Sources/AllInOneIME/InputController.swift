@@ -1041,10 +1041,11 @@ final class AllInOneIMEInputController: IMKInputController {
                 pasteKeptImage(id, into: target)
             case .platform(.copyWeekStatsImage):
                 // `@stats`'s ⌘C: the week's picture, as Settings → This Week copies it; the session says it's copied once
-                // it is on the clipboard, or that it couldn't be (in the field typed in by then).
+                // it is on the clipboard, or that it couldn't be: in this field only, nowhere once it was left.
+                let asked = fieldSession
                 copyWeekStatsImage { [weak self] copied in
-                    guard let field = Self.activeController ?? self else { return }
-                    field.apply(field.session.weekStatsImageCopied(copied), client: nil)
+                    guard let self, self.fieldSession == asked else { return }
+                    self.apply(self.session.weekStatsImageCopied(copied), client: nil)
                 }
             }
         }

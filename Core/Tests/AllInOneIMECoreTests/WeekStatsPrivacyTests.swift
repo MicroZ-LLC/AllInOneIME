@@ -49,14 +49,23 @@ struct WeekStatsPrivacyTests {
         }
     }
 
-    /// A field (English) counting into `stats`, with the user's own `custom` commands; secure input elsewhere is
-    /// `secure`'s, a program's answer `gate`'s when given (else at once).
-    private func field(_ stats: WeekStats, custom: [CustomCommand] = [], secure: Bool = false, gate: Gate? = nil) -> FakeHost {
-        var config = Config.default
-        config.uiLanguage = nil  // withInterfaceLanguage's
-        config.customCommands = custom
-        let fixed = config
-        var services = SessionServices(loadSettings: { fixed })
+    /// The settings a field reads, changed by the test as Settings would.
+    private final class Settings: @unchecked Sendable {
+        var config: Config
+
+        init(custom: [CustomCommand]) {
+            config = Config.default
+            config.uiLanguage = nil  // withInterfaceLanguage's
+            config.customCommands = custom
+        }
+    }
+
+    /// A field (English) counting into `stats`, with the user's own `custom` commands (`settings`' when given); secure
+    /// input elsewhere is `secure`'s, a program's answer `gate`'s when given (else at once).
+    private func field(_ stats: WeekStats, custom: [CustomCommand] = [], settings: Settings? = nil, secure: Bool = false,
+                       gate: Gate? = nil) -> FakeHost {
+        let settings = settings ?? Settings(custom: custom)
+        var services = SessionServices(loadSettings: { settings.config })
         services.weekStats = stats
         services.levelOne = { .engine(FakeEngine()) }
         services.programInstalled = { _ in true }
@@ -220,6 +229,39 @@ struct WeekStatsPrivacyTests {
         #expect(!stats.hasCommands)
         stats.recordCommand(id: "improve", source: .builtIn, bundleID: nil, usedAI: true, era: stats.era)
         #expect(stats.snapshot(for: .current).commandCount == 1)
+    }
+
+    /// A command of the user's own deleted or renamed while its request was waiting: the late answer doesn't count it,
+    /// so its name doesn't come back once the stats let it go (the shell's `keepOwnCommands` when the config changed).
+    /// One still there, one named with capitals in the config too (the command list's name is in lower case), is counted
+    /// by its name.
+    @Test func aRunAnsweredAfterItsCommandWentIsNotCounted() async throws {
+        try await withInterfaceLanguage("en") {
+            let capitals = CustomCommand(name: "Shout", type: .run, argv: ["/usr/bin/tr", "a-z", "A-Z"])
+            for change in ["kept", "capitals", "deleted", "renamed"] {
+                let stats = Clock().stats()
+                let gate = Gate()
+                let settings = Settings(custom: [change == "capitals" ? capitals : Self.shout])
+                let host = field(stats, settings: settings, gate: gate)
+                host.type("@shout hello")
+                host.press(FakeHost.enter)
+                #expect(!host.session.weekStatsRuns.pending.isEmpty, "\(change)")
+                switch change {
+                case "deleted": settings.config.customCommands = []
+                case "renamed": settings.config.customCommands = [CustomCommand(name: "yell", type: .run, argv: ["/usr/bin/tr", "a-z", "A-Z"])]
+                default: break
+                }
+                stats.keepCommands(WeekStats.ownCommandNames(settings.config), from: .own)  // the config read anew
+                gate.open()
+                #expect(host.settle(timeout: 5) { host.session.weekStatsRuns.pending.isEmpty }, "\(change)")
+                let counted = change == "kept" || change == "capitals"
+                stats.keepCommands(WeekStats.ownCommandNames(settings.config), from: .own)  // the page shown
+                #expect(stats.snapshot(for: .current).commandCount == (counted ? 1 : 0), "\(change)")
+                #expect(stats.snapshot(for: .current).topCommands.map(\.id) == (counted ? ["shout"] : []), "\(change)")
+                let json = String(decoding: try stats.serializedData(), as: UTF8.self)
+                #expect(json.contains("shout") == counted, "\(change)")
+            }
+        }
     }
 
     // MARK: 5. The same name from two sources

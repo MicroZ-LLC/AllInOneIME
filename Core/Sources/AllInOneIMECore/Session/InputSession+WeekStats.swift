@@ -5,8 +5,9 @@ import Foundation
 /// and whether it sent a request to an AI provider. One that starts a request is counted when the request first answers
 /// (a cached answer sent nothing: no AI then), and not when it fails or is given up before; one that is done at once
 /// (a snippet, a link, an app opened) at once. `@stats` itself isn't counted: looking at the week doesn't change it.
-/// Nothing is counted in a field nothing may leave (`nothingLeavesDevice`: secure input, a known password field), and a
-/// run whose request answers after everything was forgotten (Forget All) isn't counted then (`WeekStats.era`).
+/// Nothing is counted in a field nothing may leave (`nothingLeavesDevice`: secure input, a known password field), a run
+/// whose request answers after everything was forgotten (Forget All) isn't counted then (`WeekStats.era`), nor one whose
+/// command was deleted or renamed meanwhile (`stillThere`).
 /// The characters the user types through the input method are counted as they go in (`InputSession.countTyped`).
 struct WeekStatsRuns {
     struct Run {
@@ -56,10 +57,29 @@ extension InputSession {
     }
 
     /// `request` answered (its first output, a list, a script's line; a script left running in the background): its runs
-    /// counted, unless the field is one nothing may leave by now.
+    /// counted, unless the field is one nothing may leave by now, or their command is gone.
     func runAnswered(_ request: Int, fromCache: Bool) {
         guard let runs = weekStatsRuns.pending.removeValue(forKey: request), !nothingLeavesDevice() else { return }
-        for run in runs { record(run, fromCache: fromCache) }
+        for run in runs where stillThere(run) { record(run, fromCache: fromCache) }
+    }
+
+    /// Whether `run`'s command is still there by its name and where it comes from, as the settings are now: one deleted
+    /// or renamed while its request was waiting isn't counted, so that its name doesn't come back into the stats once
+    /// they let it go (`WeekStats.keepCommands`, by `WeekStats.ownCommandNames` for the user's own). A built-in always is.
+    private func stillThere(_ run: WeekStatsRuns.Run) -> Bool {
+        let config = services.loadSettings()
+        switch run.source {
+        case .builtIn:
+            return true
+        case .own:
+            return WeekStats.ownCommandNames(config).contains(run.id)
+        case .plugin:
+            let index = services.loadExtensions(config, false)
+            return Command.catalog(config.customCommands, plugins: services.plugins(false),
+                                   scripts: index.enabled(config.disabledExtensions),
+                                   snippets: index.enabledSnippets(config.disabledExtensions))
+                .contains { $0.name == run.id && WeekStats.CommandSource($0) == .plugin }
+        }
     }
 
     /// `request` failed: its runs aren't counted.
