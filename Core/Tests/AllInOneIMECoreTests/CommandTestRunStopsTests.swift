@@ -169,6 +169,32 @@ struct CommandTestRunStopsTests {
         #expect(item(service)?.detail?.contains("an answer") != true)
     }
 
+    /// Another command saved while a Test run is under way stops nothing: the run's answer shows on its command.
+    @Test func anotherCommandSavedMeanwhileLeavesTheRunAsItIs() async throws {
+        let (service, file) = try fixture()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        try await service.perform(SettingsAction(field: "commands.custom", name: "save", value: definition("Be polite"))).get()
+        let (gate, started) = (Gate(), Locked(initialState: false))
+        service.actionStarts = {
+            started.withLock { $0 = true }
+            await gate.wait()
+        }
+        service.commandTestAI = { (_: CustomCommand, _: String) async throws -> String in "an answer" }
+        let run = Task {
+            await service.perform(SettingsAction(field: "commands.custom", name: "test", item: "polite",
+                                                 value: .object(["sample": .string("hi"), "confirmed": .bool(true)])))
+        }
+        for _ in 0..<500 where !started.withLock({ $0 }) { try await Task.sleep(nanoseconds: 10_000_000) }
+        try #require(started.withLock { $0 })
+        try await service.perform(SettingsAction(field: "commands.custom", name: "save",
+                                                 value: .object(["name": .string("brief"), "type": .string("prompt"),
+                                                                 "prompt": .string("Be brief")]))).get()
+        gate.open()
+        let result = await run.value
+        #expect(try result.get().message == "✓ an answer")
+        #expect(item(service)?.detail?.contains("an answer") == true)
+    }
+
     /// `CommandTrial.run` stopped before it starts runs nothing: no snippet filled, no AI asked, no program.
     @Test(arguments: [CustomCommand(name: "sig", type: .snippet, text: "Best, {input}"),
                       CustomCommand(name: "polite", type: .prompt, prompt: "Be polite"),
