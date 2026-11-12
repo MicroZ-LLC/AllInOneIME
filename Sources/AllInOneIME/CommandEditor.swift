@@ -65,23 +65,14 @@ struct CommandEditor: View {
     /// Its icon's color: a named one (`IconToken.Color.names`, or one config.json has otherwise, kept); nil, Default.
     @State private var color: String?
     @State private var pickingIcon = false
-    /// The Test run's sample (the text after the command, or the selection), and what the run gave.
-    @State private var sample: String
-    @State private var trial: Trial?
-    @State private var trialTask: Task<Void, Never>?
+    /// The Test run: its sample (the text after the command, or the selection), and what it gave.
+    @State private var trial: CommandEditorTrial
     /// An AI instruction's Test run, asked before the sample is sent.
     @State private var confirmingAI = false
 
-    /// A Test run under way, or what it gave: what it would put in, or why it gave nothing.
-    enum Trial: Equatable {
-        case running
-        case passed(String)
-        case failed(String)
-    }
-
     /// `sample` and `trial`: a Test run shown as done (the settings' images).
     init(edit: CommandEdit, others: [CustomCommand], plugins: [String] = [], unread: [String] = [], config: Config = .default,
-         sample: String = "", trial: Trial? = nil,
+         sample: String = "", trial: CommandEditorTrial.Outcome? = nil,
          refreshNow: @escaping (String) -> Void = { _ in }, onSave: @escaping (CustomCommand) -> Bool) {
         original = edit
         self.others = others
@@ -108,8 +99,7 @@ struct CommandEditor: View {
         _insert = State(initialValue: SuggestionSourceForm.text(c.insert))
         _icon = State(initialValue: c.icon)
         _color = State(initialValue: c.color)
-        _sample = State(initialValue: sample)
-        _trial = State(initialValue: trial)
+        _trial = State(initialValue: CommandEditorTrial(sample: sample, outcome: trial))
     }
 
     /// The definition as the form has it now (nil: the command line has an open quote), over what the form doesn't show
@@ -311,10 +301,9 @@ struct CommandEditor: View {
         .task(id: commandLine) { await checkProgram() }
         .task(id: type) { await checkProgram() }
         // What a Test run showed is the command's as it was, on the sample as it was: stopped and gone once what it
-        // runs, or the sample, changes (what it gives later isn't shown: `testRun`).
-        .onChange(of: runnable) { stopTrial() }
-        .onChange(of: sample) { stopTrial() }
-        .onDisappear { trialTask?.cancel() }
+        // runs changes, as a new sample does (`CommandEditorTrial`).
+        .onChange(of: runnable) { trial.stop() }
+        .onDisappear { trial.stop() }
         .confirmationDialog(CommandTrial.confirmation(config), isPresented: $confirmingAI, titleVisibility: .visible) {
             Button(tr("运行", "Run")) { testRun(confirmed: true) }
             Button(tr("取消", "Cancel"), role: .cancel) {}
@@ -339,16 +328,16 @@ struct CommandEditor: View {
     private var testRunSection: some View {
         Section {
             HStack {
-                TextField(tr("样例输入", "Sample input"), text: $sample,
+                TextField(tr("样例输入", "Sample input"), text: $trial.sample,
                           prompt: Text(tr("命令后面写的内容，或者选中的文字", "The text after the command, or the selection")))
-                if trial == .running {
+                if trial.outcome == .running {
                     ProgressView().controlSize(.small)
-                    Button(tr("取消", "Cancel")) { stopTrial() }
+                    Button(tr("取消", "Cancel")) { trial.stop() }
                 } else {
                     Button(tr("试运行", "Test run")) { testRun() }.disabled(draft == nil)
                 }
             }
-            switch trial {
+            switch trial.outcome {
             case let .passed(output)?:
                 Text(output)
                     .font(.callout.monospaced())
@@ -378,29 +367,8 @@ struct CommandEditor: View {
             confirmingAI = true
             return
         }
-        trialTask?.cancel()
-        trial = .running
-        let (sample, config) = (sample, config)
-        trialTask = Task {
-            let outcome: Trial
-            do {
-                outcome = .passed(try await CommandTrial.run(command, sample: sample) { command, sample in
-                    try await CommandTrial.ask(command, sample: sample, config: config)
-                })
-            } catch {
-                outcome = .failed(UIText.describe(error))
-            }
-            // Stopped (what it runs or the sample changed, another run, the editor closed): not the form's now.
-            guard !Task.isCancelled else { return }
-            trial = outcome
-        }
-    }
-
-    /// The Test run stopped (a program as Esc stops it), what it showed gone.
-    private func stopTrial() {
-        trialTask?.cancel()
-        trialTask = nil
-        trial = nil
+        let config = config
+        trial.start(command) { command, sample in try await CommandTrial.ask(command, sample: sample, config: config) }
     }
 
     /// "What it does": the six kinds of command (its label for accessibility; the row shows it).
