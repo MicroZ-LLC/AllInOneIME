@@ -40,11 +40,13 @@ struct ClipboardHistoryField {
     /// What is typed to filter the rows (0.7.3, `InputSession.clipboardFilters`; "": none), and what each of `all` is found
     /// by (`ClipboardFilter.key`), worked out on the first key that filters. A longer history's (not
     /// `ClipboardFilter.filtersAtOnce`) off the session's thread from when the panel opens (`index`), the rows each
-    /// filter keeps found there too: the filter `rows` were found by (`found`) is the one before until they are in.
+    /// filter keeps found there too: the filter `rows` were found by (`found`) is the one before until they are in, and
+    /// ⏎ or Tab pressed meanwhile puts in the first of them once they are (`putOnFound`).
     var filter = ""
     var keys: [ClipboardFilter.Key?]?
     var index: ClipboardFilter.Index?
     var found = ""
+    var putOnFound = false
     /// The panel shows the rows; a command's text takes the row (else it goes into the field); the first showing on
     /// this device (its footer says where the history is kept); ⌃V can go to the app for the image row, as the shell
     /// said when the panel opened (asked again on ⏎).
@@ -172,12 +174,14 @@ extension InputSession {
     /// While the panel shows: ↓ ↑ move the choice around the ends (a selection ends), ⇧↓ ⇧↑ extend the selection from the
     /// row chosen when it started, with more rows than a page ← → turn it (`ListPage`; a selection ends), typing filters the
     /// history outside a command, however many rows it has (`clipboardFilterKey`), ⏎ keypad Enter and Tab put in what is
-    /// selected (nothing where the filter keeps no row), Esc (and → on one page) hide the panel, ⌃V again hides it and
+    /// selected (nothing where the filter keeps no row; a longer history's rows for the filter not in yet, the first of
+    /// them once they are: `clipboardFound`), Esc (and → on one page) hide the panel, ⌃V again hides it and
     /// pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
     /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command
     /// the composer's: nil), ⌃⌦ with pinyin composed only hides it. Any other key hides it and goes on (nil): digits are
     /// typed (or filter), never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
+        clipboard.putOnFound = false  // ⏎ or Tab before: any key after it is what counts
         if isPasteAnywhere(event) {
             clipboardTookKey()
             let command = clipboard.command
@@ -225,6 +229,13 @@ extension InputSession {
         switch event.key {
         case .enter, .keypadEnter, .tab:
             clipboardTookKey()
+            // A longer history's rows for the filter aren't in yet: none goes in now, never one shown for what was typed
+            // before; the first of them once they are (`clipboardFound`).
+            if clipboard.found != clipboard.filter {
+                clipboard.putOnFound = true
+                if !clipboard.command { emit(.rowsTookKey) }
+                return true
+            }
             // The filter keeps no row: nothing goes in, the panel stays (⌫ widens it, Esc hides it).
             guard !clipboard.rows.isEmpty else {
                 if !clipboard.command { emit(.rowsTookKey) }
@@ -293,16 +304,20 @@ extension InputSession {
     }
 
     /// The rows `filter` keeps in a longer history, found off the session's thread (`clipboardFiltered`; by their place
-    /// in `all`): shown, unless the panel is gone or another filter is typed by now (its rows on their way).
+    /// in `all`): shown, unless the panel is gone or another filter is typed by now (its rows on their way). ⏎ or Tab
+    /// pressed while they were on their way (`putOnFound`): the first of them goes in, as a click puts it in; none, the
+    /// panel stays.
     func clipboardFound(_ found: [Int], filter: String) {
         guard clipboard.shown, filter == clipboard.filter else { return }
+        let put = clipboard.putOnFound
         clipboardKeeps(found.compactMap { clipboard.all.indices.contains($0) ? clipboard.all[$0] : nil }, filter)
+        if put, !clipboard.rows.isEmpty { return clipboardPut(clipboardSelection(), key: nil) }
         emit(.panel(clipboardPanel()))
     }
 
     /// `rows` shown, those `filter` keeps: the first chosen, a selection ended.
     private func clipboardKeeps(_ rows: [ClipboardHistoryField.Row], _ filter: String) {
-        (clipboard.rows, clipboard.found) = (rows, filter)
+        (clipboard.rows, clipboard.found, clipboard.putOnFound) = (rows, filter, false)
         (clipboard.chosen, clipboard.anchor, clipboard.top) = (0, nil, 0)
         log.notice("clipboard history: filtered (\(filter.count) characters, \(rows.count) of \(clipboard.all.count) rows)")
     }
@@ -325,9 +340,11 @@ extension InputSession {
         return true
     }
 
-    /// A row of the panel clicked (`index` among those shown): that row put in, alone (true); false: not ours.
+    /// A row of the panel clicked (`index` among those shown): that row put in, alone (true); false: not ours. One shown
+    /// for what was typed before (a longer history's rows for the filter not in yet) puts nothing in.
     func clipboardPick(_ index: Int) -> Bool {
         guard clipboard.shown, index >= 0, clipboard.rows.indices.contains(clipboard.top + index) else { return false }
+        guard clipboard.found == clipboard.filter else { return true }
         clipboardPut([clipboard.top + index], key: nil)
         return true
     }

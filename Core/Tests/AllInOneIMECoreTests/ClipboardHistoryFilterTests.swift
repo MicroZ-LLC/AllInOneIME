@@ -178,6 +178,51 @@ struct ClipboardHistoryFilterTests {
         }
     }
 
+    /// A longer history (`aLongerHistoryIsFilteredOffTheKey`), its rows for what is typed not in yet: ⏎ or Tab is taken and
+    /// puts in nothing then, never a row shown for what was typed before, and the first of the rows found goes in once
+    /// they're in (none: the panel stays, "no match"); a key after it (more typed) leaves that to the rows of what is
+    /// typed by then, nothing put in; a click on a row shown meanwhile puts nothing in.
+    @Test func aLongerHistorysEnterPutsInARowOfWhatIsTypedOnly() async throws {
+        try await withInterfaceLanguage("en") {
+            let long = String(repeating: "长文本 long text ", count: 800)
+            let texts = ["你好世界", long, "memo 1", "nihao"]
+            for key in [FakeHost.enter, FakeHost.tab] {
+                let h = host(texts)
+                h.type("memo")
+                let before = h.outputs.count
+                #expect(h.press(key))
+                #expect(h.document.isEmpty && h.panel?.input?.text == "memo", "\(h.document)")
+                #expect(h.outputs[before...].contains(.rowsTookKey))
+                #expect(h.settle { !h.document.isEmpty })
+                #expect(h.document == "memo 1" && h.panel == nil)
+            }
+
+            let none = host(texts)
+            none.type("zzz")
+            #expect(none.press(FakeHost.enter) && none.document.isEmpty)
+            #expect(none.settle { none.panel?.detail == "Clipboard · no match" })
+            none.settle(timeout: 0.2) { false }
+            #expect(none.document.isEmpty && none.panel?.input?.text == "zzz")
+
+            let typedOn = host(texts)
+            typedOn.type("memo")
+            #expect(typedOn.press(FakeHost.enter))
+            typedOn.type(" 1")
+            #expect(typedOn.settle { typedOn.panel?.detail == "Clipboard · 1 match" })
+            typedOn.settle(timeout: 0.2) { false }
+            #expect(typedOn.document.isEmpty && typedOn.panel?.rows.map(\.text) == ["memo 1"])
+
+            let clicked = host(texts)
+            clicked.type("memo")
+            clicked.send(.pick(0))
+            #expect(clicked.document.isEmpty && clicked.panel?.input?.text == "memo", "\(clicked.document)")
+            #expect(clicked.settle { clicked.panel?.detail == "Clipboard · 1 match" })
+            #expect(clicked.document.isEmpty)
+            clicked.send(.pick(0))
+            #expect(clicked.document == "memo 1" && clicked.panel == nil)
+        }
+    }
+
     /// A longer history's keys stop being worked out once its panel is gone (hidden, a row put in, clicked, the field
     /// left), never left to run on; and a long text's pinyin stops partway once its work is stopped.
     @Test func aLongerHistorysWorkStopsWithItsPanel() async throws {
