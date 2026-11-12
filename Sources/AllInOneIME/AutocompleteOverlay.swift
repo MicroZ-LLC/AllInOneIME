@@ -23,6 +23,8 @@ final class GhostOverlay: NSPanel {
     static var invisible = false
     static var watchesPointer = true
     private var monitor: Any?
+    /// Put back on screen as the candidate panel is (GitHub #61), while it shows.
+    private var screenEvents: ScreenEvents?
 
     init() {
         super.init(contentRect: NSRect(x: 0, y: 0, width: 10, height: 10), styleMask: [.borderless, .nonactivatingPanel],
@@ -40,6 +42,15 @@ final class GhostOverlay: NSPanel {
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
         contentView = ghost
+        screenEvents = ScreenEvents { [weak self] in self?.resurface() }
+    }
+
+    /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`): ordered in again while it
+    /// shows a suggestion, the app shown again first if it was hidden (never activated).
+    private func resurface() {
+        guard !ghost.text.isEmpty else { return }
+        CandidatePanel.unhideAppIfHidden()
+        orderFrontRegardless()
     }
 
     override var canBecomeKey: Bool { false }
@@ -78,13 +89,16 @@ final class GhostOverlay: NSPanel {
         ghost.baseline = baseline - line.minY
         ghost.needsDisplay = true
         alphaValue = Self.invisible ? 0 : 1
+        // Coming up: the app shown again first if it was hidden, never activated (GitHub #61).
+        if !isVisible { CandidatePanel.unhideAppIfHidden() }
         orderFrontRegardless()
         watchPointer()
         return true
     }
 
     func hide() {
-        guard isVisible || monitor != nil else { return }
+        // Its text too: one AppKit took off the screen (the app hidden) isn't put back once hidden (`resurface`).
+        guard isVisible || monitor != nil || !ghost.text.isEmpty else { return }
         orderOut(nil)
         ghost.text = ""
         monitor.map(NSEvent.removeMonitor)

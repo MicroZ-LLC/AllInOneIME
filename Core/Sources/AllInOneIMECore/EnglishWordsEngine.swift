@@ -20,7 +20,8 @@ import Foundation
 /// key librime commits its highlighted candidate on (Space, a punctuation mark, rime-ice's [ ]) finds librime's highlight
 /// moved onto the candidate shown highlighted first, never one left out; anything else goes to librime as it would.
 /// Letters librime commits exactly as they were typed (⏎, a tap of Shift) are told (`rawCommitted`): what the session
-/// learns words from. Main thread only, as librime.
+/// learns words from. In Zhuyin (`PinyinScheme.zhuyin`) Latin letters are Zhuyin keys: no words among its candidates,
+/// nothing typed learned as one, and its digits, punctuation and Space always librime's. Main thread only, as librime.
 public final class EnglishWordsEngine: PinyinEngine {
     public let base: PinyinEngine
     /// rime-ice's English words: those librime offers itself.
@@ -54,6 +55,10 @@ public final class EnglishWordsEngine: PinyinEngine {
     public var rawCommitted: ((String) -> Void)?
     /// The user's fuzzy pinyin (`Config.fuzzyPinyin`): what librime reads as pinyin with it is pinyin here too.
     public var fuzzyPinyin: [String] = []
+    /// The way librime types pinyin now (`selectSchema`): in a Shuangpin scheme, what it reads as pinyin is the scheme's
+    /// keys ("nihc"), and its preedit spells out the syllables they stand for ("ni hao"), not the letters typed; in Zhuyin,
+    /// the letters are no word at all.
+    public private(set) var scheme: PinyinScheme = .full
     /// The most words put on a page.
     public static let maxPerPage = 3
     /// The most pages turned on past one with nothing shown (`skipEmptyPages`), and back from the last before those: the
@@ -131,16 +136,25 @@ public final class EnglishWordsEngine: PinyinEngine {
     public var language: Language { base.language }
     public var rawInput: String { base.rawInput }
 
+    /// librime's schema changed (`PinyinEngine.selectSchema`): what is composed is dropped with it, and what is typed is
+    /// read as the new one reads it.
+    public func selectSchema(_ id: String) -> Bool {
+        let selected = base.selectSchema(id)
+        if selected { scheme = PinyinScheme(rawValue: id) ?? .full }
+        (cursor, laidOutFor, rawBefore) = (nil, nil, nil)
+        return selected
+    }
+
     // MARK: The page
 
     /// librime's page without the candidates removed, with the words for what is typed (`raw`, librime's input) put in.
     private func layout(_ snap: EngineSnapshot, raw: String) -> [Entry] {
         let rime = removed.isEmpty ? snap.candidates.indices.map(Entry.base)
             : snap.candidates.indices.filter { !removed.contains(snap.candidates[$0].text) }.map(Entry.base)
-        guard snap.isComposing, !snap.isAsciiMode, snap.pageNumber == 0, !index.isEmpty else { return rime }
+        guard snap.isComposing, !snap.isAsciiMode, snap.pageNumber == 0, !index.isEmpty, scheme != .zhuyin else { return rime }
         guard !raw.isEmpty, raw.allSatisfy({ $0.isASCII && $0.isLetter }),
               // Nothing of it picked yet ("你好ma": the page is for the rest), and librime's numbering, which the page's follows.
-              snap.preedit.filter({ $0 != " " }) == raw,
+              nothingPicked(snap, raw: raw),
               snap.candidates.enumerated().allSatisfy({ $0.element.label == String(($0.offset + 1) % 10) }),
               snap.candidates.count + Self.maxPerPage <= 10 else { return rime }
         let typed = raw.lowercased()
@@ -156,8 +170,8 @@ public final class EnglishWordsEngine: PinyinEngine {
             if found.count == Self.maxPerPage { break }
         }
         guard !found.isEmpty else { return rime }
-        let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin)
-        let maybePinyin = pinyin || Pinyin.endsInASpellingBegun(typed, fuzzy: fuzzyPinyin)
+        let pinyin = Pinyin.isPinyin(typed, fuzzy: fuzzyPinyin, scheme: scheme)
+        let maybePinyin = pinyin || Pinyin.endsInASpellingBegun(typed, fuzzy: fuzzyPinyin, scheme: scheme)
         // Before librime's candidate of each place (the last: after them all).
         var before = [[Entry]](repeating: [], count: rime.count + 1)
         for match in found {
@@ -165,6 +179,13 @@ public final class EnglishWordsEngine: PinyinEngine {
             before[min(place, rime.count)].append(.word(match.word))
         }
         return rime.indices.flatMap { before[$0] + [rime[$0]] } + before[rime.count]
+    }
+
+    /// Whether nothing of what is typed (`raw`) is picked yet: librime's preedit is the letters, split as its highlighted
+    /// candidate reads them ("bei d rock"); in a Shuangpin scheme, the syllables they stand for ("nihc": "ni hao"), with
+    /// no word picked before them ("你好ma").
+    private func nothingPicked(_ snap: EngineSnapshot, raw: String) -> Bool {
+        scheme.isShuangpin ? !snap.preedit.containsHan : snap.preedit.filter { $0 != " " } == raw
     }
 
     /// The words whose letters begin with `typed`: all of a word's letters, or `minPrefix` of them at least; the shorter
@@ -199,9 +220,12 @@ public final class EnglishWordsEngine: PinyinEngine {
         return (snap, entries)
     }
 
-    /// What `laidOutFor` tells a page by: the input, librime's page and its preedit without its spaces.
+    /// What `laidOutFor` tells a page by: the input, librime's page and its preedit without its spaces. In a Shuangpin
+    /// scheme, only what is picked of the preedit: the syllables it spells out follow librime's highlight.
     private func laidOutKey(_ snap: EngineSnapshot, raw: String) -> String {
-        "\(raw)\u{0}\(snap.pageNumber)\u{0}\(snap.preedit.filter { $0 != " " })"
+        let preedit = scheme.isShuangpin ? String(snap.preedit.unicodeScalars.filter { $0.properties.isIdeographic })
+            : snap.preedit.filter { $0 != " " }
+        return "\(raw)\u{0}\(snap.pageNumber)\u{0}\(preedit)"
     }
 
     private static func isWord(_ entry: Entry) -> Bool {
@@ -262,12 +286,36 @@ public final class EnglishWordsEngine: PinyinEngine {
         if !raw.isEmpty { rawBefore = raw }
         if let handled = onPage(keycode, mask: mask) { return handled }
         let arrow = (keycode == RimeKey.up || keycode == RimeKey.down) && mask == 0
-        return changing(arrow: arrow) { base.processKey(keycode, mask: mask) }
+        guard arrow, keycode == RimeKey.up else { return changing(arrow: arrow) { base.processKey(keycode, mask: mask) } }
+        let page = base.snapshot().pageNumber
+        let handled = changing(arrow: true) { base.processKey(keycode, mask: mask) }
+        if base.snapshot().pageNumber < page { highlightLastShown() }
+        return handled
+    }
+
+    /// librime's ↑ from its page's first candidate went back a page: the highlight on that page's last row shown (a word
+    /// after librime's candidates, else librime's last, where its ↑ put it), not where a page laid out anew has it (on a
+    /// word that comes first).
+    private func highlightLastShown() {
+        let snap = base.snapshot(), raw = base.rawInput
+        let entries = layout(snap, raw: raw)
+        laidOutFor = laidOutKey(snap, raw: raw)
+        cursor = nil
+        guard let last = entries.indices.last else { return }
+        switch entries[last] {
+        case .word:
+            cursor = last
+        case let .base(i):
+            highlightBase(i)
+            laidOutFor = laidOutKey(base.snapshot(), raw: raw)  // librime's preedit follows its highlight
+        }
     }
 
     /// A key that moves on the page or picks from it when the page shown isn't librime's; nil: librime's.
     private func onPage(_ keycode: Int32, mask: Int32) -> Bool? {
         guard mask & ~RimeKey.shiftMask == 0 else { return nil }  // releases and shortcuts are librime's
+        // Zhuyin's digits, punctuation and Space are its keys (a tone, ㄅ, ㄝ…), whatever the page: only ↑↓ move here.
+        if scheme == .zhuyin, mask != 0 || keycode != RimeKey.up && keycode != RimeKey.down { return nil }
         let (snap, entries) = current()
         guard !Self.isLibrimes(entries, of: snap) else { return nil }
         guard let at = highlighted(snap, entries) else { return nothingShown(keycode, mask: mask) }
@@ -438,7 +486,7 @@ public final class EnglishWordsEngine: PinyinEngine {
             picked = nil
             return word + (committed ?? "")
         }
-        if let committed, let before = rawBefore, committed == before, !base.snapshot().isComposing {
+        if let committed, let before = rawBefore, committed == before, !base.snapshot().isComposing, scheme != .zhuyin {
             rawCommitted?(committed)
         }
         if committed != nil { rawBefore = nil }

@@ -7,14 +7,14 @@ import SwiftUI
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
     // General
-    case inputLanguages, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
+    case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
     // AI
     case provider, model, apiKey, awsProfile, baseURL, testConnection
     // Privacy
-    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned
+    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned, installID
     // Commands
     case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
     // Advanced
@@ -25,13 +25,14 @@ enum SettingsSpot: String, CaseIterable {
     /// The page it's on.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage: return .input
+        case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
+             .codingLanguage: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
             return .general
         case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
-        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned:
+        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
             return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
             return .commands
@@ -48,7 +49,7 @@ enum SettingsSpot: String, CaseIterable {
     /// The input whose chip holds it.
     var chip: Input? {
         switch self {
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
+        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -59,6 +60,7 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
+        case .pinyinScheme: return UIText.pinyinSchemeLabel
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
@@ -93,6 +95,7 @@ enum SettingsSpot: String, CaseIterable {
         case .rememberQuestions: return tr("记住最近的问题", "Remember recent questions")
         case .learnEnglishWords: return tr("学习英文词", "Learn English words")
         case .learned: return tr("学到的内容", "Learned")
+        case .installID: return tr("每日检查更新时附带匿名安装 ID", "Send an anonymous install ID with the daily update check")
         case .customCommands: return tr("你的命令", "Your Commands")
         case .agent: return UIText.triggered(tr("@agent 交给", "@agent hands it to"))
         case .questionContinueIn: return tr("对话接着在哪里聊", "Continue a conversation in")
@@ -115,6 +118,7 @@ enum SettingsSpot: String, CaseIterable {
     /// What its row says, where that doesn't depend on the settings: one sentence, also searched.
     var note: String? {
         switch self {
+        case .pinyinScheme: return UIText.pinyinSchemeHelp
         case .chineseCharacters: return UIText.chineseCharactersHelp
         case .fuzzyPinyin: return tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之")
         case .personalDictionaries: return tr("UTF-8 Rime .dict.yaml，最多 32 MiB", "UTF-8 Rime .dict.yaml, up to 32 MiB")
@@ -142,6 +146,9 @@ enum SettingsSpot: String, CaseIterable {
         case .learned:
             return tr("从你的用法里学到的，比如 App 用哪种输入开始、你选过的建议行，只存在这台 Mac 上。",
                       "What was learned from how you type, such as the input an app starts in or the rows you picked, kept on this Mac only.")
+        case .installID:
+            return tr("一个本机随机生成的编号，只用于统计安装数，不含其他信息。",
+                      "A random number made on this Mac, so we can count installs. Nothing else is sent.")
         case .typeOut: return Self.typeOutNote
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
@@ -155,6 +162,12 @@ enum SettingsSpot: String, CaseIterable {
     private var keywords: String {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
+        // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them; Zhuyin by its
+        // other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ).
+        case .pinyinScheme:
+            return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
+                + "zhuyin bopomofo daqian taiwan 注音 注音符號 注音符号 大千 標準 标准 ㄅㄆㄇ 台灣 台湾 "
+                + PinyinScheme.others.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
         case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
@@ -190,6 +203,7 @@ enum SettingsSpot: String, CaseIterable {
         case .pageContext: return "@agent @reply chrome page context accessibility 网页 辅助功能"
         case .rememberQuestions: return "@question recent questions history forget 最近的问题 提问 记录 历史 忘掉"
         case .learnEnglishWords: return "learn english words 学习 英文词"
+        case .installID: return "install id anonymous count installs statistics update check user agent 安装 编号 匿名 统计 安装数 检查更新"
         case .learned: return "learned forget starts in starting input autocomplete stopped typos picked rows suggestions temperature models 学到的内容 忘掉 开始 输入 续写 停下 打错 选过的行 建议 模型"
         case .customCommands: return "custom commands prompt program terminal link snippet 自定义 命令 程序 终端 网页"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed background notify tasks @tasks claude tasks 编程 交给 终端 已安装 后台 通知 任务"
@@ -256,7 +270,8 @@ enum SettingsSpot: String, CaseIterable {
         case .model: return config.provider != .hosted && config.provider != .apple
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
-        case .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return config.inputLanguages.contains(.chinese)
+        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates:
+            return config.inputLanguages.contains(.chinese)
         case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
         case .webSearch: return Command.webSearchOffered
         default: return true

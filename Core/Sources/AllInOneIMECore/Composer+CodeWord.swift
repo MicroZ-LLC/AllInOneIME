@@ -76,9 +76,10 @@ extension Composer {
     }
 
     /// The word held ends: it goes in as typed (→ or Esc on its rows, Code left), or `text` in its place (a row put in:
-    /// the word and what the row adds to it). What the shell is to do; nothing of the composer's panel was up for it.
+    /// the word and what the row adds to it, only the word typed). What the shell is to do; nothing of the composer's
+    /// panel was up for it.
     public func endCodeWord(inserting text: String? = nil) -> [Effect] {
         guard let word = codeWord else { return [] }
-        return finish(committing: text ?? word).filter { $0 != .hidePanel }
+        return finish(committing: text ?? word, typed: word).filter { $0 != .hidePanel }
     }
 }

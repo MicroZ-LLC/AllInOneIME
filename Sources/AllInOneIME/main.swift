@@ -77,6 +77,11 @@ enum RimeDirectories {
     static var code: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
     }
+    /// The app's Zhuyin data (rime-bopomofo's schema and what it needs: `PinyinScheme.zhuyinData`), linked into the pack
+    /// (`LanguagePackStore.linkData`); compiled only where Zhuyin is picked (the schema list).
+    static var zhuyin: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-zhuyin")
+    }
     /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
     static var openCC: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
@@ -92,20 +97,30 @@ enum RimeDirectories {
 
 /// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, for the
 /// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC), and for the filter of the
-/// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too.
+/// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too; for full
+/// pinyin's schema and the Shuangpin scheme or Zhuyin typed with (`PinyinScheme`), whose schema is deployed beside it
+/// (the schema list, `default.custom.yaml`).
 enum RimeFuzzy {
     /// The characters the patch was last written for (`follow`).
     static let written = ChineseCharacters.Written()
+    /// The way of typing pinyin the patch and the schema list were last written for (`follow`); nil: not written yet.
+    static var writtenScheme: PinyinScheme?
 
-    /// Writes (or removes) the patch; nil when it couldn't. `.written` and `.removed` need a deployment.
+    /// Writes (or removes) the patch, and the schema list; nil when it couldn't. `.written` and `.removed` need a
+    /// deployment, and so does a schema list written (`schemaListWritten`).
     @discardableResult
-    static func write(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
+    static func write(_ ids: [String], characters: ChineseCharacters, scheme: PinyinScheme) -> FuzzyPinyin.Outcome? {
+        schemaListWritten = false
         guard let shared = RimeDirectories.shared else { return nil }
         // Whatever came of it: tried once for these characters, not again at every check (`follow`).
-        defer { written.wrote(characters) }
+        defer {
+            written.wrote(characters)
+            writtenScheme = scheme
+        }
+        schemaListWritten = writeSchemaList(scheme)
         do {
-            let outcome = try FuzzyPinyin.apply(ids, characters: characters, schema: shared.appendingPathComponent("rime_ice.schema.yaml"),
-                                                userDir: RimeDirectories.user)
+            let outcome = try FuzzyPinyin.apply(ids, characters: characters, scheme: scheme,
+                                                schema: shared.appendingPathComponent("rime_ice.schema.yaml"), userDir: RimeDirectories.user)
             if outcome == .userFile { log.notice("fuzzy pinyin not applied: the Rime folder has the user's own \(FuzzyPinyin.fileName, privacy: .public)") }
             return outcome
         } catch {
@@ -114,25 +129,53 @@ enum RimeFuzzy {
         }
     }
 
-    /// Changed in the settings: written, and Rime deployed again when it changed (about a second).
+    /// The last `write` wrote the schema list anew (another scheme picked): librime deploys it.
+    private(set) static var schemaListWritten = false
+
+    /// The schemas deployed (`PinyinScheme.applySchemaList`): full pinyin's, and the Shuangpin scheme's or Zhuyin's.
+    /// Whether it was written anew.
+    private static func writeSchemaList(_ scheme: PinyinScheme) -> Bool {
+        do {
+            switch try PinyinScheme.applySchemaList(scheme, userDir: RimeDirectories.user) {
+            case .written: return true
+            case .unchanged: return false
+            case .userFile:
+                log.notice("the schemas deployed are the user's own default.custom.yaml's: \(scheme.rawValue, privacy: .public) types only if it lists it")
+                return false
+            }
+        } catch {
+            log.error("could not write the schema list: \(String(describing: error), privacy: .public)")
+            return false
+        }
+    }
+
+    /// Changed in the settings: written, and Rime deployed again when it changed (about a second; a Shuangpin scheme
+    /// deployed for the first time, its spellings too, a moment more; Zhuyin, its dictionaries, a couple of seconds).
     @discardableResult
-    static func apply(_ ids: [String], characters: ChineseCharacters) -> FuzzyPinyin.Outcome? {
-        let outcome = write(ids, characters: characters)
-        if outcome == .written || outcome == .removed { RimeService.shared.redeploy() }
+    static func apply(_ ids: [String], characters: ChineseCharacters, scheme: PinyinScheme) -> FuzzyPinyin.Outcome? {
+        let outcome = write(ids, characters: characters, scheme: scheme)
+        if outcome == .written || outcome == .removed || schemaListWritten { RimeService.shared.redeploy() }
         return outcome
     }
 
     /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
     /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
-    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. Nothing while the
-    /// config file doesn't parse (nil): its defaults aren't the user's fuzzy pinyin. Nothing in the self-test either
-    /// (`Config.selfTestURL`): its Rime has a user folder of its own, and the patch is the user's.
+    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. So is another way
+    /// of typing pinyin than the one written (`Config.pinyinScheme` changed in the file, or by the settings of another
+    /// shell), which the next key types with once it is deployed. Nothing while the config file doesn't parse (nil): its
+    /// defaults aren't the user's fuzzy pinyin. Nothing in the self-test either (`Config.selfTestURL`): its Rime has a user
+    /// folder of its own, and the patch is the user's.
     @MainActor
     static func follow(_ config: Config?) {
-        guard let config, Config.selfTestURL == nil, RimeService.shared.isStarted,
-              let characters = written.changed(config) else { return }
-        log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
-        apply(config.fuzzyPinyin, characters: characters)
+        guard let config, Config.selfTestURL == nil, RimeService.shared.isStarted else { return }
+        let characters = written.changed(config)
+        let scheme = config.typedPinyin
+        guard characters != nil || scheme != writtenScheme else { return }
+        if let characters {
+            log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
+        }
+        if scheme != writtenScheme { log.notice("pinyin is typed another way: \(scheme.rawValue, privacy: .public)") }
+        apply(config.fuzzyPinyin, characters: characters ?? config.typedChinese, scheme: scheme)
     }
 }
 
@@ -150,6 +193,7 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
         CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
         SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
+        WeekStatsShared.store.flushNow()  // this week's counts not written yet
     }
 }
 
@@ -173,6 +217,7 @@ private let terminationSignal: DispatchSourceSignal = {
         _ = saved.wait(timeout: .now() + 0.5)
         CommandRunner.stopAll()
         SessionServices.englishWordsWriter.drain(within: 0.5)
+        WeekStatsShared.store.flushNow()
         _exit(0)
     }
     return source
@@ -248,6 +293,14 @@ func runServer(showSettings: Bool = false) -> Never {
     // English words learned (candidates removed) while the config file didn't parse (or couldn't be written): written
     // once it parses again.
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
+    // This week's stats: the user's own commands deleted or renamed keep no name there, now and each time the config
+    // file is read anew (`WeekStatsShared.keepOwnCommands`).
+    let retryEnglishWords = LiveConfig.parsedAnew
+    LiveConfig.parsedAnew = {
+        retryEnglishWords()
+        WeekStatsShared.keepOwnCommands()
+    }
+    WeekStatsShared.keepOwnCommands()
     // Translate as You Type goes off when another app becomes active, a text field in it or not.
     MainActor.assumeIsolated { TranslateModeShared.watchApps() }
     // Sync through iCloud, if it is on: a first run in a moment, then as files change.
@@ -559,6 +612,10 @@ case "--settings-image":
         SettingsPageImages.run(output: directory, chinese: arguments.contains("zh"), dark: arguments.contains("dark"),
                                extensions: extensions, update: update, agent: agent, doctor: doctor)
     }
+case "--week-stats-images":
+    // This week's stats as the design shows them, with its sample week (`WeekStatsImages`).
+    let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-week-stats")
+    MainActor.assumeIsolated { WeekStatsImages.run(output: directory) }
 case "--page-context":
     // `--page-context [request]`: what `@agent` would take along from the Chrome page in front, printed (nothing is
     // sent). Needs Accessibility for the process that runs it.

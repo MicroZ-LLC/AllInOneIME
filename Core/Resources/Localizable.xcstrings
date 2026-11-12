@@ -48,6 +48,53 @@
         }
       }
     },
+    " · %@ matches" : {
+      "comment" : " · %@ 条匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ coincidencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ résultats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@件一致"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@개 일치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ correspondências"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %@ 條符合"
+          }
+        }
+      }
+    },
     " · %@ puts it on the clipboard" : {
       "comment" : " · %@ 放到剪贴板 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -142,6 +189,53 @@
         }
       }
     },
+    " · 1 match" : {
+      "comment" : " · 1 条匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 coincidencia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 résultat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1件一致"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1개 일치"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 correspondência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 1 條符合"
+          }
+        }
+      }
+    },
     " · 90%% within %@ ms" : {
       "comment" : " · 九成在 %@ ms 内 — Sources/AllInOneIMECore/Autocomplete.swift",
       "localizations" : {
@@ -232,6 +326,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : " · 結尾為 %@"
+          }
+        }
+      }
+    },
+    " · no match" : {
+      "comment" : " · 没有匹配 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · kein Treffer"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · sin coincidencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · aucun résultat"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 一致なし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 일치 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · nenhuma correspondência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · 沒有符合"
           }
         }
       }
@@ -3343,6 +3484,53 @@
         }
       }
     },
+    "%@ deletes · Esc hides" : {
+      "comment" : "%@ 删字 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ löscht · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ borra · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ efface · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で削除 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삭제 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ apaga · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 刪字 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ didn't accept the API key: check it in Settings → Commands" : {
       "comment" : "%@ 不接受这个 API key：在设置 → 命令里检查一下 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -3766,6 +3954,100 @@
         }
       }
     },
+    "%@ inserts · ↑↓ to pick · ← → page · ⇧↓ selects more · Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ← → 翻页 · ⇧↓ 多选 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ← → blättern · ⇧↓ wählt mehr · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ← → pasar página · ⇧↓ elige más · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ← → changer de page · ⇧↓ en choisit plus · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ← → でページ送り · ⇧↓ で複数選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ← → 페이지 넘기기 · ⇧↓ 여러 개 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ← → mudam de página · ⇧↓ escolhe mais · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ← → 翻頁 · ⇧↓ 多選 · Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ← → 翻页 · 打字筛选 · ⇧↓ 多选 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ← → blättern · tippen zum Filtern · ⇧↓ wählt mehr · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ← → pasar página · escribe para filtrar · ⇧↓ elige más · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ← → changer de page · tapez pour filtrer · ⇧↓ en choisit plus · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ← → でページ送り · 入力で絞り込み · ⇧↓ で複数選択 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ← → 페이지 넘기기 · 입력으로 필터링 · ⇧↓ 여러 개 선택 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ← → mudam de página · digite para filtrar · ⇧↓ escolhe mais · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ← → 翻頁 · 打字篩選 · ⇧↓ 多選 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides" : {
       "comment" : "%@ 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
       "localizations" : {
@@ -3809,6 +4091,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 插入 · ↑↓ 選擇 · ⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · 打字筛选 · ⇧↓ 多选 · → 或 Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · tippen zum Filtern · ⇧↓ wählt mehr · → oder Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · escribe para filtrar · ⇧↓ elige más · → o Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · tapez pour filtrer · ⇧↓ en choisit plus · → ou Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · 入力で絞り込み · ⇧↓ で複数選択 · → か Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · 입력으로 필터링 · ⇧↓ 여러 개 선택 · → 또는 Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · digite para filtrar · ⇧↓ escolhe mais · → ou Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · 打字篩選 · ⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides" : {
+      "comment" : "%@ 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏 — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt sie ein, je eine Zeile · ⇧↑⇧↓ wählen · ← → blättern · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ los inserta, uno por línea · ⇧↑⇧↓ eligen · ← → pasar página · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ les insère, un par ligne · ⇧↑⇧↓ choisissent · ← → changer de page · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で1行ずつ挿入 · ⇧↑⇧↓ で選択 · ← → でページ送り · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 한 줄에 하나씩 삽입 · ⇧↑⇧↓ 선택 · ← → 페이지 넘기기 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere, um por linha · ⇧↑⇧↓ escolhem · ← → mudam de página · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 一行一條插入 · ⇧↑⇧↓ 多選 · ← → 翻頁 · Esc 隱藏"
           }
         }
       }
@@ -6490,6 +6866,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%%.1f 秒：%%@%%@"
+          }
+        }
+      }
+    },
+    "← → page" : {
+      "comment" : "← → 翻页 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → blättern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → pasar página"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → changer de page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → でページ送り"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → 페이지 넘기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → mudam de página"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "← → 翻頁"
           }
         }
       }
@@ -10600,6 +11023,53 @@
         }
       }
     },
+    "An SF Symbols name (terminal, globe …) or one emoji; empty, the icon of its kind." : {
+      "comment" : "SF Symbols 里的名字（比如 terminal、globe），或者一个 emoji；不填就是这类命令的图标。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Name aus SF Symbols (terminal, globe …) oder ein Emoji; leer: das Symbol seiner Art."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nombre de SF Symbols (terminal, globe…) o un emoji; vacío, el icono de su tipo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nom de SF Symbols (terminal, globe…) ou un emoji ; vide, l’icône de son type."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols の名前（terminal、globe など）または絵文字 1 つ。空欄なら種類ごとのアイコン。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols 이름(terminal, globe 등) 또는 이모지 하나. 비워 두면 종류별 아이콘을 씁니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um nome do SF Symbols (terminal, globe…) ou um emoji; vazio, o ícone do seu tipo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols 裡的名稱（例如 terminal、globe），或一個 emoji；留空就是這類指令的圖示。"
+          }
+        }
+      }
+    },
     "Another bundle with this name is loaded" : {
       "comment" : "已经有一个同名的扩展包 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -13381,6 +13851,100 @@
         }
       }
     },
+    "Blue" : {
+      "comment" : "蓝色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blau"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Azul"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bleu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブルー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "파란색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Azul"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "藍色"
+          }
+        }
+      }
+    },
+    "Brown" : {
+      "comment" : "棕色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Braun"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marrón"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marron"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ブラウン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "갈색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marrom"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "棕色"
+          }
+        }
+      }
+    },
     "built-in" : {
       "comment" : "内置 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -14792,96 +15356,155 @@
         }
       }
     },
-    "Chinese (pinyin, Traditional)" : {
-      "comment" : "中文（拼音·繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
+    "Chinese (Traditional)" : {
+      "comment" : "中文（繁體） — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinesisch (Pinyin, traditionell)"
+            "value" : "Chinesisch (traditionell)"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chino (pinyin, tradicional)"
+            "value" : "Chino (tradicional)"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinois (pinyin, traditionnel)"
+            "value" : "Chinois (traditionnel)"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中国語（ピンイン・繁体字）"
+            "value" : "中国語（繁体字）"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중국어 (병음·번체)"
+            "value" : "중국어 (번체)"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinês (pinyin, tradicional)"
+            "value" : "Chinês (tradicional)"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中文（拼音·繁體）"
+            "value" : "中文（繁體）"
           }
         }
       }
     },
-    "Chinese (pinyin)" : {
-      "comment" : "中文（拼音） — Sources/AllInOneIMECore/Session/SessionText.swift",
+    "inputLanguage.chinese" : {
+      "comment" : "中文 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinesisch (Pinyin)"
+            "value" : "Chinesisch"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chino (pinyin)"
+            "value" : "Chino"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinois (pinyin)"
+            "value" : "Chinois"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中国語（ピンイン）"
+            "value" : "中国語"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중국어 (병음)"
+            "value" : "중국어"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chinês (pinyin)"
+            "value" : "Chinês"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "中文（拼音）"
+            "value" : "中文"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinese"
+          }
+        }
+      }
+    },
+    "choice.default" : {
+      "comment" : "默认 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Default"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設"
           }
         }
       }
@@ -15877,6 +16500,112 @@
         }
       }
     },
+    "commandIcon.color" : {
+      "comment" : "颜色 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farbe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couleur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カラー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "색상"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顏色"
+          }
+        }
+      }
+    },
+    "commandIcon.icon" : {
+      "comment" : "图标 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icon"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icono"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icône"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아이콘"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ícone"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖示"
+          }
+        }
+      }
+    },
     "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app." : {
       "comment" : "选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -15920,6 +16649,112 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取文字後打指令就會處理選取的文字，選好的結果會取代它；哪個 App 裡不正常就關掉。"
+          }
+        }
+      }
+    },
+    "commandTrial.sample" : {
+      "comment" : "样例输入 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beispieleingabe"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sample input"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada de ejemplo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texte d’exemple"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプル入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "샘플 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada de exemplo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例輸入"
+          }
+        }
+      }
+    },
+    "commandTrial.sends" : {
+      "comment" : "这会把样例发给%@ — Sources/AllInOneIMECore/CommandTrial.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Damit wird das Beispiel an %@ gesendet"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This sends the sample to %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto envía el ejemplo a %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cela envoie l’exemple à %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプルを%@に送信します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "샘플을 %@(으)로 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Isso envia o exemplo para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會把範例傳送給%@"
           }
         }
       }
@@ -17904,6 +18739,53 @@
         }
       }
     },
+    "Cyan" : {
+      "comment" : "青色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyan"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cian"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cyan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シアン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시안"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ciano"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "青色"
+          }
+        }
+      }
+    },
     "default" : {
       "comment" : "默认 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -17953,6 +18835,7 @@
     },
     "Default" : {
       "comment" : "默认 — Sources/AllInOneIMECore/Settings/SuggestedModel.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -20310,6 +21193,53 @@
         }
       }
     },
+    "filter › " : {
+      "comment" : "筛选 ›  — Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter › "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtro › "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtre › "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絞り込み › "
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "필터 › "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "filtro › "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "篩選 › "
+          }
+        }
+      }
+    },
     "Find a file, folder or app and open it" : {
       "comment" : "找文件、文件夹或 App 并打开 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -21017,6 +21947,148 @@
         }
       }
     },
+    "Full pinyin" : {
+      "comment" : "全拼 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Pinyin"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin completo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin complet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pinyin completo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼"
+          }
+        }
+      }
+    },
+    "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc); Zhuyin types Bopomofo on the Standard (Daqian) keys (ㄋㄧˇ: su3). It changes at once. Shuangpin keeps your learned words, fuzzy pinyin, characters and English words; Zhuyin keeps the characters, without fuzzy pinyin or English words." : {
+      "comment" : "全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）；注音按标准（大千）键位打注音符号（ㄋㄧˇ：su3）。换了马上生效。双拼照样用学过的词、模糊音、字形和英文词；注音用字形，没有模糊音和英文词。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Pinyin schreibt jede Silbe aus (nihao); Shuangpin tippt jede mit zwei Tasten (Xiaohe: nihc); Zhuyin tippt Bopomofo auf der Standardbelegung (Daqian) (ㄋㄧˇ: su3). Die Änderung gilt sofort. Mit Shuangpin bleiben gelernte Wörter, unscharfes Pinyin, Schriftzeichen und englische Wörter; mit Zhuyin bleiben die Schriftzeichen, ohne unscharfes Pinyin und englische Wörter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El pinyin completo escribe cada sílaba entera (nihao); el Shuangpin escribe cada una con dos teclas (Xiaohe: nihc); el Zhuyin escribe bopomofo con la distribución estándar (Daqian) (ㄋㄧˇ: su3). El cambio es inmediato. El Shuangpin conserva tus palabras aprendidas, el pinyin aproximado, los caracteres y las palabras en inglés; el Zhuyin conserva los caracteres, sin pinyin aproximado ni palabras en inglés."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le pinyin complet écrit chaque syllabe en entier (nihao) ; le Shuangpin tape chacune en deux touches (Xiaohe : nihc) ; le Zhuyin tape le bopomofo sur la disposition standard (Daqian) (ㄋㄧˇ : su3). Le changement est immédiat. Le Shuangpin garde vos mots appris, le pinyin approximatif, les caractères et les mots anglais ; le Zhuyin garde les caractères, sans pinyin approximatif ni mots anglais."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼は音節をすべてつづります（nihao）。双拼は各音節を2つのキーで打ちます（小鶴双拼：nihc）。注音は標準（大千）配列で注音符号を打ちます（ㄋㄧˇ：su3）。切り替えはすぐに反映されます。双拼では学習した語、あいまいピンイン、字体、英単語をそのまま使えます。注音では字体を使え、あいまいピンインと英単語はありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음은 음절을 모두 입력합니다(nihao). 쌍병(Shuangpin)은 음절마다 두 키로 입력합니다(샤오허: nihc). 주음(Zhuyin)은 표준(대천) 배열로 주음부호를 입력합니다(ㄋㄧˇ: su3). 바꾸면 바로 적용됩니다. 쌍병에서는 학습한 단어, 퍼지 병음, 자형, 영어 단어를 그대로 쓸 수 있고, 주음에서는 자형을 쓰며 퍼지 병음과 영어 단어는 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pinyin completo escreve cada sílaba inteira (nihao); o Shuangpin digita cada uma com duas teclas (Xiaohe: nihc); o Zhuyin digita bopomofo no layout padrão (Daqian) (ㄋㄧˇ: su3). A mudança vale na hora. O Shuangpin mantém suas palavras aprendidas, o pinyin aproximado, os caracteres e as palavras em inglês; o Zhuyin mantém os caracteres, sem pinyin aproximado nem palavras em inglês."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼把每個音節拼全（nihao）；雙拼每個音節打兩個鍵（小鶴雙拼：nihc）；注音按標準（大千）鍵位打注音符號（ㄋㄧˇ：su3）。換了馬上生效。雙拼照樣用學過的詞、模糊音、字形和英文詞；注音用字形，沒有模糊音和英文詞。"
+          }
+        }
+      }
+    },
+    "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc). It changes at once, and your learned words, fuzzy pinyin, characters and English words work either way." : {
+      "comment" : "全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）。换了马上生效，学过的词、模糊音、字形和英文词照样能用。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vollständiges Pinyin schreibt jede Silbe aus (nihao); Shuangpin tippt jede mit zwei Tasten (Xiaohe: nihc). Die Änderung gilt sofort, und gelernte Wörter, unscharfes Pinyin, Schriftzeichen und englische Wörter funktionieren mit beidem."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El pinyin completo escribe cada sílaba entera (nihao); el Shuangpin escribe cada una con dos teclas (Xiaohe: nihc). El cambio es inmediato, y tus palabras aprendidas, el pinyin aproximado, los caracteres y las palabras en inglés funcionan con ambos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le pinyin complet écrit chaque syllabe en entier (nihao) ; le Shuangpin tape chacune en deux touches (Xiaohe : nihc). Le changement est immédiat, et vos mots appris, le pinyin approximatif, les caractères et les mots anglais fonctionnent dans les deux cas."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼は音節をすべてつづります（nihao）。双拼は各音節を2つのキーで打ちます（小鶴双拼：nihc）。切り替えはすぐに反映され、学習した語、あいまいピンイン、字体、英単語はどちらでも使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음은 음절을 모두 입력합니다(nihao). 쌍병(Shuangpin)은 음절마다 두 키로 입력합니다(샤오허: nihc). 바꾸면 바로 적용되며, 학습한 단어, 퍼지 병음, 자형, 영어 단어는 어느 쪽에서나 그대로 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pinyin completo escreve cada sílaba inteira (nihao); o Shuangpin digita cada uma com duas teclas (Xiaohe: nihc). A mudança vale na hora, e suas palavras aprendidas, o pinyin aproximado, os caracteres e as palavras em inglês funcionam com os dois."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼把每個音節拼全（nihao）；雙拼每個音節打兩個鍵（小鶴雙拼：nihc）。換了馬上生效，學過的詞、模糊音、字形和英文詞照樣能用。"
+          }
+        }
+      }
+    },
     "Fuzzy pinyin" : {
       "comment" : "模糊音 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -21295,6 +22367,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "為指令命名"
+          }
+        }
+      }
+    },
+    "Gray" : {
+      "comment" : "灰色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grau"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gris"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gris"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グレイ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "회색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cinza"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "灰色"
+          }
+        }
+      }
+    },
+    "Green" : {
+      "comment" : "绿色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grün"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vert"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "グリーン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "초록색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "綠色"
           }
         }
       }
@@ -22613,6 +23779,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用中"
+          }
+        }
+      }
+    },
+    "Indigo" : {
+      "comment" : "靛蓝 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indigo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Índigo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Indigo"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "インディゴ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "남색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Índigo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "靛藍色"
           }
         }
       }
@@ -25390,6 +26603,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「訊息」未能傳送（錯誤 %@）：請確認 iMessage 已登入，且號碼或電子郵件正確"
+          }
+        }
+      }
+    },
+    "Mint" : {
+      "comment" : "薄荷绿 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mint"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menthe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ミント"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "민트색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Menta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "薄荷綠"
           }
         }
       }
@@ -32370,6 +33630,53 @@
         }
       }
     },
+    "Orange" : {
+      "comment" : "橙色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Naranja"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Orange"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オレンジ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주황색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Laranja"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橙色"
+          }
+        }
+      }
+    },
     "original" : {
       "comment" : "原文 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -32648,6 +33955,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸出"
+          }
+        }
+      }
+    },
+    "page" : {
+      "comment" : "翻页 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "blättern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pasar página"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "changer de page"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ページ送り"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "페이지 넘기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "mudar de página"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻頁"
           }
         }
       }
@@ -33259,6 +34613,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選字"
+          }
+        }
+      }
+    },
+    "Pink" : {
+      "comment" : "粉色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pink"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosa"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rose"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンク"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "분홍색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rosa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "粉紅色"
           }
         }
       }
@@ -34631,6 +36032,53 @@
         }
       }
     },
+    "Purple" : {
+      "comment" : "紫色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lila"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Morado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Violet"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パープル"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "보라색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Roxo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紫色"
+          }
+        }
+      }
+    },
     "Put {input} after the ? in the address" : {
       "comment" : "{input} 要放在 ? 后面 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -34918,6 +36366,7 @@
     },
     "question › " : {
       "comment" : "追问 ›  — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35664,6 +37113,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "推薦：約 1.3 秒，品質好"
+          }
+        }
+      }
+    },
+    "Red" : {
+      "comment" : "红色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rot"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rojo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rouge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レッド"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빨간색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vermelho"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "紅色"
           }
         }
       }
@@ -41786,6 +43282,335 @@
         }
       }
     },
+    "Shuangpin – Microsoft" : {
+      "comment" : "双拼 – 微软 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – Microsoft"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – Microsoft"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Microsoft"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 微軟"
+          }
+        }
+      }
+    },
+    "Shuangpin – Pinyin Jiajia" : {
+      "comment" : "双拼 – 拼音加加 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 拼音加加"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 핀인자자(拼音加加)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Pinyin Jiajia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 拼音加加"
+          }
+        }
+      }
+    },
+    "Shuangpin – Sogou" : {
+      "comment" : "双拼 – 搜狗 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 搜狗"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 써우거우(搜狗)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Sogou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 搜狗"
+          }
+        }
+      }
+    },
+    "Shuangpin – Xiaohe" : {
+      "comment" : "双拼 – 小鹤 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 小鶴"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 샤오허(小鹤)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Xiaohe"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 小鶴"
+          }
+        }
+      }
+    },
+    "Shuangpin – Zhineng ABC" : {
+      "comment" : "双拼 – 智能ABC — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 智能ABC"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 즈넝 ABC"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Zhineng ABC"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 智能ABC"
+          }
+        }
+      }
+    },
+    "Shuangpin – Ziguang" : {
+      "comment" : "双拼 – 紫光 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 紫光"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 쯔광(紫光)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziguang"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 紫光"
+          }
+        }
+      }
+    },
+    "Shuangpin – Ziranma" : {
+      "comment" : "双拼 – 自然码 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双拼 – 自然碼"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "쌍병 – 쯔란마(自然码)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shuangpin – Ziranma"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙拼 – 自然碼"
+          }
+        }
+      }
+    },
     "sign in in Settings" : {
       "comment" : "在设置里登录 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -45221,6 +47046,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "單按 Shift 切換；新的文字欄位從第一個開始。"
+          }
+        }
+      }
+    },
+    "Teal" : {
+      "comment" : "水鸭蓝 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blaugrün"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde azulado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bleu canard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ティール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "청록색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verde-azulado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "藍綠色"
           }
         }
       }
@@ -52153,6 +54025,53 @@
         }
       }
     },
+    "Typing" : {
+      "comment" : "输入方式 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingabeweise"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力方式"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入方式"
+          }
+        }
+      }
+    },
     "Typing speed" : {
       "comment" : "打字速度 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -54045,49 +55964,49 @@
         }
       }
     },
-    "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, - = turn the page." : {
-      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+    "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page." : {
+      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Wortkandidaten (Pinyin, Hindi) untereinander: ↑↓ auswählen, - = blättern."
+            "value" : "Wortkandidaten (Pinyin, Hindi) untereinander: ↑↓ auswählen, ← → oder - = blättern."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidatos de palabras (pinyin, hindi) uno debajo de otro: ↑↓ elegir, - = pasar página."
+            "value" : "Candidatos de palabras (pinyin, hindi) uno debajo de otro: ↑↓ elegir, ← → o - = pasar página."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidats de mots (pinyin, hindi) les uns sous les autres : ↑↓ pour choisir, - = pour changer de page."
+            "value" : "Candidats de mots (pinyin, hindi) les uns sous les autres : ↑↓ pour choisir, ← → ou - = pour changer de page."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "語の候補（ピンイン、ヒンディー語）を縦に並べます：↑↓で選択、- =でページ送り。"
+            "value" : "語の候補（ピンイン、ヒンディー語）を縦に並べます：↑↓で選択、← →または- =でページ送り。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "단어 후보(병음, 힌디어)를 위아래로 배열: ↑↓ 이동, - = 페이지 넘기기."
+            "value" : "단어 후보(병음, 힌디어)를 위아래로 배열: ↑↓ 이동, ← → 또는 - = 페이지 넘기기."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Candidatos de palavras (pinyin, hindi) um embaixo do outro: ↑↓ selecionam, - = mudam de página."
+            "value" : "Candidatos de palavras (pinyin, hindi) um embaixo do outro: ↑↓ selecionam, ← → ou - = mudam de página."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選字（拼音、印地語）的候選字由上往下排：↑↓ 選字，- = 翻頁。"
+            "value" : "選字（拼音、印地語）的候選字由上往下排：↑↓ 選字，← → 或 - = 翻頁。"
           }
         }
       }
@@ -54703,6 +56622,53 @@
         }
       }
     },
+    "Yellow" : {
+      "comment" : "黄色 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelb"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amarillo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jaune"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "イエロー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "노란색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Amarelo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黃色"
+          }
+        }
+      }
+    },
     "yesterday" : {
       "comment" : "昨天 — Sources/AllInOneIMECore/Reminder.swift",
       "localizations" : {
@@ -55312,6 +57278,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你團隊自己的用語"
+          }
+        }
+      }
+    },
+    "Zhuyin (Bopomofo) – Standard" : {
+      "comment" : "注音 – 標準/大千 — Sources/AllInOneIMECore/PinyinScheme.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zhuyin (Bopomofo) – Standardbelegung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zhuyin (Bopomofo) – Distribución estándar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zhuyin (bopomofo) – Disposition standard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注音（ボポモフォ）– 標準/大千"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주음(보포모포) – 표준/대천"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zhuyin (Bopomofo) – Layout padrão"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注音 – 標準/大千"
           }
         }
       }

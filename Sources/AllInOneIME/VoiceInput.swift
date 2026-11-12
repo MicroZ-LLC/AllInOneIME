@@ -5,7 +5,7 @@ import Speech
 
 /// Voice input: hold the right Option key, speak, release. Speech is recognized on the Mac by
 /// Apple's SpeechAnalyzer (macOS 26+); audio never leaves the machine. The language follows the
-/// input mode: Chinese (pinyin) → zh_CN (zh_TW, zh_HK in Taiwan's and Hong Kong's characters), English → en_US.
+/// input mode: Chinese → zh_CN (zh_TW, zh_HK in Taiwan's and Hong Kong's characters), English → en_US.
 enum VoiceInput {
     static var isSupported: Bool {
         if #available(macOS 26.0, *) { return SpeechTranscriber.isAvailable }

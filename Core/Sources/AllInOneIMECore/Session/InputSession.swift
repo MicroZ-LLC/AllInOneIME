@@ -60,6 +60,9 @@ public final class InputSession {
     private var englishWords: EnglishWordsEngine?
     /// What its words were last made of (the user's, the jargon list's terms): made again only when that changes.
     private var englishWordsMadeOf: [String]?
+    /// The schema it was last given (`selectPinyinScheme`): given again only when the settings name another, or to a new
+    /// engine. Nil: none given yet.
+    private var selectedSchema: String?
     /// The candidates removed level one is given (`Composer.removedCandidates`): the settings' list, given again only when
     /// it changes, with those removed it doesn't have yet (left out at once, written a moment later: in this field, and
     /// in any the shell tells aren't written yet), so that neither a new engine nor a list read before they were written
@@ -82,6 +85,8 @@ public final class InputSession {
     var suggesting = SuggestionsField()
     /// Clipboard history's panel in this field (InputSession+ClipboardHistory.swift).
     var clipboard = ClipboardHistoryField()
+    /// The runs counted for this week's stats while their request hasn't answered yet (InputSession+WeekStats.swift).
+    var weekStatsRuns = WeekStatsRuns()
     /// Whether ⌃V's panel may open in the field of the key, as the shell tells it before it hands the paste-anywhere key
     /// on (`isPasteAnywhere`): false where it couldn't keep the keys the panel takes from the app (the Mac: a Chromium or
     /// Electron page that tells no caret, or doesn't read back what is before it, where nothing can be marked during
@@ -180,6 +185,8 @@ public final class InputSession {
         composer.readFieldText = { [weak self] in self?.readFieldText() }
         composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
+        // This week's stats: the characters typed, as a number (InputSession+WeekStats.swift).
+        composer.typedIntoField = { [weak self] typed in self?.countTyped(typed) }
         composer.holdsCodeWord = { [weak self] in self?.codeHoldsTheWord() ?? false }
         composer.instantResults = { [weak self] query in
             guard let services = self?.services else { return [] }
@@ -239,16 +246,18 @@ public final class InputSession {
                 // Clipboard history's rows and suggestions' put in what a click picks.
                 if clipboardPick(row) || suggestionsPick(row) { return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
-                // round, nothing for a question.
+                // round, nothing for a question; a result while a follow-up's pinyin is composed (`pickClicked`).
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
-                perform(composer.choose(index: choice))
+                perform(composer.pickClicked(choice))
             case let .delete(row):
                 // Clipboard history's rows and suggestions' are none of the engine's.
                 guard !clipboard.shown, !suggesting.shown else { return }
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
-                perform(composer.deleteCandidate(index: choice))
+                perform(composer.deleteClicked(choice))
+            case let .handoff(digit):
+                perform(composer.handOff(digit: digit))
             case let .scroll(steps):
                 panelWheelAt = services.uptime()
                 // The wheel short of a row (a trackpad's small steps, its momentum): nothing moves.
@@ -420,7 +429,7 @@ public final class InputSession {
         passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         composer.forgetRecentLive()  // a session of the field starts: `@open` searches its texts afresh
-        clipboard = ClipboardHistoryField(reads: clipboard.reads)
+        clipboardForget()
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
         learningFocused()  // what Shift does before anything is typed may teach the app its starting input
@@ -452,6 +461,7 @@ public final class InputSession {
         composer.engine = nil
         engine = nil
         englishWords = nil
+        selectedSchema = nil
     }
 
     private func ensureLevelOne() {
@@ -459,6 +469,8 @@ public final class InputSession {
         switch services.levelOne() {
         case let .engine(fresh):
             engine = fresh
+            selectedSchema = nil
+            composer.pinyinScheme = .full  // a new session types full pinyin until it takes another schema
             composer.engine = levelOneEngine(fresh)
             appliedDefaultInput = nil  // a new session starts in the default input mode
             settings(app: nil)
@@ -467,6 +479,7 @@ public final class InputSession {
         case .none:
             engine = nil
             englishWords = nil
+            selectedSchema = nil
             if !(composer.primaryEngine is LatinEngine) {  // `engine` is Hindi's while Hindi is typed
                 composer.engine = LatinEngine()
                 appliedDefaultInput = nil
@@ -647,6 +660,7 @@ public final class InputSession {
         }
         // The candidates the user removed, left out by level one whatever its engine.
         takeRemovedCandidates(config.removedCandidates, unwritten: unwritten)
+        selectPinyinScheme(config)
         if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
@@ -705,6 +719,24 @@ public final class InputSession {
             learningApplied()
         }
         emit(.keyboardLayout)
+    }
+
+    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme or Zhuyin), from
+    /// the next key on: its engine given the scheme's schema (`PinyinEngine.selectSchema`) when the settings name another
+    /// than it was given, or it is a new one, with nothing composed (else the next key with nothing composed does). One
+    /// it can't take (not deployed yet: the shell deploys it once the setting changes, and the engine made after that
+    /// takes it) isn't asked for again by this engine; it types as before.
+    private func selectPinyinScheme(_ config: Config) {
+        let scheme = config.typedPinyin
+        guard let engine, scheme.schema != selectedSchema, !composer.isComposing else { return }
+        selectedSchema = scheme.schema
+        // An engine without schemas (a test's, Windows' for now) types full pinyin anyway. The composer reads the keys as
+        // the schema taken does (Zhuyin's digits).
+        if (englishWords ?? engine).selectSchema(scheme.schema) {
+            composer.pinyinScheme = scheme
+        } else if scheme != .full {
+            log.notice("level one can't type with \(scheme.schema) yet: it types as before")
+        }
     }
 
     /// The Code input's pack (`Config.codingLanguage`), when it is installed: its rows are Code's. Nil: no Code here.
@@ -769,6 +801,7 @@ public final class InputSession {
         composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
                                                       installed: { installed($0, config.agentCommand) })
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
+        composer.userGuidePath = services.converter.userGuideFile?.path
         let language = UIText.language
         if let made = chatMessages, made.language == language {
             composer.chatMessages = made.messages
@@ -912,6 +945,16 @@ public final class InputSession {
         return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice() ? [.secure, .text] : [.secure]
     }
 
+    /// A key held back and handed on late, as if typed now (clipboard history's, typed while ⏎ waited for its rows:
+    /// `clipboardHandOn`): whether the session took it. It is never the key being answered (that is an answer of the
+    /// session's work, or another key), so what it says of that key (`rowByKey`, `rowsTookKey`) is dropped.
+    func keyHandedOn(_ event: KeyEvent, _ context: FieldContext) -> Bool {
+        let start = outputs.count
+        let taken = key(event, context)
+        outputs.replaceSubrange(start..., with: outputs[start...].filter { $0 != .rowByKey && $0 != .rowsTookKey })
+        return taken
+    }
+
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
         takePasswordField(context)
@@ -964,7 +1007,7 @@ public final class InputSession {
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
         // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
-        if let taken = clipboardBeforeKey(event) { return taken }
+        if let taken = clipboardBeforeKey(event, context) { return taken }
         // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
@@ -987,6 +1030,7 @@ public final class InputSession {
             }
             missingCheckWaiting = false
             composer.commandUsage = services.loadCommandUsage()  // another field may have run commands
+            selectPinyinScheme(config)  // Shuangpin picked, or full pinyin again: from this key on
             composer.remembersQuestions = config.rememberQuestions
             applyChatSettings(config)
             composer.questionHistory = services.loadQuestionHistory()  // asked in another field, or cleared
@@ -1028,6 +1072,10 @@ public final class InputSession {
             response = Composer.Response(effects: response.effects + typed, handled: false)
         }
         followEnglishTyping(key, english: english, passedOn: !response.handled)
+        // A key let through to the app types its text there: typed through the input method where level one has a
+        // language's engine (in English mode, a digit or a mark with nothing composed …); without one (no language pack,
+        // librime still deploying), every key goes straight to the app and none is counted.
+        if !response.handled, engine != nil, let typed = key.printableText { countTyped(typed) }
         let inserted = response.effects.compactMap { if case let .commit(text) = $0 { intoField(text) } else { nil } }.last
         lastTyped.answered(key, passedOn: !response.handled, inserted: inserted, at: ProcessInfo.processInfo.systemUptime)
         // What went into the field with this key: what the input method put in, and the key's own text if the app types it.
@@ -1255,7 +1303,8 @@ public final class InputSession {
             case let .startBackgroundScript(command, arguments, query):
                 startInBackground(command, arguments: arguments, query: query)
             case let .detachScript(id):
-                // The field was left while a `show` runs: it goes on, and says when it's done.
+                // The field was left while a `show` runs: it goes on, and says when it's done (counted as run).
+                runAnswered(id, fromCache: false)
                 if let run = scriptRun, run.request == id {
                     services.detachScript(run.run)
                     tasks.cancel(.script)
@@ -1317,8 +1366,9 @@ public final class InputSession {
                 handOff(prompt, to: .claude)
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
-            case .commandUsed:
+            case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
+                countRun(name, in: effects)
             case let .candidateRemoved(text):
                 // Left out in this field already, also under a new engine and a list read before it is written; kept for
                 // every field a moment later, never while the key is handled (left out there meanwhile:
@@ -1356,6 +1406,8 @@ public final class InputSession {
                 addToReminders(reminder, input: input)
             case let .copy(text):
                 emit(.copy(text))
+            case .copyWeekStatsImage:
+                emit(.platform(.copyWeekStatsImage))
             case let .sendMessage(recipient, text, command):
                 sendMessage(text, to: recipient, command: command)
             case let .readClipboard(id):
@@ -1509,6 +1561,7 @@ public final class InputSession {
     private func received(_ update: TaskUpdate, from id: TaskID) {
         switch update {
         case let .converted(update, request):
+            runAnswered(request, fromCache: update.fromCache)
             lastHidden = update.hidden
             lastShortened = update.shortened
             if update.isFinal {
@@ -1518,6 +1571,7 @@ public final class InputSession {
             }
             perform(composer.receive(update.result, isFinal: update.isFinal, id: request))
         case let .failed(error, request):
+            runFailed(request)
             if id.slot == .script, scriptRun?.request == request { scriptRun = nil }
             preparingScripts[request] = nil  // a script waiting for its environment (that couldn't be made) never starts
             let message: String
@@ -1529,10 +1583,12 @@ public final class InputSession {
             }
             perform(composer.fail(message, id: request))
         case let .searched(results, request):
+            runAnswered(request, fromCache: false)
             perform(composer.receiveSearch(results, id: request))
         case let .environment(environment, request):
             startScript(request, environment: environment)
         case let .script(update, request):
+            runAnswered(request, fromCache: false)
             if update.isFinal {
                 lastElapsed = Date().timeIntervalSince(scriptStarted)
                 if scriptRun?.request == request { scriptRun = nil }
@@ -1581,6 +1637,8 @@ public final class InputSession {
             warmDue(head, target: target, focus: focus)
         case .pluginsScanned:
             pluginsScanned()
+        case let .clipboardFiltered(rows, filter):
+            clipboardFound(rows, filter: filter)
         }
     }
 
@@ -1868,7 +1926,7 @@ public final class InputSession {
         return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
                               fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, agent: agent,
                               agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
-                              chip: services.translateChip)
+                              chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }
 
     private func showPanel() {

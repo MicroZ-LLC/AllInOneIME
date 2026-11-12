@@ -90,7 +90,7 @@ struct ComposerTests {
                                       rewrites: [Rewrite(style: "简洁", line: CandidateLine("好"))])
         _ = c.receive(result, isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .translation("ja"), .translation("en"), .rewrite("简洁")])
-        #expect(c.choices.map(\.label) == ["0", "1", "2", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])  // numbered on, as shown
         #expect(c.highlighted == 1)  // the first translation, not the original
     }
 
@@ -246,16 +246,16 @@ struct ComposerTests {
         _ = d.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "你好。"), ("正式", "您好。")])),
                       isFinal: true, id: 1)
-        // "你好。" is the original plus a full stop: hidden, and the formal rewrite takes label 4.
-        #expect(d.choices.map(\.label) == ["0", "1", "4"])
+        // "你好。" is the original plus a full stop: hidden, and the formal rewrite takes the next label, 2.
+        #expect(d.choices.map(\.label) == ["0", "1", "2"])
         #expect(d.choices.last?.kind == .rewrite("正式"))
-        #expect(commits(d.handleKeyDown(k("4"))) == ["您好。"])
+        #expect(commits(d.handleKeyDown(k("2"))) == ["您好。"])
 
         let (e, _) = translating()
         _ = e.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "您好！"), ("正式", "您好。")])),
                       isFinal: true, id: 1)
-        #expect(e.choices.map(\.label) == ["0", "1", "4"])  // 正式 (formal) repeats the 润色 (polish) wording
+        #expect(e.choices.map(\.label) == ["0", "1", "2"])  // 正式 (formal) repeats the 润色 (polish) wording
         #expect(e.choices.last?.kind == .rewrite("润色"))
     }
 
@@ -265,7 +265,7 @@ struct ComposerTests {
                                        rewrites: rewrites([("委婉", "你好呀，打扰啦"), ("口语", "嗨～")])),
                       isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .version, .rewrite("委婉"), .rewrite("口语")])
-        #expect(c.choices.map(\.label) == ["0", "1", "4", "5"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])
     }
 
     @Test func rewritesAppearOnceComplete() {
@@ -276,7 +276,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("Hi.")],
                                        rewrites: rewrites([("润色", "你好呀！")]) + rewrites([("简洁", "嗨")], complete: false)),
                       isFinal: false, id: 1)
-        #expect(c.choices.map(\.label) == ["0", "1", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2"])
         _ = c.receive(final, isFinal: true, id: 1)
         #expect(c.choices.map(\.label) == ["0", "1", "2", "3", "4", "5", "6"])
         #expect(c.phase == .choosing)
@@ -564,7 +564,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("Hi there!"), CandidateLine("Hello!")],
                                        rewrites: rewrites([("润色", "Hi there."), ("简洁", "Hey.")])),
                       isFinal: true, id: 1)
-        #expect(c.choices.map(\.label) == ["0", "1", "2", "4"])
+        #expect(c.choices.map(\.label) == ["0", "1", "2", "3"])
         #expect(c.choices.last?.text == "Hey.")
     }
 
@@ -907,7 +907,7 @@ struct ComposerTests {
         #expect(c.markedText == "question › nihao" && c.draft == "@question ")  // shown without its "@"; nihao is pinyin
         #expect(c.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: "你好", id: 1))
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好是问候语。")]), isFinal: true, id: 1)
-        #expect(commits(c.handleKeyDown(enterKey)) == ["你好是问候语。"])
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["你好是问候语。"])  // ⇧⏎ inserts an answer (0.7.3)
         // @improve is the translation; dictation fills a command.
         let (i, _) = composer(key: .enter)
         _ = i.handleKeyDown(at)
@@ -1226,7 +1226,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 16)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 17)
         // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
@@ -1252,7 +1252,8 @@ struct ComposerTests {
         #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.oneAtHighlighted == 15 && a.oneAtFirstVisible == 9)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 16 && a.oneAtFirstVisible == 10)  // around to the last, scrolled to it
+        _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1392,7 +1393,7 @@ struct ComposerTests {
         let respond = CustomCommand(name: "respond", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, respond]).map(\.program)
             == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app", nil,
-                "python3", nil])  // @py needs python3 too
+                nil, "python3", nil])  // @py needs python3 too
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
@@ -1419,8 +1420,8 @@ struct ComposerTests {
         e.commands = catalog
         _ = e.handleKeyDown(at)
         type("s", e)
-        #expect(e.paletteMatches.map(\.name) == ["settings", "sh", "translate", "question", "js", "tasks", "imessage", "reportissue",
-                                              "respond"])  // names starting with s first
+        #expect(e.paletteMatches.map(\.name) == ["settings", "stats", "sh", "translate", "question", "js", "tasks", "imessage",
+                                              "reportissue", "respond"])  // names starting with s first
         // Picking from the list doesn't count: only running does.
         _ = e.handleKeyDown(tab)
         #expect(e.commandUsage.score("sh") == 0)
@@ -1529,7 +1530,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.oneAtRows.count == 17 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
+        #expect(c.oneAtRows.count == 18 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
         for _ in 0..<7 { _ = c.handleKeyDown(downKey) }  // past the seventh: scrolls by one
         #expect(c.oneAtHighlighted == 7 && c.oneAtFirstVisible == 1)
         #expect(names(c.oneAtVisible) == ["translate", "question", "agent", "open", "reply", "note", "reminder"])
@@ -1539,10 +1540,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 16 && d.oneAtFirstVisible == 10)
-        #expect(names(d.oneAtVisible) == ["tasks", "settings", "imessage", "reportissue", "alpha", "bravo", "charlie"])
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 17 && d.oneAtFirstVisible == 11)
+        #expect(names(d.oneAtVisible) == ["settings", "imessage", "reportissue", "stats", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.oneAtHighlighted == 14 && d.oneAtFirstVisible == 10)  // still in view: no scrolling
+        #expect(d.oneAtHighlighted == 15 && d.oneAtFirstVisible == 11)  // still in view: no scrolling
         _ = d.choose(index: 4)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
@@ -1580,7 +1581,7 @@ struct ComposerTests {
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
         #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
         #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"
-        #expect(commits(c.handleKeyDown(enterKey)) == ["“你好”是问候语。"])
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["“你好”是问候语。"])
         // 0 inserts the question; without an answer the request failed.
         let (d, _) = palette("q")
         _ = d.handleKeyDown(tab)

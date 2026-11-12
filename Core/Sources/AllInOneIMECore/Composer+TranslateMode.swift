@@ -72,7 +72,7 @@ extension Composer {
         if session == nil, inModeComposition, !draft.isEmpty || modeTranslating {
             var text = draft
             if !isLevelTwo, let engine, engine.snapshot().isComposing { text += engine.commitComposition() ?? "" }
-            effects = finish(committing: text)
+            effects = finish(committing: text, typed: text)
         }
         translateMode = session
         return effects + [.updateMarkedText]
@@ -109,9 +109,9 @@ extension Composer {
         // In its own characters, Chinese: what was pasted into the draft may be in the other ones.
         let language = Language.of(text, french: inputLanguages.contains(.french))
         if OutputLanguage.of(text, language: language, chinese: chineseCharacters).isSame(as: session.target) {
-            return effects + finish(committing: draft)
+            return effects + finish(committing: draft, typed: draft)
         }
-        if let refusal = aiRefusal() { return effects + finish(committing: draft) + [.notice(refusal)] }
+        if let refusal = aiRefusal() { return effects + finish(committing: draft, typed: draft) + [.notice(refusal)] }
         if secureInputActive() { return effects + modeFailed(translateModeMessages.secureInput) }
         requestCounter += 1
         modeRequestID = requestCounter
@@ -125,7 +125,7 @@ extension Composer {
     /// ⇧⏎: the draft goes in as typed, not translated (pinyin still being typed picked first, as ⏎ does).
     func modeDraftAsTyped(_ engine: PinyinEngine) -> [Effect] {
         let effects = engine.snapshot().isComposing ? convertComposition(engine) : []
-        return effects + finish(committing: draft)
+        return effects + finish(committing: draft, typed: draft)
     }
 
     /// Keys while the draft is translating: Esc stops it and keeps the draft; ⇧⏎ inserts the draft as typed; ⏎ waits;
@@ -141,7 +141,7 @@ extension Composer {
             let back = backToDraft()
             return .consumed(back + handleLevelOne(event).effects)
         case .enter, .keypadEnter:
-            return .consumed(modifiers == .shift ? finish(committing: draft) : [])
+            return .consumed(modifiers == .shift ? finish(committing: draft, typed: draft) : [])
         default:
             guard event.printableText != nil, modifiers.isSubset(of: .shift) else { return .consumed() }
             let back = backToDraft()

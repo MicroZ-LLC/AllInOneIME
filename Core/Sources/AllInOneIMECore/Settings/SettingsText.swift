@@ -164,6 +164,14 @@ extension UIText {
            "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too.")
     }
 
+    /// How Chinese is typed in pinyin (Settings → Input → Chinese, `Config.pinyinScheme`): its name, and what it says
+    /// under it.
+    public static var pinyinSchemeLabel: String { tr("输入方式", "Typing") }
+    public static var pinyinSchemeHelp: String {
+        tr("全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）；注音按标准（大千）键位打注音符号（ㄋㄧˇ：su3）。换了马上生效。双拼照样用学过的词、模糊音、字形和英文词；注音用字形，没有模糊音和英文词。",
+           "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc); Zhuyin types Bopomofo on the Standard (Daqian) keys (ㄋㄧˇ: su3). It changes at once. Shuangpin keeps your learned words, fuzzy pinyin, characters and English words; Zhuyin keeps the characters, without fuzzy pinyin or English words.")
+    }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

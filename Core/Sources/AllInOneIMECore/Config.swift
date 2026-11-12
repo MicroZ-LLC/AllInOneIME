@@ -58,6 +58,9 @@ public struct Config: Codable, Equatable, Sendable {
         chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
     }
 
+    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, or Zhuyin.
+    public var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
+
     /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
     public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
 
@@ -216,6 +219,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// it), for pinyin's candidates and whatever reasons about the language typed (`typedChinese`); nil: as the system's
     /// languages say, read each time, until one is picked (Settings → Input → Chinese).
     public var chineseCharacters: ChineseCharacters?
+    /// How Chinese is typed in pinyin (`PinyinScheme`, Settings → Input → Chinese → Typing): nil (or "full") for full
+    /// pinyin, else the scheme's id, librime's schema (Shuangpin's "double_pinyin_flypy", Zhuyin's "bopomofo").
+    /// `typedPinyin` reads it.
+    public var pinyinScheme: String?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
@@ -253,6 +260,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// and Don't Show Again, which turns this off (Settings → About turns it on again). Only while `checkForUpdates` is
     /// on. On by default, also for a file from before the setting; written into the file only when off.
     public var notifiesUpdates: Bool
+    /// The update check's request for the manifest carries this Mac's install ID (`InstallID`, in its User-Agent), so
+    /// that installs can be counted; off (Settings → Privacy), it carries none and the ID kept is forgotten. On by default,
+    /// also for a file from before the setting; written into the file only when off.
+    public var sendsInstallID: Bool
     /// An @ command started with text selected in the field works on that text, which stays selected and as it is
     /// meanwhile, and the result picked replaces it (`Composer.selection`). On by default (also for a file from before
     /// the setting): off for an app where it misbehaves.
@@ -390,6 +401,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.questionContinueIn = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
+        self.pinyinScheme = nil
         self.englishWords = []
         self.addedEnglishWords = []
         self.learnsEnglishWords = true
@@ -402,6 +414,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.candidateLayout = .horizontal
         self.checkForUpdates = true
         self.notifiesUpdates = true
+        self.sendsInstallID = true
         self.useSelection = true
         self.appProfiles = [:]
         self.redaction = RedactionSettings()
@@ -429,9 +442,9 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, keyboardLayouts, candidateLayout
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
-        case checkForUpdates, notifiesUpdates, useSelection, appProfiles
+        case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn
         case redaction
         case autocomplete
@@ -522,6 +535,8 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version doesn't know (a later one's) follows the system, not an error.
         chineseCharacters = (try? c.decodeIfPresent(String.self, forKey: .chineseCharacters)).flatMap { $0 }
             .flatMap(ChineseCharacters.init(rawValue:))
+        // Full pinyin for "full", and for a scheme this version doesn't know (a later one's), not an error.
+        pinyinScheme = PinyinScheme(setting: (try? c.decodeIfPresent(String.self, forKey: .pinyinScheme)).flatMap { $0 }).setting
         // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
@@ -541,6 +556,7 @@ public struct Config: Codable, Equatable, Sendable {
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
+        sendsInstallID = try c.decodeIfPresent(Bool.self, forKey: .sendsInstallID) ?? d.sendsInstallID
         useSelection = try c.decodeIfPresent(Bool.self, forKey: .useSelection) ?? d.useSelection
         appProfiles = AppProfile.decodeAll(c, forKey: .appProfiles)
         redaction = try c.decodeIfPresent(RedactionSettings.self, forKey: .redaction) ?? d.redaction
@@ -719,6 +735,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
         try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
+        // Only Shuangpin: a file from before the setting doesn't gain the key, nor one back on full pinyin.
+        try c.encodeIfPresent(typedPinyin.setting, forKey: .pinyinScheme)
         // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
         // doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }
@@ -734,6 +752,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         // Only once turned off: a file from before the switch doesn't gain the key.
         if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
+        // Only once turned off, as `notifiesUpdates`.
+        if !sendsInstallID { try c.encode(sendsInstallID, forKey: .sendsInstallID) }
         try c.encode(useSelection, forKey: .useSelection)
         // Only when some app sets something: a file from before per-app settings doesn't gain an empty key.
         let profiles = appProfiles.filter { !$0.value.isEmpty }

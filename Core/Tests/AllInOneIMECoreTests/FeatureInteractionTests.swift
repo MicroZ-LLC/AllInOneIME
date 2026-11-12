@@ -280,7 +280,7 @@ extension RefineTests {
 
         c.now = { Date(timeIntervalSince1970: 9) }
         _ = type("shorter", c)
-        #expect(started(c.handleKeyDown(shiftEnterKey).effects)?.1 == 2)
+        #expect(started(c.handleKeyDown(enterKey).effects)?.1 == 2)
         // Nothing is kept while the next answer streams in; once it's complete, the conversation takes the saved one's
         // place, whole (0.6.4: a follow-up is the next round of a conversation, kept by its first question).
         let partial = ConversionResult(versions: [CandidateLine("A systems", isComplete: false)])

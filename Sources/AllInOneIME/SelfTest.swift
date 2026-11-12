@@ -225,7 +225,7 @@ enum SelfTest {
         }
     }
 
-    /// ⇧Return: the draft as typed, without AI.
+    /// ⇧Return: the draft as typed, without AI (in an @question conversation: the answer selected).
     static func shiftEnter(_ c: AllInOneIMEInputController, _ client: FakeTextClient) -> Bool {
         press(c, client, "\r", code: VirtualKey.returnKey, flags: .shift)
     }
@@ -1184,8 +1184,8 @@ enum SelfTest {
             readmeSnapshot("11-question", controller, client, in: snapshotDirectory)
             copy()
             check(copied == [answer?.text ?? ""] && controller.composer.phase == .choosing, "⌘C copies the answer and keeps it up")
-            _ = enter(controller, client)
-            check(client.inserted.last == answer?.text && client.marked.isEmpty, "⏎ inserts the answer")
+            _ = shiftEnter(controller, client)
+            check(client.inserted.last == answer?.text && client.marked.isEmpty, "⇧⏎ inserts the answer")
         }
         controller.commitComposition(client)
         needing(.composing)
@@ -1919,16 +1919,16 @@ enum SelfTest {
     }
 
     /// The candidates in a row (`candidateLayout`): the panel is a line of cells under the caret, ← → move the
-    /// highlight and ↑↓ turn the page; in a column, → stays librime's (the cursor in the pinyin). Nothing is picked,
-    /// so nothing is learned.
+    /// highlight and ↑↓ turn the page; in a column, → turns the page. Nothing is picked, so nothing is learned.
     static func testHorizontalCandidates(_ controller: AllInOneIMEInputController, _ client: FakeTextClient, snapshotDirectory: URL) {
         section("candidates in a row", needs: .composing)
         let panel = CandidatePanel.shared
         func arrow(_ code: UInt16) { press(controller, client, "", code: code) }
         type("nihao", controller, client)
         arrow(VirtualKey.right)
-        check(controller.composer.engineState.highlighted == 0 && !controller.panelModel().horizontal,
-              "in a column, → doesn't move the highlight (highlighted \(controller.composer.engineState.highlighted))")
+        check(controller.composer.engineState.highlighted == 0 && controller.composer.engineState.pageNumber == 1
+              && !controller.panelModel().horizontal,
+              "in a column, → turns the page (page \(controller.composer.engineState.pageNumber + 1), highlighted \(controller.composer.engineState.highlighted))")
         let columnSize = panel.view.contentSize
         _ = escape(controller, client)
         settings.candidateLayout = .horizontal
@@ -2257,7 +2257,7 @@ enum SelfTest {
         }
         let before = client.inserted
         if let answer = ask() {
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)  // an @question answer goes in on ⇧⏎
             _ = pump(timeout: 1) { !pasted.isEmpty }
             check(answer.contains("\n") && pasted == [answer] && client.inserted == before,
                   "an answer with line breaks goes into a terminal as a paste (\(pasted.map { $0.replacingOccurrences(of: "\n", with: "\\n") }))")
@@ -2269,7 +2269,7 @@ enum SelfTest {
         controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 5_000_000) }
         (pasted, client.inserted) = ([], [])
         if let answer = ask() {
-            _ = enter(controller, client)
+            _ = shiftEnter(controller, client)
             _ = pump(timeout: 10) { !controller.isTypingOut }
             let breaks = answer.filter { $0 == "\n" }.count
             check(breaks > 0 && pasted == Array(repeating: "\n", count: breaks)
@@ -2634,6 +2634,8 @@ enum SelfTest {
         // Suggestions keep nothing where the user's are (the lists' cache, the coding packs).
         isolateSuggestions(in: snapshotDirectory)
         ClipboardHistoryShared.isolated = true  // no history but a check's own: never the user's clipboard or file
+        // This week's stats counted in a file of the self-test's own: the user's are neither shown nor changed.
+        WeekStatsShared.use(WeekStatsStore(applicationSupportDirectory: snapshotDirectory.appendingPathComponent("week-stats")))
         // Autocomplete learns and counts in memory, never in the input method's defaults; its suggestion is drawn
         // invisible, and the user's clicks don't take it down.
         AutocompleteSwitch.store = AutocompleteStore()
@@ -2643,6 +2645,9 @@ enum SelfTest {
         LearnedShared.store = LearnedStore(file: nil, autocomplete: AutocompleteSwitch.store, temperature: TemperatureSupport(file: nil))
         LearnedShared.store.learnsStartingInputs = false
         (GhostOverlay.invisible, GhostOverlay.watchesPointer) = (true, false)
+        // The candidate panel too, wherever a section makes it invisible and click-through (its alpha 0): kept so as it
+        // comes up, and the window server isn't asked whether it can be seen (`CandidatePanel.checkPresence`).
+        CandidatePanel.invisible = true
         _ = secureInputGoes()  // held elsewhere just now (a password field): a while for it to go
 
         let className = Bundle.main.object(forInfoDictionaryKey: "InputMethodServerControllerClass") as? String ?? ""

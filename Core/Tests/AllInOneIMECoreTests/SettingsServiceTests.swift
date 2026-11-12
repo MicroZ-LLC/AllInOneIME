@@ -583,12 +583,14 @@ struct MemorySecrets: SuiteTrait, TestTrait, TestScoping {
     }
 }
 
-/// No programs, and `variables` as the user's login environment (where `APIKeys.source` finds a key set in the shell).
+/// `variables` as the user's login environment (where `APIKeys.source` finds a key set in the shell), and as what a
+/// program is started with: programs run as Foundation's `Process` starts them (a custom command's Test run), never
+/// through the user's shell.
 struct LoginEnvironment: ProcessLauncher {
     var variables: [String: String]
-    var canLaunch: Bool { false }
+    var canLaunch: Bool { true }
     var environment: [String: String] { variables }
     var loginEnvironment: [String: String] { variables }
-    func isRunnable(_ program: URL) -> Bool { false }
-    func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { throw ProcessLaunchError.unsupported }
+    func isRunnable(_ program: URL) -> Bool { FoundationProcessLauncher().isRunnable(program) }
+    func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { try FoundationProcessLauncher().launch(spec) }
 }

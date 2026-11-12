@@ -5,6 +5,8 @@ import Foundation
 public enum SettingsPlace: String, Equatable, Sendable {
     /// The languages `@translate` translates into.
     case translationLanguages
+    /// This week's stats (`WeekStats`): `@stats`, the menu bar panel's row.
+    case weekStats
 }
 
 /// Two-level input state machine.
@@ -134,6 +136,8 @@ public final class Composer {
         case startPlan(outer: Command?, plan: CommandPlan, id: Int)
         /// Put `text` on the clipboard (⌘C on a result, or a note that can't be inserted: `Messages.noteNotSaved`).
         case copy(String)
+        /// Put this week's stats on the clipboard as a picture (⌘C on `@stats`'s row: `PlatformAction.copyWeekStatsImage`).
+        case copyWeekStatsImage
         /// Read the clipboard for the draft (⌘V) and hand it to `pasted(_:id:)` (`ClipboardContent`: its text, else an
         /// image), after the key has been answered: the system may ask the user first.
         case readClipboard(id: Int)
@@ -421,6 +425,9 @@ public final class Composer {
     public var pickedAgent: AgentKind?
     /// What the hand-off says, in the interface language (set by the controller).
     public var chatMessages = ChatMessages.chinese
+    /// AllInOneIME's user guide as a file (`Converter.userGuideFile`, set by the controller; nil: none): a coding agent a
+    /// conversation about AllInOneIME goes on in is told where it is (`ChatHandoff.guideNote`).
+    public var userGuidePath: String?
     /// ⌘⏎ showed where the conversation can go on before its last round (Esc hides it again).
     var handoffRequested = false
 
@@ -437,7 +444,8 @@ public final class Composer {
         return false
     }
 
-    /// Pinyin of a refine instruction is being typed: the panel shows the engine's candidates.
+    /// Pinyin of a refine instruction (or a conversation's next question) is being typed: the panel keeps the results,
+    /// the engine's candidates on a line of their own (`PanelModel.candidates`).
     public var refineIsComposing: Bool { typesRefine && engineState.isComposing }
 
     /// The refine line as the panel shows it: the instruction so far and the pinyin being typed (nil: none started).
@@ -507,9 +515,15 @@ public final class Composer {
     /// A result picked in level two is typed out character by character (`Config.typeOut`), not inserted at once.
     public var typesResults = false
     /// The engine's candidates are shown in a row (`Config.candidateLayout`, horizontal by default; the controller
-    /// sets it): ← → move along it and ↑↓ turn the page (`horizontalKey`), as in macOS's own panel. False here: a
-    /// composer on its own keeps the keys of a column.
+    /// sets it): ← → move along it and ↑↓ turn the page; in a column ↑↓ move and ← → turn the page (`candidateKey`), as in
+    /// macOS's own panel. False here: a composer on its own has the keys of a column.
     public var horizontalCandidates = false
+    /// How level one types Chinese (`Config.pinyinScheme`): the scheme whose schema its engine took last (the session sets
+    /// it, `PinyinEngine.selectSchema`). Full pinyin here: a composer on its own.
+    public var pinyinScheme: PinyinScheme = .full
+    /// Level one types Chinese in Zhuyin now (`PinyinScheme.zhuyin`, not in its Latin mode): digits and punctuation are
+    /// its keys too (a tone, ㄅ, ㄝ…), and Latin letters are never pinyin, nor words.
+    var typesZhuyin: Bool { pinyinScheme == .zhuyin && engine?.language == .chinese && !engineState.isAsciiMode }
     /// The reminder read from an `@reminder` text (`receiveReminder`), shown to confirm.
     public private(set) var pendingReminder: ReminderDraft?
     /// The issue `@reportissue` shows before it opens the page (its title and `IssueReport.lines`).
@@ -529,6 +543,8 @@ public final class Composer {
     var live = LiveRows<SearchResult>(limit: Composer.recentLiveLimit, shown: Composer.liveRowLimit, id: \.path)
     public var liveResults: [SearchResult] { live.rows }
     public var liveHighlight: Int { live.highlight }
+    /// The first of them the panel shows (`ListPage`).
+    public var liveFirstShown: Int { live.firstShown }
     static let recentLiveLimit = 32
     /// The most rows `@open` lists as its text is typed: what its full search finds (`FileSearch.run`), and what is known at
     /// once with the rows of the text before.
@@ -578,6 +594,8 @@ public final class Composer {
     public var recipientResults: [Recipient] { recipients.rows }
     public private(set) var recipientNote: String?
     public var recipientHighlight: Int { recipients.highlight }
+    /// The first of them the panel shows (`ListPage`).
+    public var recipientFirstShown: Int { recipients.firstShown }
     /// The recipients for a text found at once, in the address book as last read (the session sets it): nil while it
     /// isn't read yet (the search then answers, `receiveRecipients`).
     public var instantRecipients: (String) -> (rows: [Recipient], note: String?)? = { _ in nil }
@@ -648,6 +666,13 @@ public final class Composer {
     /// source that may show rows here ("PROJ-"): the composition then goes in as typed and the token starts
     /// (`endForSuggestionPrefix`). Set by the session; a composer on its own has no sources.
     public var finishesSuggestionPrefix: (String) -> Bool = { _ in false }
+    /// Told the text the user typed as it goes into the field (`Effect.commit`), for this week's stats, which count its
+    /// characters (`InputSession.countTyped`): a candidate picked, what the engine puts in as typed (its marks, its
+    /// letters on ⏎), a Hangul syllable, a dead key's letter, a draft put in as typed (Esc, ⇧⏎, the field left), the
+    /// part of a row Code held that was typed. Never a command's output, an answer, a snippet, a value, a transcript,
+    /// nor a draft with text the user didn't type in it (`draftHasOutsideText`). Set by the session; a composer on its
+    /// own tells no one.
+    public var typedIntoField: (String) -> Void = { _ in }
     /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
     /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
     /// and Code's letters go straight in.
@@ -707,6 +732,8 @@ public final class Composer {
     /// (`ScriptList.rerun`), and the text whose answer the action key waits for (`actOnList`).
     var lists = LiveRows<ScriptItem>(limit: Composer.recentListLimit, id: { $0.title + "\u{0}" + ($0.arg ?? "") })
     public var listHighlight: Int { lists.highlight }
+    /// The first of the list's rows the panel shows (`ListPage`).
+    public var listFirstShown: Int { lists.firstShown }
     private var listRerun: Double?
     private var listAnswered: String?
     private var listActsWhenAnswered: String?
@@ -800,7 +827,11 @@ public final class Composer {
     /// Hindi is the input language (its engine in place of librime).
     private var hindiActive = false
 
-    var highlightOverride: Int?
+    var highlightOverride: Int? {
+        didSet { if highlightOverride == nil { choicesTop = 0 } }
+    }
+    /// Where level two's rows shown start, when they are a list a page at a time (`choicesArePaged`), as it was left.
+    private var choicesTop = 0
     var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
@@ -1047,7 +1078,8 @@ public final class Composer {
     }
 
     /// Level-two rows: "0" the sentence as typed, "1"–"3" the versions in the output language, then
-    /// the rewrites in the configured styles, numbered on from 4. A rewrite is shown once it has fully
+    /// the rewrites in the configured styles, numbered on after the last row shown (two versions: 3, 4 …, as the
+    /// panel shows them, and the digit picks the row with it). A rewrite is shown once it has fully
     /// arrived, and only if it changes the wording (not just punctuation) and repeats no other row.
     /// For `@question` / `@agent`: "0" the text sent and "1" the answer; for `@open`: the files found;
     /// for `@reminder`: "1" the reminder to add.
@@ -1095,12 +1127,11 @@ public final class Composer {
                               isComplete: translation.line.isComplete))
             label += 1
         }
-        var next = max(4, label)
-        for rewrite in result.rewrites where rewrite.line.isComplete && next <= 9 {
+        for rewrite in result.rewrites where rewrite.line.isComplete && label <= 9 {
             let key = rewrite.line.text.wordingKey
             guard !key.isEmpty, shownWordings.insert(key).inserted else { continue }
-            out.append(Choice(label: String(next), kind: .rewrite(rewrite.style), text: rewrite.line.text, isComplete: true))
-            next += 1
+            out.append(Choice(label: String(label), kind: .rewrite(rewrite.style), text: rewrite.line.text, isComplete: true))
+            label += 1
         }
         return out
     }
@@ -1108,6 +1139,37 @@ public final class Composer {
     /// Index into `choices`. Defaults to the first main version, even before it has streamed in,
     /// so an early Space or Return never commits something else by accident.
     public var highlighted: Int { highlighted(in: choices) }
+
+    /// Level two's rows are a command's list, shown a page at a time (`ListPage`): `@open`'s files, `@tasks`, what a script
+    /// extension listed. Not an AI's results, a reminder, a message to send, an issue, a conversation.
+    public var choicesArePaged: Bool {
+        guard isLevelTwo, !modeTranslating, !isQuestionChat else { return false }
+        switch activeCommand?.kind {
+        case .search?, .agents?:
+            return true
+        case .run? where activeCommand?.script != nil:
+            if case .list? = scriptOutput { return true }
+            return false
+        default:
+            return false
+        }
+    }
+
+    /// The first of level two's rows the panel shows, when they are paged (`choicesArePaged`): where they were left, moved
+    /// just enough to show the highlighted one.
+    public var choicesFirstShown: Int {
+        let all = choices
+        return ListPage.first(top: choicesTop, chosen: highlighted(in: all), count: all.count)
+    }
+
+    /// ← (-1) or → (1) on a list in level two on more than a page: the page before or after, its first row highlighted;
+    /// nothing at the first or the last.
+    private func turnChoicesPage(by step: Int) -> [Effect] {
+        guard let next = ListPage.turned(step, first: choicesFirstShown, count: choices.count) else { return [] }
+        highlightOverride = next
+        choicesTop = next
+        return [.showPanel]
+    }
 
     /// `highlighted`, with `all` the `choices` already worked out (each time they are, every row's wording is read).
     private func highlighted(in all: [Choice]) -> Int {
@@ -1407,8 +1469,8 @@ public final class Composer {
         recipientNote = nil
     }
 
-    /// Keys while a recipient is picked: ↑↓ move, Tab picks, so do digits after a name (a number
-    /// being typed takes them, from its "+" or "(" on). Nil: the key acts as usual.
+    /// Keys while a recipient is picked: ↑↓ move, ← → turn the page (`ListPage`), Tab picks, so do digits after a name (a
+    /// number being typed takes them, from its "+" or "(" on). Nil: the key acts as usual.
     private func handleRecipientKey(_ event: KeyEvent) -> Response? {
         guard let query = recipientQuery, event.modifiers.subtracting(.capsLock).isEmpty else { return nil }
         let found = currentRecipients
@@ -1416,6 +1478,10 @@ public final class Composer {
         switch event.key {
         case .arrow(.up), .arrow(.down):
             recipients.move(by: event.key == .arrow(.up) ? -1 : 1)
+            return .consumed([.showPanel])
+        case .arrow(.left), .arrow(.right):
+            guard ListPage.turns(found.count) else { break }
+            recipients.turnPage(by: event.key == .arrow(.left) ? -1 : 1)
             return .consumed([.showPanel])
         case .tab:
             return .consumed(pickRecipient(at: recipientHighlight))
@@ -1588,7 +1654,7 @@ public final class Composer {
 
     /// Finished Hangul: into the command's text, or into the document.
     private func typeFinished(_ text: String) -> [Effect] {
-        guard !draft.isEmpty || modeCollects(text) else { return [.commit(text)] }
+        guard !draft.isEmpty || modeCollects(text) else { return asTyped([.commit(text)]) }
         appendTyped(text)
         setLevelOnePhase()
         return []
@@ -1658,14 +1724,14 @@ public final class Composer {
             pendingAccent = nil
             setLevelOnePhase()
             if let text = event.composed {
-                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed([.commit(text)])) }
+                guard !draft.isEmpty || modeCollects(text) || startsCodeWord(text) else { return .done(.consumed(asTyped([.commit(text)]))) }
                 appendTyped(text)
                 setLevelOnePhase()
                 return .done(.consumed([.updateMarkedText] + (codeWord == nil ? [.showPanel] : [])))
             }
             // ⌫ and Esc take the accent back; another key types it, then does what it does (as macOS does).
             if event.key == .backspace || event.key == .escape { return .done(.consumed([.updateMarkedText])) }
-            guard !draft.isEmpty || modeCollects(accent) else { return .then([.commit(accent)]) }
+            guard !draft.isEmpty || modeCollects(accent) else { return .then(asTyped([.commit(accent)])) }
             insertIntoDraft(accent)
             return .then([.updateMarkedText])
         }
@@ -1683,6 +1749,10 @@ public final class Composer {
         let leftOrRight = event.key == .arrow(.left) || event.key == .arrow(.right)
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", let text = copyableText {
             return .consumed([.copy(text), .notice(messages.copied)])  // the result stays up
+        }
+        // ⌘C on `@stats`'s row: the week's picture on the clipboard, nothing typed in (Composer+OneAt.swift).
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", oneAtStatsHighlighted {
+            return .consumed(copyWeekStats())
         }
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
             return response
@@ -1723,7 +1793,8 @@ public final class Composer {
     /// Shift pressed and released on its own (within half a second, so holding Shift for a
     /// Shift-click selection doesn't count) switches the engine between Chinese and Latin input.
     /// Words already picked are kept and remaining letters are committed as typed (librime's
-    /// `commit_code`). The right Option key held on its own records speech until it is released.
+    /// `commit_code`); in Zhuyin what is composed is committed converted (`commit_text`).
+    /// The right Option key held on its own records speech until it is released.
     /// With the `optionTap` action key, either Option key pressed and released on its own sends
     /// the sentence (a hold of the right one still dictates).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
@@ -1867,8 +1938,23 @@ public final class Composer {
     /// A row clicked in the panel (`index` among the rows it shows): picked as its digit would pick it, or as the
     /// action key would pick it highlighted where digits are text (a list's rows, `@open`'s results as you type).
     /// The rows are those of the panel's model, in its order: level two, the engine's candidates, the command
-    /// list, a script's list, `@open`'s results, the recipients.
+    /// list, a script's list, `@open`'s results, the recipients. While a follow-up's pinyin is composed after results
+    /// (`refineIsComposing`): its candidate `index`, on the line of them (`PanelModel.candidates`).
     public func choose(index: Int) -> [Effect] { forField(chooseRow(index)) }
+
+    /// A row of the panel clicked, by what a click on it picks (`PanelModel.Row.choice`), as the shells report it:
+    /// `choose(index:)`, but while a follow-up's pinyin is composed after results the rows are still the results (its
+    /// candidates are on a line of their own): the one clicked is picked as with the line typed, which goes, its pinyin too.
+    public func pickClicked(_ choice: Int) -> [Effect] {
+        guard refineIsComposing else { return choose(index: choice) }
+        return forField(commitChoice(at: choice))
+    }
+
+    /// A row of the panel right-clicked, by its `PanelModel.Row.choice`: `deleteCandidate(index:)`, but nothing while a
+    /// follow-up's pinyin is composed after results (the rows are the results then, none of the engine's).
+    public func deleteClicked(_ choice: Int) -> [Effect] {
+        refineIsComposing ? [] : deleteCandidate(index: choice)
+    }
 
     /// A row right-clicked in the panel (`index` among the rows it shows), or the highlighted one's ⌃⌦: the engine's
     /// candidate removed for good (`EnglishWordsEngine.deleteCandidate`: on `removedCandidates`, never shown again, any
@@ -1894,7 +1980,7 @@ public final class Composer {
 
     /// `choose`, before `forField`.
     private func chooseRow(_ index: Int) -> [Effect] {
-        // While a refine instruction's pinyin is typed the panel shows its candidates.
+        // While a refine instruction's pinyin is typed: its candidates (a row clicked is a result: `pickClicked`).
         if refineIsComposing, let engine {
             guard engine.selectCandidate(onPage: index) else { return [] }
             return afterEngineChange(engine, effects: [])
@@ -1930,7 +2016,7 @@ public final class Composer {
         return []
     }
 
-    /// Switches level one to Chinese (pinyin) or English input, e.g. to the configured default.
+    /// Switches level one to Chinese or English input, e.g. to the configured default.
     /// Ignored while something is being composed.
     public func setInputMode(_ language: Language) {
         guard engine != nil, !isComposing, hangul.isEmpty else { return }
@@ -2050,7 +2136,7 @@ public final class Composer {
     /// ⏎ on a failure put right in the settings: the sentence goes in as typed, as 0 puts it on any failure (the settings
     /// take the focus, and a field left puts the draft in as it is, the command too), and they open there.
     private func openFailureFix(_ place: SettingsPlace) -> [Effect] {
-        finish(committing: selection == nil ? sentText : "") + [.openSettingsAt(place)]
+        finish(committing: selection == nil ? sentText : "", typed: sentText) + [.openSettingsAt(place)]
     }
 
     /// The reminder read from the `@reminder` text (`.previewReminder`): one row to confirm (Space, ⏎ or 1
@@ -2151,7 +2237,8 @@ public final class Composer {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
-        return effects + finishAsTyped(text)
+        // A transcript in it: what was said isn't typed (none of it is counted).
+        return effects + finishAsTyped(text, typed: spoken.isEmpty)
     }
 
     /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
@@ -2193,7 +2280,7 @@ public final class Composer {
         guard let accent = pendingAccent else { return [] }
         pendingAccent = nil
         if !isLevelTwo { setLevelOnePhase() }
-        guard !draft.isEmpty else { return [.commit(accent)] }
+        guard !draft.isEmpty else { return asTyped([.commit(accent)]) }
         insertIntoDraft(accent)
         return [.updateMarkedText]
     }
@@ -2207,10 +2294,10 @@ public final class Composer {
     /// Ends the composition inserting `text`, the draft as typed (and what is still being typed after it). A note
     /// with line breaks isn't inserted (`draftIsNoteWithLines`): its text goes to the clipboard and a notice
     /// says it wasn't saved. A one-line note goes in like any other draft.
-    func finishAsTyped(_ text: String) -> [Effect] {
+    func finishAsTyped(_ text: String, typed: Bool = true) -> [Effect] {
         // With a selection nothing goes in: no "@improve …" over it (the field keeps it as it is).
         guard draftIsNoteWithLines, let content = parse(text)?.content else {
-            return finish(committing: text, leaving: true, selection: .kept)
+            return finish(committing: text, leaving: true, selection: .kept, typed: typed ? text : nil)
         }
         let note = content.trimmingCharacters(in: .whitespacesAndNewlines)
         return finish(committing: "", leaving: true, selection: .kept) + (note.isEmpty ? [] : [.copy(note), .notice(messages.noteNotSaved)])
@@ -2240,6 +2327,7 @@ public final class Composer {
         if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         // One @: the magic key and a text (Composer+OneAt.swift).
         if let response = handleOneAtKey(event, composing: composing) { return response }
+        if let response = typeOneAtInZhuyin(event, composing: composing, afterVoice: afterVoice) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.
         if event.key == .enter || event.key == .keypadEnter, modifiers.isEmpty,
@@ -2281,8 +2369,9 @@ public final class Composer {
         if composing { rimeEvent.modifiers.remove(.capsLock) }
         // ⇧Return is "as typed" (the action key may be Return): librime gets a plain Return.
         if event.key == .enter || event.key == .keypadEnter { rimeEvent.modifiers.remove(.shift) }
-        if composing, horizontalCandidates, !engineState.candidates.isEmpty, modifiers.isEmpty {
-            switch horizontalKey(event.key, engine) {
+        // One @'s pinyin candidates are a line of pills, a row in either layout (↑↓ are its rows': `handleOneAtKey`).
+        if composing, !engineState.candidates.isEmpty, modifiers.isEmpty {
+            switch candidateKey(event.key, engine, inARow: horizontalCandidates || oneAt != nil) {
             case let .send(key)?: rimeEvent = rimeEvent.replacingKey(key)
             case .nothing?: return .consumed()
             case nil: break
@@ -2324,29 +2413,47 @@ public final class Composer {
     /// English. Only with nothing but those letters composed, on the candidates' first page (where librime's "-" turns
     /// no page back). Nil: the key goes to the engine as before.
     private func endForSuggestionPrefix(_ event: KeyEvent, _ engine: PinyinEngine) -> Response? {
-        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0,
+        // Zhuyin's "-" and "." are ㄦ and ㄡ, and its keys no prefix.
+        guard draft.isEmpty, !isLevelTwo, voice == .off, engine.language == .chinese, engineState.pageNumber == 0, !typesZhuyin,
               event.modifiers.subtracting([.capsLock, .shift]).subtracting(.sides).isEmpty,
               let text = event.printableText, ["-", "_", "."].contains(text),
               finishesSuggestionPrefix(engine.rawInput + text) else { return nil }
         return .consumed(finishAsTyped(engine.rawInput + text) + [.updateMarkedText])
     }
 
-    private enum HorizontalKey {
+    /// One @ while Zhuyin is typed (`typesZhuyin`): its text is Latin letters, command names found by them as with pinyin
+    /// ("@im" finds @improve, `@base64`), and no Zhuyin in it in this version, so no candidates under it either. A key
+    /// librime would take as Zhuyin goes into the text as typed. Nil: the key is as usual (Space, ⏎, ⌫, the list's keys
+    /// were the draft's before this); after a command written ("@improve "), its text is Zhuyin again.
+    private func typeOneAtInZhuyin(_ event: KeyEvent, composing: Bool, afterVoice: Bool) -> Response? {
+        guard typesZhuyin, !composing, oneAt != nil, event.key != .space, event.key != .enter, event.key != .keypadEnter,
+              event.modifiers.subtracting([.capsLock, .shift]).isEmpty, let text = event.printableText, text.count == 1,
+              let c = text.first, c.isASCII, !c.isWhitespace else { return nil }
+        if let response = handleDraftKey(event, afterVoice: afterVoice) { return response }
+        appendTyped(text, afterVoice: afterVoice)
+        return .consumed([.updateMarkedText, .showPanel])
+    }
+
+    private enum CandidateKey {
         /// The engine gets this key instead.
         case send(Key)
         /// Nothing to do (no other page).
         case nothing
     }
 
-    /// An arrow key on candidates in a row: ← → are the previous and next candidate (the engine's ↑↓ in a column,
-    /// on to the next page from the last), ↑↓ the previous and next page (its Page Up and Down). Hindi's spellings are
-    /// one page: ↑↓ do nothing there. Nil for the other keys, which act as in a column (-/= turn the page there too).
-    private func horizontalKey(_ key: Key, _ engine: PinyinEngine) -> HorizontalKey? {
+    /// An arrow key on the engine's candidates, as macOS's own panel has them. In a row (`inARow`): ← → are the previous
+    /// and next candidate (the engine's ↑↓, which go on from a page's last to the next page's first and back from its
+    /// first to the previous page's last), ↑↓ the previous and next page (its Page Up and Down). In a column ↑↓ are the
+    /// engine's own (the same, down the column) and ← → turn the page; the cursor in the pinyin moves with ⌥← ⌥→ (a
+    /// syllable at a time) in either. Hindi's spellings are one page: its page keys do nothing. Nil for the other keys
+    /// (- = turn the page in either).
+    private func candidateKey(_ key: Key, _ engine: PinyinEngine, inARow: Bool) -> CandidateKey? {
+        let page: (Key) -> CandidateKey = { engine.language == .hindi ? .nothing : .send($0) }
         switch key {
-        case .arrow(.left): return .send(.arrow(.up))
-        case .arrow(.right): return .send(.arrow(.down))
-        case .arrow(.up): return engine.language == .hindi ? .nothing : .send(.pageUp)
-        case .arrow(.down): return engine.language == .hindi ? .nothing : .send(.pageDown)
+        case .arrow(.left): return inARow ? .send(.arrow(.up)) : page(.pageUp)
+        case .arrow(.right): return inARow ? .send(.arrow(.down)) : page(.pageDown)
+        case .arrow(.up): return inARow ? page(.pageUp) : nil
+        case .arrow(.down): return inARow ? page(.pageDown) : nil
         default: return nil
         }
     }
@@ -2557,9 +2664,9 @@ public final class Composer {
         let command = matches[index ?? paletteHighlighted]
         let palette = self.palette  // read once, before the draft becomes "@name "
         let nested = palette != nil
-        // Nothing to write after it: picked, it's done (only at the start of a draft).
+        // Nothing to write after it: picked, it's done (only at the start of a draft). `@stats` opens on its page.
         if command.kind == .settings, !nested {
-            return finish(committing: "") + [.openSettings, used(command)]
+            return finish(committing: "") + [command == .stats ? .openSettingsAt(.weekStats) : .openSettings, used(command)]
         }
         // A snippet that needs nothing typed goes in when the action key picks it; Tab and Space only complete its name.
         if run, command.snippet?.needsTyping == false, !nested {
@@ -2613,12 +2720,14 @@ public final class Composer {
 
     /// Leaves one @'s list (`handleOneAtKey`): what was typed ("@", "@abc") goes in as typed, then `event` acts as usual.
     func commitPalette(then event: KeyEvent) -> Response {
-        let effects = finish(committing: draft)
+        let effects = finish(committing: draft, typed: draft)
         let next = handleLevelOne(event)
         // A terminal wouldn't act on the key after the "@…" went in (`appTakesKeysAfterInsert`): a key that types goes in
         // with it, and one that doesn't (an arrow) only ends the list, the "@…" going in once the key is done.
         guard !next.handled, !appTakesKeysAfterInsert else { return Response(effects: effects + next.effects, handled: next.handled) }
         let text = event.printableText
+        // The key's text goes in with it, by the input method: typed all the same.
+        if let text, effects.contains(where: { if case .commit = $0 { true } else { false } }) { typedIntoField(text) }
         let afterKey = effects.flatMap { effect -> [Effect] in
             guard case let .commit(typed) = effect else { return [effect] }
             return text.map { [.commit(typed + $0)] } ?? [.updateMarkedText, .commitAfterKey(typed)]
@@ -2640,11 +2749,16 @@ public final class Composer {
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
         if let response = handleRecipientKey(event) { return response }
         if let response = handleQuestionKey(event) { return response }
-        // A script's list as you type: ↑↓ move among the rows to pick, Tab completes the highlighted row's text.
+        // A script's list as you type: ↑↓ move among the rows to pick, ← → turn its page (more rows than a page shows: the
+        // cursor stays), Tab completes the highlighted row's text.
         if let items = currentList?.items, !items.isEmpty, plain {
             switch event.key {
             case .arrow(.up), .arrow(.down):
                 moveListHighlight(by: event.key == .arrow(.up) ? -1 : 1, in: items)
+                return .consumed([.showPanel])
+            case .arrow(.left), .arrow(.right):
+                guard ListPage.turns(items.count) else { break }
+                lists.turnPage(by: event.key == .arrow(.left) ? -1 : 1, allowed: \.valid)
                 return .consumed([.showPanel])
             case .tab:
                 guard let complete = listItem?.autocomplete, let command = draftCommand else { return .consumed() }
@@ -2659,6 +2773,10 @@ public final class Composer {
             switch event.key {
             case .arrow(.up), .arrow(.down):
                 self.live.move(by: event.key == .arrow(.up) ? -1 : 1)
+                return .consumed([.showPanel])
+            case .arrow(.left), .arrow(.right):
+                guard ListPage.turns(live.count) else { break }
+                self.live.turnPage(by: event.key == .arrow(.left) ? -1 : 1)
                 return .consumed([.showPanel])
             case .tab:
                 return .consumed(completeLivePath())
@@ -2693,11 +2811,11 @@ public final class Composer {
             setLevelOnePhase()
             return .consumed([.updateMarkedText, draft.isEmpty ? .hidePanel : .showPanel])
         case .escape:
-            // The draft goes; a selection is left as it is.
-            if selection != nil { return .consumed(finish(committing: "", selection: .kept)) }
-            draft = ""
-            setLevelOnePhase()
-            return .consumed([.updateMarkedText, .hidePanel])
+            return .consumed(cancelDraft())
+        case .arrow(.right) where plain && tail.isEmpty && showsResultRows:
+            // A command's rows on one page (more turn it, above), the cursor at the end of the text: → hides them back to
+            // the app, as Esc does (the keys back, as on every panel's rows).
+            return .consumed(cancelDraft())
         case .arrow(.left), .arrow(.right), .home, .end:
             // The cursor moves in the text after the command, as in any text field.
             return .consumed(moveCursor(event))
@@ -2713,6 +2831,21 @@ public final class Composer {
         default:
             return nil
         }
+    }
+
+    /// Esc on a draft: it goes (nothing in the field); a selection is left as it is.
+    private func cancelDraft() -> [Effect] {
+        if selection != nil { return finish(committing: "", selection: .kept) }
+        draft = ""
+        setLevelOnePhase()
+        return [.updateMarkedText, .hidePanel]
+    }
+
+    /// Whether the panel shows a command's rows as its text is typed (once it's picked): a script's list, `@open`'s
+    /// results, the recipients, the recent questions. They're a page at a time (`ListPage`).
+    private var showsResultRows: Bool {
+        currentList?.items.isEmpty == false || !currentLiveResults.isEmpty || recipientQuery != nil && !currentRecipients.isEmpty
+            || !questionMatches.isEmpty
     }
 
     /// Collects the engine's commit and new state after it processed something.
@@ -2738,6 +2871,7 @@ public final class Composer {
             insertIntoDraft(text)
             return []
         }
+        typedIntoField(text)
         return [.commit(text)]
     }
 
@@ -2815,8 +2949,9 @@ public final class Composer {
         let before = engine.snapshot()
         let latin = before.isAsciiMode
         // librime's own Shift handling (rime-ice: `Shift_L: commit_code`) keeps the words already
-        // picked and commits the remaining letters as typed. rime-ice ignores Shift_R, so Shift_L
-        // stands for either key.
+        // picked and commits the remaining letters as typed; Zhuyin's (its patch: `commit_text`)
+        // commits what is composed, converted. rime-ice ignores Shift_R, so Shift_L stands for
+        // either key.
         _ = engine.processKey(RimeKey.shiftL, mask: 0)
         _ = engine.processKey(RimeKey.shiftL, mask: RimeKey.releaseMask)
         var effects: [Effect] = []
@@ -2890,6 +3025,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
+        if let response = handleChatReturn(event) { return response }
         if let response = handleRefineKey(event) { return response }
         switch event.key {
         case .space:
@@ -2909,7 +3045,8 @@ public final class Composer {
                 // A message is never inserted: ⏎ tries again.
                 if activeCommand?.kind == .message { return .consumed(startAction().effects) }
                 // With a selection, it stays as it was.
-                return .consumed(activeCommand?.kind == .reminder ? backToDraft() : finish(committing: selection == nil ? sentText : ""))
+                return .consumed(activeCommand?.kind == .reminder ? backToDraft()
+                                 : finish(committing: selection == nil ? sentText : "", typed: sentText))
             }
             // ⇧⏎ with no follow-up typed on an AI's results: as typed, as everywhere (one typed is sent: `handleRefineKey`).
             if event.modifiers.subtracting(.capsLock) == .shift, phase == .choosing,
@@ -2933,7 +3070,11 @@ public final class Composer {
         case .tab:
             return .consumed(moveHighlight(by: event.modifiers.contains(.shift) ? -1 : 1))
         case .arrow(.left), .arrow(.right), .home, .end, .forwardDelete:
-            return .consumed()
+            // A command's list on more than a page (`@open`'s, `@tasks`, a script's): ← → turn it.
+            let arrow = event.key == .arrow(.left) || event.key == .arrow(.right)
+            guard arrow, choicesArePaged, ListPage.turns(choices.count), event.modifiers.subtracting(.capsLock).isEmpty
+            else { return .consumed() }
+            return .consumed(turnChoicesPage(by: event.key == .arrow(.left) ? -1 : 1))
         default:
             break
         }
@@ -2951,14 +3092,28 @@ public final class Composer {
         return .consumed(back + next.effects)
     }
 
+    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
+    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
+    private func handleChatReturn(_ event: KeyEvent) -> Response? {
+        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
+        switch event.modifiers.subtracting(.capsLock) {
+        case []: return .consumed(continueChat())
+        case .shift: return .consumed(commitChoice(at: highlighted))
+        default: return nil
+        }
+    }
+
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
-    /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown, Space and
-    /// digits picking them); once there is one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
-    /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every key does what
-    /// it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a refine runs
-    /// the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts pinyin (it
-    /// is sent once the results are in) and Esc goes back to the results before the running refine, as always. Nil: the
-    /// key acts as usual.
+    /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown on a line of
+    /// their own beside the results, Space and digits picking them, ↑↓ still moving among the results), in Zhuyin any
+    /// key that starts a syllable (`PinyinScheme.zhuyinInitials`: 1 ㄅ, - ㄦ, as in level one); once there is
+    /// one, Space, digits and punctuation are part of it, ⌫ deletes, ⇧⏎ sends it,
+    /// Esc clears it. ⏎ always inserts the result selected, dropping the line. With the line empty every other key
+    /// does what it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a
+    /// refine runs the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts
+    /// pinyin (it is sent once the results are in) and Esc goes back to the results before the running refine, as
+    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts
+    /// as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
@@ -2974,11 +3129,15 @@ public final class Composer {
                 engineState = engine.snapshot()
                 return .consumed([.showPanel])
             }
+            // ↑↓ move among the results, as among one @'s rows: the candidates are on a line of their own, Space picks the first.
+            if event.key == .arrow(.up) || event.key == .arrow(.down), modifiers.isEmpty { return nil }
             return .consumed(typeIntoRefine(event))
         }
         if refineText.isEmpty {
-            // Only a letter starts one: digits pick, Space inserts, other keys are as they were (⇧⏎ as typed).
-            guard let text = event.printableText, text.count == 1, text.first?.isLetter == true else { return nil }
+            // Only a letter starts one, or in Zhuyin a key that starts a syllable (its digits and punctuation too, as
+            // in level one): other digits pick, Space inserts, other keys are as they were (⇧⏎ as typed).
+            guard let text = event.printableText, text.count == 1, let c = text.first,
+                  c.isLetter || typesZhuyin && PinyinScheme.zhuyinInitials.contains(c) else { return nil }
             return .consumed(typeIntoRefine(event))
         }
         switch event.key {
@@ -2997,8 +3156,14 @@ public final class Composer {
         }
     }
 
-    /// A key typed into the refine line: through the engine (pinyin, its punctuation), or as it is.
+    /// A key typed into the refine line: through the engine (pinyin, its punctuation), or as it is. Its candidates are a
+    /// line of pills, a row in either layout: ← → move along it (`candidateKey`; ↑↓ are the results').
     private func typeIntoRefine(_ event: KeyEvent) -> [Effect] {
+        var event = event
+        if let engine, engineState.isComposing, !engineState.candidates.isEmpty, event.modifiers.subtracting(.capsLock).isEmpty,
+           case let .send(key)? = candidateKey(event.key, engine, inARow: true) {
+            event = event.replacingKey(key)
+        }
         guard let engine, let key = RimeKey.map(event) else {
             if let text = event.printableText { appendRefine(text) }
             return [.showPanel]
@@ -3018,7 +3183,7 @@ public final class Composer {
 
     /// ⇧⏎ on the refine line: pinyin still being typed is converted, then the results shown go to the model again with
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
-    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way; at its last
+    /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way by ⏎; at its last
     /// round, or with where it can go on shown (⌘⏎), nothing is asked: the choices are shown (`showsHandoff`), the line
     /// stays as the hand-off's first message, and only ⌘1–⌘5 send it.
     /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
@@ -3121,7 +3286,7 @@ public final class Composer {
         if let screenshot, command.kind != .convert { input = Prompt.withScreenshot(input, screenshot) }
         if command.kind == .message { return startMessage(command, input: input) }
         if command.kind == .settings, !isLevelTwo {
-            return .consumed(finish(committing: "") + [.openSettings, used(command)])
+            return .consumed(finish(committing: "") + [command == .stats ? .openSettingsAt(.weekStats) : .openSettings, used(command)])
         }
         // The task list needs nothing after the command.
         if command.kind == .agents, !isLevelTwo {
@@ -3637,10 +3802,11 @@ public final class Composer {
 
     /// The action key: pinyin still being typed is converted as Space would pick it, then the draft's
     /// @ command runs. In level two it accepts like Space; during dictation the command runs once the
-    /// transcript is final. Nil without an @ command: the key is then the app's, as in any input method.
+    /// transcript is final. In an @question conversation it is ⏎ there: it goes on (`continueChat`). Nil without an @
+    /// command: the key is then the app's, as in any input method.
     func actionKeyPressed() -> [Effect]? {
         guard let engine else { return nil }
-        if isLevelTwo { return acceptInLevelTwo() }
+        if isLevelTwo { return isQuestionChat ? continueChat() : acceptInLevelTwo() }
         if oneAt != nil { return oneAtActionKey() }
         if paletteQuery != nil { return paletteMatches.isEmpty ? nil : complete(paletteMatches, run: true) }
         guard draftCommand != nil else { return nil }
@@ -3693,8 +3859,8 @@ public final class Composer {
     /// after a failure, asks again (a reminder with nothing to be reminded of would fail again: back to
     /// its text, like Esc; one put right in the settings opens them).
     private func acceptInLevelTwo() -> [Effect] {
-        // A refine instruction or a follow-up typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎
-        // does; ⏎ inserts, the line going with the rest (on an empty line every action key inserts).
+        // A refine instruction typed: an action key other than ⏎ (⌥Space, a shortcut) sends it, as ⇧⏎ does; ⏎ inserts,
+        // the line going with the rest (on an empty line every action key inserts). (A conversation's: `continueChat`.)
         if typesRefine, actionKey != .enter, !refineText.isEmpty || engineState.isComposing { return runRefine() }
         if case .failed = phase {
             // Trying again would fail the same way until the settings change: it opens them where they do.
@@ -3769,6 +3935,7 @@ public final class Composer {
         guard count > 0 else { return [] }
         let current = min(highlighted(in: all), count - 1)
         highlightOverride = (current + delta + count) % count
+        choicesTop = choicesFirstShown  // a list a page at a time scrolls with it
         return [.showPanel]
     }
 
@@ -3783,7 +3950,11 @@ public final class Composer {
     /// Ends the composition, inserting `text`, and clears the engine. `leaving`: the field is left (or everything
     /// committed): a `show` script still running keeps going in the background (`detachScript`). With a selection (the
     /// draft was in the panel), `text` replaces it, or (`end`; by default when `text` is empty) it's kept as it is.
-    func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil) -> [Effect] {
+    /// `typed`: what of `text` the user typed (it goes in as typed: `typedIntoField`), unless the draft has text they
+    /// didn't type; nil for an output, an answer, a value.
+    func finish(committing text: String, leaving: Bool = false, selection end: SelectionEnd? = nil,
+                typed: String? = nil) -> [Effect] {
+        let typed = draftHasOutsideText ? nil : typed  // read before the draft goes
         let selected = selection
         selection = nil
         selectionPending = false
@@ -3825,10 +3996,20 @@ public final class Composer {
         effects.append(.hidePanel)
         if let selected {
             // Nothing was marked in the field: only what replaces the selection goes in.
-            if (end ?? (text.isEmpty ? .kept : .replaced)) == .replaced { effects.append(.replaceSelection(text, selected)) }
+            if (end ?? (text.isEmpty ? .kept : .replaced)) == .replaced {
+                effects.append(.replaceSelection(text, selected))
+                if let typed { typedIntoField(typed) }
+            }
         } else {
             effects.append(text.isEmpty ? .updateMarkedText : .commit(text))
+            if let typed, !text.isEmpty { typedIntoField(typed) }
         }
+        return effects
+    }
+
+    /// `effects`, whose commits are what the user typed (`typedIntoField`).
+    func asTyped(_ effects: [Effect]) -> [Effect] {
+        for case let .commit(text) in effects { typedIntoField(text) }
         return effects
     }
 }

@@ -268,7 +268,7 @@ struct SelectionTests {
         _ = d.receive(ConversionResult(versions: [CandidateLine("4")]), isFinal: true, id: 1)
         // An @question conversation (0.6.4): the selection is its first question, the answer its one row.
         #expect(d.chatRounds.first?.question == "What is 2 + 2?" && d.choices.map(\.text) == ["4"])
-        #expect(replaced(d.handleKeyDown(enterKey).effects) == ["4"])
+        #expect(replaced(d.handleKeyDown(shiftEnterKey).effects) == ["4"])  // ⇧⏎ inserts an answer (0.7.3)
     }
 
     @Test func noCommandRunsInsideTheSelection() {

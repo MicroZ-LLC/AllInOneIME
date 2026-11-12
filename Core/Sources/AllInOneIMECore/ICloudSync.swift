@@ -45,7 +45,7 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "keyboardLayouts", "candidateLayout",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout",
         "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
@@ -76,14 +76,15 @@ public enum ICloudSync {
     /// `pluginPreferences`), and so is Suggestions' choice for an app (`thisMacsOwnAppFields`); and so
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
     /// its own, decision 26). Clipboard history's switch and how many it keeps (`clipboardHistory`,
-    /// `clipboardHistoryLimit`) are this Mac's, as its history is. Apps without typos and the recent apps aren't config
-    /// keys either: named so that no later version adds them.
+    /// `clipboardHistoryLimit`) are this Mac's, as its history is, and so is whether the update check sends its install ID
+    /// (`sendsInstallID`), as the ID is. Apps without typos and the recent apps aren't config keys either: named so that no
+    /// later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",
         "defaultInput", "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
         "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
-        "clipboardHistory", "clipboardHistoryLimit",
+        "clipboardHistory", "clipboardHistoryLimit", "sendsInstallID",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -947,7 +948,7 @@ public enum ICloudSync {
         guard let value else {
             // Only what the config may leave out can be deleted.
             return key.hasPrefix(appPrefix)
-                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters"].contains(key)
+                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters", "pinyinScheme"].contains(key)
                 ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
@@ -1045,6 +1046,10 @@ public enum ICloudSync {
         case "chineseCharacters":
             guard case let .string(name) = value else { return .wrongType }
             return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil
+        case "pinyinScheme":
+            // Deleted, or "full": full pinyin. A scheme a newer version added is refused, this Mac's kept.
+            guard case let .string(name) = value else { return .wrongType }
+            return PinyinScheme(rawValue: name) == nil ? .unknownValue : nil
         case "suggestionsInsert":
             return insertProblem(value)
         case "redaction":

@@ -43,12 +43,14 @@ public struct PanelPresenter {
     public var scriptStatus: (ScriptCommand) -> String?
     /// Translate as You Type's chip in this field, if it's shown here.
     public var chip: () -> TranslateMode.Chip?
+    /// This week's stats, for `@stats`'s row (nil: none kept here; the row is the command's as any other).
+    public var weekStats: () -> WeekStats.Snapshot?
 
     public init(config: Config, language: String, terms: PlatformTerms = Platform.current.terms, app: String? = nil,
                 notice: String? = nil, elapsed: TimeInterval? = nil, fromCache: Bool = false, hidden: Int = 0,
                 shortened: Bool = false, agent: AgentKind = .claude, agentCommand: [String] = [],
                 jargon: @escaping () -> [JargonEntry] = { [] }, scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil },
-                chip: @escaping () -> TranslateMode.Chip? = { nil }) {
+                chip: @escaping () -> TranslateMode.Chip? = { nil }, weekStats: @escaping () -> WeekStats.Snapshot? = { nil }) {
         self.config = config
         self.language = language
         self.terms = terms
@@ -63,6 +65,7 @@ public struct PanelPresenter {
         self.jargon = jargon
         self.scriptStatus = scriptStatus
         self.chip = chip
+        self.weekStats = weekStats
     }
 
     /// The most of an earlier question or answer of a conversation shown (the latest answer is shown whole, up to
@@ -104,22 +107,12 @@ public struct PanelPresenter {
         let copy = terms.copy, paste = terms.paste, enter = terms.enter, shiftEnter = terms.shiftEnter, backspace = terms.backspace
         // The footer's keys as most results have them (`PanelModel.hints`): ⏎ inserts, ⌘C copies.
         let insert = PanelModel.Hint(enter, t.tr("上屏", "insert")), copyHint = PanelModel.Hint(copy, t.tr("复制", "copy"))
-        // An @question conversation: its questions and answers, the next question's line.
-        if composer.isQuestionChat, !composer.refineIsComposing { return chatModel(for: composer) }
-        if composer.refineIsComposing {
-            // Pinyin of a refine instruction: its candidates, as when typing (the results come back once it's picked).
-            let state = composer.engineState
-            model.rows = state.candidates.map {
-                Row(label: $0.label, text: $0.text, comment: $0.comment, kind: .candidate)
-            }
-            model.highlighted = state.highlighted
-            model.horizontal = composer.horizontalCandidates
-            model.footer = composer.isQuestionChat
-                ? t.tr("空格 选词 · \(shiftEnter) 追问 · \(enter) 上屏答案 · Esc 清除拼音",
-                       "Space picks · \(shiftEnter) ask · \(enter) insert the answer · Esc clear the pinyin")
-                : t.tr("空格 选词 · \(shiftEnter) 按这句修改结果 · \(enter) 上屏 · Esc 清除拼音",
-                       "Space picks · \(shiftEnter) refine · \(enter) insert · Esc clear the pinyin")
-        } else if composer.isLevelTwo {
+        // An @question conversation: its questions and answers, the next question's line (its pinyin's candidates on a
+        // line of their own).
+        if composer.isQuestionChat { return chatModel(for: composer) }
+        // A command's list, shown a page at a time from this row (`ListPage`): all its rows are made, then the page cut.
+        var pagedFrom: Int?
+        if composer.isLevelTwo {
             let choices = composer.choices
             model.rows = choices.map { choice in
                 // Long rows (a pasted paragraph and its versions) are shortened here; the full text goes in.
@@ -198,6 +191,7 @@ public struct PanelPresenter {
                 model.rows[index].pickable = Composer.picks(choice)
             }
             model.highlighted = composer.highlighted
+            if composer.choicesArePaged { pagedFrom = composer.choicesFirstShown }
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
@@ -308,6 +302,11 @@ public struct PanelPresenter {
             case .idle, .drafting:
                 break
             }
+            if composer.refineIsComposing {
+                followUpComposing(footer: t.tr("空格 选词 · \(shiftEnter) 按这句修改结果 · \(enter) 上屏 · Esc 清除拼音",
+                                               "Space picks · \(shiftEnter) refine · \(enter) insert · Esc clear the pinyin"),
+                                  into: &model)
+            }
             // A saved @question answer was sent nowhere now: what the last request hid isn't about it.
             PanelRedaction.annotate(&model, choices: choices, hidden: composer.showsSavedAnswer ? 0 : hidden, phase: composer.phase,
                                     language: language)
@@ -384,6 +383,7 @@ public struct PanelPresenter {
                     kind: $0.label.isEmpty ? .original : .candidate, pickable: Self.picks($0))
             }
             model.highlighted = composer.listItem == nil ? nil : composer.listHighlight
+            pagedFrom = composer.listFirstShown
             if list.items.isEmpty { model.status = .hint(t.tr("没有结果", "No results")) }
             let key = name(composer.actionKey)
             model.footer = t.tr("\(key) 选中这一项 · ↑↓ 选择 · Tab 补全 · \(copy) 复制 · Esc 取消",
@@ -396,6 +396,7 @@ public struct PanelPresenter {
                            icon: IconToken.item(result))
             }
             model.highlighted = composer.liveHighlight
+            pagedFrom = composer.liveFirstShown
             // Only content matches: ⏎ lists them to pick from rather than open the first (`opensLiveResult`).
             model.footer = composer.opensLiveResult
                 ? t.tr("\(enter) 打开 · Tab 补全路径 · ↑↓ 选择 · \(copy) 复制路径 · Esc 取消",
@@ -411,6 +412,7 @@ public struct PanelPresenter {
                     kind: .candidate)
             }
             model.highlighted = found.isEmpty ? nil : composer.recipientHighlight
+            pagedFrom = composer.recipientFirstShown
             if let note = composer.recipientNote { model.status = .hint(note) }
             model.footer = t.tr("\(enter) / Tab 选择收件人 · ↑↓ · Esc 取消", "\(enter) / Tab pick the recipient · ↑↓ · Esc cancel")
         } else if !composer.questionMatches.isEmpty {
@@ -437,25 +439,39 @@ public struct PanelPresenter {
                 : t.tr("\(paste) 粘贴 · \(backspace) 删字 · Esc 清除", "\(paste) paste · \(backspace) delete · Esc clear")
         }
         // The refine instruction being typed, as a line of input with its caret at its end, in place of the command's.
-        // (An @question conversation's next question while its pinyin is typed.)
-        let line = composer.isQuestionChat ? t.tr("追问 › ", "question › ") : t.tr("修改 › ", "refine › ")
+        let line = t.tr("修改 › ", "refine › ")
         model.input = composer.refineLine.map { PanelModel.Input(prompt: line, text: $0, caret: $0.count) }
             ?? SessionText.panelInput(composer)
         model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
             + SessionText.attachmentHeader(composer, language: language, terms: terms)
             + [SessionText.refineHeader(composer, language: language)].compactMap { $0 }
-        // One @ with pinyin composed: its candidates on a line of their own, on the side nearest the caret (Space picks the
-        // first).
-        if composer.oneAt != nil, composer.engineState.isComposing {
-            model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
-            model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("选词", "picks a word"))
+        candidatesLine(composer, into: &model)
+        // A command's list on more than a page: the page shown, which rows they are on the right, the keys that turn it.
+        var firstRow = 0
+        if let first = pagedFrom, ListPage.turns(model.rows.count) {
+            let count = model.rows.count, window = ListPage.window(first: first, count: count)
+            model.rows = Array(model.rows[window])
+            model.highlighted = model.highlighted.flatMap { window.contains($0) ? $0 - window.lowerBound : nil }
+            firstRow = window.lowerBound
+            model.detail = [ListPage.position(window, count: count), model.detail].compactMap { $0 }.joined(separator: " · ")
+            pageKeys(&model)
         }
-        // A click on a row picks what its number would.
-        for index in model.rows.indices { model.rows[index].choice = index }
+        // A click on a row picks what its number would (on a page of a list, the row's place in the whole list).
+        for index in model.rows.indices { model.rows[index].choice = firstRow + index }
         if let notice { model.detail = notice }
         // Translate as You Type's pinyin (or dictation): its chip on top.
         if composer.inModeComposition { model.chip = chip().map { PanelModel.Chip($0, language: language) } }
         return model
+    }
+
+    /// The keys of a list on more than a page (`ListPage`): "← → page" in the footer after its ↑↓ (else after its first
+    /// key), and second among its keycaps where it has its own.
+    private func pageKeys(_ model: inout PanelModel) {
+        let keys = t.tr("← → 翻页", "← → page")
+        var parts = model.footer.isEmpty ? [] : model.footer.components(separatedBy: " · ")
+        parts.insert(keys, at: parts.firstIndex { $0.hasPrefix("↑↓") }.map { $0 + 1 } ?? min(1, parts.count))
+        model.footer = parts.joined(separator: " · ")
+        if !model.hints.isEmpty { model.hints.insert(PanelModel.Hint("← →", t.tr("翻页", "page")), at: min(1, model.hints.count)) }
     }
 
     // MARK: - One @
@@ -490,6 +506,13 @@ public struct PanelPresenter {
         if !all.isEmpty || composer.selection != nil, !composer.engineState.isComposing {
             model.hints = [PanelModel.Hint("→", t.tr("交还给 App", "back to the app"))]
         }
+        // `@stats`'s row: its keys are the input method's, ⏎ opens the page, ⌘C copies the picture, Esc cancels.
+        if composer.oneAtStatsHighlighted {
+            let words = WeekStatsWords(language: language), copy = terms.copy
+            model.footer = "\(enter) \(words.openStats) · \(copy) \(words.copyImageHint) · Esc \(words.cancel)"
+            model.hints = [PanelModel.Hint(enter, words.openStats), PanelModel.Hint(copy, words.copyImageHint),
+                           PanelModel.Hint("Esc", words.cancel)]
+        }
     }
 
     /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
@@ -499,6 +522,13 @@ public struct PanelPresenter {
         func named(_ command: Command) -> String { trigger + command.name }
         switch action {
         case let .command(command):
+            if command == .stats, let week = weekStats() {
+                // `@stats`: the week in a line, how it compares beside it, where the commands came from under it.
+                let text = WeekStatsText(week, language: language)
+                return Row(label: "", text: text.atStatsTitle,
+                           comment: (text.atStatsComparison.map { $0 + " · " } ?? "") + text.sourceSummary, kind: .candidate,
+                           icon: IconToken.command(.stats), action: text.openAction, secondLine: text.sourceSummary)
+            }
             // The name alone, as the command list shows it; its summary's examples written with the trigger in use. ⏎ picks
             // it, or runs one that takes no text. A built-in's name says enough: its summary may be left out.
             let runs = command.script?.input == ScriptCommand.Input.none
@@ -551,6 +581,26 @@ public struct PanelPresenter {
         }
     }
 
+    // MARK: - Pinyin beside rows that aren't its candidates
+
+    /// Pinyin composed with rows that aren't its candidates (one @'s after the magic key; the results, or a conversation,
+    /// a follow-up is typed after): its candidates on a line of their own, which the shells draw on the side of the panel
+    /// nearest the caret, and what Space does at its end.
+    private func candidatesLine(_ composer: Composer, into model: inout PanelModel) {
+        guard composer.engineState.isComposing, composer.oneAt != nil || composer.refineIsComposing else { return }
+        model.candidates = composer.engineState.candidates.map { "\($0.label) \($0.text)" }.joined(separator: "   ")
+        model.candidatesHighlighted = composer.engineState.highlighted
+        model.candidatesHint = PanelModel.Hint(t.tr("空格", "Space"), t.tr("选词", "picks a word"))
+    }
+
+    /// A follow-up's pinyin composed after results (`Composer.refineIsComposing`): the rows stay as they are, the footer
+    /// says what the keys do meanwhile (`footer`), and its keys are those after Space, which the candidates' line says.
+    private func followUpComposing(footer: String, into model: inout PanelModel) {
+        let space = t.tr("空格", "Space")
+        model.footer = footer
+        model.hints = PanelModel(footer: footer).footerHints.hints.filter { $0.key != space }
+    }
+
     /// Whether a list row can be picked (a click, the pointer over it): not a row of information.
     private static func picks(_ choice: Composer.Choice) -> Bool {
         if case let .item(item) = choice.kind { return item.valid }
@@ -562,7 +612,8 @@ public struct PanelPresenter {
     /// The panel of an `@question` conversation (`Composer.isQuestionChat`): the next question's line at the top (or where
     /// the conversation can go on, after its last round or ⌘⏎), then the rounds, oldest first, as 问/答 (Q/A) rows, the
     /// earlier ones dimmed and shortened, the latest answer in full. The panel grows with them up to about half the
-    /// screen, then scrolls, the latest at the bottom (`PanelModel.transcript`).
+    /// screen, then scrolls, the latest at the bottom (`PanelModel.transcript`). While the next question's pinyin is
+    /// composed, all of it stays, its candidates on a line of their own (`PanelModel.candidates`).
     func chatModel(for composer: Composer) -> PanelModel {
         var model = PanelModel()
         model.transcript = true
@@ -616,23 +667,30 @@ public struct PanelPresenter {
         let copy = terms.copy, again = terms.again, enter = terms.enter, shiftEnter = terms.shiftEnter
         // The digits that pick an answer: up to the round limit, 9 at most (no digit after it).
         let pick = "1–\(min(QuestionChat.rounds(composer.questionRounds), 9))"
-        if answering {
+        if composer.refineIsComposing, !composer.showsHandoff {
+            // The next question's pinyin: the conversation stays, its candidates on a line of their own (⏎ converts it and
+            // asks, ⇧⏎ inserts the answer selected: `Composer.handleChatReturn`).
+            followUpComposing(footer: t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 清除拼音",
+                                           "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc clear the pinyin"),
+                              into: &model)
+        } else if answering {
             model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 返回", "Answering… · Esc back")
                 : t.tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + t.tr(" · \(enter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(enter) insert · \(pick) pick · \(copy) copy · Esc back")
+                + t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
-                ? t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
-                       "\(shiftEnter) ask · \(enter) insert · \(again) re-ask · \(copy) copy · Esc back")
-                : t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(pick) 选 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
-                       "\(shiftEnter) ask · \(enter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
+                ? t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
+                       "\(enter) ask · \(shiftEnter) insert · \(again) re-ask · \(copy) copy · Esc back")
+                : t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(again) 重新问 · \(copy) 复制 · Esc 返回",
+                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
-            model.footer = t.tr("\(shiftEnter) 追问 · \(enter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
-                                "\(shiftEnter) ask · \(enter) insert · \(pick) pick · \(copy) copy · Esc back")
+            // ⏎ asks the question typed (with nothing typed it does nothing), ⇧⏎ inserts the answer selected.
+            model.footer = t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
+                                "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []
@@ -647,6 +705,7 @@ public struct PanelPresenter {
         }
         model.detail = details.isEmpty ? nil : details.joined(separator: " · ")
         if let notice { model.detail = notice }
+        candidatesLine(composer, into: &model)
         return model
     }
 

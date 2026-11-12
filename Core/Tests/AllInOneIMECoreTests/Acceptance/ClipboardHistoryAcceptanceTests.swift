@@ -8,7 +8,7 @@ import AllInOneIMETestSupport
 // limitsClampAndLoweringDropsOldestRows: 20 default, 5…100 bounds, immediate lower limit.
 // rowsShowTrimmedFirstLineLengthLinesAndAge: text and comment presented to the user.
 // fiveRowsScrollWithKeysAndWheelAndWrapWithKeys: viewport, footer range, arrows, wheel, wrap.
-// digitAndOtherKeyDismissWithoutPicking: ordinary typing continues; digits never choose.
+// typingFiltersEvenOneOrTwoRowsAndDigitsNeverChoose: typing filters a history of any length; digits never choose.
 // rightAndEscapeDismissAndConsumeTheirKeys: panel dismissal and key ownership.
 // shiftSelectionMarksRowsAndInsertsOldestFirst: selection, footer, insertion order.
 // clickInsertsOnlyClickedRowAndPlainArrowEndsSelection: click and selection reset.
@@ -135,22 +135,41 @@ struct ClipboardHistoryAcceptanceTests {
         }
     }
 
-    @Test func digitAndOtherKeyDismissWithoutPicking() async throws {
+    @Test func typingFiltersEvenOneOrTwoRowsAndDigitsNeverChoose() async throws {
         try await withInterfaceLanguage("en") {
+            // Changed by the spec's owner (0.7.3): outside a command, a letter or digit typed while the history shows
+            // filters it whatever its length (no "5 rows or fewer: the key hides the panel and goes on" exception).
+            // A digit is the filter's, never a row's number: "2" finds neither row and puts nothing in.
             let digit = host(items: ["one", "two"], clipboard: .text("one"))
             digit.appTypesKeys = true
             open(digit)
-            digit.press(KeyEvent(keyCode: 0, characters: "2"))
-            #expect(digit.panel == nil)
-            #expect(digit.document == "2")
+            #expect(digit.panel?.rows.map(\.text) == ["one", "two"])
+            #expect(digit.press(KeyEvent(keyCode: 0, characters: "2")))
+            try #require(digit.panel?.input?.text == "2")
+            #expect(digit.panel?.rows.isEmpty == true)
+            #expect(digit.panel?.detail?.contains("no match") == true)
+            #expect(digit.document.isEmpty)
             #expect(!digit.outputs.contains(.rowByKey))
 
             let letter = host(items: ["one"], clipboard: .text("one"))
             letter.appTypesKeys = true
             open(letter)
-            letter.press(KeyEvent(keyCode: 0, characters: "x"))
-            #expect(letter.panel == nil)
-            #expect(letter.document == "x")
+            #expect(letter.panel?.rows.map(\.text) == ["one"])
+            #expect(letter.press(KeyEvent(keyCode: 0, characters: "x")))
+            try #require(letter.panel?.input?.text == "x")
+            #expect(letter.panel?.rows.isEmpty == true)
+            #expect(letter.document.isEmpty)
+
+            let kept = host(items: ["one", "two"], clipboard: .text("one"))
+            kept.appTypesKeys = true
+            open(kept)
+            #expect(kept.press(KeyEvent(keyCode: 0, characters: "w")))
+            try #require(kept.panel?.input?.text == "w")
+            #expect(kept.panel?.rows.map(\.text) == ["two"])
+            #expect(kept.panel?.detail?.contains("1 match") == true)
+            #expect(kept.document.isEmpty)
+            #expect(kept.press(FakeHost.enter))
+            #expect(kept.document == "two")
         }
     }
 

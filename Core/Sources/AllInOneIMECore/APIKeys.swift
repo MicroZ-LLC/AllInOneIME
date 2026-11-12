@@ -313,6 +313,10 @@ public enum APIKeys {
         /// `accounts` gives none: a move must not take a store it couldn't list for an empty one. Nil: `accounts` never
         /// fails (in-memory stores, and copies of one with their closures replaced, list through their own `accounts`).
         public var listing: (@Sendable () throws -> [String])?
+        /// The key as `read` reads it, but throwing (`KeychainError`) when it can't be read, where `read` gives nil: nil
+        /// only when there is no item (or none that is text). Nil: `read` never fails (in-memory stores, and copies of one
+        /// with their closures replaced, read through their own `read`).
+        public var reading: (@Sendable (_ account: String) throws -> String?)?
 
         public init(kind: Kind = .memory, accounts: @escaping @Sendable () -> [String] = { [] },
                     attributes: @escaping @Sendable (String) -> ItemAttributes?, read: @escaping @Sendable (String) -> String?,
@@ -321,7 +325,8 @@ public enum APIKeys {
                     delete: @escaping @Sendable (String) -> KeychainStatus,
                     message: @escaping @Sendable (Int32) -> String? = { _ in nil },
                     add: (@Sendable (String, String, String, String, String?, Date?) -> KeychainStatus)? = nil,
-                    listing: (@Sendable () throws -> [String])? = nil) {
+                    listing: (@Sendable () throws -> [String])? = nil,
+                    reading: (@Sendable (String) throws -> String?)? = nil) {
             self.kind = kind
             self.accounts = accounts
             self.attributes = attributes
@@ -332,12 +337,19 @@ public enum APIKeys {
             self.message = message
             self.add = add
             self.listing = listing
+            self.reading = reading
         }
 
         /// The accounts that have an item (`listing`, else `accounts`); throws when they can't be listed.
         public func listedAccounts() throws -> [String] {
             if let listing { return try listing() }
             return accounts()
+        }
+
+        /// `account`'s key (`reading`, else `read`): nil when there is no item; throws when it can't be read.
+        public func readKey(_ account: String) throws -> String? {
+            if let reading { return try reading(account) }
+            return read(account)
         }
 
         /// The status of an add that found an item there (the keychain's `errSecDuplicateItem`).

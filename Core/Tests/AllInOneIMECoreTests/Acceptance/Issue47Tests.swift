@@ -4,9 +4,9 @@ import Testing
 import AllInOneIMETestSupport
 
 /// #47: a user typing Traditional Chinese (`chineseCharacters` "taiwan" or "hongkong", or unset on a Traditional-Chinese
-/// Mac) sees Chinese named with its characters where the input is named: the menu's "Chinese (pinyin, Traditional)",
-/// 「中文（拼音·繁體）」. What an app learned and its own settings named it plain "Chinese (pinyin)": the notice "Slack
-/// starts in Chinese (pinyin) from now on" after two fields in a row switched to Chinese with Shift before typing, the
+/// Mac) sees Chinese named with its characters where the input is named: the menu's "Chinese (Traditional)",
+/// 「中文（繁體）」. What an app learned and its own settings named it plain "Chinese": the notice "Slack
+/// starts in Chinese from now on" after two fields in a row switched to Chinese with Shift before typing, the
 /// Apps settings' summary and "Starts in" choices, and "Previous per-app settings". Through fields' sessions as the
 /// Settings v2 learning tests drive them (`SettingsV2World`), the settings document (`SettingsService`) and `Config`.
 @Suite(.serialized, MemorySecrets(), SuggestionsOneAtATime())
@@ -28,7 +28,7 @@ struct Issue47Tests {
     // MARK: - The notice
 
     /// The issue's: Characters set to Traditional (Taiwan), an app that starts in English learns to start in Chinese, and
-    /// the notice names the Chinese the user types: "Slack starts in Chinese (pinyin, Traditional) from now on".
+    /// the notice names the Chinese the user types: "Slack starts in Chinese (Traditional) from now on".
     @Test(arguments: ["en", "zh"])
     func theNoticeOfALearnedChineseSaysTraditional(_ language: String) async throws {
         await withInterfaceLanguage(language) {
@@ -40,9 +40,9 @@ struct Issue47Tests {
             #expect(said.count == 1, "\(world.said)")
             #expect(said.first?.contains(Self.traditional(language)) == true, "\(said)")
             if language == "en" {
-                #expect(said.first == "Slack starts in Chinese (pinyin, Traditional) from now on", "\(said)")
+                #expect(said.first == "Slack starts in Chinese (Traditional) from now on", "\(said)")
             } else {
-                #expect(said.first?.contains("中文（拼音·繁體）") == true, "\(said)")
+                #expect(said.first?.contains("中文（繁體）") == true, "\(said)")
             }
         }
     }
@@ -71,13 +71,13 @@ struct Issue47Tests {
         }
     }
 
-    /// Simplified as before: "Chinese (pinyin)", no "Traditional".
+    /// Simplified as before: "Chinese", no "Traditional".
     @Test func simplifiedsNoticeIsAsBefore() async throws {
         await withInterfaceLanguage("en") {
             let world = SettingsV2World([.english, .chinese])
             world.config.chineseCharacters = .simplified
             let said = learnChinese(world)
-            #expect(said == ["Slack starts in Chinese (pinyin) from now on"], "\(world.said)")
+            #expect(said == ["Slack starts in Chinese from now on"], "\(world.said)")
         }
     }
 
@@ -93,7 +93,7 @@ struct Issue47Tests {
         return (SettingsService(store: SettingsStore(configURL: url), platform: .mac, library: library), folder)
     }
 
-    /// Per-App Settings: Slack's row, set to start in Chinese, says "Starts in Chinese (pinyin, Traditional)", and its
+    /// Per-App Settings: Slack's row, set to start in Chinese, says "Starts in Chinese (Traditional)", and its
     /// "Starts in" names Chinese so among its choices.
     @Test(arguments: ["en", "zh"])
     func theAppsSettingsNameChineseTraditional(_ language: String) throws {
@@ -106,7 +106,7 @@ struct Issue47Tests {
         let slack = try #require(document.field("apps.profiles")?.items?.first { $0.id == Apps.slack })
         let detail = slack.detail ?? ""
         #expect(detail.contains(Self.traditional(language)), "the summary: \(detail)")
-        if language == "en" { #expect(detail.contains("Starts in Chinese (pinyin, Traditional)"), "\(detail)") }
+        if language == "en" { #expect(detail.contains("Starts in Chinese (Traditional)"), "\(detail)") }
         let starts = try #require(document.field("apps.\(Apps.slack).inputLanguage"))
         let zh = starts.choices?.first { $0.value == .string("zh") }
         #expect(zh?.label.contains(Self.traditional(language)) == true, "Starts in: \(starts.choices ?? [])")
@@ -121,10 +121,10 @@ struct Issue47Tests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let starts = try #require(service.document().field("apps.\(Apps.slack).inputLanguage"))
         let same = starts.choices?.first { $0.value == .null }
-        #expect(same?.label == "Same as everywhere (Chinese (pinyin, Traditional))", "\(starts.choices ?? [])")
+        #expect(same?.label == "Same as everywhere (Chinese (Traditional))", "\(starts.choices ?? [])")
     }
 
-    /// Simplified as before: "Starts in Chinese (pinyin)".
+    /// Simplified as before: "Starts in Chinese".
     @Test func simplifiedsAppsSettingsAreAsBefore() throws {
         let (service, folder) = try service("""
             {"provider": "anthropic", "uiLanguage": "en", "inputLanguages": ["en", "zh"], "chineseCharacters": "simplified",
@@ -132,14 +132,13 @@ struct Issue47Tests {
             """)
         defer { try? FileManager.default.removeItem(at: folder) }
         let slack = service.document().field("apps.profiles")?.items?.first { $0.id == Apps.slack }
-        #expect(slack?.detail?.contains("Starts in Chinese (pinyin)") == true, "\(slack?.detail ?? "-")")
+        #expect(slack?.detail?.contains("Starts in Chinese") == true, "\(slack?.detail ?? "-")")
         #expect(slack?.detail?.contains("Traditional") == false, "\(slack?.detail ?? "-")")
     }
 
     // MARK: - Previous per-app settings
 
-    /// "Previous per-app settings": an app's own starting input in Chinese reads "Slack: starts in Chinese (pinyin,
-    /// Traditional)".
+    /// "Previous per-app settings": an app's own starting input in Chinese reads "Slack: starts in Chinese (Traditional)".
     @Test func previousPerAppSettingsNameChineseTraditional() async throws {
         await withInterfaceLanguage("en") {
             var config = Config.default
@@ -148,7 +147,7 @@ struct Issue47Tests {
             config.changeProfile(for: Apps.slack) { $0.inputLanguage = .chinese }
             let rows = config.previousAppSettings(appName: Apps.name)
             let slack = rows.first { $0.app == Apps.slack }
-            #expect(slack?.text == "Slack: starts in Chinese (pinyin, Traditional)", "\(rows)")
+            #expect(slack?.text == "Slack: starts in Chinese (Traditional)", "\(rows)")
         }
     }
 }

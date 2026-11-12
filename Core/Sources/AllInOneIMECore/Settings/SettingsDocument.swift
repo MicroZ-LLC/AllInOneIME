@@ -230,6 +230,9 @@ public struct SettingsProblem: Error, Codable, Equatable, Sendable {
         case failed
         /// An action that takes a while was stopped (`cancel`, or the same action again): nothing it found is shown.
         case cancelled
+        /// Not done: it needs the user's go-ahead first, which `message` asks for ("This sends the sample to Claude API").
+        /// Asked and agreed to, the action is sent again with it (a custom command's `test`: `confirmed`).
+        case confirm
         /// The settings changed since the revision the change was made on (`set`'s `revision`), or the list it was
         /// made on (`shown`) can't be merged with the one now: nothing changed; the document is the settings now.
         case stale
@@ -253,7 +256,7 @@ public struct SettingsAction: Equatable, Sendable {
     public var name: String
     /// The item it is about (a plugin's name, a command's).
     public var item: String?
-    /// What it takes: a link to test, a command's definition.
+    /// What it takes: a link to test, a command's definition, the sample a command's `test` runs on.
     public var value: AIConfig.JSONValue?
     /// `setKey`'s key: sent once, never kept anywhere but the secret store, never sent back.
     public var key: String?

@@ -4,8 +4,9 @@ import Foundation
 
 /// `@question` answered, what is typed is the next question, not a refine: the panel grows into a conversation of up to
 /// `questionRounds` rounds (`QuestionChat`). The rounds are kept in the refine plumbing: `refineRequest` is the first
-/// question, each of `refinements` an answer and the question typed after it, `result` the latest answer. Every round's
-/// answer can be picked (digits 1–5, ↑↓ then ⏎, a click; the latest is selected), ⇧⏎ asks the question typed, Esc with
+/// question, each of `refinements` an answer and the question typed after it, `result` the latest answer. ⏎ (and the
+/// action key) asks the question typed, and with nothing typed does nothing (`continueChat`); every round's answer can
+/// be picked (digits 1–5, ↑↓ then ⇧⏎, a click; the latest is selected), ⇧⏎ dropping a question half typed. Esc with
 /// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in the
 /// coding agents installed (the one `@agent` hands to first), Claude, ChatGPT or Gemini, or to copy the conversation
 /// (`handoffChoices`, ⌘1–⌘9; `ChatHandoff`).
@@ -105,6 +106,14 @@ extension Composer {
         handoffRequested = false
     }
 
+    /// ⏎ in the conversation, and the action key: it goes on. The question typed (its pinyin converted first) is asked
+    /// as the next round (`runRefine`: at the last round, or with where it can go on shown, these are shown and it stays
+    /// for the hand-off); with nothing typed nothing is inserted and the panel stays. While an answer comes in, the
+    /// question typed meanwhile waits for it (only its pinyin is converted).
+    func continueChat() -> [Effect] {
+        typesRefine ? runRefine() : []
+    }
+
     /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌘1, ⌘2 … pick
     /// one. ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
     func handleHandoffKey(_ event: KeyEvent) -> Response? {
@@ -128,8 +137,14 @@ extension Composer {
         }
         guard showsHandoff, let digit = event.charactersIgnoringModifiers.first?.wholeNumberValue,
               event.charactersIgnoringModifiers.count == 1, digit >= 1 else { return nil }
-        guard handoffChoices.indices.contains(digit - 1) else { return .consumed() }
-        return .consumed(handOff(to: handoffChoices[digit - 1]))
+        return .consumed(handOff(digit: digit))
+    }
+
+    /// Goes on where the choice `digit` (one-based: ⌘1, ⌘2 …) of those shown is: what its ⌘digit does, and a click on it
+    /// in the panel (`SessionEvent.handoff`). Nothing while they aren't shown, or past them.
+    public func handOff(digit: Int) -> [Effect] {
+        guard showsHandoff, handoffChoices.indices.contains(digit - 1) else { return [] }
+        return handOff(to: handoffChoices[digit - 1])
     }
 
     /// Goes on with the conversation in `destination`: the selected text and the screenshot's text the first question was
@@ -155,14 +170,19 @@ extension Composer {
         }
         if selected != nil || screenshot != nil, let shown = chatRounds.first, !rounds.isEmpty { rounds[0].question = shown.question }
         let followUp = refineText
-        guard let action = ChatHandoff.action(destination, prompt: ChatHandoff.prompt(rounds, followUp: followUp, selection: selected,
-                                                                                     screenshot: screenshot),
+        func handoffPrompt(guide: String? = nil) -> String {
+            ChatHandoff.prompt(rounds, followUp: followUp, selection: selected, screenshot: screenshot, guide: guide)
+        }
+        guard let action = ChatHandoff.action(destination, prompt: handoffPrompt(),
                                               copied: ChatHandoff.copied(rounds, followUp: followUp, selection: selected,
                                                                          screenshot: screenshot),
                                               atAgent: pickedAgent) else { return [] }
         let done = finish(committing: "", selection: .kept)
         switch action {
-        case let .agent(agent, prompt):
+        case let .agent(agent, sent):
+            // A coding agent reads files: for a conversation about AllInOneIME it is told where the user guide is.
+            let asked = (rounds.map(\.question) + [followUp]).map(UserGuide.question(in:)).joined(separator: "\n")
+            let prompt = userGuidePath.flatMap { UserGuide.isAbout(asked) ? handoffPrompt(guide: $0) : nil } ?? sent
             // Claude Code by its own effect (the one it always had); the others by theirs.
             let start: Effect = agent == .claude ? .continueInClaudeCode(prompt: prompt) : .continueInAgent(agent, prompt: prompt)
             return done + [start, .notice(messages.opened(agent))]

@@ -178,7 +178,7 @@ is shown as the error. The action key tries again.
 |---|---|
 | `insert` | Candidates to insert: all of it (1), and when there are several lines, each line on its own (2–9). ⏎, Space or a digit inserts one; ⌘C copies it. |
 | `show` | Shown in the panel as it's printed (a progress), the last lines; nothing is inserted. ⌘C copies all of it, ⏎ closes. Left running when the text field is left, it goes on in the background (§5). |
-| `list` | A list in Alfred's Script Filter JSON (below), run again as the text after the command changes, `queryDelay` after the last key; the run before is stopped. ↑↓ pick a row, the action key does its action, Tab completes its `autocomplete`, ⌘C copies its `text.copy`. The rows aren't numbered while you type (a digit is text: `@convert 10 km`). With a required argument left empty, the action key says what's missing. `confirm` and `background` don't apply to a list. |
+| `list` | A list in Alfred's Script Filter JSON (below), run again as the text after the command changes, `queryDelay` after the last key; the run before is stopped. The panel shows 5 rows a page: ↑↓ pick a row, ← → turn the page when there are more, the action key does its action, Tab completes its `autocomplete`, ⌘C copies its `text.copy`. The rows aren't numbered while you type (a digit is text: `@convert 10 km`). With a required argument left empty, the action key says what's missing. `confirm` and `background` don't apply to a list. |
 | `silent` | Its last line is shown near the cursor; nothing is inserted. |
 
 A command that prints nothing ends with a short notice that it ran (a list that prints nothing says "No results").

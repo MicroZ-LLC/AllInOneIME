@@ -45,7 +45,7 @@
 
 ## 使用方式
 
-不以 `@` 開頭時，它不會干擾你：在英文模式下，字母直接輸入，⏎ 就是 Return；不會連上網路。新安裝的版本只輸入英文；若也要輸入中文（拼音）、法文、韓文或印地文，請在設定中加入（見[輸入與翻譯](#輸入與翻譯)）。
+不以 `@` 開頭時，它不會干擾你：在英文模式下，字母直接輸入，⏎ 就是 Return；不會連上網路。新安裝的版本只輸入英文；若也要輸入中文、法文、韓文或印地文，請在設定中加入（見[輸入與翻譯](#輸入與翻譯)）。
 
 | 按鍵 | 作用 |
 |---|---|
@@ -333,17 +333,17 @@ Settings → General → **Sync through iCloud**（透過 iCloud 同步，預設
 
 在設定中：
 
-- **Input languages**（輸入語言）：從英文、中文（拼音）、法文、韓文和印地文中選一到五種，用 + 加入（一直都在；滿五種時變成灰色）。新安裝時只有英文。新的文字欄位從第一種開始；輕按 Shift 依序切換到下一種；只有一種時，Shift 不會切換。
+- **Input languages**（輸入語言）：從英文、中文、法文、韓文和印地文中選一到五種，用 + 加入（一直都在；滿五種時變成灰色）。新安裝時只有英文。新的文字欄位從第一種開始；輕按 Shift 依序切換到下一種；只有一種時，Shift 不會切換。
   - **法文**以它自己的鍵盤配置輸入：除非你在它的卡片上選了其他配置，否則為 AZERTY。它的靜音鍵（^、¨、`、´、~）也會由它組字。
   - **韓文**以兩套式（Dubeolsik）配置輸入諺文，邊打邊組合每個音節（g k s → 한）；Shift 可輸入 ㄲ ㄸ ㅃ ㅆ ㅉ 和 ㅒ ㅖ。
   - **印地文**：用拉丁字母照發音輸入單字，就會得到天城文（namaste → नमस्ते）。常用字會照印地文的寫法拼出；其他情況下，Space 插入第一個拼法，數字鍵插入其他拼法，⏎ 插入照打的字母，「.」則是句號 danda（।）。
   - 無論是哪種語言，指令名稱、`@open` 的文字和程式碼（`@py`、`@js`）都以字母輸入；指令結束後會切回原本的語言。
   - `@improve` 會讓韓文、印地文或法文的句子維持原本的語言，`@translate` 則把它翻譯成你的語言（當法文是你的輸入語言之一時，會把法文和英文區分開來）。
-- **Language packs**（語言包）：App 內建英文（以及法文，法文只需要 macOS 的鍵盤配置）。中文、韓文和印地文是加入時才下載的語言包：加入中文（拼音）時會下載它的詞庫（約 34 MB，解壓縮後 125 MB）並顯示進度列，下載完成後拼音立即可用，不需要重新啟動；韓文的語言包（它的按鍵表，以及字母如何組成音節）和印地文的語言包（它的字母和常用字）只有幾 KB。語言包只包含資料（詞庫、表格和綱要，絕無程式碼），列在經過簽署的索引中，使用前會核對 SHA-256，和外掛程式一樣。每種語言的卡片會顯示它的語言包（版本、大小、來源），並附有「Delete…」（刪除…）；移除語言時會詢問是否一併刪除它的語言包。從 0.6.1 或更早版本更新時，中文不需要下載：安裝程式會保留舊版本附帶的詞庫。
+- **Language packs**（語言包）：App 內建英文（以及法文，法文只需要 macOS 的鍵盤配置）。中文、韓文和印地文是加入時才下載的語言包：加入中文時會下載它的詞庫（約 34 MB，解壓縮後 125 MB）並顯示進度列，下載完成後拼音立即可用，不需要重新啟動；韓文的語言包（它的按鍵表，以及字母如何組成音節）和印地文的語言包（它的字母和常用字）只有幾 KB。語言包只包含資料（詞庫、表格和綱要，絕無程式碼），列在經過簽署的索引中，使用前會核對 SHA-256，和外掛程式一樣。每種語言的卡片會顯示它的語言包（版本、大小、來源），並附有「Delete…」（刪除…）；移除語言時會詢問是否一併刪除它的語言包。從 0.6.1 或更早版本更新時，中文不需要下載：安裝程式會保留舊版本附帶的詞庫。
 - **候選排列**：選字時，拼音和印地文的候選字詞預設橫向並排（Horizontal），就像系統內建的輸入法：← → 選取，↑↓（或 - =）翻頁。想要上下排列（↑↓ 選取），請在 Input 頁面、輸入語言下方選擇 Vertical。@ 指令清單和結果一律直向排列。
-- **Characters**（字形，搭配中文輸入，新）：在中文（拼音）下的「Characters」選擇簡體、繁體（台灣）或繁體（香港）。繁體（台灣）會打出台灣的字和用詞（ruanjian → 軟體、wangluo → 網路），繁體（香港）打出香港的字（軟件、網絡）；選了繁體，`"` 和 `'` 會打出「」和『』。沒選過時跟著這台 Mac 的偏好語言（繁體中文的系統就是繁體）。整個 App 都照它來：`@improve` 和改寫保持文字本來的字形（你打的保持繁體，選取的簡體文字保持簡體），`@translate` 和邊打邊譯把繁體中文當成你輸入的語言，`@reply` 用中文回覆時用你的字形，截圖文字先以繁體辨識，`@search` 找繁體中文網頁。轉換由 OpenCC 在這台 Mac 上完成；它整詞替換，所以少數簡體詞只有台灣的說法（运行 → 執行）。設定檔中的 `chineseCharacters`：`"simplified"`、`"taiwan"` 或 `"hongkong"`。
-- **Fuzzy pinyin**（模糊拼音，搭配中文輸入）：你分不清的音，兩種打法都可以，例如 z ↔ zh、n ↔ l、in ↔ ing。在「Input」（輸入）頁面的輸入語言列中選擇中文（拼音），開啟「Fuzzy pinyin」並選擇要配對的音；詞庫會在一兩秒內重新部署。它會在 Rime 使用者資料夾中寫入 `rime_ice.custom.yaml`，而且絕不會覆寫你自己放在那裡的檔案。
-- **Personal Dictionaries**（個人詞庫，搭配中文輸入）：Settings → Input → Chinese (pinyin) → Personal Dictionaries → **Import or Update…**（匯入或更新），可以把 UTF-8 的 Rime 詞庫（`.dict.yaml`）加在 rime-ice 之外（需要先裝好中文語言包）。列表顯示每個詞庫的 Rime `name`、原檔名和詞條數；再次匯入相同 `name` 會更新已存的副本（只修改原檔不會更新）。每次匯入、更新或移除都會重新編譯拼音詞庫（rime-ice 的全部詞條加上你的），可能要一分鐘左右，這段期間暫時打不了中文，頁面會顯示進度或錯誤。副本只留在這台 Mac 上，不透過 iCloud 同步，也不會發給 AI；不過從詞庫裡選過的詞和別的詞一樣會學進 Rime 的使用者詞典，開了學到的詞的同步時會同步到你的其他 Mac，移除詞庫後也還在。如果有你自己的 `rime_ice.custom.yaml`，會在改動任何檔案之前拒絕匯入。
+- **Characters**（字形，搭配中文輸入，新）：在中文下的「Characters」選擇簡體、繁體（台灣）或繁體（香港）。繁體（台灣）會打出台灣的字和用詞（ruanjian → 軟體、wangluo → 網路），繁體（香港）打出香港的字（軟件、網絡）；選了繁體，`"` 和 `'` 會打出「」和『』。沒選過時跟著這台 Mac 的偏好語言（繁體中文的系統就是繁體）。整個 App 都照它來：`@improve` 和改寫保持文字本來的字形（你打的保持繁體，選取的簡體文字保持簡體），`@translate` 和邊打邊譯把繁體中文當成你輸入的語言，`@reply` 用中文回覆時用你的字形，截圖文字先以繁體辨識，`@search` 找繁體中文網頁。轉換由 OpenCC 在這台 Mac 上完成；它整詞替換，所以少數簡體詞只有台灣的說法（运行 → 執行）。設定檔中的 `chineseCharacters`：`"simplified"`、`"taiwan"` 或 `"hongkong"`。
+- **Fuzzy pinyin**（模糊拼音，搭配中文輸入）：你分不清的音，兩種打法都可以，例如 z ↔ zh、n ↔ l、in ↔ ing。在「Input」（輸入）頁面的輸入語言列中選擇中文，開啟「Fuzzy pinyin」並選擇要配對的音；詞庫會在一兩秒內重新部署。它會在 Rime 使用者資料夾中寫入 `rime_ice.custom.yaml`，而且絕不會覆寫你自己放在那裡的檔案。
+- **Personal Dictionaries**（個人詞庫，搭配中文輸入）：Settings → Input → Chinese → Personal Dictionaries → **Import or Update…**（匯入或更新），可以把 UTF-8 的 Rime 詞庫（`.dict.yaml`）加在 rime-ice 之外（需要先裝好中文語言包）。列表顯示每個詞庫的 Rime `name`、原檔名和詞條數；再次匯入相同 `name` 會更新已存的副本（只修改原檔不會更新）。每次匯入、更新或移除都會重新編譯拼音詞庫（rime-ice 的全部詞條加上你的），可能要一分鐘左右，這段期間暫時打不了中文，頁面會顯示進度或錯誤。副本只留在這台 Mac 上，不透過 iCloud 同步，也不會發給 AI；不過從詞庫裡選過的詞和別的詞一樣會學進 Rime 的使用者詞典，開了學到的詞的同步時會同步到你的其他 Mac，移除詞庫後也還在。如果有你自己的 `rime_ice.custom.yaml`，會在改動任何檔案之前拒絕匯入。
 - **Translate (@translate)**（翻譯）：加入要翻譯成的語言（西班牙文、法文、德文、日文、韓文、中文、印地文、孟加拉文、坦米爾文及其他主要印度語言…），並拖曳排序。以拉丁字母輸入的印地文（「aap kaise ho」）會以天城文傳回。`@translate` 依這個順序，每種語言寫一行（只有一種時提供三個版本）；句子本身的語言會略過。新安裝時，會翻譯成 Mac 偏好語言中第一個不是英文的語言；如果只有英文，`@translate` 會提示還沒有要翻譯成的語言，在提示上按 ⏎ 會開啟這個頁面，「Add…」（加入…）加上外框標示（句子照輸入的原樣插入）。這時邊打邊譯也不會開啟，並提示要到哪裡加入語言。
 - **Keyboard layouts**（鍵盤配置）：法文以它卡片上選擇的配置輸入（設定檔中的 `keyboardLayouts`）。其他語言在輸入法之下，macOS 會沿用你最後使用的拉丁字母配置（AZERTY、QWERTZ、西班牙文、美式國際…），所以你可以照常打字，`@` 也在你的配置原本的位置，靜音鍵在指令的文字中同樣能組字（⌥E 再按 E → é，^ 再按 e → ê）。沒有拉丁字母的配置（俄文、印地文 InScript）無法在輸入法之下使用：請用 ⌃Space 切換過去，或把文字貼上（⌃V）到指令中。
 - `@improve` 只潤飾和改寫，不翻譯；`@translate @improve` 一起使用時，一次請求就能翻譯並改寫。在設定中開啟「@improve also translates」，`@improve` 就會一律這樣做。
@@ -513,7 +513,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 
 | 鍵 | 作用 | 預設值 |
 |---|---|---|
-| `inputLanguages` | 輸入語言，一到五種，第一種是預設：`"en"` 英文、`"zh"` 中文（拼音）、`"fr"` 法文、`"ko"` 韓文、`"hi"` 印地文，例如 `["en", "zh"]`、`["fr", "en", "ko"]`。中文、韓文和印地文要在安裝語言包後才能使用 | `["en"]`（新安裝） |
+| `inputLanguages` | 輸入語言，一到五種，第一種是預設：`"en"` 英文、`"zh"` 中文、`"fr"` 法文、`"ko"` 韓文、`"hi"` 印地文，例如 `["en", "zh"]`、`["fr", "en", "ko"]`。中文、韓文和印地文要在安裝語言包後才能使用 | `["en"]`（新安裝） |
 | `keyboardLayouts` | 輸入語言所用的鍵盤配置，以語言代碼指定（目前只有法文）：`{"fr": "com.apple.keylayout.French-PC"}` | 法文：`com.apple.keylayout.French`（AZERTY） |
 | `outputLanguages` | `@translate` 要翻譯成的語言，依序排列：`["es", "fr", "de"]`… | `["en"]` |
 | `improveTranslates` | `@improve` 同時翻譯（等同 `@translate @improve`） | `false` |
@@ -527,6 +527,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 | `fuzzyPinyin` | 模糊拼音配對：`["z-zh", "n-l", "in-ing"]`（z-zh、c-ch、s-sh、n-l、f-h、r-l、an-ang、en-eng、in-ing、ian-iang、uan-uang） | `[]` |
 | `useSelection` | @ 指令處理欄位中選取的文字（見「對選取的文字使用指令」） | `true` |
 | `checkForUpdates` | 每天在背景檢查一次新版本；你沒按下之前不會安裝任何東西 | `true` |
+| `sendsInstallID` | 檢查更新時，下載 manifest 的請求會帶上這台 Mac 的隨機安裝 ID，用來統計安裝數（見「隱私」）；關閉會刪除它。不會同步 | `true` |
 | `agent` | `@agent` 要把文字交給哪個程式設計 agent（Settings → Agent）：`claude`（Claude Code）、`gemini`（Gemini CLI）、`kiro`（Kiro CLI）或 `custom` | `claude` |
 | `agentCommand` | 自訂 agent 的指令，你輸入的內容會作為最後一個引數加在後面，例如 `["muse", "--"]` | `[]` |
 | `agentPageContext` | `@agent` 在 Google Chrome 中把網頁一起帶上（欄位、它的表單或區段、選取的文字、看得到的文字；絕不包含密碼） | `true` |
@@ -554,7 +555,7 @@ Settings → AI Provider → Privacy →「Hide sensitive information before sen
 - `@question` 會記住你最近的 5 個問題、答案和提問時間，只存放在這台 Mac 上（除非你選擇透過 iCloud 同步它們，見上文）的 `~/Library/Application Support/AllInOneIME/recent-questions.json`（只有你的使用者帳號能讀取），用來在 `@question` 下方列出；已儲存的答案會從那裡顯示，不需連網。處於安全輸入狀態時不會保留任何內容，對選取文字提出的問題也完全不保留（它們的答案講的是選取的文字，若保留就會把那段文字寫到磁碟上）。在 Settings → General 關閉「Remember recent questions」也會刪除它們；透過 Settings → Assistant 關閉（設定檔中的 `rememberQuestions`）則會保留，以便能完全還原。「Clear」會刪除它們。
 - 為了列出你的備忘錄，選單列面板會在輸入法自己的偏好設定中，保存最近 30 則用 `@note` 儲存的備忘錄的 ID（Notes 中備忘錄的 ID、檔案的路徑，或 Notion 頁面的位址）和第一行（最多 80 個字元），面板關閉時也一樣。打開面板絕不會向 Notion 查詢任何東西。
 - `@py` 和 `@js` 只在你按下執行鍵時才執行，而且只執行你自己輸入或貼上的程式碼：AI 的答案和其他指令的輸出絕不會被當作程式碼執行。`@py` 使用你 Mac 上的 `python3`，它能像在 Terminal 中一樣讀寫檔案和連上網路；`@js` 在獨立的行程中執行，無法讀取檔案、連上網路或執行其他程式。兩者都不會在安全輸入期間執行。
-- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update-v2.json 及其簽章；請求中沒有任何識別資訊，也沒有你輸入的內容。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
+- 檢查更新：每天一次（除非關閉了「Check for updates automatically」），AllInOneIME 會下載 https://allinoneime.com/update-v2.json 及其簽章，不會帶上你輸入的內容。下載 manifest 的請求會在 User-Agent 中帶一個識別碼，`AllInOneIME/<version> (install <id>)`：一個在這台 Mac 上隨機產生的 16 位十六進位數字，存放在輸入法自己的偏好設定中（不會同步），用來統計安裝數。在 Settings → Privacy 關閉「Send an anonymous install ID with the daily update check」（設定檔中的 `sendsInstallID`）就不再傳送，並刪除這個數字；再次開啟會產生一個新的。只有在你按一下 Update 時，才會從 GitHub release 下載更新。
 - 擴充功能來源：git 以你的身分在你的 Mac 上執行，而且只針對你加入的來源：每天為會自動檢查的來源 fetch 一次（固定版本的來源不會），以及你按 Check Now、Update 或 Re-clone 時。它只和儲存庫的主機連線，以你自己的 git 和 SSH 設定登入；你輸入的任何內容都不會隨之送出。
 - 透過 iCloud 同步（預設關閉）：只存到你自己的 iCloud 雲碟 `~/Library/Mobile Documents/com~apple~CloudDocs/AllInOneIME/`，由 Apple 同步到你的其他 Mac；不會有任何內容送到開發者的伺服器。存到那裡的有：`settings.json`（同步的設定，各自附上變更時間和每台 Mac 的隨機 ID；你的自訂指令，包括會執行程式的那些，它們仍然只在你選取時才執行）、`jargon.txt`（你的 Jargon 術語表）、`rime/`（每台 Mac 拼音學到的字詞的快照，Rime 資料夾中的其他東西一概不放：你的自訂短語和 Rime 設定留在 Mac 上），以及只有在你開啟時才會存的你對 AI 隱藏的字詞（在 `settings.json` 中）和 `questions.json`（最近的問題和答案，只有你的使用者帳號能讀取）。關閉這兩項後，它們會留在 iCloud 中，直到你移除為止（每個開關下方的「Remove from iCloud…」）。絕不存放：API 金鑰、權杖或密碼、擴充功能來源、擴充功能資料夾和外掛程式、不再打錯的 App、最近的 App、視窗狀態、同步開關。只有開啟「進階資料保護」時，iCloud 雲碟才是端對端加密。這台 Mac 自己的同步紀錄存放在 `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`。
 - 記錄檔不會記錄你輸入的內容。對於每個第三方輸入法，macOS 都會警告「The developer can access anything you type with this input source」（開發者可以取用你使用此輸入方式輸入的任何內容）；這是系統的通用警告。

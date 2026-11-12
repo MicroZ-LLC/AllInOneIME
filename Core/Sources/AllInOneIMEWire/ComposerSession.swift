@@ -283,9 +283,9 @@ public final class ComposerSession: @unchecked Sendable {
         pushOutputs(outputs)
     }
 
-    /// A row clicked in the engine's panel (`Composer.choose(index:)`).
+    /// A row clicked in the engine's panel, by its `PanelModel.Row.choice` (`Composer.pickClicked`).
     public func choose(row: Int) {
-        feed(from: .click) { $0.choose(index: row) }
+        feed(from: .click) { $0.pickClicked(row) }
     }
 
     // MARK: - Effects → outputs
@@ -400,7 +400,7 @@ public final class ComposerSession: @unchecked Sendable {
         case .startCommand, .search, .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent,
              .launchInTerminal, .startBackgroundAgent, .listAgents, .openSettings, .openSettingsAt, .saveNote,
              .previewReminder, .addReminder, .startRun, .startScript, .startBackgroundScript, .sendMessage,
-             .rememberQuestion, .reask, .startPlan, .copy, .readClipboard, .startVoice, .armVoice:
+             .rememberQuestion, .reask, .startPlan, .copy, .copyWeekStatsImage, .readClipboard, .startVoice, .armVoice:
             return true
         default:
             return false

@@ -117,7 +117,7 @@ static class Program
             // An ordered list: Chinese added from its menu; then fuzzy pinyin, a check box each, appears and is checked.
             var add = WaitFor("inputLanguages' Add", () => window.FindFirstDescendant(c => c.ByAutomationId("inputLanguages/add")));
             add.Patterns.ExpandCollapse.Pattern.Expand();
-            var chinese = WaitFor("Chinese in the menu", () => window.FindFirstDescendant(c => c.ByControlType(ControlType.MenuItem).And(c.ByName("Chinese (pinyin)"))));
+            var chinese = WaitFor("Chinese in the menu", () => window.FindFirstDescendant(c => c.ByControlType(ControlType.MenuItem).And(c.ByName("Chinese"))));
             chinese.Patterns.Invoke.Pattern.Invoke();
             Check("Chinese added to the input languages, after English", Eventually(() =>
                 string.Join(",", Config(config)["inputLanguages"]!.AsArray().Select(l => (string?)l)) == "en,zh"), Config(config)["inputLanguages"]?.ToJsonString());

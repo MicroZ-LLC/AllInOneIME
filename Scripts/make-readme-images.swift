@@ -242,8 +242,8 @@ try composite([
 
 // 0.6.4's release notes.
 try composite([
-    Step(caption: tr("答案下面接着打下一个问题：⇧⏎ 追问，⏎ 上屏选中的答案",
-                     "Type the next question under the answer: ⇧⏎ asks it, ⏎ inserts the answer selected"),
+    Step(caption: tr("答案下面接着打下一个问题：⏎ 追问，⇧⏎ 上屏选中的答案",
+                     "Type the next question under the answer: ⏎ asks it, ⇧⏎ inserts the answer selected"),
          marked: marked("question-chat", "question › what is rust"), panel: load("question-chat")),
 ], to: "question-chat.png")
 try composite([

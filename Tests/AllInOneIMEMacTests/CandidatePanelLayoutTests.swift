@@ -37,6 +37,14 @@ struct CandidatePanelLayoutTests {
     @Test func thePinyinCandidatesInARowKeepTheirPanelsWidthTheSameWay() throws {
         try LayoutChild.run("row")
     }
+
+    @Test func aConversationStaysPutWhileItsNextQuestionsPinyinIsComposed() throws {
+        try LayoutChild.run("conversation")
+    }
+
+    @Test func whereAConversationGoesOnIsKeysToClickAboveTheRows() throws {
+        try LayoutChild.run("handoff")
+    }
 }
 
 private enum LayoutChild {
@@ -176,7 +184,7 @@ private enum LayoutChild {
         /// What a click at `point` picks.
         static func click(_ panel: CandidatePanel, at point: NSPoint) -> [Int] {
             var picked: [Int] = []
-            panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil))
+            panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: nil))
             panel.view.mouseDown(with: event(.leftMouseDown, panel, at: point))
             return picked
         }
@@ -253,7 +261,7 @@ private enum LayoutChild {
 
             // The wheel over the candidates' line moves the list as anywhere on the panel.
             var steps: [Int] = []
-            panel.take(by: panel, .init(select: nil, delete: nil, scroll: { steps.append($0) }, chip: nil))
+            panel.take(by: panel, .init(select: nil, delete: nil, scroll: { steps.append($0) }, chip: nil, handoff: nil))
             if let wheel = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: -3, wheel2: 0, wheel3: 0),
                let event = NSEvent(cgEvent: wheel) {
                 view.scrollWheel(with: event)
@@ -521,6 +529,129 @@ private enum LayoutChild {
             shown(panel, twoSize, "in a row, up again after hiding")
             panel.hide()
         }
+
+        /// An @question conversation (`PanelModel.transcript`) as the presenter makes it: the next question's line on top,
+        /// `rounds` rounds as Q and A rows (the answers picked by their numbers), the latest selected.
+        static func chat(rounds: Int) -> PanelModel {
+            var rows: [Row] = []
+            for round in 1...rounds {
+                rows.append(Row(label: "", text: "Q: question \(round)", kind: .original, pickable: false))
+                rows.append(Row(label: "\(round)", text: "A: the answer to question \(round), a line long",
+                                kind: round == rounds ? .translation : .original, choice: round - 1))
+            }
+            return PanelModel(rows: rows, highlighted: 2 * rounds - 1, input: PanelModel.Input(prompt: "question \(rounds + 1)/5 › ", text: "", caret: 0),
+                              footer: "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc back", transcript: true)
+        }
+
+        /// The same while its next question's pinyin is composed: the rows as they were, the candidates on a line of their own.
+        static func asking(_ chat: PanelModel) -> PanelModel {
+            var model = chat
+            model.input = PanelModel.Input(prompt: chat.input?.prompt ?? "", text: "nihao", caret: 5)
+            model.candidates = "1 你好   2 拟好   3 你   4 泥   5 尼"
+            model.candidatesHint = PanelModel.Hint("Space", "picks a word")
+            model.footer = "Space picks · ⏎ ask · ⇧⏎ insert the answer · Esc clear the pinyin"
+            model.hints = [PanelModel.Hint("⏎", "ask"), PanelModel.Hint("⇧⏎", "insert the answer")]
+            return model
+        }
+
+        /// A conversation while its next question's pinyin is composed, on either side of the caret: its rows stay, the
+        /// candidates' line on the side nearest the caret (under the question's line below it, under the rows and just
+        /// above the footer above it); the panel keeps its side, its edge at the caret and its left, never narrower. One
+        /// taller than the panel can be stays as tall, its latest answer in view.
+        static func conversation() {
+            let top = CandidateView.Metrics.padding + CandidateView.Metrics.rowInsetY + 0.5
+            for side in [CandidatePanel.Side.below, .above] {
+                let anchor = side == .above ? low : high
+                let panel = CandidatePanel()
+                let view = panel.view
+                let plain = chat(rounds: 2)
+                panel.show(plain, anchor: anchor)
+                let frame = panel.frame, rows = spans(panel)
+                expect(view.side == side && rows.keys.sorted() == [1, 3], "\(side): the answers under the pointer: \(rows.keys.sorted())")
+                panel.show(asking(plain), anchor: anchor)
+                guard let line = view.candidatesFrame, let first = rows[1], let last = rows[3] else {
+                    expect(false, "\(side): the answers and the candidates' line are drawn")
+                    continue
+                }
+                expect(view.side == side, "\(side): on the same side (\(view.side))")
+                expect(panel.frame.minX == frame.minX && panel.frame.width >= frame.width, "\(side): no sideways jump, no narrower: \(panel.frame) / \(frame)")
+                if side == .below {
+                    expect(line.minY > top && line.maxY < first.lowerBound + room(line), "below the caret, the line under the question's line, above the rows: \(line)")
+                    expect(panel.frame.maxY == frame.maxY, "below the caret, its top stays under the caret: \(panel.frame) / \(frame)")
+                    expect(spans(panel) == moved(rows, by: room(line)), "below the caret, the rows down by the line, together: \(spans(panel)) / \(rows)")
+                } else {
+                    expect(line.minY > last.upperBound && line.maxY <= view.footerY, "above the caret, the line under the rows, above the footer: \(line)")
+                    expect(panel.frame.minY == frame.minY, "above the caret, its bottom stays at the caret: \(panel.frame) / \(frame)")
+                    expect(spans(panel) == rows, "above the caret, the rows where they were: \(spans(panel)) / \(rows)")
+                }
+                // The pinyin picked: the line goes, the rows as at first.
+                panel.show(plain, anchor: anchor)
+                expect(view.candidatesFrame == nil && spans(panel) == rows && panel.frame.minX == frame.minX, "\(side): the rows as at first")
+                panel.hide()
+
+                // A long conversation, as tall as the panel gets: as tall with the line, the latest answer in view.
+                let long = chat(rounds: 40)
+                panel.show(long, anchor: anchor)
+                let tall = panel.frame
+                expect(view.maxHeight.map { tall.height <= $0 + 1 } ?? false, "\(side): no taller than the panel gets: \(tall)")
+                panel.show(asking(long), anchor: anchor)
+                // (Wider only if the candidates' line needs it: a panel that shows only widens.)
+                expect(panel.frame.origin == tall.origin && panel.frame.height == tall.height && panel.frame.width >= tall.width,
+                       "\(side): a long conversation keeps its place and height: \(panel.frame) / \(tall)")
+                let shown = spans(panel)
+                expect(shown[79] != nil, "\(side): the latest answer in view: \(shown.keys.sorted())")
+                if let line = view.candidatesFrame, let latest = shown[79] {
+                    expect(line.minY >= 0 && line.maxY <= view.footerY, "\(side): the candidates' line in the panel: \(line)")
+                    expect(side == .below ? line.maxY < latest.lowerBound : line.minY > latest.upperBound,
+                           "\(side): the line on the caret's side of the latest answer: \(line), \(latest)")
+                } else {
+                    expect(false, "\(side): the candidates' line is drawn")
+                }
+                panel.hide()
+            }
+        }
+    }
+
+    extension Layout {
+        /// Where an @question conversation can go on, on top: its title, then each choice its key on a small keycap (the
+        /// footer's) and its name, three a line with five, all above the rows. The pointer over one highlights it and no
+        /// row; a click on it goes on there by its place, as its ⌘digit would, and picks no row.
+        static func handoff() {
+            let panel = CandidatePanel()
+            let view = panel.view
+            var model = chat(rounds: 2)
+            model.handoff = PanelModel.Handoff(title: "2 rounds in: continue in Claude or another AI", choices: [
+                .init(shortcut: "⌘1", name: "Claude Code"), .init(shortcut: "⌘2", name: "Gemini CLI"), .init(shortcut: "⌘3", name: "Claude"),
+                .init(shortcut: "⌘4", name: "ChatGPT"), .init(shortcut: "⌘5", name: "Copy")])
+            panel.show(model, anchor: high)
+            let targets = view.handoffTargets, rows = spans(panel)
+            expect(targets.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"], "every choice, in order: \(targets.map(\.shortcut))")
+            expect(rows.keys.sorted() == [1, 3], "the answers under the pointer: \(rows.keys.sorted())")
+            guard targets.count == 5, let first = rows[1] else { return }
+            let lines = targets.map(\.targetFrame.minY)
+            expect(Set(lines.prefix(3)).count == 1 && Set(lines.suffix(2)).count == 1 && lines[3] > lines[0],
+                   "three on the first line, two on the next: \(targets.map(\.targetFrame))")
+            for (index, target) in targets.enumerated() {
+                let digit = index + 1
+                expect(target.keycapFrame.height == CandidateView.Metrics.smallKeycapHeight && target.targetFrame.contains(target.keycapFrame),
+                       "⌘\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
+                expect(view.bounds.contains(target.targetFrame) && target.targetFrame.maxY < first.lowerBound,
+                       "⌘\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
+                if index % 3 != 0 {
+                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌘\(digit) apart from the one before it")
+                }
+                let point = NSPoint(x: target.targetFrame.midX, y: target.targetFrame.midY)
+                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌘\(digit) highlights it, no row")
+                var digits: [Int] = [], picked: [Int] = []
+                panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: { digits.append($0) }))
+                view.mouseDown(with: event(.leftMouseDown, panel, at: point))
+                expect(digits == [digit] && picked.isEmpty, "a click on ⌘\(digit) goes on there, no row picked: \(digits) \(picked)")
+            }
+            // Gone again (Esc): nothing of them left to click, the answers still are.
+            panel.show(chat(rounds: 2), anchor: high)
+            expect(view.handoffTargets.isEmpty && spans(panel).keys.sorted() == [1, 3], "without them, the answers as before")
+            panel.hide()
+        }
     }
 
     extension PanelModel {
@@ -543,6 +674,8 @@ private enum LayoutChild {
             case "steady": Layout.steady()
             case "width": Layout.width()
             case "row": Layout.row()
+            case "conversation": Layout.conversation()
+            case "handoff": Layout.handoff()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)

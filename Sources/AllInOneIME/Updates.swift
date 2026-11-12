@@ -7,7 +7,8 @@ import UserNotifications
 // AllInOneIME's own updates, from Settings → About (and the input menu's "Check for Updates…"):
 //
 // 1. Checking (`UpdateController.check`): update-v2.json and its signature from allinoneime.com, checked with the
-//    releases' key built into the app (`Updater`). By itself once a day, at launch or when a text field is
+//    releases' key built into the app (`Updater`); the manifest's request carries this Mac's random install ID in its
+//    User-Agent, unless Privacy turns it off (`installID`). By itself once a day, at launch or when a text field is
 //    activated, in the background (`UpdateSchedule`; never on a keystroke); turned off in About. A newer version
 //    is a quiet line on the About page and in the menu bar panel, never a dialog; one this Mac can install, found by
 //    a check in the background, is told once in a macOS notification too (0.7.0: `UpdateNotifier`), with Update (step
@@ -557,6 +558,7 @@ final class UpdateController: ObservableObject {
     static let releasesPage = URL(string: "https://github.com/MicroZ-LLC/AllInOneIME/releases/latest")!
     private static let manifestKey = "updateManifest", signatureKey = "updateManifestSignature"
     private static let successKey = "updateLastSuccess", attemptKey = "updateLastAttempt"
+    private static let installIDKey = "installID"
 
     private init() {}
 
@@ -635,7 +637,8 @@ final class UpdateController: ObservableObject {
         let before = state
         if userInitiated { state = .checking }
         defaults.set(now(), forKey: Self.attemptKey)
-        let updater = updater
+        var updater = updater
+        updater.installID = installID(config: LiveConfig.currentIfValid)
         task = Task { [weak self] in
             let result = await Result { try await updater.check() }
             guard let self else { return }
@@ -658,6 +661,26 @@ final class UpdateController: ObservableObject {
                 self.state = userInitiated ? .failed(UpdateText.describe(error), before.manifest) : before
             }
         }
+    }
+
+    /// This Mac's install ID for a check (`InstallID`), in these defaults (the input method's own: never synced), made on
+    /// first need. None while the config turns sending it off (the one kept is forgotten too), or doesn't parse (kept:
+    /// what the user chose isn't known then).
+    func installID(config: Config?) -> String? {
+        guard let config else { return nil }
+        guard config.sendsInstallID else {
+            forgetInstallID()
+            return nil
+        }
+        if let kept = defaults.string(forKey: Self.installIDKey), InstallID.isValid(kept) { return kept }
+        let made = InstallID.make()
+        defaults.set(made, forKey: Self.installIDKey)
+        return made
+    }
+
+    /// Sending it turned off (Settings → Privacy): the ID kept is gone; turned on again, the next check makes a new one.
+    func forgetInstallID() {
+        defaults.removeObject(forKey: Self.installIDKey)
     }
 
     private func show(_ manifest: UpdateManifest) {

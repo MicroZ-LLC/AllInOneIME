@@ -118,6 +118,10 @@ public struct Command: Hashable, Sendable {
     /// The settings window.
     public static let settings = Command(name: "settings", kind: .settings)
 
+    /// This week's stats (`WeekStats`): its row in the list says how many commands ran this week; picked, the settings
+    /// open on the page (a settings command too), ⌘C copies the picture.
+    public static let stats = Command(name: "stats", kind: .settings)
+
     /// Send an iMessage: pick the recipient in the panel, write the message, confirm it in the panel.
     public static let imessage = Command(name: "imessage", kind: .message)
 
@@ -133,7 +137,7 @@ public struct Command: Hashable, Sendable {
 
     /// `@reply` after the first five: the list opens on the ones it always had.
     public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .read, .note, .reminder,
-                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
+                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue, .stats]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
     /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
@@ -422,8 +426,9 @@ public struct CustomCommand: Codable, Hashable, Sendable {
     /// `run`, `suggestions`: the program is stopped after this many seconds (default 10; a source's 20 at most, its
     /// query's 3).
     public var timeoutSeconds: Double?
-    /// Its icon in the command list: an SF Symbol name ("chart.bar"), and a color (a system color's
-    /// name, "blue", or "#RRGGBB"); unset, one for its type.
+    /// Its icon in the command list: an SF Symbol name ("chart.bar") or one emoji ("🧮"), and a color (a system color's
+    /// name, "blue", or "#RRGGBB"); unset, one for its type (`IconToken.custom`). Settings → Commands sets them (its
+    /// Icon and Color).
     public var icon: String?
     public var color: String?
     /// `link`: the web address, with `{input}` in its query (`LinkTemplate`).

@@ -63,8 +63,8 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     @discardableResult
-    public func importDictionary(from source: URL, fuzzyPinyin: [String],
-                                 characters: ChineseCharacters = .simplified) throws -> PersonalDictionary {
+    public func importDictionary(from source: URL, fuzzyPinyin: [String], characters: ChineseCharacters = .simplified,
+                                 scheme: PinyinScheme = .full) throws -> PersonalDictionary {
         // Read and validate the entire source before touching the installed setup, outside the write lock.
         let parsed = try Parsed.read(source)
         return try Self.locked {
@@ -86,7 +86,8 @@ public struct PersonalDictionaryStore: Sendable {
             let says = Self.tableSays + String(decoding: try encodeLine(Said(name: record.name, fileName: record.fileName,
                                                                               entryCount: record.entryCount)), as: UTF8.self)
             var changes: [Change] = [Change(url: table, data: Data(parsed.table(named: reference(record), says: says).utf8))]
-            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
+            changes += try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, scheme: scheme,
+                                                checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -94,7 +95,8 @@ public struct PersonalDictionaryStore: Sendable {
         }
     }
 
-    public func removeDictionary(named name: String, fuzzyPinyin: [String], characters: ChineseCharacters = .simplified) throws {
+    public func removeDictionary(named name: String, fuzzyPinyin: [String], characters: ChineseCharacters = .simplified,
+                                 scheme: PinyinScheme = .full) throws {
         try Self.locked {
             let before = try readState().state
             guard before.dictionaries.contains(where: { $0.name == name }) else { return }
@@ -102,7 +104,8 @@ public struct PersonalDictionaryStore: Sendable {
             try checkWrapper()
             var after = before
             after.dictionaries.removeAll { $0.name == name }
-            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, checkAlgebra: true)
+            var changes = try configurationChanges(for: after, fuzzyPinyin: fuzzyPinyin, characters: characters, scheme: scheme,
+                                                   checkAlgebra: true)
             changes.append(Change(url: manifest, data: try encode(after)))
             try write(changes)
             removeUnlistedTables(after)
@@ -111,9 +114,11 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     /// The shared writer used by FuzzyPinyin.apply too: a fuzzy toggle must keep every dictionary, and the characters
-    /// (`characters`, `ChineseCharacters.patch`) go in the same file.
+    /// (`characters`, `ChineseCharacters.patch`) go in the same file. With a Shuangpin scheme (`scheme`), the same patch
+    /// for its schema too (`schemePatch`); with Zhuyin, its own (`zhuyinPatchText`).
     @discardableResult
-    public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified) throws -> FuzzyPinyin.Outcome {
+    public func applyFuzzyPinyin(_ ids: [String], characters: ChineseCharacters = .simplified,
+                                 scheme: PinyinScheme = .full) throws -> FuzzyPinyin.Outcome {
         try Self.locked {
             // The user's own file (or a link): left alone before anything else is read, as fuzzy pinyin always did,
             // whatever the dictionaries' files are like.
@@ -125,21 +130,23 @@ public struct PersonalDictionaryStore: Sendable {
             if !state.dictionaries.isEmpty { try checkWrapper() }
             // After a first import that never finished, its wrapper goes too (if it is this app's).
             let leftWrapper = recovered && state.dictionaries.isEmpty && (try? checkWrapper()) != nil
-            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, characters: characters, checkAlgebra: false,
-                                                   includeWrapper: !state.dictionaries.isEmpty || leftWrapper)
+            var changes = try configurationChanges(for: state, fuzzyPinyin: ids, characters: characters, scheme: scheme,
+                                                   checkAlgebra: false, includeWrapper: !state.dictionaries.isEmpty || leftWrapper)
             // Recovered: the manifest as it is now (the tables it lists all there).
             if recovered { changes.append(Change(url: manifest, data: try encode(state))) }
             let patchChange = changes.first { $0.url == patch }
             let previous = try contentsIfPresent(patch)
             let wanted = patchChange?.data
-            let repairedWrapper = try changes.contains { change in
-                guard change.url == wrapper else { return false }
+            // The wrapper repaired, or a Shuangpin scheme's or Zhuyin's patch written or removed: deployed again too.
+            let schemePatches = Set(PinyinScheme.others.map(schemePatch))
+            let otherChange = try changes.contains { change in
+                guard change.url == wrapper || schemePatches.contains(change.url) else { return false }
                 return try contentsIfPresent(change.url) != change.data
             }
             try write(changes)
             removeUnlistedTables(state)
             if state.dictionaries.isEmpty { removeBuiltDictionary() }
-            if previous == wanted, !repairedWrapper { return .unchanged }
+            if previous == wanted, !otherChange { return .unchanged }
             return wanted == nil ? .removed : .written
         }
     }
@@ -173,6 +180,8 @@ public struct PersonalDictionaryStore: Sendable {
     private var manifest: URL { folder.appendingPathComponent("manifest.json") }
     private var wrapper: URL { userDirectory.appendingPathComponent(Self.dictionaryName + ".dict.yaml") }
     private var patch: URL { userDirectory.appendingPathComponent(FuzzyPinyin.fileName) }
+    /// A Shuangpin scheme's patch (`PinyinScheme`): rime-ice's (`patch`), made for its schema; Zhuyin's, its own.
+    private func schemePatch(_ scheme: PinyinScheme) -> URL { userDirectory.appendingPathComponent("\(scheme.schema).custom.yaml") }
     private func tableURL(_ item: Stored) -> URL { tableURL(token: item.token) }
     private func tableURL(token: String) -> URL { folder.appendingPathComponent(token + ".dict.yaml") }
     private func reference(_ item: Stored) -> String { Self.folderName + "/" + item.token }
@@ -314,6 +323,14 @@ public struct PersonalDictionaryStore: Sendable {
         return owned
     }
 
+    /// Whether `url`, a Shuangpin scheme's or Zhuyin's patch, is this app's to write or remove: none there, or one with its first line
+    /// (`FuzzyPinyin.marker`). One without it (or a link) is the user's, left as it is.
+    private func ownsSchemePatch(_ url: URL) throws -> Bool {
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return true }
+        guard attributes[.type] as? FileAttributeType == .typeRegular else { return false }
+        return try Data(contentsOf: url).starts(with: Data((FuzzyPinyin.marker + "\n").utf8))
+    }
+
     private func checkWrapper() throws {
         guard let data = try contentsIfPresent(wrapper) else { return }
         guard data.starts(with: Data((Self.wrapperMarker + "\n").utf8)) else {
@@ -322,27 +339,33 @@ public struct PersonalDictionaryStore: Sendable {
     }
 
     private func configurationChanges(for state: State, fuzzyPinyin: [String], characters: ChineseCharacters,
-                                      checkAlgebra: Bool, includeWrapper: Bool = true) throws -> [Change] {
+                                      scheme: PinyinScheme = .full, checkAlgebra: Bool, includeWrapper: Bool = true) throws -> [Change] {
         let schemaText = (try? String(contentsOf: schema, encoding: .utf8)) ?? ""
-        let fuzzy = FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText)
-        if checkAlgebra, !FuzzyPinyin.known(fuzzyPinyin).isEmpty, fuzzy == nil {
+        if checkAlgebra, !FuzzyPinyin.known(fuzzyPinyin).isEmpty, FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText) == nil {
             throw PersonalDictionaryError.unsupported(tr("无法读取当前拼音方案的模糊音规则。", "The current pinyin schema's spelling rules couldn't be read."))
         }
-        // Traditional characters: lines of their own at the end of the patch, whatever else it holds.
-        let traditional = characters.patch(schema: schemaText)
         var changes: [Change] = []
+        changes.append(Change(url: patch, data: patchText(for: state, fuzzyPinyin: fuzzyPinyin, characters: characters,
+                                                          schemaText: schemaText).map { Data($0.utf8) }))
+        // The Shuangpin scheme typed with: the same patch, made for its schema (its own spelling rules after fuzzy
+        // pinyin's, its own place of the Traditional switch); Zhuyin, its own. The others' of this app's removed: only
+        // what is used is deployed. The user's own left as they are.
+        for other in PinyinScheme.others {
+            let url = schemePatch(other)
+            guard try ownsSchemePatch(url) else { continue }
+            guard other == scheme else {
+                changes.append(Change(url: url, data: nil))
+                continue
+            }
+            let file = schema.deletingLastPathComponent().appendingPathComponent("\(other.schema).schema.yaml")
+            let schemaText = (try? String(contentsOf: file, encoding: .utf8)) ?? ""
+            let text = other == .zhuyin ? zhuyinPatchText(characters: characters, schemaText: schemaText)
+                : patchText(for: state, fuzzyPinyin: fuzzyPinyin, characters: characters, schemaText: schemaText)
+            changes.append(Change(url: url, data: text.map { Data($0.utf8) }))
+        }
         if state.dictionaries.isEmpty {
-            let text = fuzzy == nil && traditional == nil ? nil
-                : (fuzzy ?? FuzzyPinyin.marker + "\npatch:\n") + (traditional ?? "")
-            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper { changes.append(Change(url: wrapper, data: nil)) }
         } else {
-            let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
-            var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
-            // The dictionary changes; the database of learned words deliberately keeps its old identity.
-            text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
-            text += traditional ?? ""
-            changes.append(Change(url: patch, data: withRemovedFilter(text).map { Data($0.utf8) }))
             if includeWrapper {
                 let base = try baseDictionary()
                 let tables = state.dictionaries.map { reference($0) } + base.tables
@@ -352,17 +375,111 @@ public struct PersonalDictionaryStore: Sendable {
                 changes.insert(Change(url: wrapper, data: Data(dictionary.utf8)), at: 0)
             }
         }
-        if let customization = changes.first(where: { $0.url == patch }), try contentsIfPresent(patch) != customization.data {
-            // Rime's config freshness uses second-resolution file times. A quick import or fuzzy
-            // toggle can otherwise reuse the preceding schema despite full maintenance. This is a
-            // generated deployment output, never a source/customization file; force it to rebuild.
-            let build = userDirectory.appendingPathComponent("build", isDirectory: true)
-            do {
-                try checkRegular(build, directory: true)
-                changes.append(Change(url: build.appendingPathComponent("rime_ice.schema.yaml"), data: nil))
-            } catch let error as CocoaError where error.code == .fileReadNoSuchFile || error.code == .fileNoSuchFile {}
-        }
+        // What librime compiled of a patch is left alone here: a deployment may be under way (`datePatches` makes the next
+        // one compile what changed).
         return changes
+    }
+
+    // MARK: Deploying what was written
+
+    /// The Rime sources this app writes in the user folder, each with what librime compiles of it into `build/` and the
+    /// first line it has when it is this app's: the schema list (`PinyinScheme.applySchemaList`), rime-ice's patch and
+    /// each other way of typing's (`PinyinScheme.others`).
+    static func compiledSources(_ userDirectory: URL) -> [(source: URL, compiled: URL, marker: String)] {
+        let build = userDirectory.appendingPathComponent("build", isDirectory: true)
+        let schemas = [PinyinScheme.fullSchema] + PinyinScheme.others.map(\.schema)
+        return [(userDirectory.appendingPathComponent("default.custom.yaml"), build.appendingPathComponent("default.yaml"),
+                 PinyinScheme.schemaListMarker)]
+            + schemas.map { (userDirectory.appendingPathComponent("\($0).custom.yaml"), build.appendingPathComponent("\($0).schema.yaml"),
+                             FuzzyPinyin.marker) }
+    }
+
+    /// Readies this app's Rime sources for a deployment about to start, while librime isn't deploying (`RimeService`
+    /// calls it right before): librime compiles a source again when its time differs from the one it recorded in what it
+    /// compiled (`__build_info`), in whole seconds, so a source this app wrote in the second librime recorded for it (a
+    /// quick import or fuzzy pinyin toggle, or one written while that deployment ran) would be taken for unchanged. Each
+    /// written since `since` (the last deployment's start; nil: since what was compiled of it) and in that second is dated
+    /// the next one; with `all`, each in that second, written since or not (a redeploy asked to compile them all again).
+    /// What librime compiled stays: a source not compiled yet, or the user's own (without this app's first line), is left
+    /// as it is. Removing the compiled schema instead, when the patch was written, raced with a deployment under way: its
+    /// dictionary found no schema to read the spellings from ("error loading prism definition", "failed to compile").
+    /// Throws when a source's time can't be set.
+    public static func datePatches(userDirectory: URL, since: Date?, all: Bool = false) throws {
+        let fm = FileManager.default
+        for (source, compiled, marker) in compiledSources(userDirectory) {
+            guard let attributes = try? fm.attributesOfItem(atPath: source.path),
+                  attributes[.type] as? FileAttributeType == .typeRegular, let written = attributes[.modificationDate] as? Date,
+                  let built = try? fm.attributesOfItem(atPath: compiled.path),
+                  built[.type] as? FileAttributeType == .typeRegular, let builtAt = built[.modificationDate] as? Date,
+                  let recorded = recordedTime(of: source.deletingPathExtension().lastPathComponent, in: compiled),
+                  let handle = try? FileHandle(forReadingFrom: source) else { continue }
+            let head = (try? handle.read(upToCount: marker.utf8.count + 1)) ?? Data()
+            try? handle.close()
+            guard head == Data((marker + "\n").utf8) else { continue }
+            let second = written.timeIntervalSince1970.rounded(.down)
+            guard second == Double(recorded), all || written > min(builtAt, since ?? builtAt) else { continue }
+            try fm.setAttributes([.modificationDate: Date(timeIntervalSince1970: second + 1)], ofItemAtPath: source.path)
+        }
+    }
+
+    /// The time librime recorded for the source `id` ("rime_ice.custom") in what it compiled (`compiled`'s
+    /// `__build_info/timestamps`, at its top); nil when it records none.
+    static func recordedTime(of id: String, in compiled: URL) -> Int? {
+        guard let handle = try? FileHandle(forReadingFrom: compiled) else { return nil }
+        defer { try? handle.close() }
+        let head = String(decoding: (try? handle.read(upToCount: 16 * 1024)) ?? Data(), as: UTF8.self)
+        var section = ""
+        for line in head.split(separator: "\n") {
+            let indent = line.prefix(while: { $0 == " " }).count
+            let content = line.trimmingCharacters(in: .whitespaces)
+            switch indent {
+            case 0: guard content == "__build_info:" else { return nil }
+            case 2: section = content
+            default:
+                guard section == "timestamps:", let colon = content.lastIndex(of: ":") else { continue }
+                let key = content[..<colon].trimmingCharacters(in: CharacterSet(charactersIn: "\"' "))
+                if key == id { return Int(content[content.index(after: colon)...].trimmingCharacters(in: .whitespaces)) }
+            }
+        }
+        return nil
+    }
+
+    /// The patch of a schema (`schemaText`, rime-ice's or a Shuangpin scheme's) for these settings: fuzzy pinyin's rules
+    /// before the schema's own, the personal dictionaries, the characters, the filter of the candidates removed; nil when
+    /// it has none of them.
+    private func patchText(for state: State, fuzzyPinyin: [String], characters: ChineseCharacters, schemaText: String) -> String? {
+        let fuzzy = FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText)
+        // Traditional characters: lines of their own at the end of the patch, whatever else it holds.
+        let traditional = characters.patch(schema: schemaText)
+        if state.dictionaries.isEmpty {
+            let text = fuzzy == nil && traditional == nil ? nil
+                : (fuzzy ?? FuzzyPinyin.marker + "\npatch:\n") + (traditional ?? "")
+            return withRemovedFilter(text)
+        }
+        let header = FuzzyPinyin.marker + "\n" + Self.patchDictionaries + "\n"
+        var text = fuzzy.map { header + $0.dropFirst(FuzzyPinyin.marker.count + 1) } ?? header + "patch:\n"
+        // The dictionary changes; the database of learned words deliberately keeps its old identity.
+        text += "  translator/dictionary: \(Self.dictionaryName)\n  translator/user_dict: rime_ice\n"
+        text += traditional ?? ""
+        return withRemovedFilter(text)
+    }
+
+    /// Zhuyin's patch (`PinyinScheme.zhuyin`, rime-bopomofo's schema: `schemaText`): its characters (its own switch,
+    /// `ChineseCharacters.patch`), the filter of the candidates removed, and its translators without rime-ice's custom
+    /// phrases (custom_phrase.txt beside them, in pinyin letters and Simplified characters, which its schema would find
+    /// by Zhuyin's keys: "u", ㄧ, would offer 有). Not fuzzy pinyin, nor the personal dictionaries: those are pinyin
+    /// spellings of rime-ice's dictionary, which Zhuyin's (terra_pinyin, in Traditional characters, with tones) isn't.
+    /// The translators are the schema's own but that one (rime-bopomofo's at the commit the Makefile pins). Nil without
+    /// the schema (nothing to patch).
+    private func zhuyinPatchText(characters: ChineseCharacters, schemaText: String) -> String? {
+        guard !schemaText.isEmpty else { return nil }
+        let translators = "  # Without rime-ice's custom phrases (custom_phrase.txt: pinyin letters, which would be Zhuyin keys here).\n"
+            + "  engine/translators: [ punct_translator, reverse_lookup_translator, script_translator ]\n"
+        // A tap of Shift: what is composed goes in converted, as macOS's own Zhuyin has it, not the keys typed (rime-ice's
+        // default.yaml: `Shift_L: commit_code`). The schema's map replaces default.yaml's whole: its other keys as rime-ice's.
+        let shift = "  # A tap of Shift commits what is composed, converted (rime-ice's: the keys typed).\n"
+            + "  ascii_composer/switch_key: { Caps_Lock: clear, Shift_L: commit_text, Shift_R: commit_text, Control_L: noop, Control_R: noop }\n"
+        return withRemovedFilter(FuzzyPinyin.marker + "\npatch:\n" + translators + shift + (characters.patch(schema: schemaText) ?? ""))
     }
 
     /// `text`, the patch (nil: none), with AllInOneIME's filter of the candidates removed (`RemovedCandidates.luaFilter`)

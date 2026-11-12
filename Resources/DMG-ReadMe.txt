@@ -42,5 +42,6 @@ AllInOneIME 安装说明
 
 Copyright © 2026 MicroZ LLC.
 License: FSL-1.1-ALv2, source available (LICENSE.txt). Third-party components: THIRD_PARTY_NOTICES.md
-(rime-ice's Lua scripts: GPL-3.0, LICENSE-rime-ice-GPL-3.0.txt).
+(rime-ice's Lua scripts: GPL-3.0, LICENSE-rime-ice-GPL-3.0.txt; Zhuyin's data: LGPL-3.0,
+LICENSE-Zhuyin-data-LGPL-3.0.txt).
 Source code: https://github.com/MicroZ-LLC/AllInOneIME

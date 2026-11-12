@@ -151,8 +151,9 @@ final class LanguagePackManager: ObservableObject {
     }
 }
 
-/// Starts librime on the Chinese pack: its Lua linked to the app's, the fuzzy pinyin patch written (the characters too,
-/// with the app's OpenCC data for them), and a
+/// Starts librime on the Chinese pack: its Lua linked to the app's (Zhuyin's data too), the fuzzy pinyin patch written
+/// (the characters too, with the app's OpenCC data for them; for the Shuangpin scheme or Zhuyin typed with as well,
+/// listed to deploy), and a
 /// full check when the pack changed since the last deployment. Deploys again if it was running already
 /// (the pack was installed anew in the same folder).
 enum RimeStartup {
@@ -170,9 +171,17 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
+        // Zhuyin's data beside the pack's, before its patch is written (it reads the schema).
+        do {
+            try store.linkData(.chinesePinyin, from: RimeDirectories.zhuyin, names: PinyinScheme.zhuyinData)
+        } catch {
+            log.error("could not link Zhuyin's data: \(String(describing: error), privacy: .public)")
+        }
         // Fuzzy pinyin's patch, with the characters, by the config file as it parses: while it doesn't, the patch stays
         // as it is (the defaults aren't the user's pairs or characters), and is written once it does (`RimeFuzzy.follow`).
-        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin, characters: $0.typedChinese) }
+        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin, characters: $0.typedChinese, scheme: $0.typedPinyin) }
+        // The Shuangpin scheme's schema listed anew (or no longer): compiled with the rest.
+        let listed = fuzzy != nil && RimeFuzzy.schemaListWritten
         let record = store.installed(.chinesePinyin)
         let deployed = "\(record?.version ?? "?")|\(record?.sha256 ?? record?.source.rawValue ?? "")|\(shared.path)"
         let packChanged = UserDefaults.standard.string(forKey: deployedKey) != deployed
@@ -182,7 +191,7 @@ enum RimeStartup {
             do {
                 try RimeService.shared.start(
                     sharedDataDir: shared, userDataDir: RimeDirectories.user, logDir: RimeDirectories.logs,
-                    fullCheck: fuzzy == .written || fuzzy == .removed || packChanged, openCCDir: RimeDirectories.openCC)
+                    fullCheck: fuzzy == .written || fuzzy == .removed || listed || packChanged, openCCDir: RimeDirectories.openCC)
                 RimeReadinessLogger.shared.start()
             } catch {
                 log.fault("could not start Rime: \(String(describing: error), privacy: .public)")

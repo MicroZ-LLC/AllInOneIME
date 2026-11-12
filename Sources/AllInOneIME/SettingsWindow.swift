@@ -36,9 +36,20 @@ final class SettingsModel: ObservableObject {
     /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
     /// was last shown or something was forgotten.
     @Published private(set) var learned: [LearnedItem] = []
+    /// Whether this week's stats keep any count (`WeekStatsShared`): Learned… lists them too.
+    @Published private(set) var weekStatsKept = false
 
     func refreshLearned() {
         learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
+        let week = WeekStatsShared.store.stats.snapshot(for: .current)
+        weekStatsKept = WeekStatsShared.store.stats.hasCommands || week.firstRecordedDay != nil
+    }
+
+    /// Forget on the stats' row: every count of the weeks kept, in memory at the click (a count straight after it is
+    /// kept), then their file (`WeekStatsStore.forgetAll`).
+    func forgetWeekStats() {
+        weekStatsKept = false
+        WeekStatsShared.store.forgetAll()
     }
 
     /// Forget: `item` forgotten where it is kept (an app's starting input with its streak, autocomplete's learning in an
@@ -51,7 +62,9 @@ final class SettingsModel: ObservableObject {
     /// Forget All: everything learned on this Mac.
     func forgetAllLearned() {
         LearnedShared.store.forgetAll()
+        forgetWeekStats()  // this week's stats too: Privacy's clearing of what this Mac kept
         refreshLearned()
+        weekStatsKept = false
     }
 
     /// How many recent `@question`s are kept (`QuestionHistoryStore`), as when the window opened or they were cleared.
@@ -111,10 +124,12 @@ final class SettingsModel: ObservableObject {
 
     /// Writes the settings changed in the window since the file was read or last written here, and only those
     /// (`SettingsStore.save`), Words to hide typed in without ⏎ too (`flushWords`). Nothing is written when nothing
-    /// changed. The window then shows the file as it now is.
+    /// changed. The window then shows the file as it now is; a command of the user's deleted or renamed keeps no name in
+    /// this week's stats from then on (`WeekStatsShared.keepOwnCommands`).
     func save() {
         flushWords()
         store.save()
+        WeekStatsShared.keepOwnCommands()
     }
 
     /// Reads the config file again if something else changed it, so the window shows it and its next save
@@ -276,15 +291,18 @@ final class SettingsModel: ObservableObject {
 
     /// Fuzzy pinyin (and the characters) couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
     @Published private(set) var fuzzyBlocked = false
-    /// Writes the patch, fuzzy pinyin's and the characters', and deploys Rime again (the self-test's preview model doesn't).
-    var applyRimePatch: @MainActor ([String], ChineseCharacters) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0, characters: $1) }
+    /// Writes the patch, fuzzy pinyin's and the characters', for full pinyin's schema and the Shuangpin scheme typed with,
+    /// and the schemas deployed, and deploys Rime again (the self-test's preview model doesn't).
+    var applyRimePatch: @MainActor ([String], ChineseCharacters, PinyinScheme) -> FuzzyPinyin.Outcome? = {
+        RimeFuzzy.apply($0, characters: $1, scheme: $2)
+    }
     /// What turning it on picks: the pairs most often mixed up.
     static let fuzzyDefaults = SettingsStore.fuzzyDefaults
 
     func setFuzzyPinyin(_ ids: [String]) {
         store.setFuzzyPinyin(ids)
         guard persists else { return }
-        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
     }
 
     /// The characters Chinese is typed in, picked: saved (no longer the system's languages'), and Rime deployed again
@@ -293,7 +311,16 @@ final class SettingsModel: ObservableObject {
         guard characters != config.chineseCharacters else { return }
         store.setChineseCharacters(characters)
         guard persists else { return }
-        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese) == .userFile
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
+    }
+
+    /// How Chinese is typed in pinyin, picked: saved, and the scheme's schema deployed beside full pinyin's with the same
+    /// patch (a moment, as for fuzzy pinyin); the next key types with it.
+    func setPinyinScheme(_ scheme: PinyinScheme) {
+        guard scheme != config.typedPinyin else { return }
+        store.setPinyinScheme(scheme)
+        guard persists else { return }
+        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
     }
 
     func setFuzzy(_ id: String, on: Bool) {
@@ -1260,8 +1287,8 @@ struct SettingsView: View {
         layout == .horizontal
             ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",
                  "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
-            : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，- = 翻页。",
-                 "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, - = turn the page.")
+            : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。",
+                 "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page.")
     }
 
     /// Commands → `@question`: where its conversation goes on (`ChatHandoff`; QuestionChatSettings.swift): the chips, the
@@ -2253,6 +2280,15 @@ struct SettingsView: View {
             }
             switch language {
             case .chinese:
+                // Full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`), beside the characters.
+                Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
+                    ForEach(PinyinScheme.allCases, id: \.self) { scheme in
+                        Text(scheme.name(in: UIText.language)).tag(scheme)
+                    }
+                } label: {
+                    titled(.pinyinScheme)
+                }
+                .pickerStyle(.menu)
                 // As the system's languages say until one is picked (`Config.typedChinese`).
                 Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
                     ForEach(ChineseCharacters.allCases, id: \.self) { characters in
@@ -2435,6 +2471,10 @@ struct SettingsView: View {
             sidebar
                 .navigationSplitViewColumnWidth(min: 200, ideal: 230, max: 280)
         } detail: {
+            // This week's stats: a page of its own, as the design lays it out (no cards of settings).
+            if page == .week {
+                WeekStatsPage().id("\(page.rawValue)-\(UIText.language)")
+            } else {
             ScrollViewReader { proxy in
                 packDialogs(Form {
                     loadErrorSection
@@ -2442,6 +2482,7 @@ struct SettingsView: View {
                     ProblemBanners(assistant: assistant, page: page)
                     ChangeCard(assistant: assistant)
                     switch page {
+                    case .week: EmptyView()  // `WeekStatsPage`, above
                     case .general:
                         // The keys first, then the menu bar and the interface language (the owner, 0.6.7).
                         keysSection
@@ -2488,6 +2529,7 @@ struct SettingsView: View {
                 // A page starts at its top, and is drawn anew in the other interface language: controls of their
                 // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
                 .id("\(page.rawValue)-\(UIText.language)"))
+            }
             }
         }
         .navigationSplitViewStyle(.balanced)
@@ -3278,7 +3320,7 @@ struct CompatibleService: Identifiable {
 }
 
 /// Added languages as chips in the user's order, dragged to reorder: the first is marked
-/// ("中文（拼音）· 默认"), ⓧ removes one (not the last). The chip follows the pointer and the order
+/// ("中文 · 默认"), ⓧ removes one (not the last). The chip follows the pointer and the order
 /// changes where it's let go. The drag is tracked in AppKit (`DragHandle`): a grouped Form sits on a
 /// table view that takes mouse drags for itself, so neither SwiftUI's drag gesture nor its drag and
 /// drop ever start there.
@@ -3608,12 +3650,15 @@ func titled(_ spot: SettingsSpot) -> some View {
 
 /// The settings window's pages, in the sidebar's order.
 enum SettingsPage: String, CaseIterable, Identifiable {
+    /// This week's stats (`WeekStatsPage`), first: how much AllInOneIME was used, as a picture to share.
+    case week
     case general, input, ai, privacy, commands, advanced, about
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
+        case .week: return WeekStatsText.sidebarTitle(language: UIText.language)
         case .general: return tr("通用", "General")
         case .input: return tr("输入", "Input")
         case .ai: return tr("AI", "AI")
@@ -3626,6 +3671,7 @@ enum SettingsPage: String, CaseIterable, Identifiable {
 
     var icon: CandidateView.Icon {
         switch self {
+        case .week: return CommandIcons.icon(for: .stats)
         case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
         case .input: return CandidateView.Icon(symbol: "keyboard.fill", color: .systemBlue)
         case .ai: return CommandIcons.provider

@@ -92,7 +92,7 @@ extension SelfTest {
         // The list: a row each, Forget on the first (Mail's starting input), then Forget All.
         let sheet = open(LearnedSheet(model: model) {}, height: 420)
         let listed = texts(sheet)
-        check(model.learned.allSatisfy { listed.contains($0.text) } && buttons(sheet, tr("忘掉", "Forget")).count == 5,
+        check(model.learned.allSatisfy { listed.contains($0.text) } && buttons(sheet, tr("忘掉", "Forget")).count == 5 + (model.weekStatsKept ? 1 : 0),
               "the list shows each row with its Forget (\(model.learned.map(\.text)))")
         press(buttons(sheet, tr("忘掉", "Forget")).first)
         let mail = AppNames.name(for: "com.apple.mail")

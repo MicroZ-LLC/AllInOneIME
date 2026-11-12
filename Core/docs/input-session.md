@@ -125,17 +125,20 @@ two. What is structure is data, for each shell to lay out and draw its own way:
 | Field | What it is | The Mac draws it |
 |---|---|---|
 | `chip` | Translate as You Type's chip: the language typed and the one it goes into, each a part to click | a pill on top |
-| `handoff` | where an `@question` conversation can go on: a `title`, and `choices`, each a `shortcut` ("⌘1", "Ctrl+1") and a `name` | lines of text, four choices a line (three when there are more) |
+| `handoff` | where an `@question` conversation can go on: a `title`, and `choices`, each a `shortcut` ("⌘1", "Ctrl+1") and a `name` | its title small, then each choice its shortcut on a small keycap (the footer's) and its name, four a line (three when there are more); a click on one is `.handoff` |
 | `input` | the line of input: a `prompt` ("refine › "), the `text`, the `caret` in characters into it (nil: none, the command sent) | one line, "▏" at the caret |
 | `header` | lines above the rows, each its own: the selection, what the draft has attached (two for a screenshot), the refinements | one under the other, small |
 | `rows` | `label`, `text`, `comment`, `kind` (candidate, original, translation), `isComplete`, `icon`, `pickable`, `choice` | a column, or side by side (`horizontal`) |
 | `highlighted`, `transcript` | the row picked; the rows are a conversation (no taller than half the screen, scrolled to the last) | |
 | `status` | `none`, `loading`, `hint`, `list` (a hint and its items), `error` | under the rows; a list's items after "· " |
-| `candidates` | the pinyin candidates on one line while they are composed with rows that aren't them (one @'s, after the magic key) | on the side nearest the caret, the rows on the far side: below the caret at the top, under the input line (the header still just above the rows); above it under the rows and the status, just above the footer; as small as the header |
+| `candidates`, `candidatesHighlighted` | the pinyin candidates on one line while they are composed with rows that aren't them (one @'s, after the magic key; the results, or a conversation, a follow-up is typed after), and the one highlighted on it (what Space picks; ← → move it, the line a row in either layout) | on the side nearest the caret, the rows on the far side: below the caret at the top, under the input line (the header still just above the rows); above it under the rows and the status, just above the footer; as small as the header; pills, the highlighted one tinted |
 | `footer`, `detail` | what the keys do; on its right the page, the time a result took, a notice | |
 
 A click on a row: the shell sends `.pick` with the row's index, and the session picks its `choice` (what
-`Composer.choose(index:)` takes: the row's own index, a conversation's answer by its round, none for its question).
+`Composer.pickClicked` takes: the row's own index, a conversation's answer by its round, none for its question; while a
+follow-up's pinyin is composed after results, the result, not a candidate). A click on one of `handoff`'s choices: the
+shell sends `.handoff` with its place (one-based), and the session goes on there as its shortcut does
+(`Composer.handOff(digit:)`).
 
 An icon (`IconToken`) is a `color` and one `glyph`: `.builtin`, one of the core's own icons named for what it stands
 for (`IconToken.Builtin`: its names are the list a shell maps to its icon set; `appleSymbol` is each one's SF Symbol),

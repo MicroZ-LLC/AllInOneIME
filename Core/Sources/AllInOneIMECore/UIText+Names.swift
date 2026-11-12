@@ -92,6 +92,7 @@ extension InterfaceWords {
         case .webSearch: return tr("搜索网页，可放在句中给 AI 当上下文", "Search the web; inside a sentence, context for the AI")
         case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         case .reportIssue: return tr("报告问题：在 GitHub 上新建问题，附上版本等信息", "Report an issue on GitHub, with your versions and settings")
+        case .stats: return WeekStatsWords(language: language).commandSummary
         default: return ""
         }
     }
@@ -175,6 +176,7 @@ extension InterfaceWords {
         case .webSearch: return tr("搜索网页", "search the web")
         case .imessage: return tr("确认后发送", "check, then send")
         case .reportIssue: return tr("看一下再在 GitHub 上新建问题", "check, then open a new issue on GitHub")
+        case .stats: return WeekStatsWords(language: language).openStats
         default: return ""
         }
     }
@@ -343,6 +345,28 @@ extension UIText {
 
     /// A custom command without a summary of its own, by what it does.
     public static func customKind(_ custom: CustomCommand) -> String { words.customKind(custom) }
+
+    /// An icon's named color (`IconToken.Color.names`), as a custom command's editor offers it; another color by its
+    /// value ("#34C759").
+    public static func name(_ color: IconToken.Color) -> String {
+        switch color {
+        case .red: return tr("红色", "Red")
+        case .orange: return tr("橙色", "Orange")
+        case .yellow: return tr("黄色", "Yellow")
+        case .green: return tr("绿色", "Green")
+        case .mint: return tr("薄荷绿", "Mint")
+        case .teal: return tr("水鸭蓝", "Teal")
+        case .cyan: return tr("青色", "Cyan")
+        case .blue: return tr("蓝色", "Blue")
+        case .indigo: return tr("靛蓝", "Indigo")
+        case .purple: return tr("紫色", "Purple")
+        case .pink: return tr("粉色", "Pink")
+        case .brown: return tr("棕色", "Brown")
+        case .gray: return tr("灰色", "Gray")
+        case let .grayscale(white): return String(format: "%.0f%%", white * 100)
+        case let .rgb(red, green, blue): return String(format: "#%02X%02X%02X", red, green, blue)
+        }
+    }
 
     /// What the action key does with a command draft, after "⏎ →".
     /// `draft`: the text typed, so `@translate @improve …` reads as both.

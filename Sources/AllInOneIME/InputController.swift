@@ -8,8 +8,16 @@ import os
 
 let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
-/// One converter (one URLSession, one cache) shared by every input session in the process.
-let sharedConverter = Converter()
+/// One converter (one URLSession, one cache) shared by every input session in the process. @question reads the app's
+/// user guide for a question about AllInOneIME.
+let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url)
+
+/// AllInOneIME's user guide as the app ships it (Contents/Resources/user-guide.md, copied there by the Makefile), read
+/// once, when a question first needs it.
+enum BundledUserGuide {
+    static let url = Bundle.main.url(forResource: "user-guide", withExtension: "md")
+    static let text = url.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+}
 
 /// Carries a main-thread-only object out of `MainActor.assumeIsolated` (we never leave the main thread).
 struct MainThreadBox<T>: @unchecked Sendable {
@@ -80,6 +88,10 @@ final class AllInOneIMEInputController: IMKInputController {
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
     /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
+    /// Puts this week's picture on the clipboard (`@stats`'s ⌘C), then tells whether it is there.
+    var copyWeekStatsImage: (@escaping @MainActor (Bool) -> Void) -> Void = { done in
+        MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
+    }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
@@ -975,6 +987,7 @@ final class AllInOneIMEInputController: IMKInputController {
             case let .openSettings(place):
                 switch place {
                 case .translationLanguages?: openSettings(.general, .outputLanguages)  // its Add… outlined
+                case .weekStats?: openSettings(.week, nil)  // `@stats`
                 case nil: SettingsWindow.shared.show()
                 }
             case let .copy(text):
@@ -1026,6 +1039,14 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { pass() }
             case let .platform(.pasteImage(id)):
                 pasteKeptImage(id, into: target)
+            case .platform(.copyWeekStatsImage):
+                // `@stats`'s ⌘C: the week's picture, as Settings → This Week copies it; the session says it's copied once
+                // it is on the clipboard, or that it couldn't be: in this field only, nowhere once it was left.
+                let asked = fieldSession
+                copyWeekStatsImage { [weak self] copied in
+                    guard let self, self.fieldSession == asked else { return }
+                    self.apply(self.session.weekStatsImageCopied(copied), client: nil)
+                }
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the

@@ -23,6 +23,9 @@ public enum SessionEvent: Sendable {
     /// the highlighted one (`Composer.deleteCandidate`). Nothing on clipboard history's rows, suggestions', or a row that
     /// isn't a candidate.
     case delete(Int)
+    /// One of where a conversation can go on (`PanelModel.handoff`) clicked, by its place (one-based): it goes on there as
+    /// its ⌘digit does (`Composer.handOff(digit:)`).
+    case handoff(Int)
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
     /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)
@@ -181,6 +184,9 @@ public enum PlatformAction: Equatable, Sendable {
     /// A kept image (`ClipboardHistoryImage.id`) pasted: put on the clipboard and the app's paste key posted, the clipboard
     /// put back after; where the key can't be posted, left on the clipboard for the user's own paste (0.6.8.2).
     case pasteImage(id: String)
+    /// This week's stats as a picture on the clipboard (`@stats`'s ⌘C): the card the settings page copies, as it is set
+    /// there (the user's own command names hidden or not).
+    case copyWeekStatsImage
 }
 
 /// Dictation `id`, as the platform hears it.

@@ -465,7 +465,7 @@ extension SelfTest {
 
         // Fuzzy pinyin: saved in the catalog's order and applied (Rime deployed again); the user's own Rime file reported.
         var fuzzyApplied: [[String]] = []
-        model.applyRimePatch = { ids, _ in
+        model.applyRimePatch = { ids, _, _ in
             fuzzyApplied.append(ids)
             return ids.contains("n-l") ? .userFile : .written
         }

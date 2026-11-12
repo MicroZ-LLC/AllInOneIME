@@ -32,7 +32,7 @@ public struct PanelModel: Equatable, Sendable {
         /// A click picks it and the pointer over it highlights it; not a line a script printed or a list's information,
         /// which nothing picks.
         public var pickable: Bool
-        /// What a click on it picks: the index `Composer.choose(index:)` takes, which the session finds here for the row
+        /// What a click on it picks: the index `Composer.pickClicked` takes, which the session finds here for the row
         /// a shell says was clicked (`SessionEvent.pick`). The row's own index, but in a conversation, whose rows are its
         /// questions and answers, an answer's round, and nil for a question.
         public var choice: Int?
@@ -49,6 +49,9 @@ public struct PanelModel: Equatable, Sendable {
         public var commentDescribes: Bool
         /// Smaller, before the text: what an arithmetic result answers ("23*17", its text "= 391"). Nil: none.
         public var lead: String?
+        /// The end of `comment` on a line of its own, under the text (`@stats`'s row: where the week's commands came
+        /// from). A shell that draws it leaves it out of the comment after the text. Nil: none.
+        public var secondLine: String?
 
         /// A tag on a row: its text, and what it is for a shell that tints it (a rewrite style's `RewriteStyle.tag`:
         /// "POLISH", "CONCISE", "FORMAL" …; "": none, neutral).
@@ -64,7 +67,7 @@ public struct PanelModel: Equatable, Sendable {
 
         public init(label: String, text: String, comment: String = "", kind: Kind, isComplete: Bool = true,
                     icon: IconToken? = nil, pickable: Bool = true, choice: Int? = nil, action: String? = nil, tag: Tag? = nil,
-                    commentDescribes: Bool = false, lead: String? = nil) {
+                    commentDescribes: Bool = false, lead: String? = nil, secondLine: String? = nil) {
             self.label = label
             self.text = text
             self.comment = comment
@@ -77,6 +80,7 @@ public struct PanelModel: Equatable, Sendable {
             self.tag = tag
             self.commentDescribes = commentDescribes
             self.lead = lead
+            self.secondLine = secondLine
         }
     }
 
@@ -181,11 +185,13 @@ public struct PanelModel: Equatable, Sendable {
     /// has attached (a screenshot's two), the refinements so far.
     public var header: [String]
     /// The pinyin candidates on one line ("1 你好   2 拟好 …"), while they are composed with rows that aren't them (one @'s
-    /// after the magic key), on the side of the panel nearest the caret, the rows on the far side: the word is picked
-    /// first, then what to do with it. Below the caret, at the top, under the input line; above it, under the rows and the
+    /// after the magic key; results, or a conversation, a follow-up is typed after), on the side of the panel nearest the
+    /// caret, the rows on the far side: the word is picked first, then what to do with it. Below the caret, at the top, under the input line; above it, under the rows and the
     /// status, just above the footer. The header (a selection's line) stays just above the rows either way. Nil: none
     /// (plain typing's candidates are the rows).
     public var candidates: String?
+    /// The candidate of `candidates` highlighted, by its place on the line (what Space picks; ← → move it).
+    public var candidatesHighlighted: Int
     public var footer: String
     /// On the footer's right: the page, the time a result took, a notice.
     public var detail: String?
@@ -209,7 +215,7 @@ public struct PanelModel: Equatable, Sendable {
     public init(rows: [Row] = [], highlighted: Int? = nil, status: Status = .none, input: Input? = nil,
                 handoff: Handoff? = nil, header: [String] = [], candidates: String? = nil, footer: String = "", detail: String? = nil,
                 horizontal: Bool = false, transcript: Bool = false, chip: Chip? = nil, hints: [Hint] = [], note: String? = nil,
-                candidatesHint: Hint? = nil, pending: Int = 0) {
+                candidatesHint: Hint? = nil, pending: Int = 0, candidatesHighlighted: Int = 0) {
         self.rows = rows
         self.highlighted = highlighted
         self.status = status
@@ -217,6 +223,7 @@ public struct PanelModel: Equatable, Sendable {
         self.handoff = handoff
         self.header = header
         self.candidates = candidates
+        self.candidatesHighlighted = candidatesHighlighted
         self.footer = footer
         self.detail = detail
         self.horizontal = horizontal
@@ -236,9 +243,9 @@ public struct PanelModel: Equatable, Sendable {
 
 extension PanelModel {
     /// The footer as a shell draws it with keycaps: `hints` and `note` where the presenter chose them, else read from
-    /// `footer`'s text: each of its parts (between " · ") that starts with a key, as that key ("⏎" for "空格 / ⏎ 上屏")
-    /// and the words after it; a part without one as its words (key ""), the first, when it says something is going on
-    /// ("生成中…"), as the note. Left out: ↑↓ and digits (every list moves and picks so), and Esc where another key is
+    /// `footer`'s text: each of its parts (between " · ") that starts with a key, as that key ("⏎" for "空格 / ⏎ 上屏", "← →"
+    /// for "← → 翻页") and the words after it; a part without one as its words (key ""), the first, when it says something
+    /// is going on ("生成中…"), as the note. Left out: ↑↓ and digits (every list moves and picks so), and Esc where another key is
     /// said (it always backs out); three at most. None: the footer is only words, drawn as they are.
     public var footerHints: (note: String?, hints: [Hint]) {
         if !hints.isEmpty || note != nil { return (note, hints) }
@@ -251,8 +258,13 @@ extension PanelModel {
                 if index == 0, part.hasSuffix("…") { note = part } else { parts.append((Hint("", part), false)) }
                 continue
             }
-            // The keys at its start ("空格 / ⏎", "Tab 或 ⏎", "→ or Esc"): the action key's if there, else the first.
+            // The keys at its start ("空格 / ⏎", "Tab 或 ⏎", "→ or Esc"): the action key's if there, else the first. "← →"
+            // (a list's page turned) is one.
             var keys = [first], rest = words.dropFirst()
+            if first == "←", rest.first == "→" {
+                keys = ["← →"]
+                rest = rest.dropFirst()
+            }
             while rest.count >= 2, ["/", "或", "or"].contains(rest[rest.startIndex]), Self.isKey(rest[rest.startIndex + 1]) {
                 keys.append(rest[rest.startIndex + 1])
                 rest = rest.dropFirst(2)

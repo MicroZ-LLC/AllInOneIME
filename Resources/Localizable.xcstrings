@@ -3865,6 +3865,53 @@
         }
       }
     },
+    "A random number made on this Mac, so we can count installs. Nothing else is sent." : {
+      "comment" : "一个本机随机生成的编号，只用于统计安装数，不含其他信息。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine auf diesem Mac erzeugte Zufallszahl, damit wir Installationen zählen können. Sonst wird nichts gesendet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un número aleatorio creado en este Mac para que podamos contar las instalaciones. No se envía nada más."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un nombre aléatoire créé sur ce Mac, pour que nous puissions compter les installations. Rien d’autre n’est envoyé."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacで作られたランダムな番号で、インストール数を数えるためだけに使います。ほかには何も送信しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에서 만든 임의의 번호로, 설치 수를 세는 데만 쓰입니다. 그 밖에는 아무것도 보내지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um número aleatório criado neste Mac, para podermos contar as instalações. Nada mais é enviado."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一個在這台 Mac 上隨機產生的編號，只用來統計安裝數，不含其他資訊。"
+          }
+        }
+      }
+    },
     "A regular input method: %@. Type @ first for commands: @improve polishes and rewrites, @translate translates, @question asks, @agent hands it to a coding agent (Claude Code …), @open finds files, @note saves to Notes, @reminder adds a reminder. When done, %@." : {
       "comment" : "平时就是普通输入法：%@。开头打 @ 用命令：@improve 润色、改写，@translate 翻译，@question 提问，@agent 交给 Claude Code 等 agent，@open 找文件，@note 存到备忘录，@reminder 加提醒事项。写完%@执行。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -4294,49 +4341,49 @@
         }
       }
     },
-    "Add Chinese (pinyin) and download its language pack first." : {
-      "comment" : "先添加中文（拼音）并下载语言包。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+    "Add Chinese and download its language pack first." : {
+      "comment" : "先添加中文并下载语言包。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Füge zuerst Chinesisch (Pinyin) hinzu und lade das Sprachpaket herunter."
+            "value" : "Füge zuerst Chinesisch hinzu und lade das Sprachpaket herunter."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Primero añade Chino (pinyin) y descarga su paquete de idioma."
+            "value" : "Primero añade Chino y descarga su paquete de idioma."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ajoutez d’abord Chinois (pinyin) et téléchargez son pack de langue."
+            "value" : "Ajoutez d’abord Chinois et téléchargez son pack de langue."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先に中国語（ピンイン）を追加し、言語パックをダウンロードしてください。"
+            "value" : "先に中国語を追加し、言語パックをダウンロードしてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "먼저 중국어(병음)를 추가하고 언어 팩을 다운로드하세요."
+            "value" : "먼저 중국어를 추가하고 언어 팩을 다운로드하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Primeiro adicione Chinês (pinyin) e baixe o pacote de idioma."
+            "value" : "Primeiro adicione Chinês e baixe o pacote de idioma."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先加入中文（拼音）並下載語言套件。"
+            "value" : "先加入中文並下載語言套件。"
           }
         }
       }
@@ -10394,6 +10441,53 @@
         }
       }
     },
+    "Color" : {
+      "comment" : "颜色 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Farbe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Color"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Couleur"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "カラー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "색상"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cor"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顏色"
+          }
+        }
+      }
+    },
     "Commands" : {
       "comment" : "命令 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -11566,6 +11660,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自訂⋯"
+          }
+        }
+      }
+    },
+    "Default" : {
+      "comment" : "默认 — Sources/AllInOneIME/AppProfiles.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Standard"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Predeterminado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par défaut"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "デフォルト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기본값"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Padrão"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "預設"
           }
         }
       }
@@ -13267,6 +13408,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電子郵件簽名"
+          }
+        }
+      }
+    },
+    "Emoji…" : {
+      "comment" : "表情符号… — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emoji …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emoji…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emoji…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絵文字…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이모지…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Emoji…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表情符號⋯"
           }
         }
       }
@@ -15020,6 +15208,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在輸入框裡按住 Shift 一秒，游標處會彈出一個小選單：按 2 選「編碼模式」（或用 ↑↓ 選中按 ⏎）。打開後選單列圖示會顯示它，在所有 App 裡一直開著，直到再選一次關掉。開著時每個輸入框從英文開始（按 Shift 照樣切換），游標下面列出下面這些語言包的關鍵字、程式碼片段和輸入框裡已有的詞，按 Tab 補全。它和邊打邊譯不能同時開。"
+          }
+        }
+      }
+    },
+    "Icon" : {
+      "comment" : "图标 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbol"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icono"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Icône"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アイコン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아이콘"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ícone"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖示"
           }
         }
       }
@@ -16821,49 +17056,49 @@
         }
       }
     },
-    "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts and models. What you forget can be learned again." : {
-      "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数和模型。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
+    "Kept on this Mac only, never synced, and never what you type: only apps, inputs, counts, models and command names. What you forget can be learned again." : {
+      "comment" : "只存在这台 Mac 上，不同步，也不存你打的字：只有 App、输入、次数、模型和命令名。忘掉的以后还会再学。 — Sources/AllInOneIME/LearnedSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nur auf diesem Mac gespeichert, nie synchronisiert und nie, was du tippst: nur Apps, Eingaben, Zählungen und Modelle. Was du vergisst, kann wieder gelernt werden."
+            "value" : "Nur auf diesem Mac gespeichert, nie synchronisiert und nie, was du tippst: nur Apps, Eingaben, Zählungen, Modelle und Befehlsnamen. Was du vergisst, kann wieder gelernt werden."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Se guarda solo en este Mac, nunca se sincroniza y nunca guarda lo que escribes: solo apps, entradas, recuentos y modelos. Lo que olvides puede volver a aprenderse."
+            "value" : "Se guarda solo en este Mac, nunca se sincroniza y nunca guarda lo que escribes: solo apps, entradas, recuentos, modelos y nombres de comandos. Lo que olvides puede volver a aprenderse."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Conservé sur ce Mac uniquement, jamais synchronisé, et jamais ce que vous tapez : seulement des apps, des saisies, des décomptes et des modèles. Ce que vous oubliez peut être appris à nouveau."
+            "value" : "Conservé sur ce Mac uniquement, jamais synchronisé, et jamais ce que vous tapez : seulement des apps, des saisies, des décomptes, des modèles et des noms de commandes. Ce que vous oubliez peut être appris à nouveau."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このMacだけに保存され、同期されず、入力した文字も保存しません：保存するのはApp、入力、回数、モデルだけです。忘れたものはまた学習されることがあります。"
+            "value" : "このMacだけに保存され、同期されず、入力した文字も保存しません：保存するのはApp、入力、回数、モデル、コマンド名だけです。忘れたものはまた学習されることがあります。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 Mac에만 보관되고 동기화되지 않으며, 입력한 내용은 저장하지 않습니다. 앱, 입력, 횟수, 모델만 저장합니다. 잊은 내용은 다시 학습될 수 있습니다."
+            "value" : "이 Mac에만 보관되고 동기화되지 않으며, 입력한 내용은 저장하지 않습니다. 앱, 입력, 횟수, 모델, 명령 이름만 저장합니다. 잊은 내용은 다시 학습될 수 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fica só neste Mac, nunca é sincronizado e nunca guarda o que você digita: só apps, entradas, contagens e modelos. O que você esquecer pode ser aprendido de novo."
+            "value" : "Fica só neste Mac, nunca é sincronizado e nunca guarda o que você digita: só apps, entradas, contagens, modelos e nomes de comandos. O que você esquecer pode ser aprendido de novo."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數和模型。忘掉的以後還會再學。"
+            "value" : "只存在這台 Mac 上，不同步，也不存你打的字：只有 App、輸入、次數、模型和命令名稱。忘掉的以後還會再學。"
           }
         }
       }
@@ -19706,6 +19941,53 @@
         }
       }
     },
+    "No symbol by that name" : {
+      "comment" : "没有这个名字的符号 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Symbol mit diesem Namen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ningún símbolo con ese nombre"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun symbole de ce nom"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その名前のシンボルはありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그 이름의 기호가 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum símbolo com esse nome"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有這個名稱的符號"
+          }
+        }
+      }
+    },
     "No temperature sent" : {
       "comment" : "不发 temperature — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -21302,6 +21584,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只用本機"
+          }
+        }
+      }
+    },
+    "One emoji" : {
+      "comment" : "一个表情符号 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein Emoji"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un emoji"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un emoji"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "絵文字 1 つ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이모지 하나"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um emoji"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一個表情符號"
           }
         }
       }
@@ -27648,6 +27977,53 @@
         }
       }
     },
+    "Run" : {
+      "comment" : "运行 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausführen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécuter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "執行"
+          }
+        }
+      }
+    },
     "Run Node.js" : {
       "comment" : "运行 Node.js — Sources/AllInOneIME/CommandEditor.swift",
       "localizations" : {
@@ -27836,6 +28212,53 @@
         }
       }
     },
+    "Runs it once on the sample, as the action key would (with the same time limit; a terminal command runs in the background and stops after 10 seconds), and shows what it gives here: nothing is inserted or opened." : {
+      "comment" : "用样例运行一次，和按执行键一样（同样的时限；terminal 命令在后台运行，10 秒后停下），结果只显示在这里：不上屏，也不打开。 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führt den Befehl einmal mit dem Beispiel aus, wie die Aktionstaste (mit demselben Zeitlimit; ein terminal-Befehl läuft im Hintergrund und stoppt nach 10 Sekunden), und zeigt das Ergebnis hier: Nichts wird eingefügt oder geöffnet."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo ejecuta una vez con el ejemplo, como la tecla de acción (con el mismo límite de tiempo; un comando terminal se ejecuta en segundo plano y se detiene a los 10 segundos), y muestra aquí el resultado: no se inserta ni se abre nada."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’exécute une fois sur l’exemple, comme la touche d’action (avec le même délai ; une commande terminal s’exécute en arrière-plan et s’arrête après 10 secondes), et affiche ici le résultat : rien n’est inséré ni ouvert."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "実行キーと同じように（同じ制限時間で。terminal コマンドはバックグラウンドで実行し、10 秒で止まります）サンプルで 1 回実行し、結果をここに表示します。何も挿入したり開いたりしません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 키를 누를 때처럼(같은 시간 제한으로, terminal 명령은 백그라운드에서 실행되고 10초 후 멈춥니다) 샘플로 한 번 실행하고 결과를 여기에 표시합니다. 아무것도 입력하거나 열지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executa uma vez com o exemplo, como a tecla de ação faria (com o mesmo limite de tempo; um comando terminal roda em segundo plano e para após 10 segundos), e mostra o resultado aqui: nada é inserido nem aberto."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用範例執行一次，和按執行鍵一樣（同樣的時限；terminal 命令在背景執行，10 秒後停下），結果只顯示在這裡：不會插入，也不會打開。"
+          }
+        }
+      }
+    },
     "Runs: " : {
       "comment" : "运行： — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -27975,6 +28398,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "與全域設定相同（在這裡沒用上，已停）"
+          }
+        }
+      }
+    },
+    "Sample input" : {
+      "comment" : "样例输入 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beispieleingabe"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada de ejemplo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Texte d’exemple"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプル入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "샘플 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada de exemplo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "範例輸入"
           }
         }
       }
@@ -28120,6 +28590,100 @@
         }
       }
     },
+    "Search SF Symbols names" : {
+      "comment" : "搜索 SF Symbols 名字 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols-Namen durchsuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar nombres de SF Symbols"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des noms SF Symbols"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols の名前を検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "SF Symbols 이름 검색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar nomes do SF Symbols"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋 SF Symbols 名稱"
+          }
+        }
+      }
+    },
+    "Search Symbols" : {
+      "comment" : "搜索符号 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Symbole suchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar símbolos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rechercher des symboles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "シンボルを検索"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기호 검색"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Buscar Símbolos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋符號"
+          }
+        }
+      }
+    },
     "Search tasks" : {
       "comment" : "搜索任务 — Sources/AllInOneIME/FloatingPanel.swift",
       "localizations" : {
@@ -28210,6 +28774,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用 Google 搜尋"
+          }
+        }
+      }
+    },
+    "Send an anonymous install ID with the daily update check" : {
+      "comment" : "每日检查更新时附带匿名安装 ID — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei der täglichen Update-Prüfung eine anonyme Installations-ID mitsenden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar un ID de instalación anónimo con la comprobación diaria de actualizaciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Envoyer un identifiant d’installation anonyme avec la vérification quotidienne des mises à jour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "毎日のアップデート確認で匿名のインストールIDを送信"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "매일 업데이트 확인 시 익명 설치 ID 보내기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enviar um ID de instalação anônimo com a verificação diária de atualizações"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日檢查更新時附帶匿名安裝 ID"
           }
         }
       }
@@ -30636,6 +31247,53 @@
         }
       }
     },
+    "Test run" : {
+      "comment" : "试运行 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Testlauf"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecutar prueba"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essai"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テスト実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "테스트 실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Executar teste"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試執行"
+          }
+        }
+      }
+    },
     "That didn't work" : {
       "comment" : "没有完成 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -32236,6 +32894,53 @@
         }
       }
     },
+    "The text after the command, or the selection" : {
+      "comment" : "命令后面写的内容，或者选中的文字 — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Text nach dem Befehl oder die Auswahl"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El texto después del comando, o la selección"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le texte après la commande, ou la sélection"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドのあとのテキスト、または選択したテキスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령 뒤의 텍스트 또는 선택한 텍스트"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O texto após o comando, ou a seleção"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "指令後的文字，或選取的文字"
+          }
+        }
+      }
+    },
     "The update didn't pass its checks; nothing was changed: " : {
       "comment" : "更新包检查没通过，没有做任何改动： — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -32938,6 +33643,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會停用 AllInOneIME、將它從你的輸入方式中移除，並刪除輸入法和「AllInOneIME 設定」。\n\n你的設定、行話詞庫和學到的詞會保留（~/.config/allinoneime 和 ~/Library/Application Support/AllInOneIME），以便日後重新安裝時使用。"
+          }
+        }
+      }
+    },
+    "This sends the sample to %@" : {
+      "comment" : "这会把样例发给%@ — Sources/AllInOneIME/CommandEditor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Damit wird das Beispiel an %@ gesendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esto envía el ejemplo a %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cela envoie l’exemple à %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サンプルを%@に送信します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "샘플을 %@(으)로 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Isso envia o exemplo para %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這會把範例傳送給%@"
           }
         }
       }
@@ -35677,6 +36429,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網站"
+          }
+        }
+      }
+    },
+    "What Goes to allinoneime.com" : {
+      "comment" : "发给 allinoneime.com 的内容 — Sources/AllInOneIME/PrivacySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was an allinoneime.com geht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que se envía a allinoneime.com"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qui est envoyé à allinoneime.com"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "allinoneime.comに送信される内容"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "allinoneime.com으로 보내는 내용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Que Vai para allinoneime.com"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "傳送給 allinoneime.com 的內容"
           }
         }
       }

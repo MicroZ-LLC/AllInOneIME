@@ -1,10 +1,28 @@
 import AllInOneIMECore
 import AppKit
+import os
 import QuartzCore
 
 /// Borderless, non-activating floating panel shown under the insertion point (above it when there's no room below).
+/// It makes sure it can be seen as it comes up (GitHub #61): the window server's own record of it can be lost while
+/// AppKit has it up (display sleep and wake, the displays changed, Spaces), the app hidden (Hide Others) or its alpha
+/// left at 0, with nothing to bring it back but a restart; it puts itself back instead (`checkPresence`, `resurface`).
 final class CandidatePanel: NSPanel {
-    static let shared = CandidatePanel()
+    /// The panel every field shows in. A fresh window takes its place where the window server lost this one for good
+    /// (`replace`): looked up each time, never kept.
+    private(set) static var shared = CandidatePanel()
+
+    /// The self-test's: invisible and click-through on purpose (someone may be using the Mac), as `GhostOverlay.invisible`.
+    /// Without it a panel with no alpha as it comes up is made visible again, and the window server is asked whether it
+    /// can be seen (`checkPresence`).
+    static var invisible = false
+
+    /// What it asks of the app and of the window server: AppKit's and the window server's own; a stand-in's in the tests.
+    static var surroundings = Surroundings()
+
+    /// How long after the window server first says the panel can't be seen it is asked again, before anything is done
+    /// (what was on its way to the window server may not have been there yet).
+    static var recheckDelay: TimeInterval = 0.25
 
     /// Which side of the caret the panel is on.
     enum Side: Equatable {
@@ -17,7 +35,7 @@ final class CandidatePanel: NSPanel {
         get { view.pointer.owner }
         set { view.pointer.take(by: newValue, .none) }
     }
-    let view = CandidateView()
+    let view: CandidateView
     private var pendingHide: DispatchWorkItem?
     private var hiddenPresentation: (alpha: CGFloat, ignoresMouseEvents: Bool)?
     /// The side the panel is on while it shows, and the caret line it went there for: kept while typing on that line, as
@@ -41,8 +59,20 @@ final class CandidatePanel: NSPanel {
     /// Told after each `show` and as it hides: what shows beside it follows it (`ImagePreview`, clipboard history's larger
     /// picture of an image).
     var onPresent: (() -> Void)?
+    /// Told as a fresh window takes this one's place (`replace`), with it: whatever keeps this panel (`ImagePreview`)
+    /// keeps that one instead.
+    var onReplace: ((CandidatePanel) -> Void)?
 
-    init() {
+    /// A check of whether it can be seen under way (`checkPresence`): one at a time.
+    private var checkingPresence = false
+    /// The window server's answers not to be gone by until then: a fresh window didn't help either (`presence`).
+    private static var presenceIgnoredUntil = Date.distantPast
+    private static let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+    private var screenEvents: ScreenEvents?
+
+    /// `view`: the rows it shows; a fresh window taking another's place (`replace`) shows that one's own.
+    init(view: CandidateView = CandidateView()) {
+        self.view = view
         super.init(
             contentRect: NSRect(x: 0, y: 0, width: 300, height: 80),
             styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: true)
@@ -60,7 +90,9 @@ final class CandidatePanel: NSPanel {
         // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
         acceptsMouseMovedEvents = true
         view.drawsBackground = false
+        view.removeFromSuperview()
         contentView = Self.glass(around: view)
+        screenEvents = ScreenEvents { [weak self] in self?.resurface() }
     }
 
     /// The system's own material behind the rows, so the panel looks like the system's menus and follows
@@ -110,14 +142,20 @@ final class CandidatePanel: NSPanel {
             setFrame(nextFrame, display: true)
             invalidateShadow()
         }
+        // Coming up: the app shown again first if Hide Others hid it, never activated (GitHub #61). A window still ordered
+        // in from the last word is reused as it is, never ordered in again on the key (GitHub #23): whether the window
+        // server still has it is asked a moment later instead (`checkPresence`). Up already, nothing more.
+        if appearing { Self.unhideAppIfHidden() }
         if !isVisible { orderFrontRegardless() }
         if let presentation = hiddenPresentation {
             alphaValue = presentation.alpha
             ignoresMouseEvents = presentation.ignoresMouseEvents
             hiddenPresentation = nil
         }
+        if appearing, restoreLostAlpha() { Self.log.fault("candidate box not on screen: alpha 0; made visible again") }
         if appearing, alphaValue > 0 { animateAppearance(from: side) }
         onPresent?()
+        if appearing { checkPresence() }
     }
 
     /// As it comes up: a quick fade, growing to its size from 98% toward the caret, 120 ms, no bounce; none with Reduce
@@ -200,6 +238,182 @@ final class CandidatePanel: NSPanel {
         onPresent?()
     }
 
+    // MARK: - Seen as it shows (GitHub #61)
+
+    /// The app shown again if it is hidden (Hide Others, ⌥⌘H in another app, hides an agent app too, and its windows with
+    /// it), never activated: no window of ours takes focus from the app typed in. For each window that shows while typing.
+    static func unhideAppIfHidden() {
+        if surroundings.appHidden() { surroundings.unhideApp() }
+    }
+
+    /// No alpha while it shows, with no reason for it (not hidden between words: `hiddenPresentation`; not the self-test's
+    /// `invisible`): visible and clickable again. True: it had none.
+    @discardableResult
+    private func restoreLostAlpha() -> Bool {
+        guard alphaValue == 0, hiddenPresentation == nil, !Self.invisible else { return false }
+        alphaValue = 1
+        ignoresMouseEvents = false
+        return true
+    }
+
+    /// Back on screen as it shows: the app shown again (never activated), an alpha lost with no reason given back, and
+    /// ordered in (`reorder`: out and in again, the window server's record of it made anew).
+    private func putBack(reorder: Bool) {
+        Self.unhideAppIfHidden()
+        restoreLostAlpha()
+        if reorder { orderOut(nil) }
+        orderFrontRegardless()
+    }
+
+    /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`: the displays changed or
+    /// woke, the Mac woke, another Space, the app hidden): while it shows, put back at once and the window server asked.
+    private func resurface() {
+        guard isShowing else { return }
+        putBack(reorder: false)
+        checkPresence()
+    }
+
+    /// Whether it can be seen as it shows, the window server asked a turn of the run loop later (never on the key that
+    /// brought it up), then a moment later again if not (`recheckDelay`); still not: the log says why (a fault) and it is
+    /// put back, ordered out and in again; that not enough either, a fresh window takes its place (`replace`), what
+    /// restarting the app did. Not while invisible on purpose (`invisible`), nor where the window server tells nothing of
+    /// it to go by (the screen locked: `WindowServerView.unknown`).
+    func checkPresence() {
+        guard !checkingPresence else { return }
+        checkingPresence = true
+        DispatchQueue.main.async { [weak self] in self?.presence(.first) }
+    }
+
+    private enum PresenceStep { case first, again, reordered, fresh }
+
+    private func presence(_ step: PresenceStep) {
+        guard isShowing, !Self.invisible, Date() >= Self.presenceIgnoredUntil else {
+            checkingPresence = false
+            return
+        }
+        let surroundings = Self.surroundings
+        let server = surroundings.windowServer(windowNumber)
+        let absence = Self.absence(appHidden: surroundings.appHidden(), server: server, alpha: alphaValue, frame: frame)
+        if absence == nil, server == .unknown, step == .first {
+            // Nothing to go by yet (a window it was only just given has no frame there for a moment): once more, later.
+            return DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
+        }
+        guard let absence else {
+            if step == .reordered || step == .fresh {
+                Self.log.notice("candidate box back on screen (\(step == .fresh ? "a fresh window" : "ordered in again", privacy: .public))")
+            }
+            checkingPresence = false
+            return
+        }
+        switch step {
+        case .first:
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
+        case .again:
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public); ordered in again")
+            putBack(reorder: true)
+            DispatchQueue.main.async { [weak self] in self?.presence(.reordered) }
+        case .reordered:
+            checkingPresence = false
+            guard self === Self.shared else {
+                return Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), still, after ordering it in again")
+            }
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), still, after ordering it in again; a fresh window")
+            let fresh = replace()
+            fresh.checkingPresence = true
+            DispatchQueue.main.async { [weak fresh] in fresh?.presence(.fresh) }
+        case .fresh:
+            // Nothing left to do: its answers aren't gone by for a while, so no word puts the panel through all this again.
+            checkingPresence = false
+            Self.presenceIgnoredUntil = Date().addingTimeInterval(600)
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), even in a fresh window")
+        }
+    }
+
+    /// A fresh window in this one's place, as the shared panel (`shared`), showing what this one shows where it shows it,
+    /// with everything attached to it: the view itself (its rows, the pointer's owner and handlers, `onHover`),
+    /// `onPresent`, `onReplace`. This one is put away for good. What restarting the app did (GitHub #61), the session kept.
+    @discardableResult
+    func replace() -> CandidatePanel {
+        let fresh = CandidatePanel(view: view)
+        fresh.appearance = appearance
+        (fresh.alphaValue, fresh.ignoresMouseEvents) = (alphaValue, ignoresMouseEvents)
+        (fresh.hiddenPresentation, fresh.placed) = (hiddenPresentation, placed)
+        (fresh.onPresent, fresh.onReplace) = (onPresent, onReplace)
+        fresh.setFrame(frame, display: true)
+        if isVisible { fresh.orderFrontRegardless() }
+        pendingHide?.cancel()
+        pendingHide = nil
+        (onPresent, onReplace, screenEvents) = (nil, nil, nil)
+        orderOut(nil)
+        if Self.shared === self { Self.shared = fresh }
+        fresh.onReplace?(fresh)
+        fresh.onPresent?()
+        return fresh
+    }
+
+    /// Why a panel that shows can't be seen, from what the app and the window server say of it (`alpha`, `frame`: the
+    /// panel's own); nil: it can, or the window server tells nothing of it to go by.
+    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect) -> Absence? {
+        if appHidden { return .hiddenApp }
+        if alpha == 0 { return .transparent }
+        switch server {
+        case .missing: return .windowServerOff
+        case .unknown: return nil
+        case let .window(onScreen, serverAlpha, serverFrame):
+            if !onScreen { return .windowServerOff }
+            if serverAlpha < 0.01 { return .transparent }
+            // Somewhere else altogether (where a display was, off every screen). Its frame there can be a little off ours
+            // (a move on its way to it; the whole desktop drawn smaller behind a locked screen), never nowhere near it.
+            return serverFrame.intersects(frame) ? nil : .frame
+        }
+    }
+
+    /// Why it can't be seen, as the log says it.
+    enum Absence: String {
+        case hiddenApp = "hidden app"
+        case windowServerOff = "window server off"
+        case transparent = "alpha 0"
+        case frame = "frame"
+    }
+
+    /// A window as the window server has it.
+    enum WindowServerView: Equatable {
+        /// It has no window of that number.
+        case missing
+        /// It tells nothing of it to go by (no frame: a window it was only just given, or the screen locked).
+        case unknown
+        /// On screen or not, its alpha, and its frame in AppKit's screen coordinates.
+        case window(onScreen: Bool, alpha: CGFloat, frame: NSRect)
+    }
+
+    /// What the panel asks of the app and of the window server.
+    struct Surroundings {
+        /// Whether the app is hidden.
+        var appHidden: () -> Bool = { NSApp.isHidden }
+        /// Its windows shown again without activating it.
+        var unhideApp: () -> Void = { NSApp.unhideWithoutActivation() }
+        /// Window `number` as the window server has it.
+        var windowServer: (Int) -> WindowServerView = { CandidatePanel.windowServerView(of: $0) }
+    }
+
+    /// Window `number` as the window server has it (`CGWindowListCreateDescriptionFromArray`: whether it is on screen,
+    /// its alpha and its bounds, which run down from the top of the main display).
+    static func windowServerView(of number: Int) -> WindowServerView {
+        guard number > 0 else { return .missing }
+        var ids: [UnsafeRawPointer?] = [UnsafeRawPointer(bitPattern: UInt(number))]
+        guard let list = CFArrayCreate(nil, &ids, 1, nil),
+              let windows = CGWindowListCreateDescriptionFromArray(list) as? [[String: Any]] else { return .unknown }
+        guard let window = windows.first(where: { ($0[kCGWindowNumber as String] as? NSNumber)?.intValue == number }) else {
+            return .missing
+        }
+        guard let bounds = window[kCGWindowBounds as String] as? NSDictionary,
+              let rect = CGRect(dictionaryRepresentation: bounds as CFDictionary), !rect.isEmpty else { return .unknown }
+        let onScreen = (window[kCGWindowIsOnscreen as String] as? NSNumber)?.boolValue ?? false
+        let alpha = (window[kCGWindowAlpha as String] as? NSNumber).map { CGFloat($0.doubleValue) } ?? 1
+        let top = NSScreen.screens.first?.frame.maxY ?? rect.maxY
+        return .window(onScreen: onScreen, alpha: alpha, frame: NSRect(x: rect.minX, y: top - rect.maxY, width: rect.width, height: rect.height))
+    }
+
     /// Where the panel goes for `anchor` as the view is laid out now, and on which side of the caret (the side it is on
     /// kept while `anchor` is on the same line: `placed`).
     private func placement(at anchor: NSRect) -> (frame: NSRect, side: Side) {
@@ -250,10 +464,34 @@ final class CandidatePanel: NSPanel {
     }
 }
 
+/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
+/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
+/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
+/// while it shows: `handler`, on the main thread, as long as this is kept.
+final class ScreenEvents {
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+
+    init(_ handler: @escaping @MainActor () -> Void) {
+        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
+        let events: [(NotificationCenter, Notification.Name)] = [
+            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
+            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
+            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
+        ]
+        observers = events.map { center, name in
+            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
+        }
+    }
+
+    deinit {
+        for (center, observer) in observers { center.removeObserver(observer) }
+    }
+}
+
 /// Draws the candidate list: the core's `PanelModel`, with the icons as the Mac draws them (`Icon`), its caret as "▏"
-/// and the choices where a conversation can go on as lines of text (`PanelModel.inputText`). Layout is computed when the
-/// model changes; drawing is appearance-aware. Every list looks one way: the highlighted row a soft wash of the system's
-/// accent color, the numbers on keycaps, the footer a few keys on keycaps.
+/// and where a conversation can go on as keys to press or click (`handoffTargets`). Layout is computed when the model
+/// changes; drawing is appearance-aware. Every list looks one way: the highlighted row a soft wash of the system's accent
+/// color, the numbers on keycaps, the footer a few keys on keycaps; stronger with Increase contrast (`palette`).
 final class CandidateView: NSView {
     /// An SF Symbol, drawn in `color` on a square of it, lightly tinted.
     struct Icon: Equatable {
@@ -308,6 +546,12 @@ final class CandidateView: NSView {
         static let hintGap: CGFloat = 14
         /// The sentence as typed, above the results (row 0): the room its hairline takes under it.
         static let headerRowGap: CGFloat = 5
+        /// Where a conversation can go on (`PanelModel.handoff`): the room around each one's keycap and name (all of it
+        /// takes a click), between two, and under the title.
+        static let handoffInsetX: CGFloat = 4
+        static let handoffInsetY: CGFloat = 3
+        static let handoffGap: CGFloat = 6
+        static let handoffTitleGap: CGFloat = 2
         /// The pinyin candidates' pills (`PanelModel.candidates`).
         static let pillHeight: CGFloat = 24
         static let pillInsetX: CGFloat = 8
@@ -327,6 +571,8 @@ final class CandidateView: NSView {
         static let selectedEnglish = NSFont.systemFont(ofSize: 15, weight: .medium)
         static let selectedChinese = NSFont.systemFont(ofSize: 14, weight: .medium)
         static let comment = NSFont.systemFont(ofSize: 12)
+        /// A row's second line (`PanelModel.Row.secondLine`).
+        static let secondLine = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         static let label = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
         static let status = NSFont.systemFont(ofSize: 13)
         static let footer = NSFont.systemFont(ofSize: 12)
@@ -341,6 +587,8 @@ final class CandidateView: NSView {
         static let lead = NSFont.monospacedDigitSystemFont(ofSize: 13, weight: .regular)
         static let pill = NSFont.systemFont(ofSize: 14)
         static let pillLabel = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        /// Where a conversation can go on: each one's name, after its key.
+        static let handoff = NSFont.systemFont(ofSize: 13)
 
         /// The text's font; the highlighted row's a little heavier (rows are measured with it: as wide either way).
         static func text(for kind: PanelModel.Row.Kind, selected: Bool = false) -> NSFont {
@@ -355,6 +603,86 @@ final class CandidateView: NSView {
     static let background = NSColor(name: "AllInOneIMEPanelBackground") { appearance in
         appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
             ? NSColor(white: 0.16, alpha: 0.98) : NSColor(white: 0.995, alpha: 0.98)
+    }
+
+    /// The colors that make the panel easy to read, as `palette` gives them for an appearance.
+    struct Palette {
+        /// The comment after a row's text ("黑话", jargon), and the numbers of the pinyin candidates' pills.
+        var rowComment: NSColor
+        var pillNumber: NSColor
+        /// The highlighted row (and pill): its fill, its border (nil: none) and how wide.
+        var selectedFill: NSColor
+        var selectedBorder: NSColor?
+        var selectedBorderWidth: CGFloat
+        /// Text in the accent color on the highlighted row (what ⏎ does) and pill (its number).
+        var selectedInk: NSColor
+    }
+
+    /// The colors for `appearance`: the system's secondary gray for the small texts (about 3.9:1 on the panel), the
+    /// highlighted row a soft wash of the accent color at least 1.5:1 on the panel's background (`selectionTint`). With
+    /// Increase contrast (Accessibility → Display: `increaseContrast`), stronger: the label color for those texts and on
+    /// the highlighted row, and the row a solid, stronger tint of the accent with a 1 pt accent border.
+    static func palette(appearance: NSAppearance, increaseContrast: Bool) -> Palette {
+        let dark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        var accent = NSColor.controlAccentColor, panel = background, ink = accent
+        appearance.performAsCurrentDrawingAppearance {
+            accent = NSColor.controlAccentColor.usingColorSpace(.sRGB) ?? .systemBlue
+            panel = background.usingColorSpace(.sRGB) ?? .white
+            ink = accentInk(dark: dark)
+        }
+        let tint = selectionTint(accent: accent, background: panel, dark: dark)
+        guard increaseContrast else {
+            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor,
+                           selectedFill: tint.color.withAlphaComponent(tint.alpha), selectedBorder: nil, selectedBorderWidth: 0,
+                           selectedInk: ink)
+        }
+        let solid = panel.withAlphaComponent(1).blended(withFraction: min(tint.alpha + 0.15, 0.7), of: tint.color) ?? tint.color
+        return Palette(rowComment: .labelColor, pillNumber: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
+                       selectedBorderWidth: 1, selectedInk: .labelColor)
+    }
+
+    /// Whether the panel is drawn with stronger colors (Accessibility → Display → Increase contrast).
+    static var increasesContrast: Bool { NSWorkspace.shared.accessibilityDisplayShouldIncreaseContrast }
+
+    /// The highlighted row's wash on `background` (both in sRGB): the accent at the least alpha, from as light as it
+    /// always was (14% on light, 28% on dark), that sets it off 1.6:1 from the background (WCAG's ratio; 1.5 wanted, and a
+    /// little more for the glass); an accent too light on light (yellow) or too dark on dark for that even at half,
+    /// darkened (lightened) until it is. Worked out once for each accent and appearance.
+    private static func selectionTint(accent: NSColor, background: NSColor, dark: Bool) -> (color: NSColor, alpha: CGFloat) {
+        let key = TintKey(accent: [accent.redComponent, accent.greenComponent, accent.blueComponent], dark: dark)
+        if let tint = tints[key] { return tint }
+        var tint = (color: accent, alpha: CGFloat(0.5))
+        search: for shade in stride(from: CGFloat(0), through: 0.9, by: 0.1) {
+            let color = shade == 0 ? accent : accent.blended(withFraction: shade, of: dark ? .white : .black) ?? accent
+            for alpha in stride(from: dark ? CGFloat(0.28) : 0.14, through: 0.5, by: 0.01)
+            where contrast(color.withAlphaComponent(alpha), over: background) >= 1.6 {
+                tint = (color, alpha)
+                break search
+            }
+        }
+        tints[key] = tint
+        return tint
+    }
+
+    private struct TintKey: Hashable {
+        var accent: [CGFloat]
+        var dark: Bool
+    }
+    private static var tints: [TintKey: (color: NSColor, alpha: CGFloat)] = [:]
+
+    /// WCAG's contrast ratio of `color` (its alpha over `background`) against `background`, both in sRGB.
+    static func contrast(_ color: NSColor, over background: NSColor) -> CGFloat {
+        guard let color = color.usingColorSpace(.sRGB), let background = background.usingColorSpace(.sRGB) else { return 1 }
+        func luminance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGFloat {
+            func linear(_ v: CGFloat) -> CGFloat { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
+        }
+        let a = color.alphaComponent
+        func over(_ c: CGFloat, _ b: CGFloat) -> CGFloat { c * a + b * (1 - a) }
+        let front = luminance(over(color.redComponent, background.redComponent), over(color.greenComponent, background.greenComponent),
+                              over(color.blueComponent, background.blueComponent))
+        let back = luminance(background.redComponent, background.greenComponent, background.blueComponent)
+        return (max(front, back) + 0.05) / (min(front, back) + 0.05)
     }
 
     private struct RowLayout {
@@ -442,6 +770,10 @@ final class CandidateView: NSView {
     private(set) var hoveredChip: ChipPart? {
         didSet { if hoveredChip != oldValue { needsDisplay = true } }
     }
+    /// Where a conversation can go on under the pointer (its index in `handoffTargets`), drawn lightly highlighted.
+    private(set) var hoveredHandoff: Int? {
+        didSet { if hoveredHandoff != oldValue { needsDisplay = true } }
+    }
     /// Where the chip's parts are (its source, the arrow, its target), and the whole of it.
     private(set) var chipFrames: (source: NSRect, arrow: NSRect, target: NSRect, whole: NSRect)?
     /// Scrolling not yet a whole row (a trackpad's small steps add up).
@@ -459,7 +791,20 @@ final class CandidateView: NSView {
     /// (`side`). Their pills, and what Space does at the line's end.
     private(set) var candidatesFrame: NSRect?
     private var pills: [(frame: NSRect, label: String, text: String)] = []
+    /// Where a conversation can go on (`PanelModel.handoff`), on top: its title, then each choice as a click takes it.
+    struct HandoffTarget {
+        var shortcut: String
+        var name: String
+        /// Its shortcut ("⌘1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
+        /// after it and the room around them.
+        var keycapFrame: NSRect
+        var targetFrame: NSRect
+    }
+    private var handoffTitleFrame: NSRect?
+    private(set) var handoffTargets: [HandoffTarget] = []
     private var inputFrame: NSRect?
+    /// The hairline under what is on top (where a conversation can go on, the line of input): its y; nil: neither.
+    private var topRuleY: CGFloat?
     /// The rows on their way (`PanelModel.pending`): each one's place, its keycap's and its bar's.
     private var skeletons: [(frame: NSRect, keycap: NSRect?, bar: NSRect)] = []
     /// A light passing over the bars while they wait (none with Reduce Motion).
@@ -530,6 +875,13 @@ final class CandidateView: NSView {
                 && model.candidates == nil
             y = frames.whole.maxY + (alone ? 0 : Metrics.chipGap)
         }
+        handoffTitleFrame = nil
+        handoffTargets = []
+        if let handoff = model.handoff {
+            let laidOut = layoutHandoff(handoff, top: y)
+            widest = max(widest, laidOut.width + p + Metrics.rowInsetX - inset)
+            y = laidOut.bottom
+        }
         inputFrame = nil
         if let input = inputString() {
             let size = Self.measure(input, minHeight: 0)
@@ -537,6 +889,7 @@ final class CandidateView: NSView {
             inputFrame = NSRect(x: p + Metrics.rowInsetX, y: y + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: size.height)
             y += size.height + 2 * Metrics.rowInsetY
         }
+        topRuleY = model.handoff != nil || inputFrame != nil ? y : nil
         // The pinyin candidates shown with the rows, on the side nearest the caret (`side`): a strip of pills, the y under it.
         candidatesFrame = nil
         pills = []
@@ -648,7 +1001,8 @@ final class CandidateView: NSView {
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now (the pointer asked once, for both).
         let location = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
-        (hovered, hoveredChip) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)))
+        (hovered, hoveredChip, hoveredHandoff) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)),
+                                                  location.flatMap(handoffTarget(at:)))
     }
 
     /// The chip at the top left: its source and target parts, the arrow between them, one line.
@@ -660,6 +1014,39 @@ final class CandidateView: NSView {
         let arrowFrame = NSRect(x: sourceFrame.maxX, y: top, width: ceil(arrow.size().width), height: height)
         let targetFrame = NSRect(x: arrowFrame.maxX, y: top, width: ceil(target.size().width) + 2 * Metrics.chipInsetX, height: height)
         return (sourceFrame, arrowFrame, targetFrame, sourceFrame.union(targetFrame))
+    }
+
+    /// Where a conversation can go on, from `top`: its title, then its choices, each its key on a small keycap and its
+    /// name, up to 4 on a line (more, 3 a line, so the panel stays as wide). The y under them, and how wide they are from
+    /// the text's left.
+    private func layoutHandoff(_ handoff: PanelModel.Handoff, top: CGFloat) -> (bottom: CGFloat, width: CGFloat) {
+        let left = Metrics.padding + Metrics.rowInsetX
+        let title = Self.measure(handoffTitle(handoff), minHeight: 0)
+        handoffTitleFrame = NSRect(x: left, y: top + Metrics.rowInsetY, width: Metrics.maxTextWidth, height: title.height)
+        var width = title.width
+        var y = top + Metrics.rowInsetY + title.height + (handoff.choices.isEmpty ? 0 : Metrics.handoffTitleGap)
+        let font = Fonts.handoff
+        let lineHeight = max(Metrics.smallKeycapHeight, ceil(font.ascender - font.descender + font.leading)) + 2 * Metrics.handoffInsetY
+        let perLine = handoff.choices.count <= 4 ? 4 : 3
+        var x = left - Metrics.handoffInsetX
+        for (index, choice) in handoff.choices.enumerated() {
+            if index > 0, index % perLine == 0 {
+                x = left - Metrics.handoffInsetX
+                y += lineHeight
+            } else if index > 0 {
+                x += Metrics.handoffGap
+            }
+            let key = Self.smallKeycapWidth(choice.shortcut)
+            let target = NSRect(x: x, y: y, width: Metrics.handoffInsetX * 2 + key + 5 + ceil(Self.width(choice.name, font)), height: lineHeight)
+            let keycap = NSRect(x: target.minX + Metrics.handoffInsetX, y: (target.midY - Metrics.smallKeycapHeight / 2).rounded(),
+                                width: key, height: Metrics.smallKeycapHeight)
+            handoffTargets.append(HandoffTarget(shortcut: choice.shortcut, name: choice.name, keycapFrame: keycap, targetFrame: target))
+            x = target.maxX
+            width = max(width, target.maxX - Metrics.handoffInsetX - left)
+        }
+        // The room under the last line: the rows' less what the targets have around them already.
+        if !handoff.choices.isEmpty { y += lineHeight - Metrics.handoffInsetY }
+        return (y + Metrics.rowInsetY, width)
     }
 
     /// The pinyin candidates ("1 你好   2 拟好 …") as pills in one line, from its left, and how wide the line is with what
@@ -882,7 +1269,11 @@ final class CandidateView: NSView {
             // No-break spaces and word joiners: when the line wraps, the comment ("黑话", jargon) moves as one
             // piece together with the last word instead of breaking between its characters.
             let glued = "\u{00A0}\u{00A0}" + comment.map(String.init).joined(separator: "\u{2060}")
-            text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.tertiaryLabelColor]))
+            text.append(NSAttributedString(string: glued, attributes: [.font: Fonts.comment, .foregroundColor: palette.rowComment]))
+        }
+        // The end of the comment on a line of its own, under the text (`@stats`'s sources).
+        if let second = row.secondLine, !second.isEmpty, !header {
+            text.append(NSAttributedString(string: "\n" + second, attributes: [.font: Fonts.secondLine, .foregroundColor: palette.rowComment]))
         }
         return text
     }
@@ -892,6 +1283,12 @@ final class CandidateView: NSView {
     /// enough); what follows its tag ("黑话 · …").
     private func shownComment(_ row: PanelModel.Row, header: Bool) -> String {
         if header || row.lead != nil || row.commentDescribes { return "" }
+        if let second = row.secondLine, !second.isEmpty, row.comment.hasSuffix(second) {
+            // What the second line says isn't said again after the text.
+            var rest = String(row.comment.dropLast(second.count))
+            if rest.hasSuffix(" · ") { rest.removeLast(3) }
+            return rest
+        }
         guard let tag = row.tag, row.comment.hasPrefix(tag.text) else { return row.comment }
         let rest = row.comment.dropFirst(tag.text.count)
         return String(rest.hasPrefix(" · ") ? rest.dropFirst(3) : rest)
@@ -905,7 +1302,12 @@ final class CandidateView: NSView {
     }
 
     private func inputString() -> NSAttributedString? {
-        model.inputText.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+        model.inputLine.map { NSAttributedString(string: $0, attributes: [.font: Fonts.candidate, .foregroundColor: NSColor.labelColor]) }
+    }
+
+    /// The title of where a conversation can go on, as small as the header's lines.
+    private func handoffTitle(_ handoff: PanelModel.Handoff) -> NSAttributedString {
+        NSAttributedString(string: handoff.title, attributes: [.font: Fonts.comment, .foregroundColor: NSColor.secondaryLabelColor])
     }
 
     private func headerString() -> NSAttributedString? {
@@ -956,13 +1358,15 @@ final class CandidateView: NSView {
 
     // MARK: - Drawing
 
-    /// The accent color as text (`accentInk`), for the drawing under way.
-    private var ink = NSColor.controlAccentColor
+    /// The colors for the drawing under way (`palette`): as the appearance has them, and Increase contrast.
+    private lazy var palette = Self.palette(appearance: effectiveAppearance, increaseContrast: Self.increasesContrast)
+    /// The accent color as text on the highlighted row (`Palette.selectedInk`), for the drawing under way.
+    private var ink: NSColor { palette.selectedInk }
 
     override func draw(_ dirtyRect: NSRect) {
         let dark = isDark
         let accent = NSColor.controlAccentColor
-        ink = Self.accentInk(dark: dark)
+        palette = Self.palette(appearance: effectiveAppearance, increaseContrast: Self.increasesContrast)
         let shape = NSBezierPath(
             roundedRect: bounds.insetBy(dx: 0.25, dy: 0.25), xRadius: Metrics.cornerRadius - 0.25, yRadius: Metrics.cornerRadius - 0.25)
         if drawsBackground {
@@ -986,11 +1390,17 @@ final class CandidateView: NSView {
             }
         }
         let lineInset = Metrics.padding + Metrics.rowInsetX
+        if let handoffTitleFrame, let handoff = model.handoff {
+            handoffTitle(handoff).draw(with: handoffTitleFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
+        }
+        for (index, target) in handoffTargets.enumerated() {
+            drawHandoffTarget(target, hovered: index == hoveredHandoff, dark: dark)
+        }
         if let inputFrame, let input = inputString() {
             input.draw(with: inputFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
-            // Under it, a line as under a text being typed.
-            Self.hairline(y: inputFrame.maxY + Metrics.rowInsetY - 0.5, from: lineInset, to: bounds.width - lineInset)
         }
+        // Under them, a line as under a text being typed.
+        if let topRuleY { Self.hairline(y: topRuleY - 0.5, from: lineInset, to: bounds.width - lineInset) }
         if let headerFrame, let header = headerString() {
             header.draw(with: headerFrame, options: [.usesLineFragmentOrigin, .usesFontLeading])
         }
@@ -1001,14 +1411,13 @@ final class CandidateView: NSView {
         func radius(_ frame: NSRect) -> CGFloat { model.horizontal ? frame.height / 2 : Metrics.rowRadius }
         if let index = hovered, index != model.highlighted, rowLayouts.indices.contains(index) {
             let frame = rowLayouts[index].frame
-            accent.withAlphaComponent(dark ? 0.12 : 0.07).setFill()
+            Self.hoverFill(dark: dark).setFill()
             NSBezierPath(roundedRect: frame, xRadius: radius(frame), yRadius: radius(frame)).fill()
         }
         // Selected: what the key that picks takes. Moving, it slides there from the row it was on.
         if let index = model.highlighted, rowLayouts.indices.contains(index) {
             let frame = slidingFrame(to: rowLayouts[index].frame)
-            accent.withAlphaComponent(dark ? 0.28 : 0.14).setFill()
-            NSBezierPath(roundedRect: frame, xRadius: radius(frame), yRadius: radius(frame)).fill()
+            drawSelection(frame, radius: radius(frame))
         }
         for (index, layout) in rowLayouts.enumerated() where index < model.rows.count {
             drawRow(model.rows[index], index: index, layout: layout, dark: dark)
@@ -1100,16 +1509,19 @@ final class CandidateView: NSView {
         }
     }
 
-    /// The pinyin candidates' pills, the first (what Space picks) in the accent's tint, what Space does at the end of
-    /// the line, and a hairline between them and the rows.
+    /// The pinyin candidates' pills, the highlighted one (what Space picks: `PanelModel.candidatesHighlighted`) in the
+    /// accent's tint, what Space does at the end of the line, and a hairline between them and the rows.
     private func drawPills(in frame: NSRect, dark: Bool) {
-        let accent = NSColor.controlAccentColor
         let lineInset = Metrics.padding + Metrics.rowInsetX
         for (index, pill) in pills.enumerated() {
-            let first = index == 0
-            (first ? accent.withAlphaComponent(dark ? 0.28 : 0.14) : NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05)).setFill()
-            NSBezierPath(roundedRect: pill.frame, xRadius: 8, yRadius: 8).fill()
-            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: first ? ink : .tertiaryLabelColor)
+            let highlighted = index == model.candidatesHighlighted
+            if highlighted {
+                drawSelection(pill.frame, radius: 8)
+            } else {
+                NSColor.labelColor.withAlphaComponent(dark ? 0.08 : 0.05).setFill()
+                NSBezierPath(roundedRect: pill.frame, xRadius: 8, yRadius: 8).fill()
+            }
+            let text = Self.pillText(label: pill.label, text: pill.text, labelColor: highlighted ? ink : palette.pillNumber)
             let height = ceil(Fonts.pill.ascender - Fonts.pill.descender)
             text.draw(at: NSPoint(x: pill.frame.minX + Metrics.pillInsetX, y: pill.frame.midY - height / 2))
         }
@@ -1160,12 +1572,46 @@ final class CandidateView: NSView {
         if !hint.key.isEmpty {
             let width = Self.smallKeycapWidth(hint.key)
             let key = NSRect(x: x, y: (origin.y - Metrics.smallKeycapHeight / 2).rounded(), width: width, height: Metrics.smallKeycapHeight)
-            Self.drawKeycap(hint.key, in: key, font: Fonts.key, radius: 4.5, fill: NSColor.labelColor.withAlphaComponent(dark ? 0.06 : 0.03),
-                            textColor: .secondaryLabelColor, stroke: NSColor.labelColor.withAlphaComponent(dark ? 0.28 : 0.2))
+            Self.drawSmallKeycap(hint.key, in: key, dark: dark)
             x += width + 5
         }
         let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
         text.draw(at: NSPoint(x: x, y: origin.y - text.size().height / 2))
+    }
+
+    /// One of where a conversation can go on: its key on a small keycap, as the footer's, and its name; under the pointer,
+    /// lightly highlighted as a row is (a click there does what its key does).
+    private func drawHandoffTarget(_ target: HandoffTarget, hovered: Bool, dark: Bool) {
+        if hovered {
+            Self.hoverFill(dark: dark).setFill()
+            NSBezierPath(roundedRect: target.targetFrame, xRadius: Metrics.keycapRadius, yRadius: Metrics.keycapRadius).fill()
+        }
+        Self.drawSmallKeycap(target.shortcut, in: target.keycapFrame, dark: dark)
+        let name = NSAttributedString(string: target.name, attributes: [.font: Fonts.handoff, .foregroundColor: NSColor.labelColor])
+        name.draw(at: NSPoint(x: target.keycapFrame.maxX + 5, y: target.targetFrame.midY - name.size().height / 2))
+    }
+
+    /// The highlighted row's (or pill's) wash in `frame`, and its border with Increase contrast (`palette`).
+    private func drawSelection(_ frame: NSRect, radius: CGFloat) {
+        palette.selectedFill.setFill()
+        NSBezierPath(roundedRect: frame, xRadius: radius, yRadius: radius).fill()
+        guard let border = palette.selectedBorder, palette.selectedBorderWidth > 0 else { return }
+        let inset = palette.selectedBorderWidth / 2
+        let shape = NSBezierPath(roundedRect: frame.insetBy(dx: inset, dy: inset), xRadius: radius - inset, yRadius: radius - inset)
+        shape.lineWidth = palette.selectedBorderWidth
+        border.setStroke()
+        shape.stroke()
+    }
+
+    /// What the pointer is over (a row, where a conversation can go on): a lighter wash than the highlighted row's.
+    private static func hoverFill(dark: Bool) -> NSColor {
+        NSColor.controlAccentColor.withAlphaComponent(dark ? 0.12 : 0.07)
+    }
+
+    /// `key` on a small keycap (the footer's, where a conversation can go on), outlined.
+    private static func drawSmallKeycap(_ key: String, in frame: NSRect, dark: Bool) {
+        drawKeycap(key, in: frame, font: Fonts.key, radius: 4.5, fill: NSColor.labelColor.withAlphaComponent(dark ? 0.06 : 0.03),
+                   textColor: .secondaryLabelColor, stroke: NSColor.labelColor.withAlphaComponent(dark ? 0.28 : 0.2))
     }
 
     /// `key` centered on a rounded square (`frame`), filled, and outlined with a hairline when `stroke` is given.
@@ -1409,21 +1855,28 @@ final class CandidateView: NSView {
         return frames.source.contains(point) ? .source : frames.target.contains(point) ? .target : nil
     }
 
+    /// Where a conversation can go on at `point` (its index in `handoffTargets`), if any.
+    func handoffTarget(at point: NSPoint) -> Int? {
+        handoffTargets.firstIndex { $0.targetFrame.contains(point) }
+    }
+
     private func hover(_ event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
-        (hovered, hoveredChip) = (row(at: point), chipPart(at: point))
+        (hovered, hoveredChip, hoveredHandoff) = (row(at: point), chipPart(at: point), handoffTarget(at: point))
     }
 
     override func mouseMoved(with event: NSEvent) { hover(event) }
     override func mouseEntered(with event: NSEvent) { hover(event) }
-    override func mouseExited(with event: NSEvent) { (hovered, hoveredChip) = (nil, nil) }
+    override func mouseExited(with event: NSEvent) { (hovered, hoveredChip, hoveredHandoff) = (nil, nil, nil) }
 
-    /// A click picks the row as its digit would (`Composer.choose`), or a part of the chip (`pointer`); the text field
-    /// keeps the focus, the panel being non-activating and never key.
+    /// A click picks the row as its digit would (`Composer.choose`), a part of the chip, or where a conversation goes on as
+    /// its ⌘digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {
             pointer.chipClicked(part)
+        } else if let target = handoffTarget(at: point) {
+            pointer.handoffClicked(target + 1)
         } else if let index = row(at: point) {
             // A Control-click is a right-click.
             if event.modifierFlags.contains(.control) { pointer.rightClicked(index) } else { pointer.clicked(index) }
@@ -1483,9 +1936,17 @@ private final class ShimmerView: NSView {
 }
 
 extension PanelModel {
-    /// What the Mac draws on top, in the input line's font: where a conversation can go on, its title and its choices as
-    /// lines of text (up to 4 on a line, more 3 a line, so the panel stays as wide), then the line of input with "▏" at
-    /// its caret. Nil: neither.
+    /// The line of input as the Mac draws it, on top (under where a conversation can go on): its prompt and its text,
+    /// "▏" at its caret. Nil: none.
+    var inputLine: String? {
+        input.map { input in
+            input.prompt + (input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text)
+        }
+    }
+
+    /// What the Mac shows on top, as text: where a conversation can go on, its title and its choices as lines (up to 4 on
+    /// a line, more 3 a line, as they are laid out: each its key on a keycap and its name, `CandidateView.handoffTargets`),
+    /// then the line of input (`inputLine`). Nil: neither.
     var inputText: String? {
         var lines: [String] = []
         if let handoff {
@@ -1495,10 +1956,7 @@ extension PanelModel {
             lines.append(stride(from: 0, to: labels.count, by: perLine)
                 .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
         }
-        if let input {
-            let text = input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text
-            lines.append(input.prompt + text)
-        }
+        if let inputLine { lines.append(inputLine) }
         return lines.isEmpty ? nil : lines.joined(separator: "\n")
     }
 

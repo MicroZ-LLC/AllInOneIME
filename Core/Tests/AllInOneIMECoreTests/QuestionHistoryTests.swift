@@ -244,9 +244,9 @@ extension ComposerTests {
         // Its answer is round 1 of a conversation (0.6.4): the one row, selected.
         #expect(c.choices.map(\.text) == ["Hello."] && c.highlighted == 0)
         #expect(c.markedText == "question › 你好怎么说" && c.savedAnswerDate == Date(timeIntervalSince1970: 2))
-        // ⌘C copies it, ⏎ inserts it, as any answer.
+        // ⌘C copies it, ⇧⏎ inserts it, as any answer of a conversation.
         #expect(c.handleKeyDown(k("c", mods: .command)).effects.first == .copy("Hello."))
-        #expect(commits(c.handleKeyDown(enterKey)) == ["Hello."] && c.phase == .idle && !c.showsSavedAnswer)
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["Hello."] && c.phase == .idle && !c.showsSavedAnswer)
         #expect(c.questionHistory == savedQuestions)  // shown, not asked: the order stays
     }
 
@@ -348,7 +348,7 @@ extension ComposerTests {
             type("question \(n)", c)
             _ = c.handleKeyDown(enterKey)
             _ = c.receive(answer("answer \(n)"), isFinal: true, id: n)
-            #expect(commits(c.handleKeyDown(enterKey)) == ["answer \(n)"])
+            #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["answer \(n)"])
             _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
             type("q", c)
             _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
@@ -388,7 +388,7 @@ extension ComposerTests {
         _ = c.handleKeyDown(downKey)
         _ = c.handleKeyDown(enterKey)
         #expect(c.showsSavedAnswer)
-        #expect(commits(c.handleKeyDown(enterKey)) == ["A language."])  // inserted: the draft is done
+        #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["A language."])  // inserted: the draft is done
         _ = c.handleKeyDown(KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift))
         type("q", c)
         _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
