@@ -178,6 +178,37 @@ struct ClipboardHistoryFilterTests {
         }
     }
 
+    /// A longer history's keys stop being worked out once its panel is gone (hidden, a row put in, clicked, the field
+    /// left), never left to run on; and a long text's pinyin stops partway once its work is stopped.
+    @Test func aLongerHistorysWorkStopsWithItsPanel() async throws {
+        try await withInterfaceLanguage("en") {
+            let long = String(repeating: "长文本 long text ", count: 800)
+            let texts = ["你好世界", long, "memo 1", "nihao"]
+            for close in ["Esc", "⏎", "click", "blur", "⌃V", "other key"] {
+                let h = host(texts)
+                let index = try #require(h.session.clipboard.index)
+                #expect(!index.stopped)
+                switch close {
+                case "Esc": h.press(FakeHost.escape)
+                case "⏎": h.press(FakeHost.enter)
+                case "click": h.send(.pick(1))
+                case "blur": h.send(.blur)
+                case "⌃V": h.press(FakeHost.controlV)
+                default: h.press(KeyEvent(keyCode: 0x01, characters: "s", charactersIgnoringModifiers: "s", modifiers: .command))
+                }
+                #expect(h.panel == nil && h.session.clipboard.index == nil, "\(close)")
+                #expect(index.stopped, "\(close)")
+            }
+        }
+        let chinese = String(repeating: "长文本", count: ClipboardFilter.pinyinLength / 3)
+        #expect(ClipboardFilter.pinyin(chinese) != nil)
+        let stopped = Task { () -> String? in
+            withUnsafeCurrentTask { $0?.cancel() }
+            return ClipboardFilter.pinyin(chinese)?.spelled
+        }
+        #expect(await stopped.value == nil)
+    }
+
     @Test func theFooterSaysTypingFiltersAndWhatIsLeft() async throws {
         try await withInterfaceLanguage("en") {
             let h = host((1...8).map { "memo \($0)" })

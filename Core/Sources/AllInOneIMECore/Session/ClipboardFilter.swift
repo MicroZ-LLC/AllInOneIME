@@ -40,7 +40,8 @@ enum ClipboardFilter {
     }
 
     /// A longer history's keys (not `filtersAtOnce`), worked out off the session's thread once, from when the panel
-    /// opens; and the rows each filter keeps, found off it too (`rows`). Its work stops once the panel is gone.
+    /// opens; and the rows each filter keeps, found off it too (`rows`). Its work stops once the panel is gone (`stop`),
+    /// between rows and within a long one's pinyin.
     final class Index: Sendable {
         private let keys: Task<[Key?], Never>
 
@@ -57,6 +58,12 @@ enum ClipboardFilter {
         }
 
         deinit { keys.cancel() }
+
+        /// Its keys no longer worked out (the panel is gone): a filter still waiting for them finds none.
+        func stop() { keys.cancel() }
+
+        /// Whether its work was stopped.
+        var stopped: Bool { keys.isCancelled }
 
         /// The rows `filter` keeps, by their place among those the panel opened with, once the keys are worked out;
         /// nil: stopped (another key came).
@@ -100,11 +107,14 @@ enum ClipboardFilter {
     }
 
     /// `text` in pinyin, lowercased and without whitespace: each Chinese character as its syllable in full (`spelled`,
-    /// "你好 v2" → "nihaov2") or its initial (`initials`, "nhv2"), anything else as it is in both. Nil without Chinese.
+    /// "你好 v2" → "nihaov2") or its initial (`initials`, "nhv2"), anything else as it is in both. Nil without Chinese,
+    /// or once the task it is worked out in is stopped (`Index.stop`: a long text's isn't read to its end).
     static func pinyin(_ text: String) -> (spelled: String, initials: String)? {
         guard text.containsHan else { return nil }
         var spelled = "", initials = ""
-        for scalar in text.unicodeScalars.prefix(pinyinLength) where !scalar.properties.isWhitespace {
+        for (read, scalar) in text.unicodeScalars.prefix(pinyinLength).enumerated() {
+            if read % 64 == 0, Task.isCancelled { return nil }
+            guard !scalar.properties.isWhitespace else { continue }
             if scalar.properties.isIdeographic, let syllable = syllable(scalar), let initial = syllable.first {
                 spelled += syllable
                 initials.append(initial)

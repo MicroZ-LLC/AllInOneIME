@@ -117,7 +117,7 @@ extension InputSession {
         guard clipboardOpensIn() == reading.command else { return }
         let rows = clipboardRows(content)
         guard !rows.isEmpty else { return say(composer.messages.nothingToPaste) }
-        tasks.cancel(.clipboardFilter)  // an earlier panel's filter: never these rows'
+        clipboardForget()  // an earlier panel's filter: never these rows'
         clipboard = ClipboardHistoryField(reads: clipboard.reads, rows: rows, all: rows, shown: true, command: reading.command,
                                           first: services.clipboardHistory.firstShowing(),
                                           passesPasteKey: rows.contains(where: \.isImage) && services.clipboardHistory.canPassPasteKey())
@@ -359,9 +359,17 @@ extension InputSession {
     /// The panel hidden (→, Esc, ⌃V again, another key, the field left): the composer's panel back in a command.
     func clipboardHide() {
         let shown = clipboard.shown
-        tasks.cancel(.clipboardFilter)
-        clipboard = ClipboardHistoryField(reads: clipboard.reads)
+        clipboardForget()
         if shown { emit(.panel(composer.wantsPanel ? panelModel() : nil)) }
+    }
+
+    /// No panel any more (hidden, rows put in, the field focused, another panel's rows read): a longer history's work
+    /// stops with it, the rows a filter keeps and what they are found by (`ClipboardFilter.Index.stop`), never left to
+    /// run on.
+    func clipboardForget() {
+        tasks.cancel(.clipboardFilter)
+        clipboard.index?.stop()
+        clipboard = ClipboardHistoryField(reads: clipboard.reads)
     }
 
     /// The field was left or closed, or a click in it: no panel, no read awaited.
@@ -387,7 +395,7 @@ extension InputSession {
             let index = picked.count == 1 ? picked[0] : clipboard.chosen
             let row = rows.indices.contains(index) ? rows[index] : nil
             if key != nil, !command { emit(.rowsTookKey) }
-            clipboard = ClipboardHistoryField(reads: clipboard.reads)
+            clipboardForget()
             switch row {
             case let .keptImage(image, _)? where command:
                 // As ⌃V pastes an image into a command: `@reply` reads it as a screenshot.
@@ -421,7 +429,7 @@ extension InputSession {
             return
         }
         let text = texts.count == 1 ? texts[0] : texts.map(Self.withoutEndingLineBreaks).joined(separator: "\n")
-        clipboard = ClipboardHistoryField(reads: clipboard.reads)
+        clipboardForget()
         log.notice("clipboard history: \(texts.count) put in (\(text.count) characters\(command ? ", into a command" : ""))")
         if command {
             perform(composer.pasteAnywhere(.text(text)) ?? [.showPanel])

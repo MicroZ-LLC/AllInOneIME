@@ -425,7 +425,7 @@ public final class InputSession {
         passwordField = nil
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         composer.forgetRecentLive()  // a session of the field starts: `@open` searches its texts afresh
-        clipboard = ClipboardHistoryField(reads: clipboard.reads)
+        clipboardForget()
         ensureLevelOne()
         settings(app: info.app)  // the app's own starting language, rewrite styles, typing out (`AppProfile`)
         learningFocused()  // what Shift does before anything is typed may teach the app its starting input
