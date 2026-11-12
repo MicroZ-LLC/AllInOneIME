@@ -42,8 +42,9 @@ public enum CommandTrial {
 
     /// `command` run once on `sample` (`CommandTrial`): what it would put in, or an error that says why it gave
     /// nothing (`UIText.describe`). `ask` answers an AI instruction: call it only once the user agreed (`asks`).
-    /// Cancelling the task stops it (a program as Esc stops it).
+    /// Cancelling the task stops it (a program as Esc stops it); cancelled before, nothing runs (`CancellationError`).
     public static func run(_ command: CustomCommand, sample: String, ask: Asker) async throws -> String {
+        try Task.checkCancellation()
         let messages = Composer.Messages.make(language: UIText.language)
         // What the command needs to run (a program, an address …); its name doesn't matter here.
         switch command.problem(among: []) {

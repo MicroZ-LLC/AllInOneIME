@@ -90,4 +90,109 @@ struct CommandTestRunStopsTests {
         let shown = try #require(item(service))
         #expect(shown.detail?.contains("the answer as it was") != true, "\(shown.detail ?? "")")
     }
+
+    /// Saved or deleted right after its Test run was asked for, before the run started: nothing runs at all, neither the
+    /// command as it was nor as it is now (the AI isn't asked), and the request is answered `cancelled`.
+    @Test(arguments: ["save", "delete"])
+    func aSaveOrADeleteBeforeTheRunStartsRunsNothing(_ change: String) async throws {
+        let (service, file) = try fixture()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        try await service.perform(SettingsAction(field: "commands.custom", name: "save", value: definition("Be polite"))).get()
+        let (gate, started, asked) = (Gate(), Locked(initialState: false), Locked(initialState: [String]()))
+        service.actionStarts = {
+            started.withLock { $0 = true }
+            await gate.wait()
+        }
+        service.commandTestAI = { (command: CustomCommand, _: String) async throws -> String in
+            asked.withLock { $0.append(command.prompt ?? "") }
+            return "an answer"
+        }
+        let run = Task {
+            await service.perform(SettingsAction(field: "commands.custom", name: "test", item: "polite",
+                                                 value: .object(["sample": .string("hi"), "confirmed": .bool(true)])))
+        }
+        for _ in 0..<500 where !started.withLock({ $0 }) { try await Task.sleep(nanoseconds: 10_000_000) }
+        try #require(started.withLock { $0 } && item(service)?.running == true)
+
+        if change == "save" {
+            try await service.perform(SettingsAction(field: "commands.custom", name: "save", item: "polite",
+                                                     value: definition("Be very polite"))).get()
+        } else {
+            try await service.perform(SettingsAction(field: "commands.custom", name: "delete", item: "polite")).get()
+            try await service.perform(SettingsAction(field: "commands.custom", name: "save", value: definition("Be brief"))).get()
+        }
+        gate.open()
+        let result = await run.value
+        guard case let .failure(problem) = result else { Issue.record("the run went on: \(result)"); return }
+        #expect(problem.code == .cancelled)
+        // What the stopped run would still do, given the time.
+        try await Task.sleep(nanoseconds: 300_000_000)
+        #expect(asked.withLock { $0 }.isEmpty)
+        #expect(item(service)?.detail?.contains("an answer") != true)
+    }
+
+    /// A Test run is the command as it was when it was asked for: changed in config.json by something else meanwhile (a
+    /// sync, an editor), which stops nothing, the run asks the AI with the instruction it had, and what it finds isn't
+    /// shown on the command as it is now (answered `cancelled`).
+    @Test func aRunIsTheCommandAsItWasWhenAskedFor() async throws {
+        let (service, file) = try fixture()
+        defer { try? FileManager.default.removeItem(at: file.deletingLastPathComponent()) }
+        try await service.perform(SettingsAction(field: "commands.custom", name: "save", value: definition("Be polite"))).get()
+        let (gate, started, asked) = (Gate(), Locked(initialState: false), Locked(initialState: [String]()))
+        service.actionStarts = {
+            started.withLock { $0 = true }
+            await gate.wait()
+        }
+        service.commandTestAI = { (command: CustomCommand, _: String) async throws -> String in
+            asked.withLock { $0.append(command.prompt ?? "") }
+            return "an answer"
+        }
+        let run = Task {
+            await service.perform(SettingsAction(field: "commands.custom", name: "test", item: "polite",
+                                                 value: .object(["sample": .string("hi"), "confirmed": .bool(true)])))
+        }
+        for _ in 0..<500 where !started.withLock({ $0 }) { try await Task.sleep(nanoseconds: 10_000_000) }
+        try #require(started.withLock { $0 })
+
+        let edited = try String(contentsOf: file, encoding: .utf8).replacingOccurrences(of: "Be polite", with: "Be rude")
+        try #require(edited.contains("Be rude"))
+        try Data(edited.utf8).write(to: file)
+        try FileManager.default.setAttributes([.modificationDate: Date().addingTimeInterval(5)], ofItemAtPath: file.path)
+        service.checkForChanges()
+        try #require(item(service)?.running == true)
+
+        gate.open()
+        let result = await run.value
+        #expect(asked.withLock { $0 } == ["Be polite"])
+        guard case let .failure(problem) = result else { Issue.record("shown on the command as it is now: \(result)"); return }
+        #expect(problem.code == .cancelled)
+        #expect(item(service)?.detail?.contains("an answer") != true)
+    }
+
+    /// `CommandTrial.run` stopped before it starts runs nothing: no snippet filled, no AI asked, no program.
+    @Test(arguments: [CustomCommand(name: "sig", type: .snippet, text: "Best, {input}"),
+                      CustomCommand(name: "polite", type: .prompt, prompt: "Be polite"),
+                      CustomCommand(name: "upper", type: .run, argv: ["/usr/bin/touch", "{input}"])])
+    func aTrialStoppedBeforeItStartsRunsNothing(_ command: CustomCommand) async throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("command-trial-\(UUID())", isDirectory: true)
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        let touched = dir.appendingPathComponent("ran").path
+        let asked = Locked(initialState: false)
+        let trial = Task { () -> Error? in
+            withUnsafeCurrentTask { $0?.cancel() }
+            do {
+                _ = try await CommandTrial.run(command, sample: command.type == .run ? touched : "Ann") { _, _ in
+                    asked.withLock { $0 = true }
+                    return "an answer"
+                }
+                return nil
+            } catch {
+                return error
+            }
+        }
+        let error = await trial.value
+        #expect(error is CancellationError, "\(String(describing: error))")
+        #expect(!asked.withLock { $0 } && !FileManager.default.fileExists(atPath: touched))
+    }
 }
