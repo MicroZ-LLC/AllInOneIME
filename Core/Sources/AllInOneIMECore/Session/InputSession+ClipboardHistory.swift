@@ -41,12 +41,14 @@ struct ClipboardHistoryField {
     /// by (`ClipboardFilter.key`), worked out on the first key that filters. A longer history's (not
     /// `ClipboardFilter.filtersAtOnce`) off the session's thread from when the panel opens (`index`), the rows each
     /// filter keeps found there too: the filter `rows` were found by (`found`) is the one before until they are in, and
-    /// ⏎ or Tab pressed meanwhile puts in the first of them once they are (`putOnFound`).
+    /// ⏎ or Tab pressed meanwhile puts in the first of them once they are (`putOnFound`), the keys that type typed after
+    /// it held until then (`held`, with what the field said with each), to follow it in the order typed.
     var filter = ""
     var keys: [ClipboardFilter.Key?]?
     var index: ClipboardFilter.Index?
     var found = ""
     var putOnFound = false
+    var held: [(event: KeyEvent, context: FieldContext)] = []
     /// The panel shows the rows; a command's text takes the row (else it goes into the field); the first showing on
     /// this device (its footer says where the history is kept); ⌃V can go to the app for the image row, as the shell
     /// said when the panel opened (asked again on ⏎).
@@ -79,9 +81,25 @@ extension InputSession {
         return composesBesidesCodeWord ? nil : false
     }
 
-    /// Before suggestions' rows and the composer have `event`: ⌃V opens the panel (the clipboard read first, once the key
-    /// is done: `SessionOutput.readClipboard`), and while it shows, its keys (`clipboardKey`). Nil: the key goes on.
-    func clipboardBeforeKey(_ event: KeyEvent) -> Bool? {
+    /// Before suggestions' rows and the composer have `event` (with `context`, what the field said with it): ⌃V opens the
+    /// panel (the clipboard read first, once the key is done: `SessionOutput.readClipboard`), and while it shows, its keys
+    /// (`clipboardKey`). Nil: the key goes on.
+    ///
+    /// ⏎ or Tab pressed while a longer history's rows for the filter are on their way (`putOnFound`) puts the first of
+    /// them in before any key typed after it, whatever that key is: never a filter's key then. One that types (it has
+    /// text: `KeyEvent.printableText`) is held, and follows once they are in (`clipboardFound`); any other the session
+    /// can't hand on to the app later (⏎ there, ⌫, an arrow, ⌘S): their rows are waited for now, and the key goes on as
+    /// it would after them (`clipboardFoundNow`).
+    func clipboardBeforeKey(_ event: KeyEvent, _ context: FieldContext) -> Bool? {
+        if clipboard.putOnFound {
+            if event.printableText != nil {
+                clipboardTookKey()
+                emit(.rowsTookKey)
+                clipboard.held.append((event, context))
+                return true
+            }
+            clipboardFoundNow()
+        }
         if clipboard.shown { return clipboardKey(event) }
         if clipboard.reading != nil {
             // A key before the clipboard was read: the panel isn't shown for it; ⌃V again is as ⌃V again.
@@ -175,13 +193,12 @@ extension InputSession {
     /// row chosen when it started, with more rows than a page ← → turn it (`ListPage`; a selection ends), typing filters the
     /// history outside a command, however many rows it has (`clipboardFilterKey`), ⏎ keypad Enter and Tab put in what is
     /// selected (nothing where the filter keeps no row; a longer history's rows for the filter not in yet, the first of
-    /// them once they are: `clipboardFound`), Esc (and → on one page) hide the panel, ⌃V again hides it and
-    /// pastes as the app does (0.6.8.2: outside a command the app's own paste key where it can be posted,
-    /// `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's: false; in a command
-    /// the composer's: nil), ⌃⌦ with pinyin composed only hides it. Any other key hides it and goes on (nil): digits are
-    /// typed (or filter), never pick.
+    /// them once they are, before any key after it: `clipboardFound`, `clipboardBeforeKey`), Esc (and → on one page) hide
+    /// the panel, ⌃V again hides it and pastes as the app does (0.6.8.2: outside a command the app's own paste key where
+    /// it can be posted, `PlatformAction.passPasteKey`, ⌘V in an app and ⌃V in a terminal; else ⌃V as it is, the app's:
+    /// false; in a command the composer's: nil), ⌃⌦ with pinyin composed only hides it. Any other key hides it and goes
+    /// on (nil): digits are typed (or filter), never pick.
     func clipboardKey(_ event: KeyEvent) -> Bool? {
-        clipboard.putOnFound = false  // ⏎ or Tab before: any key after it is what counts
         if isPasteAnywhere(event) {
             clipboardTookKey()
             let command = clipboard.command
@@ -306,13 +323,42 @@ extension InputSession {
     /// The rows `filter` keeps in a longer history, found off the session's thread (`clipboardFiltered`; by their place
     /// in `all`): shown, unless the panel is gone or another filter is typed by now (its rows on their way). ⏎ or Tab
     /// pressed while they were on their way (`putOnFound`): the first of them goes in, as a click puts it in; none, the
-    /// panel stays.
+    /// panel stays. Then the keys held after it (`clipboardHandOn`).
     func clipboardFound(_ found: [Int], filter: String) {
         guard clipboard.shown, filter == clipboard.filter else { return }
-        let put = clipboard.putOnFound
+        let (put, held) = (clipboard.putOnFound, clipboard.held)
+        clipboard.held = []
         clipboardKeeps(found.compactMap { clipboard.all.indices.contains($0) ? clipboard.all[$0] : nil }, filter)
-        if put, !clipboard.rows.isEmpty { return clipboardPut(clipboardSelection(), key: nil) }
-        emit(.panel(clipboardPanel()))
+        if put, !clipboard.rows.isEmpty {
+            clipboardPut(clipboardSelection(), key: nil)
+        } else {
+            emit(.panel(clipboardPanel()))
+        }
+        clipboardHandOn(held)
+    }
+
+    /// The rows ⏎ or Tab waits for (`putOnFound`), waited for now, on the session's thread: a key came that can't be held
+    /// for them (`clipboardBeforeKey`). No longer than they'd have taken to come (`ClipboardFilter.Index.rowsNow`); they
+    /// are as `clipboardFound` has them.
+    private func clipboardFoundNow() {
+        tasks.cancel(.clipboardFilter)  // the same rows, which would come after
+        let filter = clipboard.filter
+        // An index always: a short history's rows are in on the key (`clipboardFiltered`), never waited for.
+        clipboardFound(clipboard.index?.rowsNow(filter) ?? [], filter: filter)
+    }
+
+    /// The keys that type held while ⏎ or Tab waited for its rows (`ClipboardHistoryField.held`), now that it is done, in
+    /// the order typed, each as if typed now (`keyHandedOn`): what the session takes of them as it would then (pinyin, a
+    /// command, the panel's keys where it stays), and the text of each it leaves to the app put in as the app types it.
+    /// What the field said with each of its text is gone with what went in: only what it said of the field itself.
+    private func clipboardHandOn(_ held: [(event: KeyEvent, context: FieldContext)]) {
+        guard !held.isEmpty else { return }
+        log.notice("clipboard history: \(held.count) keys typed after ⏎ handed on")
+        for (event, context) in held {
+            let told = FieldContext(read: context.read.intersection([.secure, .passwordField]), field: context.field,
+                                    secure: context.secure, passwordFieldUnknown: context.passwordFieldUnknown)
+            if !keyHandedOn(event, told), let text = event.printableText { emit(.commit(text)) }
+        }
     }
 
     /// `rows` shown, those `filter` keeps: the first chosen, a selection ended.

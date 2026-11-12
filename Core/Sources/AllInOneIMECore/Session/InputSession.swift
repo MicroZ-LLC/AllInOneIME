@@ -941,6 +941,16 @@ public final class InputSession {
         return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice() ? [.secure, .text] : [.secure]
     }
 
+    /// A key held back and handed on late, as if typed now (clipboard history's, typed while ⏎ waited for its rows:
+    /// `clipboardHandOn`): whether the session took it. It is never the key being answered (that is an answer of the
+    /// session's work, or another key), so what it says of that key (`rowByKey`, `rowsTookKey`) is dropped.
+    func keyHandedOn(_ event: KeyEvent, _ context: FieldContext) -> Bool {
+        let start = outputs.count
+        let taken = key(event, context)
+        outputs.replaceSubrange(start..., with: outputs[start...].filter { $0 != .rowByKey && $0 != .rowsTookKey })
+        return taken
+    }
+
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
         takePasswordField(context)
@@ -993,7 +1003,7 @@ public final class InputSession {
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
         // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
-        if let taken = clipboardBeforeKey(event) { return taken }
+        if let taken = clipboardBeforeKey(event, context) { return taken }
         // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()

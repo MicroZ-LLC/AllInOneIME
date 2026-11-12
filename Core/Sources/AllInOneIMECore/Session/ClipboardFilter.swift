@@ -76,6 +76,21 @@ enum ClipboardFilter {
             }
             return found
         }
+
+        /// The rows `filter` keeps (`rows`), waited for on the calling thread: by a key that can't wait for them in the
+        /// session's place (typed after ⏎ while they are on their way: `InputSession.clipboardBeforeKey`). Worked out
+        /// off it as ever, so no longer than they'd have taken to come; the keys most likely by now, from when the panel
+        /// opened.
+        func rowsNow(_ filter: String) -> [Int] {
+            let found = Locked<[Int]>(initialState: []), done = DispatchSemaphore(value: 0)
+            Task.detached(priority: .userInitiated) {
+                let rows = await self.rows(filter) ?? []
+                found.withLock { $0 = rows }
+                done.signal()
+            }
+            done.wait()
+            return found.withLock { $0 }
+        }
     }
 
     /// What `row` is found by, its words in `language` (an image's); nil: never found.

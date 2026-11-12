@@ -180,8 +180,8 @@ struct ClipboardHistoryFilterTests {
 
     /// A longer history (`aLongerHistoryIsFilteredOffTheKey`), its rows for what is typed not in yet: ⏎ or Tab is taken and
     /// puts in nothing then, never a row shown for what was typed before, and the first of the rows found goes in once
-    /// they're in (none: the panel stays, "no match"); a key after it (more typed) leaves that to the rows of what is
-    /// typed by then, nothing put in; a click on a row shown meanwhile puts nothing in.
+    /// they're in (none: the panel stays, "no match"); what is typed after it follows that row, never the filter's
+    /// (`keysTypedAfterALongerHistorysEnterFollowItsRow`); a click on a row shown meanwhile puts nothing in.
     @Test func aLongerHistorysEnterPutsInARowOfWhatIsTypedOnly() async throws {
         try await withInterfaceLanguage("en") {
             let long = String(repeating: "长文本 long text ", count: 800)
@@ -208,9 +208,9 @@ struct ClipboardHistoryFilterTests {
             typedOn.type("memo")
             #expect(typedOn.press(FakeHost.enter))
             typedOn.type(" 1")
-            #expect(typedOn.settle { typedOn.panel?.detail == "Clipboard · 1 match" })
+            #expect(typedOn.settle { !typedOn.document.isEmpty })
             typedOn.settle(timeout: 0.2) { false }
-            #expect(typedOn.document.isEmpty && typedOn.panel?.rows.map(\.text) == ["memo 1"])
+            #expect(typedOn.document == "memo 1 1" && typedOn.panel == nil, "\(typedOn.document)")
 
             let clicked = host(texts)
             clicked.type("memo")
@@ -220,6 +220,69 @@ struct ClipboardHistoryFilterTests {
             #expect(clicked.document.isEmpty)
             clicked.send(.pick(0))
             #expect(clicked.document == "memo 1" && clicked.panel == nil)
+        }
+    }
+
+    /// A longer history, ⏎ or Tab pressed before its rows for what is typed are in, then more typed at once ("memo", ⏎,
+    /// " 1"): the keys are taken, never the filter's, and follow the row once it goes in, in the order typed (the app's
+    /// text as the app types it, pinyin composed with Chinese input). A key without text after it (⌫, ⏎ again) waits for
+    /// the rows there and then goes on to the app, after the row and what was typed before it. Rows found for none: the
+    /// panel stays, and the keys after ⏎ are its keys then (they filter).
+    @Test func keysTypedAfterALongerHistorysEnterFollowItsRow() async throws {
+        try await withInterfaceLanguage("en") {
+            let long = String(repeating: "长文本 long text ", count: 800)
+            let texts = ["你好世界", long, "memo 1", "nihao"]
+            for key in [FakeHost.enter, FakeHost.tab] {
+                let h = host(texts)
+                h.type("memo")
+                #expect(h.press(key))
+                let before = h.outputs.count
+                for character in " 1" { #expect(h.press(KeyEvent(keyCode: 0, characters: String(character)))) }
+                #expect(h.outputs[before...].filter { $0 == .rowsTookKey }.count == 2)
+                #expect(h.document.isEmpty && h.panel?.input?.text == "memo", "\(h.document)")
+                let answered = h.outputs.count
+                #expect(h.settle { !h.document.isEmpty })
+                #expect(h.document == "memo 1 1" && h.panel == nil, "\(h.document)")
+                // Handed on with no key being answered: none says the rows took one.
+                #expect(!h.outputs[answered...].contains(.rowsTookKey) && !h.outputs[answered...].contains(.rowByKey))
+            }
+
+            // ⌫ after: the row and " 1" in first, then ⌫ to the app (the fake app types text only).
+            let erased = host(texts)
+            erased.type("memo")
+            #expect(erased.press(FakeHost.enter))
+            erased.type(" 1")
+            #expect(!erased.press(backspace))
+            #expect(erased.document == "memo 1 1" && erased.panel == nil, "\(erased.document)")
+            // ⏎ right after ⏎: the row in, then ⏎ to the app (a chat app sends it).
+            let sent = host(texts)
+            sent.type("memo")
+            #expect(sent.press(FakeHost.enter))
+            #expect(!sent.press(FakeHost.enter))
+            #expect(sent.document == "memo 1" && sent.panel == nil, "\(sent.document)")
+            sent.settle(timeout: 0.2) { false }
+            #expect(sent.document == "memo 1")
+
+            // Chinese input: the letters after ⏎ are pinyin after the row.
+            let chinese = host(texts, chinese: true)
+            chinese.composer.setInputMode(.chinese)  // the field's own starting language took over at its focus
+            chinese.type("memo")
+            #expect(chinese.press(FakeHost.enter))
+            chinese.type("ni")
+            #expect(chinese.document.isEmpty && !chinese.composer.engineState.isComposing)
+            #expect(chinese.settle { !chinese.document.isEmpty })
+            #expect(chinese.document == "memo 1" && chinese.composer.engineState.isComposing && chinese.marked == "ni",
+                    "\(chinese.document) \(chinese.marked)")
+
+            // No row for the filter: nothing goes in, the panel stays, and what was typed after ⏎ filters.
+            let none = host(texts)
+            none.type("zzz")
+            #expect(none.press(FakeHost.enter))
+            none.type("y")
+            #expect(none.panel?.input?.text == "zzz")
+            #expect(none.settle { none.panel?.input?.text == "zzzy" })
+            #expect(none.settle { none.panel?.detail == "Clipboard · no match" })
+            #expect(none.document.isEmpty)
         }
     }
 
