@@ -1,15 +1,15 @@
 {
-  "build" : "27",
-  "generated" : "2026-11-09T04:26:21Z",
+  "build" : "31",
+  "generated" : "2026-11-12T08:52:13Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.2.1",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.3",
   "schema" : 1,
-  "sha256" : "8f269ca6376d5bde352541b655b5f8b4084792348b8824fabcf2f6b2397daef5",
-  "size" : 30637276,
+  "sha256" : "3f50bb45341809c2b174b091e0c751a370f7191784d5720942fd9c0245077b99",
+  "size" : 36084724,
   "summary" : {
-    "en" : "AllInOneIME's own system identity, now without a logout. Your settings and keys come with you; afterwards add AllInOneIME once in System Settings → Keyboard → Input Sources (under English) and allow Accessibility again.",
-    "zh" : "AllInOneIME 换上了自己的系统身份，现在不用注销。设置和密钥都会带过来；更新后请在 系统设置 → 键盘 → 输入法（英语下面）添加一次 AllInOneIME，并重新允许辅助功能。"
+    "en" : "This Week: how much you used AllInOneIME this week, kept only on this Mac. Shuangpin and Zhuyin, @question that keeps the conversation going (⏎ asks, ⇧⏎ inserts) and knows AllInOneIME's settings, clipboard history you can filter by typing, ← → pages in long lists, clearer panels, and icons and a test run for your own commands.",
+    "zh" : "本周统计：看这周用了多少 AllInOneIME，只存在这台 Mac 上。支持双拼和注音；@question 可以接着问（⏎ 追问，⇧⏎ 上屏），也懂 AllInOneIME 的设置；剪贴板历史打字就能筛选；长列表用 ← → 翻页；面板更清楚；自己的命令可以选图标、试运行。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.2.1/AllInOneIME-0.7.2.1-update.zip",
-  "version" : "0.7.2.1"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.3/AllInOneIME-0.7.3-update.zip",
+  "version" : "0.7.3"
 }
