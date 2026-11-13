@@ -11,7 +11,6 @@
 ### 变更
 
 - 设置 →「AI」是所有 AI 功能共用的一个选择。收起时显示选中的那个：图标、名字和现在的状态（已登录、没装、没填 Key、Bedrock 的 profile · 区域、可用……）、「更换 ▾」，下面是它自己的设置（key、模型、AWS Profile、区域、Base URL、「测试连接」；CLI 的是它的会话、「重新开始」和在终端里接着聊的 ⌘⏎）。「更换 ▾」把各家按连接方式列成卡片：用你的订阅（Claude Code、Codex、Antigravity、Kiro CLI）、用 API Key（Claude API、OpenAI 兼容、Gemini API）、云服务（Amazon Bedrock、AllInOneIME 云）和本机（Apple 本机）；选中的那个有框，点一个就选它，「取消」什么都不改。图标都是单色的，跟着浅色、深色模式用文字的颜色。选了 CLI，`@question` 就在输入法自己的这个 CLI 会话里回答（见「新增」）；CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、自定义的 AI 命令、续写）用之前设置好的 AI 服务（填了 key、有 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；两个都没有时续写关闭，其余的交给会话，会慢一些，每个请求都是单独的一个对话，没有网页工具（排在正在回答的问题后面等多久都不会进 `@question` 的对话）。CLI 下面有一行写着用的是哪个。会话回答不了的问题交给这个更快的 AI（没有的话问题失败，写着原因）。配置文件照样能用：`questionBackend` 是选的 CLI（只属于这台 Mac，不同步），`provider` 是 AI 服务，不管选哪个，各家的设置和 key 都保留；没有 `questionBackend` 的配置还是用它的 AI 服务，和以前发布的版本一样。这个版本早先的测试版里的 Gemini CLI 换成了 Antigravity：Gemini CLI 不再支持个人 Google 账号（Google 让个人用户改用 Antigravity）；选了 Gemini CLI 会话的配置，装了 `agy` 时改用 Antigravity 的会话，没装时用它的 AI 服务，别的都不变。`@agent` 照样可以交给 Gemini CLI。设置的搜索用每家的名字都能找到这个选择（「kiro」「bedrock」「订阅」），并打开卡片。选了 CLI 时，`@doctor` 写出它和那个更快的 AI，不把没设置好的 AI 服务算作问题。
-- AllInOneIME 又登记为简体中文输入法了：在 系统设置 → 键盘 → 输入法 → + 里的「简体中文」下面（不再在「英语」下面），这样 macOS 的「使用大写锁定键切换“ABC”输入法」（输入法「编辑…」里）就能切到它：短按大写锁定键在 ABC（或 U.S.）和 AllInOneIME 之间切换，长按照旧是大写锁定，和 macOS 自带的中文输入法一样。以前大写锁定键切不到它。装上更新后原地生效：它还在你的输入法列表里，不用重新添加。英文照样能打；在设置 →「输入」里加上中文，就能打中文。
 
 ### 修复
 

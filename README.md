@@ -1302,11 +1302,9 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
 
 Then add it to your input sources once yourself (macOS lets only you add an input method; the installer shows this step,
 with a button that opens Keyboard settings): System Settings → Keyboard → Text Input → Input Sources → Edit… → +
-(bottom left) → Chinese, Simplified → AllInOneIME (it types English just as well, and Chinese once you add it in
-Settings → Input). After that, switch to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to
-"Change Input Source" in System Settings → Keyboard), or with Caps Lock if "Use the Caps Lock key to switch to and from
-ABC" is on under Input Sources → Edit… (a short press switches, a long press turns capitals on, as macOS does with its
-own Chinese input). An update, or installing again, keeps it in your input sources.
+(bottom left) → English → AllInOneIME (it types pinyin too once you add Chinese in Settings → Input). After that, switch
+to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings →
+Keyboard). An update, or installing again, keeps it in your input sources.
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
@@ -1333,9 +1331,9 @@ Updating from 0.7.1 or earlier: since 0.7.2, AllInOneIME has its own system iden
 0.7.1 moves to it and carries your settings and saved API keys over, whether it updates itself (Settings → About → Update)
 or the installer asks it to. An earlier version can't: update it to 0.7.1 first, or install anyway and enter your API keys
 again. Either way, macOS lets only you add the new input method, and AllInOneIME can't type until you have: it opens
-Settings → About with that step first (System Settings → Keyboard → Input Sources → + → Chinese, Simplified →
-AllInOneIME). The earlier input source no longer works; its entry is taken out once you have. macOS also asks again
-for the permissions you gave AllInOneIME, and AllInOneIME tells you which once.
+Settings → About with that step first (System Settings → Keyboard → Input Sources → + → English → AllInOneIME). The
+earlier input source no longer works; its entry is taken out once you have. macOS also asks again for the permissions
+you gave AllInOneIME, and AllInOneIME tells you which once.
 
 To uninstall, open "Install AllInOneIME" and click Uninstall…. Settings and learned words are kept.
 
@@ -1683,7 +1681,7 @@ asks to allow it) and deletes the handover item; and what 0.7.1's cleanup couldn
 identifiers listed there, never anything of this identity's (`Sources/AllInOneIMEMac/IdentityHandover.swift`,
 `IdentityFinish.swift`). macOS lets only the user add a new input method (0.7.1 never asks to enable it): while this
 one's input source isn't enabled, nothing of AllInOneIME types, and the About page shows that step first (System Settings →
-Keyboard → Input Sources → + → Chinese, Simplified → AllInOneIME, with a button to Keyboard settings;
+Keyboard → Input Sources → + → English → AllInOneIME, with a button to Keyboard settings;
 `Sources/AllInOneIME/InputSourceStep.swift`), looked at again when the app becomes active and when a text field activates
 it; right after the move the input method opens About on it at once, before any other page. The earlier input source in
 the record can't be used any more: its entry is taken out only once this one is enabled.
