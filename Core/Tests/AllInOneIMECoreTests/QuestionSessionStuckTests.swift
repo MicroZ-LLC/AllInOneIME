@@ -196,13 +196,13 @@ struct QuestionSessionStuckTests {
     @Test func aFollowUpInTerminalComesAfterWhatMakesItTheMessage() {
         let id = "8d6a1f6e-0d2c-4c4e-9a43-0c1a2b3c4d5e"
         let claude = ClaudeCodeBackend()
-        #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true)
+        #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true, followUp: true)
             == ["/u/claude", "--resume", id, "--"])
         #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true, followUp: false)
             == ["/u/claude", "--resume", id])
-        #expect(ACPBackend.kiro.terminalArguments(program: "/u/kiro-cli", sessionID: id, agentSessionID: "sess_1", resume: true)
+        #expect(ACPBackend.kiro.terminalArguments(program: "/u/kiro-cli", sessionID: id, agentSessionID: "sess_1", resume: true, followUp: true)
             == ["/u/kiro-cli", "chat", "--resume-id", "sess_1", "--"])
-        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: id, agentSessionID: "4f1c", resume: true)
+        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: id, agentSessionID: "4f1c", resume: true, followUp: true)
             == ["/u/agy", "--conversation", "4f1c", "-i"])
     }
 

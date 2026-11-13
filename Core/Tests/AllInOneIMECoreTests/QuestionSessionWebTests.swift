@@ -53,7 +53,7 @@ struct QuestionSessionWebTests {
         #expect(codex.effective(typed) == .only([]) && codex.effective(.open) == .open)
         let off = codex.arguments(sessionID: "x", resume: false, settings: nil, web: .only([]))
         #expect(off.contains("web_search=\"disabled\"") && !off.contains("web_search=\"live\""))
-        #expect(codex.arguments(sessionID: "x", resume: false, settings: nil).contains("web_search=\"live\""))
+        #expect(codex.arguments(sessionID: "x", resume: false, settings: nil, web: .open).contains("web_search=\"live\""))
         #expect(off.contains("features.shell_tool=false") && off.contains("agents.enabled=false"))
 
         // Antigravity: its agent without tools (`allinoneime-offline`), decided by the conversation's web.
@@ -64,7 +64,7 @@ struct QuestionSessionWebTests {
         #expect(offlineAgent == AntigravityBackend.offlineAgentName)
         let offline = try #require(antigravity.files.first { $0.path == ".agents/agents/allinoneime-offline.md" }?.content)
         #expect(offline.contains("tools: []") && !offline.contains("search_web"))
-        #expect(antigravity.arguments(sessionID: "x", resume: false, settings: nil).drop { $0 != "--agent" }.dropFirst().first
+        #expect(antigravity.arguments(sessionID: "x", resume: false, settings: nil, web: .open).drop { $0 != "--agent" }.dropFirst().first
             == AntigravityBackend.agentName)
 
         let kiro = ACPBackend.kiro

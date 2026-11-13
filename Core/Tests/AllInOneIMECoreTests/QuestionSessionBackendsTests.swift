@@ -84,7 +84,7 @@ struct QuestionSessionBackendsTests {
         let session = codex(fake)
         let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
-        #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil)
+        #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil, web: .open)
             && process.directory == folder.appendingPathComponent("codex-session"))
         // No "jsonrpc": the app server's lines don't have it.
         #expect(process.lines.first?["jsonrpc"] == nil && process.lines.first?["method"] as? String == "initialize")
@@ -239,7 +239,7 @@ struct QuestionSessionBackendsTests {
     @Test func codexStartsWithoutAnEnvironmentAppsOrOtherAgents() {
         let backend = CodexBackend(base: folder)
         // Each with -c: a setting this Codex doesn't know is left aside (--disable would stop the server).
-        #expect(backend.arguments(sessionID: "x", resume: true, settings: nil) == [
+        #expect(backend.arguments(sessionID: "x", resume: true, settings: nil, web: .open) == [
             "app-server",
             "-c", "features.shell_tool=false", "-c", "features.view_image=false", "-c", "features.apps=false",
             "-c", "features.plugins=false", "-c", "features.tool_suggest=false", "-c", "features.multi_agent=false",
@@ -248,7 +248,7 @@ struct QuestionSessionBackendsTests {
             "-c", "tools.experimental_request_user_input.enabled=false", "-c", "skills.include_instructions=false",
             "-c", "include_permissions_instructions=false", "-c", "web_search=\"live\"",
         ])
-        #expect(backend.arguments(sessionID: "x", resume: false, settings: nil) == backend.arguments(sessionID: "x", resume: true, settings: nil))
+        #expect(backend.arguments(sessionID: "x", resume: false, settings: nil, web: .open) == backend.arguments(sessionID: "x", resume: true, settings: nil, web: .open))
         // No environment for commands and files: no shell, no apply_patch, no view_image, no MCP server on this Mac.
         #expect(backend.environment == ["CODEX_EXEC_SERVER_URL": "none"])
         // The sign-in check and Codex in Terminal (the hand-off: the user's own Codex) as they were.
@@ -256,7 +256,7 @@ struct QuestionSessionBackendsTests {
         #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true, followUp: false)
             == ["/u/codex", "resume", "019a"])
         // A follow-up after "--": one starting with "-" is no option.
-        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true)
+        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true, followUp: true)
             == ["/u/codex", "resume", "019a", "--"])
     }
 

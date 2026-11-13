@@ -414,7 +414,7 @@ struct AntigravitySessionTests {
         // `agy --conversation <the ACP session's id>` in the folder (checked: it resumes it); a follow-up as -i's value.
         let (arguments, directory, _) = try session.handOff(program: "/u/agy")
         #expect(arguments == ["/u/agy", "--conversation", "d50c263c-uuid"] && directory == folder && process.terminated)
-        #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "c1", resume: true)
+        #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "c1", resume: true, followUp: true)
             == ["/u/agy", "--conversation", "c1", "-i"])
         #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: nil, resume: false, followUp: false)
             == ["/u/agy"])

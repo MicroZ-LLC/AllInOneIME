@@ -51,25 +51,10 @@ public protocol SessionBackend: Sendable {
 }
 
 extension SessionBackend {
-    /// The arguments with the web tools as they are.
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
-        arguments(sessionID: sessionID, resume: resume, settings: settings, web: .open)
-    }
-
-    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
-        driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: .open)
-    }
-
     /// No address can be kept to: any `only` is no web.
     public func effective(_ web: SessionWeb) -> SessionWeb? {
         if case .only = web { return .only([]) }
         return .open
-    }
-
-    /// What Terminal runs to go on in the session with a follow-up (`terminalArguments(…followUp: true)`): the
-    /// follow-up is appended as the last argument.
-    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
-        terminalArguments(program: program, sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, followUp: true)
     }
 
     public var environment: [String: String] { [:] }
