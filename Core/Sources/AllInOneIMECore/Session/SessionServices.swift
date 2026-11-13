@@ -127,6 +127,9 @@ public struct SessionServices {
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void
     /// An `@question` conversation going on in a coding agent (`ChatHandoff`): its arguments with the conversation.
     public var continueInAgent: (_ arguments: [String], _ prompt: String) throws -> Void
+    /// Opens the input method's Claude session in a terminal (`ClaudeSessionManager.handOff`), the next question typed
+    /// (maybe empty) as its first message.
+    public var continueClaudeSession: (_ followUp: String) throws -> Void
     /// Whether an agent is installed (a custom one by its command), for the `@question` hand-off's choices.
     public var agentInstalled: (AgentKind, _ custom: [String]) -> Bool
     /// A custom `terminal` command: runs its arguments in a terminal window.
@@ -268,6 +271,7 @@ public struct SessionServices {
         searchFileNames = { _, _ in [] }
         runInTerminal = { _, _ in throw SessionServicesError.unsupported }
         continueInAgent = { _, _ in throw SessionServicesError.unsupported }
+        continueClaudeSession = { _ in throw SessionServicesError.unsupported }
         agentInstalled = { _, _ in false }
         launchInTerminal = { _ in throw SessionServicesError.unsupported }
         programInstalled = { _ in false }

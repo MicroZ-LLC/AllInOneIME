@@ -1650,6 +1650,53 @@
         }
       }
     },
+    "; the AI provider answered this time" : {
+      "comment" : "，这次由 AI 服务回答 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; diesmal hat der KI-Anbieter geantwortet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; esta vez respondió el proveedor de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " ; le fournisseur d’IA a répondu cette fois"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "。今回は AIプロバイダが回答しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; 이번에는 AI 서비스가 답했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "; desta vez o provedor de IA respondeu"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，這次由 AI 服務回答"
+          }
+        }
+      }
+    },
     "; the last refresh failed: " : {
       "comment" : "；上次刷新失败： — Sources/AllInOneIMECore/AWSCredentialResolver.swift",
       "localizations" : {
@@ -12676,6 +12723,105 @@
         }
       }
     },
+    "Automatic: @agent's agent's session, or another one installed and signed in" : {
+      "comment" : "自动：@agent 的 agent 的会话，或另一个装了并已登录的会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch: die Sitzung des Agenten von @agent oder eine andere installierte und angemeldete"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático: la sesión del agente de @agent u otra instalada y con sesión iniciada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatique : la session de l’agent d’@agent, ou une autre installée et connectée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：@agent のエージェントのセッション、またはインストール済みでサインイン済みの別のセッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동: @agent 에이전트의 세션, 또는 설치되어 로그인된 다른 세션"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático: a sessão do agente do @agent, ou outra instalada e conectada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：@agent 的 agent 的工作階段，或另一個已安裝並已登入的工作階段"
+          }
+        }
+      }
+    },
+    "Automatic: the Claude session when claude is installed and signed in" : {
+      "comment" : "自动：装了 claude 并已登录就用 Claude 会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatisch: die Claude-Sitzung, wenn claude installiert und angemeldet ist"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático: la sesión de Claude cuando claude está instalado y con sesión iniciada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automatique : la session Claude quand claude est installé et connecté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：claude がインストール済みでサインインしていれば Claude セッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자동: claude가 설치되어 있고 로그인되어 있으면 Claude 세션"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automático: a sessão do Claude quando o claude está instalado e conectado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動：裝了 claude 並已登入就用 Claude 工作階段"
+          }
+        }
+      }
+    },
+    "Automatic: the Kiro session when kiro-cli is installed and signed in" : {
+      "comment" : "自动：装了 kiro-cli 并已登录就用 Kiro 会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale"
+    },
     "AWS credentials: the last refresh failed" : {
       "comment" : "AWS 凭证上次刷新失败 — Sources/AllInOneIMECore/Doctor.swift",
       "localizations" : {
@@ -15791,6 +15937,100 @@
         }
       }
     },
+    "Claude Code (this session)" : {
+      "comment" : "Claude Code（接着这个会话） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code (diese Sitzung)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code (esta sesión)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code (cette session)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code（このセッション）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code (이 세션)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code (esta sessão)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code（這個工作階段）"
+          }
+        }
+      }
+    },
+    "Claude Code isn't signed in: run claude in Terminal and /login" : {
+      "comment" : "Claude Code 没有登录：在终端运行 claude 并 /login — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code ist nicht angemeldet: claude im Terminal ausführen und /login"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code no ha iniciado sesión: ejecuta claude en Terminal y /login"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code n’est pas connecté : lancez claude dans le Terminal et /login"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code にサインインしていません：ターミナルで claude を実行して /login してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code에 로그인되어 있지 않습니다: 터미널에서 claude를 실행하고 /login 하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Claude Code não está conectado: execute claude no Terminal e /login"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 尚未登入：在終端機執行 claude 並 /login"
+          }
+        }
+      }
+    },
     "Claude Code runs in the background and notifies me" : {
       "comment" : "Claude Code 在后台运行，做完通知我 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -15834,6 +16074,149 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Claude Code 在背景執行，完成後通知我"
+          }
+        }
+      }
+    },
+    "Claude Code session" : {
+      "comment" : "Claude Code 会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Code-Sitzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión de Claude Code"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Claude Code"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code セッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 세션"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão do Claude Code"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code 工作階段"
+          }
+        }
+      }
+    },
+    "Claude session (your Claude subscription)" : {
+      "comment" : "Claude 会话（你的 Claude 订阅） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Sitzung (dein Claude-Abo)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión de Claude (tu suscripción a Claude)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Claude (votre abonnement Claude)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッション（Claude サブスクリプション）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션 (Claude 구독)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão do Claude (sua assinatura do Claude)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段（你的 Claude 訂閱）"
+          }
+        }
+      }
+    },
+    "Claude session: the input method's own Claude Code session, on your Claude subscription, which remembers earlier questions. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "Claude 会话：输入法自己的一个 Claude Code 会话，用你的 Claude 订阅，记得以前问过的问题。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Sitzung: die eigene Claude-Code-Sitzung der Eingabemethode, mit deinem Claude-Abo, die sich an frühere Fragen erinnert. Umschreiben, Übersetzen und Autovervollständigung verwenden immer den KI-Anbieter oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión de Claude: la sesión de Claude Code propia del método de entrada, con tu suscripción a Claude, que recuerda las preguntas anteriores. Reescribir, traducir y el autocompletado siempre usan el proveedor de arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Claude : la session Claude Code propre à la méthode de saisie, sur votre abonnement Claude, qui se souvient des questions précédentes. La réécriture, la traduction et la saisie semi-automatique utilisent toujours le fournisseur ci-dessus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッション：入力メソッド専用の Claude Code セッション。Claude サブスクリプションで動き、以前の質問を覚えています。書き直し、翻訳、自動補完は常に上の AIプロバイダを使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션: 입력기 전용 Claude Code 세션으로, Claude 구독을 사용하며 이전 질문을 기억합니다. 다시 쓰기, 번역, 자동 완성은 항상 위의 AI 서비스를 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão do Claude: a sessão do Claude Code própria do método de entrada, na sua assinatura do Claude, que lembra as perguntas anteriores. Reescrever, traduzir e o preenchimento automático sempre usam o provedor acima."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段：輸入法自己的一個 Claude Code 工作階段，使用你的 Claude 訂閱，記得以前問過的問題。改寫、翻譯、自動完成一律使用上面的 AI 服務。"
           }
         }
       }
@@ -17188,6 +17571,53 @@
         }
       }
     },
+    "Continue in Claude Code (the same session)" : {
+      "comment" : "在 Claude Code 里接着聊（同一个会话） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Claude Code fortsetzen (dieselbe Sitzung)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar en Claude Code (la misma sesión)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer dans Claude Code (la même session)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code で続ける（同じセッション）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code에서 이어 가기 (같은 세션)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar no Claude Code (a mesma sessão)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Claude Code 中繼續（同一個工作階段）"
+          }
+        }
+      }
+    },
     "Continue in Claude or another AI" : {
       "comment" : "在 Claude 或别的 AI 里接着聊 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -17231,6 +17661,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 Claude 或其他 AI 中繼續"
+          }
+        }
+      }
+    },
+    "Continue in Kiro CLI (the same session)" : {
+      "comment" : "在 Kiro CLI 里接着聊（同一个会话） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Kiro CLI weiterchatten (dieselbe Sitzung)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seguir en Kiro CLI (la misma sesión)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer dans Kiro CLI (la même session)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI で続ける（同じセッション）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI에서 이어서 대화(같은 세션)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar no Kiro CLI (a mesma sessão)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在 Kiro CLI 裡接著聊（同一個工作階段）"
           }
         }
       }
@@ -25477,6 +25954,155 @@
         }
       }
     },
+    "Kiro CLI (this session)" : {
+      "comment" : "Kiro CLI（接着这个会话） — Sources/AllInOneIMECore/Session/SessionText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI (diese Sitzung)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI (esta sesión)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI (cette session)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI（このセッション）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI(이 세션)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI (esta sessão)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI（接著這個工作階段）"
+          }
+        }
+      }
+    },
+    "Kiro CLI isn't signed in: run kiro-cli login in Terminal" : {
+      "comment" : "Kiro CLI 没有登录：在终端运行 kiro-cli login — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI ist nicht angemeldet: Führe kiro-cli login im Terminal aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI no tiene la sesión iniciada: ejecuta kiro-cli login en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI n’est pas connecté : lancez kiro-cli login dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI にサインインしていません：ターミナルで kiro-cli login を実行してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI에 로그인되어 있지 않습니다: 터미널에서 kiro-cli login을 실행하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O Kiro CLI não está conectado: execute kiro-cli login no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI 沒有登入：在終端機執行 kiro-cli login"
+          }
+        }
+      }
+    },
+    "Kiro CLI session" : {
+      "comment" : "Kiro CLI 会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro-CLI-Sitzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión de Kiro CLI"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Kiro CLI"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI セッション"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI 세션"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão do Kiro CLI"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro CLI 工作階段"
+          }
+        }
+      }
+    },
+    "Kiro session (your Kiro account)" : {
+      "comment" : "Kiro 会话（你的 Kiro 账号） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale"
+    },
+    "Kiro session: the input method's own Kiro CLI session (@agent's agent is Kiro CLI), on your Kiro account, which remembers earlier questions. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "Kiro 会话：输入法自己的一个 Kiro CLI 会话（@agent 选的是 Kiro CLI），用你的 Kiro 账号，记得以前问过的问题。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale"
+    },
     "Korean" : {
       "comment" : "韩 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -33530,6 +34156,100 @@
         }
       }
     },
+    "Opened the input method's Claude session in Terminal" : {
+      "comment" : "已在终端打开输入法的 Claude 会话 — Sources/AllInOneIMECore/Composer+QuestionChat.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude-Sitzung der Eingabemethode im Terminal geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se abrió la sesión de Claude del método de entrada en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Claude de la méthode de saisie ouverte dans le Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッドの Claude セッションをターミナルで開きました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기의 Claude 세션을 터미널에서 열었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude do método de entrada foi aberta no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在終端機開啟輸入法的 Claude 工作階段"
+          }
+        }
+      }
+    },
+    "Opened the input method's Kiro session in Terminal" : {
+      "comment" : "已在终端打开输入法的 Kiro 会话 — Sources/AllInOneIMECore/Composer+QuestionChat.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kiro-Sitzung der Eingabemethode im Terminal geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se abrió la sesión de Kiro del método de entrada en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session Kiro de la méthode de saisie ouverte dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッドの Kiro セッションをターミナルで開きました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기의 Kiro 세션을 터미널에서 열었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Kiro do método de entrada foi aberta no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已在終端機開啟輸入法的 Kiro 工作階段"
+          }
+        }
+      }
+    },
     "openRow.inBrowser" : {
       "comment" : "在浏览器中打开 — Sources/AllInOneIMECore/Session/SessionText.swift",
       "localizations" : {
@@ -36412,6 +37132,53 @@
         }
       }
     },
+    "question %@ › " : {
+      "comment" : "追问 %@ ›  — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frage %@ › "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pregunta %@ › "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "question %@ › "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "質問 %@ › "
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 질문 %@ › "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pergunta %@ › "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追問 %@ › "
+          }
+        }
+      }
+    },
     "question %@/%@ › " : {
       "comment" : "追问 %@/%@ ›  — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -36455,6 +37222,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "追問 %@/%@ › "
+          }
+        }
+      }
+    },
+    "Questions (@question)" : {
+      "comment" : "提问（@question） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragen (@question)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntas (@question)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions (@question)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "質問（@question）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "질문 (@question)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perguntas (@question)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提問（@question）"
           }
         }
       }
@@ -47944,6 +48758,100 @@
         }
       }
     },
+    "The AI provider" : {
+      "comment" : "AI 服务 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der KI-Anbieter"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El proveedor de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le fournisseur d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIプロバイダ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 서비스"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O provedor de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 服務"
+          }
+        }
+      }
+    },
+    "The AWS sign-in has expired: run aws sso login in Terminal" : {
+      "comment" : "AWS 登录已过期：在终端运行 aws sso login — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die AWS-Anmeldung ist abgelaufen: Führe im Terminal aws sso login aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El inicio de sesión de AWS ha caducado: ejecuta aws sso login en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La connexion AWS a expiré : exécutez aws sso login dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS のサインインが期限切れです：ターミナルで aws sso login を実行してください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS 로그인이 만료되었습니다: 터미널에서 aws sso login을 실행하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O login da AWS expirou: execute aws sso login no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS 登入已過期：在終端機執行 aws sso login"
+          }
+        }
+      }
+    },
     "The bundle's name must be letters, digits, - or _" : {
       "comment" : "扩展包的 name 只能用字母、数字、- 和 _ — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -47987,6 +48895,241 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "擴充套件的名稱只能使用字母、數字、- 或 _"
+          }
+        }
+      }
+    },
+    "The claude command (Claude Code) isn't installed" : {
+      "comment" : "没找到 claude 命令（Claude Code） — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Befehl claude (Claude Code) ist nicht installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El comando claude (Claude Code) no está instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La commande claude (Claude Code) n’est pas installée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "claude コマンド（Claude Code）が見つかりません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "claude 명령(Claude Code)이 설치되어 있지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O comando claude (Claude Code) não está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到 claude 指令（Claude Code）"
+          }
+        }
+      }
+    },
+    "The Claude session didn't respond" : {
+      "comment" : "Claude 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Claude-Sitzung hat nicht geantwortet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Claude no respondió"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Claude n'a pas répondu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッションが応答しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션이 응답하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude não respondeu"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段沒有回應"
+          }
+        }
+      }
+    },
+    "The Claude session failed" : {
+      "comment" : "Claude 会话出错 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fehler in der Claude-Sitzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Claude falló"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Claude a échoué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッションでエラーが発生しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션에서 오류가 발생했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude falhou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段出錯"
+          }
+        }
+      }
+    },
+    "The Claude session quit unexpectedly" : {
+      "comment" : "Claude 会话意外退出 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Claude-Sitzung wurde unerwartet beendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Claude se cerró inesperadamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Claude s’est arrêtée de façon inattendue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude セッションが予期せず終了しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 세션이 예기치 않게 종료되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude foi encerrada inesperadamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 工作階段意外結束"
+          }
+        }
+      }
+    },
+    "The Claude subscription's usage limit is reached" : {
+      "comment" : "Claude 订阅的用量到了上限 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Nutzungslimit des Claude-Abos ist erreicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se alcanzó el límite de uso de la suscripción a Claude"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La limite d’utilisation de l’abonnement Claude est atteinte"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude サブスクリプションの使用量が上限に達しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 구독 사용량 한도에 도달했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O limite de uso da assinatura do Claude foi atingido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude 訂閱的用量已達上限"
           }
         }
       }
@@ -48978,6 +50121,147 @@
         }
       }
     },
+    "The input method's Claude session is open in Terminal" : {
+      "comment" : "输入法的 Claude 会话正在终端里打开着 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Claude-Sitzung der Eingabemethode ist im Terminal geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Claude del método de entrada está abierta en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Claude de la méthode de saisie est ouverte dans le Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッドの Claude セッションがターミナルで開いています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기의 Claude 세션이 터미널에서 열려 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Claude do método de entrada está aberta no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入法的 Claude 工作階段正在終端機中開著"
+          }
+        }
+      }
+    },
+    "The input method's Kiro session is open in Terminal" : {
+      "comment" : "输入法的 Kiro 会话正在终端里打开着 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kiro-Sitzung der Eingabemethode ist im Terminal geöffnet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Kiro del método de entrada está abierta en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Kiro de la méthode de saisie est ouverte dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッドの Kiro セッションはターミナルで開いています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기의 Kiro 세션이 터미널에서 열려 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Kiro do método de entrada está aberta no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入法的 Kiro 工作階段正在終端機裡開著"
+          }
+        }
+      }
+    },
+    "The input method's own Claude Code or Kiro CLI session, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "输入法自己的一个 Claude Code 或 Kiro CLI 会话，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die eigene Claude-Code- oder Kiro-CLI-Sitzung der Eingabemethode, die sich an frühere Fragen erinnert; ⌘⏎ setzt sie im Terminal fort. Umschreiben, Übersetzen und Autovervollständigung nutzen immer den Anbieter oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La propia sesión de Claude Code o Kiro CLI del método de entrada, que recuerda las preguntas anteriores; ⌘⏎ la continúa en Terminal. Reescribir, traducir y autocompletar siempre usan el proveedor de arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La propre session Claude Code ou Kiro CLI de la méthode de saisie, qui se souvient des questions précédentes ; ⌘⏎ la poursuit dans Terminal. La réécriture, la traduction et la saisie automatique utilisent toujours le fournisseur ci-dessus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッド専用の Claude Code または Kiro CLI セッション。以前の質問を覚えています。⌘⏎ でターミナルで続けられます。書き直し・翻訳・自動補完は常に上の AI サービスを使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기 전용 Claude Code 또는 Kiro CLI 세션으로, 이전 질문을 기억합니다. ⌘⏎로 터미널에서 이어갈 수 있습니다. 다시 쓰기, 번역, 자동 완성은 항상 위의 AI 서비스를 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A própria sessão do Claude Code ou do Kiro CLI do método de entrada, que lembra as perguntas anteriores; ⌘⏎ a continua no Terminal. Reescrever, traduzir e completar automaticamente sempre usam o provedor acima."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入法自己的一個 Claude Code 或 Kiro CLI 工作階段，記得以前問過的問題；⌘⏎ 可以在終端機裡接著聊。改寫、翻譯、補全總是用上面的 AI 服務。"
+          }
+        }
+      }
+    },
     "The Jargon style's terms: a text file, one term per line, optionally with its meaning." : {
       "comment" : "「黑话」风格用的词表：文本文件，每行一个词，可以加解释。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -49021,6 +50305,194 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "「行話」風格用的詞庫：文字檔，每行一個詞，可以附上解釋。"
+          }
+        }
+      }
+    },
+    "The Kiro session didn't respond" : {
+      "comment" : "Kiro 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kiro-Sitzung hat nicht geantwortet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Kiro no respondió"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Kiro n’a pas répondu"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro セッションが応答しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 세션이 응답하지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Kiro não respondeu"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 工作階段沒有回應"
+          }
+        }
+      }
+    },
+    "The Kiro session failed" : {
+      "comment" : "Kiro 会话出错 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kiro-Sitzung ist fehlgeschlagen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Kiro falló"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Kiro a échoué"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro セッションでエラーが発生しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 세션에서 오류가 발생했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Kiro falhou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 工作階段出錯"
+          }
+        }
+      }
+    },
+    "The Kiro session quit unexpectedly" : {
+      "comment" : "Kiro 会话意外退出 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Kiro-Sitzung wurde unerwartet beendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de Kiro se cerró inesperadamente"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session Kiro s’est fermée de façon inattendue"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro セッションが予期せず終了しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 세션이 예기치 않게 종료되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do Kiro foi encerrada inesperadamente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kiro 工作階段意外結束"
+          }
+        }
+      }
+    },
+    "The kiro-cli command (Kiro CLI) isn't installed" : {
+      "comment" : "没找到 kiro-cli 命令（Kiro CLI） — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Der Befehl kiro-cli (Kiro CLI) ist nicht installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El comando kiro-cli (Kiro CLI) no está instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La commande kiro-cli (Kiro CLI) n’est pas installée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kiro-cli コマンド（Kiro CLI）がインストールされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "kiro-cli 명령(Kiro CLI)이 설치되어 있지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O comando kiro-cli (Kiro CLI) não está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到 kiro-cli 指令（Kiro CLI）"
           }
         }
       }

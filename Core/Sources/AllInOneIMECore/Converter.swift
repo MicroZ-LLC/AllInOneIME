@@ -14,6 +14,9 @@ public struct ConversionUpdate: Equatable, Sendable {
     /// An `@question` conversation was too long for the model's context (the on-device model): earlier rounds were
     /// shortened to fit (`QuestionChat.fit`).
     public var shortened = false
+    /// Said in the panel with the answer: why the dedicated Claude session didn't answer and the provider did
+    /// (`ClaudeSessionError.fallbackNote`).
+    public var note: String?
 }
 
 /// Turns typed input into streamed `ConversionUpdate`s using the configured provider (`ChatClient`).
@@ -38,6 +41,22 @@ public final class Converter: Sendable {
     /// on in is pointed to (`ChatHandoff.guideNote`), since it reads files itself.
     public let userGuideFile: URL?
     let cache = Locked(initialState: LRUCache(capacity: 64))
+    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Kiro CLI): `@question`
+    /// goes to the one `questionSession` says.
+    public let questionSessions: [AgentKind: ClaudeSessionManager]
+    /// The Claude Code session, if any.
+    public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
+
+    /// The session `@question` goes to with `config` (`Config.questionSessionAgent`, with each session's availability);
+    /// nil: the provider.
+    public func questionSession(_ config: Config) -> ClaudeSessionManager? {
+        questionSessionAgent(config).flatMap { questionSessions[$0] }
+    }
+
+    /// The agent of that session.
+    public func questionSessionAgent(_ config: Config) -> AgentKind? {
+        config.questionSessionAgent(availability: { questionSessions[$0]?.availability ?? .notInstalled })
+    }
 
     public init(
         client: BedrockClient = BedrockClient(),
@@ -48,9 +67,14 @@ public final class Converter: Sendable {
         loadUserGuide: @escaping UserGuideLoader = { nil },
         userGuideFile: URL? = nil,
         appleModel: any AppleModelBackend = AppleModel.system,
-        appleClock: any Clock<Duration> = ContinuousClock()
+        appleClock: any Clock<Duration> = ContinuousClock(),
+        claudeSession: ClaudeSessionManager? = nil,
+        questionSessions: [AgentKind: ClaudeSessionManager] = [:]
     ) {
         self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
+        var sessions = questionSessions
+        if let claudeSession { sessions[.claude] = claudeSession }
+        self.questionSessions = sessions
         self.loadConfig = loadConfig
         self.loadCredentials = loadCredentials
         self.loadKey = loadKey
@@ -174,11 +198,32 @@ public final class Converter: Sendable {
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
+        // The dedicated session of @agent's agent answers, unless it can't (below).
+        let session = command == .question ? questionSession(config) : nil
+        // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
+        // history), told it with the question.
+        let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
-        // a refine's turns (as for `convert`).
-        var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
-        let lastMessage = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
+        // a refine's turns (as for `convert`). For the session, numbered on from its earlier questions (one long
+        // conversation: a placeholder never stands for two values), and the rounds it didn't see too.
+        func hide(_ redaction: inout Redaction?) -> (sent: String, last: String, missing: [QuestionChat.Round]) {
+            let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
+            let last = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
+            let rounds = missing.map { round in
+                QuestionChat.Round(question: redaction?.hide(round.question) ?? round.question,
+                                   answer: redaction?.hide(round.answer) ?? round.answer)
+            }
+            return (sent, last, rounds)
+        }
+        var redaction: Redaction?
+        let texts: (sent: String, last: String, missing: [QuestionChat.Round])
+        if let session {
+            (redaction, texts) = session.redacting(config.redaction, hide)
+        } else {
+            redaction = Redaction(config.redaction)
+            texts = hide(&redaction)
+        }
+        let (sent, lastMessage) = (texts.sent, texts.last)
         let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
@@ -187,6 +232,24 @@ public final class Converter: Sendable {
         // request for any other question is as it always was.
         let questions = chat ? QuestionChat.rounds(first: input, turns: turns, latest: nil).map(\.question) : [input]
         let guide = command == .question ? guideExcerpts(questions) : nil
+        // The dedicated session: only the question asked now goes in (it has the rounds before), redacted as it would be
+        // for the provider, the guide's excerpts after it as they would go to the provider; not cached (the session's
+        // earlier questions are part of the answer). Should it not answer at all (not installed, signed out, its limit,
+        // open in Terminal), the provider does, and the panel says why.
+        var note: String?
+        if let session {
+            // The question typed last (`lastMessage` is the first one when nothing is hidden).
+            let question = ClaudeSession.message(turns.last.map { redaction == nil ? $0.instruction : lastMessage } ?? sent,
+                                                 after: texts.missing)
+            let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
+            do {
+                try await runInSession(session, message: message, redaction: redaction, hidden: hidden, started: started,
+                                       told: missing.map(\.answer), continuation: continuation)
+                return
+            } catch let error as ClaudeSessionError where error.fallsBack {
+                note = error.fallbackNote(for: session.backend.agent)
+            }
+        }
         let request = chat ? QuestionChat.request(first: input, turns: turns, config: config, guide: guide)
             : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config, guide: guide)
             : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
@@ -201,7 +264,7 @@ public final class Converter: Sendable {
         if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden,
-                shortened: shortened))
+                shortened: shortened, note: note))
             return
         }
         let stream = client.stream(protected, config: config, loadCredentials: loadCredentials, loadKey: loadKey)
@@ -219,7 +282,7 @@ public final class Converter: Sendable {
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false, hidden: hidden, shortened: shortened))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden, shortened: shortened, note: note))
         }
         try Task.checkCancellation()
         // Cut off at the token limit, the text still reads as an answer: keep it, but don't cache it.
@@ -227,7 +290,41 @@ public final class Converter: Sendable {
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
-            hidden: hidden, shortened: shortened))
+            hidden: hidden, shortened: shortened, note: note))
+    }
+
+    /// `@question` answered by the dedicated Claude session (`ClaudeSessionManager.ask`): `message` is the question as
+    /// sent (redacted); the answer streams in as the provider's does, its placeholders put back. Throws what the session
+    /// failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came. Answered, the answer and
+    /// `told` (the earlier rounds' answers sent with the question) are in the session (`ClaudeSessionManager.remember`).
+    private func runInSession(_ session: ClaudeSessionManager, message: String, redaction: Redaction?, hidden: Int,
+                              started: ContinuousClock.Instant, told: [String],
+                              continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
+        func elapsed() -> TimeInterval { Self.seconds(since: started) }
+        func answer(_ text: String, complete: Bool) -> ConversionResult {
+            let lines = Self.lines(text)
+            return ConversionResult(versions: [CandidateLine(redaction?.restore(lines, complete: complete) ?? lines, isComplete: complete)])
+        }
+        var text = ""
+        var firstToken: TimeInterval?
+        do {
+            for try await answered in session.ask(message) {
+                text = answered
+                if firstToken == nil { firstToken = elapsed() }
+                if text.utf8.count > Self.maxOutputBytes { break }
+                continuation.yield(ConversionUpdate(
+                    result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
+                    firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
+            }
+        } catch let error as ClaudeSessionError where firstToken != nil && error.fallsBack {
+            throw ClaudeSessionError.failed(error.description(for: session.backend.agent))  // part of the answer is in: no other answers now
+        }
+        try Task.checkCancellation()
+        let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
+        session.remember(answers: told + [final.versions.first?.text ?? ""])
+        continuation.yield(ConversionUpdate(
+            result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
+            hidden: hidden))
     }
 
     /// The excerpts of the user guide for an @question conversation's `questions` (`UserGuide.excerpts`): nil when none

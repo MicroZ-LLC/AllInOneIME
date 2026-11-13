@@ -92,6 +92,11 @@ Settings → AI → Provider: AllInOneIME Cloud (sign in, free requests each day
 
 设置 →「AI」→「服务」：AllInOneIME 云（登录即用，每天有免费次数）、Amazon Bedrock（~/.aws 里的 AWS Profile 和「区域」）、Claude API、Gemini API 或 OpenAI 兼容的 API（粘贴 API key，存在钥匙串里；别的服务填 Base URL），或本机的 Apple Intelligence（macOS 26，不用 key，不出这台 Mac）。「模型」：模型 ID。「思考」：模型想多少。「测试连接」检查能不能用。「模型参数」改过才显示：「最多输出 2000 tokens」、temperature 和「最多运行（秒）」。
 
+## Questions in a Claude Code or Kiro CLI session / 用 Claude Code 或 Kiro CLI 会话回答提问
+Settings → AI → Questions (@question): Automatic, Claude Code session, Kiro CLI session or The AI provider. A session is AllInOneIME's own Claude Code or Kiro CLI, installed and signed in on this Mac with that CLI's own account (a subscription or a company sign-in), and it remembers earlier questions; @question goes there instead of the provider. Automatic uses @agent's agent's session when it is ready, else another one, else the provider. No round limit; ⌘⏎ continues the same session in Terminal; Start Over begins a new one. Rewriting, translating and autocomplete always use the provider.
+
+设置 →「AI」→「提问（@question）」：自动、Claude Code 会话、Kiro CLI 会话或 AI 服务。会话是 AllInOneIME 自己的 Claude Code 或 Kiro CLI，在这台 Mac 上装好并用它自己的账号登录（订阅或公司账号），记得以前问过的问题；@question 改发给它，不发给 AI 服务。「自动」先用 @agent 的 agent 的会话，不能用就用另一个，再不行用 AI 服务。没有轮数限制；⌘⏎ 在终端里接着同一个会话聊；「重新开始」开一个新会话。改写、翻译和续写总是用 AI 服务。
+
 ## Privacy: what is sent / 隐私：什么会发出去
 Typing stays on the Mac. Text goes to your AI provider only when you press the action key on an AI command (@improve, @translate, @question, @reply…), or with Autocomplete on. Settings → Privacy: Hide sensitive information before sending replaces emails, numbers, keys and your Words to hide with placeholders such as [EMAIL_1] and puts them back in the results; Apps without AI send nothing to the AI; Remember recent questions keeps your last 5 @question questions on this Mac; Learned… lists what was learned, with Forget. A question about AllInOneIME also sends a few excerpts of this guide: the app's own documentation, never your settings or keys.
 

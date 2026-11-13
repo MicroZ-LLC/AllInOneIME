@@ -30,6 +30,12 @@ public final class InputSession {
     public private(set) var lastFromCache = false
     public private(set) var lastHidden = 0
     public private(set) var lastShortened = false
+    /// Why the Claude session didn't answer the last question and the provider did (`ConversionUpdate.note`).
+    public private(set) var lastNote: String?
+    /// The session of @agent's agent was asked to start for the command being written (`prewarmQuestionSession`).
+    private var questionSessionWarmed = false
+    /// The session `@question` goes to with the settings (`Converter.questionSession`), nil: the provider.
+    private var questionSessionManager: ClaudeSessionManager?
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
     public private(set) var agent = AgentKind.claude
     public private(set) var agentCommand: [String] = []
@@ -798,8 +804,13 @@ public final class InputSession {
     private func applyChatSettings(_ config: Config) {
         composer.questionRounds = config.questionRounds
         let installed = services.agentInstalled
-        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
-                                                      installed: { installed($0, config.agentCommand) })
+        let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
+        // The questions go to the input method's Claude session: no round limit, going on in it offered first.
+        let sessionAgent = services.converter.questionSessionAgent(config)
+        questionSessionManager = sessionAgent.flatMap { services.converter.questionSessions[$0] }
+        composer.questionSession = questionSessionManager != nil
+        composer.questionSessionAgent = sessionAgent ?? .claude
+        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: sessionAgent ?? .claude) : choices
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         composer.userGuidePath = services.converter.userGuideFile?.path
         let language = UIText.language
@@ -1209,6 +1220,7 @@ public final class InputSession {
         defer {
             wakePageIfAgent()
             warmModelAhead()  // the draft an AI command: its model made ready by ⏎
+            prewarmQuestionSession()
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
         }
         for effect in effects {
@@ -1366,6 +1378,14 @@ public final class InputSession {
                 handOff(prompt, to: .claude)
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
+            case let .continueClaudeSession(followUp):
+                do {
+                    try services.continueClaudeSession(followUp)
+                    log.notice("@question: the Claude session handed to Terminal (\(followUp.count) chars typed)")
+                } catch {
+                    log.error("@question: could not open the Claude session: \(String(describing: error))")
+                    say(UIText.describe(error))
+                }
             case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
                 countRun(name, in: effects)
@@ -1399,7 +1419,7 @@ public final class InputSession {
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id) { break }
                 tasks.cancel(.request)
-                (lastElapsed, lastFromCache, lastHidden, lastShortened) = (nil, false, 0, false)
+                (lastElapsed, lastFromCache, lastHidden, lastShortened, lastNote) = (nil, false, 0, false, nil)
                 log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code))")
                 tasks.translate(input, session: session, id: id, in: place(generates: false), converter: services.converter)
             case let .addReminder(reminder, input):
@@ -1507,6 +1527,7 @@ public final class InputSession {
         lastFromCache = false
         lastHidden = 0
         lastShortened = false
+        lastNote = nil
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1545,6 +1566,7 @@ public final class InputSession {
         lastElapsed = nil
         lastFromCache = false
         lastShortened = false
+        lastNote = nil
         let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
         log.notice("conversion \(id) started (\(step))")
         var sent: String?
@@ -1564,6 +1586,7 @@ public final class InputSession {
             runAnswered(request, fromCache: update.fromCache)
             lastHidden = update.hidden
             lastShortened = update.shortened
+            lastNote = update.note
             if update.isFinal {
                 lastElapsed = update.elapsed
                 lastFromCache = update.fromCache
@@ -1802,6 +1825,18 @@ public final class InputSession {
         page.wake()
     }
 
+    /// The command trigger typed at the start of a draft while questions go to the Claude session: its process starts now
+    /// (off this thread), so that the answer to an `@question` doesn't wait for Claude Code to start. Once a draft.
+    private func prewarmQuestionSession() {
+        guard composer.questionSession, composer.isComposing, composer.draft.hasPrefix(composer.commandTrigger) else {
+            questionSessionWarmed = false
+            return
+        }
+        guard !questionSessionWarmed, let session = questionSessionManager else { return }
+        questionSessionWarmed = true
+        Task.detached { session.prewarm() }
+    }
+
     /// The page given back, if `@agent` asked for it.
     private func releasePage() {
         wokenPage?.release()
@@ -1924,7 +1959,7 @@ public final class InputSession {
         let config = services.loadSettings()
         let jargon = services.jargon
         return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
-                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, agent: agent,
+                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, note: lastNote, agent: agent,
                               agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
                               chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }
