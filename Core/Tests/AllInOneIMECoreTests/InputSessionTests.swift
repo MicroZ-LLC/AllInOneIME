@@ -12,6 +12,21 @@ import AllInOneIMETestSupport
 /// (`withInterfaceLanguage`).
 @Suite(.serialized)
 struct InputSessionTests {
+    @Test func handingOffDoesNotWaitOnTheKeyThread() async {
+        let entered = Locked(initialState: false)
+        let release = DispatchSemaphore(value: 0)
+        let host = host {
+            $0.continueClaudeSession = { _ in
+                entered.withLock { $0 = true }
+                _ = release.wait(timeout: .now() + 3)
+            }
+        }
+        let started = Date()
+        host.session.perform([.continueClaudeSession(followUp: "next")])
+        #expect(Date().timeIntervalSince(started) < 0.1)
+        #expect(await Timing.eventually(within: 2) { entered.withLock { $0 } })
+        release.signal()
+    }
     /// The settings the session reads: pinyin first, Shift to English; English then Chinese to translate into; English
     /// interface; `@agent` in a terminal, not in the background.
     final class Settings: @unchecked Sendable {

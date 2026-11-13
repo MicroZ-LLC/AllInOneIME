@@ -1,5 +1,7 @@
 import Foundation
 
+private struct SessionSendableBox<Value>: @unchecked Sendable { let value: Value }
+
 /// One text field's input session, the same on every platform: the `Composer`, and what goes on around it. Before a key:
 /// secure input (nothing composed, keys go straight in), the app taking the marked text on its own, the settings and the
 /// commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
@@ -1407,12 +1409,13 @@ public final class InputSession {
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
             case let .continueClaudeSession(followUp):
-                do {
-                    try services.continueClaudeSession(followUp)
-                    log.notice("@question: the Claude session handed to Terminal (\(followUp.count) chars typed)")
-                } catch {
-                    log.error("@question: could not open the Claude session: \(String(describing: error))")
-                    say(UIText.describe(error))
+                let handOff = SessionSendableBox(value: services.continueClaudeSession)
+                tasks.start(nil) { post in
+                    do {
+                        try handOff.value(followUp)
+                    } catch {
+                        post(.notice(UIText.describe(error)))
+                    }
                 }
             case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
