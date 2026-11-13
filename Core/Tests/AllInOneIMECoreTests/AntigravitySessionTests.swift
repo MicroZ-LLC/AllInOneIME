@@ -129,7 +129,9 @@ struct AntigravitySessionTests {
         let hooks = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: folder.appendingPathComponent(".agents/hooks.json"))) as? [String: Any])
         let preToolUse = ((hooks["allinoneime-web-only"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])?.first
         #expect(preToolUse?["matcher"] as? String == "*")
-        #expect(((preToolUse?["hooks"] as? [[String: Any]])?.first?["command"] as? String) == "/bin/sh ./allinoneime-web-only.sh")
+        // The gate by its full path, whichever folder agy runs the hook in.
+        #expect(((preToolUse?["hooks"] as? [[String: Any]])?.first?["command"] as? String)
+            == "/bin/sh '\(folder.path)/.agents/allinoneime-web-only.sh'")
         #expect(FileManager.default.fileExists(atPath: folder.appendingPathComponent(".agents/allinoneime-web-only.sh").path))
     }
 
@@ -252,6 +254,42 @@ struct AntigravitySessionTests {
         // Terminal (agy as the user set it up): agy's own rules.
         #expect(try decision(call("run_command"), session: false) == "allow")
         #expect(try decision(call("search_web"), session: false) == "allow")
+    }
+
+    /// hooks.json runs the gate by its full path, quoted for the shell (here a folder with a space and a quote in its
+    /// path), so that it is found whichever folder agy runs it in; a folder still holding the earlier hooks.json (the
+    /// gate by a path relative to .agents) gets the new one.
+    @Test func theHookRunsTheGateByItsFullPathFromAnyFolder() throws {
+        let backend = AntigravityBackend(base: base.appendingPathComponent("Application Support/it's here"),
+                                         signIn: { _, _ in true })
+        let hooks = backend.directory.appendingPathComponent(".agents/hooks.json")
+        try FileManager.default.createDirectory(at: hooks.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(try #require(AntigravityBackend.earlierHooks.first).utf8).write(to: hooks)
+        try ClaudeSessionStore(backend).prepare()
+        #expect(try String(contentsOf: hooks, encoding: .utf8) == AntigravityBackend.hooks(in: backend.directory))
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: hooks)) as? [String: Any])
+        let group = try #require(((object["allinoneime-web-only"] as? [String: Any])?["PreToolUse"] as? [[String: Any]])?.first)
+        let command = try #require((group["hooks"] as? [[String: Any]])?.first?["command"] as? String)
+        #expect(command.hasPrefix("/bin/sh '/") && command.contains(backend.directory.path.replacingOccurrences(of: "'", with: #"'\''"#)))
+        func decision(in directory: URL) throws -> String {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/bin/sh")
+            process.arguments = ["-c", command]
+            process.currentDirectoryURL = directory
+            process.environment = ["PATH": "/usr/bin:/bin", "ALLINONEIME_SESSION": "antigravity"]
+            let input = Pipe(), output = Pipe()
+            process.standardInput = input
+            process.standardOutput = output
+            try process.run()
+            input.fileHandleForWriting.write(Data(#"{"toolCall":{"name":"run_command","args":{"CommandLine":"date"}}}"#.utf8))
+            try input.fileHandleForWriting.close()
+            let data = output.fileHandleForReading.readDataToEndOfFile()
+            process.waitUntilExit()
+            return (try? JSONSerialization.jsonObject(with: data) as? [String: Any])?["decision"] as? String ?? ""
+        }
+        for directory in [URL(fileURLWithPath: "/"), backend.directory, backend.directory.appendingPathComponent(".agents")] {
+            #expect(try decision(in: directory) == "deny", "run in \(directory.path)")
+        }
     }
 
     /// A folder whose gate is an earlier one, as written (it said "ask" in Terminal), gets the new one; one the user

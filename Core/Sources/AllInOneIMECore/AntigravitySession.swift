@@ -18,7 +18,7 @@ import Foundation
 ///      `web` by `arguments`, as the other ACP agents' modes are). agy has no tool that reads a page (it uses `curl`
 ///      through its shell for that, refused): its `search_web` is what it has of the web. An agent agy can't find is
 ///      its default one, with every tool, silently: so also
-///   2. the folder's `.agents/hooks.json` (`hooks`, `gate`): before every tool, in the session's process
+///   2. the folder's `.agents/hooks.json` (`hooks(in:)`, `gate`): before every tool, in the session's process
 ///      (`ALLINONEIME_SESSION`, its environment), anything but `search_web` is denied (the shell, reading and writing
 ///      files, subagents, schedules, tasks, MCP tools); in Terminal (the hand-off) it decides nothing (`allow`, which
 ///      agy's docs say hands the call on to the next hook or its default policy: its own permission rules, as the user
@@ -46,9 +46,9 @@ public struct AntigravityBackend: SessionBackend {
             agent: .antigravity, folderName: "antigravity-session",
             launch: ["acp", "--agent", Self.agentName, "--disable-telemetry"],
             offlineLaunch: ["acp", "--agent", Self.offlineAgentName, "--disable-telemetry"],
+            // hooks.json names the gate by its path in the folder: `files`.
             files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent),
                     SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent),
-                    SessionFile(path: ".agents/hooks.json", content: Self.hooks),
                     SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates)],
             availability: [], resume: ["--conversation"], start: [], followUp: ["-i"], base: base,
             environment: [Self.sessionVariable: "antigravity"], signIn: signIn)
@@ -98,8 +98,29 @@ public struct AntigravityBackend: SessionBackend {
         \(ClaudeSession.instructions)
         """
 
-    /// agy's hooks for the folder: `gate` before every tool.
-    public static let hooks = """
+    /// agy's hooks for the session's folder `directory`: `gate` before every tool, by its full path, single-quoted
+    /// for the shell (the data folder's path has a space). agy's docs don't say which folder a hook's command runs in
+    /// (their example, "./scripts/lint.sh", reads as the project's): a path relative to .agents would find nothing from
+    /// the folder itself, and agy would decide without the gate.
+    public static func hooks(in directory: URL) -> String {
+        let gate = directory.appendingPathComponent(".agents/\(gateFile)").path
+        let quoted = "'" + gate.replacingOccurrences(of: "'", with: #"'\''"#) + "'"
+        let command = AIConfig.JSONValue.string("/bin/sh " + quoted).json
+        return """
+            {
+              "allinoneime-web-only": {
+                "PreToolUse": [
+                  {"matcher": "*", "hooks": [{"type": "command", "command": \(command), "timeout": 10}]}
+                ]
+              }
+            }
+
+            """
+    }
+
+    /// Earlier hooks.json texts: a folder still holding one as written gets the new one. The first ran the gate by a
+    /// path relative to .agents.
+    static let earlierHooks = ["""
         {
           "allinoneime-web-only": {
             "PreToolUse": [
@@ -108,12 +129,12 @@ public struct AntigravityBackend: SessionBackend {
           }
         }
 
-        """
+        """]
 
-    /// Before each tool (its call as JSON on stdin; run in .agents): in the session's process, the web search allowed and
-    /// anything else denied; elsewhere (Terminal) nothing decided here ("allow", which hands the call on to agy's own
-    /// rules; "ask" would prompt). The tool's name is read as JSON (`plutil`), never matched in the text, where an
-    /// argument could hold it.
+    /// Before each tool (its call as JSON on stdin; in whichever folder agy runs it): in the session's process, the
+    /// web search allowed and anything else denied; elsewhere (Terminal) nothing decided here ("allow", which hands the
+    /// call on to agy's own rules; "ask" would prompt). The tool's name is read as JSON (`plutil`), never matched in
+    /// the text, where an argument could hold it.
     public static let gate = """
         #!/bin/sh
         # AllInOneIME's own Antigravity session may search the web, nothing else (agy acp in this folder, with
@@ -177,7 +198,11 @@ public struct AntigravityBackend: SessionBackend {
 
     public var agent: SessionAgent { acp.agent }
     public var directory: URL { acp.directory }
-    public var files: [SessionFile] { acp.files }
+    /// `acp`'s files, then hooks.json, written for the folder the session is in now (`hooks(in:)`).
+    public var files: [SessionFile] {
+        acp.files + [SessionFile(path: ".agents/hooks.json", content: Self.hooks(in: directory),
+                                 earlier: Self.earlierHooks)]
+    }
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
     public var environment: [String: String] { acp.environment }
