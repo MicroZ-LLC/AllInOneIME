@@ -83,6 +83,9 @@ public final class InputSession {
     var startingCorrection = StartingCorrection()
     /// A dead key typed before the next key.
     private var deadKeys = DeadKeyComposer()
+    /// When Caps Lock went down and turned its lock on, with no other key or modifier since: its release within a tap
+    /// of Shift's time is a tap of Shift (`capsLockTapped`).
+    private var capsLockPressedAt: TimeInterval?
     /// The last character the user typed straight into the field (`characterBeforeCaret`).
     var lastTyped = LastTyped()
     /// Autocomplete in this field (InputSession+Autocomplete.swift).
@@ -967,6 +970,7 @@ public final class InputSession {
     }
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
+        capsLockPressedAt = nil  // a key with Caps Lock down: no tap of it
         if context.read.contains(.text) { fieldText = context.text }
         takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
@@ -1105,6 +1109,7 @@ public final class InputSession {
     private func modifiers(_ change: ModifierChange, _ context: FieldContext) {
         if context.read.contains(.text) { fieldText = context.text }
         guard !(context.secure || field.secure) else {
+            capsLockPressedAt = nil  // Caps Lock is the system's here
             // A password field took over: stop any recording (its release may never arrive here).
             if composer.voice != .off { perform(composer.commitAsTyped()) }
             suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
@@ -1119,8 +1124,31 @@ public final class InputSession {
         // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
         let before = composer.input
         perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
+        if capsLockTapped(change) {
+            // A tap of Caps Lock is a tap of Shift (0.7.4): the language switched, and the lock its press turned on off.
+            emit(.platform(.setCapsLock(false)))
+            perform(composer.shiftTapped())
+        }
         keyContext = nil
         learningSwitched(from: before)
+    }
+
+    /// Caps Lock pressed on its own and released within a tap of Shift's time (`Composer.shiftTapWindow`), its press
+    /// having turned the lock on: a tap, which switches the input language as Shift's does. A press that turns the lock
+    /// off, a longer one (capitals, as always), another key or modifier between, or a field where nothing may leave the
+    /// device (a password field, secure input: Caps Lock is the system's there) is none.
+    private func capsLockTapped(_ change: ModifierChange) -> Bool {
+        guard change.key == .capsLock else {
+            capsLockPressedAt = nil
+            return false
+        }
+        if change.pressed {
+            capsLockPressedAt = change.modifiers.contains(.capsLock) && !nothingLeavesDevice() ? change.timestamp : nil
+            return false
+        }
+        defer { capsLockPressedAt = nil }
+        guard let pressedAt = capsLockPressedAt, !nothingLeavesDevice() else { return false }
+        return change.timestamp - pressedAt <= Composer.shiftTapWindow
     }
 
     /// Whether AI may run in the app typed in (`Config.allowsAI`), read once a turn (`turn`): one @ asks on each read of
