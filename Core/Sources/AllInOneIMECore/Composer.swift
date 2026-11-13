@@ -3219,9 +3219,10 @@ public final class Composer {
         // A saved conversation goes on: its next answer is a new one (kept again: `rememberAnswer`).
         if isQuestionChat {
             recalled = nil
-            // An address typed in the follow-up may be read too.
+            // An address typed in the follow-up may be read too; not one in a saved question asked again (`fresh`,
+            // `reaskSaved`), which the user may not have typed (`loadThread`).
             var conversation = questionConversation ?? QuestionConversation()
-            conversation.web = conversation.web.allowing(instruction)
+            if !fresh { conversation.web = conversation.web.allowing(instruction) }
             questionConversation = conversation
         }
         requestCounter += 1

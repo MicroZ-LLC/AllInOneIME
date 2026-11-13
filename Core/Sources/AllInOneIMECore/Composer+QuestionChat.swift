@@ -106,7 +106,10 @@ extension Composer {
         return runRefine(fresh: true)
     }
 
-    /// A saved question picked (`showSavedAnswer`): its rounds, to go on with; the latest answer is `result`.
+    /// A saved question picked (`showSavedAnswer`): its rounds, to go on with; the latest answer is `result`. Its
+    /// session conversation reaches no web address, and has no web search (`SessionWeb.only([])`): the saved rounds
+    /// don't say what of their questions the user typed (a page's text, a command's output may be in one), so none of
+    /// their addresses is taken for typed; one typed in a follow-up may be read (`runRefine`).
     func loadThread(_ entry: QuestionHistory.Entry, command: Command) {
         let (first, turns, latest) = QuestionChat.turns(entry.thread)
         refineRequest = .command(command, input: first)
@@ -115,7 +118,7 @@ extension Composer {
         refineText = ""
         refineError = nil
         handoffRequested = false
-        questionConversation = QuestionConversation(web: .only(entry.thread.flatMap { SessionWeb.addresses(in: $0.question) }))
+        questionConversation = QuestionConversation(web: .only([]))
     }
 
     /// ⏎ in the conversation, and the action key: it goes on. The question typed (its pinyin converted first) is asked
