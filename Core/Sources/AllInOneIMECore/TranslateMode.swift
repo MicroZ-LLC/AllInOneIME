@@ -411,20 +411,20 @@ extension Converter {
             let d = ContinuousClock.now - started
             return Double(d.components.seconds) + Double(d.components.attoseconds) / 1e18
         }
-        let config = try Self.settings(try loadConfig(), app: app)
+        // The fast fallback with a CLI chosen as the AI (`FastRoute`).
+        let route = try fastSettings(app: app)
+        let config = route.config
         let tone = TranslateMode.tone(app: app, config: config)
-        var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide(input) ?? input
+        let (redaction, sent) = redacting(route) { $0?.hide(input) ?? input }
         let hidden = redaction?.count ?? 0
-        let key = "mode|\(config.activeModel)|\(Prompt.translateModeVersion)|\(target.code)|\(tone.rawValue)|\(input)"
+        let key = "mode|\(route.model)|\(Prompt.translateModeVersion)|\(target.code)|\(tone.rawValue)|\(input)"
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(result: hit, rawText: "", isFinal: true, elapsed: elapsed(),
                                                 firstTokenLatency: nil, fromCache: true, hidden: hidden))
             return
         }
         let request = Prompt.translateModeRequest(for: input, target: target, tone: tone, config: config)
-        let stream = client.stream(redaction?.protect(request, sent: sent) ?? request, config: config,
-                                   loadCredentials: loadCredentials, loadKey: loadKey)
+        let stream = self.stream(redaction?.protect(request, sent: sent) ?? request, route)
         var text = ""
         var firstToken: TimeInterval?
         var stopReason: String?

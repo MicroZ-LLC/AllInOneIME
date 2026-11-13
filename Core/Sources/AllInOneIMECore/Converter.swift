@@ -53,45 +53,21 @@ public final class Converter: Sendable {
     public let questionSessions: [SessionAgent: ClaudeSessionManager]
     /// The Claude Code session, if any.
     public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
+    /// Whether this Mac has an AWS profile of that name: Bedrock is set up, for the fast fallback (`isReady`).
+    let hasAWSProfile: @Sendable (String) -> Bool
 
-    /// The session `@question` goes to with `config` (`Config.questionSessionAgent`, with each session's availability);
-    /// nil: the provider.
+    /// The session `@question` goes to with `config`: the CLI chosen as the AI (`Config.questionSessionAgent`), tried
+    /// whatever it can do now; nil: the provider.
     public func questionSession(_ config: Config) -> ClaudeSessionManager? {
-        questionSessionAgent(config).flatMap { questionSessions[$0] }
+        config.questionSessionAgent.flatMap { questionSessions[$0] }
     }
 
-    /// The agent of that session.
-    public func questionSessionAgent(_ config: Config) -> SessionAgent? {
-        config.questionSessionAgent(availability: { questionSessions[$0]?.availability ?? .notInstalled })
-    }
-
-    /// `questionSession`, the sign-in of the sessions Automatic looks at (`Config.questionSessionCandidates`) checked
-    /// first (`ClaudeSessionManager.checkAvailability`), one after the other until one is ready: the first `@question`
-    /// (or the first about to be asked) runs the checks, not the launch; none runs with a session or the provider picked.
-    /// Only a session never looked at is waited for; one found not ready is looked at again meanwhile, for the next
-    /// question (no more than once a minute), so that a question never waits for an agent known to be signed out.
-    public func questionSessionChecked(_ config: Config) async -> ClaudeSessionManager? {
-        questionSessionsFollow(config)  // another backend picked since: the old one's process ends
-        for agent in config.questionSessionCandidates {
-            guard let session = questionSessions[agent] else { continue }
-            var availability = session.availability
-            if availability == .unknown {
-                availability = await session.checkAvailability()
-            } else if availability != .ready {
-                Task.detached { _ = await session.checkAvailability() }
-            }
-            if availability == .ready { break }
-        }
-        return questionSession(config)
-    }
-
-    /// Where questions went when last looked at (`questionSessionsFollow`, `questionSessionChecked`): the backend picked,
-    /// or Automatic with @agent's agent.
+    /// Where questions went when last looked at (`questionSessionsFollow`): the CLI chosen as the AI, or the provider.
     private let questionChoice = Locked<String?>(initialState: nil)
 
     /// Notes where `config` sends questions; whether that changed since the last note (false the first time).
     private func note(_ config: Config) -> Bool {
-        let choice = config.questionBackend?.rawValue ?? "automatic:\(config.agent.rawValue)"
+        let choice = config.questionSessionAgent?.rawValue ?? "provider"
         return questionChoice.withLock { last -> Bool in
             defer { last = choice }
             return last != nil && last != choice
@@ -104,7 +80,7 @@ public final class Converter: Sendable {
     /// up for `ClaudeSessionManager.idleTimeout`. The first look only notes it (no session was started before).
     public func questionSessionsFollow(_ config: Config) {
         guard note(config) else { return }
-        let current = questionSessionAgent(config)
+        let current = config.questionSessionAgent
         for (agent, session) in questionSessions where agent != current { session.stop() }
     }
 
@@ -126,7 +102,8 @@ public final class Converter: Sendable {
         appleModel: any AppleModelBackend = AppleModel.system,
         appleClock: any Clock<Duration> = ContinuousClock(),
         claudeSession: ClaudeSessionManager? = nil,
-        questionSessions: [SessionAgent: ClaudeSessionManager] = [:]
+        questionSessions: [SessionAgent: ClaudeSessionManager] = [:],
+        hasAWSProfile: @escaping @Sendable (String) -> Bool = { AWSSharedConfig.profileNames().contains($0) }
     ) {
         self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
         var sessions = questionSessions
@@ -138,6 +115,7 @@ public final class Converter: Sendable {
         self.loadJargon = loadJargon
         self.loadUserGuide = loadUserGuide
         self.userGuideFile = userGuideFile
+        self.hasAWSProfile = hasAWSProfile
     }
 
     /// `@improve`, `@translate` or both (`WritingMode`) on `input`; one request. `app`: the bundle id of the app it's
@@ -162,19 +140,22 @@ public final class Converter: Sendable {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
 
-        let config = try Self.settings(try loadConfig(), app: app)
+        // The fast fallback with a CLI chosen as the AI (`FastRoute`).
+        let route = try fastSettings(app: app)
+        let config = route.config
         // Sensitive values hidden from the model (`Redaction`), put back in what it writes. A refine's turns (the
         // answers shown, the instructions) are hidden after the text, so its values keep the placeholders they had.
-        var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide(input) ?? input
-        let lastMessage = Self.hideTurns(turns, with: &redaction) ?? sent
+        let (redaction, (sent, lastMessage)) = redacting(route) { redaction -> (String, String) in
+            let sent = redaction?.hide(input) ?? input
+            return (sent, Self.hideTurns(turns, with: &redaction) ?? sent)
+        }
         let hidden = redaction?.count ?? 0
         let plan = WritingPlan.make(mode, text: input, config: config)
         let output = plan.versions
         let jargon = (plan.styles.contains { $0.tag == RewriteStyle.jargonTag } ? loadJargon(config) : [])
             .filter { redaction?.allows($0) ?? true }
         let jargonKey = jargon.isEmpty ? "" : "j\(JargonLibrary.fingerprint(jargon))|"
-        let key = "\(config.activeModel)|\(Prompt.version)|\(plan.key)|\(jargonKey)\(input)"
+        let key = "\(route.model)|\(Prompt.version)|\(plan.key)|\(jargonKey)\(input)"
             + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
         if let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
@@ -185,8 +166,7 @@ public final class Converter: Sendable {
 
         let request = turns.isEmpty ? Prompt.request(for: input, mode: mode, plan: plan, config: config, jargon: jargon)
             : Prompt.refineRequest(for: input, mode: mode, plan: plan, config: config, jargon: jargon, turns: turns)
-        let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
-                                   loadCredentials: loadCredentials, loadKey: loadKey)
+        let stream = self.stream(redaction?.protect(request, sent: lastMessage) ?? request, route)
 
         var text = ""
         var firstToken: TimeInterval?
@@ -255,17 +235,27 @@ public final class Converter: Sendable {
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
-        let config = try Self.settings(try loadConfig(), app: app)
+        // The fast fallback with a CLI chosen as the AI (`FastRoute`): what answers a question the CLI's session can't,
+        // and any other command.
+        let route = try fastSettings(app: app)
+        let config = route.config
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
-        // The session picked for questions (`Config.questionSessionAgent`) answers, unless it can't (below).
-        let session = command == .question ? await questionSessionChecked(config) : nil
-        // Given up (Esc) while the sign-in was looked at: nothing goes to the agent (or the provider).
+        // The CLI chosen as the AI (`Config.questionSessionAgent`) answers a question, unless it can't (below); another one
+        // chosen since the last look, the old one's process ends (`questionSessionsFollow`). No sign-in is looked at here.
+        let session: ClaudeSessionManager?
+        if command == .question {
+            questionSessionsFollow(config)
+            session = questionSession(config)
+        } else {
+            session = nil
+        }
+        // Given up (Esc) before it is asked: nothing goes to the agent (or the fast fallback).
         try Task.checkCancellation()
         // The panel's conversation in one conversation of the agent, a new one for each (before what goes by it, below).
         session?.enter(conversation)
-        // The rounds of the conversation the session didn't see (the provider answered them, they are from the saved
+        // The rounds of the conversation the session didn't see (the fast fallback answered them, they are from the saved
         // history, or the agent's conversation is new), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
@@ -285,13 +275,12 @@ public final class Converter: Sendable {
         if let session {
             (redaction, texts) = session.redacting(config.redaction, hide)
         } else {
-            redaction = Redaction(config.redaction)
-            texts = hide(&redaction)
+            (redaction, texts) = redacting(route, hide)
         }
         let (sent, lastMessage) = (texts.sent, texts.last)
         let hidden = redaction?.count ?? 0
         // A custom command's instruction is part of the key: editing it asks again.
-        let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(config.activeModel)|\(Prompt.commandVersion)|\(input)"
+        let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(route.model)|\(Prompt.commandVersion)|\(input)"
             + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns)))
         // A question about AllInOneIME: the parts of its user guide that answer it best go with it (`UserGuide`); the
         // request for any other question is as it always was.
@@ -299,8 +288,8 @@ public final class Converter: Sendable {
         let guide = command == .question ? guideExcerpts(questions) : nil
         // The dedicated session: only the question asked now goes in (its conversation has the rounds before), redacted
         // as it would be for the provider, the guide's excerpts after it as they would go to the provider; not cached (the
-        // conversation's earlier rounds are part of the answer). Should it not answer at all (not installed, signed out, its limit,
-        // open in Terminal), the provider does, and the panel says why.
+        // conversation's earlier rounds are part of the answer). Should it not answer at all (not installed, signed out, its
+        // limit, open in Terminal), the fast fallback does, and the panel says why; with none, the question fails so.
         var note: String?
         if let session {
             // The question typed last (`lastMessage` is the first one when nothing is hidden).
@@ -312,6 +301,7 @@ public final class Converter: Sendable {
                                        told: missing.map(\.answer), continuation: continuation)
                 return
             } catch let error as ClaudeSessionError where error.fallsBack {
+                guard !route.slow else { throw ClaudeSessionError.failed(error.description(for: session.backend.agent)) }
                 note = error.fallbackNote(for: session.backend.agent)
             }
         }
@@ -334,7 +324,7 @@ public final class Converter: Sendable {
                 shortened: shortened, note: note, answeredBy: answeredBy))
             return
         }
-        let stream = client.stream(protected, config: config, loadCredentials: loadCredentials, loadKey: loadKey)
+        let stream = self.stream(protected, route)
         func answer(_ text: String, complete: Bool) -> ConversionResult {
             let lines = Self.lines(text)
             return ConversionResult(versions: [CandidateLine(redaction?.restore(lines, complete: complete) ?? lines, isComplete: complete)])

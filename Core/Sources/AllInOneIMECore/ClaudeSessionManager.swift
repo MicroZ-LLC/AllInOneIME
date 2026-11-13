@@ -228,8 +228,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// Whether the agent can answer here, its sign-in check run (`signInCheck`) if it is still to be: the first time it is
-    /// asked (an `@question` about to be asked or asked while Automatic picks the session: `Converter
-    /// .questionSessionChecked`; Settings), never before. Ready is kept for the launch (an answer that fails says
+    /// asked (Settings → AI, as it shows the choices), never before. Ready is kept for the launch (an answer that fails says
     /// otherwise); anything else (not installed, signed out, a question that failed so) is looked at again when next
     /// asked, `recheckInterval` after the last look at the earliest. `force`: looked at now. A check running is waited for.
     public func checkAvailability(force: Bool = false) async -> ClaudeSession.Availability {
@@ -290,12 +289,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
-    /// Whether `@question` goes to this session with `config` as far as this session can tell (`Config
-    /// .questionSessionAgent`, the other agents' sessions taken as not ready); the converter asks with all of them.
-    public func answersQuestions(_ config: Config) -> Bool {
-        let own = availability
-        return config.questionSessionAgent(availability: { $0 == backend.agent ? own : .unknown }) == backend.agent
-    }
+    /// Whether `@question` goes to this session with `config`: its CLI is the AI chosen (`Config.questionSessionAgent`).
+    public func answersQuestions(_ config: Config) -> Bool { config.questionSessionAgent == backend.agent }
 
     /// Whether the process runs now.
     public var isRunning: Bool { state.withLock { $0.running != nil } }
@@ -875,7 +870,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return []
         case let .failed(error, endsProcess):
             if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
-            // Not to be asked as it is (not kept to the web): Automatic passes it by until it is looked at again.
+            // Not to be asked as it is (not kept to the web): Settings → AI says so until it is looked at again.
             if error == .notWebOnly { (state.availability, state.checkedAt) = (.cannotStart, uptime()) }
             var actions: [Action] = []
             if let turn {
@@ -962,7 +957,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 error = .awsSignInExpired
             } else if !running.started, turn.retried {
                 // Ended twice before its session started: it can't start (an older version that doesn't know a flag, a
-                // broken install). The provider answers, saying why; Automatic passes it by until it is looked at again.
+                // broken install). The fast fallback answers, saying why; Settings → AI says so until it is looked at again.
                 (state.availability, state.checkedAt) = (.cannotStart, uptime())
                 error = .failedToStart(status, message)
             } else {

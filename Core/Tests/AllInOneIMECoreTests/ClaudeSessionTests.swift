@@ -374,14 +374,12 @@ struct ClaudeSessionTests {
     @Test func whichBackendAnswers() {
         let session = manager(FakeClaude())
         var config = Config.default
-        #expect(!session.answersQuestions(config))  // not looked at yet
+        #expect(!session.answersQuestions(config))  // the provider is the AI
         session.availability = .ready
-        #expect(session.answersQuestions(config))
-        config.questionBackend = .provider
-        #expect(!session.answersQuestions(config))
+        #expect(!session.answersQuestions(config))  // ready, but not chosen: never automatically (0.7.4)
         config.questionBackend = .claudeSession
         session.availability = .notInstalled
-        #expect(session.answersQuestions(config))  // picked: tried, and the provider answers with why (see below)
+        #expect(session.answersQuestions(config))  // chosen: tried, and the fast fallback answers with why (see below)
         // Kept in the file only once picked.
         #expect(!String(decoding: try! JSONEncoder().encode(Config.default), as: UTF8.self).contains("questionBackend"))
         let decoded = try? JSONDecoder().decode(Config.self, from: Data(#"{"questionBackend":"claudeSession"}"#.utf8))

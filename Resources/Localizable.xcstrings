@@ -97,6 +97,7 @@
     },
     " — %@ isn't installed" : {
       "comment" : " — 没装 %@ — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -144,6 +145,7 @@
     },
     " — can't start" : {
       "comment" : " — 启动不了 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -287,6 +289,7 @@
     },
     " — not signed in" : {
       "comment" : " — 没登录 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -619,6 +622,7 @@
     },
     " (" : {
       "comment" : "（ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -1608,6 +1612,7 @@
     },
     ")" : {
       "comment" : "） — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3585,7 +3590,7 @@
       }
     },
     "✓ The next question starts a new session" : {
-      "comment" : "✓ 下一个问题开始一个新会话 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "comment" : "✓ 下一个问题开始一个新会话 — Sources/AllInOneIME/AIPicker.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4056,6 +4061,7 @@
     },
     "A new session: it no longer remembers the earlier questions (the old one stays in %@'s history)." : {
       "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 %@ 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5422,6 +5428,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI"
+          }
+        }
+      }
+    },
+    "ai.label.separator" : {
+      "comment" : "， — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "、"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : ", "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "，"
           }
         }
       }
@@ -8088,6 +8147,7 @@
     },
     "Automatic" : {
       "comment" : "自动 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8135,6 +8195,7 @@
     },
     "Automatic (now: %@)" : {
       "comment" : "自动（现在：%@） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8759,6 +8820,53 @@
         }
       }
     },
+    "Change ▾" : {
+      "comment" : "更换 ▾ — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ändern ▾"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar ▾"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer ▾"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更 ▾"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "변경 ▾"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alterar ▾"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更換 ▾"
+          }
+        }
+      }
+    },
     "Change settings in a sentence" : {
       "comment" : "用一句话改设置 — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -8802,6 +8910,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "用一句話更改設定"
+          }
+        }
+      }
+    },
+    "Change the AI" : {
+      "comment" : "更换 AI — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI ändern"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer d’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIを変更"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 변경"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alterar a IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更換 AI"
           }
         }
       }
@@ -9650,6 +9805,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "從「應用程式」中選擇⋯"
+          }
+        }
+      }
+    },
+    "Choose the AI" : {
+      "comment" : "选择 AI — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI auswählen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elegir la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisir l’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AIを選択"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 선택"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolher a IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選擇 AI"
           }
         }
       }
@@ -11679,6 +11881,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在哪裡繼續對話"
+          }
+        }
+      }
+    },
+    "Continue in Terminal" : {
+      "comment" : "终端里接着聊 — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Im Terminal fortsetzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuer dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルで続ける"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 이어 가기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Continuar no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在終端機裡接著聊"
           }
         }
       }
@@ -13948,6 +14197,53 @@
         }
       }
     },
+    "Each @question conversation is a new one here, its follow-ups in it. Start Over begins a new one now (the old one stays in %@'s history)." : {
+      "comment" : "每个 @question 对话在这里都是一个新对话，追问留在里面。「重新开始」现在就换一个新对话（旧的还在 %@ 的历史里）。 — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes @question-Gespräch ist hier ein neues, Nachfragen bleiben darin. „Neu beginnen“ startet jetzt ein neues (das alte bleibt im Verlauf von %@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada conversación de @question es una nueva aquí, y sus preguntas de seguimiento siguen en ella. «Empezar de nuevo» abre una nueva ahora (la anterior sigue en el historial de %@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque conversation @question est ici une nouvelle conversation, ses questions de suivi y restent. « Recommencer » en ouvre une nouvelle maintenant (l’ancienne reste dans l’historique de %@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question の会話はそれぞれここで新しい会話になり、追加の質問はその中で続きます。「やり直す」で今すぐ新しい会話を始めます（古い会話は%@の履歴に残ります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question 대화는 여기서 매번 새 대화이고, 후속 질문은 그 대화에 이어집니다. ‘새로 시작’하면 지금 새 대화가 시작됩니다(이전 대화는 %@의 기록에 남습니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada conversa do @question é uma nova aqui, e as perguntas seguintes ficam nela. “Recomeçar” abre uma nova agora (a antiga fica no histórico do %@)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個 @question 對話在這裡都是一個新對話，追問留在裡面。「重新開始」現在就換一個新對話（舊的還在 %@ 的歷史裡）。"
+          }
+        }
+      }
+    },
     "Each import, update or removal compiles pinyin's dictionary again (all of rime-ice's words with yours), which can take a minute or so; Chinese input pauses until it's done." : {
       "comment" : "每次导入、更新或移除都会重新编译拼音词库（雾凇拼音的全部词条加上你的），可能要一分钟左右；这期间暂时打不了中文。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
       "localizations" : {
@@ -15937,6 +16233,53 @@
         }
       }
     },
+    "How to sign in" : {
+      "comment" : "怎么登录 — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "So meldest du dich an"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cómo iniciar sesión"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comment se connecter"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン方法"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 방법"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Como entrar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "怎麼登入"
+          }
+        }
+      }
+    },
     "Icon" : {
       "comment" : "图标 — Sources/AllInOneIME/CommandEditor.swift",
       "localizations" : {
@@ -16603,6 +16946,53 @@
         }
       }
     },
+    "Install %@, then come back here" : {
+      "comment" : "装好 %@ 后回到这里 — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installiere %@ und komm dann hierher zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instala %@ y vuelve aquí"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Installez %@, puis revenez ici"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@をインストールしてから戻ってきてください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 설치한 뒤 여기로 돌아오세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instale %@ e depois volte aqui"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裝好 %@ 後回到這裡"
+          }
+        }
+      }
+    },
     "Install AllInOneIME %@?" : {
       "comment" : "安装 AllInOneIME %@？ — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
@@ -17022,6 +17412,54 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新後它沒能自己重新啟動（%@），是之後才啟動的。"
+          }
+        }
+      }
+    },
+    "It remembers what you asked. Start Over begins a new one that doesn't (the old one stays in %@'s history)." : {
+      "comment" : "记得聊过的。重新开始一个新会话，之前的问题它就不记得了（旧会话还在 %@ 的历史里）。 — Sources/AllInOneIME/AIPicker.swift",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sie weiß noch, was du gefragt hast. „Neu beginnen“ startet eine neue Sitzung, die das nicht weiß (die alte bleibt im Verlauf von %@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Recuerda lo que preguntaste. «Empezar de nuevo» abre una sesión nueva que no lo recuerda (la anterior sigue en el historial de %@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elle se souvient de vos questions. « Recommencer » ouvre une nouvelle session qui ne s’en souvient pas (l’ancienne reste dans l’historique de %@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これまでの質問を覚えています。「やり直す」で、それを覚えていない新しいセッションを始めます（古いセッションは%@の履歴に残ります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "물어본 내용을 기억합니다. ‘새로 시작’하면 그것을 기억하지 않는 새 세션이 시작됩니다(이전 세션은 %@의 기록에 남습니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ela lembra o que você perguntou. “Recomeçar” abre uma sessão nova que não lembra (a antiga fica no histórico do %@)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記得聊過的。重新開始一個新會話，之前的問題它就不記得了（舊會話還在 %@ 的歷史裡）。"
           }
         }
       }
@@ -24407,6 +24845,53 @@
         }
       }
     },
+    "Pick one, and every AI feature uses it" : {
+      "comment" : "选一家，所有 AI 功能都用它 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine aus, und alle KI-Funktionen nutzen sie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una y todas las funciones de IA la usarán"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez-en une : toutes les fonctions d’IA l’utilisent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1つ選ぶと、すべてのAI機能がそれを使います"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하나를 고르면 모든 AI 기능이 그것을 씁니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha uma, e todos os recursos de IA vão usá-la"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一家，所有 AI 功能都用它"
+          }
+        }
+      }
+    },
     "Picking a service fills in its base URL; then enter its model under Custom…. Any other OpenAI-compatible address works too." : {
       "comment" : "选一个服务会填好它的 Base URL，再在「自定义…」里填它的模型。也可以填任何其他兼容 OpenAI 的地址。 — Sources/AllInOneIME/SettingsWindow.swift",
       "extractionState" : "stale",
@@ -25492,6 +25977,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "問題"
+          }
+        }
+      }
+    },
+    "Questions (@question)" : {
+      "comment" : "提问（@question） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fragen (@question)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Preguntas (@question)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Questions (@question)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "質問（@question）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "질문 (@question)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perguntas (@question)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提問（@question）"
           }
         }
       }
@@ -28662,6 +29194,53 @@
         }
       }
     },
+    "Run %@ in Terminal" : {
+      "comment" : "终端里运行 %@ — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Führe %@ im Terminal aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ejecuta %@ en Terminal"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Exécutez %@ dans Terminal"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ターミナルで%@を実行"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 %@ 실행"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Execute %@ no Terminal"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在終端機裡執行 %@"
+          }
+        }
+      }
+    },
     "Run Node.js" : {
       "comment" : "运行 Node.js — Sources/AllInOneIME/CommandEditor.swift",
       "localizations" : {
@@ -29506,6 +30085,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "@%@ 後面的文字會傳送到 %@"
+          }
+        }
+      }
+    },
+    "Session: %@" : {
+      "comment" : "会话：%@ — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sitzung: %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión: %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session : %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッション：%@"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션: %@"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão: %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話：%@"
           }
         }
       }
@@ -30788,7 +31414,7 @@
       }
     },
     "Start Over" : {
-      "comment" : "重新开始 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "comment" : "重新开始 — Sources/AllInOneIME/AIPicker.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37636,6 +38262,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開著編碼模式時，所有裝好的語言包都會用上（輸入框分不出是哪種語言）。"
+          }
+        }
+      }
+    },
+    "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)" : {
+      "comment" : "选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」） — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einer CLI und ohne schnellere KI läuft Autovervollständigen nicht (Einstellungen → KI)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con una CLI elegida y sin una IA más rápida, autocompletar no funciona (Ajustes → IA)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une CLI choisie et sans IA plus rapide, la complétion automatique ne fonctionne pas (Réglages → IA)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLIを選んでいて、より速いAIがないときは、オートコンプリートは動きません（設定 → AI）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI를 골랐고 더 빠른 AI가 없으면 자동 완성은 작동하지 않습니다(설정 → AI)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com uma CLI escolhida e sem IA mais rápida, o autocompletar não funciona (Ajustes → IA)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選了 CLI、又沒有更快的 AI 時，續寫不會執行（設定 →「AI」）"
           }
         }
       }

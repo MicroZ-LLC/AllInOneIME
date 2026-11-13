@@ -807,7 +807,7 @@ public final class InputSession {
         let installed = services.agentInstalled
         let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
         // The questions go to the input method's session: no round limit, going on in it offered first.
-        let sessionAgent = services.converter.questionSessionAgent(config)
+        let sessionAgent = config.questionSessionAgent
         composer.questionSession = sessionAgent.flatMap { services.converter.questionSessions[$0] } != nil
         composer.questionSessionAgent = sessionAgent ?? .claude
         composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: sessionAgent ?? .claude) : choices
@@ -1671,8 +1671,6 @@ public final class InputSession {
             warmDue(head, target: target, focus: focus)
         case .pluginsScanned:
             pluginsScanned()
-        case .questionSessionsChecked:
-            applyChatSettings(services.loadSettings())
         case let .clipboardFiltered(rows, filter):
             clipboardFound(rows, filter: filter)
         }
@@ -1839,11 +1837,9 @@ public final class InputSession {
     }
 
     /// An `@question` about to be asked (`modelAhead`: typed or picked, or one @'s Ask AI row highlighted) while the
-    /// questions may go to a session (the provider isn't picked for them): the session's process starts now (off this
-    /// thread), so that the answer doesn't wait for the agent to start, the sign-in of the sessions Automatic picks from
-    /// looked at first where it still is to be (`Converter.questionSessionChecked`; what it finds is taken in:
-    /// `TaskUpdate.questionSessionsChecked`). Once while the question stays ahead; never during secure input nor in an
-    /// app with No AI, and not for the command trigger alone or any other row.
+    /// questions go to a session (a CLI is the AI chosen, `Converter.questionSession`): the session's process starts now
+    /// (off this thread), so that the answer doesn't wait for the agent to start. Once while the question stays ahead;
+    /// never during secure input nor in an app with No AI, and not for the command trigger alone or any other row.
     private func prewarmQuestionSession() {
         guard modelAhead == Command.question.name else {
             questionSessionWarmed = false
@@ -1852,13 +1848,11 @@ public final class InputSession {
         guard !questionSessionWarmed else { return }
         questionSessionWarmed = true
         let config = services.loadSettings()
-        guard config.questionBackend != .provider, !secureInputActive(), config.allowsAI(in: app) else { return }
         let converter = services.converter
-        let before = converter.questionSessionAgent(config)
-        tasks.start(nil) { post in
-            let session = await converter.questionSessionChecked(config)
-            session?.prewarm()
-            if converter.questionSessionAgent(config) != before { post(.questionSessionsChecked) }
+        guard let session = converter.questionSession(config), !secureInputActive(), config.allowsAI(in: app) else { return }
+        tasks.start(nil) { _ in
+            converter.questionSessionsFollow(config)  // another CLI chosen since: the old one's process ends
+            session.prewarm()
         }
     }
 

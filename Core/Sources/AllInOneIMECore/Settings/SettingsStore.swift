@@ -57,9 +57,9 @@ public final class SettingsStore {
     /// shell deletes the questions it keeps.
     public var questionsForgotten: () -> Void = {}
 
-    /// Called when where `@question` is answered (`Config.questionBackend`) is changed here (`setQuestionBackend`),
-    /// after the config changed: the shell ends the questions' sessions' processes, so the one picked starts with the
-    /// next question and the one left doesn't run on.
+    /// Called when the CLI `@question` goes to (`Config.questionSessionAgent`: a CLI chosen as the AI, or none) is changed
+    /// here (`setAI`), after the config changed: the shell ends the questions' sessions' processes, so the one chosen
+    /// starts with the next question and the one left doesn't run on.
     public var questionBackendChanged: () -> Void = {}
 
     /// The config as the file has it (read or last written here): a save writes only what differs from it, and a save
@@ -325,12 +325,12 @@ public final class SettingsStore {
         questionsForgotten()
     }
 
-    /// Where `@question` is answered, picked (`questionBackendChanged`, when it changed). Not saved here: the caller
-    /// saves, as for any choice.
-    public func setQuestionBackend(_ backend: QuestionBackend?) {
-        guard backend != config.questionBackend else { return }
-        config.questionBackend = backend
-        questionBackendChanged()
+    /// The AI chosen (`Config.ai`; `questionBackendChanged` when the CLI `@question` goes to changed with it). Not saved
+    /// here: the caller saves, as for any choice.
+    public func setAI(_ choice: AIChoice) {
+        let before = config.questionSessionAgent
+        config.ai = choice
+        if config.questionSessionAgent != before { questionBackendChanged() }
     }
 
     /// Fuzzy pinyin's pairs (`FuzzyPinyin.pairs` ids; the ones this version doesn't know are left out), saved. The shell

@@ -548,40 +548,21 @@ struct QuestionSessionBackendsTests {
         return ClaudeSessionManager(backend: backend, launcher: launcher, uptime: uptime)
     }
 
-    @Test func automaticLooksAtTheSessionsInOrderUntilOneIsReady() async {
-        let (claudeRuns, codexRuns, geminiRuns) = (Counted(), Counted(), Counted())
-        let now = Locked(initialState: 1000.0)
+    /// Since 0.7.4 there is no Automatic to look at sign-ins for: the CLI chosen as the AI is tried as it is, and with a
+    /// provider chosen no session is; nothing is looked at either way (Settings → AI looks, as it shows the choices).
+    @Test func aQuestionLooksAtNoSignIn() {
+        let (claudeRuns, codexRuns, kiroRuns) = (Counted(), Counted(), Counted())
         let sessions: [SessionAgent: ClaudeSessionManager] = [
-            .claude: local(.claude, ready: false, claudeRuns, uptime: { now.withLock { $0 } }),
-            .codex: local(.codex, ready: true, codexRuns), .gemini: local(.gemini, ready: true, geminiRuns),
+            .claude: local(.claude, ready: true, claudeRuns), .codex: local(.codex, ready: true, codexRuns),
+            .kiro: local(.kiro, ready: false, kiroRuns),
         ]
         var config = Config.default
         config.agent = .claude
-        let current = Locked(initialState: config)
-        let converter = Converter(loadConfig: { current.withLock { $0 } }, questionSessions: sessions)
-        // Nothing looked at before (no launch check): nothing known.
-        #expect(converter.questionSession(config) == nil && claudeRuns.runs == 0)
-        #expect(await converter.questionSessionChecked(config) === sessions[.codex])
-        #expect((claudeRuns.runs, codexRuns.runs, geminiRuns.runs) == (1, 1, 0))
-        // Kept: Codex is ready for the launch; Claude Code's not again within the minute.
-        #expect(await converter.questionSessionChecked(config) === sessions[.codex])
-        #expect((claudeRuns.runs, codexRuns.runs, geminiRuns.runs) == (1, 1, 0))
-        // A minute on: Claude Code's looked at again, for the next question, without the question waiting for it.
-        now.withLock { $0 += 61 }
-        #expect(await converter.questionSessionChecked(config) === sessions[.codex])
-        #expect(await Timing.eventually { claudeRuns.runs == 2 } && codexRuns.runs == 1)
-        // @agent's Gemini CLI: its own session first.
-        config.agent = .gemini
-        #expect(await converter.questionSessionChecked(config) === sessions[.gemini])
-        #expect(geminiRuns.runs == 1)
-        // A session or the provider picked: nothing looked at.
-        let (pickedRuns, providerRuns) = (Counted(), Counted())
-        let picked = Converter(questionSessions: [.kiro: local(.kiro, ready: false, pickedRuns)])
+        let converter = Converter(questionSessions: sessions)
+        #expect(converter.questionSession(config) == nil)
         config.questionBackend = .kiroSession
-        #expect(await picked.questionSessionChecked(config) === picked.questionSessions[.kiro] && pickedRuns.runs == 0)
-        let provider = Converter(questionSessions: [.kiro: local(.kiro, ready: true, providerRuns)])
-        config.questionBackend = .provider
-        #expect(await provider.questionSessionChecked(config) == nil && providerRuns.runs == 0)
+        #expect(converter.questionSession(config) === sessions[.kiro])
+        #expect((claudeRuns.runs, codexRuns.runs, kiroRuns.runs) == (0, 0, 0))
     }
 
     // MARK: - Started ahead only for a question about to be asked
@@ -594,6 +575,7 @@ struct QuestionSessionBackendsTests {
             config.setOrder([Language.english])
             config.provider = .apple
             config.agent = .kiro
+            config.questionBackend = .kiroSession  // chosen as the AI (no Automatic since 0.7.4)
         }
     }
 
@@ -627,18 +609,19 @@ struct QuestionSessionBackendsTests {
             #expect(host.composer.oneAtRows.first == .write(.improve))
             Thread.sleep(forTimeInterval: 0.1)
             #expect(runs.runs == 0 && fake.processes.isEmpty)
-            // A question typed: Ask AI highlighted, the session looked at and started, once.
+            // A question typed: Ask AI highlighted, the session chosen started, once (its sign-in not looked at: since 0.7.4
+            // the CLI chosen is tried as it is).
             host.press(FakeHost.escape)
             host.press(FakeHost.at)
             host.type("what is rust?")
             #expect(host.composer.oneAtRows.first == .write(.question), "\(host.composer.oneAtRows.map(\.id))")
-            #expect(settled { fake.processes.count == 1 } && runs.runs == 1)
+            #expect(settled { fake.processes.count == 1 } && runs.runs == 0)
             #expect(fake.last?.arguments == ["acp"])
             // The panel takes in where questions go now.
             #expect(host.settle(timeout: 5) { host.composer.questionSession && host.composer.questionSessionAgent == .kiro })
             host.type(" x")
             Thread.sleep(forTimeInterval: 0.1)
-            #expect(fake.processes.count == 1 && runs.runs == 1)
+            #expect(fake.processes.count == 1 && runs.runs == 0)
 
             // @question typed out, in another field: started (it runs already: nothing more).
             session.stop()
@@ -676,7 +659,7 @@ struct QuestionSessionBackendsTests {
     @Test func noSessionStartsWithTheProviderPickedNoAIOrSecureInput() async {
         await withInterfaceLanguage("en") {
             let provider = Settings()
-            provider.config.questionBackend = .provider
+            provider.config.questionBackend = nil
             let noAI = Settings()
             noAI.config.appProfiles["com.example.editor"] = AppProfile(noAI: true)
             for (settings, secure) in [(provider, false), (noAI, false), (Settings(), true)] {
@@ -687,7 +670,7 @@ struct QuestionSessionBackendsTests {
                 host.press(FakeHost.tab)
                 host.type("what is rust")
                 Thread.sleep(forTimeInterval: 0.15)
-                #expect(runs.runs == 0 && fake.processes.isEmpty, "provider \(settings.config.questionBackend == .provider), secure \(secure)")
+                #expect(runs.runs == 0 && fake.processes.isEmpty, "provider \(settings.config.questionBackend == nil), secure \(secure)")
             }
         }
     }

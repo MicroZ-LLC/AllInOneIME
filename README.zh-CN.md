@@ -198,7 +198,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 
 ### @question 用输入法自己的会话（新）
 
-设置 →「AI」→「提问（@question）」（配置里的 `questionBackend`）选 `@question` 在哪里回答：自动、Claude Code 会话、Codex 会话、Gemini CLI 会话、Kiro CLI 会话或 AI 服务。
+设置 →「AI」是所有 AI 功能共用的一个选择（「更换 ▾」按连接方式列出各家）：在「用你的订阅」里选 Claude Code、Codex、Gemini CLI 或 Kiro CLI（配置里的 `questionBackend`），`@question` 就在输入法自己的这个 CLI 会话里回答。
 会话是输入法为所有输入框留着的一个长期运行的 Claude Code（`claude -p`，stream JSON）、Codex（`codex app-server`）、Gemini CLI（`gemini --acp`）或 Kiro CLI（`kiro-cli acp`）进程，
 在它自己的文件夹里（`~/Library/Application Support/AllInOneIME/claude-session`、`codex-session`、`gemini-session` 或 `kiro-session`，有它自己的说明：CLAUDE.md、AGENTS.md、GEMINI.md 或 Kiro 的 steering），
 用那个 CLI 自己的账号登录：Claude、ChatGPT、Google 或 Kiro 订阅、公司账号，或者 Amazon Bedrock 上的 Claude Code（用 `~/.claude/settings.json` 里的服务设置），
@@ -214,14 +214,13 @@ Codex：不给它运行命令和读写文件的环境，`CODEX_EXEC_SERVER_URL=n
 你允许它用的所有工具，以及你的 MCP 服务器、扩展和插件：对话里要它做什么，就和你自己的任何会话一样由那个 CLI 和你决定（问题里有不是你打的文字时也一样）。只发现在问的这个问题，像发给 AI 服务时一样隐藏敏感信息（见「隐私」），
 问 AllInOneIME 本身的问题时再带上使用指南的几段。要问 `@question` 时才启动（打了或选了 `@question`，或单个 @ 里高亮的是「问 AI」那一行；只打魔法键不启动，
 不用 AI 的 App 里和安全输入时也不启动），那时就准备好一个新对话（Codex 和 ACP agent 在已有的进程里开，Claude Code 用新的 session id 重新启动进程），回答不用等；闲置 15 分钟后结束，之后的追问接着它的对话。
-用会话时对话没有轮数限制，⌘⏎ 最先列出在终端里接着同一个对话聊（`claude --resume`、`codex resume`、`gemini --resume`、`kiro-cli chat --resume-id`）；设置旁边的「重新开始」开一个新对话。一个对话从不同时有两个进程：⌘⏎ 先结束会话自己的进程并等它结束（半秒还没结束就强制结束），终端里的 CLI 运行时拿着这个对话的锁（`<会话文件夹>/locks/<id>.lock` 上的 `lockf`，等输入法的锁放开才开始），从此这个对话归终端：下一个 `@question`（交接时打的 @ 也一样）在这里开新对话，不会接着交出去的那个。退出或更新 AllInOneIME 时所有会话的进程都会结束，重新启动后也不会接着以前的对话。
-「自动」（默认）在 `@agent` 的 agent 的会话装了并已登录时用它，不然用另一个装了并已登录的（顺序是 Claude Code、Codex、Gemini CLI、Kiro CLI），再不然用 AI 服务。
-各个 CLI 装没装、登没登录，要到第一次有问题可能发给会话时才检查，启动时不查，选了 AI 服务时从不查（`claude auth status`、Codex 的账号、
-Gemini CLI 的设置和保存的登录——不为此启动它、`kiro-cli whoami`）：查到能用的一直算能用，直到输入法退出；不能用的在需要时再查，最快一分钟后。
-选了会话或「自动」时，设置每次显示这个选项都重新查，在那里选会话或「自动」时也查；选了 AI 服务时一个都不运行。
-会话回答不了时（没装、没登录、启动不了、没法只读网页、用量到上限、AWS 登录过期、30 秒内没反应、30 秒后还在回答之前的问题，或 CLI 回答之前先压缩对话：Claude Code 的 `compact_boundary` 或 compacting 状态、Codex 的上下文压缩，不等它），马上由 AI 服务回答，候选框里写着原因；
-启动不了的 CLI，在重新检查之前「自动」不再选它。候选框底部写着是谁回答的：那个 CLI（Claude Code、Codex、Gemini CLI、Kiro CLI）或 AI 服务；CLI 的对话从这个回答开始是新的（第一个问题，或重启后没能接上原来的对话，它不知道前面几轮）时写「新对话」；CLI 报告了用量时写这一轮用的 token 数（`12k tokens`）。回答 3 分钟没有动静，或按 Esc 后 5 秒还没停，会话的进程就结束，下一个问题重新启动它。
-改写、翻译和续写总是用 AI 服务。
+用会话时对话没有轮数限制，⌘⏎ 最先列出在终端里接着同一个对话聊（`claude --resume`、`codex resume`、`gemini --resume`、`kiro-cli chat --resume-id`）；选项下面的「重新开始」开一个新对话。一个对话从不同时有两个进程：⌘⏎ 先结束会话自己的进程并等它结束（半秒还没结束就强制结束），终端里的 CLI 运行时拿着这个对话的锁（`<会话文件夹>/locks/<id>.lock` 上的 `lockf`，等输入法的锁放开才开始），从此这个对话归终端：下一个 `@question`（交接时打的 @ 也一样）在这里开新对话，不会接着交出去的那个。退出或更新 AllInOneIME 时所有会话的进程都会结束，重新启动后也不会接着以前的对话。
+各个 CLI 装没装、登没登录，由设置 →「AI」检查（`claude auth status`、Codex 的账号、Gemini CLI 的设置和保存的登录——不为此启动它、`kiro-cli whoami`）：选了 CLI 时每次显示都查，打开选项（「更换 ▾」）时查，在那里选 CLI 时也查；启动时和问问题时都不查，选了 AI 服务、选项也没打开时一个都不运行。选中的那个有问题来时直接用。
+CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、续写）用你之前设置好的 AI 服务（填了 key、有 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；
+两个都没有时续写关闭，改写和翻译也交给会话，会慢一些。设置里在选项下面写着用的是哪个。
+会话回答不了时（没装、没登录、启动不了、没法只读网页、用量到上限、AWS 登录过期、30 秒内没反应、30 秒后还在回答之前的问题，或 CLI 回答之前先压缩对话：Claude Code 的 `compact_boundary` 或 compacting 状态、Codex 的上下文压缩，不等它），马上由这个更快的 AI 回答，候选框里写着原因（没有的话问题失败，写着原因）；
+启动不了的 CLI，在重新检查之前设置 →「AI」都这样显示。候选框底部写着是谁回答的：那个 CLI（Claude Code、Codex、Gemini CLI、Kiro CLI）或 AI 服务；CLI 的对话从这个回答开始是新的（第一个问题，或重启后没能接上原来的对话，它不知道前面几轮）时写「新对话」；CLI 报告了用量时写这一轮用的 token 数（`12k tokens`）。回答 3 分钟没有动静，或按 Esc 后 5 秒还没停，会话的进程就结束，下一个问题重新启动它。
+以前的配置（没有 `questionBackend`）还是用它原来的 AI 服务。
 
 自己打开这个会话、看它的记录（在终端里，每个 agent 一行）：
 
@@ -1059,7 +1058,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 
 ### 其他 AI 服务：Claude API、Gemini、兼容 OpenAI 的服务
 
-不用 AWS 也可以：在设置 →「AI」的「服务」里选一个，粘贴 API key 点「保存」，再点「测试连接」。
+不用 AWS 也可以：在设置 →「AI」里点「更换 ▾」选一个，粘贴 API key 点「保存」，再点「测试连接」。
 
 | 服务 | 默认模型 | API key |
 |---|---|---|
@@ -1076,7 +1075,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 
 ### 本机的 Apple Intelligence（macOS 26）
 
-Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系统设置 → Apple 智能与 Siri 里打开了）时，在设置 →「AI」的「服务」里选「Apple Intelligence（本机）」：不用 key，不花钱，打的字不离开这台 Mac。用的是 macOS 自带的模型（Foundation Models 框架），指令和回答格式和其他服务一样，但只带和这句话同一种语言的示例（小模型容易照着示例的语言回答）。
+Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系统设置 → Apple 智能与 Siri 里打开了）时，在设置 →「AI」里（「更换 ▾」）选「Apple 本机」：不用 key，不花钱，打的字不离开这台 Mac。用的是 macOS 自带的模型（Foundation Models 框架），指令和回答格式和其他服务一样，但只带和这句话同一种语言的示例（小模型容易照着示例的语言回答）。
 
 - 模型较小：上下文约 4K tokens（macOS 27 上 8K），太长的段落可能放不下；支持的语言也少一些（英文、中文、日文、韩文、法文、德文、西班牙文等，不支持印地语）。遇到这两种情况会直接说明。效果不如云端模型，`@question` 回答事实和代码问题常常出错。
 - 用不了时，它在列表里是灰的，后面写着原因（这台 Mac 不支持、未打开、模型还没准备好），设置里有按钮打开 系统设置 → Apple 智能与 Siri。macOS 26 以前不显示。
@@ -1137,7 +1136,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
-| `questionBackend` | `@question` 在哪里回答：`claudeSession`（输入法自己的 Claude Code 会话）、`codexSession`、`geminiSession`、`kiroSession`（它的 Codex、Gemini CLI、Kiro CLI 会话）或 `provider`；不写：自动（见「@question 用输入法自己的会话」）。只属于这台 Mac，不同步 | 不写 |
+| `questionBackend` | 设置 →「AI」里选的 CLI：`claudeSession`（Claude Code）、`codexSession`、`geminiSession`、`kiroSession`（Codex、Gemini CLI、Kiro CLI）。`@question` 发给输入法自己的这个 CLI 会话，要快的发给 `provider`（设置好时；见「@question 用输入法自己的会话」）；不写（或 0.7.4 测试版写的 `provider`）：AI 就是 `provider`。只属于这台 Mac，不同步 | 不写 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`noAI`、`suggestionsInsert`（同下，或者 `"source"`；同步）和 `suggestions`（`false`：那里不出建议的行，即「在这些 App 里」的「关闭」；只属于这台 Mac，不同步），设置里显示这几项；以前的版本留下、照样生效的：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）（见「按 App 设置」） | `{}` |
 | `autocomplete` | 续写：光标后出灰字，按 Tab 上屏；问的是你的 AI 服务（见「续写」）；不同步 | `false` |
 | `suggestions` | 建议（设置 →「通用」、输入法菜单）：`false` 关掉所有建议的行，插件的、建议命令的和代码输入的；只属于这台 Mac，不同步（见「建议和代码输入」） | 不写（开） |
@@ -1161,7 +1160,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - 打拼音和 `@calculator` 插件的计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。修改结果（结果出来后打要求再按 ⇧⏎）时，同样的请求连同显示的结果和你的要求再发一次；追问（⏎）时连同前面的对话一起发。
 - 为了停一会儿之后的请求不用等新建连接（0.7.0）：你写的变成发给你自己的云端服务（Claude API、Gemini API、OpenAI、Amazon Bedrock）的 AI 命令时（`@` 之后要打了字或选了文字、高亮的是 AI 的一行；只打 `@` 从不发），或在用这种服务续写的输入框里按第一个键时，如果最近 90 秒没有发过东西给这个服务，输入法向它的地址发一个 HEAD 请求，只有 `https://主机/`（Bedrock 是它所在区域的地址）：没有密钥、没有凭证、没有内容，要求登录一律拒绝。按 ⏎ 之前你打的什么都不发送。只发给服务自己的地址（`api.anthropic.com`、`generativelanguage.googleapis.com`、`api.openai.com`、`bedrock-runtime.<区域>.amazonaws.com`），从不发给你自己设的 base URL（别的服务、中转、这台 Mac 或局域网上的模型，哪怕是上面另一家服务的地址），而且只在那里真的请求成功过之后：这台 Mac 只记下是哪个地址、什么时候，别的都不记（放在 App 的缓存里，从不放进 config.json），30 天没有成功过就忘掉。为此从不看你的密钥和 AWS 文件。从不发给 AllInOneIME 云，安全输入时、关了 AI 的 App 里不发；发出之前会再查一次这些，还有服务和它的地址是不是没变。
 - 设置只在你选搜索的最后一行「修改：…」、或在「排查问题」里写了问题再按「检查」时把文字发给模型：这台 Mac 有 Apple 智能就用它（不离开这台 Mac），没有就用你选的服务。搜索本身什么都不发。改设置的请求发出你写的那句话（里面打的密钥先去掉）和允许改的设置现在的值：从不发密钥，也不发你对 AI 隐藏的词（只说有几个）；AWS profile 的名字只在这句话说到 AWS 或 Bedrock 时才发。问题会和遮掉敏感内容的检查结果一起发出：路径只到 `~`，没有密钥，日志只留固定的短语。两者都和别的请求一样会隐藏敏感信息（如果打开了）。光检查什么都不发；「检查」只多发测试连接的那一次请求（服务有密钥或凭证可测时才测）。
-- 设置 →「AI」→「提问（@question）」选了会话（或「自动」找到了一个）时，`@question` 发给本机的那个 Claude Code、Codex、Gemini CLI 或 Kiro CLI，用它自己的账号和服务，而不是 AI 服务：发的是现在问的问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时还有使用指南的几段。每个对话在会话里都是新的，记录留在那个 CLI 那里（它自己的会话历史，CLI 能给会话起名的就叫 AllInOneIME）；一个对话的内容不会带到下一个。不管是哪个 CLI，会话都只能读网页（搜索、打开网页）：不能读、列出或改动这台 Mac 上的文件，不能运行命令，也不能用那个 CLI 的 MCP 服务器、扩展、插件或别的 agent。问题里有不是你打的文字（选中的文字、截图里的文字、问题里别的命令输出的网页或内容）时，那些文字可能让 agent 把对话发到别人的地址：这时会话只能打开你自己打的网址，一个都没打就关掉网页工具。Claude Code 只能打开那些网址所在的网站；Codex、Gemini CLI 和 Kiro CLI 没法只开指定网址，这时就没有网页工具。在终端里接着聊（⌘⏎）时，就是你自己设置的那个 CLI：一个普通的交互式会话，用你自己的规则、设置、权限提示、工具和 MCP 服务器，不再是只读网页的会话。各个 CLI 登没登录，要到有问题可能发给它时才检查。
+- 在设置 →「AI」里选了 Claude Code、Codex、Gemini CLI 或 Kiro CLI 时，`@question` 发给本机的那个 CLI，用它自己的账号和服务，而不是 AI 服务：发的是现在问的问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时还有使用指南的几段。每个对话在会话里都是新的，记录留在那个 CLI 那里（它自己的会话历史，CLI 能给会话起名的就叫 AllInOneIME）；一个对话的内容不会带到下一个。不管是哪个 CLI，会话都只能读网页（搜索、打开网页）：不能读、列出或改动这台 Mac 上的文件，不能运行命令，也不能用那个 CLI 的 MCP 服务器、扩展、插件或别的 agent。问题里有不是你打的文字（选中的文字、截图里的文字、问题里别的命令输出的网页或内容）时，那些文字可能让 agent 把对话发到别人的地址：这时会话只能打开你自己打的网址，一个都没打就关掉网页工具。Claude Code 只能打开那些网址所在的网站；Codex、Gemini CLI 和 Kiro CLI 没法只开指定网址，这时就没有网页工具。在终端里接着聊（⌘⏎）时，就是你自己设置的那个 CLI：一个普通的交互式会话，用你自己的规则、设置、权限提示、工具和 MCP 服务器，不再是只读网页的会话。各个 CLI 登没登录，只由设置 →「AI」在选了 CLI 或打开选项时检查。没有设置更快的 AI 时（见上），改写和翻译也发给它。
 - `@question` 对话换个地方接着聊（聊满后按 ⌘1…，或按 ⌘⏎）时，对话连同你打的字发给你选的服务：本机的编程 agent（Claude Code、Gemini CLI、Kiro CLI 或你自己的，各用自己的账号和服务）、claude.ai、chatgpt.com 或 gemini.google.com，放在网址里或经剪贴板。发过去的是你看到的样子：发给 AI 的请求里隐藏的内容（见下）在里面是原样的，因为是你自己选择发到那里。不选就什么都不发；「复制对话」只是放到剪贴板。
 - 问 AllInOneIME 本身的 `@question`（提到它的名字、它的某个设置、命令或按键）会附上 App 自带使用指南里最相关的两三段，在本机挑选（最多约 3,000 字符）：是 App 自己的说明，不含你的任何内容（没有设置，没有密钥）；这样的对话接着到编程 agent 里聊时，给它的是指南的路径。别的问题照旧发送，一字不变。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。

@@ -247,8 +247,8 @@ enum AWSProfileSamples {
     /// Settings → AI Provider with a role, an SSO profile and an SSO sign-in that expired (with its command):
     /// `settings-provider-aws-<role|sso|sso-expired>.png`.
     static func render(_ model: SettingsModel, to output: URL, appearance: NSAppearance.Name) {
-        let (provider, profile, shownAs) = (model.config.provider, model.config.awsProfile, model.profileShownAs)
-        model.config.provider = .bedrock
+        let (ai, provider, profile, shownAs) = (model.config.ai, model.config.provider, model.config.awsProfile, model.profileShownAs)
+        model.config.ai = .provider(.bedrock)
         model.profileShownAs = nil  // sample names
         for (name, file) in [("dev", "aws-role"), ("sso-dev", "aws-sso"), ("sso-old", "aws-sso-expired")] {
             model.config.awsProfile = name
@@ -257,6 +257,7 @@ enum AWSProfileSamples {
                                  appearance: appearance) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         (model.config.provider, model.config.awsProfile, model.profileShownAs) = (provider, profile, shownAs)
+        model.config.ai = ai
         model.aws.load(profile: profile)
         if let folder { try? FileManager.default.removeItem(at: folder) }
     }

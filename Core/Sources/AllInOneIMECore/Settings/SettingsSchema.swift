@@ -460,13 +460,20 @@ struct SettingsSchema {
         var fields: [Field] = []
         let store = store
         let offered = Provider.offered(apple: platform == .mac ? AppleModel.system.availability : .unsupportedSystem)
-        // The Cloud's sign-in and Apple's model are the Mac's.
-        let choices = Provider.allCases.filter { offered.contains($0) || $0 == config.provider }.map { provider in
+        // The AI (`Config.ai`): a CLI on this Mac (the Mac's, as are the Cloud's sign-in and Apple's model; first, as
+        // Settings → AI lists them), or a provider. A CLI's own settings are the Mac's window's (its status, Start
+        // Over); with one chosen the provider's fields are left out.
+        let clis = QuestionBackend.sessionAgents.map { (Choice(AIChoice.cli($0).id, $0.displayName), [SettingsPlatform.mac] as [SettingsPlatform]?) }
+        let choices = clis + Provider.allCases.filter { offered.contains($0) || $0 == config.provider }.map { provider in
             (Choice(provider.rawValue, UIText.name(provider)), provider == .hosted || provider == .apple ? [SettingsPlatform.mac] : nil)
         }
-        add(choice("provider", tr("服务", "Provider"), value: .string(config.provider.rawValue), choices: choices), to: &fields) { value in
-            store.config.provider = value.string.flatMap(Provider.init(rawValue:)) ?? store.config.provider
+        add(choice("provider", tr("服务", "Provider"), value: .string(config.ai.id), choices: choices), to: &fields) { value in
+            // Another CLI (or none) ends the sessions' processes (`SettingsStore.questionBackendChanged`): the one chosen
+            // starts with the next question.
+            if let chosen = value.string.flatMap(AIChoice.init(id:)) { store.setAI(chosen) }
         }
+        // A CLI: nothing more here (nothing to test either).
+        guard config.ai.agent == nil else { return fields }
         let provider = config.provider
         switch provider {
         case .anthropic, .gemini, .openai:
@@ -514,20 +521,6 @@ struct SettingsSchema {
         test.actions = [SettingsAction.test]
         test.status = outcome("provider.test")
         add(test, to: &fields)
-        // Where @question goes (`Config.questionBackend`): the input method's own session on an agent (`SessionAgent`:
-        // Claude Code, Codex, Gemini CLI, Kiro CLI; the Mac's), or the provider above. Everything else always goes to the
-        // provider.
-        add(choice("questionBackend", UIText.triggered(tr("提问（@question）", "Questions (@question)")),
-                   UIText.triggered(QuestionBackend.help),
-                   value: .string(config.questionBackend?.rawValue ?? ""),
-                   choices: [(Choice("", UIText.triggered(tr("自动：@agent 的 agent 的会话，或另一个装了并已登录的会话", "Automatic: @agent's agent's session, or another one installed and signed in"))), nil)]
-                       + QuestionBackend.sessionAgents.map { (Choice(QuestionBackend($0).rawValue, $0.sessionTitle), nil) }
-                       + [(Choice(QuestionBackend.provider.rawValue, tr("AI 服务", "The AI provider")), nil)],
-                   platforms: [.mac]), to: &fields) { value in
-            // The sessions' processes end (`SettingsStore.questionBackendChanged`): the one picked starts with the next
-            // question.
-            store.setQuestionBackend(value.string.flatMap(QuestionBackend.init(rawValue:)))
-        }
         return fields
     }
 

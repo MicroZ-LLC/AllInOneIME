@@ -254,9 +254,9 @@ under its first question in the recent questions, and picking it shows the round
 
 ### @question in a session of its own (new)
 
-Settings → AI → Questions (@question) (`questionBackend` in the config) picks where `@question` is answered: Automatic,
-Claude Code session, Codex session, Gemini CLI session, Kiro CLI session or The AI provider. A session is one
-long-running Claude Code (`claude -p`, stream JSON), Codex (`codex app-server`), Gemini CLI (`gemini --acp`) or Kiro CLI
+Settings → AI is one choice for every AI feature (Change ▾ opens the choices, by how they connect): Claude Code, Codex,
+Gemini CLI or Kiro CLI under "With your subscription" (`questionBackend` in the config) has `@question` answered in the
+input method's own session on that CLI. A session is one long-running Claude Code (`claude -p`, stream JSON), Codex (`codex app-server`), Gemini CLI (`gemini --acp`) or Kiro CLI
 (`kiro-cli acp`) process the input method keeps for every text field, in a folder of its own
 (`~/Library/Application Support/AllInOneIME/claude-session`, `codex-session`, `gemini-session` or `kiro-session`, with
 its own instructions: CLAUDE.md, AGENTS.md, GEMINI.md or Kiro steering), signed in with that CLI's own account: a
@@ -287,27 +287,29 @@ secure input), with a new conversation made ready then (Codex and the ACP agents
 Claude Code's process starts again on a new session id), so the answer doesn't wait; it ends after 15 idle minutes, and
 a follow-up after that resumes its conversation. In it a conversation has no round limit, and ⌘⏎ offers continuing the
 same conversation in Terminal first (`claude --resume`, `codex resume`, `gemini --resume`, `kiro-cli chat --resume-id`);
-Start Over beside the setting begins a new one. Never two processes on one conversation: ⌘⏎ ends the session's own
+Start Over under the choice begins a new one. Never two processes on one conversation: ⌘⏎ ends the session's own
 process first and waits for it (killed if it hasn't ended within half a second), Terminal's CLI holds the conversation's
 lock while it runs (`lockf` on `<session folder>/locks/<id>.lock`, waiting for ours to be let go), and the conversation
 is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes into a new conversation here, never the
 one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
-from before is resumed. Automatic (the default) uses the session of `@agent`'s agent when it is installed and signed in,
-else another one that is (in the order Claude Code, Codex, Gemini CLI, Kiro CLI), else the provider. Whether each CLI is
-installed and signed in is looked at the first time a question could go to a session, not at launch, and never while The
-AI provider is picked (`claude auth status`, Codex's account, Gemini CLI's settings and saved sign-in without starting
-it, `kiro-cli whoami`): one found ready stays so until the input method quits, any other is looked at again when needed,
-a minute later at the earliest. Settings looks again each time it shows the choice with a session or Automatic picked,
-and when you pick one there; with The AI provider picked it runs none of them. When the session can't answer (not
+from before is resumed. Whether each CLI is installed
+and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Gemini CLI's settings and saved
+sign-in without starting it, `kiro-cli whoami`): each time it shows with a CLI chosen, when you open the choices (Change
+▾) and when you choose a CLI there; never at launch nor for a question, and with a provider chosen and the choices
+closed it runs none of them. The one chosen is tried as a question comes. A CLI takes a second or more to answer, so
+what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
+an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
+neither, autocomplete is off, and rewriting and translating go to the session too, more slowly. Settings says which
+under the choice. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
 within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting the conversation before
 it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction, not waited for) the
-provider answers at once and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at
-again. The panel's footer says who answered: the CLI (Claude Code, Codex, Gemini CLI, Kiro CLI) or the AI provider, "new
+fast fallback answers at once and the panel says why (with none, the question fails, saying why); Settings → AI shows a
+CLI that couldn't start so until it is looked at again. The panel's footer says who answered: the CLI (Claude Code, Codex, Gemini CLI, Kiro CLI) or the AI provider, "new
 conversation" when the CLI's conversation is new with that answer (the first question, or one it couldn't resume after a
 restart, so it doesn't have the rounds before), and the tokens the turn used when the CLI reports them (`12k tokens`).
 An answer that says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next
-question starts it again. Rewriting, translating and autocomplete always use the provider.
+question starts it again. A config from before (no `questionBackend`) stays on its provider.
 
 To open the session yourself and read its history, in Terminal (one line per agent):
 
@@ -1391,7 +1393,7 @@ in Settings wins over both.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-You don't need AWS: pick one under Provider in Settings → AI, paste an API key, click "Save", then "Test Connection".
+You don't need AWS: pick one in Settings → AI (Change ▾), paste an API key, click "Save", then "Test Connection".
 
 | Provider | Default model | API key |
 |---|---|---|
@@ -1408,7 +1410,7 @@ You don't need AWS: pick one under Provider in Settings → AI, paste an API key
 
 ### Apple Intelligence on this Mac (macOS 26)
 
-On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple Intelligence (on this Mac)" under Provider in Settings → AI: no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
+On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple on-device" in Settings → AI (Change ▾): no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
 
 - It's a small model: its context is about 4K tokens (8K on macOS 27), so a long paragraph may be too long for it, and it speaks fewer languages (English, Chinese, Japanese, Korean, French, German, Spanish and a few more; not Hindi). Either one says so. Its results are below the cloud models', and its `@question` answers on facts and code are often wrong.
 - Where it can't be used, it's listed greyed out with the reason (not supported on this Mac, turned off, model not ready), and the settings link to System Settings → Apple Intelligence & Siri. Before macOS 26 it isn't listed.
@@ -1474,7 +1476,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
-| `questionBackend` | Where `@question` is answered: `claudeSession` (the input method's own Claude Code session), `codexSession`, `geminiSession`, `kiroSession` (its Codex, Gemini CLI, Kiro CLI session) or `provider`; not set: Automatic (see @question in a session of its own). This Mac's own, never synced | not set |
+| `questionBackend` | The CLI chosen as the AI in Settings → AI: `claudeSession` (Claude Code), `codexSession`, `geminiSession`, `kiroSession` (Codex, Gemini CLI, Kiro CLI). `@question` goes to the input method's own session on it, what has to be fast to `provider` when that is set up (see @question in a session of its own); not set (or `provider`, as 0.7.4's builds wrote): the AI is `provider`. This Mac's own, never synced | not set |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI`, `suggestionsInsert` (as below, or `"source"`; synced) and `suggestions` (`false`: no suggestion rows there, Off in "In these apps"; this Mac's own: not synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
@@ -1499,7 +1501,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - Typing (English and pinyin) and the `@calculator` plugin's calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⇧⏎) sends the same request again with the results shown and your instruction; a follow-up question (⏎) sends the conversation so far with it.
 - So that the request after a pause doesn't wait for a new connection (0.7.0): when what you write becomes an AI command for a cloud provider of your own (Claude API, Gemini API, OpenAI, Amazon Bedrock; after `@`, once you've typed or selected something and the highlighted row is an AI one, never for `@` alone), or at the first key in a text field where autocomplete uses one, and nothing went to that provider in the last 90 seconds, the input method sends one HEAD request to the provider's address, `https://host/` only (Bedrock: its region's address): no key, no credentials, no body, any request to log in refused. Nothing you typed is sent before ⏎. Only to the provider's own address (`api.anthropic.com`, `generativelanguage.googleapis.com`, `api.openai.com`, `bedrock-runtime.<region>.amazonaws.com`), never to a base URL you set yourself (another service, a relay, a model on this Mac or your network, even another of these providers' addresses), and only once a real request has succeeded there: this Mac remembers which address and when, nothing else (in the app's caches, never in config.json), and forgets an address after 30 days without a success. Your keys and AWS files are never looked at for it. Never to AllInOneIME Cloud, never during secure input, never in an app with No AI; that, and that the provider and its address are still the same, is checked again right before it goes.
 - Settings sends text to a model only when you pick the search's last row, Change: …, or ask Troubleshoot a question with Check: Apple Intelligence on this Mac whenever it's available (nothing leaves the Mac), else your provider. The search itself sends nothing. A request sends your sentence (a key typed into it is taken out first) with the current values of the settings it may change: never a key, nor the words you hide from the AI (only how many there are), and your AWS profiles' names only when the sentence is about AWS or Bedrock. A question sends itself with the check results, masked: no paths beyond `~`, no keys, log lines as fixed phrases. Hiding sensitive information applies to both, as to any request. The checks alone send nothing; Check sends only the Test Connection request, and that only when the provider has a key or credentials to test.
-- With a session picked under Settings → AI → Questions (@question) (or Automatic finding one), `@question` goes to that Claude Code, Codex, Gemini CLI or Kiro CLI on this Mac, under its own account and service, instead of the provider: the question asked now, its values hidden as for the provider, and for a question about AllInOneIME a few excerpts of the user guide. Each conversation is a new one in the session, its history kept with that CLI (its own session history, named AllInOneIME where the CLI names sessions); nothing is carried from one conversation to the next. Whichever CLI it is, the session may only read the web (search it, open pages): it can't read, list or change files on this Mac, run commands, or use the CLI's MCP servers, extensions, plugins or other agents. With text you didn't type in the question (selected text, a screenshot's text, a page or another command's output inside it), which could tell the agent to send the conversation to an address of its own, the session may fetch only the addresses you typed yourself, and with none its web tools are off: Claude Code is kept to those addresses' sites; Codex, Gemini CLI and Kiro CLI have no web tools then, since they can't be kept to addresses. Continued in Terminal (⌘⏎), it is the CLI as you set it up, a normal interactive session with your own rules, settings, permission prompts, tools and MCP servers, not the web-only session. Whether each CLI is signed in is looked at only once a question could go to it.
+- With Claude Code, Codex, Gemini CLI or Kiro CLI chosen in Settings → AI, `@question` goes to that CLI on this Mac, under its own account and service, instead of the provider: the question asked now, its values hidden as for the provider, and for a question about AllInOneIME a few excerpts of the user guide. Each conversation is a new one in the session, its history kept with that CLI (its own session history, named AllInOneIME where the CLI names sessions); nothing is carried from one conversation to the next. Whichever CLI it is, the session may only read the web (search it, open pages): it can't read, list or change files on this Mac, run commands, or use the CLI's MCP servers, extensions, plugins or other agents. With text you didn't type in the question (selected text, a screenshot's text, a page or another command's output inside it), which could tell the agent to send the conversation to an address of its own, the session may fetch only the addresses you typed yourself, and with none its web tools are off: Claude Code is kept to those addresses' sites; Codex, Gemini CLI and Kiro CLI have no web tools then, since they can't be kept to addresses. Continued in Terminal (⌘⏎), it is the CLI as you set it up, a normal interactive session with your own rules, settings, permission prompts, tools and MCP servers, not the web-only session. Whether each CLI is signed in is looked at only by Settings → AI, with a CLI chosen or its choices open. With no faster AI set up (see above), rewriting and translating go to it too.
 - Continuing an `@question` conversation elsewhere (⌘1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: a coding agent on this Mac (Claude Code, Gemini CLI, Kiro CLI or your own, each with its own account and service), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
 - An `@question` about AllInOneIME itself (naming the app, one of its settings, commands or keys) also sends two or three short sections of the app's own user guide, picked on the Mac (about 3,000 characters at most): the app's documentation, nothing of yours (no settings, no keys); a coding agent you continue such a conversation in is given the guide's path instead. Any other question is sent exactly as before.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.

@@ -208,6 +208,8 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	# reads for a question about AllInOneIME (UserGuide in the core).
 	cp Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns Resources/user-guide.md LICENSE THIRD_PARTY_NOTICES.md \
 		"$(APP)/Contents/Resources/"
+	# The logos of Settings → AI's choices (made from the SVGs beside them: Scripts/make-ai-logos.swift).
+	mkdir -p "$(APP)/Contents/Resources/AILogos" && cp Resources/AILogos/*.pdf "$(APP)/Contents/Resources/AILogos/"
 	for lang in en zh-Hans; do \
 		mkdir -p "$(APP)/Contents/Resources/$$lang.lproj" && \
 		cp "Resources/$$lang.lproj/InfoPlist.strings" "$(APP)/Contents/Resources/$$lang.lproj/"; \

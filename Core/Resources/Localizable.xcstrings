@@ -8234,6 +8234,147 @@
         }
       }
     },
+    "A CLI installed on this Mac, no API key" : {
+      "comment" : "本机装的 CLI，不用 API Key — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine CLI auf diesem Mac, ohne API-Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una CLI instalada en este Mac, sin clave de API"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une CLI installée sur ce Mac, sans clé API"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacに入っているCLI。APIキーは不要"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에 설치된 CLI, API 키 필요 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma CLI instalada neste Mac, sem chave de API"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機安裝的 CLI，不用 API 金鑰"
+          }
+        }
+      }
+    },
+    "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; what has to be fast (rewriting, translating, autocomplete) uses %@." : {
+      "comment" : "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；改写、翻译、续写这些要快的，自动用「%@」。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine CLI braucht eine Sekunde oder länger für eine Antwort. Fragen (@question) gehen an sie, und sie weiß noch, worüber ihr gesprochen habt; was schnell sein muss (Umschreiben, Übersetzen, Autovervollständigen), nutzt %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una CLI tarda un segundo o más en responder. Las preguntas (@question) van a ella, que recuerda lo que hablasteis; lo que tiene que ser rápido (reescribir, traducir, autocompletar) usa %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une CLI met une seconde ou plus à répondre. Les questions (@question) vont vers elle, et elle se souvient de vos échanges ; ce qui doit être rapide (réécrire, traduire, la complétion automatique) utilise %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLIは応答に1秒以上かかります。質問（@question）はCLIに送られ、話した内容を覚えています。速さが必要なもの（書き直し、翻訳、オートコンプリート）には%@を使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI는 답하는 데 1초 이상 걸립니다. 질문(@question)은 CLI로 가고, 나눈 대화를 기억합니다. 빨라야 하는 작업(다시 쓰기, 번역, 자동 완성)은 %@을(를) 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma CLI leva um segundo ou mais para responder. As perguntas (@question) vão para ela, que lembra o que vocês conversaram; o que precisa ser rápido (reescrever, traduzir, autocompletar) usa %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI 回答要 1 秒以上。提問（@question）走它，記得聊過的內容；改寫、翻譯、續寫這些要快的，自動用「%@」。"
+          }
+        }
+      }
+    },
+    "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; with no faster AI here, autocomplete is off, and rewriting and translating go to it too, more slowly." : {
+      "comment" : "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；没有更快的 AI 可用，续写关闭，改写、翻译也交给它，会慢一些。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine CLI braucht eine Sekunde oder länger für eine Antwort. Fragen (@question) gehen an sie, und sie weiß noch, worüber ihr gesprochen habt; da hier keine schnellere KI bereitsteht, ist Autovervollständigen aus, und Umschreiben und Übersetzen gehen ebenfalls an sie, langsamer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una CLI tarda un segundo o más en responder. Las preguntas (@question) van a ella, que recuerda lo que hablasteis; como aquí no hay una IA más rápida, autocompletar está desactivado, y reescribir y traducir también van a ella, más despacio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une CLI met une seconde ou plus à répondre. Les questions (@question) vont vers elle, et elle se souvient de vos échanges ; faute d’IA plus rapide ici, la complétion automatique est désactivée, et la réécriture et la traduction passent aussi par elle, plus lentement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLIは応答に1秒以上かかります。質問（@question）はCLIに送られ、話した内容を覚えています。より速いAIがないため、オートコンプリートはオフになり、書き直しと翻訳もCLIに送られます（遅くなります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI는 답하는 데 1초 이상 걸립니다. 질문(@question)은 CLI로 가고, 나눈 대화를 기억합니다. 더 빠른 AI가 없어서 자동 완성은 꺼지고, 다시 쓰기와 번역도 CLI로 가므로 느려집니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma CLI leva um segundo ou mais para responder. As perguntas (@question) vão para ela, que lembra o que vocês conversaram; sem uma IA mais rápida aqui, o autocompletar fica desligado, e reescrever e traduzir também vão para ela, mais devagar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI 回答要 1 秒以上。提問（@question）走它，記得聊過的內容；沒有更快的 AI 可用，續寫關閉，改寫、翻譯也交給它，會慢一些。"
+          }
+        }
+      }
+    },
     "A codename, a name…, separated by commas" : {
       "comment" : "项目代号、名字…，用逗号分开 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -10357,6 +10498,212 @@
         }
       }
     },
+    "AI: " : {
+      "comment" : "AI： — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI："
+          }
+        }
+      }
+    },
+    "ai.group.onDevice" : {
+      "comment" : "本机 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auf diesem Mac"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "On this Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMac"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本機"
+          }
+        }
+      }
+    },
+    "ai.status.notInstalled" : {
+      "comment" : "没装 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht installiert"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not installed"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未インストール"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설치 안 됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒裝"
+          }
+        }
+      }
+    },
+    "ai.status.ready" : {
+      "comment" : "可用 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bereit"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ready"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponible"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用可能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 가능"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponível"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可用"
+          }
+        }
+      }
+    },
     "aiConfig.enterKey" : {
       "comment" : "在设置里填（不会发给 AI） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -12010,6 +12357,53 @@
         }
       }
     },
+    "Apple on-device" : {
+      "comment" : "Apple 本机 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple auf dem Gerät"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple en el dispositivo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple sur l’appareil"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple（このMac）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 기기 내"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple no dispositivo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple 本機"
+          }
+        }
+      }
+    },
     "appProfile.sameAsEverywhere" : {
       "comment" : "和全局设置一样 — Sources/AllInOneIMECore/Settings/SettingsSchema+Apps.swift",
       "localizations" : {
@@ -12960,6 +13354,7 @@
     },
     "Automatic: @agent's agent's session, or another one installed and signed in" : {
       "comment" : "自动：@agent 的 agent 的会话，或另一个装了并已登录的会话 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14702,6 +15097,53 @@
         }
       }
     },
+    "Can't start" : {
+      "comment" : "启动不了 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Startet nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se puede iniciar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ne démarre pas"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "起動できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시작할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não inicia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法啟動"
+          }
+        }
+      }
+    },
     "cancel" : {
       "comment" : "取消 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -15638,6 +16080,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "確認後傳送"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "comment" : "正在查看… — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird geprüft …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comprobando…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vérification…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認中…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "확인 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verificando…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在查看…"
           }
         }
       }
@@ -16593,6 +17082,53 @@
         }
       }
     },
+    "Cloud services" : {
+      "comment" : "云服务 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cloud-Dienste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servicios en la nube"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Services cloud"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クラウドサービス"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "클라우드 서비스"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serviços na nuvem"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雲端服務"
+          }
+        }
+      }
+    },
     "Code" : {
       "comment" : "代码 — Sources/AllInOneIMECore/Composer.swift",
       "localizations" : {
@@ -17322,6 +17858,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "這會把範例傳送給%@"
+          }
+        }
+      }
+    },
+    "Common with work accounts" : {
+      "comment" : "公司账号常用 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Üblich bei Firmenkonten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Habitual con cuentas de trabajo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Courant avec les comptes professionnels"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "仕事用アカウントでよく使われます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "회사 계정에서 많이 씀"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comum em contas de trabalho"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公司帳號常用"
           }
         }
       }
@@ -26193,6 +26776,53 @@
         }
       }
     },
+    "Key added" : {
+      "comment" : "已填 Key — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Schlüssel hinzugefügt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave añadida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé ajoutée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キー登録済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 추가됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chave adicionada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已填金鑰"
+          }
+        }
+      }
+    },
     "keyword" : {
       "comment" : "关键字 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -29644,6 +30274,53 @@
         }
       }
     },
+    "no faster AI: autocomplete is off" : {
+      "comment" : "没有更快的 AI：续写关闭 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "keine schnellere KI: Autovervollständigen ist aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sin una IA más rápida: autocompletar está desactivado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "pas d’IA plus rapide : complétion automatique désactivée"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "より速いAIがありません：オートコンプリートはオフ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "더 빠른 AI 없음: 자동 완성 꺼짐"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "sem IA mais rápida: autocompletar desligado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有更快的 AI：續寫關閉"
+          }
+        }
+      }
+    },
     "No folder chosen: notes go to Notes until you choose one" : {
       "comment" : "还没选文件夹：笔记先存到备忘录 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -29687,6 +30364,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "尚未選擇檔案夾：選擇前，筆記會先儲存到「備忘錄」"
+          }
+        }
+      }
+    },
+    "No key" : {
+      "comment" : "没填 Key — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin clave"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas de clé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーなし"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem chave"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒填金鑰"
           }
         }
       }
@@ -30441,6 +31165,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "找不到這個 App"
+          }
+        }
+      }
+    },
+    "No such AWS profile" : {
+      "comment" : "没有这个 AWS profile — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kein solches AWS-Profil"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No existe ese perfil de AWS"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Profil AWS introuvable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "そのAWSプロファイルはありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "그런 AWS 프로필 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esse perfil da AWS não existe"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有這個 AWS profile"
           }
         }
       }
@@ -31810,6 +32581,53 @@
         }
       }
     },
+    "Not signed in" : {
+      "comment" : "没登录 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nicht angemeldet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin sesión iniciada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Non connecté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインしていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인 안 됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem sessão iniciada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒登入"
+          }
+        }
+      }
+    },
     "Not signed in to SSO: run %@" : {
       "comment" : "还没有 SSO 登录：运行 %@ — Sources/AllInOneIMECore/AWSCredentialError.swift",
       "localizations" : {
@@ -32276,6 +33094,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉前不會傳送任何內容給 AI：請離開密碼欄位或那個 App"
+          }
+        }
+      }
+    },
+    "Nothing leaves this Mac" : {
+      "comment" : "不出这台 Mac — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts verlässt diesen Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada sale de este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien ne quitte ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacの外には出ません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac 밖으로 나가지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada sai deste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不出這台 Mac"
           }
         }
       }
@@ -34257,6 +35122,53 @@
         }
       }
     },
+    "OpenAI-compatible" : {
+      "comment" : "OpenAI 兼容 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI-kompatibel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible con OpenAI"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatible OpenAI"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI互換"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "OpenAI 호환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Compatível com OpenAI"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "相容 OpenAI"
+          }
+        }
+      }
+    },
     "OpenAI-compatible API" : {
       "comment" : "兼容 OpenAI 的服务 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -35295,6 +36207,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已暫停（連續失敗）："
+          }
+        }
+      }
+    },
+    "Pay as you go" : {
+      "comment" : "按用量付费 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bezahlung nach Nutzung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pago por uso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Paiement à l’usage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使った分だけ支払い"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용한 만큼 지불"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pague pelo uso"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按用量付費"
           }
         }
       }
@@ -37613,6 +38572,7 @@
     },
     "Questions (@question)" : {
       "comment" : "提问（@question） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45046,6 +46006,53 @@
         }
       }
     },
+    "Signed in" : {
+      "comment" : "已登录 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Angemeldet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sesión iniciada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン済み"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인됨"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sessão iniciada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已登入"
+          }
+        }
+      }
+    },
     "Simplified" : {
       "comment" : "简体 — Sources/AllInOneIMECore/ChineseCharacters.swift",
       "localizations" : {
@@ -49521,6 +50528,7 @@
     },
     "The AI provider" : {
       "comment" : "AI 服务 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -51128,6 +52136,7 @@
     },
     "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session: each @question starts a new conversation there, its follow-ups stay in it; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
       "comment" : "输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话：每次 @question 开一个新对话，追问留在里面；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -54238,6 +55247,53 @@
         }
       }
     },
+    "Through the CLI on this Mac, with your own subscription" : {
+      "comment" : "通过本机 CLI，用你自己的订阅 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Über die CLI auf diesem Mac, mit deinem eigenen Abo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mediante la CLI de este Mac, con tu propia suscripción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Par la CLI de ce Mac, avec votre propre abonnement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacのCLI経由、あなた自身のサブスクリプションで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 CLI를 통해, 내 구독으로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pela CLI deste Mac, com a sua própria assinatura"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透過本機 CLI，用你自己的訂閱"
+          }
+        }
+      }
+    },
     "Timeout %@ s" : {
       "comment" : "超时 %@ 秒 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -57070,6 +58126,53 @@
         }
       }
     },
+    "Uses $%@" : {
+      "comment" : "用 $%@ — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nutzt $%@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa $%@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilise $%@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@を使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "$%@ 사용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usa $%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 $%@"
+          }
+        }
+      }
+    },
     "Uses Apple Intelligence; set your own AI provider for faster suggestions" : {
       "comment" : "用的是 Apple Intelligence；设置自己的 AI 服务，灰字来得更快 — Sources/AllInOneIMECore/Autocomplete.swift",
       "localizations" : {
@@ -57738,6 +58841,53 @@
         }
       }
     },
+    "what has to be fast uses %@" : {
+      "comment" : "要快的用 %@ — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "was schnell sein muss, nutzt %@"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "lo que tiene que ser rápido usa %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ce qui doit être rapide utilise %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "速さが必要なものは%@を使用"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "빨라야 하는 작업은 %@ 사용"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o que precisa ser rápido usa %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "要快的用 %@"
+          }
+        }
+      }
+    },
     "What it does" : {
       "comment" : "做什么 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -58021,6 +59171,53 @@
         }
       }
     },
+    "With an API key" : {
+      "comment" : "用 API Key — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit API-Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con una clave de API"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une clé API"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "APIキーで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com uma chave de API"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用 API 金鑰"
+          }
+        }
+      }
+    },
     "With its title" : {
       "comment" : "连同标题 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
@@ -58299,6 +59496,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "連同標題和連結（聊天 App 裡）"
+          }
+        }
+      }
+    },
+    "With your subscription" : {
+      "comment" : "用你的订阅 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit deinem Abo"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con tu suscripción"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec votre abonnement"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サブスクリプションで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 구독으로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com a sua assinatura"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用你的訂閱"
           }
         }
       }

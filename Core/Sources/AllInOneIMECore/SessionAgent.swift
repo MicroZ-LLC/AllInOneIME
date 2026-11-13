@@ -81,8 +81,8 @@ public enum SessionAgent: String, Codable, CaseIterable, Sendable {
         return allCases.flatMap(\.environmentVariables).filter { seen.insert($0).inserted }
     }
 
-    /// What the user runs in Terminal to sign in (Claude Code's is its own words: `ClaudeSessionError`).
-    var signIn: String {
+    /// What the user runs in Terminal to sign in (Claude Code's error says it in its own words: `ClaudeSessionError`).
+    public var signIn: String {
         switch self {
         case .claude: return "claude"
         case .codex: return "codex login"

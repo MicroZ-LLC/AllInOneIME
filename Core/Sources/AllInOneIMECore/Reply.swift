@@ -296,14 +296,17 @@ extension Converter {
                   continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
-        let config = try Self.settings(try loadConfig(), app: app)
+        // The fast fallback with a CLI chosen as the AI (`FastRoute`).
+        let route = try fastSettings(app: app)
+        let config = route.config
         let tone = TranslateMode.tone(app: app, config: config)
         let appClass = AppClass(app: app)
-        var redaction = Redaction(config.redaction)
-        let sent = redaction?.hide(input) ?? input
-        let lastMessage = Self.hideTurns(turns, with: &redaction) ?? sent
+        let (redaction, (sent, lastMessage)) = redacting(route) { redaction -> (String, String) in
+            let sent = redaction?.hide(input) ?? input
+            return (sent, Self.hideTurns(turns, with: &redaction) ?? sent)
+        }
         let hidden = redaction?.count ?? 0
-        let key = "@reply|\(config.activeModel)|\(Prompt.replyVersion)|\(tone.rawValue)|\(appClass)|\(input)"
+        let key = "@reply|\(route.model)|\(Prompt.replyVersion)|\(tone.rawValue)|\(appClass)|\(input)"
             + (turns.isEmpty ? "" : "|" + Prompt.turnsKey(turns))
         if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(result: hit, rawText: "", isFinal: true, elapsed: elapsed(),
@@ -311,8 +314,7 @@ extension Converter {
             return
         }
         let request = Prompt.replyRequest(input: input, tone: tone, appClass: appClass, config: config, turns: turns)
-        let stream = client.stream(redaction?.protect(request, sent: lastMessage) ?? request, config: config,
-                                   loadCredentials: loadCredentials, loadKey: loadKey)
+        let stream = self.stream(redaction?.protect(request, sent: lastMessage) ?? request, route)
         func replies(_ text: String, final: Bool) -> ConversionResult {
             let parsed = ReplyParser.parse(text, isFinal: final)
             return ConversionResult(versions: parsed.map { line in

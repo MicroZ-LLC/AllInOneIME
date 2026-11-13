@@ -5,7 +5,8 @@ import Foundation
 /// versions that are gone are ignored, and not written back.
 public struct Config: Codable, Equatable, Sendable {
     /// Where requests go: Amazon Bedrock (the settings below), or an API-key provider with its own
-    /// settings (`anthropic`, `gemini`, `openai`).
+    /// settings (`anthropic`, `gemini`, `openai`). With a CLI chosen as the AI (`ai`, `questionBackend`), what has to be
+    /// fast goes here when it is set up (`fastProvider`).
     public var provider: Provider
     /// Profile name in ~/.aws/credentials (static access keys).
     public var awsProfile: String
@@ -211,9 +212,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
     /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
-    /// Where `@question` is answered (`QuestionBackend`): the input method's own session on Claude Code, Codex, Gemini
-    /// CLI or Kiro CLI (`SessionAgent`), or the AI provider; nil: Automatic (`questionSessionAgent`). This Mac's own
-    /// (never synced).
+    /// The CLI chosen as the AI (`ai`, `QuestionBackend`): the input method's own session on Claude Code, Codex, Gemini
+    /// CLI or Kiro CLI (`SessionAgent`) answers `@question`, and what has to be fast goes to `fastProvider`; nil: the AI is
+    /// `provider` (also for "provider", the choice of the provider for questions in 0.7.4's builds). This Mac's own (never
+    /// synced): whether a CLI is installed and signed in is this Mac's.
     public var questionBackend: QuestionBackend?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
@@ -535,8 +537,9 @@ public struct Config: Codable, Equatable, Sendable {
         // Names this version doesn't know (a service a later one added) are left out, not an error.
         questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
             .compactMap(ChatHandoff.Destination.init(rawValue:))
-        // One this version doesn't know (a later one's) is the default.
+        // One this version doesn't know (a later one's), and 0.7.4's "provider", are none: the AI is the provider.
         questionBackend = (try? c.decodeIfPresent(QuestionBackend.self, forKey: .questionBackend)).flatMap { $0 }
+            .flatMap { $0 == .provider ? nil : $0 }
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         // One this version doesn't know (a later one's) follows the system, not an error.

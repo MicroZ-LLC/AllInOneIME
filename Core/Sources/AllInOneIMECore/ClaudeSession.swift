@@ -1,15 +1,17 @@
 import Crypto
 import Foundation
 
-/// Where `@question` is answered (`Config.questionBackend`): the input method's own session on an agent
+/// The CLI chosen as the AI (`Config.questionBackend`, `Config.ai`): the input method's own session on an agent
 /// (`SessionAgent`): Claude Code's (`claudeSession`, its name in the file from before the others), Codex's, Gemini CLI's
-/// or Kiro CLI's, each a `ClaudeSessionManager`; or the AI provider. Unset (Automatic): see
-/// `Config.questionSessionAgent`. Every other request (writing, autocomplete, translating …) always goes to the provider.
+/// or Kiro CLI's, each a `ClaudeSessionManager`. `@question` goes to it; what has to be fast goes to the fast fallback
+/// (`Config.fastProvider`). None: the AI is the provider; so is `provider` (a file's "provider", 0.7.4's builds' choice of
+/// the provider for questions).
 public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
     case claudeSession
     case codexSession
     case geminiSession
     case kiroSession
+    /// The provider, as none is (`Config.ai`): what 0.7.4's builds wrote for questions answered by the provider.
     case provider
 
     /// The session of `agent`.
@@ -33,14 +35,11 @@ public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// The agents that have a question session, in the order Automatic tries them.
+    /// The agents that have a question session, in the order Settings lists them.
     public static let sessionAgents: [SessionAgent] = [.claude, .codex, .gemini, .kiro]
 
-    /// What Settings says of the choice (the settings document, the Mac's settings and their search).
-    public static var help: String {
-        tr("输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话：每次 @question 开一个新对话，追问留在里面；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。",
-           "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session: each @question starts a new conversation there, its follow-ups stay in it; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above.")
-    }
+    /// Every CLI's, in that order; not `provider`, which names none (a file's reads as none: `Config`).
+    public static var allCases: [QuestionBackend] { sessionAgents.map(QuestionBackend.init) }
 }
 
 extension SessionAgent {
@@ -50,25 +49,9 @@ extension SessionAgent {
 
 extension Config {
     /// The agent whose session `@question` goes to, nil: the provider. The one place that decides it (the converter,
-    /// the prewarm, the hand-off, the panel's and the settings' labels, Start Over all ask it). Picked
-    /// (`questionBackend`): that one, whatever its `availability` (it is tried; the provider answers with why when it
-    /// can't). Automatic (nil): the session of `@agent`'s agent (`agent`) when it has one and it is ready, else another
-    /// one that is ready (in `QuestionBackend.sessionAgents`' order: Claude Code first), else the provider.
-    /// `availability`: each agent's, as last found.
-    public func questionSessionAgent(availability: (SessionAgent) -> ClaudeSession.Availability) -> SessionAgent? {
-        if let questionBackend { return questionBackend.agent }
-        if let own = SessionAgent(agent), availability(own) == .ready { return own }
-        return QuestionBackend.sessionAgents.first { availability($0) == .ready }
-    }
-
-    /// The agents whose sign-in decides where Automatic sends `@question` (`questionSessionAgent`), in the order it looks
-    /// at them: `@agent`'s agent's session first, then the others. None when a session or the provider is picked: a
-    /// picked session is tried whatever it can do, so nothing has to be looked at first.
-    public var questionSessionCandidates: [SessionAgent] {
-        guard questionBackend == nil else { return [] }
-        let own = SessionAgent(agent).map { [$0] } ?? []
-        return own + QuestionBackend.sessionAgents.filter { !own.contains($0) }
-    }
+    /// the prewarm, the hand-off, the panel's and the settings' labels, Start Over all ask it): the CLI chosen as the AI
+    /// (`ai`), whatever it can do now (it is tried; the fast fallback answers with why when it can't).
+    public var questionSessionAgent: SessionAgent? { questionBackend?.agent }
 }
 
 /// An `@question` conversation in the panel (`Composer.questionConversation`), as the session it goes to sees it
@@ -432,7 +415,7 @@ public enum ClaudeSession {
         case signedOut
         /// Its session couldn't be used when a question was asked: the process ended before the session started (an
         /// older version that doesn't know a flag), or it couldn't be kept to the web (`ClaudeSessionError.notWebOnly`).
-        /// Automatic passes it by until its sign-in is looked at again.
+        /// Settings → AI says so until its sign-in is looked at again.
         case cannotStart
     }
 }

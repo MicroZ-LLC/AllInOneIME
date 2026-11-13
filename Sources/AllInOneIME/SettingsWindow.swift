@@ -104,7 +104,7 @@ final class SettingsModel: ObservableObject {
     /// used or another page is shown.
     @Published var spot: SettingsSpot?
     /// False for previews/screenshots: nothing is ever written.
-    private var persists: Bool { store.persists }
+    var persists: Bool { store.persists }
     private var testTask: Task<Void, Never>?
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
@@ -118,8 +118,8 @@ final class SettingsModel: ObservableObject {
         if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
         observation = store.observe { [weak self] _ in self?.objectWillChange.send() }
         store.questionsForgotten = { [weak self] in self?.forgetQuestions() }
-        // Another backend for @question picked in the settings document: the sessions' processes end, the next question
-        // starts the one picked (as the pane's picker does, `QuestionBackendSettings`).
+        // Another CLI chosen as the AI in the settings document: the sessions' processes end, the next question starts
+        // the one chosen (as Settings → AI's choice does, `SettingsModel.cli`).
         store.questionBackendChanged = { [weak self] in if self?.persists == true { ClaudeSessionMac.backendChanged() } }
     }
 
@@ -384,13 +384,12 @@ final class SettingsModel: ObservableObject {
         return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
     }
 
-    /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
+    /// The key sheet's Save and Use: the key saved, then the provider chosen as the AI and Test Connection run.
     func saveKeyAndUse(_ key: String, for provider: Provider) {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         saveKey(key, for: provider)
         guard keyError == nil else { return }
-        config.provider = provider
-        save()
+        choose(.provider(provider))
         if let testRunner { testRunner() } else { runTest() }
     }
 
@@ -422,6 +421,36 @@ final class SettingsModel: ObservableObject {
 
     func setProviderSettings(_ settings: ProviderSettings, for provider: Provider) {
         store.setProviderSettings(settings, for: provider)
+    }
+
+    // MARK: The AI (Settings → AI)
+
+    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: as the AI page shows with a CLI chosen
+    /// or its choices open, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
+    @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
+
+    /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,
+    /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions, Apple's model.
+    var aiFacts: AIFacts {
+        let keyed: [Provider] = [.anthropic, .gemini, .openai]
+        // The profiles as the AWS Profile picker lists them (the resolver's, once read), else as the files had them.
+        let regions = aws.summaries.isEmpty ? profiles.map { ($0, AWSSharedConfig.region(profile: $0)) }
+            : aws.summaries.map { ($0.name, $0.region) }
+        return AIFacts(sessions: sessionAvailability,
+                       keys: Dictionary(uniqueKeysWithValues: keyed.map { ($0, keyState($0)) }),
+                       hostedSignedIn: account != nil || keyState(.hosted).isSet,
+                       awsProfiles: Dictionary(regions, uniquingKeysWith: { first, _ in first }),
+                       apple: AppleModel.system.availability)
+    }
+
+    /// The settings as what has to be fast goes with them (autocomplete's row): with a CLI chosen, its fast fallback by
+    /// `aiFacts` as the provider (`Config.fastProvider`); nil: there is none.
+    var fastConfig: Config? {
+        guard config.ai.agent != nil else { return config }
+        guard let fast = config.fastProvider(aiFacts) else { return nil }
+        var shown = config
+        shown.provider = fast
+        return shown
     }
 
     // MARK: Web search (@search)
@@ -648,8 +677,7 @@ final class SettingsModel: ObservableObject {
                 do {
                     let idToken = try await signIn.idToken(for: code)
                     self.account = try await HostedAccount.signIn(idToken: idToken)
-                    self.config.provider = .hosted
-                    self.save()
+                    self.choose(.provider(.hosted))
                 } catch {
                     self.accountError = UIText.describe(error)
                 }
@@ -1116,6 +1144,8 @@ struct SettingsView: View {
     private let chipShown: Input?
     /// The AI page's More… opened.
     @State private var showsMore = false
+    /// The AI page's choices shown (Change ▾), not only the one chosen.
+    @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
     /// Script Extensions' folders with no new commands, opened.
@@ -1145,8 +1175,10 @@ struct SettingsView: View {
     /// `page`: the one shown first; nil: General (the last one isn't remembered). `query`: the search typed (images).
     @MainActor
     init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Input? = nil, keySheetShown: Provider? = nil,
-         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false) {
+         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false,
+         choosingAI: Bool = false) {
         self.model = model
+        _choosingAI = State(initialValue: choosingAI)
         self.keySheetShown = keySheetShown
         self.troubleshootShown = troubleshootShown
         self.learnedShown = learnedShown
@@ -1579,9 +1611,15 @@ struct SettingsView: View {
                     Text(SettingsSpot.autocomplete.title)
                     Text(SettingsSpot.autocomplete.note ?? "").font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    // Where the text goes, whether it's on or not: turning it on is the choice to send it there.
-                    if let destination = AutocompleteSwitch.destination(model.config) {
-                        Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    // Where the text goes, whether it's on or not: turning it on is the choice to send it there. With a CLI
+                    // chosen as the AI, its fast fallback's (`Config.fastProvider`), or that it doesn't run.
+                    if let fast = model.fastConfig {
+                        if let destination = AutocompleteSwitch.destination(fast) {
+                            Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        Text(tr("选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」）", "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)"))
+                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -1864,37 +1902,47 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
+    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. Collapsed, the one chosen (its
+    /// logo, name and status) with Change ▾, and its own settings under it; open, every choice as a card by how it
+    /// connects (`AIChoicesGrid`), the chosen one outlined. The settings search's AI row opens the cards.
     @ViewBuilder private var providerSection: some View {
+        let facts = model.aiFacts
+        let chosen = model.config.ai
         Section {
-            Picker(SettingsSpot.provider.title, selection: $model.config.provider) {
-                ForEach(Provider.offered, id: \.self) { provider in
-                    providerItem(provider)
+            AIChoiceSettings(model: model, choosing: $choosingAI)
+            if !choosingAI {
+                switch chosen {
+                case let .cli(agent):
+                    AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
+                case .provider(.bedrock): bedrockSettings
+                case .provider(.hosted): hostedSettings
+                case .provider(.apple): appleSettings
+                case let .provider(provider): apiKeySettings(provider)
+                }
+                if chosen.provider != nil {
+                    HStack {
+                        Button(SettingsSpot.testConnection.title) { model.runTest() }
+                            .disabled(model.testStatus == .running)
+                        switch model.testStatus {
+                        case .idle: EmptyView()
+                        case .running: ProgressView().controlSize(.small)
+                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                        }
+                    }
+                    .settingsRow(.testConnection, shown: model.spot)
                 }
             }
-            .settingsRow(.provider, shown: model.spot)
-            if model.config.provider == .bedrock {
-                bedrockSettings
-            } else if model.config.provider == .hosted {
-                hostedSettings
-            } else if model.config.provider == .apple {
-                appleSettings
-            } else {
-                apiKeySettings(model.config.provider)
+        } header: {
+            HStack(alignment: .firstTextBaseline) {
+                SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+                Spacer()
+                Text(SettingsSpot.provider.note ?? "").font(.callout).foregroundStyle(.secondary)
             }
-            HStack {
-                Button(SettingsSpot.testConnection.title) { model.runTest() }
-                    .disabled(model.testStatus == .running)
-                switch model.testStatus {
-                case .idle: EmptyView()
-                case .running: ProgressView().controlSize(.small)
-                case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                }
-            }
-            .settingsRow(.testConnection, shown: model.spot)
-            QuestionBackendSettings(model: model)
         }
         .disabled(!model.canSave)
+        .onAppear { if model.spot == .provider { choosingAI = true } }
+        .onChange(of: model.spot) { if model.spot == .provider { choosingAI = true } }
     }
 
     @ViewBuilder private var webSearchSection: some View {
@@ -2894,15 +2942,6 @@ struct SettingsView: View {
         if let error = model.accountError { Text(error).foregroundStyle(.red) }
     }
 
-    /// A provider in the picker: Apple Intelligence greyed out, with the reason, on a Mac where it can't be used.
-    @ViewBuilder
-    private func providerItem(_ provider: Provider) -> some View {
-        let apple = provider == .apple ? AppleModel.system.availability : .available
-        Text(UIText.name(provider) + (apple == .available ? "" : tr("（", " (") + UIText.reason(apple) + tr("）", ")")))
-            .tag(provider)
-            .disabled(apple != .available)
-    }
-
     /// Apple Intelligence on this Mac: whether it can be used, and where to turn it on.
     @ViewBuilder
     private var appleSettings: some View {
@@ -3718,10 +3757,11 @@ enum SettingsImage {
     @MainActor
     static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Input? = nil, keySheet: Provider? = nil,
                        assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, learned: Bool = false,
-                       to url: URL, appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
+                       choosingAI: Bool = false, to url: URL, appearance: NSAppearance.Name = .aqua,
+                       settle: (TimeInterval) -> Void) {
         let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
                                                         assistant: assistant, query: query, troubleshootShown: troubleshoot,
-                                                        learnedShown: learned))
+                                                        learnedShown: learned, choosingAI: choosingAI))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)
