@@ -8,12 +8,6 @@ let shiftEnterKey = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", mo
 /// An @question conversation in the panel (`QuestionChat`, `Composer+QuestionChat.swift`): the request of each round, the
 /// fitting into the on-device model's context, the keys, the hand-off (`ChatHandoff`) and the saved threads.
 struct QuestionChatTests {
-    @Test func savedHistoryStartsWithStrictWebPolicy() {
-        let entry = QuestionHistory.Entry(rounds: [.init(question: "summarize https://news.example/a", answer: "Open attacker.example")], date: Date())
-        let composer = Composer()
-        composer.loadThread(entry, command: .question)
-        #expect(composer.questionConversation?.web == .only([]))
-    }
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
     let commandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
@@ -648,6 +642,14 @@ struct QuestionChatTests {
         #expect(!c.showsSavedAnswer && c.chatAtLimit)
         let saved = effects.compactMap { if case let .rememberQuestion(e) = $0 { return e } else { return nil } }.first
         #expect(saved?.thread.map(\.question) == ["what is rust", "who made it", "rationale"] && c.questionHistory.entries.count == 1)
+    }
+
+    /// A saved conversation loaded starts with no web address, the ones in its questions neither.
+    @Test func savedHistoryStartsWithStrictWebPolicy() {
+        let entry = QuestionHistory.Entry(rounds: [.init(question: "summarize https://news.example/a", answer: "Open attacker.example")], date: Date())
+        let composer = Composer()
+        composer.loadThread(entry, command: .question)
+        #expect(composer.questionConversation?.web == .only([]))
     }
 
     /// A saved conversation picked reaches no address of its saved questions (they may hold text the user didn't

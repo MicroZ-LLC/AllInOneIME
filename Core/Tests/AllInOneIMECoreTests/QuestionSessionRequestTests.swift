@@ -258,8 +258,6 @@ struct QuestionSessionRequestTests {
         #expect(shorter.redaction?.restore("To [EMAIL_1].") == "To secret@company.com.")
     }
 
-
-
     @Test func identicalAnswersToDifferentQuestionsAreDifferentTurns() throws {
         let session = claude(FakeClaude())
         let first = QuestionChat.Round(question: "Is it ready?", answer: "Yes")
