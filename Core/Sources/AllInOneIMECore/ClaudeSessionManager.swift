@@ -68,7 +68,8 @@ extension ClaudeSessionLauncher {
 /// does one answering that says nothing more (not a line) for `answerIdleTimeout`, and one stopped while it answered
 /// that doesn't end within `interruptTimeout` (an agent deaf to the interrupt): the process is stuck, the next question
 /// starts it again. A question waiting behind one being answered waits `firstAnswerTimeout` at most, then fails with
-/// `.busy` (the provider answers). A process that ends before its session starts, twice, fails the question with
+/// `.busy` (the provider answers); so does one waiting for its process to start while ours before it is still ending
+/// (with `.noResponse`). A process that ends before its session starts, twice, fails the question with
 /// `.failedToStart` (the provider answers) and the agent is `.cannotStart` until its sign-in is looked at again; so is
 /// one whose program won't launch at all (`.cannotLaunch`: gone since it was found, not executable).
 /// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
@@ -215,7 +216,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     private struct State {
         var running: Running?
-        /// Processes being stopped; no replacement starts until their exit callbacks run.
+        /// Processes being stopped; no replacement starts until their exit callbacks run (a question waits for that
+        /// `firstAnswerTimeout` at most: `waitForStart`).
         var retiring: [Int: Running] = [:]
         /// A `prewarm` came while one of `retiring` still ran: its process starts once they have all ended (`exited`).
         var prewarmWaiting = false
@@ -819,12 +821,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// still waits for its message (`Request`): into its own agent conversation, with its own web tools (`place`).
     private func pump(_ state: inout State) -> [Action] {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
-        guard state.retiring.isEmpty else { return [] }
+        guard state.retiring.isEmpty else {
+            waitForStart(&state)
+            return []
+        }
         guard let turn = state.turns.first, !turn.sent, let message = turn.message else { return [] }
         let web = place(turn, &state)
         // On another agent conversation, or with other web tools: moved to this one, or started again on it.
         let moved = follow(&state, web: web)
-        if !state.retiring.isEmpty { return moved }
+        if !state.retiring.isEmpty {
+            waitForStart(&state)
+            return moved
+        }
         let running: Running
         let opening: [Action]
         do {
@@ -954,25 +962,32 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return wait
     }
 
-    /// `turn`, waiting behind one being answered, fails with `.busy` (the provider answers) unless it is sent within
-    /// `firstAnswerTimeout` (`watch` replaces this watchdog).
-    private func waitAtMost(_ turn: Turn) {
+    /// `turn`, waiting behind one being answered, fails with `failure` (`.busy`: the provider answers) unless it is sent
+    /// within `firstAnswerTimeout` (`watch` replaces this watchdog).
+    private func waitAtMost(_ turn: Turn, failing failure: ClaudeSessionError = .busy) {
         guard turn.watchdog == nil, !turn.sent, !turn.done else { return }
         turn.attempt += 1
         let (id, attempt, clock, timeout) = (turn.id, turn.attempt, answerClock, firstAnswerTimeout)
         turn.watchdog = Task { [weak self] in
             do { try await clock.sleep(for: timeout) } catch { return }
-            self?.waitedTooLong(id, attempt: attempt)
+            self?.waitedTooLong(id, attempt: attempt, failure)
         }
     }
 
-    private func waitedTooLong(_ id: Int, attempt: Int) {
+    /// The questions asked (their message in) while a process of ours is still ending (`State.retiring`), waiting for
+    /// theirs to start: each fails with `.noResponse` (the provider answers) unless it is sent within
+    /// `firstAnswerTimeout`, so that one whose end is never told holds none of them for longer.
+    private func waitForStart(_ state: inout State) {
+        for turn in state.turns where turn.message != nil { waitAtMost(turn, failing: .noResponse) }
+    }
+
+    private func waitedTooLong(_ id: Int, attempt: Int, _ failure: ClaudeSessionError) {
         let actions = state.withLock { state -> [Action] in
             guard let index = state.turns.firstIndex(where: { $0.id == id }) else { return [] }
             let turn = state.turns[index]
             guard turn.attempt == attempt, !turn.sent, !turn.done else { return [] }
             state.turns.remove(at: index)
-            return finish(turn, ClaudeSessionError.busy)
+            return finish(turn, failure)
         }
         perform(actions)
     }
@@ -1228,6 +1243,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 /// piped, the output read line by line on a thread of its own; its end told by its termination handler
 /// (`LaunchSpec.onExit`), never `waitUntilExit` on a dispatch thread, which sometimes never returns (a program that
 /// exited would count as running: a sign-in check found signed out, a question waiting for a process long gone).
+/// Its end (`exited`) is told once it has ended and its output has been read to its end; once it was killed (SIGKILL
+/// to its group, `ClaudeSessionProcess.kill`; one asked to end is, after `ClaudeSessionManager.handOffGrace`, unless its
+/// end was told by then), as soon as it has ended itself: something it started that left its group may hold its output
+/// open for as long as it runs, which the signal doesn't reach (`PipedEnd`).
 /// `executable`: where `claude` is (nil: not installed); `environment`: what it runs with (on the Mac the login shell's);
 /// `processes`: nil, the platform's as it starts. One found that won't launch (gone since, not executable) throws
 /// `ClaudeSessionError.cannotLaunch`, saying why (`launchFailure`).
@@ -1252,22 +1271,29 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         let processes = processes ?? Platform.current.processes
         guard processes.canLaunch, let executable = executable() else { throw ClaudeSessionError.notInstalled }
         let input = Pipe(), out = Pipe(), errors = Pipe()
-        let ended = DispatchSemaphore(value: 0)
+        let errorTail = Locked(initialState: Data())
+        let errorsRead = DispatchSemaphore(value: 0)
+        let end = PipedEnd { status, givenUp in
+            // Its output given up, standard error likely is too (held open by the same process): what it said by now.
+            _ = errorsRead.wait(timeout: .now() + (givenUp ? 0.1 : 2))
+            let message = String(decoding: errorTail.withLock { $0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            exited(status, String(message.split(whereSeparator: \.isNewline).last ?? ""))
+        }
         let launched: any LaunchedProcess
         do {
             launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment(),
                                                        directory: directory, standardInput: .pipe(input),
                                                        standardOutput: .pipe(out), standardError: .pipe(errors),
-                                                       onExit: { _ in ended.signal() }))
+                                                       onExit: { end.processEnded(status: $0.terminationStatus) }))
         } catch {
             throw ClaudeSessionError.cannotLaunch(Self.launchFailure(executable, error))
         }
-        let errorTail = Locked(initialState: Data())
-        let errorsRead = DispatchSemaphore(value: 0)
-        // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes).
+        // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes). Once
+        // its output is given up (`PipedEnd`), what they still read is dropped and they stop at their next read's end;
+        // the pipes are left to them, never closed under a read (the descriptor could be another file's by then).
         Thread.detachNewThread {
             let handle = errors.fileHandleForReading
-            while case let chunk = handle.availableData, !chunk.isEmpty {
+            while !end.givenUp, case let chunk = handle.availableData, !chunk.isEmpty {
                 errorTail.withLock { $0 = ($0 + chunk).suffix(600) }
             }
             errorsRead.signal()
@@ -1275,20 +1301,17 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         Thread.detachNewThread {
             let handle = out.fileHandleForReading
             var buffer = Data()
-            while case let chunk = handle.availableData, !chunk.isEmpty {
+            while !end.givenUp, case let chunk = handle.availableData, !chunk.isEmpty {
                 buffer.append(chunk)
                 while let newline = buffer.firstIndex(of: 0x0A) {
                     let line = buffer[buffer.startIndex..<newline]
                     buffer.removeSubrange(buffer.startIndex...newline)
-                    if !line.isEmpty { output(Data(line)) }
+                    if !line.isEmpty, !end.givenUp { output(Data(line)) }
                 }
             }
-            ended.wait()
-            _ = errorsRead.wait(timeout: .now() + 2)
-            let message = String(decoding: errorTail.withLock { $0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            exited(launched.terminationStatus, String(message.split(whereSeparator: \.isNewline).last ?? ""))
+            end.outputEnded()
         }
-        return PipedClaudeProcess(process: launched, input: input.fileHandleForWriting)
+        return PipedClaudeProcess(process: launched, input: input.fileHandleForWriting, end: end)
     }
 
     /// Why `executable` didn't launch (`error`, the launcher's): not there, not executable, else what the launcher said
@@ -1301,15 +1324,64 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
     }
 }
 
+/// How a process `ProcessClaudeSessionLauncher` started has ended, told once (its `exited`): once the process has ended
+/// and its output was read to its end; once it was killed (`killed`), as soon as the process itself has ended (its
+/// termination handler ran: it was reaped), whatever still holds its output open: something it started that left its
+/// group, which the SIGKILL didn't reach and which may run for ever. Its output (and standard error) is given up then:
+/// not read any further.
+private final class PipedEnd: @unchecked Sendable {
+    private struct State {
+        var status: Int32?
+        var outputEnded = false
+        var killed = false
+        var told = false
+        var givenUp = false
+    }
+
+    private let state = Locked(initialState: State())
+    /// Tells it (on a thread of its own): its exit status, and whether its output was given up.
+    private let tell: @Sendable (_ status: Int32, _ givenUp: Bool) -> Void
+
+    init(tell: @escaping @Sendable (_ status: Int32, _ givenUp: Bool) -> Void) {
+        self.tell = tell
+    }
+
+    /// Its end is told already.
+    var told: Bool { state.withLock { $0.told } }
+    /// Its output (and standard error) isn't read any more: its end was told before they ended.
+    var givenUp: Bool { state.withLock { $0.givenUp } }
+
+    /// The process itself ended (its termination handler), with `status`.
+    func processEnded(status: Int32) { update { $0.status = status } }
+    /// Its output was read to its end.
+    func outputEnded() { update { $0.outputEnded = true } }
+    /// It was killed, with what it started (SIGKILL to its group).
+    func killed() { update { $0.killed = true } }
+
+    private func update(_ change: (inout State) -> Void) {
+        let told = state.withLock { state -> (status: Int32, givenUp: Bool)? in
+            change(&state)
+            guard !state.told, let status = state.status, state.outputEnded || state.killed else { return nil }
+            state.told = true
+            state.givenUp = !state.outputEnded
+            return (status, state.givenUp)
+        }
+        guard let told else { return }
+        Thread.detachNewThread { [tell] in tell(told.status, told.givenUp) }
+    }
+}
+
 private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendable {
     let process: any LaunchedProcess
     let input: FileHandle
+    private let end: PipedEnd
     private let lock = NSLock()
     private var closed = false
 
-    init(process: any LaunchedProcess, input: FileHandle) {
+    init(process: any LaunchedProcess, input: FileHandle, end: PipedEnd) {
         self.process = process
         self.input = input
+        self.end = end
     }
 
     func send(_ line: Data) throws {
@@ -1327,14 +1399,22 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
         try? input.close()
     }
 
+    /// Asked to end (SIGTERM to its group); killed after `ClaudeSessionManager.handOffGrace` unless its end was told by
+    /// then: it may have ended at once while something it started that left its group holds its output open, and its
+    /// end, which waits for that output's end until it is killed (`PipedEnd`), would never be told.
     func terminate() {
         closeInput()
         process.terminate()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + ClaudeSessionManager.handOffGrace) { [self] in
+            if !end.told { kill() }
+        }
     }
 
+    /// Killed with what is in its group (SIGKILL); its end is told as soon as it has ended itself (`PipedEnd`).
     func kill() {
         closeInput()
         process.kill()
+        end.killed()
     }
 
     var isRunning: Bool { process.treeIsRunning }

@@ -270,4 +270,75 @@ struct QuestionSessionStuckTests {
         ClaudeSessionManager.stop([session], grace: 0.1)
         #expect(process.terminated && process.killed && !session.isRunning)
     }
+
+    /// A process stopped whose end is never told (it ignores even the kill, or what told it is stuck): a question asked
+    /// meanwhile waits for its own process `firstAnswerTimeout` at most, then fails so that the provider answers; no
+    /// second process starts while the first may still run.
+    @Test func aQuestionWaitingForAProcessThatNeverEndsFallsBack() async throws {
+        let stubborn = Stubborn()
+        let clock = ManualClock()
+        let session = manager(stubborn, answerClock: clock)
+        defer { session.stop() }
+        session.prewarm()
+        let first = try #require(stubborn.last)
+        session.stop()
+        let stream = session.ask("hi", in: nil)
+        try #require(await clock.sleepers(within: 10), "the question waits with no time limit")
+        clock.advance(by: ClaudeSessionManager.firstAnswerTimeout)
+        #expect(await collect(stream).error as? ClaudeSessionError == .noResponse)
+        #expect(stubborn.last === first && first.terminated)
+    }
+
+    #if os(macOS)
+    /// A session's program (`script`'s text after `#!/bin/sh`) that leaves a child in a process group of its own (`set
+    /// -m`) holding its output open for a minute, each child's pid written to `children`; the children killed by `body`'s end.
+    func withAChildOutsideTheGroup(_ script: String, _ body: (_ program: URL, _ children: URL) async throws -> Void) async throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let children = folder.appendingPathComponent("children")
+        let program = folder.appendingPathComponent("claude")
+        try Data("#!/bin/sh\nset -m\n/bin/sleep 60 &\necho $! >> '\(children.path)'\n\(script)\n".utf8).write(to: program)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
+        defer {
+            let pids = (try? String(contentsOf: children, encoding: .utf8)) ?? ""
+            for pid in pids.split(whereSeparator: \.isNewline).compactMap({ Int32($0) }) { _ = kill(pid, SIGKILL) }
+        }
+        try await body(program, children)
+    }
+
+    func count(_ children: URL) -> Int {
+        ((try? String(contentsOf: children, encoding: .utf8)) ?? "").split(whereSeparator: \.isNewline).count
+    }
+
+    /// Killed, a session's process is ended as soon as it has ended itself, though a child that left its group (which the
+    /// kill doesn't reach) holds its output open: its exit is told, its pipes no longer read.
+    @Test func aKilledProcessEndsThoughAChildOutsideItsGroupHoldsItsOutput() async throws {
+        try await withAChildOutsideTheGroup("exec /bin/sleep 60") { program, children in
+            let launcher = ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                        environment: { [:] })
+            let ended = Locked<Int32?>(initialState: nil)
+            let process = try launcher.start([], in: folder, output: { _ in },
+                                             exited: { status, _ in ended.withLock { $0 = status } })
+            #expect(await Timing.eventually(within: 10) { count(children) == 1 })
+            process.kill()
+            #expect(await Timing.eventually(within: 15) { ended.withLock { $0 } != nil }, "its end never told")
+            #expect(!process.isRunning)
+        }
+    }
+
+    /// Stopped, a session's process that ends at once (SIGTERM), leaving a child outside its group holding its output: its
+    /// end is told all the same, and the session starts its next process (a prewarm's, waiting for it).
+    @Test func aStoppedProcessWhoseChildHoldsItsOutputLetsTheNextOneStart() async throws {
+        try await withAChildOutsideTheGroup("exec /bin/sleep 60") { program, children in
+            let session = manager(ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                               environment: { [:] }))
+            defer { session.stop() }
+            session.prewarm()
+            #expect(await Timing.eventually(within: 10) { count(children) == 1 })
+            session.stop()
+            session.prewarm()
+            #expect(await Timing.eventually(within: 15) { count(children) == 2 }, "the next process never started")
+            #expect(session.isRunning)
+        }
+    }
+    #endif
 }

@@ -451,7 +451,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// were found (`isAWSCredentialError`).
     case awsSignInExpired
     /// No sign of an answer within `ClaudeSessionManager.firstAnswerTimeout` (Claude Code stuck starting, a sign-in
-    /// waiting in a browser): the process is ended.
+    /// waiting in a browser): the process is ended. Or no process to ask within it: the one before still ending.
     case noResponse
     /// The process ended before its session started, tried twice (status, what it last said on stderr): an older
     /// Claude Code that doesn't know `--name`, a broken install.
