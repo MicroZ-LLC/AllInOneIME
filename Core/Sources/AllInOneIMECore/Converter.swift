@@ -41,9 +41,9 @@ public final class Converter: Sendable {
     /// on in is pointed to (`ChatHandoff.guideNote`), since it reads files itself.
     public let userGuideFile: URL?
     let cache = Locked(initialState: LRUCache(capacity: 64))
-    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Kiro CLI): `@question`
-    /// goes to the one `questionSession` says.
-    public let questionSessions: [AgentKind: ClaudeSessionManager]
+    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Codex, Gemini CLI, Kiro
+    /// CLI): `@question` goes to the one `questionSession` says.
+    public let questionSessions: [SessionAgent: ClaudeSessionManager]
     /// The Claude Code session, if any.
     public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
 
@@ -54,8 +54,27 @@ public final class Converter: Sendable {
     }
 
     /// The agent of that session.
-    public func questionSessionAgent(_ config: Config) -> AgentKind? {
+    public func questionSessionAgent(_ config: Config) -> SessionAgent? {
         config.questionSessionAgent(availability: { questionSessions[$0]?.availability ?? .notInstalled })
+    }
+
+    /// `questionSession`, the sign-in of the sessions Automatic looks at (`Config.questionSessionCandidates`) checked
+    /// first (`ClaudeSessionManager.checkAvailability`), one after the other until one is ready: the first `@question`
+    /// (or the first about to be asked) runs the checks, not the launch; none runs with a session or the provider picked.
+    /// Only a session never looked at is waited for; one found not ready is looked at again meanwhile, for the next
+    /// question (no more than once a minute), so that a question never waits for an agent known to be signed out.
+    public func questionSessionChecked(_ config: Config) async -> ClaudeSessionManager? {
+        for agent in config.questionSessionCandidates {
+            guard let session = questionSessions[agent] else { continue }
+            var availability = session.availability
+            if availability == .unknown {
+                availability = await session.checkAvailability()
+            } else if availability != .ready {
+                Task.detached { _ = await session.checkAvailability() }
+            }
+            if availability == .ready { break }
+        }
+        return questionSession(config)
     }
 
     public init(
@@ -69,7 +88,7 @@ public final class Converter: Sendable {
         appleModel: any AppleModelBackend = AppleModel.system,
         appleClock: any Clock<Duration> = ContinuousClock(),
         claudeSession: ClaudeSessionManager? = nil,
-        questionSessions: [AgentKind: ClaudeSessionManager] = [:]
+        questionSessions: [SessionAgent: ClaudeSessionManager] = [:]
     ) {
         self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
         var sessions = questionSessions
@@ -199,7 +218,7 @@ public final class Converter: Sendable {
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
         // The session picked for questions (`Config.questionSessionAgent`) answers, unless it can't (below).
-        let session = command == .question ? questionSession(config) : nil
+        let session = command == .question ? await questionSessionChecked(config) : nil
         // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
         // history), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []

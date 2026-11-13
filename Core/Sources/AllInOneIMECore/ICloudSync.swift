@@ -77,9 +77,9 @@ public enum ICloudSync {
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
     /// its own, decision 26). Clipboard history's switch and how many it keeps (`clipboardHistory`,
     /// `clipboardHistoryLimit`) are this Mac's, as its history is, and so is whether the update check sends its install ID
-    /// (`sendsInstallID`), as the ID is; so is where `@question` is answered (`questionBackend`: Claude Code or Kiro CLI
-    /// is installed and signed in on this Mac or not). Apps without typos and the recent apps aren't config keys either:
-    /// named so that no later version adds them.
+    /// (`sendsInstallID`), as the ID is; so is where `@question` is answered (`questionBackend`: whether Claude Code,
+    /// Codex, Gemini CLI or Kiro CLI is installed and signed in on this Mac). Apps without typos and the recent apps
+    /// aren't config keys either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",

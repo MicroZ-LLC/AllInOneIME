@@ -335,43 +335,58 @@ struct ACPSessionTests {
 
     @Test func theSessionPickedOrAutomaticallyTheOneOfAtAgentsAgent() {
         typealias A = ClaudeSession.Availability
-        func agent(_ backend: QuestionBackend?, at: AgentKind, claude: A, kiro: A) -> AgentKind? {
+        /// Where questions go with `backend` picked and `@agent` handing to `at`, the sessions in `ready` ready and every
+        /// other one `other`.
+        func agent(_ backend: QuestionBackend?, at: AgentKind, ready: Set<SessionAgent>, other: A = .signedOut) -> SessionAgent? {
             var config = Config.default
             config.agent = at
             config.questionBackend = backend
-            return config.questionSessionAgent(availability: { $0 == .claude ? claude : $0 == .kiro ? kiro : .ready })
+            return config.questionSessionAgent(availability: { ready.contains($0) ? .ready : other })
         }
-        let all: [A] = [.unknown, .ready, .notInstalled, .signedOut]
-        for at in AgentKind.allCases {
-            for claude in all {
-                for kiro in all {
+        // Claude Code first, then the two added in 0.7.4, then Kiro CLI.
+        let order = QuestionBackend.sessionAgents
+        #expect(order == [.claude, .codex, .gemini, .kiro])
+        for mask in 0..<(1 << order.count) {
+            let ready = Set(order.indices.filter { mask & (1 << $0) != 0 }.map { order[$0] })
+            for at in AgentKind.allCases {
+                for other in [A.unknown, .notInstalled, .signedOut] {
                     // Picked: that one, whatever it can do now (tried; the provider answers with why).
-                    #expect(agent(.claudeSession, at: at, claude: claude, kiro: kiro) == .claude)
-                    #expect(agent(.kiroSession, at: at, claude: claude, kiro: kiro) == .kiro)
-                    #expect(agent(.provider, at: at, claude: claude, kiro: kiro) == nil)
-                    // Automatic: @agent's agent's session when it has one and it's ready, else a ready one (Claude Code
-                    // first), else the provider.
-                    let expected: AgentKind?
-                    if at == .claude, claude == .ready { expected = .claude }
-                    else if at == .kiro, kiro == .ready { expected = .kiro }
-                    else if claude == .ready { expected = .claude }
-                    else if kiro == .ready { expected = .kiro }
-                    else { expected = nil }
-                    #expect(agent(nil, at: at, claude: claude, kiro: kiro) == expected,
-                            "@agent \(at), claude \(claude), kiro \(kiro)")
+                    for picked in order { #expect(agent(QuestionBackend(picked), at: at, ready: ready, other: other) == picked) }
+                    #expect(agent(.provider, at: at, ready: ready, other: other) == nil)
+                    // Automatic: @agent's agent's session when it has one and it's ready, else the first ready one in the
+                    // order, else the provider.
+                    let own = SessionAgent(at).flatMap { ready.contains($0) ? $0 : nil }
+                    #expect(agent(nil, at: at, ready: ready, other: other) == own ?? order.first { ready.contains($0) },
+                            "@agent \(at), ready \(ready), others \(other)")
                 }
             }
         }
-        // Spelled out: Kiro for @agent's Kiro even with Claude Code ready; Gemini CLI: Claude Code first.
-        #expect(agent(nil, at: .kiro, claude: .ready, kiro: .ready) == .kiro)
-        #expect(agent(nil, at: .kiro, claude: .ready, kiro: .signedOut) == .claude)
-        #expect(agent(nil, at: .claude, claude: .notInstalled, kiro: .ready) == .kiro)
-        #expect(agent(nil, at: .gemini, claude: .ready, kiro: .ready) == .claude)
-        #expect(agent(nil, at: .gemini, claude: .signedOut, kiro: .ready) == .kiro)
-        // The file: Claude Code's keeps its name from before Kiro.
-        #expect(QuestionBackend.claudeSession.rawValue == "claudeSession" && QuestionBackend.kiroSession.rawValue == "kiroSession")
-        let decoded = try? JSONDecoder().decode(Config.self, from: Data(#"{"questionBackend":"kiroSession"}"#.utf8))
-        #expect(decoded?.questionBackend == .kiroSession)
+        // Spelled out: Kiro for @agent's Kiro even with Claude Code ready; Codex and Gemini CLI after Claude Code, before
+        // Kiro; @agent's Gemini CLI: its own session; a custom agent has none.
+        #expect(agent(nil, at: .kiro, ready: [.claude, .kiro]) == .kiro)
+        #expect(agent(nil, at: .kiro, ready: [.claude]) == .claude)
+        #expect(agent(nil, at: .claude, ready: [.codex, .gemini, .kiro]) == .codex)
+        #expect(agent(nil, at: .claude, ready: [.gemini, .kiro]) == .gemini)
+        #expect(agent(nil, at: .claude, ready: [.claude, .codex]) == .claude)
+        #expect(agent(nil, at: .gemini, ready: [.claude, .gemini]) == .gemini)
+        #expect(agent(nil, at: .custom, ready: [.codex, .kiro]) == .codex)
+        #expect(agent(nil, at: .claude, ready: []) == nil)
+        // What Automatic looks at, in that order; nothing when a session or the provider is picked.
+        var config = Config.default
+        config.agent = .kiro
+        #expect(config.questionSessionCandidates == [.kiro, .claude, .codex, .gemini])
+        config.agent = .custom
+        #expect(config.questionSessionCandidates == order)
+        config.questionBackend = .codexSession
+        #expect(config.questionSessionCandidates.isEmpty)
+        config.questionBackend = .provider
+        #expect(config.questionSessionCandidates.isEmpty)
+        // The file: Claude Code's keeps its name from before the others.
+        #expect(QuestionBackend.allCases.map(\.rawValue) == ["claudeSession", "codexSession", "geminiSession", "kiroSession", "provider"])
+        for backend in QuestionBackend.allCases {
+            let decoded = try? JSONDecoder().decode(Config.self, from: Data(#"{"questionBackend":"\#(backend.rawValue)"}"#.utf8))
+            #expect(decoded?.questionBackend == backend)
+        }
     }
 
     @Test func questionsGoToTheSessionTheSettingsSay() async throws {
@@ -379,7 +394,7 @@ struct ACPSessionTests {
         let claude = ClaudeSessionManager(launcher: claudeFake, store: ClaudeSessionStore(directory: folder.appendingPathComponent("c")),
                                           userSettings: { nil })
         let kiro = manager(kiroFake)
-        let sessions = [AgentKind.claude: claude, .kiro: kiro]
+        let sessions = [SessionAgent.claude: claude, .kiro: kiro]
         var settings = Config.default
         settings.provider = .apple
         let current = Locked(initialState: settings)

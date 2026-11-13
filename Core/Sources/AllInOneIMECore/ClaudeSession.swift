@@ -1,26 +1,51 @@
 import Crypto
 import Foundation
 
-/// Where `@question` is answered (`Config.questionBackend`): the input method's own Claude Code session
-/// (`claudeSession`, its name in the file from before Kiro), its own Kiro CLI session (`kiroSession`), each a
-/// `ClaudeSessionManager`, or the AI provider. Unset (Automatic): see `Config.questionSessionAgent`. Every other request
-/// (writing, autocomplete, translating …) always goes to the provider.
+/// Where `@question` is answered (`Config.questionBackend`): the input method's own session on an agent
+/// (`SessionAgent`): Claude Code's (`claudeSession`, its name in the file from before the others), Codex's, Gemini CLI's
+/// or Kiro CLI's, each a `ClaudeSessionManager`; or the AI provider. Unset (Automatic): see
+/// `Config.questionSessionAgent`. Every other request (writing, autocomplete, translating …) always goes to the provider.
 public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
     case claudeSession
+    case codexSession
+    case geminiSession
     case kiroSession
     case provider
 
+    /// The session of `agent`.
+    public init(_ agent: SessionAgent) {
+        switch agent {
+        case .claude: self = .claudeSession
+        case .codex: self = .codexSession
+        case .gemini: self = .geminiSession
+        case .kiro: self = .kiroSession
+        }
+    }
+
     /// The agent whose session it is; nil for the provider.
-    public var agent: AgentKind? {
+    public var agent: SessionAgent? {
         switch self {
         case .claudeSession: return .claude
+        case .codexSession: return .codex
+        case .geminiSession: return .gemini
         case .kiroSession: return .kiro
         case .provider: return nil
         }
     }
 
     /// The agents that have a question session, in the order Automatic tries them.
-    public static let sessionAgents: [AgentKind] = [.claude, .kiro]
+    public static let sessionAgents: [SessionAgent] = [.claude, .codex, .gemini, .kiro]
+
+    /// What Settings says of the choice (the settings document, the Mac's settings and their search).
+    public static var help: String {
+        tr("输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。",
+           "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above.")
+    }
+}
+
+extension SessionAgent {
+    /// Its session's name in Settings: "Claude Code session".
+    public var sessionTitle: String { tr("\(displayName) 会话", "\(displayName) session") }
 }
 
 extension Config {
@@ -28,11 +53,21 @@ extension Config {
     /// the prewarm, the hand-off, the panel's and the settings' labels, Start Over all ask it). Picked
     /// (`questionBackend`): that one, whatever its `availability` (it is tried; the provider answers with why when it
     /// can't). Automatic (nil): the session of `@agent`'s agent (`agent`) when it has one and it is ready, else another
-    /// one that is ready (Claude Code first), else the provider. `availability`: each agent's, as last found.
-    public func questionSessionAgent(availability: (AgentKind) -> ClaudeSession.Availability) -> AgentKind? {
+    /// one that is ready (in `QuestionBackend.sessionAgents`' order: Claude Code first), else the provider.
+    /// `availability`: each agent's, as last found.
+    public func questionSessionAgent(availability: (SessionAgent) -> ClaudeSession.Availability) -> SessionAgent? {
         if let questionBackend { return questionBackend.agent }
-        if QuestionBackend.sessionAgents.contains(agent), availability(agent) == .ready { return agent }
+        if let own = SessionAgent(agent), availability(own) == .ready { return own }
         return QuestionBackend.sessionAgents.first { availability($0) == .ready }
+    }
+
+    /// The agents whose sign-in decides where Automatic sends `@question` (`questionSessionAgent`), in the order it looks
+    /// at them: `@agent`'s agent's session first, then the others. None when a session or the provider is picked: a
+    /// picked session is tried whatever it can do, so nothing has to be looked at first.
+    public var questionSessionCandidates: [SessionAgent] {
+        guard questionBackend == nil else { return [] }
+        let own = SessionAgent(agent).map { [$0] } ?? []
+        return own + QuestionBackend.sessionAgents.filter { !own.contains($0) }
     }
 }
 
@@ -47,6 +82,9 @@ extension Config {
 /// - `--include-partial-messages`: the answer's text deltas as they come (`stream_event` lines).
 /// - `--session-id <id>` the first time, `--resume <id>` once it has a conversation (the first fails on an id in use,
 ///   the second on one that has none).
+/// - `--name AllInOneIME` (`SessionAgent.sessionName`): the session's title in Claude Code's own list (`/resume`, the
+///   picker); kept in its transcript as a "custom-title" line, so `claude --resume AllInOneIME` in the session's folder
+///   opens it (by title Claude Code looks in the folder it runs in only).
 /// - `--tools WebSearch,WebFetch`: the only tools it has; `--allowedTools WebSearch,WebFetch` with `--permission-mode
 ///   dontAsk`: those run without asking and anything else is denied (without `--allowedTools`, dontAsk denies them too).
 /// - `--setting-sources project`: the session folder's settings and CLAUDE.md only (not ~/.claude/CLAUDE.md or the
@@ -94,7 +132,7 @@ public enum ClaudeSession {
     /// file (`providerSettings`), nil when there is none.
     public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil) -> [String] {
         ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
-            + (resume ? ["--resume", sessionID] : ["--session-id", sessionID])
+            + (resume ? ["--resume", sessionID] : ["--session-id", sessionID]) + ["--name", SessionAgent.sessionName]
             + ["--tools", tools, "--allowedTools", tools, "--permission-mode", "dontAsk",
                "--setting-sources", "project"] + settingsArguments(settings) + ["--strict-mcp-config"]
     }
@@ -312,53 +350,38 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 
     public var errorDescription: String? { description(for: .claude) }
 
-    /// What it says for the session on `agent` (Claude Code's words for any but Kiro's).
-    public func description(for agent: AgentKind) -> String {
-        if agent == .kiro, let kiro = kiroDescription { return kiro }
+    /// What it says for the session on `agent`: the agent's names in the same words for each (Claude Code's own for
+    /// signing in and its subscription's limit; the AWS sign-in is only ever Claude Code's).
+    public func description(for agent: SessionAgent) -> String {
+        let (name, program, short) = (agent.displayName, agent.program, agent.shortName)
         switch self {
         case .notInstalled:
-            return tr("没找到 claude 命令（Claude Code）", "The claude command (Claude Code) isn't installed")
-        case .signedOut:
+            return tr("没找到 \(program) 命令（\(name)）", "The \(program) command (\(name)) isn't installed")
+        case .signedOut where agent == .claude:
             return tr("Claude Code 没有登录：在终端运行 claude 并 /login", "Claude Code isn't signed in: run claude in Terminal and /login")
-        case let .limitReached(message):
+        case .signedOut:
+            return tr("\(name) 没有登录：在终端运行 \(agent.signIn)", "\(name) isn't signed in: run \(agent.signIn) in Terminal")
+        case let .limitReached(message) where agent == .claude:
             return tr("Claude 订阅的用量到了上限", "The Claude subscription's usage limit is reached") + (message.isEmpty ? "" : ": \(message)")
+        case let .limitReached(message):
+            return tr("\(short) 的用量到了上限", "The \(short) usage limit is reached") + (message.isEmpty ? "" : ": \(message)")
         case .awsSignInExpired:
             return tr("AWS 登录已过期：在终端运行 aws sso login", "The AWS sign-in has expired: run aws sso login in Terminal")
         case .noResponse:
-            return tr("Claude 会话没有回应", "The Claude session didn't respond")
+            return tr("\(short) 会话没有回应", "The \(short) session didn't respond")
         case .openInTerminal:
-            return tr("输入法的 Claude 会话正在终端里打开着", "The input method's Claude session is open in Terminal")
+            return tr("输入法的 \(short) 会话正在终端里打开着", "The input method's \(short) session is open in Terminal")
         case let .exited(status, message):
-            return tr("Claude 会话意外退出", "The Claude session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
+            return tr("\(short) 会话意外退出", "The \(short) session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
         case let .failed(message):
-            return tr("Claude 会话出错", "The Claude session failed") + (message.isEmpty ? "" : ": \(message)")
-        }
-    }
-
-    /// Kiro CLI's words, where they differ.
-    private var kiroDescription: String? {
-        switch self {
-        case .notInstalled:
-            return tr("没找到 kiro-cli 命令（Kiro CLI）", "The kiro-cli command (Kiro CLI) isn't installed")
-        case .signedOut:
-            return tr("Kiro CLI 没有登录：在终端运行 kiro-cli login", "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
-        case .noResponse:
-            return tr("Kiro 会话没有回应", "The Kiro session didn't respond")
-        case .openInTerminal:
-            return tr("输入法的 Kiro 会话正在终端里打开着", "The input method's Kiro session is open in Terminal")
-        case let .exited(status, message):
-            return tr("Kiro 会话意外退出", "The Kiro session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
-        case let .failed(message):
-            return tr("Kiro 会话出错", "The Kiro session failed") + (message.isEmpty ? "" : ": \(message)")
-        case .limitReached, .awsSignInExpired:
-            return nil
+            return tr("\(short) 会话出错", "The \(short) session failed") + (message.isEmpty ? "" : ": \(message)")
         }
     }
 
     /// What the panel says when the provider answered instead.
     public var fallbackNote: String { fallbackNote(for: .claude) }
 
-    public func fallbackNote(for agent: AgentKind) -> String {
+    public func fallbackNote(for agent: SessionAgent) -> String {
         description(for: agent) + tr("，这次由 AI 服务回答", "; the AI provider answered this time")
     }
 

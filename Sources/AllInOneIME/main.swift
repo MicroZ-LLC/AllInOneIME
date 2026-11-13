@@ -246,8 +246,6 @@ func runServer(showSettings: Bool = false) -> Never {
     for key in ["sentenceMode", "aiEnabled"] { UserDefaults.standard.removeObject(forKey: key) }
     // Background @agent tasks: notifications, and tasks from before a restart watched again.
     MainActor.assumeIsolated { AgentMonitor.shared.setUp() }
-    // The sessions for @question: whether `claude` / `kiro-cli` is installed and signed in (where questions go by default).
-    ClaudeSessionMac.checkAvailability()
     // Chrome's page tree turned on by an earlier run that didn't turn it off (a crash, a reinstall): off again.
     PageContextReader.releaseLeftOver()
     // The menu bar icon (on by default) and its panel, once the server and Rime are up. The notes @note

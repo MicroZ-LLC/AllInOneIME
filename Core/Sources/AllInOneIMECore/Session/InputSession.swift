@@ -32,10 +32,8 @@ public final class InputSession {
     public private(set) var lastShortened = false
     /// Why the Claude session didn't answer the last question and the provider did (`ConversionUpdate.note`).
     public private(set) var lastNote: String?
-    /// The session of @agent's agent was asked to start for the command being written (`prewarmQuestionSession`).
+    /// The session `@question` goes to was asked to start for the question about to be asked (`prewarmQuestionSession`).
     private var questionSessionWarmed = false
-    /// The session `@question` goes to with the settings (`Converter.questionSession`), nil: the provider.
-    private var questionSessionManager: ClaudeSessionManager?
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
     public private(set) var agent = AgentKind.claude
     public private(set) var agentCommand: [String] = []
@@ -805,10 +803,9 @@ public final class InputSession {
         composer.questionRounds = config.questionRounds
         let installed = services.agentInstalled
         let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
-        // The questions go to the input method's Claude session: no round limit, going on in it offered first.
+        // The questions go to the input method's session: no round limit, going on in it offered first.
         let sessionAgent = services.converter.questionSessionAgent(config)
-        questionSessionManager = sessionAgent.flatMap { services.converter.questionSessions[$0] }
-        composer.questionSession = questionSessionManager != nil
+        composer.questionSession = sessionAgent.flatMap { services.converter.questionSessions[$0] } != nil
         composer.questionSessionAgent = sessionAgent ?? .claude
         composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: sessionAgent ?? .claude) : choices
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
@@ -1660,6 +1657,8 @@ public final class InputSession {
             warmDue(head, target: target, focus: focus)
         case .pluginsScanned:
             pluginsScanned()
+        case .questionSessionsChecked:
+            applyChatSettings(services.loadSettings())
         case let .clipboardFiltered(rows, filter):
             clipboardFound(rows, filter: filter)
         }
@@ -1825,16 +1824,28 @@ public final class InputSession {
         page.wake()
     }
 
-    /// The command trigger typed at the start of a draft while questions go to the Claude session: its process starts now
-    /// (off this thread), so that the answer to an `@question` doesn't wait for Claude Code to start. Once a draft.
+    /// An `@question` about to be asked (`modelAhead`: typed or picked, or one @'s Ask AI row highlighted) while the
+    /// questions may go to a session (the provider isn't picked for them): the session's process starts now (off this
+    /// thread), so that the answer doesn't wait for the agent to start, the sign-in of the sessions Automatic picks from
+    /// looked at first where it still is to be (`Converter.questionSessionChecked`; what it finds is taken in:
+    /// `TaskUpdate.questionSessionsChecked`). Once while the question stays ahead; never during secure input nor in an
+    /// app with No AI, and not for the command trigger alone or any other row.
     private func prewarmQuestionSession() {
-        guard composer.questionSession, composer.isComposing, composer.draft.hasPrefix(composer.commandTrigger) else {
+        guard modelAhead == Command.question.name else {
             questionSessionWarmed = false
             return
         }
-        guard !questionSessionWarmed, let session = questionSessionManager else { return }
+        guard !questionSessionWarmed else { return }
         questionSessionWarmed = true
-        Task.detached { session.prewarm() }
+        let config = services.loadSettings()
+        guard config.questionBackend != .provider, !secureInputActive(), config.allowsAI(in: app) else { return }
+        let converter = services.converter
+        let before = converter.questionSessionAgent(config)
+        tasks.start(nil) { post in
+            let session = await converter.questionSessionChecked(config)
+            session?.prewarm()
+            if converter.questionSessionAgent(config) != before { post(.questionSessionsChecked) }
+        }
     }
 
     /// The page given back, if `@agent` asked for it.

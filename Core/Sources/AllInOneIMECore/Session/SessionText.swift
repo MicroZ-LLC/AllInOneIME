@@ -189,13 +189,14 @@ public enum SessionText {
     /// one's from `custom`, its command), `.atAgent` by `picked`'s ("@agent's agent (Gemini CLI)"), `.claudeSession` by
     /// `session`'s (the session the questions go to, `Config.questionSessionAgent`).
     public static func name(_ destination: ChatHandoff.Destination, picked: AgentKind = .claude, custom: [String] = [],
-                            session: AgentKind = .claude, language: String) -> String {
+                            session: SessionAgent = .claude, language: String) -> String {
         let t = InterfaceWords(language: language)
         switch destination {
         case .atAgent, .claudeCode, .geminiCLI, .kiroCLI, .customAgent:
             return shortName(destination, picked: picked, custom: custom, session: session, language: language)
-        case .claudeSession where session == .kiro: return t.tr("在 Kiro CLI 里接着聊（同一个会话）", "Continue in Kiro CLI (the same session)")
-        case .claudeSession: return t.tr("在 Claude Code 里接着聊（同一个会话）", "Continue in Claude Code (the same session)")
+        case .claudeSession:
+            let name = session.displayName
+            return t.tr("在 \(name) 里接着聊（同一个会话）", "Continue in \(name) (the same session)")
         case .claudeWeb: return t.tr("Claude 网页版", "Claude (web)")
         case .chatgpt: return t.tr("ChatGPT 网页版", "ChatGPT (web)")
         case .gemini: return t.tr("Gemini 网页版", "Gemini (web)")
@@ -206,15 +207,16 @@ public enum SessionText {
     /// A destination's short name, for the panel's choices and the settings' chips (the agent by its name, the web ones
     /// are the web's; "Copy" copies the conversation).
     public static func shortName(_ destination: ChatHandoff.Destination, picked: AgentKind = .claude, custom: [String] = [],
-                                 session: AgentKind = .claude, language: String) -> String {
+                                 session: SessionAgent = .claude, language: String) -> String {
         let t = InterfaceWords(language: language)
         switch destination {
         case .atAgent:
             let name = picked.displayName(custom: custom)
             return UIText.triggered(t.tr("@agent 的 agent（\(UIText.verbatim(name))）", "@agent's agent (\(UIText.verbatim(name)))"))
         case .claudeCode, .geminiCLI, .kiroCLI, .customAgent: return destination.agent?.displayName(custom: custom) ?? ""
-        case .claudeSession where session == .kiro: return t.tr("Kiro CLI（接着这个会话）", "Kiro CLI (this session)")
-        case .claudeSession: return t.tr("Claude Code（接着这个会话）", "Claude Code (this session)")
+        case .claudeSession:
+            let name = session.displayName
+            return t.tr("\(name)（接着这个会话）", "\(name) (this session)")
         case .claudeWeb: return "Claude"
         case .chatgpt: return "ChatGPT"
         case .gemini: return "Gemini"

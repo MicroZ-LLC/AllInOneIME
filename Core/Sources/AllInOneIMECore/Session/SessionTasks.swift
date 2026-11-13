@@ -76,6 +76,9 @@ public enum TaskUpdate: Sendable {
     case completionsAnswered
     /// The plugins were looked for again (`SessionServices.rescanPlugins`): what was found is to be taken in.
     case pluginsScanned
+    /// The sign-in of the question sessions was looked at (`Converter.questionSessionChecked`) and changed where
+    /// `@question` goes: the conversation's settings are to be taken in again.
+    case questionSessionsChecked
     /// The rows of clipboard history's panel `filter` keeps, by their place among those it opened with
     /// (`ClipboardFilter.Index`).
     case clipboardFiltered([Int], filter: String)

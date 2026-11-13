@@ -6,7 +6,7 @@
 
 ### 新增
 
-- `@question` 可以用输入法自己的会话回答：设置 →「AI」→「提问（@question）」（`questionBackend`，只属于这台 Mac，不同步）选自动、Claude Code 会话、Kiro CLI 会话或 AI 服务。会话是输入法留着的一个长期运行的 Claude Code 或 Kiro CLI，在 `~/Library/Application Support/AllInOneIME` 下它自己的文件夹里，用那个 CLI 自己的账号登录（订阅、公司账号，或 Amazon Bedrock 上的 Claude Code），不用 API key，隔几天也记得以前问过的问题。只发现在问的这个问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时带上使用指南的几段。打魔法键时就启动，闲置 15 分钟后结束，下一个问题接着同一个会话。在会话里聊没有轮数限制，⌘⏎ 最先列出在终端里接着同一个会话聊，「重新开始」开一个新会话。「自动」（默认）在 `@agent` 的 agent 的会话装了并已登录时用它，不然用另一个装了并已登录的（Claude Code 优先），再不然用 AI 服务；会话回答不了时（没装、没登录、用量到上限、AWS 登录过期、正在终端里打开、30 秒内没反应）由 AI 服务回答，候选框里写着原因。改写、翻译和续写总是用 AI 服务。
+- `@question` 可以用输入法自己的会话回答：设置 →「AI」→「提问（@question）」（`questionBackend`，只属于这台 Mac，不同步）选自动、Claude Code 会话、Codex 会话、Gemini CLI 会话、Kiro CLI 会话或 AI 服务。会话是输入法留着的一个长期运行的 Claude Code、Codex（`codex app-server`，只读，不请求批准）、Gemini CLI（`gemini --acp`）或 Kiro CLI，在 `~/Library/Application Support/AllInOneIME` 下它自己的文件夹里，用那个 CLI 自己的账号登录（ChatGPT 等订阅、公司账号，或 Amazon Bedrock 上的 Claude Code），不用 API key，隔几天也记得以前问过的问题。CLI 能给会话起名的（Claude Code、Codex）会话名叫 AllInOneIME，你可以自己打开看记录；README 里写了每个怎么打开。只发现在问的这个问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时带上使用指南的几段。要问 `@question` 时才启动（打了或选了 `@question`，或单个 @ 里高亮的是「问 AI」；不用 AI 的 App 里和安全输入时不启动），闲置 15 分钟后结束，下一个问题接着同一个会话。在会话里聊没有轮数限制，⌘⏎ 最先列出在终端里接着同一个会话聊，「重新开始」开一个新会话。「自动」（默认）在 `@agent` 的 agent 的会话装了并已登录时用它，不然用另一个装了并已登录的（顺序是 Claude Code、Codex、Gemini CLI、Kiro CLI），再不然用 AI 服务；登没登录要到第一次有问题可能发给会话时才查，启动时不查（选了 AI 服务时从不查），查到能用就一直用到退出。会话回答不了时（没装、没登录、用量到上限、AWS 登录过期、正在终端里打开、30 秒内没反应）由 AI 服务回答，候选框里写着原因。改写、翻译和续写总是用 AI 服务。
 
 ## 0.7.3（2026-11-12）
 

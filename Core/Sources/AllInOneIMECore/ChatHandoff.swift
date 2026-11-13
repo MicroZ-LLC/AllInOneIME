@@ -101,10 +101,12 @@ public enum ChatHandoff {
         return result + order + edited.filter { !before.contains($0) }
     }
 
-    /// `choices` when the questions go to the input method's session on `agent` (Claude Code, Kiro CLI): going on in that
-    /// session first, and the agent no longer as a new session of its own (the session has the conversation already).
-    public static func withSession(_ choices: [Destination], agent: AgentKind = .claude) -> [Destination] {
-        [.claudeSession] + choices.filter { $0 != Destination(agent: agent) && $0 != .claudeSession }
+    /// `choices` when the questions go to the input method's session on `agent` (Claude Code, Codex, Gemini CLI, Kiro
+    /// CLI): going on in that session first, and the agent no longer as a new session of its own (the session has the
+    /// conversation already; Codex is no `@agent` agent, so none is left out for it).
+    public static func withSession(_ choices: [Destination], agent: SessionAgent = .claude) -> [Destination] {
+        let own = agent.agentKind.map(Destination.init(agent:))
+        return [.claudeSession] + choices.filter { $0 != own && $0 != .claudeSession }
     }
 
     /// Whether `kind` can be offered: its program (`AgentKind.program`, a custom one's from `config.agentCommand`) is on

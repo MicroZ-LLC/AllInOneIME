@@ -143,8 +143,56 @@
         }
       }
     },
+    " — %@ isn't installed" : {
+      "comment" : " — 没装 %@ — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@ ist nicht installiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@ no está instalado"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@ n’est pas installé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@ がインストールされていません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@가 설치되어 있지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — %@ não está instalado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 沒裝 %@"
+          }
+        }
+      }
+    },
     " — claude isn't installed" : {
       "comment" : " — 没装 claude — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -192,6 +240,7 @@
     },
     " — kiro-cli isn't installed" : {
       "comment" : " — 没装 kiro-cli — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4006,8 +4055,56 @@
         }
       }
     },
+    "A new session: it no longer remembers the earlier questions (the old one stays in %@'s history)." : {
+      "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 %@ 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine neue Sitzung: Sie erinnert sich nicht mehr an frühere Fragen (die alte bleibt im Verlauf von %@)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una sesión nueva: ya no recuerda las preguntas anteriores (la antigua queda en el historial de %@)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une nouvelle session : elle ne se souvient plus des questions précédentes (l’ancienne reste dans l’historique de %@)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しいセッション：以前の質問は覚えていません（古いセッションは %@ の履歴に残ります）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 세션: 이전 질문을 더 이상 기억하지 않습니다(이전 세션은 %@ 기록에 남습니다)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma nova sessão: ela não lembra mais das perguntas anteriores (a antiga fica no histórico do %@)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始一個新工作階段：之前的問題它就不記得了（舊工作階段還在 %@ 的歷史裡）。"
+          }
+        }
+      }
+    },
     "A new session: it no longer remembers the earlier questions (the old one stays in Claude Code's history)." : {
       "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 Claude Code 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4055,6 +4152,7 @@
     },
     "A new session: it no longer remembers the earlier questions (the old one stays in Kiro CLI's history)." : {
       "comment" : "开始一个新会话：之前的问题它就不记得了（旧会话还在 Kiro CLI 的历史里）。 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34285,6 +34383,7 @@
     },
     "This sends the sample to %@" : {
       "comment" : "这会把样例发给%@ — Sources/AllInOneIME/CommandEditor.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

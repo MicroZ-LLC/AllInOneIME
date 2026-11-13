@@ -1,8 +1,8 @@
 import Foundation
 
 /// A question session on an agent that speaks the Agent Client Protocol (ACP: JSON-RPC 2.0, a message per line on
-/// stdin/stdout). Generic: another ACP agent (Gemini CLI's `--experimental-acp` …) is one more `ACPBackend` value, its
-/// launch command and folder. What is sent: `initialize`, then `session/load` with the agent's id of the session when
+/// stdin/stdout). Generic: each ACP agent (Kiro CLI, Gemini CLI) is one `ACPBackend` value, its launch command, folder,
+/// files and sign-in check. What is sent: `initialize`, then `session/load` with the agent's id of the session when
 /// there is one and the agent can load sessions (else `session/new`), then `session/set_mode` to `mode` when the agent
 /// offers it, then one `session/prompt` per question; `session/cancel` stops a turn. What the agent asks (a permission,
 /// a file) is refused.
@@ -15,8 +15,24 @@ import Foundation
 ///   out); its `.kiro/agents/allinoneime.json` (`kiroAgent`) is offered as the mode "allinoneime", which has only the
 ///   web tools, allowed without asking, and no MCP servers.
 /// - Signed out: `session/new` fails with -32000 "Authentication required …"; `kiro-cli whoami` exits 1.
+/// - ACP has no session title, and Kiro gives none: the session is found by its folder (`kiro-cli chat --resume` there
+///   opens the latest session of the folder, the input method's).
+///
+/// Gemini CLI (0.68.0, checked by running it signed out, and in its source):
+/// - `gemini --acp`; `initialize` says `loadSession: true` (no `session/list`, no titles). `session/new` gives a UUID,
+///   the one `gemini --resume` takes in the same folder (by name it can't: `--resume` takes a UUID, "latest" or a
+///   number); `session/load` replays the conversation first (`user_message_chunk`s, not part of any answer), and fails
+///   with -32603 for a session it no longer has (it deletes sessions idle for 30 days): a new one then.
+/// - `--skip-trust`: the folder is trusted for the run; in a folder that isn't, Gemini CLI doesn't read its GEMINI.md
+///   (and folder trust is on by default). `--extensions none`: none of the user's extensions (their MCP servers).
+///   `GEMINI_CLI_NO_RELAUNCH`: one Node process, not a second it would start for more memory (about 250 MB more).
+/// - The folder's GEMINI.md is read (and the user's ~/.gemini/GEMINI.md too: there is no way to leave that out).
+/// - Signed out: `session/new` and `session/load` fail with -32000 ("Gemini API key is missing or not configured.",
+///   "Authentication required"). There is no command that says whether it is signed in, and starting it with a Google
+///   login whose saved credentials are gone opens a browser and waits: the check reads its settings and files instead
+///   (`geminiSignedIn`), and never starts it.
 public struct ACPBackend: SessionBackend {
-    public var agent: AgentKind
+    public var agent: SessionAgent
     /// The folder's name in the data folder.
     public var folderName: String
     /// The arguments after the program that start the agent on ACP.
@@ -31,9 +47,16 @@ public struct ACPBackend: SessionBackend {
     public var start: [String]
     /// The data folder, the sessions' parent (tests: their own).
     public var base: URL?
+    /// What the agent's process needs in its environment besides the user's.
+    public var environment: [String: String]
+    /// Whether it is signed in, read from its files without running it (`signedIn(environment:home:)`); nil: the
+    /// `availability` command says.
+    public var signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)?
 
-    public init(agent: AgentKind, folderName: String, launch: [String], mode: String? = nil, files: [SessionFile] = [],
-                availability: [String], resume: [String], start: [String], base: URL? = nil) {
+    public init(agent: SessionAgent, folderName: String, launch: [String], mode: String? = nil, files: [SessionFile] = [],
+                availability: [String], resume: [String], start: [String], base: URL? = nil,
+                environment: [String: String] = [:],
+                signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)? = nil) {
         self.agent = agent
         self.folderName = folderName
         self.launch = launch
@@ -43,6 +66,8 @@ public struct ACPBackend: SessionBackend {
         self.resume = resume
         self.start = start
         self.base = base
+        self.environment = environment
+        self.signIn = signIn
     }
 
     /// The mode Kiro's session runs in (`kiroAgent`).
@@ -76,6 +101,54 @@ public struct ACPBackend: SessionBackend {
                 SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
 
+    /// Gemini CLI on ACP, in its own folder with the instructions as its GEMINI.md.
+    public static let gemini = ACPBackend(
+        agent: .gemini, folderName: "gemini-session", launch: ["--acp", "--skip-trust", "--extensions", "none"],
+        files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions)],
+        availability: [], resume: ["--resume"], start: [],
+        environment: ["GEMINI_CLI_NO_RELAUNCH": "true"], signIn: geminiSignedIn)
+
+    /// Whether Gemini CLI is signed in, as its settings and files say (in `home`, or the GEMINI_CLI_HOME of
+    /// `environment`): the sign-in its settings pick (`security.auth.selectedType`; the system's enforced or picked one
+    /// first, then the user's; `selectedAuthType` in settings from before 0.3). A Google login: its saved credentials (a
+    /// refresh token) are there. An API key or Vertex AI picked: signed in (the key may be in the environment, a .env or
+    /// the keychain, where Gemini CLI's own dialog keeps it). Another sign-in the user set up (a gateway …): signed in.
+    /// None picked: Gemini CLI uses an API key, so signed in when GEMINI_API_KEY is set (in `environment` or
+    /// ~/.gemini/.env, ~/.env) or a gateway is (GOOGLE_GEMINI_BASE_URL).
+    public static func geminiSignedIn(environment: [String: String], home: URL) -> Bool {
+        let configured = environment["GEMINI_CLI_HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
+        let folder = (configured ?? home).appendingPathComponent(".gemini", isDirectory: true)
+        func object(_ url: URL) -> [String: Any]? {
+            (try? Data(contentsOf: url)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        }
+        func picked(_ settings: [String: Any]?, enforced: Bool) -> String? {
+            let auth = (settings?["security"] as? [String: Any])?["auth"] as? [String: Any]
+            let keys = (enforced ? [auth?["enforcedType"]] : []) + [auth?["selectedType"], settings?["selectedAuthType"]]
+            return keys.lazy.compactMap { $0 as? String }.first { !$0.isEmpty }
+        }
+        let system = object(URL(fileURLWithPath: "/Library/Application Support/GeminiCli/settings.json"))
+        let user = object(folder.appendingPathComponent("settings.json"))
+        func set(_ name: String) -> Bool { environment[name].map { !$0.isEmpty } ?? false }
+        switch picked(system, enforced: true) ?? picked(user, enforced: false) {
+        case "oauth-personal":
+            let saved = object(folder.appendingPathComponent("oauth_creds.json"))?["refresh_token"] as? String
+            return saved?.isEmpty == false || set("GOOGLE_APPLICATION_CREDENTIALS")
+                || FileManager.default.fileExists(atPath: folder.appendingPathComponent("gemini-credentials.json").path)
+        case nil:
+            let dotEnv = [folder.appendingPathComponent(".env"), (configured ?? home).appendingPathComponent(".env")]
+                .compactMap { try? String(contentsOf: $0, encoding: .utf8) }
+                .contains { $0.split(whereSeparator: \.isNewline).contains { line in
+                    let line = line.trimmingCharacters(in: .whitespaces)
+                    return (line.hasPrefix("GEMINI_API_KEY=") || line.hasPrefix("export GEMINI_API_KEY="))
+                        && !line.hasSuffix("=")
+                } }
+            return set("GEMINI_API_KEY") || set("GOOGLE_GEMINI_BASE_URL") || dotEnv
+        default:
+            return true
+        }
+    }
+
     public var directory: URL { (base ?? CorePaths.dataDir).appendingPathComponent(folderName, isDirectory: true) }
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
@@ -87,6 +160,8 @@ public struct ACPBackend: SessionBackend {
     }
 
     public func availabilityArguments(settings: URL?) -> [String] { availability }
+
+    public func signedIn(environment: [String: String], home: URL) -> Bool? { signIn?(environment, home) }
 
     public func signedIn(status: Int32, output: Data) -> Bool? { status == 0 }
 

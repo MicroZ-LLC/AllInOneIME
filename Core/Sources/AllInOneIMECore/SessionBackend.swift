@@ -1,12 +1,13 @@
 import Foundation
 
 /// The agent a question session runs on (`ClaudeSessionManager`): how its process is started and talked to. Claude Code
-/// over stream-json (`ClaudeCodeBackend`), or an agent that speaks the Agent Client Protocol (`ACPBackend`: Kiro CLI).
-/// The manager keeps what is the same for every agent: one process, prewarmed, reused, ended when idle, started again
-/// after a crash, the queue of questions, the first-answer timeout, the hand-off guard, redaction and catch-up.
+/// over stream-json (`ClaudeCodeBackend`), Codex over its app server (`CodexBackend`), or an agent that speaks the Agent
+/// Client Protocol (`ACPBackend`: Gemini CLI, Kiro CLI). The manager keeps what is the same for every agent: one
+/// process, prewarmed, reused, ended when idle, started again after a crash, the queue of questions, the first-answer
+/// timeout, the hand-off guard, redaction and catch-up, and the sign-in check, run when it is first needed.
 public protocol SessionBackend: Sendable {
-    /// The agent (`Config.agent`) whose session this is.
-    var agent: AgentKind { get }
+    /// The agent whose session this is.
+    var agent: SessionAgent { get }
     /// The session's folder (one per agent): ~/Library/Application Support/AllInOneIME/<agent>-session on the Mac.
     var directory: URL { get }
     /// The files written into the folder when missing (or still holding an earlier default): what the agent reads there.
@@ -22,12 +23,29 @@ public protocol SessionBackend: Sendable {
     /// What talks to one process (one per start): the lines it is sent, what its lines say. `agentSessionID`: the id the
     /// agent gave the session (an ACP agent's), nil before it has one.
     func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver
+    /// What the agent's process needs in its environment besides the user's (the shell adds it).
+    var environment: [String: String] { get }
+    /// Whether the agent is signed in, read from its settings and files and `environment` (`home`: the user's home
+    /// folder) without running anything; nil: it has no such check, the command below says.
+    func signedIn(environment: [String: String], home: URL) -> Bool?
     /// The arguments of the command that says whether the agent is signed in (run in the folder).
     func availabilityArguments(settings: URL?) -> [String]
+    /// The lines written to that command as it starts (a request to the agent's server); none: its input is closed.
+    var availabilityInput: [Data] { get }
+    /// Whether one line of its output says it is signed in (the answer to that request), nil: not this line; the
+    /// command is ended once one does.
+    func signedIn(line: Data) -> Bool?
     /// Whether that command's exit `status` and `output` say it is signed in; nil: can't tell.
     func signedIn(status: Int32, output: Data) -> Bool?
     /// What Terminal runs to go on in the session (the hand-off), `program` being where the agent is.
     func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String]
+}
+
+extension SessionBackend {
+    public var environment: [String: String] { [:] }
+    public func signedIn(environment: [String: String], home: URL) -> Bool? { nil }
+    public var availabilityInput: [Data] { [] }
+    public func signedIn(line: Data) -> Bool? { nil }
 }
 
 /// A file of the session's folder: `path` in it, its `content`, and earlier defaults that are replaced by it.
@@ -62,7 +80,7 @@ public protocol SessionDriver: AnyObject {
 public struct ClaudeCodeBackend: SessionBackend {
     public init() {}
 
-    public var agent: AgentKind { .claude }
+    public var agent: SessionAgent { .claude }
     public var directory: URL { ClaudeSession.directory }
     public var files: [SessionFile] { ClaudeSession.files }
     public var usesProviderSettings: Bool { true }

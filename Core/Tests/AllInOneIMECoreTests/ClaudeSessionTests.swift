@@ -117,8 +117,9 @@ struct ClaudeSessionTests {
         let common = ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
         let rest = ["--tools", "WebSearch,WebFetch", "--allowedTools", "WebSearch,WebFetch", "--permission-mode", "dontAsk",
                     "--setting-sources", "project", "--strict-mcp-config"]
-        #expect(ClaudeSession.arguments(sessionID: id, resume: false) == common + ["--session-id", id] + rest)
-        #expect(ClaudeSession.arguments(sessionID: id, resume: true) == common + ["--resume", id] + rest)
+        // The session's title in Claude Code's list (`/resume`): "AllInOneIME".
+        #expect(ClaudeSession.arguments(sessionID: id, resume: false) == common + ["--session-id", id, "--name", "AllInOneIME"] + rest)
+        #expect(ClaudeSession.arguments(sessionID: id, resume: true) == common + ["--resume", id, "--name", "AllInOneIME"] + rest)
         #expect(ClaudeSession.terminalArguments(claude: "/u/claude", sessionID: id, resume: true) == ["/u/claude", "--resume", id])
     }
 

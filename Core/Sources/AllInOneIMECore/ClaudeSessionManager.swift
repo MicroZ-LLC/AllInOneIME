@@ -4,8 +4,14 @@ import Foundation
 public protocol ClaudeSessionProcess: AnyObject, Sendable {
     /// Writes one stream-json line to its standard input.
     func send(_ line: Data) throws
+    /// Closes its standard input: nothing more is written (a command that reads it to its end goes on).
+    func closeInput()
     /// Ends it (and what it started).
     func terminate()
+}
+
+extension ClaudeSessionProcess {
+    public func closeInput() {}
 }
 
 /// Starts the session's process: the real one (`ProcessClaudeSessionLauncher`), or a test's.
@@ -15,6 +21,15 @@ public protocol ClaudeSessionLauncher: Sendable {
     /// Throws `ClaudeSessionError.notInstalled` when there is no `claude`.
     func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
                exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess
+    /// Whether there is a program to start (`start` throws `notInstalled` when there isn't).
+    func installed() -> Bool
+    /// The environment it starts the program with.
+    func startEnvironment() -> [String: String]
+}
+
+extension ClaudeSessionLauncher {
+    public func installed() -> Bool { true }
+    public func startEnvironment() -> [String: String] { ProcessInfo.processInfo.environment }
 }
 
 /// Keeps the input method's session on an agent (`backend`: Claude Code, `ClaudeSession`, or an ACP agent such as Kiro
@@ -29,12 +44,18 @@ public protocol ClaudeSessionLauncher: Sendable {
 /// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends.
 /// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
 /// never stands for two values, and which answers the session saw (`missing`, `remember`).
+/// Whether the agent can answer at all (`availability`) is looked at only once the session could answer a question
+/// (`checkAvailability`), never at launch: with the provider picked for questions no sign-in check runs.
 public final class ClaudeSessionManager: @unchecked Sendable {
     /// Without a question for this long, the process ends.
     public static let idleTimeout: Duration = .seconds(15 * 60)
     /// A question's longest wait for the first sign of its answer (the model's message starting; a web search after
     /// that may take longer).
     public static let firstAnswerTimeout: Duration = .seconds(30)
+    /// The sign-in check's longest run; past it, it counts as signed out.
+    public static let checkTimeout: Duration = .seconds(15)
+    /// A sign-in check that didn't find the agent ready stands this long (seconds) before the next one may run.
+    public static let recheckInterval: TimeInterval = 60
 
     public let store: ClaudeSessionStore
     /// The agent the session runs on, and how its process is talked to.
@@ -46,18 +67,21 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private let answerClock: any Clock<Duration>
     private let isAlive: @Sendable (Int32) -> Bool
     private let userSettings: @Sendable () -> URL?
+    private let uptime: @Sendable () -> TimeInterval
     private let state = Locked(initialState: State())
     private let kept = Locked<Kept?>(initialState: nil)
 
     /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one). `userSettings`: the user's
     /// Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
-    /// `answerClock`: what `firstAnswerTimeout` is timed with. `store`: nil, the backend's own folder.
+    /// `answerClock`: what `firstAnswerTimeout` and `checkTimeout` are timed with; `uptime`: seconds, what
+    /// `recheckInterval` is. `store`: nil, the backend's own folder.
     public init(backend: any SessionBackend = ClaudeCodeBackend(), launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore? = nil,
                 idleTimeout: Duration = ClaudeSessionManager.idleTimeout, clock: any Clock<Duration> = ContinuousClock(),
                 firstAnswerTimeout: Duration = ClaudeSessionManager.firstAnswerTimeout,
                 answerClock: any Clock<Duration> = ContinuousClock(),
                 isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false },
-                userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() }) {
+                userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() },
+                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.backend = backend
         self.launcher = launcher
         self.store = store ?? ClaudeSessionStore(backend)
@@ -67,6 +91,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         self.answerClock = answerClock
         self.isAlive = isAlive
         self.userSettings = userSettings
+        self.uptime = uptime
     }
 
     /// What is kept of the session `session`: `memory` as saved, and the values hidden so far (in memory only).
@@ -121,6 +146,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var serial = 0
         var idle: Task<Void, Never>?
         var availability = ClaudeSession.Availability.unknown
+        /// When `availability` was last found (`uptime`), nil: never; the sign-in check running, if one is.
+        var checkedAt: TimeInterval?
+        var checking: Task<ClaudeSession.Availability, Never>?
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
@@ -133,11 +161,76 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     // MARK: - What it's asked
 
-    /// Whether `claude` can answer here, as last found (the shell looks at launch, `claude auth status`; each answer, or
-    /// failure, tells too).
+    /// Whether the agent can answer here, as last found (`checkAvailability`; each answer, or failure, tells too). Set:
+    /// found now.
     public var availability: ClaudeSession.Availability {
         get { state.withLock { $0.availability } }
-        set { state.withLock { $0.availability = newValue } }
+        set {
+            let now = uptime()
+            state.withLock { ($0.availability, $0.checkedAt) = (newValue, now) }
+        }
+    }
+
+    /// Whether the agent can answer here, its sign-in check run (`signInCheck`) if it is still to be: the first time it is
+    /// asked (an `@question` about to be asked or asked while Automatic picks the session: `Converter
+    /// .questionSessionChecked`; Settings), never before. Ready is kept for the launch (an answer that fails says
+    /// otherwise); anything else (not installed, signed out, a question that failed so) is looked at again when next
+    /// asked, `recheckInterval` after the last look at the earliest. `force`: looked at now. A check running is waited for.
+    public func checkAvailability(force: Bool = false) async -> ClaudeSession.Availability {
+        let now = uptime()
+        let check = state.withLock { state -> Task<ClaudeSession.Availability, Never>? in
+            if let checking = state.checking { return checking }
+            if !force, state.availability == .ready || state.checkedAt.map({ now - $0 < Self.recheckInterval }) == true {
+                return nil
+            }
+            let task = Task { [weak self] in await self?.lookAtSignIn() ?? .unknown }
+            state.checking = task
+            return task
+        }
+        guard let check else { return availability }
+        return await check.value
+    }
+
+    private func lookAtSignIn() async -> ClaudeSession.Availability {
+        let found = await signInCheck()
+        let now = uptime()
+        return state.withLock { state in
+            (state.availability, state.checkedAt, state.checking) = (found, now, nil)
+            return found
+        }
+    }
+
+    /// Runs the agent's sign-in check (`backend.availabilityArguments`, its `availabilityInput` written to it) as the
+    /// session will find it (`authStatusArguments`): ready when its answer (a line, or its exit) says signed in; not
+    /// installed when there's no program; else (signed out, can't tell, no answer within `checkTimeout`) signed out. An
+    /// agent whose settings and files say it (`SessionBackend.signedIn(environment:home:)`) isn't run.
+    private func signInCheck() async -> ClaudeSession.Availability {
+        if let signedIn = backend.signedIn(environment: launcher.startEnvironment(), home: CorePaths.home) {
+            guard launcher.installed() else { return .notInstalled }
+            return signedIn ? .ready : .signedOut
+        }
+        let arguments = authStatusArguments()
+        let (backend, launcher, directory, clock) = (backend, launcher, store.directory, answerClock)
+        return await withCheckedContinuation { continuation in
+            let check = SignInCheck(backend: backend, continuation: continuation)
+            do {
+                let process = try launcher.start(arguments, in: directory, output: { check.line($0) },
+                                                 exited: { status, _ in check.exited(status) })
+                check.started(process)
+                for line in backend.availabilityInput { try process.send(line) }
+                if backend.availabilityInput.isEmpty { process.closeInput() }
+            } catch ClaudeSessionError.notInstalled {
+                check.finish(.notInstalled)
+                return
+            } catch {
+                check.finish(.signedOut)
+                return
+            }
+            check.timeout(Task {
+                do { try await clock.sleep(for: Self.checkTimeout) } catch { return }
+                check.finish(.signedOut)
+            })
+        }
     }
 
     /// Whether `@question` goes to this session with `config` as far as this session can tell (`Config
@@ -340,7 +433,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.running = running
             return (running, driver.opening().map { .send(process, generation: generation, $0) })
         } catch ClaudeSessionError.notInstalled {
-            state.availability = .notInstalled
+            (state.availability, state.checkedAt) = (.notInstalled, uptime())
             throw ClaudeSessionError.notInstalled
         }
     }
@@ -485,7 +578,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             turn?.error = ClaudeSessionError.from(code: code, status: nil, message: message)
             return []
         case let .failed(error, endsProcess):
-            if error == .signedOut { state.availability = .signedOut }
+            if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
             var actions: [Action] = []
             if let turn {
                 state.turns.removeFirst()
@@ -515,7 +608,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                     // The result's text may say more than the error line did (an AWS credential error).
                     let ended = ClaudeSessionError.from(code: nil, status: status, message: text)
                     let error = ended == .awsSignInExpired ? ended : turn.error ?? ended
-                    if error == .signedOut { state.availability = .signedOut }
+                    if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
                     actions.append(.finish(turn.continuation, error))
                 } else {
                     if turn.text.isEmpty, !text.isEmpty { actions.append(.yield(turn.continuation, text)) }
@@ -604,6 +697,10 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         self.environment = environment
     }
 
+    public func installed() -> Bool { (processes ?? Platform.current.processes).canLaunch && executable() != nil }
+
+    public func startEnvironment() -> [String: String] { environment() }
+
     public func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
                       exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess {
         let processes = processes ?? Platform.current.processes
@@ -645,6 +742,7 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
     let process: any LaunchedProcess
     let input: FileHandle
     private let lock = NSLock()
+    private var closed = false
 
     init(process: any LaunchedProcess, input: FileHandle) {
         self.process = process
@@ -654,11 +752,82 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
     func send(_ line: Data) throws {
         lock.lock()
         defer { lock.unlock() }
+        guard !closed else { throw CocoaError(.fileWriteUnknown) }
         try input.write(contentsOf: line)
     }
 
-    func terminate() {
+    func closeInput() {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return }
+        closed = true
         try? input.close()
+    }
+
+    func terminate() {
+        closeInput()
         process.terminate()
+    }
+}
+
+/// One run of a session's sign-in check (`ClaudeSessionManager.signInCheck`): what says first counts (a line of its
+/// output, its exit, the timeout), and the command is ended then.
+private final class SignInCheck: @unchecked Sendable {
+    private struct State {
+        var continuation: CheckedContinuation<ClaudeSession.Availability, Never>?
+        var process: (any ClaudeSessionProcess)?
+        var output = Data()
+        var timer: Task<Void, Never>?
+    }
+
+    private let backend: any SessionBackend
+    private let state: Locked<State>
+
+    init(backend: any SessionBackend, continuation: CheckedContinuation<ClaudeSession.Availability, Never>) {
+        self.backend = backend
+        state = Locked(initialState: State(continuation: continuation))
+    }
+
+    /// The command started: ended at once if it already said.
+    func started(_ process: any ClaudeSessionProcess) {
+        let said = state.withLock { state -> Bool in
+            if state.continuation != nil { state.process = process }
+            return state.continuation == nil
+        }
+        if said { process.terminate() }
+    }
+
+    /// What ends it after `ClaudeSessionManager.checkTimeout` (cancelled at once if it already said).
+    func timeout(_ timer: Task<Void, Never>) {
+        let said = state.withLock { state -> Bool in
+            state.timer = timer
+            return state.continuation == nil
+        }
+        if said { timer.cancel() }
+    }
+
+    func line(_ line: Data) {
+        if let signedIn = backend.signedIn(line: line) { return finish(signedIn ? .ready : .signedOut) }
+        state.withLock { state in
+            state.output.append(line)
+            state.output.append(0x0A)
+        }
+    }
+
+    func exited(_ status: Int32) {
+        let output = state.withLock { $0.output }
+        finish(backend.signedIn(status: status, output: output) == true ? .ready : .signedOut)
+    }
+
+    func finish(_ availability: ClaudeSession.Availability) {
+        let said = state.withLock { state -> State in
+            let said = state
+            (state.continuation, state.process, state.timer) = (nil, nil, nil)
+            return said
+        }
+        guard let continuation = said.continuation else { return }
+        said.timer?.cancel()
+        said.process?.terminate()
+        continuation.resume(returning: availability)
     }
 }
