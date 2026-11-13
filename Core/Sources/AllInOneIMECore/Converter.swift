@@ -301,7 +301,8 @@ public final class Converter: Sendable {
             let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
             do {
                 try await runInSession(session, sessionRequest, message: message, redaction: redaction, hidden: hidden,
-                                       started: started, told: missing.map(\.answer), continuation: continuation)
+                                       started: started, told: missing,
+                                       question: turns.last?.instruction ?? input, continuation: continuation)
                 return
             } catch let error as ClaudeSessionError where error.fallsBack {
                 guard !route.slow else { throw ClaudeSessionError.failed(error.description(for: session.backend.agent)) }
@@ -361,7 +362,8 @@ public final class Converter: Sendable {
     /// Answered, the answer and `told` (the earlier rounds' answers sent with the question) are in the session
     /// (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, _ request: ClaudeSessionManager.Request, message: String,
-                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant, told: [String],
+                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant,
+                              told: [QuestionChat.Round], question: String,
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
         func answer(_ text: String, complete: Bool) -> ConversionResult {
@@ -388,7 +390,7 @@ public final class Converter: Sendable {
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
-        session.remember(answers: told + [final.versions.first?.text ?? ""], for: request)
+        session.remember(rounds: told + [.init(question: question, answer: final.versions.first?.text ?? "")], for: request)
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
             hidden: hidden, answeredBy: answeredBy, newConversation: latest.newConversation, tokens: latest.tokens))

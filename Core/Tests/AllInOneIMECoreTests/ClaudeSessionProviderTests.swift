@@ -344,7 +344,10 @@ struct ClaudeSessionProviderTests {
         let four = again.generate(.question, input: "what is rust", turns: saved)
         #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages.count == 1 })
         #expect(try #require(fake.last).messages[0]
-                == ClaudeSession.message("and now?", after: [QuestionChat.Round(question: "y", answer: "An answer from elsewhere.")]))
+                == ClaudeSession.message("and now?", after: [
+                    .init(question: "what is rust", answer: "Go is simpler."),
+                    .init(question: "x", answer: "Rust."),
+                    .init(question: "y", answer: "An answer from elsewhere.")]))
         answer(try #require(fake.last), "Now.")
         _ = try await final(four)
     }

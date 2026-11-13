@@ -171,7 +171,7 @@ struct QuestionSessionRequestTests {
         process.started()
         process.done("1")
         _ = await collect(answering)
-        session.remember(answers: ["1"])
+        session.remember(rounds: rounds)
         #expect(session.missing(rounds, for: session.request(panel)).isEmpty)
         // Another conversation's request made first: this one goes into a new agent conversation.
         let other = session.request(QuestionConversation())
@@ -236,6 +236,15 @@ struct QuestionSessionRequestTests {
     }
 
 
+
+    @Test func identicalAnswersToDifferentQuestionsAreDifferentTurns() throws {
+        let session = claude(FakeClaude())
+        let first = QuestionChat.Round(question: "Is it ready?", answer: "Yes")
+        let second = QuestionChat.Round(question: "Is it safe?", answer: "Yes")
+        session.remember(rounds: [first])
+        #expect(session.missing([first]).isEmpty)
+        #expect(session.missing([second]) == [second])
+    }
 
     // MARK: - Codex and ACP agents
 

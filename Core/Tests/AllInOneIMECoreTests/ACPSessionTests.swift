@@ -207,7 +207,7 @@ struct ACPSessionTests {
         let session = manager(fake)
         _ = try store.sessionID()
         store.setAgentSessionID("sess_gone")
-        session.remember(answers: ["An earlier answer."])
+        session.remember(rounds: [QuestionChat.Round(question: "q", answer: "An earlier answer.")])
         #expect(session.missing([QuestionChat.Round(question: "q", answer: "An earlier answer.")]).isEmpty)
         let stream = session.ask("hi")
         let process = try #require(fake.last)

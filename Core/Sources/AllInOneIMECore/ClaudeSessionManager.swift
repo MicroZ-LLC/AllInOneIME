@@ -659,7 +659,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return kept.withLock { kept in
             guard let id = try? store.sessionID() else { return rounds }
             let answered = Set(load(&kept, id: id).memory.answered)
-            return rounds.filter { !answered.contains(ClaudeSession.fingerprint($0.answer)) }
+            return rounds.filter { !answered.contains(Self.turnIdentity($0)) }
         }
     }
 
@@ -689,9 +689,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `remember` for `request`'s answer: kept while the agent conversation it went into is the one now (one left since
     /// is never gone on in).
-    public func remember(answers: [String], for request: Request) {
+    public func remember(rounds: [QuestionChat.Round], for request: Request) {
         guard let id = state.withLock({ _ in request.turn.conversation }), id == (try? store.sessionID()) else { return }
-        remember(answers: answers)
+        remember(rounds: rounds)
     }
 
     /// What a request's hiding numbered (`redacting(_:for:_:)`), kept for the agent conversation now, which it goes into.
@@ -709,9 +709,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
-    /// `answers` are in the session now: it gave them, or was told them as context.
-    public func remember(answers: [String]) {
-        let prints = answers.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(ClaudeSession.fingerprint)
+    /// A turn is identified by both its question and answer, so identical answers to different questions stay distinct.
+    private static func turnIdentity(_ round: QuestionChat.Round) -> String {
+        ClaudeSession.fingerprint(round.question + "\u{1F}" + round.answer)
+    }
+
+    /// `rounds` are in the session now: it gave them, or was told them as context.
+    public func remember(rounds: [QuestionChat.Round]) {
+        let prints = rounds.filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(Self.turnIdentity)
         guard !prints.isEmpty else { return }
         kept.withLock { kept in
             guard let id = try? store.sessionID() else { return }
