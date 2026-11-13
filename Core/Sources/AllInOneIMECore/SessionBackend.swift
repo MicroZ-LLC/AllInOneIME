@@ -18,11 +18,16 @@ public protocol SessionBackend: Sendable {
     /// Code's `--session-id` fails on an id in use, `--resume` on one with no conversation.
     var retryTogglesResume: Bool { get }
     /// The arguments after the program that start the process. `sessionID`: the input method's id of the session;
-    /// `resume`: it has a conversation; `settings`: the provider settings file, if any.
-    func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String]
+    /// `resume`: it has a conversation; `settings`: the provider settings file, if any; `web`: what its web tools may
+    /// reach, as `effective` makes it.
+    func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb) -> [String]
     /// What talks to one process (one per start): the lines it is sent, what its lines say. `agentSessionID`: the id the
-    /// agent gave the session (an ACP agent's), nil before it has one.
-    func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver
+    /// agent gave the session (an ACP agent's), nil before it has one; `web` as for `arguments`.
+    func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver
+    /// What of `web` the agent can keep to (`SessionWeb`), for the whole process: kept to some addresses, only Claude
+    /// Code can be; the others' web tools are off then. Nil: it can't be kept to it (no way to turn its web tools off):
+    /// not asked, the provider answers (`ClaudeSessionError.notWebOnly`).
+    func effective(_ web: SessionWeb) -> SessionWeb?
     /// What the agent's process needs in its environment besides the user's (the shell adds it).
     var environment: [String: String] { get }
     /// Whether the agent is signed in, read from its settings and files and `environment` (`home`: the user's home
@@ -46,6 +51,21 @@ public protocol SessionBackend: Sendable {
 }
 
 extension SessionBackend {
+    /// The arguments with the web tools as they are.
+    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
+        arguments(sessionID: sessionID, resume: resume, settings: settings, web: .open)
+    }
+
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
+        driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: .open)
+    }
+
+    /// No address can be kept to: any `only` is no web.
+    public func effective(_ web: SessionWeb) -> SessionWeb? {
+        if case .only = web { return .only([]) }
+        return .open
+    }
+
     /// What Terminal runs to go on in the session with a follow-up (`terminalArguments(…followUp: true)`): the
     /// follow-up is appended as the last argument.
     public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
@@ -104,13 +124,16 @@ public struct ClaudeCodeBackend: SessionBackend {
     public var usesProviderSettings: Bool { true }
     public var retryTogglesResume: Bool { true }
 
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
-        ClaudeSession.arguments(sessionID: sessionID, resume: resume, settings: settings)
+    public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb) -> [String] {
+        ClaudeSession.arguments(sessionID: sessionID, resume: resume, settings: settings, web: web)
     }
 
-    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
         ClaudeStreamDriver()
     }
+
+    /// Its WebFetch can be kept to the addresses' sites.
+    public func effective(_ web: SessionWeb) -> SessionWeb? { web }
 
     public func availabilityArguments(settings: URL?) -> [String] { ClaudeSession.authStatusArguments(settings: settings) }
 

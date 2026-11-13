@@ -50,6 +50,10 @@ public struct ACPBackend: SessionBackend {
     public var launch: [String]
     /// The agent's mode (its agent config) the session is put in when offered; nil: its default.
     public var mode: String?
+    /// The mode (`mode`'s place) and launch (`launch`'s) of a conversation whose web tools are off (`SessionWeb`):
+    /// nil, the same.
+    public var offlineMode: String?
+    public var offlineLaunch: [String]?
     public var files: [SessionFile]
     /// The command that exits 0 when signed in.
     public var availability: [String]
@@ -66,7 +70,8 @@ public struct ACPBackend: SessionBackend {
     /// `availability` command says.
     public var signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)?
 
-    public init(agent: SessionAgent, folderName: String, launch: [String], mode: String? = nil, files: [SessionFile] = [],
+    public init(agent: SessionAgent, folderName: String, launch: [String], mode: String? = nil, offlineMode: String? = nil,
+                offlineLaunch: [String]? = nil, files: [SessionFile] = [],
                 availability: [String], resume: [String], start: [String], followUp: [String] = ["--"], base: URL? = nil,
                 environment: [String: String] = [:],
                 signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)? = nil) {
@@ -74,6 +79,8 @@ public struct ACPBackend: SessionBackend {
         self.folderName = folderName
         self.launch = launch
         self.mode = mode
+        self.offlineMode = offlineMode
+        self.offlineLaunch = offlineLaunch
         self.files = files
         self.availability = availability
         self.resume = resume
@@ -108,11 +115,29 @@ public struct ACPBackend: SessionBackend {
 
         """
 
+    /// The mode of Kiro's session with its web tools off (`kiroOfflineAgent`).
+    public static let kiroOfflineMode = "allinoneime-offline"
+
+    /// Kiro's agent config for a conversation whose web tools are off (`SessionWeb`): no tools, no MCP servers.
+    public static let kiroOfflineAgent = """
+        {
+          "name": "allinoneime-offline",
+          "description": "The input method's own session, for a question with text the user didn't type: no tools.",
+          "tools": [],
+          "allowedTools": [],
+          "resources": ["file://.kiro/steering/**/*.md"],
+          "mcpServers": {},
+          "includeMcpJson": false
+        }
+
+        """
+
     /// Kiro CLI on ACP.
     public static let kiro = ACPBackend(
-        agent: .kiro, folderName: "kiro-session", launch: ["acp"], mode: kiroMode,
+        agent: .kiro, folderName: "kiro-session", launch: ["acp"], mode: kiroMode, offlineMode: kiroOfflineMode,
         files: [SessionFile(path: ".kiro/steering/allinoneime.md", content: ClaudeSession.instructions),
-                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent)],
+                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent),
+                SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
 
     /// Gemini CLI's policy for the session (its policy engine's TOML, priorities 0–999 within a tier): the web tools
@@ -131,18 +156,33 @@ public struct ACPBackend: SessionBackend {
 
         """
 
+    /// Gemini CLI's policy for a conversation whose web tools are off (`SessionWeb`): every tool denied.
+    public static let geminiOfflinePolicy = """
+        # AllInOneIME's own Gemini CLI session, for a question with text the user didn't type: no tools.
+        [[rule]]
+        toolName = "*"
+        decision = "deny"
+        priority = 999
+
+        """
+
     /// The name `--allowed-mcp-server-names` is given: no MCP server has it, so none starts.
     public static let noMCPServer = "allinoneime-no-mcp-servers"
 
     /// Gemini CLI on ACP, in its own folder with the instructions as its GEMINI.md and its policy.
     public static let gemini = ACPBackend(
         agent: .gemini, folderName: "gemini-session",
-        launch: ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", noMCPServer,
-                 "--policy", "./allinoneime-policy.toml"],
+        launch: geminiLaunch("./allinoneime-policy.toml"), offlineLaunch: geminiLaunch("./allinoneime-policy-offline.toml"),
         files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions),
-                SessionFile(path: "allinoneime-policy.toml", content: geminiPolicy)],
+                SessionFile(path: "allinoneime-policy.toml", content: geminiPolicy),
+                SessionFile(path: "allinoneime-policy-offline.toml", content: geminiOfflinePolicy)],
         availability: [], resume: ["--resume"], start: [], followUp: ["-i"],
         environment: ["GEMINI_CLI_NO_RELAUNCH": "true"], signIn: geminiSignedIn)
+
+    /// `gemini --acp` with `policy`.
+    static func geminiLaunch(_ policy: String) -> [String] {
+        ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", noMCPServer, "--policy", policy]
+    }
 
     /// Whether Gemini CLI is signed in, as its settings and files say (in `home`, or the GEMINI_CLI_HOME of
     /// `environment`): the sign-in its settings pick (`security.auth.selectedType`; the system's enforced or picked one
@@ -189,12 +229,19 @@ public struct ACPBackend: SessionBackend {
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
 
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
-        launch.map { $0.hasPrefix("./") ? directory.appendingPathComponent(String($0.dropFirst(2))).path : $0 }
+    public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb) -> [String] {
+        let launch = web == .open ? launch : offlineLaunch ?? launch
+        return launch.map { $0.hasPrefix("./") ? directory.appendingPathComponent(String($0.dropFirst(2))).path : $0 }
     }
 
-    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
-        ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: mode)
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
+        ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: web == .open ? mode : offlineMode ?? mode)
+    }
+
+    /// Its web tools off (any `only`) in its offline mode or launch; one with neither can't have them off.
+    public func effective(_ web: SessionWeb) -> SessionWeb? {
+        guard case .only = web else { return .open }
+        return offlineMode != nil || offlineLaunch != nil ? .only([]) : nil
     }
 
     public func availabilityArguments(settings: URL?) -> [String] { availability }

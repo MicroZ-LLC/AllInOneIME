@@ -412,7 +412,8 @@ public final class Composer {
     /// `@question`, a prompt command, `Command.edit` on a selection). Nil for every other command.
     var refineRequest: Refinement.Request?
     /// The `@question` conversation in the panel as a question session sees it (`QuestionConversation`): a new one each
-    /// time one starts (a question asked or asked again, a saved one picked: `loadThread`), its follow-ups in it.
+    /// time one starts (a question asked or asked again, a saved one picked: `loadThread`), its follow-ups in it; with
+    /// text the user didn't type in its first question, its web kept to the addresses typed (`SessionWeb`).
     public internal(set) var questionConversation: QuestionConversation?
     /// The request in flight is a refine (its id): a failure goes back to the results before it.
     private var refineID: Int?
@@ -3218,7 +3219,10 @@ public final class Composer {
         // A saved conversation goes on: its next answer is a new one (kept again: `rememberAnswer`).
         if isQuestionChat {
             recalled = nil
-            if questionConversation == nil { questionConversation = QuestionConversation() }
+            // An address typed in the follow-up may be read too.
+            var conversation = questionConversation ?? QuestionConversation()
+            conversation.web = conversation.web.allowing(instruction)
+            questionConversation = conversation
         }
         requestCounter += 1
         refineID = requestCounter
@@ -3385,7 +3389,10 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
-        questionConversation = command == .question ? QuestionConversation() : nil
+        // Text the user didn't type in the question (the selection, a screenshot's text, the output of a command inside
+        // it, a page `@read` read): the session's web tools may reach only the addresses typed (`SessionWeb`).
+        let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false
+        questionConversation = command == .question ? QuestionConversation(web: SessionWeb(untrusted: untrusted, typed: typed)) : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 

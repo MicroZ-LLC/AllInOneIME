@@ -423,7 +423,7 @@ struct QuestionSessionBackendsTests {
         #expect(backend.agent == .gemini && backend.arguments(sessionID: "x", resume: true, settings: nil)
             == ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", "allinoneime-no-mcp-servers",
                 "--policy", policy])
-        #expect(backend.files.map(\.path) == ["GEMINI.md", "allinoneime-policy.toml"])
+        #expect(backend.files.map(\.path) == ["GEMINI.md", "allinoneime-policy.toml", "allinoneime-policy-offline.toml"])
         #expect(backend.files.first?.content == ClaudeSession.instructions)
         #expect(backend.environment == ["GEMINI_CLI_NO_RELAUNCH": "true"])
         #expect(backend.directory.lastPathComponent == "gemini-session")

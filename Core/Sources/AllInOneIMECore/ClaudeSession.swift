@@ -77,9 +77,61 @@ extension Config {
 /// carries the ones before it (nor waits for them to be read again after the prompt cache lapsed).
 public struct QuestionConversation: Hashable, Sendable {
     public var id: String
+    /// What the session's web tools may reach in it (`SessionWeb`).
+    public var web: SessionWeb
 
-    public init(id: String = UUID().uuidString) {
+    public init(id: String = UUID().uuidString, web: SessionWeb = .open) {
         self.id = id
+        self.web = web
+    }
+}
+
+/// What a question session's web tools may reach in a conversation (`QuestionConversation.web`). Text the user didn't
+/// type into the question (selected text from another app, a screenshot's text, a page or another command's output
+/// inside it) could tell the agent to send what the conversation holds to an address of its own: with such text in the
+/// conversation only the addresses the user typed may be fetched, and with none typed the web tools are off. Each CLI
+/// keeps to it as far as it can (`SessionBackend.effective`): Claude Code fetches from those addresses' sites only
+/// (`WebFetch(domain:…)`, no search); Codex, Gemini CLI and Kiro CLI can't be kept to addresses, so theirs are off.
+public enum SessionWeb: Hashable, Sendable {
+    /// The session's web tools as they are.
+    case open
+    /// Only these addresses, typed by the user; none: no web.
+    case only([URL])
+
+    /// Open, or with text the user didn't type in the question (`untrusted`), only the addresses in `typed`.
+    public init(untrusted: Bool, typed: String) {
+        self = untrusted ? .only(Self.addresses(in: typed)) : .open
+    }
+
+    /// The same, with the addresses in `typed` (a follow-up the user typed) too.
+    public func allowing(_ typed: String) -> SessionWeb {
+        guard case let .only(urls) = self else { return self }
+        return .only(urls + Self.addresses(in: typed).filter { !urls.contains($0) })
+    }
+
+    /// The sites (lowercased hosts) of `only`'s addresses, each once, in order; none for `open`.
+    public var hosts: [String] {
+        guard case let .only(urls) = self else { return [] }
+        var seen = Set<String>()
+        return urls.compactMap { $0.host?.lowercased() }.filter { seen.insert($0).inserted }
+    }
+
+    /// The web addresses in `text`, in order, each once: http(s) ones, and www. ones (as https); the punctuation after
+    /// one isn't part of it.
+    public static func addresses(in text: String) -> [URL] {
+        guard let pattern = try? NSRegularExpression(pattern: #"(?i)\b(?:https?://|www\.)[^\s<>"'`，。、；：！？（）「」『』【】《》]+"#)
+        else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        var found: [URL] = []
+        for match in pattern.matches(in: text, range: range) {
+            guard let span = Range(match.range, in: text) else { continue }
+            var address = String(text[span])
+            while let last = address.last, ".,;:!?)]}'\"".contains(last) { address.removeLast() }
+            if address.lowercased().hasPrefix("www.") { address = "https://" + address }
+            guard let url = URL(string: address), url.host?.isEmpty == false, !found.contains(url) else { continue }
+            found.append(url)
+        }
+        return found
     }
 }
 
@@ -159,12 +211,22 @@ public enum ClaudeSession {
     public static let tools = "WebSearch,WebFetch"
 
     /// The arguments after `claude` that start (or resume) the session's process; `settings`: the provider settings
-    /// file (`providerSettings`), nil when there is none.
-    public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil) -> [String] {
+    /// file (`providerSettings`), nil when there is none; `web`: what its web tools may reach (`toolArguments`).
+    public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil, web: SessionWeb = .open) -> [String] {
         ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
             + (resume ? ["--resume", sessionID] : ["--session-id", sessionID]) + ["--name", SessionAgent.sessionName]
-            + ["--tools", tools, "--allowedTools", tools, "--permission-mode", "dontAsk",
+            + toolArguments(web) + ["--permission-mode", "dontAsk",
                "--setting-sources", "project"] + settingsArguments(settings) + ["--strict-mcp-config"]
+    }
+
+    /// The tools for `web` (checked with Claude Code 2.1.303: its `system` "init" line lists them): `tools`, allowed;
+    /// kept to some addresses, WebFetch only, allowed for their sites only (`WebFetch(domain:…)`; with dontAsk any other
+    /// is denied), no WebSearch; no address, no tools at all (`--tools ""`).
+    static func toolArguments(_ web: SessionWeb) -> [String] {
+        guard case .only = web else { return ["--tools", tools, "--allowedTools", tools] }
+        let hosts = web.hosts
+        guard !hosts.isEmpty else { return ["--tools", ""] }
+        return ["--tools", "WebFetch", "--allowedTools", hosts.map { "WebFetch(domain:\($0))" }.joined(separator: ",")]
     }
 
     /// `claude auth status` as the session would see it (run in the session's folder): the same settings.

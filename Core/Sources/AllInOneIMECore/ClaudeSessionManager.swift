@@ -178,6 +178,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var conversation: String
         /// That conversation's lock, held until it ends.
         var lock: HeldLock
+        /// What its web tools may reach (`SessionBackend.effective`): for the whole process.
+        var web: SessionWeb
         /// The session started (its "init" came): a failure before that is the start's.
         var started = false
     }
@@ -200,6 +202,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var owner: String?
         /// A question went into the agent conversation now; nil: not looked at yet (`asked`).
         var asked: Bool?
+        /// What the web tools may reach in it (`QuestionConversation.web`).
+        var web = SessionWeb.open
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
@@ -304,6 +308,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let actions = state.withLock { state -> [Action] in
             guard state.turns.isEmpty else { return [] }
             if asked(&state) { rollOver(&state) }
+            state.web = .open  // a question with text the user didn't type starts it again kept to the web it may reach
             var actions = follow(&state)
             if state.running == nil {
                 guard let (_, opening) = try? start(&state) else { return actions }
@@ -318,10 +323,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The questions of `conversation` (an `@question` conversation in the panel) go into the agent conversation from now
     /// on; asked before `redacting`, `missing` and `ask`, which go by it. The agent conversation its earlier questions
     /// went into, or, for another one, a new agent conversation, unless the one now has had no question yet (the one
-    /// `prewarm` made ready for it). Nil: the one now, whichever.
+    /// `prewarm` made ready for it). Its process has the web tools the conversation may have (`QuestionConversation.web`,
+    /// as `SessionBackend.effective` keeps to it; started again when the one running has others). Nil: the one now,
+    /// whichever.
     public func enter(_ conversation: QuestionConversation?) {
         guard let conversation else { return }
         state.withLock { state in
+            state.web = conversation.web
             guard state.owner != conversation.id else { return }
             if asked(&state) { rollOver(&state) }
             state.owner = conversation.id
@@ -574,12 +582,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         if let id { ConversationLock.prune(store.locks, keeping: store.lockFile(id)) }
     }
 
-    /// The running process on the agent conversation now: as it is when it's on it; moved to it when the agent can open
-    /// another conversation in the same process (`SessionDriver.newConversation`); else ended, for `start` to start one
-    /// on it.
+    /// The running process on the agent conversation now, with the web tools it may have: as it is when it's on it with
+    /// them; moved to it when the agent can open another conversation in the same process
+    /// (`SessionDriver.newConversation`) and the web tools are the same; else ended, for `start` to start one on it.
     private func follow(_ state: inout State) -> [Action] {
-        guard let running = state.running, let id = try? store.sessionID(), running.conversation != id else { return [] }
-        if running.started, let lines = running.driver.newConversation() {
+        guard let running = state.running, let id = try? store.sessionID() else { return [] }
+        let web = backend.effective(state.web) ?? .only([])
+        guard running.conversation != id || running.web != web else { return [] }
+        if running.web == web, running.started, let lines = running.driver.newConversation() {
             state.running?.conversation = id
             running.lock.hold(locks.hold(store.lockFile(id)))
             return lines.map { .send(running.process, $0) }
@@ -591,9 +601,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// Starts the process (with `--resume` once the session has a conversation), and what it is sent first (an ACP
-    /// handshake). Its conversation's lock is held until it ends (`ConversationLocks`).
+    /// handshake), with the web tools the conversation may have; one whose agent can't be kept to them isn't started
+    /// (`notWebOnly`: the provider answers). Its conversation's lock is held until it ends (`ConversationLocks`).
     private func start(_ state: inout State) throws -> (Running, opening: [Action]) {
         if let running = state.running { return (running, []) }
+        guard let web = backend.effective(state.web) else { throw ClaudeSessionError.notWebOnly }
         let held = HeldLock()
         do {
             try store.prepare()
@@ -602,9 +614,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let resume = store.resumable
             state.generation += 1
             let generation = state.generation
-            let arguments = backend.arguments(sessionID: id, resume: resume, settings: providerSettings())
+            let arguments = backend.arguments(sessionID: id, resume: resume, settings: providerSettings(), web: web)
             let driver = backend.driver(sessionID: id, agentSessionID: store.agentSessionID(), resume: resume,
-                                        directory: store.directory)
+                                        directory: store.directory, web: web)
             let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
                                              exited: { [weak self] in
@@ -612,7 +624,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                                                  self?.exited(generation: generation, status: $0, message: $1)
                                              })
             let running = Running(process: process, driver: driver, generation: generation, resume: resume, conversation: id,
-                                  lock: held)
+                                  lock: held, web: web)
             state.running = running
             return (running, driver.opening().map { .send(process, $0) })
         } catch ClaudeSessionError.notInstalled {

@@ -60,15 +60,20 @@ public struct CodexBackend: SessionBackend {
         "include_permissions_instructions=false", "web_search=\"live\"",
     ]
 
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
-        ["app-server"] + Self.lockdown.flatMap { ["-c", $0] }
+    /// Web search off (`web_search` "disabled"), for a conversation kept to some addresses (`SessionWeb`): Codex's web
+    /// tool can't be kept to them.
+    public static let noWeb = "web_search=\"disabled\""
+
+    public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb) -> [String] {
+        let settings = web == .open ? Self.lockdown : Self.lockdown.map { $0.hasPrefix("web_search=") ? Self.noWeb : $0 }
+        return ["app-server"] + settings.flatMap { ["-c", $0] }
     }
 
     /// No environment for commands and files (`CODEX_EXEC_SERVER_URL=none`: the session's server only; Terminal's
     /// Codex has its own).
     public var environment: [String: String] { ["CODEX_EXEC_SERVER_URL": "none"] }
 
-    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
         let written = try? String(contentsOf: directory.appendingPathComponent("AGENTS.md"), encoding: .utf8)
         let instructions = written.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
         return CodexDriver(directory: directory, threadID: agentSessionID, instructions: instructions ?? ClaudeSession.instructions)
