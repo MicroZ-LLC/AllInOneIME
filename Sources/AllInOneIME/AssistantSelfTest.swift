@@ -934,11 +934,11 @@ extension SelfTest {
     /// the user's is never touched.
     static func testKeyFieldsKeepKeys(snapshotDirectory: URL) {
         let url = snapshotDirectory.appendingPathComponent("keyfields-config.json")
-        let saved = (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys)
+        let saved = (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys, SettingsModel.connectionTest)
         let store = APIKeys.Keychain.inMemory()
         APIKeys.keychain = store
         defer {
-            (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys) = saved
+            (APIKeys.keychain, AIConfigSession.keySource, SettingsModel.looksUpKeys, SettingsModel.connectionTest) = saved
             try? FileManager.default.removeItem(at: url)
             _ = secureInputGoes()  // a key field's, if it had the focus
         }
@@ -952,7 +952,10 @@ extension SelfTest {
         func provider() -> Provider { ((try? Config.load(from: url)) ?? .default).provider }
         let model = SettingsModel(configURL: url)
         var tested = 0
-        model.testRunner = { tested += 1 }
+        SettingsModel.connectionTest = { _, _ in
+            tested += 1
+            return .passed("")
+        }
         let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .ai)))
         window.setContentSize(NSSize(width: 880, height: 700))
         NSApp.activate()
