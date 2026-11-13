@@ -1135,20 +1135,24 @@ public final class InputSession {
 
     /// Caps Lock pressed on its own and released within a tap of Shift's time (`Composer.shiftTapWindow`), its press
     /// having turned the lock on: a tap, which switches the input language as Shift's does. A press that turns the lock
-    /// off, a longer one (capitals, as always), another key or modifier between, or a field where nothing may leave the
-    /// device (a password field, secure input: Caps Lock is the system's there) is none.
+    /// off, a longer one (capitals, as always), another key or modifier between or held with it (Shift, Control, Option,
+    /// Command; fn doesn't count, as with Shift's tap), the mouse or trackpad used meanwhile (`Composer.pointerUsedWithin`,
+    /// as Shift's tap), or a field where nothing may leave the device (a password field, secure input: Caps Lock is the
+    /// system's there) is none.
     private func capsLockTapped(_ change: ModifierChange) -> Bool {
         guard change.key == .capsLock else {
             capsLockPressedAt = nil
             return false
         }
+        let alone = change.modifiers.subtracting([.capsLock, .function]).subtracting(.sides).isEmpty
         if change.pressed {
-            capsLockPressedAt = change.modifiers.contains(.capsLock) && !nothingLeavesDevice() ? change.timestamp : nil
+            capsLockPressedAt = change.modifiers.contains(.capsLock) && alone && !nothingLeavesDevice() ? change.timestamp : nil
             return false
         }
         defer { capsLockPressedAt = nil }
-        guard let pressedAt = capsLockPressedAt, !nothingLeavesDevice() else { return false }
-        return change.timestamp - pressedAt <= Composer.shiftTapWindow
+        guard let pressedAt = capsLockPressedAt, alone, !nothingLeavesDevice() else { return false }
+        let held = change.timestamp - pressedAt
+        return held <= Composer.shiftTapWindow && !composer.pointerUsedWithin(max(held, 0))
     }
 
     /// Whether AI may run in the app typed in (`Config.allowsAI`), read once a turn (`turn`): one @ asks on each read of

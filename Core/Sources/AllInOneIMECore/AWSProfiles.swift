@@ -89,6 +89,10 @@ public enum AWSProfileKind: Equatable, Sendable {
     /// `label` in Simplified Chinese or English.
     public func label(chinese: Bool) -> String { label(language: InterfaceLanguage.code(chinese: chinese)) }
 
+    /// Whether a request can be signed with it (static keys, a program, a role, SSO, the environment's keys): anything but
+    /// `noCredentials`. One that can may still fail as a request needs its credentials (a program missing, signed out).
+    public var canAuthenticate: Bool { self != .noCredentials }
+
     /// Whether its credentials expire and are fetched again (a program, STS, the SSO portal).
     public var refreshes: Bool {
         switch self {

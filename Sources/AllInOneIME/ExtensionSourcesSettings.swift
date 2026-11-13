@@ -10,8 +10,9 @@ import SwiftUI
 struct ExtensionSourcesSection: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var sources = ExtensionSourceController.shared
-    /// Opened by a click (the window's, so that it starts folded again when the window is opened again).
-    var opened: Binding<Bool> = .constant(false)
+    /// Open when it opens by itself (`opensByItself`) until clicked, then as clicked (the window's, so that it starts
+    /// over when the window is opened again).
+    var disclosure: Binding<SettingsDisclosure> = .constant(SettingsDisclosure())
     /// The rows before the sources.
     var folders = AnyView(EmptyView())
     /// The add sheet (nil: closed), and the source whose sheet reviews it again (one in the config not trusted yet).
@@ -23,9 +24,9 @@ struct ExtensionSourcesSection: View {
     @State private var actionError: String?
 
     var body: some View {
-        let open = opened.wrappedValue || opensByItself
+        let open = disclosure.wrappedValue.isExpanded(opensByItself: opensByItself)
         Section {
-            DisclosureGroup(isExpanded: Binding(get: { open }, set: { opened.wrappedValue = $0 })) {
+            DisclosureGroup(isExpanded: Binding(get: { open }, set: { disclosure.wrappedValue.click($0) })) {
                 Group {
                     folders
                     SectionTitle(SettingsSpot.extensionSources.title, icon: CommandIcons.scripts)
@@ -56,6 +57,10 @@ struct ExtensionSourcesSection: View {
         }
         .sheet(item: $adding) { start in
             ExtensionSourceSheet(model: model, start: start)
+        }
+        // The search pointing into it opens it, even folded by a click before.
+        .onChange(of: model.spot, initial: true) {
+            if model.spot == .extensionSources || model.spot == .scriptExtensions { disclosure.wrappedValue.reset() }
         }
         .confirmationDialog(tr("移除这个来源？", "Remove this source?"),
                             isPresented: Binding(get: { removing != nil }, set: { if !$0 { removing = nil } })) {

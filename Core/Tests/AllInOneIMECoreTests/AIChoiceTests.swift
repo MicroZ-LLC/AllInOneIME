@@ -71,7 +71,11 @@ struct AIChoiceTests {
         config.awsProfile = "work"
         let facts = AIFacts(sessions: [.claude: .ready, .codex: .signedOut, .antigravity: .notInstalled],
                             keys: [.anthropic: .saved(ending: "a1b2"), .openai: .shell("OPENAI_API_KEY"), .gemini: .missing],
-                            hostedSignedIn: false, awsProfiles: ["default": "us-east-2", "work": "us-west-2", "bare": nil],
+                            hostedSignedIn: false,
+                            awsProfiles: [AWSProfileSummary(name: "default", region: "us-east-2", kind: .staticKeys),
+                                          AWSProfileSummary(name: "work", region: "us-west-2", kind: .sso),
+                                          AWSProfileSummary(name: "bare", region: nil, kind: .credentialProcess),
+                                          AWSProfileSummary(name: "empty", region: "us-west-2", kind: .noCredentials)],
                             apple: .appleIntelligenceNotEnabled)
         func status(_ choice: AIChoice) -> AIStatus { facts.status(choice, config: config) }
         #expect(status(.cli(.claude)) == .signedIn)
@@ -92,13 +96,20 @@ struct AIChoiceTests {
         #expect(status(.provider(.bedrock)) == .aws(profile: "bare", region: "us-east-1"))
         config.awsProfile = "gone"
         #expect(status(.provider(.bedrock)) == .noAWSProfile("gone"))
+        // A profile with a region but nothing to sign a request with can't answer; profiles not read yet are still to be
+        // looked at.
+        config.awsProfile = "empty"
+        #expect(status(.provider(.bedrock)) == .noAWSCredentials("empty"))
+        #expect(status(.provider(.bedrock)).text.hasPrefix("empty · "))
+        #expect(AIFacts().status(.provider(.bedrock), config: config) == .unknown)
         // A key not looked up yet is still to be looked at, as a CLI's sign-in.
         #expect(AIFacts().status(.provider(.anthropic), config: config) == .key(.loading))
 
         // Ready: what can answer; a problem: what lacks something the user can give (drawn in orange); neither: not
         // looked at yet.
         let ready: [AIStatus] = [.signedIn, .key(.saved(ending: nil)), .key(.shell("X")), .aws(profile: "p", region: "r"), .apple(.available)]
-        let problems: [AIStatus] = [.signedOut, .notInstalled(program: "kiro-cli"), .key(.missing), .noAWSProfile("p"), .apple(.modelNotReady)]
+        let problems: [AIStatus] = [.signedOut, .notInstalled(program: "kiro-cli"), .key(.missing), .noAWSProfile("p"), .noAWSCredentials("p"),
+                                    .apple(.modelNotReady)]
         #expect(ready.allSatisfy { $0.isReady && !$0.isProblem })
         #expect(problems.allSatisfy { !$0.isReady && $0.isProblem })
         #expect([AIStatus.unknown, .key(.loading)].allSatisfy { !$0.isReady && !$0.isProblem })
@@ -203,9 +214,18 @@ struct AIChoiceTests {
         config.ai = .provider(.bedrock)
         config.awsProfile = "work"
         config.ai = .cli(.codex)
-        #expect(config.fastProvider(AIFacts(awsProfiles: ["work": nil], apple: .available)) == .bedrock)
-        #expect(config.fastProvider(AIFacts(awsProfiles: ["default": nil], apple: .available)) == .apple)
-        #expect(config.fastProvider(AIFacts(awsProfiles: ["default": nil])) == nil)
+        func profile(_ name: String, _ kind: AWSProfileKind) -> [AWSProfileSummary] { [AWSProfileSummary(name: name, region: nil, kind: kind)] }
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("work", .staticKeys), apple: .available)) == .bedrock)
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("default", .staticKeys), apple: .available)) == .apple)
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("default", .staticKeys))) == nil)
+        // A profile with nothing to sign a request with isn't a fallback: Apple's model then, or none.
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("work", .noCredentials), apple: .available)) == .apple)
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("work", .noCredentials))) == nil)
+        #expect(config.fastProvider(AIFacts(apple: .available)) == .apple)  // not read yet
+        // The environment's keys with no profile file: "default" can answer.
+        config.awsProfile = "default"
+        #expect(config.fastProvider(AIFacts(awsProfiles: profile("default", .environment))) == .bedrock)
+        config.awsProfile = "work"
         config.provider = .gemini
         #expect(config.fastProvider(AIFacts(keys: [.gemini: .saved(ending: nil)])) == .gemini)
         #expect(config.fastProvider(AIFacts(keys: [.gemini: .loading], apple: .available)) == .apple)

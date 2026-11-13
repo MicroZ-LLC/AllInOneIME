@@ -137,6 +137,8 @@ public enum AIStatus: Equatable, Sendable {
     case aws(profile: String, region: String)
     /// Bedrock: no such AWS profile on this Mac.
     case noAWSProfile(String)
+    /// Bedrock: the AWS profile has nothing to sign a request with (`AWSProfileKind.noCredentials`).
+    case noAWSCredentials(String)
     /// Apple's on-device model.
     case apple(AppleModelAvailability)
 
@@ -145,7 +147,7 @@ public enum AIStatus: Equatable, Sendable {
         case .signedIn, .aws: return true
         case let .key(state): return state.isSet
         case let .apple(availability): return availability == .available
-        case .unknown, .signedOut, .notInstalled, .cannotStart, .noAWSProfile: return false
+        case .unknown, .signedOut, .notInstalled, .cannotStart, .noAWSProfile, .noAWSCredentials: return false
         }
     }
 
@@ -170,6 +172,7 @@ public enum AIStatus: Equatable, Sendable {
         case .key: return tr("没填 Key", "No key")
         case let .aws(profile, region): return profile + " · " + region
         case .noAWSProfile: return tr("没有这个 AWS profile", "No such AWS profile")
+        case let .noAWSCredentials(profile): return profile + " · " + tr("没有凭证", "No credentials")
         case .apple(.available): return tr("可用", "Ready", key: "ai.status.ready")
         case let .apple(availability): return UIText.reason(availability)
         }
@@ -178,17 +181,17 @@ public enum AIStatus: Equatable, Sendable {
 
 /// What this Mac has, for each choice's status (`status`): each CLI's sign-in (`ClaudeSessionManager.availability`),
 /// the API keys (`KeyState`, by provider: never the keys themselves), whether AllInOneIME Cloud is signed in to, the AWS
-/// profiles with their regions (`AWSSharedConfig`), and Apple's model.
+/// profiles with their regions and kinds (`AWSCredentialResolver.requestProfiles`), and Apple's model.
 public struct AIFacts: Equatable, Sendable {
     public var sessions: [SessionAgent: ClaudeSession.Availability]
     public var keys: [Provider: KeyState]
     public var hostedSignedIn: Bool
-    /// The AWS profiles by name, each with its region (nil: none set).
-    public var awsProfiles: [String: String?]
+    /// The AWS profiles, each with its region and kind (`AWSCredentialResolver.requestProfiles`); nil: not read yet.
+    public var awsProfiles: [AWSProfileSummary]?
     public var apple: AppleModelAvailability
 
     public init(sessions: [SessionAgent: ClaudeSession.Availability] = [:], keys: [Provider: KeyState] = [:],
-                hostedSignedIn: Bool = false, awsProfiles: [String: String?] = [:],
+                hostedSignedIn: Bool = false, awsProfiles: [AWSProfileSummary]? = nil,
                 apple: AppleModelAvailability = .unsupportedSystem) {
         self.sessions = sessions
         self.keys = keys
@@ -213,8 +216,11 @@ public struct AIFacts: Equatable, Sendable {
         case .provider(.hosted):
             return hostedSignedIn ? .signedIn : .signedOut
         case .provider(.bedrock):
-            guard let region = awsProfiles[config.awsProfile] else { return .noAWSProfile(config.awsProfile) }
-            return .aws(profile: config.awsProfile, region: Self.region(config.region) ?? region ?? "us-east-1")
+            // Ready only with credentials a request can be signed with, as the client finds them (not just a region).
+            guard let awsProfiles else { return .unknown }
+            guard let profile = awsProfiles.first(where: { $0.name == config.awsProfile }) else { return .noAWSProfile(config.awsProfile) }
+            guard profile.kind.canAuthenticate else { return .noAWSCredentials(config.awsProfile) }
+            return .aws(profile: config.awsProfile, region: Self.region(config.region) ?? profile.region ?? "us-east-1")
         case .provider(.apple):
             return .apple(apple)
         }
@@ -250,9 +256,9 @@ extension Config {
 
     /// Where what has to be fast goes (rewriting, translating, replies, custom prompt commands, autocomplete: a CLI
     /// takes a second or more to answer): with a provider chosen, that provider. With a CLI chosen, the provider set up
-    /// before (`provider`, when `ready` says it has what it needs: a key, an AWS profile, a sign-in), else Apple's
-    /// on-device model when it is `available`; nil when neither can: autocomplete is off then, and the rest goes to the
-    /// CLI's session.
+    /// before (`provider`, when `ready` says it has what it needs: a key, an AWS profile with credentials, a sign-in),
+    /// else Apple's on-device model when it is `available`; nil when neither can: autocomplete is off then, and the rest
+    /// goes to the CLI's session.
     public func fastProvider(ready: (Provider) -> Bool, apple: AppleModelAvailability) -> Provider? {
         guard case .cli = ai else { return provider }
         if provider != .apple, ready(provider) { return provider }
