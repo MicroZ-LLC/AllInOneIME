@@ -51,17 +51,14 @@ enum ClaudeSessionMac {
     /// Where `claude` is, nil when it isn't installed.
     static var claudeURL: URL? {
         TerminalLauncher.claudePath.map { URL(fileURLWithPath: $0) }
-            ?? DesktopCLILookup.resolve(.claude, shell: { agent in
-                CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"])
-            }, bundled: desktopBundled)
+            ?? CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"])
+            ?? desktopBundled(.claude)
     }
 
     /// Where `agent`'s program is, nil when it isn't installed.
     static func program(_ agent: SessionAgent) -> URL? {
         agent == .claude ? claudeURL
-            : DesktopCLILookup.resolve(agent, shell: { agent in
-                CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"])
-            }, bundled: desktopBundled)
+            : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"]) ?? desktopBundled(agent)
     }
 
     /// The agent whose program `program` is (`claude`, `codex`, `agy`, `kiro-cli`: `@agent`'s, a custom agent's
@@ -84,8 +81,14 @@ enum ClaudeSessionMac {
     /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
     /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
     /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are
-    /// those apps' own layout and may move with an update: not found is just "not installed". None in the test runs
+    /// those apps' own layout and may move with an update: not found is just "not installed". Looked up through
+    /// `DesktopCLILookup`: a test can put its own lookup in the layout's place.
     static func desktopBundled(_ agent: SessionAgent) -> URL? {
+        DesktopCLILookup.bundled(agent, layout: appLayout)
+    }
+
+    /// `desktopBundled`'s look at the apps' own layout.
+    private static func appLayout(_ agent: SessionAgent) -> URL? {
         let fm = FileManager.default
         func executable(_ url: URL) -> URL? { fm.isExecutableFile(atPath: url.path) ? url : nil }
         switch agent {
