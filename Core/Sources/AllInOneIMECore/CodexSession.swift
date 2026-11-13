@@ -23,6 +23,8 @@ import Foundation
 ///   When `config/read` fails, which ones isn't known: the session isn't asked (`ClaudeSessionError.notWebOnly`).
 /// - The thread's name is its title in Codex's own list; `codex resume AllInOneIME` opens it by that name. A follow-up
 ///   (the hand-off's) goes after "--": `codex resume <thread> -- <follow-up>`.
+/// - Compacting the thread's context before it answers (`thread/compacted`, a `contextCompaction` item) isn't waited
+///   for (`ClaudeSessionError.compacting`).
 /// - The answer comes as `item/agentMessage/delta` notifications (`delta`, per `itemId`: a new item after a tool starts
 ///   the answer again); the turn ends with `turn/completed`, its `turn.status` "completed", "interrupted" or "failed"
 ///   (`turn.error`: `message`, `codexErrorInfo`). `turn/start`'s response has the turn's id, which `turn/interrupt` takes.
@@ -225,7 +227,10 @@ final class CodexDriver: SessionDriver {
             return (messageItem != nil && item != messageItem ? [.messageStarted] : []) + [.text(delta)]
         case "item/started":
             let type = (params["item"] as? [String: Any])?["type"] as? String
+            if type == "contextCompaction" { return [.compacting] }
             return type == "userMessage" ? [] : [.working]
+        case "thread/compacted":
+            return [.compacting]
         case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta", "item/reasoning/summaryPartAdded":
             return [.working]
         case "turn/completed":

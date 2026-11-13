@@ -274,6 +274,10 @@ public enum ClaudeSession {
         case sessionID(String)
         /// A sign that the answer is being worked on (thinking, a tool running) with nothing to show.
         case working
+        /// The agent compacts the conversation's context (summarizes it to fit) before it goes on: Claude Code's
+        /// `system` "compact_boundary", or its status "compacting"; Codex's `thread/compacted`, or its
+        /// `contextCompaction` item.
+        case compacting
         /// The session or its turn failed (an ACP agent's error response); `endsProcess`: the process is of no use now.
         case failed(ClaudeSessionError, endsProcess: Bool)
         case other
@@ -284,7 +288,12 @@ public enum ClaudeSession {
         guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any] else { return .other }
         switch object["type"] as? String {
         case "system":
-            return object["subtype"] as? String == "init" ? .started : .other
+            switch object["subtype"] as? String {
+            case "init": return .started
+            case "compact_boundary": return .compacting
+            case "status": return object["status"] as? String == "compacting" ? .compacting : .other
+            default: return .other
+            }
         case "stream_event":
             // A subagent's text (`parent_tool_use_id`) isn't the answer.
             guard object["parent_tool_use_id"] is NSNull || object["parent_tool_use_id"] == nil,
@@ -362,6 +371,9 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// A question waited `ClaudeSessionManager.firstAnswerTimeout` for an earlier one the session is still answering
     /// (or that it didn't stop when asked to).
     case busy
+    /// The agent began compacting the conversation's context before any of the answer came (`ClaudeSession.Event
+    /// .compacting`), which may take longer than `ClaudeSessionManager.firstAnswerTimeout`: not waited for.
+    case compacting
     /// The process ended while it answered (status, what it last said on stderr).
     case exited(Int32, String)
     /// The turn failed some other way (Claude Code's message).
@@ -370,7 +382,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     public var fallsBack: Bool {
         switch self {
         case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .openInTerminal, .failedToStart,
-             .notWebOnly, .busy:
+             .notWebOnly, .busy, .compacting:
             return true
         case .exited, .failed: return false
         }
@@ -405,6 +417,8 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
             return tr("没法让 \(name) 只读网页，所以没有问它", "\(name) couldn't be limited to reading the web, so it wasn't asked")
         case .busy:
             return tr("\(short) 会话还在回答之前的问题", "The \(short) session is still answering an earlier question")
+        case .compacting:
+            return tr("\(short) 会话正在压缩对话", "The \(short) session is compacting the conversation")
         case let .exited(status, message):
             return tr("\(short) 会话意外退出", "The \(short) session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
         case let .failed(message):

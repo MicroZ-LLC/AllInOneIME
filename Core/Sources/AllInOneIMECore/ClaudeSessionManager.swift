@@ -50,7 +50,8 @@ extension ClaudeSessionLauncher {
 /// Handing the session to Terminal (`handOff`) ends the process; while the Terminal one runs (its id in
 /// `ClaudeSessionStore.terminalPIDFile`), no process starts here and questions fail with `.openInTerminal`.
 /// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
-/// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; so
+/// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; one
+/// whose agent begins compacting the conversation before answering fails with `.compacting` at once (not waited for); so
 /// does one answering that says nothing more (not a line) for `answerIdleTimeout`, and one stopped while it answered
 /// that doesn't end within `interruptTimeout` (an agent deaf to the interrupt): the process is stuck, the next question
 /// starts it again. A question waiting behind one being answered waits `firstAnswerTimeout` at most, then fails with
@@ -759,6 +760,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return []
         case .permissionRequest, .working, .other:
             return []  // a permission request is answered by the driver
+        case .compacting:
+            // The conversation's context compacted first, before any of the answer: that may take minutes. The provider
+            // answers now (`fallsBack`), the turn is stopped as Esc stops it, and the process stays. Once the answer is
+            // coming in, it goes on.
+            guard let turn, !turn.done, turn.text.isEmpty else { return [] }
+            givenUp(turn)
+            return [.finish(turn.continuation, ClaudeSessionError.compacting)] + interruptAction(&state)
         case .messageStarted:
             if let turn, !turn.text.isEmpty { turn.restarts = true }
             return []

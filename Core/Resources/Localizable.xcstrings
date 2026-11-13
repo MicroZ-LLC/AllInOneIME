@@ -49143,6 +49143,53 @@
         }
       }
     },
+    "The %@ session is compacting the conversation" : {
+      "comment" : "%@ 会话正在压缩对话 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die %@-Sitzung verdichtet gerade das Gespräch"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de %@ está compactando la conversación"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session %@ est en train de compacter la conversation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ セッションは会話を圧縮しています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 세션이 대화를 압축하고 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do %@ está compactando a conversa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 工作階段正在壓縮對話"
+          }
+        }
+      }
+    },
     "The %@ session is still answering an earlier question" : {
       "comment" : "%@ 会话还在回答之前的问题 — Sources/AllInOneIMECore/ClaudeSession.swift",
       "localizations" : {

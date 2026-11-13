@@ -286,8 +286,9 @@ starting it, `kiro-cli whoami`): one found ready stays so until the input method
 when needed, a minute later at the earliest. Settings looks again each time it shows the choice with a session or
 Automatic picked, and when you pick one there; with The AI provider picked it runs none of them. When the session can't
 answer (not installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in,
-open in Terminal, nothing within 30 seconds, still answering an earlier question after 30 seconds) the provider answers
-and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. An answer that
+open in Terminal, nothing within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting
+the conversation before it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction,
+not waited for) the provider answers at once and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. An answer that
 says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next question
 starts it again. Rewriting, translating and autocomplete always use the provider.
 
