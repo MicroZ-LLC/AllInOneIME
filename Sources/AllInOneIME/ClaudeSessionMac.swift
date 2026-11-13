@@ -168,10 +168,10 @@ enum ClaudeSessionMac {
     /// conversation in the session's folder, holding its lock (`ClaudeSessionManager.terminalCommand`), the next question
     /// typed (if any) as its first message, interactive after it (after "--", or Antigravity's "-i":
     /// `SessionBackend.terminalArguments`). It is the CLI as the user set it up (their rules, tools and MCP servers).
-    static func handOff(followUp: String) throws {
+    static func handOff(followUp: String) async throws {
         let session = manager((try? Config.load())?.questionSessionAgent ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
-        let (arguments, directory, lock) = try session.handOff(program: program.path, followUp: !followUp.isEmpty)
+        let (arguments, directory, lock) = try await session.handOffOnceEnded(program: program.path, followUp: !followUp.isEmpty)
         let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
         if followUp.isEmpty {
             try TerminalLauncher.launch(argv, name: "\(session.backend.agent.rawValue)-session", directory: directory.path)

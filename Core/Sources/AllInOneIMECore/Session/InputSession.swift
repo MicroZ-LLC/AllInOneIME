@@ -1413,10 +1413,11 @@ public final class InputSession {
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
             case let .continueClaudeSession(followUp):
+                // Off the key's thread: it waits for our process to end (on the task, holding no thread).
                 let handOff = SessionSendableBox(value: services.continueClaudeSession)
                 tasks.start(nil) { post in
                     do {
-                        try handOff.value(followUp)
+                        try await handOff.value(followUp)
                     } catch {
                         post(.notice(UIText.describe(error)))
                     }

@@ -14,18 +14,18 @@ import AllInOneIMETestSupport
 struct InputSessionTests {
     @Test func handingOffDoesNotWaitOnTheKeyThread() async {
         let entered = Locked(initialState: false)
-        let release = DispatchSemaphore(value: 0)
+        let released = Locked(initialState: false)
         let host = host {
             $0.continueClaudeSession = { _ in
                 entered.withLock { $0 = true }
-                _ = release.wait(timeout: .now() + 3)
+                _ = await Timing.eventually(within: 3) { released.withLock { $0 } }
             }
         }
         let started = Date()
         host.session.perform([.continueClaudeSession(followUp: "next")])
         #expect(Date().timeIntervalSince(started) < 0.1)
         #expect(await Timing.eventually(within: 2) { entered.withLock { $0 } })
-        release.signal()
+        released.withLock { $0 = true }
     }
     /// The settings the session reads: pinyin first, Shift to English; English then Chinese to translate into; English
     /// interface; `@agent` in a terminal, not in the background.

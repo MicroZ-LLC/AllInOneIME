@@ -85,13 +85,28 @@ struct QuestionSessionHandOffTests {
         _ = await collect(stream)
         let id = try store.sessionID()
         let before = Date()
-        let (arguments, _, lock) = try session.handOff(program: "/u/claude")
+        let (arguments, _, lock) = try await session.handOffOnceEnded(program: "/u/claude")
         // Returned once our process had ended (it took 0.3 s), not killed.
         #expect(Date().timeIntervalSince(before) >= 0.25 && !process.isRunning && !process.wasKilled)
         #expect(arguments == ["/u/claude", "--resume", id] && lock == store.lockFile(id))
         // Its lock let go: Terminal can have it.
         let terminal = try #require(ConversationLock.take(lock))
         terminal.release()
+    }
+
+    /// `handOff` itself asks our process to end and returns at once, the conversation Terminal's already.
+    @Test func theHandOffItselfReturnsAtOnce() async throws {
+        let launcher = Dying(dying: 0.3)
+        let session = claude(launcher)
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(launcher.processes.last)
+        let id = try store.sessionID()
+        let before = Date()
+        let (arguments, _, _) = try session.handOff(program: "/u/claude")
+        #expect(Date().timeIntervalSince(before) < 0.2 && process.inner.terminated && process.isRunning)
+        let next = try store.sessionID()
+        #expect(arguments == ["/u/claude", "--session-id", id] && next != id)
     }
 
     @Test func oneThatDoesNotEndIsKilledBeforeTerminalStarts() async throws {
@@ -101,9 +116,29 @@ struct QuestionSessionHandOffTests {
         session.prewarm()
         let process = try #require(launcher.processes.last)
         let before = Date()
-        _ = try session.handOff(program: "/u/claude")
+        _ = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.wasKilled && !process.isRunning)
         #expect(Date().timeIntervalSince(before) < 3)
+    }
+
+    /// Our process ended, its exit told only later (its output still being read, say): the hand-off goes on, by the
+    /// process's own end, and lets go of its lock for Terminal; the next process starts once the exit is told.
+    @Test func aLateExitDoesNotFailTheHandOff() async throws {
+        let launcher = Dying(dying: 0.1)
+        let session = claude(launcher)
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(launcher.processes.last)
+        process.inner.autoExitOnTerminate = false
+        let (_, _, lock) = try await session.handOffOnceEnded(program: "/u/claude")
+        #expect(!process.isRunning && !process.wasKilled)
+        let terminal = try #require(ConversationLock.take(lock), "our lock is still held")
+        terminal.release()
+        // Told now: a prewarm meanwhile starts its process then.
+        session.prewarm()
+        #expect(launcher.processes.count == 1)
+        process.inner.exit(143)
+        #expect(launcher.processes.count == 2)
     }
 
     @Test func aQuestionAnsweredWhenHandedOffStopsAndWhatComesAfterGoesIntoANewConversation() async throws {

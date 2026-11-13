@@ -127,9 +127,9 @@ public struct SessionServices {
     public var runInTerminal: (_ arguments: [String], _ prompt: String) throws -> Void
     /// An `@question` conversation going on in a coding agent (`ChatHandoff`): its arguments with the conversation.
     public var continueInAgent: (_ arguments: [String], _ prompt: String) throws -> Void
-    /// Opens the input method's Claude session in a terminal (`ClaudeSessionManager.handOff`), the next question typed
-    /// (maybe empty) as its first message.
-    public var continueClaudeSession: (_ followUp: String) throws -> Void
+    /// Opens the input method's Claude session in a terminal (`ClaudeSessionManager.handOffOnceEnded`), the next
+    /// question typed (maybe empty) as its first message; returns once our process has ended and Terminal started.
+    public var continueClaudeSession: (_ followUp: String) async throws -> Void
     /// Whether an agent is installed (a custom one by its command), for the `@question` hand-off's choices.
     public var agentInstalled: (AgentKind, _ custom: [String]) -> Bool
     /// A custom `terminal` command: runs its arguments in a terminal window.
