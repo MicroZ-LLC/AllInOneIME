@@ -18,7 +18,8 @@ import Foundation
 /// - ACP has no session title, and Kiro gives none: the session is found by its folder (`kiro-cli chat --resume` there
 ///   opens the latest session of the folder, the input method's).
 ///
-/// Gemini CLI (0.68.0, checked by running it signed out, and in its source):
+/// Gemini CLI (0.68.0, checked by running it signed out, in its source, and signed in to a local model server that
+/// records the tools it is offered):
 /// - `gemini --acp`; `initialize` says `loadSession: true` (no `session/list`, no titles). `session/new` gives a UUID,
 ///   the one `gemini --resume` takes in the same folder (by name it can't: `--resume` takes a UUID, "latest" or a
 ///   number); `session/load` replays the conversation first (`user_message_chunk`s, not part of any answer), and fails
@@ -26,6 +27,13 @@ import Foundation
 /// - `--skip-trust`: the folder is trusted for the run; in a folder that isn't, Gemini CLI doesn't read its GEMINI.md
 ///   (and folder trust is on by default). `--extensions none`: none of the user's extensions (their MCP servers).
 ///   `GEMINI_CLI_NO_RELAUNCH`: one Node process, not a second it would start for more memory (about 250 MB more).
+/// - Like Claude Code's and Kiro's sessions, it may read the web and nothing else: `--policy` with the folder's
+///   allinoneime-policy.toml (`geminiPolicy`) allows `web_fetch` and `google_web_search` without asking and denies every
+///   other tool, which leaves it out of what the model is offered (reading files, the shell, writing, its subagents, MCP
+///   tools). `--policy` is read in place of the user's ~/.gemini/policies, as the user's tier, and at the top priority of
+///   that tier, above every rule the user's settings make (`tools.allowed`, trusted MCP servers …): only an
+///   administrator's policies come before it. `--allowed-mcp-server-names` with a name no server has: none of the
+///   user's MCP servers starts. In Terminal (the hand-off) Gemini CLI has none of these: the file isn't where it looks.
 /// - The folder's GEMINI.md is read (and the user's ~/.gemini/GEMINI.md too: there is no way to leave that out).
 /// - Signed out: `session/new` and `session/load` fail with -32000 ("Gemini API key is missing or not configured.",
 ///   "Authentication required"). There is no command that says whether it is signed in, and starting it with a Google
@@ -35,7 +43,8 @@ public struct ACPBackend: SessionBackend {
     public var agent: SessionAgent
     /// The folder's name in the data folder.
     public var folderName: String
-    /// The arguments after the program that start the agent on ACP.
+    /// The arguments after the program that start the agent on ACP; one starting with "./" is a file of the folder,
+    /// given as its full path.
     public var launch: [String]
     /// The agent's mode (its agent config) the session is put in when offered; nil: its default.
     public var mode: String?
@@ -101,10 +110,32 @@ public struct ACPBackend: SessionBackend {
                 SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
 
-    /// Gemini CLI on ACP, in its own folder with the instructions as its GEMINI.md.
+    /// Gemini CLI's policy for the session (its policy engine's TOML, priorities 0–999 within a tier): the web tools
+    /// allowed without asking, every other tool denied, so left out.
+    public static let geminiPolicy = """
+        # AllInOneIME's own Gemini CLI session (gemini --acp --policy this file): it may read the web, nothing else.
+        [[rule]]
+        toolName = ["web_fetch", "google_web_search"]
+        decision = "allow"
+        priority = 999
+
+        [[rule]]
+        toolName = "*"
+        decision = "deny"
+        priority = 998
+
+        """
+
+    /// The name `--allowed-mcp-server-names` is given: no MCP server has it, so none starts.
+    public static let noMCPServer = "allinoneime-no-mcp-servers"
+
+    /// Gemini CLI on ACP, in its own folder with the instructions as its GEMINI.md and its policy.
     public static let gemini = ACPBackend(
-        agent: .gemini, folderName: "gemini-session", launch: ["--acp", "--skip-trust", "--extensions", "none"],
-        files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions)],
+        agent: .gemini, folderName: "gemini-session",
+        launch: ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", noMCPServer,
+                 "--policy", "./allinoneime-policy.toml"],
+        files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions),
+                SessionFile(path: "allinoneime-policy.toml", content: geminiPolicy)],
         availability: [], resume: ["--resume"], start: [],
         environment: ["GEMINI_CLI_NO_RELAUNCH": "true"], signIn: geminiSignedIn)
 
@@ -153,7 +184,9 @@ public struct ACPBackend: SessionBackend {
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
 
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] { launch }
+    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
+        launch.map { $0.hasPrefix("./") ? directory.appendingPathComponent(String($0.dropFirst(2))).path : $0 }
+    }
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
         ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: mode)

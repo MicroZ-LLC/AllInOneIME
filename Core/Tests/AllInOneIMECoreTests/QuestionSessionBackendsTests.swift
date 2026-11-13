@@ -43,9 +43,15 @@ struct QuestionSessionBackendsTests {
         process.say(error.map { ["id": id, "error": $0] } ?? ["id": id, "result": result])
     }
 
-    /// The handshake: `initialize`, then the thread started (`thread/start` giving `id`) or resumed.
-    func open(_ process: FakeClaude.Process, thread id: String = "019a-thread", named: Bool = false) throws {
+    /// `initialize` answered, then `config/read` (with the user's config's `mcpServers`).
+    func initialize(_ process: FakeClaude.Process, mcpServers: [String: Any] = [:]) throws {
         try respond(process, "initialize", result: ["userAgent": "test", "codexHome": "/x", "platformFamily": "unix", "platformOs": "macos"])
+        try respond(process, "config/read", result: ["config": ["model": "gpt", "mcp_servers": mcpServers], "origins": [:]])
+    }
+
+    /// The handshake: `initialize`, `config/read`, then the thread started (`thread/start` giving `id`) or resumed.
+    func open(_ process: FakeClaude.Process, thread id: String = "019a-thread", named: Bool = false) throws {
+        try initialize(process)
         let thread: [String: Any] = ["id": id, "name": named ? "AllInOneIME" : NSNull(), "turns": []]
         if requests(process, "thread/resume").isEmpty {
             try respond(process, "thread/start", result: ["thread": thread, "model": "gpt", "sandbox": ["type": "readOnly"]])
@@ -78,15 +84,19 @@ struct QuestionSessionBackendsTests {
         let session = codex(fake)
         let stream = session.ask("what is rust")
         let process = try #require(fake.last)
-        #expect(process.arguments == ["app-server"] && process.directory == folder.appendingPathComponent("codex-session"))
+        #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil)
+            && process.directory == folder.appendingPathComponent("codex-session"))
         // No "jsonrpc": the app server's lines don't have it.
         #expect(process.lines.first?["jsonrpc"] == nil && process.lines.first?["method"] as? String == "initialize")
         #expect(turns(process).isEmpty)  // not before the thread is open
         try open(process)
         #expect(requests(process, "initialized").count == 1 && requests(process, "initialized").first?["id"] == nil)
+        #expect(params(process, "config/read")["cwd"] as? String == folder.appendingPathComponent("codex-session").path)
         let start = params(process, "thread/start")
         #expect(start["cwd"] as? String == folder.appendingPathComponent("codex-session").path)
         #expect(start["sandbox"] as? String == "read-only" && start["approvalPolicy"] as? String == "never")
+        // The instructions go with the thread (Codex reads no AGENTS.md without its environment); no MCP server: no config.
+        #expect(start["developerInstructions"] as? String == ClaudeSession.instructions && start["config"] == nil)
         // Named so that the user finds it in Codex's list: `codex resume AllInOneIME`.
         #expect(params(process, "thread/name/set")["name"] as? String == "AllInOneIME")
         #expect(params(process, "thread/name/set")["threadId"] as? String == "019a-thread")
@@ -117,9 +127,10 @@ struct QuestionSessionBackendsTests {
         let session = codex(fake)
         let first = session.ask("one")
         let process = try #require(fake.last)
-        try respond(process, "initialize")
+        try initialize(process)
         #expect(params(process, "thread/resume")["threadId"] as? String == "019a-kept")
         #expect(params(process, "thread/resume")["sandbox"] as? String == "read-only")
+        #expect(params(process, "thread/resume")["developerInstructions"] as? String == ClaudeSession.instructions)
         // Resumed, already named: not named again.
         try respond(process, "thread/resume", result: ["thread": ["id": "019a-kept", "name": "AllInOneIME", "turns": []]])
         #expect(requests(process, "thread/start").isEmpty && requests(process, "thread/name/set").isEmpty)
@@ -133,7 +144,7 @@ struct QuestionSessionBackendsTests {
         let second = session.ask("two")
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2)
-        try respond(restarted, "initialize")
+        try initialize(restarted)
         try respond(restarted, "thread/resume", error: ["code": -32600, "message": "no rollout found for thread id 019a-kept"])
         try respond(restarted, "thread/start", result: ["thread": ["id": "019a-new", "turns": []]])
         #expect(params(restarted, "thread/name/set")["threadId"] as? String == "019a-new")
@@ -221,6 +232,87 @@ struct QuestionSessionBackendsTests {
         #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
         #expect(ClaudeSessionError.noResponse.description(for: .kiro) == "The Kiro session didn't respond")
         #expect(ClaudeSessionError.notInstalled.description(for: .claude) == "The claude command (Claude Code) isn't installed")
+    }
+
+    // MARK: - Codex reads the web, nothing else
+
+    @Test func codexStartsWithoutAnEnvironmentAppsOrOtherAgents() {
+        let backend = CodexBackend(base: folder)
+        // Each with -c: a setting this Codex doesn't know is left aside (--disable would stop the server).
+        #expect(backend.arguments(sessionID: "x", resume: true, settings: nil) == [
+            "app-server",
+            "-c", "features.shell_tool=false", "-c", "features.view_image=false", "-c", "features.apps=false",
+            "-c", "features.plugins=false", "-c", "features.tool_suggest=false", "-c", "features.multi_agent=false",
+            "-c", "features.multi_agent_v2=false", "-c", "agents.enabled=false", "-c", "features.goals=false",
+            "-c", "features.image_generation=false", "-c", "features.memories=false",
+            "-c", "tools.experimental_request_user_input.enabled=false", "-c", "skills.include_instructions=false",
+            "-c", "include_permissions_instructions=false", "-c", "web_search=\"live\"",
+        ])
+        #expect(backend.arguments(sessionID: "x", resume: false, settings: nil) == backend.arguments(sessionID: "x", resume: true, settings: nil))
+        // No environment for commands and files: no shell, no apply_patch, no view_image, no MCP server on this Mac.
+        #expect(backend.environment == ["CODEX_EXEC_SERVER_URL": "none"])
+        // The sign-in check and Codex in Terminal (the hand-off: the user's own Codex) as they were.
+        #expect(backend.availabilityArguments(settings: nil) == ["app-server"])
+        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true)
+            == ["/u/codex", "resume", "019a"])
+    }
+
+    @Test func codexTurnsTheUsersMCPServersOffAndHasTheFoldersInstructions() async throws {
+        let fake = FakeClaude()
+        let store = ClaudeSessionStore(CodexBackend(base: folder))
+        try store.prepare()
+        // An AGENTS.md the user edited is what the thread is told.
+        let edited = "Answer in French.\n"
+        try Data(edited.utf8).write(to: store.directory.appendingPathComponent("AGENTS.md"))
+        let session = codex(fake)
+        let stream = session.ask("hi")
+        let process = try #require(fake.last)
+        try initialize(process, mcpServers: [
+            "docs": ["url": "https://mcp.example.com/mcp", "bearer_token_env_var": "DOCS_TOKEN", "enabled": true,
+                     "tool_timeout_sec": NSNull()],
+            "files": ["command": "npx", "args": ["-y", "@modelcontextprotocol/server-filesystem", "/"], "env": ["A": "b"],
+                      "enabled": true, "required": true],
+        ])
+        let start = params(process, "thread/start")
+        #expect(start["developerInstructions"] as? String == edited)
+        // Each turned off, with its url or command and nothing else (no nulls, no tokens or arguments).
+        let servers = try #require((start["config"] as? [String: Any])?["mcp_servers"] as? [String: Any])
+        #expect(servers.count == 2)
+        #expect(servers["docs"] as? NSDictionary == ["url": "https://mcp.example.com/mcp", "enabled": false] as NSDictionary)
+        #expect(servers["files"] as? NSDictionary == ["command": "npx", "enabled": false] as NSDictionary)
+        try respond(process, "thread/start", result: ["thread": ["id": "019a-thread", "turns": []]])
+        try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
+        delta(process, "Salut")
+        completed(process)
+        #expect(await collect(stream).answers == ["Salut"])
+        // Started again, resumed: the same.
+        process.exit(0)
+        let next = session.ask("again")
+        let restarted = try #require(fake.last)
+        try initialize(restarted, mcpServers: ["docs": ["url": "https://mcp.example.com/mcp", "enabled": true]])
+        let resume = params(restarted, "thread/resume")
+        #expect(resume["threadId"] as? String == "019a-thread" && resume["developerInstructions"] as? String == edited)
+        #expect(((resume["config"] as? [String: Any])?["mcp_servers"] as? [String: Any])?.keys.sorted() == ["docs"])
+        try respond(restarted, "thread/resume", result: ["thread": ["id": "019a-thread", "name": "AllInOneIME", "turns": []]])
+        try respond(restarted, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
+        completed(restarted, turn: "turn_2")
+        #expect(await collect(next).error == nil)
+    }
+
+    @Test func codexOpensTheThreadWhenItsConfigCantBeRead() async throws {
+        let fake = FakeClaude()
+        let session = codex(fake)
+        let stream = session.ask("hi")
+        let process = try #require(fake.last)
+        try respond(process, "initialize", result: ["userAgent": "test"])
+        try respond(process, "config/read", error: ["code": -32603, "message": "failed to read config"])
+        let start = params(process, "thread/start")
+        #expect(start["config"] == nil && start["developerInstructions"] as? String == ClaudeSession.instructions)
+        try respond(process, "thread/start", result: ["thread": ["id": "019a-thread", "turns": []]])
+        try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
+        delta(process, "Hi.")
+        completed(process)
+        #expect(await collect(stream).answers == ["Hi."])
     }
 
     // MARK: - The sign-in checks
@@ -325,9 +417,12 @@ struct QuestionSessionBackendsTests {
 
     @Test func geminiRunsOnACPInItsFolderTrustedWithoutExtensions() async throws {
         let backend = ACPBackend.gemini
+        let policy = backend.directory.appendingPathComponent("allinoneime-policy.toml").path
         #expect(backend.agent == .gemini && backend.arguments(sessionID: "x", resume: true, settings: nil)
-            == ["--acp", "--skip-trust", "--extensions", "none"])
-        #expect(backend.files.map(\.path) == ["GEMINI.md"] && backend.files.first?.content == ClaudeSession.instructions)
+            == ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", "allinoneime-no-mcp-servers",
+                "--policy", policy])
+        #expect(backend.files.map(\.path) == ["GEMINI.md", "allinoneime-policy.toml"])
+        #expect(backend.files.first?.content == ClaudeSession.instructions)
         #expect(backend.environment == ["GEMINI_CLI_NO_RELAUNCH": "true"])
         #expect(backend.directory.lastPathComponent == "gemini-session")
         #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c-uuid", resume: true)
@@ -342,6 +437,52 @@ struct QuestionSessionBackendsTests {
         #expect(fake.processes.isEmpty)
         let missing = ClaudeSessionManager(backend: base, launcher: Missing())
         #expect(await missing.checkAvailability() == .notInstalled)
+    }
+
+    @Test func geminiMayReadTheWebOnly() async throws {
+        // Its policy: the two web tools allowed without asking, above a rule that denies every tool (Gemini CLI then
+        // leaves the others out of what the model is offered); priorities in Gemini CLI's range.
+        struct Rule: Equatable {
+            var tools: [String]
+            var decision: String
+            var priority: Int
+        }
+        var rules: [Rule] = []
+        for block in ACPBackend.geminiPolicy.components(separatedBy: "[[rule]]").dropFirst() {
+            var rule = Rule(tools: [], decision: "", priority: -1)
+            for line in block.split(separator: "\n") {
+                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+                guard parts.count == 2 else { continue }
+                let value = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+                    .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")) }
+                switch parts[0] {
+                case "toolName": rule.tools = value
+                case "decision": rule.decision = value.first ?? ""
+                case "priority": rule.priority = Int(value.first ?? "") ?? -1
+                default: Issue.record("unexpected key \(parts[0])")
+                }
+            }
+            rules.append(rule)
+        }
+        #expect(rules == [Rule(tools: ["web_fetch", "google_web_search"], decision: "allow", priority: 999),
+                          Rule(tools: ["*"], decision: "deny", priority: 998)])
+
+        // The policy is written into the folder before the start, and the process is pointed at it there.
+        let fake = FakeClaude()
+        var backend = ACPBackend.gemini
+        backend.base = folder
+        let session = ClaudeSessionManager(backend: backend, launcher: fake)
+        let stream = session.ask("hi")
+        let process = try #require(fake.last)
+        let file = folder.appendingPathComponent("gemini-session/allinoneime-policy.toml")
+        #expect(process.directory == folder.appendingPathComponent("gemini-session"))
+        #expect(process.arguments.suffix(2) == ["--policy", file.path])
+        #expect(try String(contentsOf: file, encoding: .utf8) == ACPBackend.geminiPolicy)
+        // In Terminal (the hand-off) it is the user's own Gemini CLI.
+        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c", resume: true)
+            == ["/u/gemini", "--resume", "4f1c"])
+        session.interrupt()
+        _ = await collect(stream)
     }
 
     /// A launcher with no program.

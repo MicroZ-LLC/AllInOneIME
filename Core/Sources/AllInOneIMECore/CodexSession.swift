@@ -1,19 +1,29 @@
 import Foundation
 
 /// A question session on Codex, over its app server (`codex app-server`: JSON-RPC on stdin/stdout, a message per line,
-/// without a "jsonrpc" field). What is sent: `initialize` and `initialized`; `thread/resume` with the thread kept (the
-/// agent's id of the session, `ClaudeSessionStore.agentSessionID`), else, or when that fails, `thread/start` in the
-/// session's folder, read-only and never asking for approval, then `thread/name/set` to "AllInOneIME"
-/// (`SessionAgent.sessionName`); one `turn/start` per question, `turn/interrupt` to stop one. What the server asks
-/// (an approval for a command, a file change, a patch; anything else) is refused.
+/// without a "jsonrpc" field). What is sent: `initialize` and `initialized`, then `config/read` (the MCP servers the
+/// user's config has); `thread/resume` with the thread kept (the agent's id of the session,
+/// `ClaudeSessionStore.agentSessionID`), else, or when that fails, `thread/start` in the session's folder, read-only,
+/// never asking for approval, with the instructions and those MCP servers turned off, then `thread/name/set` to
+/// "AllInOneIME" (`SessionAgent.sessionName`); one `turn/start` per question, `turn/interrupt` to stop one. What the
+/// server asks (an approval for a command, a file change, a patch; anything else) is refused.
 ///
-/// Codex 0.163 (checked with `codex app-server generate-json-schema` and by running it):
+/// Like Claude Code's and Kiro CLI's sessions, it may read the web and nothing else: no shell, no files, no MCP servers,
+/// no other agents (`lockdown`, `environment`). Codex 0.163 (checked with `codex app-server generate-json-schema`, its
+/// source at rust-v0.163.0, and by running it against a local model server that records the tools it is offered):
+/// - `CODEX_EXEC_SERVER_URL=none` (`environment`) leaves out the environment commands and files are reached through:
+///   no shell (`exec_command`), no `apply_patch`, no `view_image`, and an MCP server of the user's that runs on this Mac
+///   (stdio) can't start. Its tools are what is left: web search (`web.run`, which also opens pages), a clock, and
+///   `exec`, a JavaScript sandbox with no files and no network that calls those tools.
+/// - The folder's AGENTS.md isn't read without that environment: its text goes as the thread's `developerInstructions`
+///   (read from the folder, so an edited one counts for the next new thread; Codex keeps a thread's own). Codex in
+///   Terminal (the hand-off) has the environment, and reads the file.
+/// - An MCP server it reaches over the network (`url`) still starts: each one `config/read` lists is turned off in the
+///   thread's `config` (`enabled` false, given with its `url` or `command`, without which Codex rejects the config).
+/// - The thread's name is its title in Codex's own list; `codex resume AllInOneIME` opens it by that name.
 /// - The answer comes as `item/agentMessage/delta` notifications (`delta`, per `itemId`: a new item after a tool starts
 ///   the answer again); the turn ends with `turn/completed`, its `turn.status` "completed", "interrupted" or "failed"
 ///   (`turn.error`: `message`, `codexErrorInfo`). `turn/start`'s response has the turn's id, which `turn/interrupt` takes.
-/// - The thread's name is its title in Codex's own list; `codex resume AllInOneIME` opens it by that name.
-/// - The folder's AGENTS.md is read as the session's instructions (and the user's ~/.codex/AGENTS.md too: there is no
-///   way to leave that out).
 /// - Signed in or not: `account/read` (`account`: an API key, a ChatGPT login or Amazon Bedrock; null when signed out,
 ///   unless `requiresOpenaiAuth` is false: a provider of the user's own). The server exits when its input closes, before
 ///   it answers: the check writes its requests and is ended once the answer is read.
@@ -31,10 +41,33 @@ public struct CodexBackend: SessionBackend {
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
 
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] { ["app-server"] }
+    /// The settings the session's server runs with over the user's config.toml (`-c`, which leaves a key this Codex
+    /// doesn't know aside, where `--disable` would stop it): no shell or `view_image` (left out with the environment
+    /// already, `environment`), no ChatGPT apps (Gmail, Notion …), plugins or offers to install them, no other agents
+    /// (`agents.enabled` false: also the ones a model starts on its own), no goals, image generation or memories, no
+    /// asking the user (`request_user_input`, which the input method refuses), no skills listed (they need the shell),
+    /// no sandbox text telling the model it may read files; web search live, so that it opens pages as they are now, as
+    /// the other sessions' web tools do.
+    public static let lockdown = [
+        "features.shell_tool=false", "features.view_image=false", "features.apps=false", "features.plugins=false",
+        "features.tool_suggest=false", "features.multi_agent=false", "features.multi_agent_v2=false", "agents.enabled=false",
+        "features.goals=false", "features.image_generation=false", "features.memories=false",
+        "tools.experimental_request_user_input.enabled=false", "skills.include_instructions=false",
+        "include_permissions_instructions=false", "web_search=\"live\"",
+    ]
+
+    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
+        ["app-server"] + Self.lockdown.flatMap { ["-c", $0] }
+    }
+
+    /// No environment for commands and files (`CODEX_EXEC_SERVER_URL=none`: the session's server only; Terminal's
+    /// Codex has its own).
+    public var environment: [String: String] { ["CODEX_EXEC_SERVER_URL": "none"] }
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
-        CodexDriver(directory: directory, threadID: agentSessionID)
+        let written = try? String(contentsOf: directory.appendingPathComponent("AGENTS.md"), encoding: .utf8)
+        let instructions = written.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
+        return CodexDriver(directory: directory, threadID: agentSessionID, instructions: instructions ?? ClaudeSession.instructions)
     }
 
     public func availabilityArguments(settings: URL?) -> [String] { ["app-server"] }
@@ -65,10 +98,14 @@ public struct CodexBackend: SessionBackend {
 /// One `codex app-server` process: the handshake, the thread, then a turn per question, as `CodexBackend` says.
 final class CodexDriver: SessionDriver {
     private enum Request {
-        case initialize, resume, start, name, turn, interrupt
+        case initialize, config, resume, start, name, turn, interrupt
     }
 
     private let directory: URL
+    /// The session's instructions (its AGENTS.md), the thread's developer instructions.
+    private let instructions: String
+    /// The thread's config over the user's: their MCP servers turned off (`config/read`'s answer).
+    private var config: [String: Any] = [:]
     /// The thread: the one to resume, then the one open.
     private var threadID: String?
     /// The thread is open: turns go.
@@ -85,15 +122,36 @@ final class CodexDriver: SessionDriver {
     /// The agent message the answer's text comes from now.
     private var messageItem: String?
 
-    init(directory: URL, threadID: String?) {
+    init(directory: URL, threadID: String?, instructions: String = ClaudeSession.instructions) {
         self.directory = directory
         self.threadID = threadID
+        self.instructions = instructions
     }
 
     static var initializeParams: [String: Any] { ["clientInfo": ["name": "allinoneime", "title": "AllInOneIME", "version": "1"]] }
 
-    /// What every thread is opened with: the session's folder, read-only, nothing asked.
-    private var threadParams: [String: Any] { ["cwd": directory.path, "sandbox": "read-only", "approvalPolicy": "never"] }
+    /// What every thread is opened with: the session's folder, read-only, nothing asked, the instructions, the user's
+    /// MCP servers off.
+    private var threadParams: [String: Any] {
+        var params: [String: Any] = ["cwd": directory.path, "sandbox": "read-only", "approvalPolicy": "never",
+                                     "developerInstructions": instructions]
+        if !config.isEmpty { params["config"] = config }
+        return params
+    }
+
+    /// The thread's config that turns off each MCP server of `config/read`'s `config` (`mcp_servers`, by name): `enabled`
+    /// false with the server's `url` or `command` (Codex rejects one without either). Empty when there are none.
+    static func mcpServersOff(_ config: [String: Any]?) -> [String: Any] {
+        let servers = config?["mcp_servers"] as? [String: Any] ?? [:]
+        var off: [String: Any] = [:]
+        for (name, server) in servers {
+            let server = server as? [String: Any] ?? [:]
+            var entry: [String: Any] = ["enabled": false]
+            for key in ["url", "command"] { if let value = server[key] as? String { entry[key] = value } }
+            off[name] = entry
+        }
+        return off.isEmpty ? [:] : ["mcp_servers": off]
+    }
 
     func opening() -> [Data] {
         [request(.initialize, "initialize", Self.initializeParams)]
@@ -183,11 +241,14 @@ final class CodexDriver: SessionDriver {
         switch kind {
         case .initialize:
             if let failure { return ([.failed(failure, endsProcess: true)], []) }
-            let initialized = Self.line(["method": "initialized"])
+            return ([], [Self.line(["method": "initialized"]), request(.config, "config/read", ["cwd": directory.path])])
+        case .config:
+            // Unread (an error): the thread opens without it (no MCP server on this Mac can start anyway).
+            config = Self.mcpServersOff(result?["config"] as? [String: Any])
             if let threadID {
-                return ([], [initialized, request(.resume, "thread/resume", threadParams.merging(["threadId": threadID]) { $1 })])
+                return ([], [request(.resume, "thread/resume", threadParams.merging(["threadId": threadID]) { $1 })])
             }
-            return ([], [initialized, startThread()])
+            return ([], [startThread()])
         case .resume:
             if let failure {
                 // Signed out says so; any other failure: a new thread (the old one is gone).
