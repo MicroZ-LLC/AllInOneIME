@@ -21,6 +21,8 @@ public struct TaskID: Hashable, Sendable {
         /// Clipboard history's rows a filter keeps, found off the session's thread in a longer history
         /// (`ClipboardFilter.Index`): each key that filters stops the one before.
         case clipboardFilter
+        /// The question CLI started in advance for this field.
+        case questionPrewarm
     }
 
     public let slot: Slot?

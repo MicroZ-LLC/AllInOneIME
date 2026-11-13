@@ -1881,8 +1881,16 @@ public final class InputSession {
         let config = services.loadSettings()
         let converter = services.converter
         guard let session = converter.questionSession(config), !secureInputActive(), config.allowsAI(in: app) else { return }
-        tasks.start(nil) { _ in
+        let secureNow = field.secure || secureKey
+        let secureInput = SessionSendableBox(value: services.secureInputActive)
+        let loadSettings = SessionSendableBox(value: services.loadSettings)
+        let targetApp = app
+        tasks.start(.questionPrewarm) { _ in
+            guard !Task.isCancelled, !secureNow, !secureInput.value(),
+                  loadSettings.value().allowsAI(in: targetApp) else { return }
             converter.questionSessionsFollow(config)  // another CLI chosen since: the old one's process ends
+            guard !Task.isCancelled, !secureInput.value(),
+                  loadSettings.value().allowsAI(in: targetApp) else { return }
             session.prewarm()
         }
     }
