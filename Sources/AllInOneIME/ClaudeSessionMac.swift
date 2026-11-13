@@ -81,8 +81,10 @@ enum ClaudeSessionMac {
     /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
     /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
     /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are
-    /// those apps' own layout and may move with an update: not found is just "not installed".
+    /// those apps' own layout and may move with an update: not found is just "not installed". None in the test runs
+    /// (`noDesktopBundledVariable`).
     static func desktopBundled(_ agent: SessionAgent) -> URL? {
+        guard ProcessInfo.processInfo.environment[noDesktopBundledVariable] == nil else { return nil }
         let fm = FileManager.default
         func executable(_ url: URL) -> URL? { fm.isExecutableFile(atPath: url.path) ? url : nil }
         switch agent {
@@ -107,6 +109,12 @@ enum ClaudeSessionMac {
             return nil
         }
     }
+
+    /// Set (to anything) in the environment of the test runs (`make test`, and the input method they start): no copy in
+    /// a desktop app is found (`desktopBundled`), so a test's own CLIs on the PATH, or none ("not installed"), aren't
+    /// passed over for the Claude app's or the ChatGPT app's copy on the Mac the tests run on. The input method is never
+    /// started with it.
+    static let noDesktopBundledVariable = "ALLINONEIME_NO_DESKTOP_CLIS"
 
     /// A config that chose Gemini CLI's session (0.7.4's earlier builds) chooses Antigravity's when agy is on this Mac,
     /// else the provider (`Config.migrateGeminiCLISession`). Once a launch, off the main thread.
