@@ -1,54 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    "\nmacOS needs you to add it once (Keyboard settings should have opened):\n  System Settings → Keyboard → Text Input › Input Sources \"Edit…\" → + at the bottom left\n  → English → AllInOneIME → Add\nThen switch to AllInOneIME with Ctrl+Space or the 🌐 key." : {
-      "comment" : "\nmacOS 需要你手动添加一次（“键盘”设置应该已经打开）：\n  系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加\n之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/main.swift",
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nDu musst AllInOneIME einmal selbst in macOS hinzufügen (die Tastatureinstellungen sollten sich geöffnet haben):\n  Systemeinstellungen → Tastatur → Texteingabe › Eingabequellen „Bearbeiten …“ → + unten links\n  → Englisch → AllInOneIME → Hinzufügen\nWechsle dann mit Ctrl+Leertaste oder der 🌐-Taste zu AllInOneIME."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nmacOS necesita que lo añadas una vez (deberían haberse abierto los ajustes de Teclado):\n  Ajustes del Sistema → Teclado → Entrada de texto › Fuentes de entrada \"Editar…\" → + abajo a la izquierda\n  → Inglés → AllInOneIME → Añadir\nLuego cambia a AllInOneIME con Ctrl+Espacio o la tecla 🌐."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nVous devez l’ajouter une fois dans macOS (les réglages Clavier devraient s’être ouverts) :\n  Réglages Système → Clavier → Saisie de texte › Méthodes de saisie « Modifier… » → + en bas à gauche\n  → Anglais → AllInOneIME → Ajouter\nPassez ensuite à AllInOneIME avec Ctrl+Espace ou la touche 🌐."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nmacOSで一度だけ追加する必要があります（キーボード設定が開いているはずです）：\n  システム設定 → キーボード → テキスト入力 › 入力ソースの「編集…」→ 左下の +\n  → 英語 → AllInOneIME → 追加\nその後、Ctrl+スペースまたは🌐キーでAllInOneIMEに切り替えてください。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nmacOS에서 한 번 직접 추가해야 합니다 (키보드 설정이 열려 있을 것입니다):\n  시스템 설정 → 키보드 → 텍스트 입력 › 입력 소스 \"편집…\" → 왼쪽 하단의 +\n  → 영어 → AllInOneIME → 추가\n그런 다음 Ctrl+Space 또는 🌐 키로 AllInOneIME로 전환하세요."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nO macOS precisa que você o adicione uma vez (os ajustes de Teclado já devem estar abertos):\n  Ajustes do Sistema → Teclado → Entrada de Texto › Fontes de Entrada “Editar…” → + no canto inferior esquerdo\n  → Inglês → AllInOneIME → Adicionar\nDepois, mude para o AllInOneIME com Ctrl+Espaço ou a tecla 🌐."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "\nmacOS 需要你手動加入一次（「鍵盤」設定應該已經打開）：\n  系統設定 → 鍵盤 → 文字輸入 › 輸入方式「編輯⋯」→ 左下角的 +\n  → 英文 → AllInOneIME → 加入\n之後用 Ctrl+Space 或 🌐 鍵切換到 AllInOneIME。"
-          }
-        }
-      }
-    },
     "\nmacOS needs you to add it once:\n  System Settings → Keyboard → Text Input › Input Sources \"Edit…\" → + at the bottom left\n  → Chinese, Simplified → AllInOneIME → Add\nThen switch to AllInOneIME with Ctrl+Space or the 🌐 key." : {
       "comment" : "\nmacOS 需要你手动添加一次：\n  系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加\n之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/main.swift",
       "localizations" : {
@@ -18639,54 +18591,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本機（未經審核）"
-          }
-        }
-      }
-    },
-    "macOS lets only you add a new input method: System Settings → Keyboard → Input Sources (Edit…) → + → English → AllInOneIME → Add. Then switch to it with Ctrl+Space or the 🌐 key." : {
-      "comment" : "新的输入法只能由你自己添加：系统设置 → 键盘 → 输入法（编辑…）→ + → 英语 → AllInOneIME → 添加。之后用 Ctrl+空格 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/InputSourceStep.swift",
-      "extractionState" : "stale",
-      "localizations" : {
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nur du kannst in macOS eine neue Eingabemethode hinzufügen: Systemeinstellungen → Tastatur → Eingabequellen (Bearbeiten …) → + → Englisch → AllInOneIME → Hinzufügen. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "En macOS solo tú puedes añadir un método de entrada nuevo: Ajustes del Sistema → Teclado → Fuentes de entrada (Editar…) → + → Inglés → AllInOneIME → Añadir. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Dans macOS, vous seul pouvez ajouter une nouvelle méthode de saisie : Réglages Système → Clavier → Méthodes de saisie (Modifier…) → + → Anglais → AllInOneIME → Ajouter. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新しい入力方法を追加できるのはあなただけです：システム設定 → キーボード → 入力ソース（編集…）→ + → 英語 → AllInOneIME → 追加。その後、Control+スペースまたは 🌐 キーで切り替えます。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "새 입력기는 사용자만 추가할 수 있습니다: 시스템 설정 → 키보드 → 입력 소스(편집…) → + → 영어 → AllInOneIME → 추가. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "No macOS, só você pode adicionar um método de entrada novo: Ajustes do Sistema → Teclado → Fontes de Entrada (Editar…) → + → Inglês → AllInOneIME → Adicionar. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "新的輸入法只能由你自己加入：系統設定 → 鍵盤 → 輸入方式（編輯⋯）→ + → 英文 → AllInOneIME → 加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
           }
         }
       }
