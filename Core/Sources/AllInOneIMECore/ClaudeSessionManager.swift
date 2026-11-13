@@ -41,8 +41,11 @@ extension ClaudeSessionLauncher {
 /// Keeps the input method's session on an agent (`backend`: Claude Code, `ClaudeSession`, or an ACP agent such as Kiro
 /// CLI, `ACPBackend`; one manager per agent) running and asks it questions. One process at a time,
 /// for every text field: started ahead of the first question (`prewarm`, when the command trigger is typed), so the
-/// answer doesn't wait for Claude Code to start; reused for each question; ended after `idleTimeout` without one. One
-/// that ended (a crash, killed) is started again with `--resume` by the next question. A question asked while another
+/// answer doesn't wait for Claude Code to start; reused for each question; ended after `idleTimeout` without one. Each
+/// `@question` conversation in the panel goes into a new conversation of the agent (`enter`), its follow-ups into that
+/// one: `prewarm` gets the new one ready (Codex and an ACP agent open it in the process they have, Claude Code's process
+/// is started again on it), so that it is warm when the question comes. A process that ended (a crash, killed) is
+/// started again on the same conversation (`--resume`) by its next question. A question asked while another
 /// is answered waits for it; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the process stays.
 /// Handing the session to Terminal (`handOff`) ends the process; while the Terminal one runs (its id in
 /// `ClaudeSessionStore.terminalPIDFile`), no process starts here and questions fail with `.openInTerminal`.
@@ -160,6 +163,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var driver: any SessionDriver
         var generation: Int
         var resume: Bool
+        /// The agent conversation it is on (`store`'s id when it started, or moved: `follow`).
+        var conversation: String
         /// The session started (its "init" came): a failure before that is the start's.
         var started = false
     }
@@ -177,6 +182,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var checking: Task<ClaudeSession.Availability, Never>?
         /// The sign-in check's run, while its command runs (ended with the rest when the input method quits).
         var signInCheck: SignInCheck?
+        /// The panel conversation (`QuestionConversation.id`) whose questions go into the agent conversation now
+        /// (`store`'s id: `enter`); nil: none said.
+        var owner: String?
+        /// A question went into the agent conversation now; nil: not looked at yet (`asked`).
+        var asked: Bool?
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
@@ -272,20 +282,36 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// Whether the process runs now.
     public var isRunning: Bool { state.withLock { $0.running != nil } }
 
-    /// Starts the process now, if it isn't running, so that the next question doesn't wait for it; it ends after
-    /// `idleTimeout` unless a question comes.
+    /// Gets a new agent conversation ready for the question about to be asked (an `@question` typed: a new conversation
+    /// in the panel), its process started now if it isn't running, so that the answer doesn't wait for the agent to
+    /// start; it ends after `idleTimeout` unless a question comes. One that has had no question yet is kept; one that has
+    /// is left (it stays in the agent's history) and the process moves to the new one (`follow`).
     public func prewarm() {
         let actions = state.withLock { state -> [Action] in
             guard state.turns.isEmpty else { return [] }
-            var actions: [Action] = []
+            if asked(&state) { rollOver(&state) }
+            var actions = follow(&state)
             if state.running == nil {
-                guard !terminalOpen(), let (_, opening) = try? start(&state) else { return [] }
-                actions = opening
+                guard !terminalOpen(), let (_, opening) = try? start(&state) else { return actions }
+                actions += opening
             }
             scheduleIdle(&state)
             return actions
         }
         perform(actions)
+    }
+
+    /// The questions of `conversation` (an `@question` conversation in the panel) go into the agent conversation from now
+    /// on; asked before `redacting`, `missing` and `ask`, which go by it. The agent conversation its earlier questions
+    /// went into, or, for another one, a new agent conversation, unless the one now has had no question yet (the one
+    /// `prewarm` made ready for it). Nil: the one now, whichever.
+    public func enter(_ conversation: QuestionConversation?) {
+        guard let conversation else { return }
+        state.withLock { state in
+            guard state.owner != conversation.id else { return }
+            if asked(&state) { rollOver(&state) }
+            state.owner = conversation.id
+        }
     }
 
     /// Asks `question` (one user message: the text as the provider would get it, already redacted). The stream gives
@@ -366,12 +392,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return [process, check?.end()].compactMap { $0 }
     }
 
-    /// A new session from now on ("start over" in the settings): the process ends, a new id is made.
+    /// A new conversation from now on ("start over" in the settings): the process ends, a new id is made.
     public func startOver() throws {
         stop()
-        try kept.withLock { kept in
-            kept = nil
-            try store.startOver()
+        try state.withLock { state in
+            try kept.withLock { kept in
+                kept = nil
+                try store.startOver()
+            }
+            (state.owner, state.asked) = (nil, false)
         }
     }
 
@@ -464,6 +493,38 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return false
     }
 
+    /// Whether a question went into the agent conversation now: one from before the launch counts as asked once it has
+    /// begun (Claude Code's started on a question; an agent's session id given).
+    private func asked(_ state: inout State) -> Bool {
+        if let asked = state.asked { return asked }
+        let asked = store.resumable || store.agentSessionID() != nil
+        state.asked = asked
+        return asked
+    }
+
+    /// A new agent conversation from now on (`ClaudeSessionStore.startOver`: a new id; the old one stays in the agent's
+    /// history, and what was kept of it goes). The process, if it runs, moves to it once a question or `prewarm` needs
+    /// it (`follow`).
+    private func rollOver(_ state: inout State) {
+        _ = try? store.startOver()
+        (state.owner, state.asked) = (nil, false)
+    }
+
+    /// The running process on the agent conversation now: as it is when it's on it; moved to it when the agent can open
+    /// another conversation in the same process (`SessionDriver.newConversation`); else ended, for `start` to start one
+    /// on it.
+    private func follow(_ state: inout State) -> [Action] {
+        guard let running = state.running, let id = try? store.sessionID(), running.conversation != id else { return [] }
+        if running.started, let lines = running.driver.newConversation() {
+            state.running?.conversation = id
+            return lines.map { .send(running.process, $0) }
+        }
+        state.running = nil  // its exit is of no session now
+        state.idle?.cancel()
+        state.idle = nil
+        return [.terminate(running.process)]
+    }
+
     /// Starts the process (with `--resume` once the session has a conversation), and what it is sent first (an ACP
     /// handshake).
     private func start(_ state: inout State) throws -> (Running, opening: [Action]) {
@@ -480,7 +541,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
                                              exited: { [weak self] in self?.exited(generation: generation, status: $0, message: $1) })
-            let running = Running(process: process, driver: driver, generation: generation, resume: resume)
+            let running = Running(process: process, driver: driver, generation: generation, resume: resume, conversation: id)
             state.running = running
             return (running, driver.opening().map { .send(process, $0) })
         } catch ClaudeSessionError.notInstalled {
@@ -493,6 +554,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private func pump(_ state: inout State) -> [Action] {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
         guard let turn = state.turns.first, !turn.sent else { return [] }
+        // On another agent conversation (`enter` began a new one): moved to this one, or started again on it.
+        let moved = follow(&state)
         let running: Running
         let opening: [Action]
         do {
@@ -501,13 +564,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let turns = state.turns
             state.turns = []
             let failure = error as? ClaudeSessionError ?? .failed(error.localizedDescription)
-            return turns.filter { !$0.done }.map { .finish($0.continuation, failure) }
+            return moved + turns.filter { !$0.done }.map { .finish($0.continuation, failure) }
         }
         state.idle?.cancel()
         state.idle = nil
         turn.sent = true
+        state.asked = true
         watch(turn)
-        return opening + running.driver.message(turn.message).map { .send(running.process, $0) }
+        return moved + opening + running.driver.message(turn.message).map { .send(running.process, $0) }
     }
 
     /// Now on `answerClock`, as how long ago it is (`Turn.since`).

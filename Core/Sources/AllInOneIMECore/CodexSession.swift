@@ -168,6 +168,12 @@ final class CodexDriver: SessionDriver {
         return [turn(text)]
     }
 
+    func newConversation() -> [Data]? {
+        guard ready, !turnStarted, queued == nil else { return nil }
+        (ready, threadID, messageItem) = (false, nil, nil)
+        return [startThread()]
+    }
+
     func interrupt() -> [Data] {
         if turnStarted {
             guard let turnID, let threadID else {

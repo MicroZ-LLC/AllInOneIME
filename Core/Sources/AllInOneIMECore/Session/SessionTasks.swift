@@ -267,15 +267,18 @@ public final class SessionTasks {
         public var replyPage: String
         /// `@reply`'s context (`Composer.replyContext`).
         public var replyContext: ReplyContext?
+        /// `@question`'s conversation in the panel (`Composer.questionConversation`).
+        public var conversation: QuestionConversation?
 
         public init(input: String, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false, replyPage: String = "",
-                    replyContext: ReplyContext? = nil) {
+                    replyContext: ReplyContext? = nil, conversation: QuestionConversation? = nil) {
             self.input = input
             self.command = command
             self.plan = plan
             self.fresh = fresh
             self.replyPage = replyPage
             self.replyContext = replyContext
+            self.conversation = conversation
         }
     }
 
@@ -320,6 +323,11 @@ public final class SessionTasks {
                                                                  services.loadSearchKey)
         let (app, fresh, improveTranslates, pluginLanguage, commandTrigger) = (place.app, request.fresh,
             place.improveTranslates, place.pluginLanguage, place.commandTrigger)
+        // An @question inside the text (not the request's own) is a conversation of its own.
+        let conversation = request.conversation
+        let conversationOf: @Sendable (Command) -> QuestionConversation? = { command in
+            command == request.command ? conversation : command == .question ? QuestionConversation() : nil
+        }
         let searchList: WebSearch.Output = place.terminal ? .line : .list
         let search = WebSearch.backend(chinese: place.chinese)
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
@@ -337,7 +345,8 @@ public final class SessionTasks {
                 let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates, trigger: commandTrigger)
                 return converter.convert(text, mode: mode, app: app)
             }
-            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
+            return command.map { converter.generate($0, input: input, app: app, fresh: fresh, conversation: conversationOf($0)) }
+                ?? converter.convert(input, app: app)
         }
         let command = request.command
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
@@ -368,8 +377,9 @@ public final class SessionTasks {
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"): the same request
     /// as before (`WritingMode` from the command, as `stream(for:)` works it out), with the conversation after it.
-    /// `sent`: what a command's request is sent with (`@reply`'s with its page).
-    public func refine(_ refinement: Refinement, id: Int, sent: String?, in place: Place, converter: Converter) {
+    /// `sent`: what a command's request is sent with (`@reply`'s with its page); `conversation`: `@question`'s in the panel.
+    public func refine(_ refinement: Refinement, id: Int, sent: String?, in place: Place, converter: Converter,
+                       conversation: QuestionConversation? = nil) {
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         var generates = false
         switch refinement.request {
@@ -378,7 +388,8 @@ public final class SessionTasks {
                                                  improveTranslates: place.improveTranslates, trigger: place.commandTrigger)
             stream = converter.convert(text, mode: mode, app: place.app, turns: refinement.turns)
         case let .command(command, input):
-            stream = converter.generate(command, input: sent ?? input, app: place.app, fresh: refinement.fresh, turns: refinement.turns)
+            stream = converter.generate(command, input: sent ?? input, app: place.app, fresh: refinement.fresh, turns: refinement.turns,
+                                        conversation: conversation)
             generates = true
         }
         // In a terminal an answer goes in on one line unless it can be pasted, as the first time.

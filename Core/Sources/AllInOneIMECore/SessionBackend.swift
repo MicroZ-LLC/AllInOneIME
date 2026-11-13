@@ -82,6 +82,14 @@ public protocol SessionDriver: AnyObject {
     func interrupt() -> [Data]
     /// One line of the process's output: what it says, and the lines to write back (a permission request denied).
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data])
+    /// The lines that open a new conversation in this process, the messages after them going into it (Codex's
+    /// `thread/start`, an ACP agent's `session/new`), once the one it has is open and no turn is answered; nil: it can't
+    /// (Claude Code's process has one conversation: a new one is a new process; one still opening).
+    func newConversation() -> [Data]?
+}
+
+extension SessionDriver {
+    public func newConversation() -> [Data]? { nil }
 }
 
 // MARK: - Claude Code

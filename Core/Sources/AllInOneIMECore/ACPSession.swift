@@ -248,6 +248,12 @@ final class ACPDriver: SessionDriver {
         return [prompt(text)]
     }
 
+    func newConversation() -> [Data]? {
+        guard ready, !prompting, queued == nil else { return nil }
+        (ready, agentSessionID) = (false, nil)
+        return [newSession()]
+    }
+
     func interrupt() -> [Data] {
         if prompting, let agentSessionID {
             return [ClaudeSession.line(["jsonrpc": "2.0", "method": "session/cancel", "params": ["sessionId": agentSessionID]])]

@@ -411,6 +411,9 @@ public final class Composer {
     /// What the results shown came from, when they can be refined (an AI request: `@improve`, `@translate`,
     /// `@question`, a prompt command, `Command.edit` on a selection). Nil for every other command.
     var refineRequest: Refinement.Request?
+    /// The `@question` conversation in the panel as a question session sees it (`QuestionConversation`): a new one each
+    /// time one starts (a question asked or asked again, a saved one picked: `loadThread`), its follow-ups in it.
+    public internal(set) var questionConversation: QuestionConversation?
     /// The request in flight is a refine (its id): a failure goes back to the results before it.
     private var refineID: Int?
     /// Why the last refine failed (secure input, the network …): shown over the results it left as they were, its
@@ -3213,7 +3216,10 @@ public final class Composer {
         refineText = ""
         refineError = nil
         // A saved conversation goes on: its next answer is a new one (kept again: `rememberAnswer`).
-        if isQuestionChat { recalled = nil }
+        if isQuestionChat {
+            recalled = nil
+            if questionConversation == nil { questionConversation = QuestionConversation() }
+        }
         requestCounter += 1
         refineID = requestCounter
         phase = .translating(id: requestCounter)
@@ -3379,6 +3385,7 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
+        questionConversation = command == .question ? QuestionConversation() : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 

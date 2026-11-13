@@ -115,6 +115,7 @@ extension Composer {
         refineText = ""
         refineError = nil
         handoffRequested = false
+        questionConversation = QuestionConversation()
     }
 
     /// ⏎ in the conversation, and the action key: it goes on. The question typed (its pinyin converted first) is asked

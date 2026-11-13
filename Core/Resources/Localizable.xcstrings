@@ -50938,6 +50938,7 @@
     },
     "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
       "comment" : "输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -50979,6 +50980,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入法自己的一個 Claude Code、Codex、Gemini CLI 或 Kiro CLI 工作階段，記得以前問過的問題；⌘⏎ 可以在終端機裡接著聊。改寫、翻譯、補全總是用上面的 AI 服務。"
+          }
+        }
+      }
+    },
+    "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session: each @question starts a new conversation there, its follow-ups stay in it; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above." : {
+      "comment" : "输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话：每次 @question 开一个新对话，追问留在里面；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die eigene Claude-Code-, Codex-, Gemini-CLI- oder Kiro-CLI-Sitzung der Eingabemethode: Jedes @question beginnt dort ein neues Gespräch, Nachfragen bleiben darin; ⌘⏎ setzt es im Terminal fort. Umschreiben, Übersetzen und Autovervollständigung nutzen immer den Anbieter oben."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La propia sesión de Claude Code, Codex, Gemini CLI o Kiro CLI del método de entrada: cada @question empieza allí una conversación nueva y las preguntas de seguimiento se quedan en ella; ⌘⏎ la continúa en Terminal. Reescribir, traducir y autocompletar siempre usan el proveedor de arriba."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La propre session Claude Code, Codex, Gemini CLI ou Kiro CLI de la méthode de saisie : chaque @question y commence une nouvelle conversation, les questions de suivi y restent ; ⌘⏎ la poursuit dans Terminal. La réécriture, la traduction et la saisie automatique utilisent toujours le fournisseur ci-dessus."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力メソッド専用の Claude Code、Codex、Gemini CLI または Kiro CLI セッション。@question のたびに新しい会話を始め、追加の質問はその会話の中で続きます。⌘⏎ でターミナルで続けられます。書き直し・翻訳・自動補完は常に上の AI サービスを使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력기 전용 Claude Code, Codex, Gemini CLI 또는 Kiro CLI 세션으로, @question마다 새 대화를 시작하고 후속 질문은 그 대화에 이어집니다. ⌘⏎로 터미널에서 이어갈 수 있습니다. 다시 쓰기, 번역, 자동 완성은 항상 위의 AI 서비스를 사용합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A própria sessão do Claude Code, do Codex, do Gemini CLI ou do Kiro CLI do método de entrada: cada @question começa nela uma conversa nova, e as perguntas seguintes ficam nela; ⌘⏎ a continua no Terminal. Reescrever, traduzir e completar automaticamente sempre usam o provedor acima."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入法自己的一個 Claude Code、Codex、Gemini CLI 或 Kiro CLI 工作階段：每次 @question 開一個新對話，追問留在裡面；⌘⏎ 可以在終端機裡接著聊。改寫、翻譯、補全總是用上面的 AI 服務。"
           }
         }
       }

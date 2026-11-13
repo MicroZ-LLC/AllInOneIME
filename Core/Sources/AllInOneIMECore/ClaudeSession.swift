@@ -38,8 +38,8 @@ public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
 
     /// What Settings says of the choice (the settings document, the Mac's settings and their search).
     public static var help: String {
-        tr("输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。",
-           "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above.")
+        tr("输入法自己的一个 Claude Code、Codex、Gemini CLI 或 Kiro CLI 会话：每次 @question 开一个新对话，追问留在里面；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。",
+           "The input method's own Claude Code, Codex, Gemini CLI or Kiro CLI session: each @question starts a new conversation there, its follow-ups stay in it; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above.")
     }
 }
 
@@ -71,10 +71,23 @@ extension Config {
     }
 }
 
-/// The input method's own long-running Claude Code session (`ClaudeSessionManager` keeps its process): one session id,
-/// made once and kept in `directory`/id, in a working folder of its own whose CLAUDE.md says what it is for (so no home
-/// or project CLAUDE.md is read). Every `@question` goes into it as one user message, so Claude remembers the earlier
-/// ones, across days. This is what is sent and read: the arguments, the stream-json lines, the events.
+/// An `@question` conversation in the panel (`Composer.questionConversation`), as the session it goes to sees it
+/// (`ClaudeSessionManager.enter`): a new one each time the panel starts one (a question asked, a saved one picked, asked
+/// again), its follow-ups in it. Each goes into a new conversation of the session's agent, so that a question never
+/// carries the ones before it (nor waits for them to be read again after the prompt cache lapsed).
+public struct QuestionConversation: Hashable, Sendable {
+    public var id: String
+
+    public init(id: String = UUID().uuidString) {
+        self.id = id
+    }
+}
+
+/// The input method's own long-running Claude Code session (`ClaudeSessionManager` keeps its process), in a working
+/// folder of its own whose CLAUDE.md says what it is for (so no home or project CLAUDE.md is read). Each `@question`
+/// conversation in the panel is a conversation of its own (a session id, kept in `directory`/id while it is the current
+/// one), each question one user message in it: Claude remembers the conversation's earlier rounds, not other
+/// conversations. This is what is sent and read: the arguments, the stream-json lines, the events.
 ///
 /// The flags, checked with Claude Code 2.1.303 (`claude --help`, and by running them):
 /// - `-p --input-format stream-json --output-format stream-json --verbose`: a process that stays up and takes one user
@@ -432,9 +445,10 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
-/// The session's id and folder on disk: `id` holds the id, made once; `resumable` is there once the session has a
-/// conversation (Claude Code started it on a question), so the process starts with `--resume`. "Start over" (Settings → AI) makes a
-/// new id. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none; `provider-settings.json`, the
+/// The session's id and folder on disk: `id` holds the id of the conversation questions go into now, made when there is
+/// none, a new one for each new conversation (`startOver`: `ClaudeSessionManager.enter`, `prewarm`, Settings' "Start
+/// over"); `resumable` is there once that conversation has begun (Claude Code started it on a question), so the process
+/// starts with `--resume`. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none; `provider-settings.json`, the
 /// user's provider settings (`ClaudeSession.providerSettings`), before each start; `context.json`, what the input method
 /// keeps of the session (`Memory`).
 ///
@@ -553,7 +567,7 @@ public struct ClaudeSessionStore: Sendable {
         try? Data((id + "\n").utf8).write(to: agentSessionFile, options: .atomic)
     }
 
-    /// A new session from now on (the old one stays in the agent's history).
+    /// A new conversation from now on (the old one stays in the agent's history).
     @discardableResult
     public func startOver() throws -> String {
         try? FileManager.default.removeItem(at: agentSessionFile)

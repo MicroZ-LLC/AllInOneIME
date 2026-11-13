@@ -344,10 +344,11 @@ struct ClaudeSessionTests {
         let refused = await collect(session.ask("two"))
         #expect(refused.error as? ClaudeSessionError == .openInTerminal && (refused.error as? ClaudeSessionError)?.fallsBack == true)
         #expect(fake.processes.count == 1)
-        // It quit: the next question resumes the session here.
+        // It quit: the next question goes on here, in the new conversation the prewarm (an @question typed) began.
         terminal.withLock { $0 = false }
         _ = session.ask("three")
-        #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--resume") == true)
+        #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--session-id") == true)
+        #expect(fake.last?.arguments.contains(id) == false)
         #expect(store.terminalPID() == nil)
     }
 

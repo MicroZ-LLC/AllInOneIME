@@ -1283,14 +1283,14 @@ public final class InputSession {
                     }
                     break
                 }
-                startConversion(input, id: id, command: command)
+                startConversion(input, id: id, command: command, conversation: conversation(of: command))
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
                 if refusedForSecureInput(id: id) { break }
                 startRefine(refinement, id: id)
             case let .reask(command, input, id):
                 if refusedForSecureInput(id: id) { break }
-                startConversion(input, id: id, command: command, fresh: true)
+                startConversion(input, id: id, command: command, fresh: true, conversation: conversation(of: command))
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, running: true) { break }
@@ -1302,7 +1302,7 @@ public final class InputSession {
                     }
                     break
                 }
-                startConversion("", id: id, command: outer, plan: plan)
+                startConversion("", id: id, command: outer, plan: plan, conversation: outer.flatMap(conversation(of:)))
             case let .startRun(command, input, id):
                 if refusedForSecureInput(id: id, running: true) { break }
                 startConversion(input, id: id, command: command)
@@ -1518,7 +1518,7 @@ public final class InputSession {
     /// what a `.run` command's program printed. `replyPage`: `@reply`'s web page (`Prompt.replyMessage(_:page:)` of
     /// nothing), added after its message once the commands inside it have run (`plan`).
     private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false,
-                                 replyPage: String = "") {
+                                 replyPage: String = "", conversation: QuestionConversation? = nil) {
         tasks.cancel(.request)
         lastElapsed = nil
         lastFromCache = false
@@ -1540,7 +1540,7 @@ public final class InputSession {
             return
         }
         let request = SessionTasks.Request(input: input, command: command, plan: plan, fresh: fresh, replyPage: replyPage,
-                                           replyContext: command == .reply ? composer.replyContext : nil)
+                                           replyContext: command == .reply ? composer.replyContext : nil, conversation: conversation)
         tasks.convert(request, id: id, in: place(generates: command?.kind == .generate), services: services)
     }
 
@@ -1573,7 +1573,13 @@ public final class InputSession {
             sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
             generates = true
         }
-        tasks.refine(refinement, id: id, sent: sent, in: place(generates: generates), converter: services.converter)
+        tasks.refine(refinement, id: id, sent: sent, in: place(generates: generates), converter: services.converter,
+                     conversation: composer.isQuestionChat ? composer.questionConversation : nil)
+    }
+
+    /// `@question`'s conversation in the panel (`Composer.questionConversation`) for a request of `command`.
+    private func conversation(of command: Command) -> QuestionConversation? {
+        command == .question ? composer.questionConversation : nil
     }
 
     /// What the session's work answered, while it still counts.

@@ -219,9 +219,12 @@ public final class Converter: Sendable {
     /// `@reply`'s three replies as three versions (`runReply`, Reply.swift).
     /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
     /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
-    /// revised as the last instruction asks.
+    /// revised as the last instruction asks. `conversation`: the `@question` conversation in the panel it is of, which a
+    /// question session keeps in one conversation of its agent (`ClaudeSessionManager.enter`); nil: the session's current
+    /// one.
     public func generate(_ command: Command, input: String, app: String? = nil, fresh: Bool = false,
-                         turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
+                         turns: [Refinement.Turn] = [],
+                         conversation: QuestionConversation? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -229,7 +232,7 @@ public final class Converter: Sendable {
                         try await self.runReply(input: input, app: app, fresh: fresh, turns: turns, continuation: continuation)
                     } else {
                         try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
-                                                  continuation: continuation)
+                                                  conversation: conversation, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -241,6 +244,7 @@ public final class Converter: Sendable {
     }
 
     private func runCommand(_ command: Command, input: String, app: String?, fresh: Bool = false, turns: [Refinement.Turn],
+                            conversation: QuestionConversation?,
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
@@ -252,8 +256,10 @@ public final class Converter: Sendable {
         let session = command == .question ? await questionSessionChecked(config) : nil
         // Given up (Esc) while the sign-in was looked at: nothing goes to the agent (or the provider).
         try Task.checkCancellation()
-        // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
-        // history), told it with the question.
+        // The panel's conversation in one conversation of the agent, a new one for each (before what goes by it, below).
+        session?.enter(conversation)
+        // The rounds of the conversation the session didn't see (the provider answered them, they are from the saved
+        // history, or the agent's conversation is new), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
         // a refine's turns (as for `convert`). For the session, numbered on from its earlier questions (one long
@@ -284,9 +290,9 @@ public final class Converter: Sendable {
         // request for any other question is as it always was.
         let questions = chat ? QuestionChat.rounds(first: input, turns: turns, latest: nil).map(\.question) : [input]
         let guide = command == .question ? guideExcerpts(questions) : nil
-        // The dedicated session: only the question asked now goes in (it has the rounds before), redacted as it would be
-        // for the provider, the guide's excerpts after it as they would go to the provider; not cached (the session's
-        // earlier questions are part of the answer). Should it not answer at all (not installed, signed out, its limit,
+        // The dedicated session: only the question asked now goes in (its conversation has the rounds before), redacted
+        // as it would be for the provider, the guide's excerpts after it as they would go to the provider; not cached (the
+        // conversation's earlier rounds are part of the answer). Should it not answer at all (not installed, signed out, its limit,
         // open in Terminal), the provider does, and the panel says why.
         var note: String?
         if let session {
