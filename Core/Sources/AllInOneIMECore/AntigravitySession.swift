@@ -231,7 +231,10 @@ public struct AntigravityBackend: SessionBackend {
 
 /// An `ACPDriver` with what agy needs besides: after the conversation opens (`session/new`, `session/load`), the model
 /// is set (`session/set_model`) before anything else is sent (the questions wait for its answer; one it refuses leaves
-/// agy's default); and a tool other than `tools` that completes ends the process (`notWebOnly`).
+/// agy's default); and a tool other than `tools` that completes ends the process (`notWebOnly`). The folder's files
+/// that keep agy to its tools (`permissionFiles`) are read as a conversation opens and before each question
+/// (`refusal`), never on every line: one changed since the start (`ClaudeSessionStore.prepare` put them back) ends the
+/// process (`notWebOnly`).
 final class AntigravityDriver: SessionDriver {
     private let inner: ACPDriver
     private let model: String
@@ -261,11 +264,16 @@ final class AntigravityDriver: SessionDriver {
     func message(_ text: String) -> [Data] { pass(inner.message(text)) }
     func interrupt() -> [Data] { pass(inner.interrupt()) }
     func newConversation() -> [Data]? { inner.newConversation().map(pass) }
+    func refusal() -> ClaudeSessionError? { permissionsKept ? nil : .notWebOnly }
+
+    /// Whether the folder's files that keep agy to its tools are as written.
+    private var permissionsKept: Bool {
+        permissionFiles.allSatisfy { file in
+            (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8)
+        }
+    }
 
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data]) {
-        guard permissionFiles.allSatisfy({ file in
-            (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8)
-        }) else { return ([.failed(.notWebOnly, endsProcess: true)], []) }
         let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] ?? [:]
         if let setting, object["method"] == nil, object["id"] as? String == setting {
             self.setting = nil
@@ -279,6 +287,8 @@ final class AntigravityDriver: SessionDriver {
         let request = object["method"] == nil ? (object["id"] as? Int).flatMap { sent.removeValue(forKey: $0) } : nil
         let opened = request.map { $0.method == "session/new" || $0.method == "session/load" } == true
         if request?.method == "session/load" { loading = false }
+        // A conversation opens: nothing goes into it (a question waiting for it) with the files changed.
+        if opened, !permissionsKept { return ([.failed(.notWebOnly, endsProcess: true)], []) }
         let (events, replies) = inner.received(line)
         let lines = pass(replies)
         if setting != nil {

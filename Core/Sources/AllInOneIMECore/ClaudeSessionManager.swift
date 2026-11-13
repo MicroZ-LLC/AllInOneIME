@@ -889,6 +889,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle = nil
         turn.sent = true
         state.prewarmWaiting = false  // the process a prewarm waited for is this one
+        // Not to be asked as it is now (Antigravity's files that keep it to its tools changed): the question fails so,
+        // its process ends.
+        if let refusal = running.driver.refusal() {
+            return moved + opening + handle(.failed(refusal, endsProcess: true), generation: running.generation, &state)
+        }
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)

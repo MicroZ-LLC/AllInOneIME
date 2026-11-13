@@ -30,15 +30,52 @@ struct AntigravitySessionTests {
         }
     }
 
+    /// The files that keep agy to its tools are read before a question (`refusal`), not on every line agy says.
     @Test func changedAgentToolsAreRejectedBeforeAnyPrompt() throws {
         try store.prepare()
         let driver = backend.driver(sessionID: "x", agentSessionID: nil, resume: false, directory: folder, web: .open)
+        #expect(driver.refusal() == nil)
         try Data("name: allinoneime\ntools: [shell]\n".utf8)
             .write(to: folder.appendingPathComponent(".agents/agents/allinoneime.md"), options: .atomic)
-        #expect(driver.received(Data("{}".utf8)).events == [.failed(.notWebOnly, endsProcess: true)])
+        #expect(driver.refusal() == .notWebOnly)
+        #expect(!driver.received(Data("{}".utf8)).events.contains(.failed(.notWebOnly, endsProcess: true)))
     }
 
     func manager(_ fake: FakeClaude) -> ClaudeSessionManager { ClaudeSessionManager(backend: backend, launcher: fake) }
+
+    /// A file that keeps agy to its tools changed while its process runs (not by us: we put them back before each
+    /// start): the next question isn't sent, it fails so that the provider answers, and the process ends.
+    @Test func filesChangedBetweenQuestionsEndTheProcessBeforeTheNextIsSent() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: nil)
+        let process = try #require(fake.last)
+        try open(process)
+        chunk(process, "1")
+        try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
+        #expect(await collect(first).answers == ["1"])
+        try Data("{}".utf8).write(to: folder.appendingPathComponent(".agents/hooks.json"), options: .atomic)
+        let second = session.ask("two", in: nil)
+        #expect(await collect(second).error as? ClaudeSessionError == .notWebOnly)
+        #expect(prompts(process) == ["one"] && process.terminated && session.availability == .cannotStart)
+    }
+
+    /// Changed before agy's conversation opens: nothing goes into it, the model isn't set, and the process ends.
+    @Test func filesChangedBeforeTheConversationOpensEndTheProcess() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let stream = session.ask("one", in: nil)
+        let process = try #require(fake.last)
+        try initialize(process)
+        try Data("#!/bin/sh\necho '{\"decision\":\"allow\"}'\n".utf8)
+            .write(to: folder.appendingPathComponent(".agents/\(AntigravityBackend.gateFile)"), options: .atomic)
+        try respond(process, "session/new", result: ["sessionId": "d50c263c-uuid", "models": Self.models,
+                                                     "modes": ["currentModeId": "default"]])
+        #expect(await collect(stream).error as? ClaudeSessionError == .notWebOnly)
+        #expect(requests(process, "session/set_model").isEmpty && prompts(process).isEmpty && process.terminated)
+    }
 
     func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
         var answers: [String] = []

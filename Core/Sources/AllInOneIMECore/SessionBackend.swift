@@ -95,10 +95,15 @@ public protocol SessionDriver: AnyObject {
     /// `thread/start`, an ACP agent's `session/new`), once the one it has is open and no turn is answered; nil: it can't
     /// (Claude Code's process has one conversation: a new one is a new process; one still opening).
     func newConversation() -> [Data]?
+    /// Why the process may not be sent a question now, looked at before each is written (nil: it may): the question
+    /// fails with it (the provider answers) and the process ends. Antigravity's, when its folder's files that keep it to
+    /// its tools changed since it started.
+    func refusal() -> ClaudeSessionError?
 }
 
 extension SessionDriver {
     public func newConversation() -> [Data]? { nil }
+    public func refusal() -> ClaudeSessionError? { nil }
 }
 
 // MARK: - Claude Code
