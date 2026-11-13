@@ -12,7 +12,7 @@ enum SettingsSpot: String, CaseIterable {
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
     // AI
-    case provider, model, apiKey, awsProfile, baseURL, testConnection
+    case provider, model, apiKey, awsProfile, baseURL, testConnection, questionBackend
     // Privacy
     case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned, installID
     // Commands
@@ -31,7 +31,7 @@ enum SettingsSpot: String, CaseIterable {
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
             return .general
-        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
+        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection, .questionBackend: return .ai
         case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
             return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
@@ -88,6 +88,7 @@ enum SettingsSpot: String, CaseIterable {
         case .awsProfile: return "AWS profile"
         case .baseURL: return tr("Base URL", "Base URL")
         case .testConnection: return tr("测试连接", "Test Connection")
+        case .questionBackend: return UIText.triggered(tr("提问（@question）", "Questions (@question)"))
         case .hideSensitive: return tr("发送前隐藏敏感信息", "Hide sensitive information before sending")
         case .wordsToHide: return tr("要隐藏的词", "Words to hide")
         case .appsWithoutAI: return tr("不用 AI 的 App", "Apps without AI")
@@ -134,6 +135,7 @@ enum SettingsSpot: String, CaseIterable {
         case .menuBarIcon: return tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away")
         case .iCloudSync: return Self.iCloudNote
         case .previousAppSettings: return Self.previousNote
+        case .questionBackend: return QuestionBackend.help
         case .hideSensitive:
             return tr("邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。",
                       "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results.")
@@ -197,6 +199,7 @@ enum SettingsSpot: String, CaseIterable {
         case .awsProfile: return "aws profile region sso role assume credential_process sts mfa 区域 角色 登录"
         case .baseURL: return "base url more compatible services 更多 地址 常用服务"
         case .testConnection: return "test connection 测试连接"
+        case .questionBackend: return "@question claude code kiro cli session subscription account sign in login api key remember start over 会话 订阅 账号 登录 记得 重新开始"
         case .hideSensitive: return "privacy hide sensitive information redact placeholder email phone card key token ip address 隐私 隐藏 敏感信息 脱敏 占位符 邮箱 电话 卡号 地址"
         case .wordsToHide: return "words codename names hide 词 代号 名字"
         case .appsWithoutAI: return "no ai apps off 不用 AI 关掉"

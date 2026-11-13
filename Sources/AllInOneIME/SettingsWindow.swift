@@ -1889,6 +1889,7 @@ struct SettingsView: View {
                 }
             }
             .settingsRow(.testConnection, shown: model.spot)
+            QuestionBackendSettings(model: model)
         }
         .disabled(!model.canSave)
     }

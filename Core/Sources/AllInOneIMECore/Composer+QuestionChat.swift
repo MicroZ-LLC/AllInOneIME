@@ -18,6 +18,11 @@ extension Composer {
         public var copiedConversation: String
         /// Secure input is on: nothing is handed over (copying still works).
         public var secureInput: String
+        /// The input method's session opened in Terminal, by its agent (`opened(_:)`).
+        public var openedSessions: [SessionAgent: String]
+
+        /// The input method's session on `agent` opened in Terminal.
+        public func opened(_ agent: SessionAgent) -> String { openedSessions[agent] ?? "" }
 
         /// What a hand-off says in the interface language `language` (`InterfaceLanguage`).
         public static func make(language: String) -> ChatMessages {
@@ -26,7 +31,10 @@ extension Composer {
                 pasteIt: t.tr("对话已复制到剪贴板：粘贴进去接着聊", "The conversation is on the clipboard: paste it"),
                 copiedConversation: t.tr("已复制对话", "Copied the conversation"),
                 secureInput: t.tr("系统安全输入已开启（密码框或锁屏），对话没有发出去",
-                                  "Secure input is on (a password field or the lock screen): the conversation wasn't sent"))
+                                  "Secure input is on (a password field or the lock screen): the conversation wasn't sent"),
+                openedSessions: Dictionary(uniqueKeysWithValues: SessionAgent.allCases.map { agent in
+                    (agent, t.tr("已在终端打开输入法的 \(agent.shortName) 会话", "Opened the input method's \(agent.shortName) session in Terminal"))
+                }))
         }
 
         /// Made each time, as `ReplyMessages`' are.
@@ -60,8 +68,11 @@ extension Composer {
     /// The round the latest answer is of (1 for the first question).
     public var chatRound: Int { refinements.count + 1 }
 
-    /// The last round `questionRounds` allows is answered: no more questions in the panel.
-    public var chatAtLimit: Bool { isQuestionChat && phase == .choosing && chatRound >= QuestionChat.rounds(questionRounds) }
+    /// The last round `questionRounds` allows is answered: no more questions in the panel (no limit when the questions go
+    /// to the Claude session, `questionSession`).
+    public var chatAtLimit: Bool {
+        isQuestionChat && phase == .choosing && !questionSession && chatRound >= QuestionChat.rounds(questionRounds)
+    }
 
     /// Where the conversation can go on is shown, in place of the next question's line: after the last round, or ⌘⏎.
     public var showsHandoff: Bool { isQuestionChat && phase == .choosing && (chatAtLimit || handoffRequested) }
@@ -159,6 +170,12 @@ extension Composer {
         if destination != .copy {
             if secureInputActive() { return [.notice(chatMessages.secureInput), .showPanel] }
             if let refusal = aiRefusal() { return [.notice(refusal), .showPanel] }
+        }
+        // The session has the rounds already: only the next question typed goes along.
+        if destination == .claudeSession {
+            let followUp = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
+            return finish(committing: "", selection: .kept) + [.continueClaudeSession(followUp: followUp),
+                                                                 .notice(chatMessages.opened(questionSessionAgent))]
         }
         // A question about the selection or a screenshot: the selected text and the screenshot's text as blocks of their
         // own, the question as the panel shows it (not the prompt it was sent in: `Prompt.withScreenshot`).

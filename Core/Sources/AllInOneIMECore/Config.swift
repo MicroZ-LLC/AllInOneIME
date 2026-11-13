@@ -211,6 +211,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
     /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
+    /// Where `@question` is answered (`QuestionBackend`): the input method's own session on Claude Code, Codex, Gemini
+    /// CLI or Kiro CLI (`SessionAgent`), or the AI provider; nil: Automatic (`questionSessionAgent`). This Mac's own
+    /// (never synced).
+    public var questionBackend: QuestionBackend?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -399,6 +403,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.rememberQuestions = true
         self.questionRounds = QuestionChat.defaultRounds
         self.questionContinueIn = nil
+        self.questionBackend = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
         self.pinyinScheme = nil
@@ -445,7 +450,7 @@ public struct Config: Codable, Equatable, Sendable {
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
-        case rememberQuestions, questionRounds, questionContinueIn
+        case rememberQuestions, questionRounds, questionContinueIn, questionBackend
         case redaction
         case autocomplete
         case iCloudSync
@@ -530,6 +535,8 @@ public struct Config: Codable, Equatable, Sendable {
         // Names this version doesn't know (a service a later one added) are left out, not an error.
         questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
             .compactMap(ChatHandoff.Destination.init(rawValue:))
+        // One this version doesn't know (a later one's) is the default.
+        questionBackend = (try? c.decodeIfPresent(QuestionBackend.self, forKey: .questionBackend)).flatMap { $0 }
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         // One this version doesn't know (a later one's) follows the system, not an error.
@@ -731,6 +738,7 @@ public struct Config: Codable, Equatable, Sendable {
         // Only when set: a file that never had them doesn't gain them.
         if questionRounds != QuestionChat.defaultRounds { try c.encode(questionRounds, forKey: .questionRounds) }
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
+        try c.encodeIfPresent(questionBackend, forKey: .questionBackend)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.

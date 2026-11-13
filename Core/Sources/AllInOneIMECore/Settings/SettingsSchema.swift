@@ -514,6 +514,18 @@ struct SettingsSchema {
         test.actions = [SettingsAction.test]
         test.status = outcome("provider.test")
         add(test, to: &fields)
+        // Where @question goes (`Config.questionBackend`): the input method's own session on an agent (`SessionAgent`:
+        // Claude Code, Codex, Gemini CLI, Kiro CLI; the Mac's), or the provider above. Everything else always goes to the
+        // provider.
+        add(choice("questionBackend", UIText.triggered(tr("提问（@question）", "Questions (@question)")),
+                   UIText.triggered(QuestionBackend.help),
+                   value: .string(config.questionBackend?.rawValue ?? ""),
+                   choices: [(Choice("", UIText.triggered(tr("自动：@agent 的 agent 的会话，或另一个装了并已登录的会话", "Automatic: @agent's agent's session, or another one installed and signed in"))), nil)]
+                       + QuestionBackend.sessionAgents.map { (Choice(QuestionBackend($0).rawValue, $0.sessionTitle), nil) }
+                       + [(Choice(QuestionBackend.provider.rawValue, tr("AI 服务", "The AI provider")), nil)],
+                   platforms: [.mac]), to: &fields) { value in
+            store.config.questionBackend = value.string.flatMap(QuestionBackend.init(rawValue:))
+        }
         return fields
     }
 

@@ -397,7 +397,7 @@ public final class ComposerSession: @unchecked Sendable {
     /// client gets none. Typing, and AI rewriting and translating its own text, are the rest.
     static func isPrivileged(_ effect: Composer.Effect) -> Bool {
         switch effect {
-        case .startCommand, .search, .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent,
+        case .startCommand, .search, .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent, .continueClaudeSession,
              .launchInTerminal, .startBackgroundAgent, .listAgents, .openSettings, .openSettingsAt, .saveNote,
              .previewReminder, .addReminder, .startRun, .startScript, .startBackgroundScript, .sendMessage,
              .rememberQuestion, .reask, .startPlan, .copy, .copyWeekStatsImage, .readClipboard, .startVoice, .armVoice:
@@ -410,7 +410,7 @@ public final class ComposerSession: @unchecked Sendable {
     /// Effects after which the engine's window or another program comes to the front (§6 `allowForeground`).
     static func takesForeground(_ effect: Composer.Effect) -> Bool {
         switch effect {
-        case .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent, .launchInTerminal, .openSettings,
+        case .open, .openLink, .runInTerminal, .continueInClaudeCode, .continueInAgent, .continueClaudeSession, .launchInTerminal, .openSettings,
              .openSettingsAt:
             return true
         default:

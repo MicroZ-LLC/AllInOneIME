@@ -8,9 +8,10 @@ import os
 
 let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
-/// One converter (one URLSession, one cache) shared by every input session in the process. @question reads the app's
-/// user guide for a question about AllInOneIME.
-let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url)
+/// One converter (one URLSession, one cache, the input method's question sessions) shared by every input session in the
+/// process. @question reads the app's user guide for a question about AllInOneIME.
+let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url,
+                                questionSessions: ClaudeSessionMac.managers)
 
 /// AllInOneIME's user guide as the app ships it (Contents/Resources/user-guide.md, copied there by the Makefile), read
 /// once, when a question first needs it.
