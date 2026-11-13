@@ -261,7 +261,9 @@ long-running Claude Code (`claude -p`, stream JSON), Codex (`codex app-server`),
 (`~/Library/Application Support/AllInOneIME/claude-session`, `codex-session`, `gemini-session` or `kiro-session`, with
 its own instructions: CLAUDE.md, AGENTS.md, GEMINI.md or Kiro steering), signed in with that CLI's own account: a
 Claude, ChatGPT, Google or Kiro subscription, a company sign-in, or Claude Code on Amazon Bedrock (the provider settings
-in `~/.claude/settings.json` are used). No API key. It remembers earlier questions, across days. Whichever CLI it is, the
+in `~/.claude/settings.json` are used), with your login shell's PATH and the variables the CLI reads there
+(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT` …). No API key. It remembers earlier
+questions, across days. Whichever CLI it is, the
 session may read the web (search it, open pages) and nothing else: it can't read, list or change files on this Mac, run
 commands, use the CLI's MCP servers, extensions, plugins or apps, or start other agents, and it asks you for nothing
 (Claude Code: `--tools WebSearch,WebFetch`; Codex: no environment for commands and files, `CODEX_EXEC_SERVER_URL=none`,
@@ -278,9 +280,13 @@ in, else another one that is (in the order Claude Code, Codex, Gemini CLI, Kiro 
 CLI is installed and signed in is looked at the first time a question could go to a session, not at launch, and never
 while The AI provider is picked (`claude auth status`, Codex's account, Gemini CLI's settings and saved sign-in without
 starting it, `kiro-cli whoami`): one found ready stays so until the input method quits, any other is looked at again
-when needed, a minute later at the earliest; Settings looks again each time it shows them. When the session can't
-answer (not installed, signed out, its usage limit, an expired AWS sign-in, open in Terminal, nothing within 30
-seconds) the provider answers and the panel says why. Rewriting, translating and autocomplete always use the provider.
+when needed, a minute later at the earliest. Settings looks again each time it shows the choice with a session or
+Automatic picked, and when you pick one there; with The AI provider picked it runs none of them. When the session can't
+answer (not installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in,
+open in Terminal, nothing within 30 seconds, still answering an earlier question after 30 seconds) the provider answers
+and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. An answer that
+says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next question
+starts it again. Rewriting, translating and autocomplete always use the provider.
 
 To open the session yourself and read its history, in Terminal (one line per agent):
 

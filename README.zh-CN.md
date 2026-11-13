@@ -201,8 +201,8 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 设置 →「AI」→「提问（@question）」（配置里的 `questionBackend`）选 `@question` 在哪里回答：自动、Claude Code 会话、Codex 会话、Gemini CLI 会话、Kiro CLI 会话或 AI 服务。
 会话是输入法为所有输入框留着的一个长期运行的 Claude Code（`claude -p`，stream JSON）、Codex（`codex app-server`）、Gemini CLI（`gemini --acp`）或 Kiro CLI（`kiro-cli acp`）进程，
 在它自己的文件夹里（`~/Library/Application Support/AllInOneIME/claude-session`、`codex-session`、`gemini-session` 或 `kiro-session`，有它自己的说明：CLAUDE.md、AGENTS.md、GEMINI.md 或 Kiro 的 steering），
-用那个 CLI 自己的账号登录：Claude、ChatGPT、Google 或 Kiro 订阅、公司账号，或者 Amazon Bedrock 上的 Claude Code（用 `~/.claude/settings.json` 里的服务设置）。
-不用 API key。隔几天也记得以前问过的问题。不管是哪个 CLI，会话都只能读网页（搜索、打开网页），别的都不能：不能读、列出或改动这台 Mac 上的文件，不能运行命令，
+用那个 CLI 自己的账号登录：Claude、ChatGPT、Google 或 Kiro 订阅、公司账号，或者 Amazon Bedrock 上的 Claude Code（用 `~/.claude/settings.json` 里的服务设置），
+用登录 shell 的 PATH 和那个 CLI 要读的变量（`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`GEMINI_API_KEY`、`GOOGLE_CLOUD_PROJECT` 等）。不用 API key。隔几天也记得以前问过的问题。不管是哪个 CLI，会话都只能读网页（搜索、打开网页），别的都不能：不能读、列出或改动这台 Mac 上的文件，不能运行命令，
 不能用那个 CLI 的 MCP 服务器、扩展、插件或 App，也不能启动别的 agent，什么都不请求你批准（Claude Code：`--tools WebSearch,WebFetch`；
 Codex：不给它运行命令和读写文件的环境，`CODEX_EXEC_SERVER_URL=none`，并关掉它的 MCP 服务器、App 和 agent；Gemini CLI：`gemini-session` 里的一个策略文件，
 只允许 `web_fetch` 和 `google_web_search`；Kiro CLI：一个只有 `web_search` 和 `web_fetch` 的 agent）。在终端里接着聊（⌘⏎）时，就是你自己设置的那个 CLI，
@@ -212,8 +212,10 @@ Codex：不给它运行命令和读写文件的环境，`CODEX_EXEC_SERVER_URL=n
 用会话时对话没有轮数限制，⌘⏎ 最先列出在终端里接着同一个会话聊（`claude --resume`、`codex resume`、`gemini --resume`、`kiro-cli chat --resume-id`）；设置旁边的「重新开始」开一个新会话。
 「自动」（默认）在 `@agent` 的 agent 的会话装了并已登录时用它，不然用另一个装了并已登录的（顺序是 Claude Code、Codex、Gemini CLI、Kiro CLI），再不然用 AI 服务。
 各个 CLI 装没装、登没登录，要到第一次有问题可能发给会话时才检查，启动时不查，选了 AI 服务时从不查（`claude auth status`、Codex 的账号、
-Gemini CLI 的设置和保存的登录——不为此启动它、`kiro-cli whoami`）：查到能用的一直算能用，直到输入法退出；不能用的在需要时再查，最快一分钟后。设置每次显示时都重新查。
-会话回答不了时（没装、没登录、用量到上限、AWS 登录过期、正在终端里打开、30 秒内没反应），由 AI 服务回答，候选框里写着原因。
+Gemini CLI 的设置和保存的登录——不为此启动它、`kiro-cli whoami`）：查到能用的一直算能用，直到输入法退出；不能用的在需要时再查，最快一分钟后。
+选了会话或「自动」时，设置每次显示这个选项都重新查，在那里选会话或「自动」时也查；选了 AI 服务时一个都不运行。
+会话回答不了时（没装、没登录、启动不了、没法只读网页、用量到上限、AWS 登录过期、正在终端里打开、30 秒内没反应、30 秒后还在回答之前的问题），由 AI 服务回答，候选框里写着原因；
+启动不了的 CLI，在重新检查之前「自动」不再选它。回答 3 分钟没有动静，或按 Esc 后 5 秒还没停，会话的进程就结束，下一个问题重新启动它。
 改写、翻译和续写总是用 AI 服务。
 
 自己打开这个会话、看它的记录（在终端里，每个 agent 一行）：
