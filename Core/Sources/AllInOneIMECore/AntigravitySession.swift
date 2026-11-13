@@ -1,7 +1,4 @@
 import Foundation
-#if canImport(Security)
-import Security
-#endif
 
 /// The question session on Google Antigravity's CLI, `agy` (1.5.8, checked by running it): an ACP agent (`ACPBackend`,
 /// `ACPDriver`), with what is its own here: the agent definition and the hook that keep it to searching the web, the
@@ -148,13 +145,11 @@ public struct AntigravityBackend: SessionBackend {
         return keychain()
     }
 
-    /// Whether the login keychain has agy's Google sign-in (its attributes only: the token isn't read, nothing asks).
+    /// Whether the login keychain has agy's Google sign-in (its attributes only: the token isn't read, nothing asks;
+    /// Platform/Apple/AntigravityKeychain.swift). None where there is no keychain.
     static func keychainSignIn() -> Bool {
         #if canImport(Security)
-        let query: [String: Any] = [kSecClass as String: kSecClassGenericPassword, kSecAttrService as String: "gemini",
-                                    kSecAttrAccount as String: "antigravity", kSecReturnAttributes as String: true,
-                                    kSecMatchLimit as String: kSecMatchLimitOne]
-        return SecItemCopyMatching(query as CFDictionary, nil) == errSecSuccess
+        return loginKeychainHasSignIn()
         #else
         return false
         #endif
