@@ -147,12 +147,11 @@ struct DashboardSources {
             openReminders: { RemindersBridge.openApp() },
             openReminderSettings: { NSWorkspace.shared.open(ReminderAccess.settingsURL) },
             listAgents: {
-                let claude = AgentMonitor.shared.claude
-                return try await Task.detached(priority: .utility) { () -> [AgentSession]? in
-                    // Where Terminal finds it, else on the login shell's PATH (read here, off the main thread).
-                    guard TerminalLauncher.claudePath != nil
-                            || CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"]) != nil else { return nil }
-                    let output = try await AgentMonitor.run(claude, ClaudeAgents.listArguments)
+                try await Task.detached(priority: .utility) { () -> [AgentSession]? in
+                    // Where the question session finds it (`ClaudeSessionMac.claudeURL`: where Terminal finds it, the
+                    // login shell's PATH, the Claude app's copy), looked up here, off the main thread.
+                    guard let claude = ClaudeSessionMac.claudeURL else { return nil }
+                    let output = try await AgentMonitor.run(claude.path, ClaudeAgents.listArguments)
                     return ClaudeAgents.sessions(from: Data(output.utf8))
                 }.value
             },

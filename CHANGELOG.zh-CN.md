@@ -15,6 +15,7 @@
 
 ### 修复
 
+- 只随桌面 App 带来的 CLI（Claude App 里的 Claude Code、ChatGPT App 里的 `codex`），`@agent` 也当作已安装，和 `@question` 的会话一样，并从那里运行：设置 →「命令」→ `@agent` 不再说没装，`@agent`（Claude Code，或运行 `codex` 的自定义 agent）在终端里启动它，`@tasks` 和菜单栏面板列出 Claude Code 的任务。两边用同一种方法找它。
 - `@tasks` 和菜单栏面板里的 Claude 任务不会再偶尔一直等一个其实已经结束的 `claude agents`（或 `claude --bg`）：输入法从进程本身得知它结束了，和 `@question` 的会话一样，不再用那种大约十次漏掉一次的等待。
 
 ## 0.7.3（2026-11-12）

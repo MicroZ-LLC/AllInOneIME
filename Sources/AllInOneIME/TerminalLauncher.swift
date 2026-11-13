@@ -5,7 +5,8 @@ import AppKit
 /// `@agent`: the coding agent picked in Settings (`AgentKind`) in a Terminal window, with the typed text as its first
 /// message. The agent asks before it changes files or runs commands, as it always does.
 enum TerminalLauncher {
-    /// Where the `claude` command was found (absolute, so the window doesn't depend on PATH).
+    /// Where Claude Code's installers put the `claude` command, the first place `ClaudeSessionMac.claudeURL` looks
+    /// (absolute, so the window doesn't depend on PATH).
     static let claudePath: String? = {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         return ["\(home)/.local/bin/claude", "\(home)/.claude/local/claude", "/opt/homebrew/bin/claude",
@@ -13,13 +14,16 @@ enum TerminalLauncher {
     }()
 
     /// Opens a new Terminal window in the home folder that runs `arguments` (`AgentKind.terminalArguments`) with
-    /// `prompt`, however long, as the last argument. Claude Code by the path it was found at. The text goes in a file
+    /// `prompt`, however long, as the last argument. An agent's CLI by the path its question session finds it at
+    /// (`ClaudeSessionMac.program`: a desktop app's copy too, which Terminal's PATH doesn't have). The text goes in a file
     /// only the user can read; the script reads it into one argument and deletes it, so it is never part of a shell
     /// command (the script deletes itself too). `directory`: where it runs (nil: the home folder).
     static func agent(_ arguments: [String], prompt: String, directory: String? = nil) throws {
         guard !arguments.isEmpty else { return }
         var argv = arguments
-        if argv[0] == "claude", let claudePath { argv[0] = claudePath }
+        if let agent = ClaudeSessionMac.agent(program: argv[0]), let found = ClaudeSessionMac.program(agent) {
+            argv[0] = found.path
+        }
         let files = FileManager.default
         let folder = files.temporaryDirectory.appendingPathComponent("AllInOneIME", isDirectory: true)
         try files.createDirectory(at: folder, withIntermediateDirectories: true)

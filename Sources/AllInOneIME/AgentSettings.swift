@@ -102,11 +102,11 @@ enum AgentAvailability {
         kind.program(custom: custom).map(installed(program:)) ?? false
     }
 
-    /// Whether `program` (`AgentKind.program`) is on this Mac: Claude Code also where Terminal finds it.
+    /// Whether `program` (`AgentKind.program`) is on this Mac, as the question sessions find it
+    /// (`ClaudeSessionMac.isInstalled`): an agent's CLI also where Terminal finds it or inside its desktop app.
     static func installed(program: String) -> Bool {
         if let known = found[program] { return known }
-        let installed = (program == "claude" && TerminalLauncher.claudePath != nil)
-            || CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+        let installed = ClaudeSessionMac.isInstalled(program)
         found[program] = installed
         return installed
     }

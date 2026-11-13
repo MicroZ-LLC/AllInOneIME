@@ -15,6 +15,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- A CLI that only came with a desktop app (the Claude app's Claude Code, the ChatGPT app's `codex`) counts as installed for `@agent` too, as it does for the `@question` sessions, and runs from there: Settings → Commands → `@agent` no longer says it isn't installed, `@agent` (Claude Code, or a custom agent running `codex`) starts it in Terminal, and `@tasks` and the menu bar panel list Claude Code's tasks. Both look for it the same way.
 - `@tasks` and the menu bar panel's Claude tasks no longer sometimes wait for good for a `claude agents` (or `claude --bg`) that had already ended: the input method learns of its end from the process itself, as the `@question` sessions do, rather than from a wait that missed about one end in ten.
 
 ## 0.7.3 (2026-11-12)

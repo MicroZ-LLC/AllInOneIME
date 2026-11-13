@@ -60,6 +60,23 @@ enum ClaudeSessionMac {
             : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"]) ?? desktopBundled(agent)
     }
 
+    /// The agent whose program `program` is (`claude`, `codex`, `gemini`, `kiro-cli`: `@agent`'s, a custom agent's
+    /// command), nil for any other: where it is, `program(_:)`. The one lookup for the sessions and `@agent`
+    /// (`AgentAvailability`, `TerminalLauncher.agent`, `AgentMonitor`, the menu bar panel's tasks), so a CLI that only
+    /// came with a desktop app counts for both.
+    static func agent(program: String) -> SessionAgent? {
+        SessionAgent.allCases.first { $0.program == program }
+    }
+
+    /// Whether `program` is on this Mac: an agent's where `program(_:)` finds it, any other on the login shell's PATH
+    /// and runnable (`CommandRunner.isInstalled`).
+    static func isInstalled(_ program: String) -> Bool {
+        guard let agent = agent(program: program) else {
+            return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+        }
+        return self.program(agent) != nil
+    }
+
     /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
     /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
     /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are

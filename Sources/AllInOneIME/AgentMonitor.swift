@@ -36,7 +36,8 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         super.init()
     }
 
-    var claude: String { TerminalLauncher.claudePath ?? "claude" }
+    /// Where `claude` is, as the question session finds it (`ClaudeSessionMac.claudeURL`, the Claude app's copy too).
+    var claude: String { ClaudeSessionMac.claudeURL?.path ?? "claude" }
 
     /// At launch: notifications come back here; tasks from before a restart are watched again.
     func setUp() {
