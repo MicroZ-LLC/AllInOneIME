@@ -11,7 +11,7 @@ import Foundation
 ///   answer) and remembers it; an id it doesn't have loads as a new conversation.
 /// - The model: its default is slow (first token 5.5–8 s); `session/set_model` to `model` (≈1.7 s), sent after each
 ///   `session/new` and `session/load` before any prompt (`AntigravityDriver`).
-/// - Reading the web and nothing else, three ways, each enough alone for what it covers:
+/// - Reading the web and nothing else is enforced by the agent and hook; completed tools are checked afterward:
 ///   1. `--agent allinoneime`: the folder's `.agents/agents/allinoneime.md` (`agent`), whose `tools` are `search_web`
 ///      alone (agy adds `manage_task`) and `mcpServers` none; a conversation whose web tools are off runs
 ///      `allinoneime-offline` (`offlineAgent`, no tools; `SessionWeb`, decided per process from the conversation's
