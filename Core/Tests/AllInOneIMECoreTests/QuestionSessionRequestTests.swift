@@ -235,6 +235,29 @@ struct QuestionSessionRequestTests {
         #expect(fresh.redaction?.restore("[EMAIL_1]") == "[EMAIL_1]")
     }
 
+    /// A follow-up's answer puts back what its own conversation hid before, though the follow-up itself hid nothing
+    /// (only it goes in: the agent has the earlier rounds with their placeholders).
+    @Test func aFollowUpPutsBackWhatItsConversationHidBefore() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        let panel = QuestionConversation()
+        let first = session.request(panel)
+        let hidden = session.redacting(settings, for: first) { redaction in redaction?.hide("mail secret@company.com") ?? "" }
+        #expect(hidden.result == "mail [EMAIL_1]")
+        let stream = first.ask(hidden.result)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("ok")
+        _ = await collect(stream)
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let shorter = session.redacting(settings, for: followUp) { redaction in redaction?.hide("shorter") ?? "" }
+        #expect(shorter.result == "shorter")
+        #expect(shorter.redaction?.restore("To [EMAIL_1].") == "To secret@company.com.")
+    }
+
 
 
     @Test func identicalAnswersToDifferentQuestionsAreDifferentTurns() throws {
