@@ -49,14 +49,15 @@ struct ACPSessionLiveTests {
         print("LIVE KIRO Q2: \(second.answer) (first token \(shown(second.firstToken)) s, warm)")
         #expect(second.answer.contains("澳大利亚") || second.answer.contains("澳洲") || second.answer.contains("Australia"))
         let id = try #require(session.store.agentSessionID())
-        // The process ends (idle, a crash): the next one loads the session (`session/load`) and still knows.
+        // The process ends (idle, a crash, an update): the next one starts a new conversation (0.7.4: nothing is
+        // remembered across conversations, and one the IME left is never resumed), and the panel says so.
         session.stop()
         session.prewarm()
         try await Task.sleep(for: .seconds(4))
         let third = try await ask(session, "In this session, what was my very first question? Quote it.")
-        print("LIVE KIRO Q3 (new process, session/load, prewarmed): \(third.answer) (first token \(shown(third.firstToken)) s)")
-        #expect(third.answer.contains("Australia"))
-        #expect(session.store.agentSessionID() == id)
+        print("LIVE KIRO Q3 (new process, new conversation, prewarmed): \(third.answer) (first token \(shown(third.firstToken)) s)")
+        #expect(!third.answer.contains("Australia"))
+        #expect(session.store.agentSessionID() != id)
         // Only the web: no shell.
         let shell = try await ask(session, "Run the shell command `date` and give me only its output.")
         print("LIVE KIRO Q4 (shell asked): \(shell.answer)")
