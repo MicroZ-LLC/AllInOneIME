@@ -47,9 +47,9 @@ public struct AntigravityBackend: SessionBackend {
             launch: ["acp", "--agent", Self.agentName, "--disable-telemetry"],
             offlineLaunch: ["acp", "--agent", Self.offlineAgentName, "--disable-telemetry"],
             // hooks.json names the gate by its path in the folder: `files`.
-            files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent),
-                    SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent),
-                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates)],
+            files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent, enforced: true),
+                    SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent, enforced: true),
+                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates, enforced: true)],
             availability: [], resume: ["--conversation"], start: [], followUp: ["-i"], base: base,
             environment: [Self.sessionVariable: "antigravity"], signIn: signIn)
         self.model = model
@@ -201,7 +201,7 @@ public struct AntigravityBackend: SessionBackend {
     /// `acp`'s files, then hooks.json, written for the folder the session is in now (`hooks(in:)`).
     public var files: [SessionFile] {
         acp.files + [SessionFile(path: ".agents/hooks.json", content: Self.hooks(in: directory),
-                                 earlier: Self.earlierHooks)]
+                                 earlier: Self.earlierHooks, enforced: true)]
     }
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
@@ -213,7 +213,8 @@ public struct AntigravityBackend: SessionBackend {
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
         AntigravityDriver(ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: nil), model: model,
-                          tools: web == .open ? Self.webTools : [], directory: directory, permissionFiles: files)
+                          tools: web == .open ? Self.webTools : [], directory: directory,
+                          permissionFiles: files.filter(\.enforced))
     }
 
     public func effective(_ web: SessionWeb) -> SessionWeb? { acp.effective(web) }

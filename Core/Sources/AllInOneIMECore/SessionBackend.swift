@@ -64,15 +64,19 @@ extension SessionBackend {
 }
 
 /// A file of the session's folder: `path` in it, its `content`, and earlier defaults that are replaced by it.
+/// `enforced`: one that keeps the agent to its tools (an agent's tool list, a hook and its gate), put back as `content`
+/// before each start whatever is there (`ClaudeSessionStore.prepare`); else (the instructions) one the user changed stays.
 public struct SessionFile: Equatable, Sendable {
     public var path: String
     public var content: String
     public var earlier: [String] = []
+    public var enforced = false
 
-    public init(path: String, content: String, earlier: [String] = []) {
+    public init(path: String, content: String, earlier: [String] = [], enforced: Bool = false) {
         self.path = path
         self.content = content
         self.earlier = earlier
+        self.enforced = enforced
     }
 }
 

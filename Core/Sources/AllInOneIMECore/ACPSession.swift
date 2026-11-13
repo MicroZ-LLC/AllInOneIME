@@ -116,8 +116,8 @@ public struct ACPBackend: SessionBackend {
     public static let kiro = ACPBackend(
         agent: .kiro, folderName: "kiro-session", launch: ["acp"], mode: kiroMode, offlineMode: kiroOfflineMode,
         files: [SessionFile(path: ".kiro/steering/allinoneime.md", content: ClaudeSession.instructions),
-                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent),
-                SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent)],
+                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent, enforced: true),
+                SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent, enforced: true)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
 
     public var directory: URL { (base ?? CorePaths.dataDir).appendingPathComponent(folderName, isDirectory: true) }

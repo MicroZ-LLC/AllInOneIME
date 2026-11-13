@@ -133,16 +133,17 @@ struct ClaudeSessionProviderTests {
         #expect(session.authStatusArguments() == ["--setting-sources", "project", "auth", "status", "--json"])
     }
 
-    @Test func aFolderWithEditedInstructionsIsRepaired() throws {
+    @Test func aFolderWithTheEarlierInstructionsGetsTheNewOnesAnEditedOneStays() throws {
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent("CLAUDE.md")
         try Data(ClaudeSession.earlierInstructions[0].utf8).write(to: file)
         try store.prepare()
         let now = try String(contentsOf: file, encoding: .utf8)
         #expect(now == ClaudeSession.instructions && !now.contains("WebSearch") && now.contains("when you have a tool for it"))
+        // Instructions, not what keeps it to its tools (its flags do): the user's own stay.
         try Data("My own.".utf8).write(to: file)
         try store.prepare()
-        #expect(try String(contentsOf: file, encoding: .utf8) == ClaudeSession.instructions)
+        #expect(try String(contentsOf: file, encoding: .utf8) == "My own.")
     }
 
     // MARK: - Errors

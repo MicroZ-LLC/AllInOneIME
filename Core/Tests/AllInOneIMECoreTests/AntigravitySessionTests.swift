@@ -16,6 +16,9 @@ struct AntigravitySessionTests {
     var store: ClaudeSessionStore { ClaudeSessionStore(backend) }
 
     @Test func prepareRepairsEveryPermissionFile() throws {
+        // Each of its files keeps it to its tools (the agents' lists, the hook and its gate).
+        let loose = backend.files.filter { !$0.enforced }.map(\.path)
+        #expect(loose.isEmpty)
         try store.prepare()
         for file in backend.files {
             let url = folder.appendingPathComponent(file.path)

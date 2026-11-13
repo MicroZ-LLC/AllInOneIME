@@ -68,14 +68,18 @@ struct ACPSessionTests {
         session.stop()
     }
 
+    /// The agent files (their tools) are put back; the steering (instructions) the user changed stays.
     @Test func prepareRepairsKiroAgentFiles() throws {
         try store.prepare()
+        let enforced = ACPBackend.kiro.files.filter { $0.enforced }.map(\.path)
+        #expect(enforced == [".kiro/agents/allinoneime.json", ".kiro/agents/allinoneime-offline.json"])
         for file in ACPBackend.kiro.files {
             try Data("{}".utf8).write(to: folder.appendingPathComponent(file.path), options: .atomic)
         }
         try store.prepare()
         for file in ACPBackend.kiro.files {
-            #expect(try Data(contentsOf: folder.appendingPathComponent(file.path)) == Data(file.content.utf8))
+            let written = try Data(contentsOf: folder.appendingPathComponent(file.path))
+            #expect(written == Data((file.enforced ? file.content : "{}").utf8), "\(file.path)")
         }
     }
 
