@@ -160,9 +160,8 @@ struct ClaudeSessionProviderTests {
         #expect(error(nil, nil, "The SSO session associated with this profile has expired or is otherwise invalid. To refresh this SSO session run aws sso login") == .awsSignInExpired)
         // Bedrock's other errors as before: the account's access isn't a sign-in.
         let denied = "API Error: 400 Error 002: Access to Bedrock models is not allowed for this account"
-        #expect(error(nil, 400, denied) == .failed(denied) && error(nil, 400, denied).fallsBack)
+        #expect(error(nil, 400, denied) == .failed(denied))
         #expect(error("authentication_failed", nil, "Not logged in · Please run /login") == .signedOut)
-        #expect(ClaudeSessionError.awsSignInExpired.fallsBack)
         #expect(ClaudeSessionError.awsSignInExpired.errorDescription?.contains("aws sso login") == true)
     }
 
@@ -225,6 +224,37 @@ struct ClaudeSessionProviderTests {
         #expect(apple.requests.count == 1)
     }
 
+    /// Whatever the session failed with, the provider answers while none of the answer came: a crash too, its note
+    /// saying so; once some of it came, the question fails saying why, and the provider isn't asked.
+    @Test func aCrashBeforeAnyTextFallsBackAndOneAfterSaysWhy() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        let (converter, apple) = converter(session)
+        let crash = ClaudeSessionError.exited(134, "Segmentation fault")
+        let first = converter.generate(.question, input: "first")
+        #expect(await Timing.eventually { fake.last?.messages.count == 1 })
+        let one = try #require(fake.last)
+        one.started()
+        one.exit(134, "Segmentation fault")
+        let fallback = try await final(first)
+        #expect(fallback?.result.versions.first?.text == "From the provider." && apple.requests.count == 1)
+        #expect(fallback?.note == crash.fallbackNote(for: .claude))
+
+        let second = converter.generate(.question, input: "second")
+        #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages.count == 1 })
+        let two = try #require(fake.last)
+        two.started()
+        two.text("Half")
+        two.exit(134, "Segmentation fault")
+        do {
+            _ = try await final(second)
+            Issue.record("the partial answer's crash was not said")
+        } catch {
+            #expect((error as? DescribedError)?.message == crash.description(for: .claude), "\(error)")
+        }
+        #expect(apple.requests.count == 1)
+    }
+
     // MARK: - No answer in time
 
     @Test func noSignOfAnAnswerInTimeEndsTheProcessAndFallsBack() async throws {
@@ -239,7 +269,7 @@ struct ClaudeSessionProviderTests {
         #expect(!stuck.terminated)
         clock.advance(by: .seconds(1))
         let got = await collect(stream)
-        #expect(got.error as? ClaudeSessionError == .noResponse && ClaudeSessionError.noResponse.fallsBack)
+        #expect(got.error as? ClaudeSessionError == .noResponse)
         #expect(stuck.terminated && !session.isRunning)
         stuck.exit(15)  // of no session now
 

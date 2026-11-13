@@ -435,8 +435,8 @@ public enum ClaudeSession {
     }
 }
 
-/// Why the session didn't answer. `fallsBack`: before any of the answer came, the provider answers instead (with
-/// `message` said in the panel).
+/// Why the session didn't answer: whichever it is, before any of the answer came the provider answers instead (the
+/// panel says why, `fallbackNote`); after some of it came, the question fails so (`description(for:)`).
 public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// No `claude` command on this Mac.
     case notInstalled
@@ -469,15 +469,6 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     case exited(Int32, String)
     /// The turn failed some other way (Claude Code's message).
     case failed(String)
-
-    public var fallsBack: Bool {
-        switch self {
-        case .notInstalled, .cannotLaunch, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart,
-             .notWebOnly, .busy, .compacting:
-            return true
-        case .exited, .failed: return true
-        }
-    }
 
     public var errorDescription: String? { description(for: .claude) }
 

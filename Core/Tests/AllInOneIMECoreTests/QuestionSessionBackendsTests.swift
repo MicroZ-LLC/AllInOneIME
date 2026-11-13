@@ -216,7 +216,7 @@ struct QuestionSessionBackendsTests {
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
         completed(process, status: "failed", error: ["message": "401 Unauthorized", "codexErrorInfo": "unauthorized"])
         let error = await collect(stream).error as? ClaudeSessionError
-        #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut)
+        #expect(error == .signedOut && session.availability == .signedOut)
         #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
         let limited = session.ask("again", in: nil)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
@@ -312,7 +312,7 @@ struct QuestionSessionBackendsTests {
         // Which MCP servers to turn off isn't known (one reached over the network would start): no thread; the provider
         // answers, saying why.
         let got = await collect(stream)
-        #expect(got.error as? ClaudeSessionError == .notWebOnly && ClaudeSessionError.notWebOnly.fallsBack)
+        #expect(got.error as? ClaudeSessionError == .notWebOnly)
         #expect(requests(process, "thread/start").isEmpty && process.terminated)
         #expect(session.availability == .cannotStart)
     }

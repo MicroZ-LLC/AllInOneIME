@@ -94,7 +94,7 @@ struct QuestionSessionCompactionTests {
             try respond("turn/start", ["turn": ["id": "turn_1"]])
             process.say(compaction)
             let error = await collect(stream).error as? ClaudeSessionError
-            #expect(error == .compacting && error?.fallsBack == true, "\(compaction)")
+            #expect(error == .compacting, "\(compaction)")
             #expect(process.lines.contains { $0["method"] as? String == "turn/interrupt" })
         }
     }

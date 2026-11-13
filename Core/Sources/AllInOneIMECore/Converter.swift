@@ -305,7 +305,7 @@ public final class Converter: Sendable {
                                        started: started, told: missing,
                                        question: turns.last?.instruction ?? input, continuation: continuation)
                 return
-            } catch let error as ClaudeSessionError where error.fallsBack {
+            } catch let error as ClaudeSessionError {
                 guard !route.slow else { throw ClaudeSessionError.failed(error.description(for: session.backend.agent)) }
                 note = error.fallbackNote(for: session.backend.agent)
             }
@@ -359,7 +359,8 @@ public final class Converter: Sendable {
     /// `@question` answered by the dedicated Claude session, as its `request` (`ClaudeSessionManager.Request.answer`):
     /// `message` is the question as sent (redacted); the answer streams in as the provider's does, its placeholders put
     /// back, with which session it is, whether its conversation is new and the tokens it used (the panel's footer).
-    /// Throws what the session failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came.
+    /// Throws what the session failed with: a `ClaudeSessionError` (the provider answers) only before any of the answer
+    /// came; after some of it, a `DescribedError` saying it (no other answer then).
     /// Answered, the answer and `told` (the earlier rounds' answers sent with the question) are in the session
     /// (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, _ request: ClaudeSessionManager.Request, message: String,
@@ -386,7 +387,7 @@ public final class Converter: Sendable {
                     firstTokenLatency: firstToken, fromCache: false, hidden: hidden, answeredBy: answeredBy,
                     newConversation: reply.newConversation, tokens: reply.tokens))
             }
-        } catch let error as ClaudeSessionError where !text.isEmpty && error.fallsBack {
+        } catch let error as ClaudeSessionError where !text.isEmpty {
             throw DescribedError(message: error.description(for: session.backend.agent))
         }
         try Task.checkCancellation()

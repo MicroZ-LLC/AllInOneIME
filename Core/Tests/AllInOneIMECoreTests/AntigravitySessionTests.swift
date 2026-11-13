@@ -222,7 +222,7 @@ struct AntigravitySessionTests {
         let next = session.ask("read /etc/hosts", in: nil)
         tool(process, "read_file", status: "completed", kind: "read")
         let error = await collect(next).error as? ClaudeSessionError
-        #expect(error == .notWebOnly && error?.fallsBack == true && process.terminated)
+        #expect(error == .notWebOnly && process.terminated)
     }
 
     @Test func withItsWebOffItRunsTheAgentWithoutToolsAndEvenTheSearchEndsIt() async throws {
@@ -372,7 +372,7 @@ struct AntigravitySessionTests {
         // As agy says it with no sign-in (checked with an empty HOME).
         try respond(process, "session/new", error: ["code": -32000, "message": "Authentication required"])
         let error = await collect(stream).error as? ClaudeSessionError
-        #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut && process.terminated)
+        #expect(error == .signedOut && session.availability == .signedOut && process.terminated)
         #expect(requests(process, "session/set_model").isEmpty)
         #expect(error?.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
     }

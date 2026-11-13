@@ -312,7 +312,7 @@ struct ACPSessionTests {
                                                     "authMethods": [["id": "kiro-login", "name": "Kiro Login"]]])
         try respond(process, "session/new", error: ["code": -32000, "message": "Authentication required. Not logged in. Set the KIRO_API_KEY environment variable or run `kiro-cli login` first."])
         let error = await collect(stream).error as? ClaudeSessionError
-        #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut)
+        #expect(error == .signedOut && session.availability == .signedOut)
         #expect(process.terminated && !session.isRunning && store.agentSessionID() == nil)
         #expect(error?.description(for: .kiro).contains("kiro-cli login") == true)
         // The sign-in check: `kiro-cli whoami`, signed in when it exits 0.

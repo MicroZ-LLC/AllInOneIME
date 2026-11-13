@@ -86,7 +86,7 @@ struct QuestionSessionStuckTests {
         #expect(await clock.sleepers(2))
         clock.advance(by: ClaudeSessionManager.firstAnswerTimeout)
         let waited = await collect(second)
-        #expect(waited.error as? ClaudeSessionError == .busy && ClaudeSessionError.busy.fallsBack)
+        #expect(waited.error as? ClaudeSessionError == .busy)
         // The answer being given goes on in its process.
         #expect(!process.terminated && process.messages == ["one"])
         process.text(" going")
@@ -106,7 +106,7 @@ struct QuestionSessionStuckTests {
         try #require(fake.last).exit(1, "error: unknown option '--name'")
         let got = await collect(stream)
         let error = try #require(got.error as? ClaudeSessionError)
-        #expect(error == .failedToStart(1, "error: unknown option '--name'") && error.fallsBack)
+        #expect(error == .failedToStart(1, "error: unknown option '--name'"))
         #expect(error.fallbackNote(for: .claude).contains("unknown option"))
         #expect(session.availability == .cannotStart)
         // Automatic passes it by until it is looked at again.
@@ -138,7 +138,7 @@ struct QuestionSessionStuckTests {
                 }
             }
             let error = ClaudeSessionError.cannotLaunch("Program not found: /u/agy")
-            #expect(error.fallsBack && error.fallbackNote(for: .antigravity)
+            #expect(error.fallbackNote(for: .antigravity)
                 == "The Antigravity session couldn't start: Program not found: /u/agy; the AI provider answered this time")
         }
 
@@ -150,7 +150,7 @@ struct QuestionSessionStuckTests {
             Issue.record("\(error)")
             return
         }
-        #expect(error.fallsBack && reason.contains(program.path))
+        #expect(reason.contains(program.path))
         #expect(session.availability == .cannotStart && !session.isRunning)
         // Made executable meanwhile: Settings looks again once `recheckInterval` has passed, and finds it ready.
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
@@ -184,7 +184,7 @@ struct QuestionSessionStuckTests {
                         result: ["sessionId": "sess_1", "modes": ["currentModeId": "kiro_default", "availableModes": offered]])
             if refused { try respond(process, "session/set_mode", error: ["code": -32603, "message": "no such agent"]) }
             let got = await collect(stream)
-            #expect(got.error as? ClaudeSessionError == .notWebOnly && ClaudeSessionError.notWebOnly.fallsBack, "refused \(refused)")
+            #expect(got.error as? ClaudeSessionError == .notWebOnly, "refused \(refused)")
             #expect(!process.lines.contains { $0["method"] as? String == "session/prompt" } && process.terminated)
             #expect(session.availability == .cannotStart)
             #expect(ClaudeSessionError.notWebOnly.description(for: .kiro).contains("Kiro CLI"))

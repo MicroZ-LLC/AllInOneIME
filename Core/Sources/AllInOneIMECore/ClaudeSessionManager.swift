@@ -1127,8 +1127,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return []  // a permission request is answered by the driver
         case .compacting:
             // The conversation's context compacted first, before any of the answer: that may take minutes. The provider
-            // answers now (`fallsBack`), the turn is stopped as Esc stops it, and the process stays. Once the answer is
-            // coming in, it goes on.
+            // answers now, the turn is stopped as Esc stops it, and the process stays. Once the answer is coming in, it
+            // goes on.
             guard let turn, !turn.done, turn.text.isEmpty else { return [] }
             givenUp(turn)
             return finish(turn, ClaudeSessionError.compacting) + interruptAction(&state)

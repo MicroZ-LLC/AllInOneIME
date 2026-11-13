@@ -296,7 +296,6 @@ struct ClaudeSessionTests {
         process.exit(134, "Segmentation fault")
         let got = await collect(stream)
         #expect(got.answers == ["Half"] && got.error as? ClaudeSessionError == .exited(134, "Segmentation fault"))
-        #expect((got.error as? ClaudeSessionError)?.fallsBack == true)
         let next = session.ask("again", in: nil)
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2 && restarted.arguments.contains("--resume") && restarted.messages == ["again"])
@@ -422,7 +421,7 @@ struct ClaudeSessionTests {
         missing.missing = true
         let none = ClaudeSessionManager(launcher: missing, store: ClaudeSessionStore(directory: folder.appendingPathComponent("b")))
         let error = await collect(none.ask("hi", in: nil)).error as? ClaudeSessionError
-        #expect(error == .notInstalled && error?.fallsBack == true && none.availability == .notInstalled)
+        #expect(error == .notInstalled && none.availability == .notInstalled)
     }
 
     @Test func whichBackendAnswers() {
