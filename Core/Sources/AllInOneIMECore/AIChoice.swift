@@ -129,7 +129,7 @@ public enum AIStatus: Equatable, Sendable {
     /// The CLI's `program` isn't on this Mac.
     case notInstalled(program: String)
     /// The CLI's session couldn't be used when a question was asked (`ClaudeSession.Availability.cannotStart`): it
-    /// ended before it started, or it couldn't be kept to the web.
+    /// ended before it started, it couldn't be kept to the web, or its program couldn't be launched.
     case cannotStart
     /// An API key: saved, in the shell, or none (`KeyState`).
     case key(KeyState)

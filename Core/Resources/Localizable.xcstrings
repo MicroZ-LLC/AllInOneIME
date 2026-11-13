@@ -4706,6 +4706,53 @@
         }
       }
     },
+    "%@ isn't executable" : {
+      "comment" : "%@ 没有执行权限 — Sources/AllInOneIMECore/ClaudeSessionManager.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist nicht ausführbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ no es ejecutable"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n’est pas exécutable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ には実行権限がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에 실행 권한이 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não é executável"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 沒有執行權限"
+          }
+        }
+      }
+    },
     "%@ isn't one of your input languages" : {
       "comment" : "%@还不是输入语言 — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -37909,7 +37956,7 @@
       }
     },
     "Program not found: %@" : {
-      "comment" : "找不到程序 %@ — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "comment" : "找不到程序 %@ — Sources/AllInOneIMECore/ClaudeSessionManager.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

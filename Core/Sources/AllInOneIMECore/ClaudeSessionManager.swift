@@ -24,7 +24,8 @@ extension ClaudeSessionProcess {
 public protocol ClaudeSessionLauncher: Sendable {
     /// Starts `claude` with `arguments` in `directory`. Each line it writes to its standard output goes to `output`, in
     /// order, on one thread; then `exited`, once, with its status and the end of what it wrote to standard error.
-    /// Throws `ClaudeSessionError.notInstalled` when there is no `claude`.
+    /// Throws `ClaudeSessionError.notInstalled` when there is no `claude`, `.cannotLaunch` when it is there but couldn't
+    /// be launched.
     func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
                exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess
     /// Whether there is a program to start (`start` throws `notInstalled` when there isn't).
@@ -61,7 +62,8 @@ extension ClaudeSessionLauncher {
 /// that doesn't end within `interruptTimeout` (an agent deaf to the interrupt): the process is stuck, the next question
 /// starts it again. A question waiting behind one being answered waits `firstAnswerTimeout` at most, then fails with
 /// `.busy` (the provider answers). A process that ends before its session starts, twice, fails the question with
-/// `.failedToStart` (the provider answers) and the agent is `.cannotStart` until its sign-in is looked at again.
+/// `.failedToStart` (the provider answers) and the agent is `.cannotStart` until its sign-in is looked at again; so is
+/// one whose program won't launch at all (`.cannotLaunch`: gone since it was found, not executable).
 /// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
 /// never stands for two values, and which answers the session saw (`missing`, `remember`).
 /// Whether the agent can answer at all (`availability`) is looked at only once the session could answer a question
@@ -308,6 +310,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 if backend.availabilityInput.isEmpty { process.closeInput() }
             } catch ClaudeSessionError.notInstalled {
                 check.finish(.notInstalled)
+                return
+            } catch ClaudeSessionError.cannotLaunch {
+                check.finish(.cannotStart)
                 return
             } catch {
                 check.finish(.signedOut)
@@ -771,6 +776,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             held.release()
             (state.availability, state.checkedAt) = (.notInstalled, uptime())
             throw ClaudeSessionError.notInstalled
+        } catch let ClaudeSessionError.cannotLaunch(reason) {
+            // Found, but its program wouldn't launch: the provider answers, saying why; Settings → AI says it can't start
+            // until it is looked at again (`checkAvailability`), and the next question tries again.
+            held.release()
+            (state.availability, state.checkedAt) = (.cannotStart, uptime())
+            throw ClaudeSessionError.cannotLaunch(reason)
         } catch {
             held.release()
             throw error
@@ -1179,7 +1190,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 /// (`LaunchSpec.onExit`), never `waitUntilExit` on a dispatch thread, which sometimes never returns (a program that
 /// exited would count as running: a sign-in check found signed out, a question waiting for a process long gone).
 /// `executable`: where `claude` is (nil: not installed); `environment`: what it runs with (on the Mac the login shell's);
-/// `processes`: nil, the platform's as it starts.
+/// `processes`: nil, the platform's as it starts. One found that won't launch (gone since, not executable) throws
+/// `ClaudeSessionError.cannotLaunch`, saying why (`launchFailure`).
 public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
     public var processes: (any ProcessLauncher)?
     public var executable: @Sendable () -> URL?
@@ -1202,10 +1214,15 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         guard processes.canLaunch, let executable = executable() else { throw ClaudeSessionError.notInstalled }
         let input = Pipe(), out = Pipe(), errors = Pipe()
         let ended = DispatchSemaphore(value: 0)
-        let launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment(),
+        let launched: any LaunchedProcess
+        do {
+            launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment(),
                                                        directory: directory, standardInput: .pipe(input),
                                                        standardOutput: .pipe(out), standardError: .pipe(errors),
                                                        onExit: { _ in ended.signal() }))
+        } catch {
+            throw ClaudeSessionError.cannotLaunch(Self.launchFailure(executable, error))
+        }
         let errorTail = Locked(initialState: Data())
         let errorsRead = DispatchSemaphore(value: 0)
         // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes).
@@ -1233,6 +1250,15 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
             exited(launched.terminationStatus, String(message.split(whereSeparator: \.isNewline).last ?? ""))
         }
         return PipedClaudeProcess(process: launched, input: input.fileHandleForWriting)
+    }
+
+    /// Why `executable` didn't launch (`error`, the launcher's): not there, not executable, else what the launcher said
+    /// (Foundation's `Process` says a file that is there but not executable "doesn't exist").
+    static func launchFailure(_ executable: URL, _ error: Error) -> String {
+        let path = executable.path
+        if !FileManager.default.fileExists(atPath: path) { return tr("找不到程序 \(path)", "Program not found: \(path)") }
+        if !FileManager.default.isExecutableFile(atPath: path) { return tr("\(path) 没有执行权限", "\(path) isn't executable") }
+        return error.localizedDescription
     }
 }
 

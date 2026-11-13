@@ -118,6 +118,47 @@ struct QuestionSessionStuckTests {
         #expect(session.answersQuestions(config))
     }
 
+    /// A program found (its install check passed) that won't launch: gone since, or not executable. The launcher says
+    /// which (Foundation's own error calls both "doesn't exist"); the question fails so that the provider answers,
+    /// saying why; the agent can't start until it is looked at again, no sooner than `recheckInterval` after.
+    @Test func aProgramThatWontLaunchFallsBackAndIsLookedAtAgainLater() async throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let gone = folder.appendingPathComponent("gone/claude")
+        let program = folder.appendingPathComponent("claude")
+        try Data("#!/bin/sh\necho '{\"loggedIn\": true}'\n".utf8).write(to: program)
+        try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: program.path)
+        func launcher(_ url: URL) -> ProcessClaudeSessionLauncher {
+            ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { url }, environment: { [:] })
+        }
+        try await withInterfaceLanguage("en") {
+            for (url, reason) in [(gone, "Program not found: \(gone.path)"), (program, "\(program.path) isn't executable")] {
+                #expect(launcher(url).installed())
+                #expect(throws: ClaudeSessionError.cannotLaunch(reason)) {
+                    try launcher(url).start([], in: folder, output: { _ in }, exited: { _, _ in })
+                }
+            }
+            let error = ClaudeSessionError.cannotLaunch("Program not found: /u/agy")
+            #expect(error.fallsBack && error.fallbackNote(for: .antigravity)
+                == "The Antigravity session couldn't start: Program not found: /u/agy; the AI provider answered this time")
+        }
+
+        let now = Locked(initialState: 1000.0)
+        let session = ClaudeSessionManager(launcher: launcher(program), store: store, userSettings: { nil },
+                                           uptime: { now.withLock { $0 } })
+        let error = try #require(await collect(session.ask("hi")).error as? ClaudeSessionError)
+        guard case let .cannotLaunch(reason) = error else {
+            Issue.record("\(error)")
+            return
+        }
+        #expect(error.fallsBack && reason.contains(program.path))
+        #expect(session.availability == .cannotStart && !session.isRunning)
+        // Made executable meanwhile: Settings looks again once `recheckInterval` has passed, and finds it ready.
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
+        #expect(await session.checkAvailability() == .cannotStart)
+        now.withLock { $0 += ClaudeSessionManager.recheckInterval }
+        #expect(await session.checkAvailability() == .ready)
+    }
+
     func kiro(_ fake: FakeClaude, in name: String = "kiro") -> ClaudeSessionManager {
         ClaudeSessionManager(backend: ACPBackend.kiro, launcher: fake,
                              store: ClaudeSessionStore(directory: folder.appendingPathComponent(name), files: ACPBackend.kiro.files))

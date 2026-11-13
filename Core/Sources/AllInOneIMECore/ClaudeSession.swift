@@ -428,7 +428,8 @@ public enum ClaudeSession {
         case notInstalled
         case signedOut
         /// Its session couldn't be used when a question was asked: the process ended before the session started (an
-        /// older version that doesn't know a flag), or it couldn't be kept to the web (`ClaudeSessionError.notWebOnly`).
+        /// older version that doesn't know a flag), it couldn't be kept to the web (`ClaudeSessionError.notWebOnly`), or
+        /// its program couldn't be launched (`ClaudeSessionError.cannotLaunch`).
         /// Settings → AI says so until its sign-in is looked at again.
         case cannotStart
     }
@@ -439,6 +440,9 @@ public enum ClaudeSession {
 public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// No `claude` command on this Mac.
     case notInstalled
+    /// Its program was found (`ClaudeSessionLauncher.installed`) but couldn't be launched: gone since (an uninstall or
+    /// update meanwhile), not executable (why, `ProcessClaudeSessionLauncher.launchFailure`).
+    case cannotLaunch(String)
     /// Claude Code isn't signed in.
     case signedOut
     /// The subscription's usage limit is reached (Claude Code's own message, which says until when).
@@ -468,8 +472,8 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 
     public var fallsBack: Bool {
         switch self {
-        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart, .notWebOnly, .busy,
-             .compacting:
+        case .notInstalled, .cannotLaunch, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart,
+             .notWebOnly, .busy, .compacting:
             return true
         case .exited, .failed: return false
         }
@@ -496,6 +500,8 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
             return tr("AWS 登录已过期：在终端运行 aws sso login", "The AWS sign-in has expired: run aws sso login in Terminal")
         case .noResponse:
             return tr("\(short) 会话没有回应", "The \(short) session didn't respond")
+        case let .cannotLaunch(reason):
+            return tr("\(short) 会话启动不了", "The \(short) session couldn't start") + (reason.isEmpty ? "" : ": \(reason)")
         case let .failedToStart(status, message):
             return tr("\(short) 会话启动不了", "The \(short) session couldn't start") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
         case .notWebOnly:
