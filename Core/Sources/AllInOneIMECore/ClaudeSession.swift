@@ -475,7 +475,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
         case .notInstalled, .cannotLaunch, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart,
              .notWebOnly, .busy, .compacting:
             return true
-        case .exited, .failed: return false
+        case .exited, .failed: return true
         }
     }
 

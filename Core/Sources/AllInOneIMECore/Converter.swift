@@ -376,15 +376,15 @@ public final class Converter: Sendable {
         do {
             for try await reply in request.answer(message) {
                 (text, latest) = (reply.text, reply)
-                if firstToken == nil { firstToken = elapsed() }
+                if firstToken == nil, !text.isEmpty { firstToken = elapsed() }
                 if text.utf8.count > Self.maxOutputBytes { break }
                 continuation.yield(ConversionUpdate(
                     result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
                     firstTokenLatency: firstToken, fromCache: false, hidden: hidden, answeredBy: answeredBy,
                     newConversation: reply.newConversation, tokens: reply.tokens))
             }
-        } catch let error as ClaudeSessionError where firstToken != nil && error.fallsBack {
-            throw ClaudeSessionError.failed(error.description(for: session.backend.agent))  // part of the answer is in: no other answers now
+        } catch let error as ClaudeSessionError where !text.isEmpty && error.fallsBack {
+            throw DescribedError(message: error.description(for: session.backend.agent))
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)

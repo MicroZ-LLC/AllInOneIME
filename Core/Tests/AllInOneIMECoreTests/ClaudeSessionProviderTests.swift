@@ -159,7 +159,7 @@ struct ClaudeSessionProviderTests {
         #expect(error(nil, nil, "The SSO session associated with this profile has expired or is otherwise invalid. To refresh this SSO session run aws sso login") == .awsSignInExpired)
         // Bedrock's other errors as before: the account's access isn't a sign-in.
         let denied = "API Error: 400 Error 002: Access to Bedrock models is not allowed for this account"
-        #expect(error(nil, 400, denied) == .failed(denied) && !error(nil, 400, denied).fallsBack)
+        #expect(error(nil, 400, denied) == .failed(denied) && error(nil, 400, denied).fallsBack)
         #expect(error("authentication_failed", nil, "Not logged in · Please run /login") == .signedOut)
         #expect(ClaudeSessionError.awsSignInExpired.fallsBack)
         #expect(ClaudeSessionError.awsSignInExpired.errorDescription?.contains("aws sso login") == true)
@@ -196,6 +196,32 @@ struct ClaudeSessionProviderTests {
         let last = try await final(stream)
         #expect(last?.result.versions.first?.text == "From the provider." && apple.requests.count == 1)
         #expect(last?.note == ClaudeSessionError.awsSignInExpired.fallbackNote)
+    }
+
+    @Test func anErrorBeforeTextFallsBackButAnErrorAfterTextDoesNot() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        let (converter, apple) = converter(session)
+        let first = converter.generate(.question, input: "first")
+        #expect(await Timing.eventually { fake.last?.messages.count == 1 })
+        fail(try #require(fake.last), code: "unknown", "Network failed")
+        let fallback = try await final(first)
+        #expect(fallback?.result.versions.first?.text == "From the provider.")
+        #expect(fallback?.note?.contains("Network failed") == true && apple.requests.count == 1)
+
+        let second = converter.generate(.question, input: "second")
+        #expect(await Timing.eventually { fake.last?.messages.count == 2 })
+        let process = try #require(fake.last)
+        process.started()
+        process.text("Partial")
+        process.say(["type": "result", "subtype": "error_during_execution", "is_error": true, "result": "Network failed"])
+        do {
+            _ = try await final(second)
+            Issue.record("Expected the partial answer's error")
+        } catch {
+            #expect((error as? DescribedError) != nil)
+        }
+        #expect(apple.requests.count == 1)
     }
 
     // MARK: - No answer in time

@@ -274,7 +274,7 @@ struct ClaudeSessionTests {
         process.exit(134, "Segmentation fault")
         let got = await collect(stream)
         #expect(got.answers == ["Half"] && got.error as? ClaudeSessionError == .exited(134, "Segmentation fault"))
-        #expect((got.error as? ClaudeSessionError)?.fallsBack == false)
+        #expect((got.error as? ClaudeSessionError)?.fallsBack == true)
         let next = session.ask("again")
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2 && restarted.arguments.contains("--resume") && restarted.messages == ["again"])
