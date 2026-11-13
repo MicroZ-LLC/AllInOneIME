@@ -13,12 +13,14 @@ struct PrivacySection: View {
 
     var body: some View {
         Section {
+            // Words to hide only with the switch on (owner, 0.7.4); off, the search's Words to hide points at the switch.
+            let hiding = model.config.redaction.enabled
             Toggle(isOn: $model.config.redaction.enabled) {
                 titled(.hideSensitive)
             }
-            .settingsRow(.hideSensitive, shown: model.spot)
+            .settingsRow(.hideSensitive, standingIn: hiding ? [] : [.wordsToHide], shown: model.spot)
             // Each kind is hidden with the switch on; one set off in the config (by hand, an earlier version) shows here.
-            if model.config.redaction.enabled {
+            if hiding {
                 ForEach(Self.kinds, id: \.title) { kind in
                     if !model.config.redaction[keyPath: kind.path] {
                         RestoreDefaultRow(title: kind.title + tr("：不隐藏", ": not hidden"),
@@ -27,19 +29,18 @@ struct PrivacySection: View {
                         }
                     }
                 }
+                LabeledContent {
+                    TextField("", text: Binding(get: { model.wordsField }, set: { model.editWords($0) }),
+                              prompt: Text(tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")))
+                        .focused($wordsFocused)
+                        .onSubmit(model.commitWords)
+                        .onChange(of: wordsFocused) { if !wordsFocused { model.commitWords() } }
+                        .frame(minWidth: 240)
+                } label: {
+                    titled(.wordsToHide)
+                }
+                .settingsRow(.wordsToHide, shown: model.spot)
             }
-            LabeledContent {
-                TextField("", text: Binding(get: { model.wordsField }, set: { model.editWords($0) }),
-                          prompt: Text(tr("项目代号、名字…，用逗号分开", "A codename, a name…, separated by commas")))
-                    .focused($wordsFocused)
-                    .onSubmit(model.commitWords)
-                    .onChange(of: wordsFocused) { if !wordsFocused { model.commitWords() } }
-                    .frame(minWidth: 240)
-            } label: {
-                titled(.wordsToHide)
-            }
-            .disabled(!model.config.redaction.enabled)
-            .settingsRow(.wordsToHide, shown: model.spot)
         } header: {
             SectionTitle(tr("发给 AI 的内容", "What Goes to the AI"), icon: SettingsPage.privacy.icon)
         } footer: {

@@ -4,10 +4,10 @@ import SwiftUI
 
 /// Settings → General → Sync through iCloud (「通过 iCloud 同步」, `ICloudSyncController`): off by default; on only with
 /// iCloud Drive there (else how to turn it on, and a button to that pane). One status row, its switch with the last sync
-/// under it and a ⋯ menu (Sync Now, API keys and passwords through iCloud Keychain, Remove from iCloud…); the learned
-/// words' switch; one switch for the hidden words and the recent questions (off until chosen here). What else syncs (the
-/// settings, the jargon list and custom commands) is on unless the config says otherwise, then shown with Restore
-/// Default. All of it is this Mac's own: never synced.
+/// under it and a ⋯ menu (Sync Now, API keys and passwords through iCloud Keychain, Remove from iCloud…); one switch for
+/// the hidden words and the recent questions (off until chosen here). What else syncs (the settings, the jargon list and
+/// custom commands, and the learned words, whose switch went in 0.7.4) is on unless the config says otherwise, then
+/// shown with Restore Default. All of it is this Mac's own: never synced.
 struct ICloudSyncSection: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject private var sync = ICloudSyncController.shared
@@ -46,10 +46,6 @@ struct ICloudSyncSection: View {
                 }
             }
             if model.config.iCloudSync.enabled {
-                Toggle(isOn: binding(\.learnedWords)) {
-                    titled(tr("学到的词", "Learned words"), tr("拼音从你的选择里学到的词（Rime 的用户词典），和你的英文词",
-                                                            "What pinyin learned from your choices (Rime's user dictionary), and your English words"))
-                }
                 Toggle(isOn: Binding(get: { model.config.iCloudSync.hiddenWords || model.config.iCloudSync.recentQuestions },
                                      set: setPrivate)) {
                     VStack(alignment: .leading, spacing: 2) {
@@ -74,6 +70,10 @@ struct ICloudSyncSection: View {
                 if !model.config.iCloudSync.jargon {
                     RestoreDefaultRow(title: tr("黑话库和自定义命令：不同步", "Jargon and custom commands: not synced"),
                                       note: tr("默认会同步。", "Synced by default.")) { set(\.jargon, true) }
+                }
+                if !model.config.iCloudSync.learnedWords {
+                    RestoreDefaultRow(title: tr("学到的词：不同步", "Learned words: not synced"),
+                                      note: tr("默认会同步。", "Synced by default.")) { set(\.learnedWords, true) }
                 }
             }
             if let removeError { Text(removeError).font(.callout).foregroundStyle(.red) }

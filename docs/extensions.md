@@ -27,7 +27,7 @@ app's) is listed in Settings as needing a newer AllInOneIME, and isn't run.
 Extensions are read from folders:
 
 - `~/.config/allinoneime/extensions/` (in the list from the start),
-- folders added under Settings → Commands → Script Extensions → Add Folder…,
+- folders added under Settings → Commands → Folders and sources… → Add Folder…,
 - folders holding Raycast Script Commands, found with Spotlight (on by default; a found folder can be hidden),
 - bundles installed from a Git repository: extension sources (§10).
 
@@ -343,8 +343,8 @@ Raycast's keys are read as they are, and mean:
 
 ## 10. Extension sources
 
-A bundle can be installed from a Git repository and updated from there: Settings → Commands → Extension
-Sources → Add from Link…, or `AllInOneIME --add-source <url>`.
+A bundle can be installed from a Git repository and updated from there: Settings → Commands → Folders and
+sources… → Extension Sources → Add from Link…, or `AllInOneIME --add-source <url>`.
 
 **The repository.** Any layout, as long as the bundle is a folder with its `extension.json` (§6) and the scripts it
 names:
@@ -523,7 +523,7 @@ text is (the token, prefix and all, taken out and the text put in, one change yo
 the next elsewhere (terminals). The token is taken out only where the field still holds it when the row goes in (read
 back first): where it holds other text there by then, what wasn't typed of the next template that starts with the token
 goes in at the caret instead, or nothing; after a click elsewhere in the text, Tab, Return and the arrows are the app's.
-Its `insert` is the default: Settings → General → Insert (With title, With title and
+Its `insert` is the default: Settings → General → Suggestions → More… → Insert (With title, With title and
 link, Markdown link) and each app's own choice apply to it, as to every source.
 
 **Trust.** On by default (0.6.7.2), so you needn't turn each one on: your own extension's (a bundle or a single script)

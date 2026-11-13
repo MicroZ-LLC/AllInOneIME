@@ -310,6 +310,22 @@ enum SettingsPageImages {
         render(.ai, "restore-default")
         render(.privacy, "restore-default-privacy")
         render(.general, "restore-default-insert")
+        // …and those whose rows went in 0.7.4 (the owner's simplification): how many the clipboard history keeps, iCloud's
+        // learned words, a new version's notification.
+        model.config.clipboardHistoryLimit = 50
+        model.config.iCloudSync.learnedWords = false
+        model.config.notifiesUpdates = false
+        render(.general, "restore-default-general")
+        render(.about, "restore-default-about")
+        // What is folded, folded: Suggestions' More… (no app with its own Insert) and Commands' Folders and sources… (no
+        // source); Words to hide gone with hiding off.
+        model.config = saved
+        model.config.appProfiles = [:]
+        model.config.extensionSources = []
+        model.config.redaction.enabled = false
+        render(.general, "general-folded")
+        render(.commands, "commands-folded")
+        render(.privacy, "privacy-not-hiding")
         // Insert set to Markdown link, everywhere (0.6.7.1).
         model.config = saved
         model.config.suggestionsInsert = .markdownLink

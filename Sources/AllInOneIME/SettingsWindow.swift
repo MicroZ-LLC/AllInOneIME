@@ -1148,6 +1148,8 @@ struct SettingsView: View {
     @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
+    /// Commands → "Folders and sources…" opened (it opens by itself too: `ExtensionSourcesSection.opensByItself`).
+    @State private var showsFolders = false
     /// Script Extensions' folders with no new commands, opened.
     @State private var showsOtherFolders = false
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -1294,20 +1296,24 @@ struct SettingsView: View {
            "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result.")
     }
 
-    /// Advanced → how the candidates of a word are laid out, and commands on the selected text.
+    /// Input → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
+    /// macOS's own panel (owner, 0.7.4: with the input languages, no longer in Advanced).
+    private var candidateLayoutRow: some View {
+        LabeledContent {
+            Picker("", selection: $model.config.candidateLayout) {
+                Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
+                Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } label: {
+            titled(SettingsSpot.candidateLayout.title, Self.layoutNote(model.config.candidateLayout))
+        }
+        .settingsRow(.candidateLayout, shown: model.spot)
+    }
+
+    /// Advanced → commands on the selected text.
     @ViewBuilder private var typingSection: some View {
         Section {
-            // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
-            LabeledContent {
-                Picker("", selection: $model.config.candidateLayout) {
-                    Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
-                    Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-            } label: {
-                titled(SettingsSpot.candidateLayout.title, Self.layoutNote(model.config.candidateLayout))
-            }
-            .settingsRow(.candidateLayout, shown: model.spot)
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(.useSelection)
@@ -1394,7 +1400,8 @@ struct SettingsView: View {
 
     /// The input languages as chips, in their order (the first is the default: new text fields start in it; with two,
     /// Shift switches), Code after them with its coding language; ⊗ removes one, dragging reorders the languages, and
-    /// "Add…" adds one. The packs on their way under them; each input's options follow in sections of their own.
+    /// "Add…" adds one. The packs on their way under them, then how the candidates are laid out; each input's options
+    /// follow in sections of their own.
     @ViewBuilder private var inputSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
@@ -1420,6 +1427,7 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
+            candidateLayoutRow
 
         } header: {
             SectionTitle(tr("输入语言", "Input Languages"), icon: CommandIcons.input)
@@ -1696,30 +1704,10 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// Script extensions (docs/extensions.md): where they're looked for, the bundles and their preferences, the
-    /// commands (each turned on or off), and what was left out, with why.
+    /// Script extensions (docs/extensions.md): the bundles and their preferences, the commands (each turned on or off),
+    /// and what was left out, with why. Where they're looked for is under "Folders and sources…" (`extensionFolderRows`).
     @ViewBuilder private var extensionsSection: some View {
         Section {
-            Toggle(isOn: $model.config.findRaycastScripts) {
-                titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
-                       tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
-                          "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
-            }
-            // The folders that bring commands, each on its row; the others (empty, hidden, only copies of what loads from
-            // elsewhere) folded into one.
-            let (bringing, others) = foldedFolders
-            ForEach(bringing, id: \.path) { folder in folderRow(folder) }
-            if !others.isEmpty {
-                DisclosureGroup(isExpanded: $showsOtherFolders) {
-                    ForEach(others, id: \.path) { folder in folderRow(folder) }
-                } label: {
-                    Label(others.count == 1 ? tr("另外 1 个文件夹没有新命令", "1 more folder with no new commands")
-                              : tr("另外 \(others.count) 个文件夹没有新命令", "\(others.count) more folders with no new commands"),
-                          systemImage: "folder").foregroundStyle(.secondary)
-                }
-                .disclosureGroupStyle(RowDisclosureStyle())
-            }
-            Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
             ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
             ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
             ForEach(model.skippedExtensions, id: \.self) { skipped in
@@ -1731,18 +1719,9 @@ struct SettingsView: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
-            // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
-            if !model.extensionIndex.identical.isEmpty {
-                let identical = model.extensionIndex.identical
-                Label(identical.count == 1 ? tr("跳过了 1 个完全相同的副本", "Skipped 1 identical copy")
-                          : tr("跳过了 \(identical.count) 个完全相同的副本", "Skipped \(identical.count) identical copies"),
-                      systemImage: "doc.on.doc")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
-            }
             if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
-                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
-                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))
+                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进「文件夹和来源…」里的文件夹就行。",
+                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder under Folders and sources…."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let error = model.extensionError { Text(error).foregroundStyle(.red) }
@@ -1757,6 +1736,44 @@ struct SettingsView: View {
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
+    }
+
+    /// Under "Folders and sources…" (`ExtensionSourcesSection`): the plugins' folder, Raycast's switch, the extension
+    /// folders (those that bring commands, each on its row; the others folded into one), Add Folder… and the copies
+    /// skipped.
+    @ViewBuilder private var extensionFolderRows: some View {
+        HStack {
+            Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
+            Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
+        }
+        Toggle(isOn: $model.config.findRaycastScripts) {
+            titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
+                   tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
+                      "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
+        }
+        // The others: empty, hidden, only copies of what loads from elsewhere.
+        let (bringing, others) = foldedFolders
+        ForEach(bringing, id: \.path) { folder in folderRow(folder) }
+        if !others.isEmpty {
+            DisclosureGroup(isExpanded: $showsOtherFolders) {
+                ForEach(others, id: \.path) { folder in folderRow(folder) }
+            } label: {
+                Label(others.count == 1 ? tr("另外 1 个文件夹没有新命令", "1 more folder with no new commands")
+                          : tr("另外 \(others.count) 个文件夹没有新命令", "\(others.count) more folders with no new commands"),
+                      systemImage: "folder").foregroundStyle(.secondary)
+            }
+            .disclosureGroupStyle(RowDisclosureStyle())
+        }
+        Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
+        // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
+        if !model.extensionIndex.identical.isEmpty {
+            let identical = model.extensionIndex.identical
+            Label(identical.count == 1 ? tr("跳过了 1 个完全相同的副本", "Skipped 1 identical copy")
+                      : tr("跳过了 \(identical.count) 个完全相同的副本", "Skipped \(identical.count) identical copies"),
+                  systemImage: "doc.on.doc")
+                .font(.caption).foregroundStyle(.secondary)
+                .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
+        }
     }
 
     /// The extension folders that bring commands (one of theirs loads), and the others.
@@ -1888,10 +1905,6 @@ struct SettingsView: View {
                         "No plugins yet. Plugins are ready-made @ commands, like @stock for stock quotes; once installed they work like any command.")
                         .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                     .font(.caption).foregroundStyle(.secondary)
-            }
-            HStack {
-                Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
-                Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
             }
             if let error = model.pluginError { Text(error).foregroundStyle(.red) }
             pluginLibrary
@@ -2436,13 +2449,13 @@ struct SettingsView: View {
                 }
             }
             .settingsRow(.troubleshoot, shown: model.spot)
-            LabeledContent(tr("网站", "Website")) { Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!) }
-            LabeledContent(tr("使用说明", "Documentation")) { Link("Wiki", destination: URL(string: "https://allinoneime.com/docs")!) }
-            LabeledContent(tr("更新日志", "What's new")) {
+            // Where to read more, in one row (owner, 0.7.4).
+            HStack(spacing: 18) {
+                Link(tr("网站", "Website"), destination: URL(string: "https://allinoneime.com")!)
+                Link(tr("使用说明", "Documentation"), destination: URL(string: "https://allinoneime.com/docs")!)
                 Link(tr("更新日志", "Changelog"), destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME/releases")!)
-            }
-            LabeledContent(tr("源代码", "Source code")) {
-                Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+                Link(tr("源代码", "Source code"), destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+                Spacer()
             }
             // GitHub's page for a new issue, with the versions and settings that help; `@reportissue` does the same.
             LabeledContent {
@@ -2544,7 +2557,6 @@ struct SettingsView: View {
                         SuggestionsSection(model: model)
                         ClipboardHistorySection(model: model)
                         ICloudSyncSection(model: model)
-                        PreviousAppSettingsSection(model: model)
                     case .input:
                         // The input languages, then each one's options under its name (owner, 0.6.7: a page of its own,
                         // as before, not a popover on General).
@@ -2563,10 +2575,13 @@ struct SettingsView: View {
                         webSearchSection
                         pluginsSection
                         extensionsSection
-                        ExtensionSourcesSection(model: model)
+                        // The plugins' folder, the extensions' folders and the extension sources, folded (owner, 0.7.4).
+                        ExtensionSourcesSection(model: model, opened: $showsFolders, folders: AnyView(extensionFolderRows))
                     case .advanced:
                         typeOutSection
                         typingSection
+                        // Only while an app has one; migration from before Settings v2 (owner, 0.7.4: from General).
+                        PreviousAppSettingsSection(model: model)
                         filesSection
                     case .about: aboutSection
                     }
@@ -2676,7 +2691,7 @@ struct SettingsView: View {
             (query, chosen, openChip) = ("", 0, nil)
             (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
             (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
-            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders) = (false, false, false, false, false)
+            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders, showsFolders) = (false, false, false, false, false, false)
             (packToRemove, packToDelete) = (nil, nil)
             shown()
         }

@@ -227,7 +227,7 @@ user turned it on), and only while plugin.json still lists them (the hosts appro
   such a template is skipped for the next in the list, so
   `["[{title}]({url})", "{arg}"]` puts a Markdown link in a document and the number in a terminal. An item none of
   whose templates can go in there has no row.
-- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Insert) or per
+- The plugin's `insert` is the default: the user may choose otherwise, everywhere (Settings → General → Suggestions → More… → Insert) or per
   app ("In these apps" there, and the input menu's This App ▸ Insert), and then every class of app gets the choice: with
   title (`{arg} {title}`, else `{arg}`), with title and link (`{arg} {title} {url}`, else `{arg} {title}`, else
   `{arg}`), or Markdown link (`[{title}]({url})`, else `{arg}`: a replacement, its `{arg}` where it can't be one); ID only
