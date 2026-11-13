@@ -49,49 +49,49 @@
         }
       }
     },
-    "\nmacOS needs you to add it once:\n  System Settings → Keyboard → Text Input › Input Sources \"Edit…\" → + at the bottom left\n  → English → AllInOneIME → Add\nThen switch to AllInOneIME with Ctrl+Space or the 🌐 key." : {
-      "comment" : "\nmacOS 需要你手动添加一次：\n  系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加\n之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/main.swift",
+    "\nmacOS needs you to add it once:\n  System Settings → Keyboard → Text Input › Input Sources \"Edit…\" → + at the bottom left\n  → Chinese, Simplified → AllInOneIME → Add\nThen switch to AllInOneIME with Ctrl+Space or the 🌐 key." : {
+      "comment" : "\nmacOS 需要你手动添加一次：\n  系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加\n之后用 Ctrl+Space 或 🌐 键切换到 AllInOneIME。 — Sources/AllInOneIME/main.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nDu musst AllInOneIME einmal selbst in macOS hinzufügen:\n  Systemeinstellungen → Tastatur → Texteingabe › Eingabequellen „Bearbeiten …“ → + unten links\n  → Englisch → AllInOneIME → Hinzufügen\nWechsle dann mit Ctrl+Leertaste oder der 🌐-Taste zu AllInOneIME."
+            "value" : "\nDu musst AllInOneIME einmal selbst in macOS hinzufügen:\n  Systemeinstellungen → Tastatur → Texteingabe › Eingabequellen „Bearbeiten …“ → + unten links\n  → Chinesisch (vereinfacht) → AllInOneIME → Hinzufügen\nWechsle dann mit Ctrl+Leertaste oder der 🌐-Taste zu AllInOneIME."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nmacOS necesita que lo añadas una vez:\n  Ajustes del Sistema → Teclado → Entrada de texto › Fuentes de entrada \"Editar…\" → + abajo a la izquierda\n  → Inglés → AllInOneIME → Añadir\nLuego cambia a AllInOneIME con Ctrl+Espacio o la tecla 🌐."
+            "value" : "\nmacOS necesita que lo añadas una vez:\n  Ajustes del Sistema → Teclado → Entrada de texto › Fuentes de entrada \"Editar…\" → + abajo a la izquierda\n  → Chino simplificado → AllInOneIME → Añadir\nLuego cambia a AllInOneIME con Ctrl+Espacio o la tecla 🌐."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nVous devez l’ajouter une fois dans macOS :\n  Réglages Système → Clavier → Saisie de texte › Méthodes de saisie « Modifier… » → + en bas à gauche\n  → Anglais → AllInOneIME → Ajouter\nPassez ensuite à AllInOneIME avec Ctrl+Espace ou la touche 🌐."
+            "value" : "\nVous devez l’ajouter une fois dans macOS :\n  Réglages Système → Clavier → Saisie de texte › Méthodes de saisie « Modifier… » → + en bas à gauche\n  → Chinois simplifié → AllInOneIME → Ajouter\nPassez ensuite à AllInOneIME avec Ctrl+Espace ou la touche 🌐."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nmacOSで一度だけ追加する必要があります：\n  システム設定 → キーボード → テキスト入力 › 入力ソースの「編集…」→ 左下の +\n  → 英語 → AllInOneIME → 追加\nその後、Ctrl+スペースまたは🌐キーでAllInOneIMEに切り替えてください。"
+            "value" : "\nmacOSで一度だけ追加する必要があります：\n  システム設定 → キーボード → テキスト入力 › 入力ソースの「編集…」→ 左下の +\n  → 簡体中国語 → AllInOneIME → 追加\nその後、Ctrl+スペースまたは🌐キーでAllInOneIMEに切り替えてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nmacOS에서 한 번 직접 추가해야 합니다:\n  시스템 설정 → 키보드 → 텍스트 입력 › 입력 소스 \"편집…\" → 왼쪽 하단의 +\n  → 영어 → AllInOneIME → 추가\n그런 다음 Ctrl+Space 또는 🌐 키로 AllInOneIME로 전환하세요."
+            "value" : "\nmacOS에서 한 번 직접 추가해야 합니다:\n  시스템 설정 → 키보드 → 텍스트 입력 › 입력 소스 \"편집…\" → 왼쪽 하단의 +\n  → 중국어(간체) → AllInOneIME → 추가\n그런 다음 Ctrl+Space 또는 🌐 키로 AllInOneIME로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nO macOS precisa que você o adicione uma vez:\n  Ajustes do Sistema → Teclado → Entrada de Texto › Fontes de Entrada “Editar…” → + no canto inferior esquerdo\n  → Inglês → AllInOneIME → Adicionar\nDepois, mude para o AllInOneIME com Ctrl+Espaço ou a tecla 🌐."
+            "value" : "\nO macOS precisa que você o adicione uma vez:\n  Ajustes do Sistema → Teclado → Entrada de Texto › Fontes de Entrada “Editar…” → + no canto inferior esquerdo\n  → Chinês simplificado → AllInOneIME → Adicionar\nDepois, mude para o AllInOneIME com Ctrl+Espaço ou a tecla 🌐."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "\nmacOS 需要你手動加入一次：\n  系統設定 → 鍵盤 → 文字輸入 › 輸入方式「編輯⋯」→ 左下角的 +\n  → 英文 → AllInOneIME → 加入\n之後用 Ctrl+Space 或 🌐 鍵切換到 AllInOneIME。"
+            "value" : "\nmacOS 需要你手動加入一次：\n  系統設定 → 鍵盤 → 文字輸入 › 輸入方式「編輯⋯」→ 左下角的 +\n  → 簡體中文 → AllInOneIME → 加入\n之後用 Ctrl+Space 或 🌐 鍵切換到 AllInOneIME。"
           }
         }
       }
@@ -5235,49 +5235,49 @@
         }
       }
     },
-    "AllInOneIME can't type until it's added, and only you can add it. If it isn't listed under English, log out or restart your Mac first. Then switch to it with Ctrl+Space or the 🌐 key." : {
-      "comment" : "加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。英语下面找不到它的话，先退出登录或重启 Mac 再加。加好以后用 Ctrl+空格 或 🌐 键切换到它。 — Sources/AllInOneIME/InputSourceStep.swift",
+    "AllInOneIME can't type until it's added, and only you can add it. If it isn't listed under Chinese, Simplified, log out or restart your Mac first. Then switch to it with Ctrl+Space or the 🌐 key." : {
+      "comment" : "加好之前用不了 AllInOneIME 打字，而新的输入法只能由你自己添加。简体中文下面找不到它的话，先退出登录或重启 Mac 再加。加好以后用 Ctrl+空格 或 🌐 键切换到它。 — Sources/AllInOneIME/InputSourceStep.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bis dahin kann AllInOneIME nicht schreiben, und hinzufügen kannst nur du es. Wird es unter Englisch nicht angezeigt, melde dich zuerst ab oder starte den Mac neu. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
+            "value" : "Bis dahin kann AllInOneIME nicht schreiben, und hinzufügen kannst nur du es. Wird es unter Chinesisch (vereinfacht) nicht angezeigt, melde dich zuerst ab oder starte den Mac neu. Danach wechselst du mit Ctrl+Leertaste oder der 🌐-Taste dorthin."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hasta que lo añadas, AllInOneIME no puede escribir, y solo tú puedes añadirlo. Si no aparece en Inglés, cierra la sesión o reinicia el Mac primero. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
+            "value" : "Hasta que lo añadas, AllInOneIME no puede escribir, y solo tú puedes añadirlo. Si no aparece en Chino simplificado, cierra la sesión o reinicia el Mac primero. Después cambia a él con Ctrl+Espacio o la tecla 🌐."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tant qu’il n’est pas ajouté, AllInOneIME ne peut pas écrire, et vous seul pouvez l’ajouter. S'il n'apparaît pas sous Anglais, fermez d'abord la session ou redémarrez le Mac. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
+            "value" : "Tant qu’il n’est pas ajouté, AllInOneIME ne peut pas écrire, et vous seul pouvez l’ajouter. S'il n'apparaît pas sous Chinois simplifié, fermez d'abord la session ou redémarrez le Mac. Passez-y ensuite avec Ctrl+Espace ou la touche 🌐."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "追加するまで AllInOneIME で入力できません。追加できるのはあなただけです。「英語」に表示されない場合は、先にログアウトするか Mac を再起動してください。その後、Control+スペースまたは 🌐 キーで切り替えます。"
+            "value" : "追加するまで AllInOneIME で入力できません。追加できるのはあなただけです。「簡体中国語」に表示されない場合は、先にログアウトするか Mac を再起動してください。その後、Control+スペースまたは 🌐 キーで切り替えます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "추가하기 전에는 AllInOneIME로 입력할 수 없으며, 추가는 사용자만 할 수 있습니다. 영어 아래에 보이지 않으면 먼저 로그아웃하거나 Mac을 재시동하세요. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
+            "value" : "추가하기 전에는 AllInOneIME로 입력할 수 없으며, 추가는 사용자만 할 수 있습니다. 중국어(간체) 아래에 보이지 않으면 먼저 로그아웃하거나 Mac을 재시동하세요. 그런 다음 Ctrl+Space 또는 🌐 키로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Até ser adicionado, o AllInOneIME não consegue digitar, e só você pode adicioná-lo. Se não aparecer em Inglês, encerre a sessão ou reinicie o Mac primeiro. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
+            "value" : "Até ser adicionado, o AllInOneIME não consegue digitar, e só você pode adicioná-lo. Se não aparecer em Chinês simplificado, encerre a sessão ou reinicie o Mac primeiro. Depois, mude para ele com Ctrl+Espaço ou a tecla 🌐."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "加入之前無法用 AllInOneIME 打字，而新的輸入法只能由你自己加入。英文底下找不到的話，先登出或重新啟動 Mac 再加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
+            "value" : "加入之前無法用 AllInOneIME 打字，而新的輸入法只能由你自己加入。簡體中文底下找不到的話，先登出或重新啟動 Mac 再加入。之後用 Ctrl+空白鍵或 🌐 鍵切換到 AllInOneIME。"
           }
         }
       }
@@ -5423,49 +5423,49 @@
         }
       }
     },
-    "AllInOneIME isn't in your input sources yet, so add it once yourself:\nSystem Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → English → AllInOneIME → Add\nThen switch to it with Ctrl+Space." : {
-      "comment" : "AllInOneIME 还不在你的输入法列表里，请自己添加一次：\n系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 英语 → AllInOneIME → 添加\n之后用 Ctrl+空格 切换到 AllInOneIME。 — Sources/AllInOneIMEInstaller/main.swift",
+    "AllInOneIME isn't in your input sources yet, so add it once yourself:\nSystem Settings → Keyboard → Text Input → Input Sources → Edit… → + (bottom left) → Chinese, Simplified → AllInOneIME → Add\nThen switch to it with Ctrl+Space." : {
+      "comment" : "AllInOneIME 还不在你的输入法列表里，请自己添加一次：\n系统设置 → 键盘 → 文字输入 › 输入法「编辑…」→ 左下角 + → 简体中文 → AllInOneIME → 添加\n之后用 Ctrl+空格 切换到 AllInOneIME。 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME ist noch nicht in deinen Eingabequellen, füge es daher einmal selbst hinzu:\nSystemeinstellungen → Tastatur → Texteingabe → Eingabequellen → Bearbeiten … → + (unten links) → Englisch → AllInOneIME → Hinzufügen\nWechsle dann mit Ctrl+Leertaste dorthin."
+            "value" : "AllInOneIME ist noch nicht in deinen Eingabequellen, füge es daher einmal selbst hinzu:\nSystemeinstellungen → Tastatur → Texteingabe → Eingabequellen → Bearbeiten … → + (unten links) → Chinesisch (vereinfacht) → AllInOneIME → Hinzufügen\nWechsle dann mit Ctrl+Leertaste dorthin."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME aún no está en tus fuentes de entrada, así que añádelo tú una vez:\nAjustes del Sistema → Teclado → Entrada de texto → Fuentes de entrada → Editar… → + (abajo a la izquierda) → Inglés → AllInOneIME → Añadir\nLuego cambia a él con Ctrl+Espacio."
+            "value" : "AllInOneIME aún no está en tus fuentes de entrada, así que añádelo tú una vez:\nAjustes del Sistema → Teclado → Entrada de texto → Fuentes de entrada → Editar… → + (abajo a la izquierda) → Chino simplificado → AllInOneIME → Añadir\nLuego cambia a él con Ctrl+Espacio."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME ne figure pas encore dans vos méthodes de saisie ; ajoutez-le vous-même une fois :\nRéglages Système → Clavier → Saisie de texte → Méthodes de saisie → Modifier… → + (en bas à gauche) → Anglais → AllInOneIME → Ajouter\nPassez-y ensuite avec Ctrl+Espace."
+            "value" : "AllInOneIME ne figure pas encore dans vos méthodes de saisie ; ajoutez-le vous-même une fois :\nRéglages Système → Clavier → Saisie de texte → Méthodes de saisie → Modifier… → + (en bas à gauche) → Chinois simplifié → AllInOneIME → Ajouter\nPassez-y ensuite avec Ctrl+Espace."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIMEがまだ入力ソースにないため、一度だけ手動で追加してください：\nシステム設定 → キーボード → テキスト入力 → 入力ソース → 編集… → +（左下）→ 英語 → AllInOneIME → 追加\nその後、Ctrl+スペースで切り替えてください。"
+            "value" : "AllInOneIMEがまだ入力ソースにないため、一度だけ手動で追加してください：\nシステム設定 → キーボード → テキスト入力 → 入力ソース → 編集… → +（左下）→ 簡体中国語 → AllInOneIME → 追加\nその後、Ctrl+スペースで切り替えてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME가 아직 입력 소스에 없으므로 한 번 직접 추가하세요:\n시스템 설정 → 키보드 → 텍스트 입력 → 입력 소스 → 편집… → + (왼쪽 하단) → 영어 → AllInOneIME → 추가\n그런 다음 Ctrl+Space로 전환하세요."
+            "value" : "AllInOneIME가 아직 입력 소스에 없으므로 한 번 직접 추가하세요:\n시스템 설정 → 키보드 → 텍스트 입력 → 입력 소스 → 편집… → + (왼쪽 하단) → 중국어(간체) → AllInOneIME → 추가\n그런 다음 Ctrl+Space로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O AllInOneIME ainda não está nas suas fontes de entrada; adicione-o manualmente uma vez:\nAjustes do Sistema → Teclado → Entrada de Texto → Fontes de Entrada → Editar… → + (canto inferior esquerdo) → Inglês → AllInOneIME → Adicionar\nDepois, mude para ele com Ctrl+Espaço."
+            "value" : "O AllInOneIME ainda não está nas suas fontes de entrada; adicione-o manualmente uma vez:\nAjustes do Sistema → Teclado → Entrada de Texto → Fontes de Entrada → Editar… → + (canto inferior esquerdo) → Chinês simplificado → AllInOneIME → Adicionar\nDepois, mude para ele com Ctrl+Espaço."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME 還不在你的輸入方式中，請自行加入一次：\n系統設定 → 鍵盤 → 文字輸入 → 輸入方式 → 編輯⋯ → +（左下角）→ 英文 → AllInOneIME → 加入\n之後用 Ctrl+Space 切換到它。"
+            "value" : "AllInOneIME 還不在你的輸入方式中，請自行加入一次：\n系統設定 → 鍵盤 → 文字輸入 → 輸入方式 → 編輯⋯ → +（左下角）→ 簡體中文 → AllInOneIME → 加入\n之後用 Ctrl+Space 切換到它。"
           }
         }
       }
@@ -5517,49 +5517,49 @@
         }
       }
     },
-    "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under English." : {
-      "comment" : "AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「英语」下面。 — Sources/AllInOneIME/Updates.swift",
+    "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under Chinese, Simplified." : {
+      "comment" : "AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「简体中文」下面。 — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME hat jetzt seine eigene Systemidentität, daher fragt macOS erneut nach den Berechtigungen, die du erteilt hast: Bedienungshilfen (Auswahl lesen, Autovervollständigung), Aus anderen Apps einsetzen (Zwischenablageverlauf), Automation (Terminal, Notizen und Nachrichten für @agent, @note und @imessage), Kontakte (@imessage), Erinnerungen (@reminder) und Mitteilungen (neue Versionen). Erlaube sie, wenn macOS fragt, oder unter Systemeinstellungen → Datenschutz & Sicherheit; „Probleme beheben …“ zeigt, welche noch fehlen. In deinen Eingabequellen steht es unter Englisch."
+            "value" : "AllInOneIME hat jetzt seine eigene Systemidentität, daher fragt macOS erneut nach den Berechtigungen, die du erteilt hast: Bedienungshilfen (Auswahl lesen, Autovervollständigung), Aus anderen Apps einsetzen (Zwischenablageverlauf), Automation (Terminal, Notizen und Nachrichten für @agent, @note und @imessage), Kontakte (@imessage), Erinnerungen (@reminder) und Mitteilungen (neue Versionen). Erlaube sie, wenn macOS fragt, oder unter Systemeinstellungen → Datenschutz & Sicherheit; „Probleme beheben …“ zeigt, welche noch fehlen. In deinen Eingabequellen steht es unter Chinesisch (vereinfacht)."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME tiene ahora su propia identidad del sistema, así que macOS vuelve a pedir los permisos que le diste: Accesibilidad (leer la selección, autocompletar), Pegar desde otras apps (historial del portapapeles), Automatización (Terminal, Notas y Mensajes, para @agent, @note y @imessage), Contactos (@imessage), Recordatorios (@reminder) y Notificaciones (versiones nuevas). Concédelos cuando macOS los pida, o en Ajustes del Sistema → Privacidad y seguridad; Solucionar problemas… muestra los que faltan. En tus fuentes de entrada aparece en Inglés."
+            "value" : "AllInOneIME tiene ahora su propia identidad del sistema, así que macOS vuelve a pedir los permisos que le diste: Accesibilidad (leer la selección, autocompletar), Pegar desde otras apps (historial del portapapeles), Automatización (Terminal, Notas y Mensajes, para @agent, @note y @imessage), Contactos (@imessage), Recordatorios (@reminder) y Notificaciones (versiones nuevas). Concédelos cuando macOS los pida, o en Ajustes del Sistema → Privacidad y seguridad; Solucionar problemas… muestra los que faltan. En tus fuentes de entrada aparece en Chino simplificado."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME a désormais sa propre identité système : macOS redemande donc les autorisations que vous lui aviez accordées : Accessibilité (lire la sélection, saisie semi-automatique), Coller depuis d’autres apps (historique du presse-papiers), Automatisation (Terminal, Notes et Messages, pour @agent, @note et @imessage), Contacts (@imessage), Rappels (@reminder) et Notifications (nouvelles versions). Autorisez-les quand macOS les demande, ou dans Réglages Système → Confidentialité et sécurité ; Résoudre les problèmes… indique celles qui manquent encore. Dans vos méthodes de saisie, il figure sous Anglais."
+            "value" : "AllInOneIME a désormais sa propre identité système : macOS redemande donc les autorisations que vous lui aviez accordées : Accessibilité (lire la sélection, saisie semi-automatique), Coller depuis d’autres apps (historique du presse-papiers), Automatisation (Terminal, Notes et Messages, pour @agent, @note et @imessage), Contacts (@imessage), Rappels (@reminder) et Notifications (nouvelles versions). Autorisez-les quand macOS les demande, ou dans Réglages Système → Confidentialité et sécurité ; Résoudre les problèmes… indique celles qui manquent encore. Dans vos méthodes de saisie, il figure sous Chinois simplifié."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME は独自のシステム ID になったため、macOS は以前許可した権限をもう一度確認します：アクセシビリティ（選択テキストの読み取り、オートコンプリート）、ほかのアプリからのペースト（クリップボード履歴）、オートメーション（@agent、@note、@imessage が使うターミナル、メモ、メッセージ）、連絡先（@imessage）、リマインダー（@reminder）、通知（新しいバージョン）。macOS に聞かれたら許可するか、システム設定 → プライバシーとセキュリティ で許可してください。「トラブルシューティング…」にまだ許可していないものが表示されます。入力ソースでは「英語」の下に表示されます。"
+            "value" : "AllInOneIME は独自のシステム ID になったため、macOS は以前許可した権限をもう一度確認します：アクセシビリティ（選択テキストの読み取り、オートコンプリート）、ほかのアプリからのペースト（クリップボード履歴）、オートメーション（@agent、@note、@imessage が使うターミナル、メモ、メッセージ）、連絡先（@imessage）、リマインダー（@reminder）、通知（新しいバージョン）。macOS に聞かれたら許可するか、システム設定 → プライバシーとセキュリティ で許可してください。「トラブルシューティング…」にまだ許可していないものが表示されます。入力ソースでは「簡体中国語」の下に表示されます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME가 이제 자체 시스템 ID를 가지므로 macOS가 이전에 허용한 권한을 다시 묻습니다: 손쉬운 사용(선택한 텍스트 읽기, 자동 완성), 다른 앱에서 붙여넣기(클립보드 기록), 자동화(@agent, @note, @imessage에 쓰는 터미널, 메모, 메시지), 연락처(@imessage), 미리 알림(@reminder), 알림(새 버전). macOS가 물을 때 허용하거나 시스템 설정 → 개인정보 보호 및 보안에서 켜세요. ‘문제 해결…’에서 아직 허용하지 않은 항목을 볼 수 있습니다. 입력 소스에서는 영어 아래에 있습니다."
+            "value" : "AllInOneIME가 이제 자체 시스템 ID를 가지므로 macOS가 이전에 허용한 권한을 다시 묻습니다: 손쉬운 사용(선택한 텍스트 읽기, 자동 완성), 다른 앱에서 붙여넣기(클립보드 기록), 자동화(@agent, @note, @imessage에 쓰는 터미널, 메모, 메시지), 연락처(@imessage), 미리 알림(@reminder), 알림(새 버전). macOS가 물을 때 허용하거나 시스템 설정 → 개인정보 보호 및 보안에서 켜세요. ‘문제 해결…’에서 아직 허용하지 않은 항목을 볼 수 있습니다. 입력 소스에서는 중국어(간체) 아래에 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O AllInOneIME agora tem sua própria identidade do sistema, então o macOS pede de novo as permissões que você deu: Acessibilidade (ler a seleção, preenchimento automático), Colar de Outros Apps (histórico da área de transferência), Automação (Terminal, Notas e Mensagens, para @agent, @note e @imessage), Contatos (@imessage), Lembretes (@reminder) e Notificações (novas versões). Permita quando o macOS pedir, ou em Ajustes do Sistema → Privacidade e Segurança; Solucionar Problemas… mostra as que ainda faltam. Nas suas fontes de entrada, ele aparece em Inglês."
+            "value" : "O AllInOneIME agora tem sua própria identidade do sistema, então o macOS pede de novo as permissões que você deu: Acessibilidade (ler a seleção, preenchimento automático), Colar de Outros Apps (histórico da área de transferência), Automação (Terminal, Notas e Mensagens, para @agent, @note e @imessage), Contatos (@imessage), Lembretes (@reminder) e Notificações (novas versões). Permita quando o macOS pedir, ou em Ajustes do Sistema → Privacidade e Segurança; Solucionar Problemas… mostra as que ainda faltam. Nas suas fontes de entrada, ele aparece em Chinês simplificado."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AllInOneIME 現在有了自己的系統身分，所以 macOS 會重新詢問你給過它的權限：輔助使用（讀取選取的文字、自動完成）、從其他 App 貼上（剪貼簿歷史）、自動化（@agent、@note 和 @imessage 用到的終端機、備忘錄和訊息）、聯絡人（@imessage）、提醒事項（@reminder）和通知（新版本）。macOS 詢問時選允許，或在 系統設定 → 隱私權與安全性 裡打開；「疑難排解⋯」會列出還沒允許的。在輸入方式列表裡，它在「英文」底下。"
+            "value" : "AllInOneIME 現在有了自己的系統身分，所以 macOS 會重新詢問你給過它的權限：輔助使用（讀取選取的文字、自動完成）、從其他 App 貼上（剪貼簿歷史）、自動化（@agent、@note 和 @imessage 用到的終端機、備忘錄和訊息）、聯絡人（@imessage）、提醒事項（@reminder）和通知（新版本）。macOS 詢問時選允許，或在 系統設定 → 隱私權與安全性 裡打開；「疑難排解⋯」會列出還沒允許的。在輸入方式列表裡，它在「簡體中文」底下。"
           }
         }
       }
@@ -21682,49 +21682,49 @@
         }
       }
     },
-    "One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → English → AllInOneIME" : {
-      "comment" : "还差一步：添加 AllInOneIME —— 系统设置 → 键盘 → 输入法 → + → 英语 → AllInOneIME — Sources/AllInOneIME/InputSourceStep.swift",
+    "One step left: add AllInOneIME — System Settings → Keyboard → Input Sources → + → Chinese, Simplified → AllInOneIME" : {
+      "comment" : "还差一步：添加 AllInOneIME —— 系统设置 → 键盘 → 输入法 → + → 简体中文 → AllInOneIME — Sources/AllInOneIME/InputSourceStep.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Noch ein Schritt: AllInOneIME hinzufügen – Systemeinstellungen → Tastatur → Eingabequellen → + → Englisch → AllInOneIME"
+            "value" : "Noch ein Schritt: AllInOneIME hinzufügen – Systemeinstellungen → Tastatur → Eingabequellen → + → Chinesisch (vereinfacht) → AllInOneIME"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Falta un paso: añade AllInOneIME — Ajustes del Sistema → Teclado → Fuentes de entrada → + → Inglés → AllInOneIME"
+            "value" : "Falta un paso: añade AllInOneIME — Ajustes del Sistema → Teclado → Fuentes de entrada → + → Chino simplificado → AllInOneIME"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il reste une étape : ajoutez AllInOneIME — Réglages Système → Clavier → Méthodes de saisie → + → Anglais → AllInOneIME"
+            "value" : "Il reste une étape : ajoutez AllInOneIME — Réglages Système → Clavier → Méthodes de saisie → + → Chinois simplifié → AllInOneIME"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "あと1ステップ：AllInOneIME を追加 — システム設定 → キーボード → 入力ソース → + → 英語 → AllInOneIME"
+            "value" : "あと1ステップ：AllInOneIME を追加 — システム設定 → キーボード → 入力ソース → + → 簡体中国語 → AllInOneIME"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "한 단계 남았습니다: AllInOneIME 추가 — 시스템 설정 → 키보드 → 입력 소스 → + → 영어 → AllInOneIME"
+            "value" : "한 단계 남았습니다: AllInOneIME 추가 — 시스템 설정 → 키보드 → 입력 소스 → + → 중국어(간체) → AllInOneIME"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Falta um passo: adicione o AllInOneIME — Ajustes do Sistema → Teclado → Fontes de Entrada → + → Inglês → AllInOneIME"
+            "value" : "Falta um passo: adicione o AllInOneIME — Ajustes do Sistema → Teclado → Fontes de Entrada → + → Chinês simplificado → AllInOneIME"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "還差一步：加入 AllInOneIME —— 系統設定 → 鍵盤 → 輸入方式 → + → 英文 → AllInOneIME"
+            "value" : "還差一步：加入 AllInOneIME —— 系統設定 → 鍵盤 → 輸入方式 → + → 簡體中文 → AllInOneIME"
           }
         }
       }

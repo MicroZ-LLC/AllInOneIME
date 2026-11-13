@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## Unreleased
+
+### Changed
+
+- AllInOneIME is listed under Chinese, Simplified again (System Settings → Keyboard → Input Sources → +), no longer under English, so that "Use the Caps Lock key to switch to and from ABC" (Input Sources → Edit…) switches to it: a short press of Caps Lock goes from ABC (or U.S.) to AllInOneIME and back, and a long press still turns capitals on, as with macOS's own Chinese input. Before, Caps Lock never switched to it. Installing the update changes it in place: it stays in your input sources, and nothing needs to be added again. It types English as before, and Chinese once you add it in Settings → Input.
+
 ## 0.7.3 (2026-11-12)
 
 ### Added

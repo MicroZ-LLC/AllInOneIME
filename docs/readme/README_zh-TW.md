@@ -411,7 +411,7 @@ two-way door = a decision you can undo at any time
 2. 按兩下其中的「Install AllInOneIME」，再按一下「Install」（安裝）。輸入法會安裝到 `~/Library/Input Methods`，「AllInOneIME Settings」則安裝到 `~/Applications`。只為目前的使用者安裝；不需要管理者密碼。
 3. 安裝程式以 Developer ID 簽署並經過 Apple 公證，所以第一次時 macOS 只會詢問是否要打開從網際網路下載的 App：按一下「打開」。（0.6.3 之前的版本沒有公證：每個版本都要在 系統設定 → 隱私權與安全性 → 強制打開 中允許一次。）
 
-完成後，AllInOneIME 就已啟用並出現在你的輸入方式中；用 Ctrl+Space 切換到它（只有在 System Settings → Keyboard（系統設定 → 鍵盤）中把「Press 🌐 key to」設為「Change Input Source」時，🌐 鍵才會切換）。如果安裝程式要你手動加入，代表這台 Mac 不允許程式啟用它，請自己加入一次：System Settings → Keyboard → Text Input → Input Sources → Edit… → +（左下角）→ English → AllInOneIME（在它設定的「Input」下加入中文後，它也能輸入拼音）。
+完成後，AllInOneIME 就已啟用並出現在你的輸入方式中；用 Ctrl+Space 切換到它（只有在 System Settings → Keyboard（系統設定 → 鍵盤）中把「Press 🌐 key to」設為「Change Input Source」時，🌐 鍵才會切換）。如果安裝程式要你手動加入，代表這台 Mac 不允許程式啟用它，請自己加入一次：System Settings → Keyboard → Text Input → Input Sources → Edit… → +（左下角）→ Chinese, Simplified → AllInOneIME（它打英文一樣順手；在它設定的「Input」下加入中文後，也能輸入中文）。
 
 如果用 Ctrl+Space 切換不到 AllInOneIME，或過一陣子又切回 U.S.，請再執行一次安裝程式：它會把 AllInOneIME 重新加回你的輸入方式。
 
