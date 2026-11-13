@@ -208,41 +208,27 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Runs `claude` in the home folder (a folder it trusts) with the login shell's PATH; its output.
+    /// Runs `claude` in the home folder (a folder it trusts) with the login shell's PATH; its output. Its end is told by
+    /// its termination handler (`ProcessOutput`), never `waitUntilExit` on a dispatch thread, which missed about one exit
+    /// in ten: the task list would wait for a `claude agents` long gone.
     nonisolated static func run(_ executable: String, _ arguments: [String], timeout: TimeInterval = 30) async throws -> String {
         try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global().async {
-                let process = Process()
                 guard let url = CommandRunner.resolve(executable, path: ShellEnvironment.current["PATH"]) else {
                     continuation.resume(throwing: AgentError.failed(tr("找不到 claude 命令", "The claude command isn't installed")))
                     return
                 }
-                process.executableURL = url
-                process.arguments = arguments
-                process.environment = ShellEnvironment.current
-                process.currentDirectoryURL = FileManager.default.homeDirectoryForCurrentUser
-                let out = Pipe(), err = Pipe()
-                process.standardOutput = out
-                process.standardError = err
-                process.standardInput = FileHandle.nullDevice
-                do { try process.run() } catch {
+                let result: ProcessOutput.Result
+                do {
+                    result = try ProcessOutput.run(url, arguments, environment: ShellEnvironment.current,
+                                                   directory: FileManager.default.homeDirectoryForCurrentUser, timeout: timeout)
+                } catch {
                     continuation.resume(throwing: error)
                     return
                 }
-                let killer = DispatchWorkItem { if process.isRunning { process.terminate() } }
-                DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: killer)
-                // Read both pipes at once so neither fills up.
-                var output = Data(), errors = Data()
-                let group = DispatchGroup()
-                group.enter()
-                DispatchQueue.global().async { output = out.fileHandleForReading.readDataToEndOfFile(); group.leave() }
-                errors = err.fileHandleForReading.readDataToEndOfFile()
-                group.wait()
-                process.waitUntilExit()
-                killer.cancel()
-                let text = String(decoding: output, as: UTF8.self)
-                guard process.terminationStatus == 0 else {
-                    let message = String(decoding: errors.isEmpty ? output : errors, as: UTF8.self)
+                let text = String(decoding: result.output, as: UTF8.self)
+                guard result.status == 0 else {
+                    let message = String(decoding: result.errors.isEmpty ? result.output : result.errors, as: UTF8.self)
                     continuation.resume(throwing: AgentError.failed(String(message.trimmingCharacters(in: .whitespacesAndNewlines).prefix(300))))
                     return
                 }
