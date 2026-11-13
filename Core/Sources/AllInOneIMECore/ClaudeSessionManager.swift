@@ -42,11 +42,14 @@ extension ClaudeSessionLauncher {
 /// CLI, `ACPBackend`; one manager per agent) running and asks it questions. One process at a time,
 /// for every text field: started ahead of the first question (`prewarm`, when the command trigger is typed), so the
 /// answer doesn't wait for Claude Code to start; reused for each question; ended after `idleTimeout` without one. Each
-/// `@question` conversation in the panel goes into a new conversation of the agent (`enter`), its follow-ups into that
-/// one: `prewarm` gets the new one ready (Codex and an ACP agent open it in the process they have, Claude Code's process
-/// is started again on it), so that it is warm when the question comes. A process that ended (a crash, killed) is
-/// started again on the same conversation (`--resume`) by its next question. A question asked while another
-/// is answered waits for it; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the process stays.
+/// request (`request`: an `@question` or a writing task) carries the conversation it is of and what its web tools may
+/// reach, as it was made: each `@question` conversation in the panel goes into a new conversation of the agent, its
+/// follow-ups into that one, a writing task into one of its own; `prewarm` gets the new one ready (Codex and an ACP agent
+/// open it in the process they have, Claude Code's process is started again on it), so that it is warm when the question
+/// comes. A process that ended (a crash, killed) is started again on the same conversation (`--resume`) by its next
+/// question. A question asked while another is answered waits for it, and is sent into its own conversation with its
+/// own web tools whatever was asked meanwhile; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the
+/// process stays.
 /// One process writes a conversation at a time. Handing the conversation to Terminal (`handOff`) ends our process first,
 /// and waits for it; the conversation is Terminal's from then on, and questions after it go into a new one. Our process
 /// holds its conversation's lock (`ConversationLock`) while it runs, which Terminal waits for and then holds while its
@@ -129,11 +132,27 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var known: [Redaction.Hidden] = []
     }
 
-    /// A question being answered, or waiting for the one before it.
-    private final class Turn: @unchecked Sendable {
+    /// A question being answered, or waiting for the one before it; from the moment its request is made (`Request`),
+    /// before its message comes.
+    fileprivate final class Turn: @unchecked Sendable {
         let id: Int
-        let message: String
-        let continuation: AsyncThrowingStream<SessionReply, Error>.Continuation
+        /// The panel conversation it is of (`Request.conversation`); nil: the agent conversation now, whichever.
+        let owner: String?
+        /// What its web tools may reach (`Request.web`); nil: as the agent conversation now has them (`State.web`).
+        let web: SessionWeb?
+        /// It goes on in the agent conversation now (`Request.continues`); else into a new one.
+        let continues: Bool
+        /// What is written: none until its request has its message (`Request.answer`); nothing behind it goes first.
+        var message: String?
+        var continuation: AsyncThrowingStream<SessionReply, Error>.Continuation?
+        /// How it ended before it had its message (the session stopped, it waited too long): its stream ends so.
+        var ended: Error?
+        /// In its agent conversation (`place`): a new one made for it, or the one it goes on in.
+        var placed = false
+        /// The agent conversation (`store`'s id) it went into.
+        var conversation: String?
+        /// What its hiding numbered (`redacting(_:for:_:)`), for the new agent conversation it goes into.
+        var hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?
         /// The answer so far (of the model's latest message: after a web search the answer starts again).
         var text = ""
         /// It went into an agent conversation with no question before it (`SessionReply.newConversation`).
@@ -158,10 +177,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var watchdog: Task<Void, Never>?
         var attempt = 0
 
-        init(id: Int, message: String, continuation: AsyncThrowingStream<SessionReply, Error>.Continuation) {
+        init(id: Int, owner: String?, web: SessionWeb?, continues: Bool) {
             self.id = id
-            self.message = message
-            self.continuation = continuation
+            self.owner = owner
+            self.web = web
+            self.continues = continues
         }
 
         /// What the stream gives now.
@@ -198,12 +218,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// The sign-in check's run, while its command runs (ended with the rest when the input method quits).
         var signInCheck: SignInCheck?
         /// The panel conversation (`QuestionConversation.id`) whose questions go into the agent conversation now
-        /// (`store`'s id: `enter`); nil: none said.
+        /// (`store`'s id), as the latest request sent there was of (`place`); nil: none said.
         var owner: String?
         /// A question went into the agent conversation now; nil: not looked at yet (`asked`).
         var asked: Bool?
-        /// What the web tools may reach in it (`QuestionConversation.web`).
+        /// What the web tools may reach in it, as the latest request sent there may: what a request of no conversation
+        /// (`Request.web` nil) gets.
         var web = SessionWeb.open
+        /// The conversation `ask` and `answer` without a request go into (`enter`).
+        var entered: QuestionConversation?
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
@@ -303,10 +326,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let actions = state.withLock { state -> [Action] in
             guard state.turns.isEmpty else { return [] }
             if asked(&state) { rollOver(&state) }
-            state.web = .open  // a question with text the user didn't type starts it again kept to the web it may reach
-            var actions = follow(&state)
+            // With the web tools as they are: a question with text the user didn't type starts it again kept to the web
+            // it may reach (`Request.web`).
+            var actions = follow(&state, web: .open)
             if state.running == nil {
-                guard let (_, opening) = try? start(&state) else { return actions }
+                guard let (_, opening) = try? start(&state, web: .open) else { return actions }
                 actions += opening
             }
             scheduleIdle(&state)
@@ -315,27 +339,90 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         perform(actions)
     }
 
-    /// The questions of `conversation` (an `@question` conversation in the panel) go into the agent conversation from now
-    /// on; asked before `redacting`, `missing` and `ask`, which go by it. The agent conversation its earlier questions
-    /// went into, or, for another one, a new agent conversation, unless the one now has had no question yet (the one
-    /// `prewarm` made ready for it). Its process has the web tools the conversation may have (`QuestionConversation.web`,
-    /// as `SessionBackend.effective` keeps to it; started again when the one running has others). Nil: the one now,
-    /// whichever.
-    public func enter(_ conversation: QuestionConversation?) {
-        guard let conversation else { return }
+    /// A request to the session: an `@question` of a conversation in the panel, or a writing task (its own conversation,
+    /// `QuestionConversation.oneOff`), with the agent conversation it goes into and what its web tools may reach, both
+    /// fixed as it is made (`request`) and kept until it is sent: a request made meanwhile (another field's) changes
+    /// neither. It takes its place in the queue as it is made, so that what goes by its agent conversation (`missing`,
+    /// `redacting`) is of the one it goes into; its message comes once that is done (`answer`), and nothing behind it is
+    /// sent before. Let go of without its message, its place goes.
+    public final class Request: @unchecked Sendable {
+        /// The panel conversation it is of (`QuestionConversation.id`); nil: none said, the agent conversation now.
+        public let conversation: String?
+        /// What its web tools may reach (`QuestionConversation.web`); nil: as the agent conversation now has them. Its
+        /// process is started again for it when the one running has others.
+        public let web: SessionWeb?
+        /// It goes on in the agent conversation now: that one is its conversation's, and no request of another is before
+        /// it in the queue. Else it goes into a new one, which saw none of its conversation's rounds.
+        public let continues: Bool
+        fileprivate let turn: Turn
+        private weak var manager: ClaudeSessionManager?
+
+        fileprivate init(_ turn: Turn, manager: ClaudeSessionManager) {
+            (conversation, web, continues) = (turn.owner, turn.web, turn.continues)
+            self.turn = turn
+            self.manager = manager
+        }
+
+        /// Asks it, once, with `message` (one user message: the text as the provider would get it, already redacted).
+        /// The stream gives the answer so far each time more of it comes, with what the panel tells of it
+        /// (`SessionReply`), and ends with the turn; given up (cancelled), it interrupts the turn.
+        public func answer(_ message: String) -> AsyncThrowingStream<SessionReply, Error> {
+            guard let manager else { return AsyncThrowingStream { $0.finish(throwing: CancellationError()) } }
+            return manager.answer(turn, message)
+        }
+
+        /// `answer`, its text alone.
+        public func ask(_ message: String) -> AsyncThrowingStream<String, Error> { ClaudeSessionManager.texts(answer(message)) }
+
+        deinit { manager?.release(turn) }
+    }
+
+    /// A request of `conversation` (`Request`), in the queue from now on: it goes on in the agent conversation now when
+    /// that is its conversation's and nothing of another conversation is before it; else into a new agent conversation
+    /// (the one now when no question went into it yet: the one `prewarm` made ready). Nil: the agent conversation now,
+    /// whichever, with the web tools it has.
+    public func request(_ conversation: QuestionConversation?) -> Request {
         state.withLock { state in
-            state.web = conversation.web
-            guard state.owner != conversation.id else { return }
-            if asked(&state) { rollOver(&state) }
-            state.owner = conversation.id
+            state.serial += 1
+            let owner = conversation?.id
+            // In the queue before it (not yet in an agent conversation): another conversation's, or a new one's.
+            let continues = owner.map { owner in
+                state.owner == owner
+                    && state.turns.allSatisfy { $0.done || $0.placed || ($0.continues && ($0.owner ?? owner) == owner) }
+            } ?? true
+            let turn = Turn(id: state.serial, owner: owner, web: conversation?.web, continues: continues)
+            state.turns.append(turn)
+            // Behind one being answered: it waits so long at most.
+            if state.turns.first !== turn, state.turns.first?.answering == true { waitAtMost(turn) }
+            return Request(turn, manager: self)
         }
     }
 
-    /// Asks `question` (one user message: the text as the provider would get it, already redacted). The stream gives
-    /// the answer so far each time more of it comes, and ends with the turn; given up (cancelled), it interrupts the turn.
-    public func ask(_ question: String) -> AsyncThrowingStream<String, Error> {
-        let replies = answer(question)
-        return AsyncThrowingStream { continuation in
+    /// Asks `question` as a request of `conversation` (`request`, then `Request.ask`).
+    public func ask(_ question: String, in conversation: QuestionConversation?) -> AsyncThrowingStream<String, Error> {
+        request(conversation).ask(question)
+    }
+
+    /// The conversation `ask` and `answer` (without a request) go into from now on: one caller asking in turn. Nil: the
+    /// one now, whichever.
+    public func enter(_ conversation: QuestionConversation?) {
+        state.withLock { $0.entered = conversation }
+    }
+
+    /// Asks `question` (one user message: the text as the provider would get it, already redacted) in the conversation
+    /// `enter` said. The stream gives the answer so far each time more of it comes, and ends with the turn; given up
+    /// (cancelled), it interrupts the turn.
+    public func ask(_ question: String) -> AsyncThrowingStream<String, Error> { Self.texts(answer(question)) }
+
+    /// `ask`, with what the panel tells of the answer (`SessionReply`): whether its agent conversation is new, the
+    /// tokens it used.
+    public func answer(_ question: String) -> AsyncThrowingStream<SessionReply, Error> {
+        request(state.withLock { $0.entered }).answer(question)
+    }
+
+    /// The answer's text from `replies`, each time it changes.
+    static func texts(_ replies: AsyncThrowingStream<SessionReply, Error>) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     var last: String?
@@ -352,20 +439,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
-    /// `ask`, with what the panel tells of the answer (`SessionReply`): whether its agent conversation is new, the
-    /// tokens it used.
-    public func answer(_ question: String) -> AsyncThrowingStream<SessionReply, Error> {
+    /// `turn`'s request asked with `message` (`Request.answer`): written once the turns before it are answered. One that
+    /// ended before (the session stopped, it waited too long) ends so at once.
+    fileprivate func answer(_ turn: Turn, _ message: String) -> AsyncThrowingStream<SessionReply, Error> {
         AsyncThrowingStream { continuation in
-            let id = state.withLock { state -> Int in
-                state.serial += 1
-                return state.serial
-            }
+            let id = turn.id
             continuation.onTermination = { [weak self] termination in
                 if case .cancelled = termination { self?.cancel(id) }
             }
             let actions = state.withLock { state -> [Action] in
-                let turn = Turn(id: id, message: question, continuation: continuation)
-                state.turns.append(turn)
+                guard turn.message == nil else { return [.finish(continuation, CancellationError())] }  // asked once only
+                (turn.message, turn.continuation) = (message, continuation)
+                if turn.done { return [.finish(continuation, turn.ended ?? CancellationError())] }
                 let actions = pump(&state)
                 // Behind one being answered: it waits so long at most.
                 if !turn.sent, state.turns.first?.answering == true { waitAtMost(turn) }
@@ -375,12 +460,24 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
+    /// `turn`'s request was let go of: without its message, its place goes, and what waited behind it goes on.
+    fileprivate func release(_ turn: Turn) {
+        let actions = state.withLock { state -> [Action] in
+            guard turn.message == nil, !turn.done else { return [] }
+            turn.done = true
+            turn.watchdog?.cancel()
+            state.turns.removeAll { $0 === turn }
+            return pump(&state)
+        }
+        perform(actions)
+    }
+
     /// Stops the turn being answered (its stream ends with `CancellationError`); the process stays.
     public func interrupt() {
         let actions = state.withLock { state -> [Action] in
             guard let turn = state.turns.first, turn.sent, !turn.done else { return [] }
             givenUp(turn)
-            return [.finish(turn.continuation, CancellationError())] + interruptAction(&state)
+            return finish(turn, CancellationError()) + interruptAction(&state)
         }
         perform(actions)
     }
@@ -404,7 +501,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let running = state.running
             state.running = nil  // what it still says, its exit too, is of no session now
             rollOver(&state)
-            return ((arguments, id), running, turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) })
+            return ((arguments, id), running, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
         }
         perform(actions)
         if let running {
@@ -434,7 +531,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             for turn in turns { turn.watchdog?.cancel() }
             let running = state.running
             state.running = nil  // what it still says, its exit too, is of no session now
-            return turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) }
+            return turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) }
                 + (running.map { [.terminate($0.process, $0.lock)] } ?? [])
         }
         perform(actions)
@@ -473,7 +570,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 kept = nil
                 try store.startOver()
             }
-            (state.owner, state.asked) = (nil, false)
+            (state.owner, state.asked, state.web) = (nil, false, .open)
         }
     }
 
@@ -534,6 +631,44 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
+    /// `redacting` for `request`: what it numbered is kept for the agent conversation it goes into too (a new one gets
+    /// it as the request goes in), so that a later question there never gives one of its placeholders another value.
+    public func redacting<T>(_ settings: RedactionSettings, for request: Request,
+                             _ body: (inout Redaction?) -> T) -> (redaction: Redaction?, result: T) {
+        let done = redacting(settings, body)
+        if let redaction = done.redaction {
+            state.withLock { _ in request.turn.hidden = (redaction.numbers, redaction.hidden) }
+        }
+        return done
+    }
+
+    /// `missing` for `request`: every round when it goes into a new agent conversation, which saw none of them.
+    public func missing(_ rounds: [QuestionChat.Round], for request: Request) -> [QuestionChat.Round] {
+        request.continues ? missing(rounds) : rounds
+    }
+
+    /// `remember` for `request`'s answer: kept while the agent conversation it went into is the one now (one left since
+    /// is never gone on in).
+    public func remember(answers: [String], for request: Request) {
+        guard let id = state.withLock({ _ in request.turn.conversation }), id == (try? store.sessionID()) else { return }
+        remember(answers: answers)
+    }
+
+    /// What a request's hiding numbered (`redacting(_:for:_:)`), kept for the agent conversation now, which it goes into.
+    private func keep(_ hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?) {
+        guard let hidden else { return }
+        kept.withLock { kept in
+            guard let id = try? store.sessionID() else { return }
+            var current = load(&kept, id: id)
+            for (kind, number) in hidden.numbers {
+                current.memory.numbers[kind.rawValue] = max(current.memory.numbers[kind.rawValue] ?? 0, number)
+            }
+            current.known += hidden.values.filter { !current.known.contains($0) }
+            store.save(current.memory)
+            kept = current
+        }
+    }
+
     /// `answers` are in the session now: it gave them, or was told them as context.
     public func remember(answers: [String]) {
         let prints = answers.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(ClaudeSession.fingerprint)
@@ -572,17 +707,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// it (`follow`).
     private func rollOver(_ state: inout State) {
         let id = try? store.startOver()
-        (state.owner, state.asked) = (nil, false)
+        (state.owner, state.asked, state.web) = (nil, false, .open)
         // The locks of conversations no process holds any more go.
         if let id { ConversationLock.prune(store.locks, keeping: store.lockFile(id)) }
     }
 
-    /// The running process on the agent conversation now, with the web tools it may have: as it is when it's on it with
-    /// them; moved to it when the agent can open another conversation in the same process
-    /// (`SessionDriver.newConversation`) and the web tools are the same; else ended, for `start` to start one on it.
-    private func follow(_ state: inout State) -> [Action] {
+    /// The running process on the agent conversation now, with the web tools `wanted` (the request's about to be sent,
+    /// `prewarm`'s): as it is when it's on it with them; moved to it when the agent can open another conversation in the
+    /// same process (`SessionDriver.newConversation`) and the web tools are the same; else ended, for `start` to start
+    /// one on it.
+    private func follow(_ state: inout State, web wanted: SessionWeb) -> [Action] {
         guard let running = state.running, let id = try? store.sessionID() else { return [] }
-        let web = backend.effective(state.web) ?? .only([])
+        let web = backend.effective(wanted) ?? .only([])
         guard running.conversation != id || running.web != web else { return [] }
         if running.web == web, running.started, let lines = running.driver.newConversation() {
             state.running?.conversation = id
@@ -596,11 +732,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// Starts the process (with `--resume` once the session has a conversation), and what it is sent first (an ACP
-    /// handshake), with the web tools the conversation may have; one whose agent can't be kept to them isn't started
+    /// handshake), with the web tools `wanted` (as for `follow`); one whose agent can't be kept to them isn't started
     /// (`notWebOnly`: the provider answers). Its conversation's lock is held until it ends (`ConversationLocks`).
-    private func start(_ state: inout State) throws -> (Running, opening: [Action]) {
+    private func start(_ state: inout State, web wanted: SessionWeb) throws -> (Running, opening: [Action]) {
         if let running = state.running { return (running, []) }
-        guard let web = backend.effective(state.web) else { throw ClaudeSessionError.notWebOnly }
+        guard let web = backend.effective(wanted) else { throw ClaudeSessionError.notWebOnly }
         let held = HeldLock()
         do {
             try store.prepare()
@@ -632,21 +768,30 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         }
     }
 
-    /// The first turn written to the process (started if it isn't running), unless one is being answered.
+    /// The first turn written to the process (started if it isn't running), unless one is being answered or the first
+    /// still waits for its message (`Request`): into its own agent conversation, with its own web tools (`place`).
     private func pump(_ state: inout State) -> [Action] {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
-        guard let turn = state.turns.first, !turn.sent else { return [] }
-        // On another agent conversation (`enter` began a new one): moved to this one, or started again on it.
-        let moved = follow(&state)
+        guard let turn = state.turns.first, !turn.sent, let message = turn.message else { return [] }
+        let web = place(turn, &state)
+        // On another agent conversation, or with other web tools: moved to this one, or started again on it.
+        let moved = follow(&state, web: web)
         let running: Running
         let opening: [Action]
         do {
-            (running, opening) = try start(&state)
+            (running, opening) = try start(&state, web: web)
         } catch {
+            let failure = error as? ClaudeSessionError ?? .failed(error.localizedDescription)
+            // Its web tools can't be kept to what it may reach: it alone isn't asked; the next has its own.
+            if failure == .notWebOnly {
+                state.turns.removeFirst()
+                turn.watchdog?.cancel()
+                return moved + finish(turn, failure) + pump(&state)
+            }
             let turns = state.turns
             state.turns = []
-            let failure = error as? ClaudeSessionError ?? .failed(error.localizedDescription)
-            return moved + turns.filter { !$0.done }.map { .finish($0.continuation, failure) }
+            for turn in turns { turn.watchdog?.cancel() }
+            return moved + turns.filter { !$0.done }.flatMap { finish($0, failure) }
         }
         state.idle?.cancel()
         state.idle = nil
@@ -654,7 +799,36 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
-        return moved + opening + running.driver.message(turn.message).map { .send(running.process, $0) }
+        return moved + opening + running.driver.message(message).map { .send(running.process, $0) }
+    }
+
+    /// `turn`, about to be written, put in its agent conversation (once: sent again after a failed start, it is there):
+    /// a new one, what its hiding numbered kept for it, unless it goes on in the one now (`Request.continues`, and that
+    /// is still its conversation's); the one now when no question went into it yet. The web tools it may have: its own
+    /// (`Request.web`), or the conversation's.
+    private func place(_ turn: Turn, _ state: inout State) -> SessionWeb {
+        if !turn.placed {
+            if !turn.continues || (turn.owner != nil && turn.owner != state.owner) {
+                if asked(&state) { rollOver(&state) }
+                state.owner = turn.owner
+                keep(turn.hidden)
+            }
+            if let web = turn.web { state.web = web }
+            turn.conversation = try? store.sessionID()
+            turn.placed = true
+        }
+        return turn.web ?? state.web
+    }
+
+    /// `turn` ends with `error` (nil: answered): its stream finishes; one whose request has no message yet ends so once
+    /// it has (`answer(_:_:)`).
+    private func finish(_ turn: Turn, _ error: Error?) -> [Action] {
+        turn.done = true
+        guard let continuation = turn.continuation else {
+            turn.ended = error ?? CancellationError()
+            return []
+        }
+        return [.finish(continuation, error)]
     }
 
     /// Now on `answerClock`, as how long ago it is (`Turn.since`).
@@ -721,7 +895,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.running = nil  // its exit is of no session now
             state.idle?.cancel()
             state.idle = nil
-            let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, ClaudeSessionError.noResponse)]
+            let failure = turn.done ? [] : finish(turn, ClaudeSessionError.noResponse)
             turn.done = true
             return failure + [.terminate(running.process, running.lock)] + pump(&state)
         }
@@ -747,8 +921,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let turn = state.turns[index]
             guard turn.attempt == attempt, !turn.sent, !turn.done else { return [] }
             state.turns.remove(at: index)
-            turn.done = true
-            return [.finish(turn.continuation, ClaudeSessionError.busy)]
+            return finish(turn, ClaudeSessionError.busy)
         }
         perform(actions)
     }
@@ -845,9 +1018,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             }
             return []
         case let .usage(tokens):
-            guard let turn, !turn.done else { return [] }
+            guard let turn, !turn.done, let continuation = turn.continuation else { return [] }
             turn.tokens = tokens
-            return turn.text.isEmpty ? [] : [.yield(turn.continuation, turn.reply)]
+            return turn.text.isEmpty ? [] : [.yield(continuation, turn.reply)]
         case .permissionRequest, .working, .other:
             return []  // a permission request is answered by the driver
         case .compacting:
@@ -856,15 +1029,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             // coming in, it goes on.
             guard let turn, !turn.done, turn.text.isEmpty else { return [] }
             givenUp(turn)
-            return [.finish(turn.continuation, ClaudeSessionError.compacting)] + interruptAction(&state)
+            return finish(turn, ClaudeSessionError.compacting) + interruptAction(&state)
         case .messageStarted:
             if let turn, !turn.text.isEmpty { turn.restarts = true }
             return []
         case let .text(text):
-            guard let turn, !turn.done else { return [] }
+            guard let turn, !turn.done, let continuation = turn.continuation else { return [] }
             if turn.restarts { (turn.text, turn.restarts) = ("", false) }
             turn.text += text
-            return [.yield(turn.continuation, turn.reply)]
+            return [.yield(continuation, turn.reply)]
         case let .apiError(code, message):
             turn?.error = ClaudeSessionError.from(code: code, status: nil, message: message)
             return []
@@ -876,7 +1049,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             if let turn {
                 state.turns.removeFirst()
                 turn.watchdog?.cancel()
-                if !turn.done { actions.append(.finish(turn.continuation, error)) }
+                if !turn.done { actions += finish(turn, error) }
                 turn.done = true
             }
             if endsProcess {
@@ -895,21 +1068,21 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             turn.watchdog?.cancel()
             var actions: [Action] = []
             if !isError { state.availability = .ready }
-            if !turn.done {
+            if !turn.done, let continuation = turn.continuation {
                 if interrupted {
-                    actions.append(.finish(turn.continuation, CancellationError()))
+                    actions.append(.finish(continuation, CancellationError()))
                 } else if isError {
                     // The result's text may say more than the error line did (an AWS credential error).
                     let ended = ClaudeSessionError.from(code: nil, status: status, message: text)
                     let error = ended == .awsSignInExpired ? ended : turn.error ?? ended
                     if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
-                    actions.append(.finish(turn.continuation, error))
+                    actions.append(.finish(continuation, error))
                 } else {
                     if turn.text.isEmpty, !text.isEmpty {
                         turn.text = text
-                        actions.append(.yield(turn.continuation, turn.reply))
+                        actions.append(.yield(continuation, turn.reply))
                     }
-                    actions.append(.finish(turn.continuation, nil))
+                    actions.append(.finish(continuation, nil))
                 }
             }
             actions += pump(&state)
@@ -963,7 +1136,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             } else {
                 error = .exited(status, message)
             }
-            let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, error)]
+            let failure = turn.done ? [] : finish(turn, error)
             return failure + pump(&state)
         }
         perform(actions)

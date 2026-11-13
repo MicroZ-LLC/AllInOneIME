@@ -207,7 +207,7 @@ public final class Converter: Sendable {
     /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
     /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
     /// revised as the last instruction asks. `conversation`: the `@question` conversation in the panel it is of, which a
-    /// question session keeps in one conversation of its agent (`ClaudeSessionManager.enter`); nil: the session's current
+    /// question session keeps in one conversation of its agent (`ClaudeSessionManager.request`); nil: the session's current
     /// one.
     public func generate(_ command: Command, input: String, app: String? = nil, fresh: Bool = false,
                          turns: [Refinement.Turn] = [],
@@ -253,11 +253,14 @@ public final class Converter: Sendable {
         }
         // Given up (Esc) before it is asked: nothing goes to the agent (or the fast fallback).
         try Task.checkCancellation()
-        // The panel's conversation in one conversation of the agent, a new one for each (before what goes by it, below).
-        session?.enter(conversation)
+        // The panel's conversation in one conversation of the agent, a new one for each, with the web tools it may have:
+        // the request's own from now on (`ClaudeSessionManager.Request`), whatever another field asks before it is sent;
+        // in the queue now, so that what goes by its conversation (below) is of the one it goes into.
+        let sessionRequest = session?.request(conversation)
         // The rounds of the conversation the session didn't see (the fast fallback answered them, they are from the saved
         // history, or the agent's conversation is new), told it with the question.
-        let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
+        let earlier = Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())
+        let missing = sessionRequest.flatMap { session?.missing(earlier, for: $0) } ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
         // a refine's turns (as for `convert`). For the session, numbered on from its earlier questions (one long
         // conversation: a placeholder never stands for two values), and the rounds it didn't see too.
@@ -272,8 +275,8 @@ public final class Converter: Sendable {
         }
         var redaction: Redaction?
         let texts: (sent: String, last: String, missing: [QuestionChat.Round])
-        if let session {
-            (redaction, texts) = session.redacting(config.redaction, hide)
+        if let session, let sessionRequest {
+            (redaction, texts) = session.redacting(config.redaction, for: sessionRequest, hide)
         } else {
             (redaction, texts) = redacting(route, hide)
         }
@@ -291,14 +294,14 @@ public final class Converter: Sendable {
         // conversation's earlier rounds are part of the answer). Should it not answer at all (not installed, signed out, its
         // limit, open in Terminal), the fast fallback does, and the panel says why; with none, the question fails so.
         var note: String?
-        if let session {
+        if let session, let sessionRequest {
             // The question typed last (`lastMessage` is the first one when nothing is hidden).
             let question = ClaudeSession.message(turns.last.map { redaction == nil ? $0.instruction : lastMessage } ?? sent,
                                                  after: texts.missing)
             let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
             do {
-                try await runInSession(session, message: message, redaction: redaction, hidden: hidden, started: started,
-                                       told: missing.map(\.answer), continuation: continuation)
+                try await runInSession(session, sessionRequest, message: message, redaction: redaction, hidden: hidden,
+                                       started: started, told: missing.map(\.answer), continuation: continuation)
                 return
             } catch let error as ClaudeSessionError where error.fallsBack {
                 guard !route.slow else { throw ClaudeSessionError.failed(error.description(for: session.backend.agent)) }
@@ -351,13 +354,14 @@ public final class Converter: Sendable {
             hidden: hidden, shortened: shortened, note: note, answeredBy: answeredBy))
     }
 
-    /// `@question` answered by the dedicated Claude session (`ClaudeSessionManager.answer`): `message` is the question as
-    /// sent (redacted); the answer streams in as the provider's does, its placeholders put back, with which session it
-    /// is, whether its conversation is new and the tokens it used (the panel's footer). Throws what the session failed
-    /// with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came. Answered, the answer and `told`
-    /// (the earlier rounds' answers sent with the question) are in the session (`ClaudeSessionManager.remember`).
-    private func runInSession(_ session: ClaudeSessionManager, message: String, redaction: Redaction?, hidden: Int,
-                              started: ContinuousClock.Instant, told: [String],
+    /// `@question` answered by the dedicated Claude session, as its `request` (`ClaudeSessionManager.Request.answer`):
+    /// `message` is the question as sent (redacted); the answer streams in as the provider's does, its placeholders put
+    /// back, with which session it is, whether its conversation is new and the tokens it used (the panel's footer).
+    /// Throws what the session failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came.
+    /// Answered, the answer and `told` (the earlier rounds' answers sent with the question) are in the session
+    /// (`ClaudeSessionManager.remember`).
+    private func runInSession(_ session: ClaudeSessionManager, _ request: ClaudeSessionManager.Request, message: String,
+                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant, told: [String],
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
         func answer(_ text: String, complete: Bool) -> ConversionResult {
@@ -370,7 +374,7 @@ public final class Converter: Sendable {
         let answeredBy = QuestionBackend(session.backend.agent)
         try Task.checkCancellation()  // given up: not sent
         do {
-            for try await reply in session.answer(message) {
+            for try await reply in request.answer(message) {
                 (text, latest) = (reply.text, reply)
                 if firstToken == nil { firstToken = elapsed() }
                 if text.utf8.count > Self.maxOutputBytes { break }
@@ -384,7 +388,7 @@ public final class Converter: Sendable {
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
-        session.remember(answers: told + [final.versions.first?.text ?? ""])
+        session.remember(answers: told + [final.versions.first?.text ?? ""], for: request)
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
             hidden: hidden, answeredBy: answeredBy, newConversation: latest.newConversation, tokens: latest.tokens))

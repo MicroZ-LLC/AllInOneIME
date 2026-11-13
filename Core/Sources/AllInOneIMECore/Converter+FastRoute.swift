@@ -74,15 +74,15 @@ extension Converter {
 
     /// `request` asked of a CLI's `session` as one message (`sessionMessage`), its answer as a provider's stream gives
     /// it: the whole text so far each time more comes, then the end. What the session fails with is said for its agent.
-    /// Each request is a conversation of its own (`ClaudeSessionManager.enter`), never one of the `@question`
-    /// conversations, with no web tools (`SessionWeb.only` none): what it rewrites, translates or replies to is often text
-    /// the user didn't type (a selection, a message), which could tell the agent to send it somewhere.
+    /// Each request is a conversation of its own (`QuestionConversation.oneOff`), never one of the `@question`
+    /// conversations, with no web tools: what it rewrites, translates or replies to is often text the user didn't type (a
+    /// selection, a message), which could tell the agent to send it somewhere. Both go with the request as it is made
+    /// (`ClaudeSessionManager.ask(_:in:)`), however long it waits behind a question being answered.
     static func sessionStream(_ request: ConverseRequest, session: ClaudeSessionManager) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    session.enter(QuestionConversation(web: .only([])))
-                    for try await text in session.ask(sessionMessage(request)) {
+                    for try await text in session.ask(sessionMessage(request), in: .oneOff) {
                         continuation.yield(.textReplaced(text))
                     }
                     continuation.yield(.messageStop(reason: "end_turn"))

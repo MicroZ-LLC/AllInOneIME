@@ -55,7 +55,7 @@ extension Config {
 }
 
 /// An `@question` conversation in the panel (`Composer.questionConversation`), as the session it goes to sees it
-/// (`ClaudeSessionManager.enter`): a new one each time the panel starts one (a question asked, a saved one picked, asked
+/// (`ClaudeSessionManager.request`): a new one each time the panel starts one (a question asked, a saved one picked, asked
 /// again), its follow-ups in it. Each goes into a new conversation of the session's agent, so that a question never
 /// carries the ones before it (nor waits for them to be read again after the prompt cache lapsed).
 public struct QuestionConversation: Hashable, Sendable {
@@ -67,6 +67,10 @@ public struct QuestionConversation: Hashable, Sendable {
         self.id = id
         self.web = web
     }
+
+    /// A conversation of one request, a writing task (`Converter.sessionStream`): an id of its own, so it never goes into
+    /// another's agent conversation nor another into its, and no web tools.
+    public static var oneOff: QuestionConversation { QuestionConversation(web: .only([])) }
 }
 
 /// What a question session's web tools may reach in a conversation (`QuestionConversation.web`). Text the user didn't
@@ -531,7 +535,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 }
 
 /// The session's id and folder on disk: `id` holds the id of the conversation questions go into now, made when there is
-/// none, a new one for each new conversation (`startOver`: `ClaudeSessionManager.enter`, `prewarm`, Settings' "Start
+/// none, a new one for each new conversation (`startOver`: a request sent into a new one, `prewarm`, Settings' "Start
 /// over"); `resumable` is there once that conversation has begun (Claude Code started it on a question), so the process
 /// starts with `--resume`. The folder gets its CLAUDE.md (`ClaudeSession.instructions`) when it has none; `provider-settings.json`, the
 /// user's provider settings (`ClaudeSession.providerSettings`), before each start; `context.json`, what the input method

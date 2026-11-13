@@ -1,0 +1,374 @@
+import AllInOneIMETestSupport
+import Foundation
+import Testing
+@testable import AllInOneIMECore
+
+/// Each request to a question session (`ClaudeSessionManager.Request`) carries the conversation it is of and what its web
+/// tools may reach, as it was made: one waiting behind a question being answered is sent with exactly those, whatever
+/// another field asked meanwhile. A writing task never goes into an `@question` conversation and never has web tools.
+struct QuestionSessionRequestTests {
+    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("session-request-\(UUID().uuidString)")
+    var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
+
+    func claude(_ fake: FakeClaude) -> ClaudeSessionManager {
+        ClaudeSessionManager(launcher: fake, store: store, userSettings: { nil })
+    }
+
+    func value(_ flag: String, _ arguments: [String]) -> String? {
+        arguments.firstIndex(of: flag).map { arguments[$0 + 1] }
+    }
+
+    /// The conversation a Claude Code process is on.
+    func conversation(_ process: FakeClaude.Process) -> String? {
+        value("--session-id", process.arguments) ?? value("--resume", process.arguments)
+    }
+
+    func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
+        var answers: [String] = []
+        do {
+            for try await answer in stream { answers.append(answer) }
+            return (answers, nil)
+        } catch {
+            return (answers, error)
+        }
+    }
+
+    // MARK: - Claude Code
+
+    /// A writing task asked while a question is answered, then another field's @question: the writing task goes into a
+    /// conversation of its own with no web tools, the question into another of its own with them, never the writing
+    /// task's.
+    @Test func aWritingTaskWaitingBehindAQuestionGoesAloneWithoutTheWeb() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let first = session.ask("first question", in: QuestionConversation())
+        let one = try #require(fake.last)
+        one.started()
+        one.text("Part")
+        let writing = session.ask("rewrite this", in: .oneOff)
+        let second = session.ask("second question", in: QuestionConversation())
+        #expect(fake.processes.count == 1 && one.messages == ["first question"])
+
+        one.done("Part of it.")
+        #expect(await collect(first).answers.last == "Part")
+        let two = try #require(fake.last)
+        #expect(fake.processes.count == 2 && one.terminated, "started again without the web tools")
+        #expect(value("--tools", two.arguments) == "" && !two.arguments.contains("--allowedTools"), "\(two.arguments)")
+        #expect(two.messages == ["rewrite this"] && conversation(two) != conversation(one))
+
+        two.started()
+        two.done("Rewritten.")
+        #expect(await collect(writing).answers == ["Rewritten."])
+        let three = try #require(fake.last)
+        #expect(fake.processes.count == 3 && two.terminated)
+        #expect(value("--tools", three.arguments) == ClaudeSession.tools, "\(three.arguments)")
+        #expect(three.messages == ["second question"])
+        #expect(Set([conversation(one), conversation(two), conversation(three)]).count == 3)
+        withExtendedLifetime(second) {}
+    }
+
+    /// A question with text the user didn't type (web kept to what was typed: nothing) waiting behind another: an
+    /// @question with the web open made meanwhile doesn't open it for it.
+    @Test func aQuestionWithTextNotTypedWaitingKeepsItsWebOff() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let first = session.ask("first question", in: QuestionConversation())
+        let one = try #require(fake.last)
+        one.started()
+        one.text("Part")
+        let selected = session.ask("summarize the selection", in: QuestionConversation(web: .only([])))
+        let third = session.request(QuestionConversation())  // made meanwhile, asked later
+        one.done("Done.")
+        _ = await collect(first)
+        let two = try #require(fake.last)
+        #expect(two.messages == ["summarize the selection"] && value("--tools", two.arguments) == "", "\(two.arguments)")
+        let asked = third.ask("third question")
+        two.started()
+        two.done("Summary.")
+        _ = await collect(selected)
+        let three = try #require(fake.last)
+        #expect(three.messages == ["third question"] && value("--tools", three.arguments) == ClaudeSession.tools)
+        withExtendedLifetime(asked) {}
+    }
+
+    /// A follow-up in the same panel conversation goes on in its agent conversation, with the web it may have now.
+    @Test func aFollowUpGoesOnInItsConversation() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let first = session.request(panel)
+        #expect(!first.continues)
+        let answering = first.ask("one")
+        let process = try #require(fake.last)
+        process.started()
+        process.done("1")
+        _ = await collect(answering)
+        let next = session.request(panel)
+        #expect(next.continues)
+        _ = next.ask("two")
+        #expect(fake.processes.count == 1 && process.messages == ["one", "two"])
+    }
+
+    /// A request takes its place in the queue as it is made: another field's question asked before its message comes
+    /// waits behind it, and it goes on in its conversation as `continues` said when it was made.
+    @Test func aRequestKeepsItsPlaceUntilItsMessageComes() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let answering = session.ask("one", in: panel)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("1")
+        _ = await collect(answering)
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let other = session.ask("another field's", in: QuestionConversation())
+        #expect(fake.processes.count == 1 && process.messages == ["one"], "sent before the request made first")
+        _ = followUp.ask("two")
+        #expect(fake.processes.count == 1 && process.messages == ["one", "two"])
+        withExtendedLifetime(other) {}
+    }
+
+    /// Let go of without its message (the question given up before it was asked), a request's place goes.
+    @Test func aRequestLetGoOfGivesUpItsPlace() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        do {
+            let unasked = session.request(QuestionConversation())
+            withExtendedLifetime(unasked) {}
+        }
+        _ = session.ask("asked", in: QuestionConversation())
+        #expect(fake.last?.messages == ["asked"])
+    }
+
+    /// Ended before its message came (the session stopped): asked then, it ends so at once and nothing is sent.
+    @Test func aRequestEndedBeforeItsMessageEndsWhenAsked() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let request = session.request(QuestionConversation())
+        session.stop()
+        #expect(await collect(request.ask("too late")).error is CancellationError)
+        #expect(fake.processes.isEmpty)
+    }
+
+    /// A request of another conversation behind one being answered goes into a new agent conversation: every round of
+    /// its conversation is told with it; one going on in its own isn't told what it saw.
+    @Test func whatARequestMissedGoesByTheConversationItGoesInto() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let rounds = [QuestionChat.Round(question: "one", answer: "1")]
+        let answering = session.ask("one", in: panel)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("1")
+        _ = await collect(answering)
+        session.remember(answers: ["1"])
+        #expect(session.missing(rounds, for: session.request(panel)).isEmpty)
+        // Another conversation's request made first: this one goes into a new agent conversation.
+        let other = session.request(QuestionConversation())
+        let after = session.request(panel)
+        #expect(!after.continues && session.missing(rounds, for: after) == rounds)
+        withExtendedLifetime(other) {}
+    }
+
+    /// What a question going into a new agent conversation hid is kept for that conversation: a follow-up there never
+    /// gives one of its placeholders to another value.
+    @Test func aNewConversationKeepsWhatItsFirstQuestionHid() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        func hide(_ text: String, _ request: ClaudeSessionManager.Request) -> String {
+            session.redacting(settings, for: request) { redaction in redaction?.hide(text) ?? text }.result
+        }
+        let first = session.request(QuestionConversation())
+        #expect(hide("mail a@one.com", first) == "mail [EMAIL_1]")
+        let answering = first.ask("mail [EMAIL_1]")
+        let one = try #require(fake.last)
+        one.started()
+        one.text("Sent")
+        // Another conversation, made while the first is answered: numbered on, and kept for the one it goes into.
+        let panel = QuestionConversation()
+        let second = session.request(panel)
+        #expect(!second.continues)
+        #expect(hide("and b@two.com", second) == "and [EMAIL_2]")
+        let asked = second.ask("and [EMAIL_2]")
+        one.done("Sent.")
+        _ = await collect(answering)
+        let two = try #require(fake.last)
+        #expect(two.messages == ["and [EMAIL_2]"] && conversation(two) != conversation(one))
+        two.started()
+        two.done("OK.")
+        _ = await collect(asked)
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        #expect(hide("now c@three.com", followUp) == "now [EMAIL_3]", "a placeholder of the conversation given to another value")
+    }
+
+    // MARK: - Codex and ACP agents
+
+    func requests(_ process: FakeClaude.Process, _ method: String) -> [[String: Any]] {
+        process.lines.filter { $0["method"] as? String == method }
+    }
+
+    func respond(_ process: FakeClaude.Process, _ method: String, _ result: [String: Any] = [:], jsonrpc: Bool) throws {
+        let id = try #require(requests(process, method).last?["id"])
+        process.say((jsonrpc ? ["jsonrpc": "2.0"] : [:]).merging(["id": id, "result": result]) { $1 })
+    }
+
+    /// Codex: the process is opened (its thread started), as `web` says.
+    func openCodex(_ process: FakeClaude.Process, thread: String) throws {
+        try respond(process, "initialize", ["userAgent": "test"], jsonrpc: false)
+        try respond(process, "config/read", ["config": ["model": "gpt"]], jsonrpc: false)
+        try respond(process, "thread/start", ["thread": ["id": thread, "name": NSNull()]], jsonrpc: false)
+    }
+
+    func codexTurns(_ process: FakeClaude.Process) -> [String] {
+        requests(process, "turn/start").compactMap {
+            (($0["params"] as? [String: Any])?["input"] as? [[String: Any]])?.first?["text"] as? String
+        }
+    }
+
+    func endCodexTurn(_ process: FakeClaude.Process, thread: String) throws {
+        try respond(process, "turn/start", ["turn": ["id": "turn"]], jsonrpc: false)
+        process.say(["method": "turn/completed", "params": ["threadId": thread, "turn": ["id": "turn", "status": "completed"]]])
+    }
+
+    @Test func codexSendsAWaitingWritingTaskWithoutWebSearchInAThreadOfItsOwn() async throws {
+        let fake = FakeClaude()
+        let session = ClaudeSessionManager(backend: CodexBackend(base: folder), launcher: fake)
+        defer { session.stop() }
+        let first = session.ask("first question", in: QuestionConversation())
+        let one = try #require(fake.last)
+        #expect(one.arguments.contains(#"web_search="live""#))
+        try openCodex(one, thread: "t1")
+        #expect(await Timing.eventually(within: 10) { codexTurns(one) == ["first question"] })
+        let writing = session.ask("rewrite this", in: .oneOff)
+        let second = session.ask("second question", in: QuestionConversation())
+        try endCodexTurn(one, thread: "t1")
+        _ = await collect(first)
+        let two = try #require(fake.last)
+        #expect(fake.processes.count == 2 && one.terminated && codexTurns(one) == ["first question"])
+        #expect(two.arguments.contains(#"web_search="disabled""#) && !two.arguments.contains(#"web_search="live""#))
+        try openCodex(two, thread: "t2")
+        #expect(await Timing.eventually(within: 10) { codexTurns(two) == ["rewrite this"] })
+        try endCodexTurn(two, thread: "t2")
+        _ = await collect(writing)
+        let three = try #require(fake.last)
+        #expect(fake.processes.count == 3 && three.arguments.contains(#"web_search="live""#))
+        try openCodex(three, thread: "t3")
+        #expect(await Timing.eventually(within: 10) { codexTurns(three) == ["second question"] })
+        withExtendedLifetime(second) {}
+    }
+
+    func prompts(_ process: FakeClaude.Process) -> [String] {
+        requests(process, "session/prompt").compactMap {
+            (($0["params"] as? [String: Any])?["prompt"] as? [[String: Any]])?.first?["text"] as? String
+        }
+    }
+
+    /// Kiro: the process is opened, its session in `mode`.
+    func openKiro(_ process: FakeClaude.Process, session id: String) throws {
+        let modes: [String: Any] = ["currentModeId": "vibe", "availableModes": [
+            ["id": "vibe"], ["id": ACPBackend.kiroMode], ["id": ACPBackend.kiroOfflineMode]]]
+        try respond(process, "initialize", ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]], jsonrpc: true)
+        try respond(process, "session/new", ["sessionId": id, "modes": modes], jsonrpc: true)
+        try respond(process, "session/set_mode", jsonrpc: true)
+    }
+
+    func mode(_ process: FakeClaude.Process) -> String? {
+        (requests(process, "session/set_mode").last?["params"] as? [String: Any])?["modeId"] as? String
+    }
+
+    @Test func anACPAgentSendsAWaitingWritingTaskInItsOfflineModeInASessionOfItsOwn() async throws {
+        let fake = FakeClaude()
+        var kiro = ACPBackend.kiro
+        kiro.base = folder
+        let session = ClaudeSessionManager(backend: kiro, launcher: fake)
+        defer { session.stop() }
+        let first = session.ask("first question", in: QuestionConversation())
+        let one = try #require(fake.last)
+        try openKiro(one, session: "s1")
+        #expect(mode(one) == ACPBackend.kiroMode)
+        #expect(await Timing.eventually(within: 10) { prompts(one) == ["first question"] })
+        let writing = session.ask("rewrite this", in: .oneOff)
+        let second = session.ask("second question", in: QuestionConversation())
+        try respond(one, "session/prompt", ["stopReason": "end_turn"], jsonrpc: true)
+        _ = await collect(first)
+        let two = try #require(fake.last)
+        #expect(fake.processes.count == 2 && one.terminated && prompts(one) == ["first question"])
+        try openKiro(two, session: "s2")
+        #expect(mode(two) == ACPBackend.kiroOfflineMode)
+        #expect(await Timing.eventually(within: 10) { prompts(two) == ["rewrite this"] })
+        try respond(two, "session/prompt", ["stopReason": "end_turn"], jsonrpc: true)
+        _ = await collect(writing)
+        let three = try #require(fake.last)
+        try openKiro(three, session: "s3")
+        #expect(mode(three) == ACPBackend.kiroMode)
+        #expect(await Timing.eventually(within: 10) { prompts(three) == ["second question"] })
+        withExtendedLifetime(second) {}
+    }
+
+    @Test func geminiSendsAWaitingWritingTaskWithItsOfflinePolicy() async throws {
+        let fake = FakeClaude()
+        var gemini = ACPBackend.gemini
+        gemini.base = folder
+        let session = ClaudeSessionManager(backend: gemini, launcher: fake)
+        defer { session.stop() }
+        func policy(_ process: FakeClaude.Process) -> String? {
+            value("--policy", process.arguments).map { ($0 as NSString).lastPathComponent }
+        }
+        func open(_ process: FakeClaude.Process, session id: String) throws {
+            try respond(process, "initialize", ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]], jsonrpc: true)
+            try respond(process, "session/new", ["sessionId": id], jsonrpc: true)
+        }
+        let first = session.ask("first question", in: QuestionConversation())
+        let one = try #require(fake.last)
+        #expect(policy(one) == "allinoneime-policy.toml")
+        try open(one, session: "g1")
+        #expect(await Timing.eventually(within: 10) { prompts(one) == ["first question"] })
+        let writing = session.ask("rewrite this", in: .oneOff)
+        try respond(one, "session/prompt", ["stopReason": "end_turn"], jsonrpc: true)
+        _ = await collect(first)
+        let two = try #require(fake.last)
+        #expect(fake.processes.count == 2 && one.terminated && policy(two) == "allinoneime-policy-offline.toml")
+        try open(two, session: "g2")
+        #expect(await Timing.eventually(within: 10) { prompts(two) == ["rewrite this"] })
+        #expect(prompts(one) == ["first question"])
+        withExtendedLifetime(writing) {}
+    }
+
+    /// An agent that can't have its web tools off isn't asked a writing task; a question behind it, with the web it may
+    /// have, still is.
+    @Test func aRequestItsAgentCantKeepToTheWebFailsAloneTheNextGoesOn() async throws {
+        let fake = FakeClaude()
+        let plain = ACPBackend(agent: .kiro, folderName: "plain", launch: ["acp"], availability: [], resume: [], start: [],
+                               base: folder)
+        let session = ClaudeSessionManager(backend: plain, launcher: fake)
+        defer { session.stop() }
+        var writing: AsyncThrowingStream<String, Error>?
+        var question: AsyncThrowingStream<String, Error>?
+        do {
+            let first = session.request(QuestionConversation())  // holds the queue until it goes
+            writing = session.ask("rewrite this", in: .oneOff)
+            question = session.ask("a question", in: QuestionConversation())
+            #expect(fake.processes.isEmpty)
+            withExtendedLifetime(first) {}
+        }
+        #expect(await collect(try #require(writing)).error as? ClaudeSessionError == .notWebOnly)
+        let process = try #require(fake.last)
+        try respond(process, "initialize", ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]], jsonrpc: true)
+        try respond(process, "session/new", ["sessionId": "s1"], jsonrpc: true)
+        #expect(await Timing.eventually(within: 10) { prompts(process) == ["a question"] })
+        #expect(fake.processes.count == 1)
+        withExtendedLifetime(question) {}
+    }
+}

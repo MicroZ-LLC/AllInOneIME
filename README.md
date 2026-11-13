@@ -299,8 +299,9 @@ sign-in without starting it, `kiro-cli whoami`): each time it shows with a CLI c
 closed it runs none of them. The one chosen is tried as a question comes. A CLI takes a second or more to answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
 an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
-neither, autocomplete is off, and rewriting and translating go to the session too, more slowly. Settings says which
-under the choice. When the session can't answer (not
+neither, autocomplete is off, and rewriting and translating go to the session too, more slowly, each request in a
+conversation of its own with no web tools (never an `@question` conversation, however long it waits behind a question
+being answered). Settings says which under the choice. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
 within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting the conversation before
 it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction, not waited for) the
