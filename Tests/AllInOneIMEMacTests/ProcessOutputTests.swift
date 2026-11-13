@@ -39,4 +39,11 @@ struct ProcessOutputTests {
         #expect(result != nil && result?.status != 0)
         #expect(Date().timeIntervalSince(started) < 10)
     }
+
+    @Test func ignoredTermAndOpenPipesStillReturn() async {
+        let started = Date()
+        let result = await run(["trap '' TERM; while :; do sleep 1; done"], timeout: 0.2, within: 4)
+        #expect(result?.status == -1)
+        #expect(Date().timeIntervalSince(started) < 4)
+    }
 }

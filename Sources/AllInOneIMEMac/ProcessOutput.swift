@@ -29,19 +29,34 @@ public enum ProcessOutput {
         let launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment,
                                                        directory: directory, standardInput: .null, standardOutput: .pipe(out),
                                                        standardError: .pipe(errors), onExit: { _ in ended.signal() }))
-        let stop = DispatchWorkItem { launched.terminate() }
-        DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: stop)
         let output = Locked(initialState: Data())
-        let outputRead = DispatchSemaphore(value: 0)
+        let said = Locked(initialState: Data())
+        let outputRead = DispatchSemaphore(value: 0), errorsRead = DispatchSemaphore(value: 0)
         Thread.detachNewThread {
             let data = out.fileHandleForReading.readDataToEndOfFile()
             output.withLock { $0 = data }
             outputRead.signal()
         }
-        let said = errors.fileHandleForReading.readDataToEndOfFile()
-        outputRead.wait()
-        ended.wait()
-        stop.cancel()
-        return Result(status: launched.terminationStatus, output: output.withLock { $0 }, errors: said)
+        Thread.detachNewThread {
+            let data = errors.fileHandleForReading.readDataToEndOfFile()
+            said.withLock { $0 = data }
+            errorsRead.signal()
+        }
+        let deadline = DispatchTime.now() + timeout
+        let exited = ended.wait(timeout: deadline) == .success
+        let outputDone = outputRead.wait(timeout: deadline) == .success
+        let errorsDone = errorsRead.wait(timeout: deadline) == .success
+        if exited && outputDone && errorsDone {
+            return Result(status: launched.terminationStatus, output: output.withLock { $0 }, errors: said.withLock { $0 })
+        }
+        launched.terminate()
+        if !exited { _ = ended.wait(timeout: .now() + 0.5) }
+        if launched.treeIsRunning {
+            launched.kill()
+            if !exited { _ = ended.wait(timeout: .now() + 0.2) }
+        }
+        out.fileHandleForReading.closeFile()
+        errors.fileHandleForReading.closeFile()
+        return Result(status: -1, output: output.withLock { $0 }, errors: said.withLock { $0 })
     }
 }
