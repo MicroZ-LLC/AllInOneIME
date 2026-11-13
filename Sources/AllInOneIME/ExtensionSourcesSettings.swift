@@ -59,7 +59,7 @@ struct ExtensionSourcesSection: View {
             ExtensionSourceSheet(model: model, start: start)
         }
         // The search pointing into it opens it, even folded by a click before.
-        .onChange(of: model.spot) {
+        .onChange(of: model.spot, initial: true) {
             if model.spot == .extensionSources || model.spot == .scriptExtensions { disclosure.wrappedValue.reset() }
         }
         .confirmationDialog(tr("移除这个来源？", "Remove this source?"),

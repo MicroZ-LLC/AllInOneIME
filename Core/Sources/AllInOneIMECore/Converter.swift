@@ -53,7 +53,8 @@ public final class Converter: Sendable {
     public let questionSessions: [SessionAgent: ClaudeSessionManager]
     /// The Claude Code session, if any.
     public var claudeSession: ClaudeSessionManager? { questionSessions[.claude] }
-    /// Whether this Mac has an AWS profile of that name: Bedrock is set up, for the fast fallback (`isReady`).
+    /// Whether this Mac has an AWS profile of that name with credentials a request can be signed with: Bedrock is set up,
+    /// for the fast fallback (`isReady`).
     let hasAWSProfile: @Sendable (String) -> Bool
 
     /// The session `@question` goes to with `config`: the CLI chosen as the AI (`Config.questionSessionAgent`), tried
@@ -103,7 +104,7 @@ public final class Converter: Sendable {
         appleClock: any Clock<Duration> = ContinuousClock(),
         claudeSession: ClaudeSessionManager? = nil,
         questionSessions: [SessionAgent: ClaudeSessionManager] = [:],
-        hasAWSProfile: @escaping @Sendable (String) -> Bool = { AWSSharedConfig.profileNames().contains($0) }
+        hasAWSProfile: @escaping @Sendable (String) -> Bool = { AWSCredentialResolver.shared.canAuthenticate(profile: $0) }
     ) {
         self.client = ChatClient(bedrock: client, apple: appleModel, appleClock: appleClock)
         var sessions = questionSessions

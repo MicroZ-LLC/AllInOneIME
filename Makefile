@@ -43,7 +43,7 @@ PROFILE_ALL_DEVICES ?= $(if $(findstring Developer ID,$(SIGN_CERT)),1)
 DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
 # The keychain access groups the entitlements give (one or more, the first the default): KeySync.accessGroup in the core.
 # The profile has to allow each (the team's `9SR8N3UD5Y.*` does).
-KEYCHAIN_GROUPS := 9SR8N3UD5Y.com.allinoneime.shared
+KEYCHAIN_GROUPS := $(TEAM_ID).com.allinoneime.shared
 ENTITLEMENTS := $(BUILD_DIR)/AllInOneIME.entitlements
 # Architectures to build for; empty: this Mac's. `make dmg` builds for both (DIST_ARCHS).
 ARCHS ?=

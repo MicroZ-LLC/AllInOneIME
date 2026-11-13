@@ -3018,7 +3018,9 @@ struct SettingsView: View {
         if let error = model.keyError { Text(error).foregroundStyle(.red) }
         // More…: the base URL (and, for OpenAI's, the services that take its API); open whenever one is set.
         let baseURLSet = model.providerSettings(provider).baseURL != nil
-        DisclosureGroup(isExpanded: Binding(get: { aiMore.isExpanded(opensByItself: baseURLSet) }, set: { aiMore.click($0) })) {
+        // The search pointing at the base URL opens it too, even folded by a click before, as the other folds do.
+        DisclosureGroup(isExpanded: Binding(get: { aiMore.isExpanded(opensByItself: baseURLSet || model.spot == .baseURL) },
+                                            set: { aiMore.click($0) })) {
             TextField(SettingsSpot.baseURL.title, text: providerBinding(provider, \.baseURL),
                       prompt: Text(ProviderSettings.defaults(for: provider).baseURL ?? ""))
                 .onSubmit { model.save() }

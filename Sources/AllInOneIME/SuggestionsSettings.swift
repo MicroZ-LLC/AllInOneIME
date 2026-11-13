@@ -32,7 +32,7 @@ struct SuggestionsSection: View {
         // Opened again, as a new window starts (`SettingsView`'s own state is reset the same way).
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in more.reset() }
         // The search pointing into it opens it, even folded by a click before.
-        .onChange(of: model.spot) { if model.spot == .suggestionsInsert || model.spot == .appInserts { more.reset() } }
+        .onChange(of: model.spot, initial: true) { if model.spot == .suggestionsInsert || model.spot == .appInserts { more.reset() } }
     }
 
     /// More… shows open, whatever was clicked: with something set there (an app with its own choice, Insert set
