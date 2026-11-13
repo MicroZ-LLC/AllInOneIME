@@ -410,7 +410,7 @@ two-way door = a decision you can undo at any time
 2. 그 안의 "Install AllInOneIME"을 더블 클릭하고 "Install"(설치)을 클릭합니다. 입력기는 `~/Library/Input Methods`에, "AllInOneIME Settings"는 `~/Applications`에 설치됩니다. 현재 사용자 전용이며 관리자 암호는 필요 없습니다.
 3. 설치 프로그램은 Developer ID로 서명되고 Apple의 공증을 받았기 때문에, 처음 열 때 macOS는 인터넷에서 내려받은 앱을 열지 여부만 묻습니다. "열기"를 클릭하세요. (0.6.3 이전 버전은 공증을 받지 않아, 버전마다 시스템 설정 → 개인정보 보호 및 보안 → 그래도 열기에서 한 번씩 허용해야 했습니다.)
 
-그러면 AllInOneIME가 활성화되어 입력 소스에 추가됩니다. Ctrl+Space로 전환하세요(🌐 키는 System Settings → Keyboard(시스템 설정 → 키보드)에서 "Press 🌐 key to"가 "Change Input Source"로 설정된 경우에만 전환합니다). 설치 프로그램이 직접 추가하라고 하면, 이 Mac은 프로그램이 입력기를 활성화하도록 허용하지 않는 것이므로 한 번 직접 추가하세요: System Settings → Keyboard → Text Input → Input Sources → Edit… → +(왼쪽 아래) → Chinese, Simplified → AllInOneIME(영어도 똑같이 잘 입력하며, 설정의 "Input"에서 중국어를 추가하면 중국어도 입력합니다).
+그러면 AllInOneIME가 활성화되어 입력 소스에 추가됩니다. Ctrl+Space로 전환하세요(🌐 키는 System Settings → Keyboard(시스템 설정 → 키보드)에서 "Press 🌐 key to"가 "Change Input Source"로 설정된 경우에만 전환합니다). 설치 프로그램이 직접 추가하라고 하면, 이 Mac은 프로그램이 입력기를 활성화하도록 허용하지 않는 것이므로 한 번 직접 추가하세요: System Settings → Keyboard → Text Input → Input Sources → Edit… → +(왼쪽 아래) → English → AllInOneIME(설정의 "Input"에서 중국어를 추가하면 병음도 입력합니다).
 
 Ctrl+Space로 AllInOneIME에 가지 않거나, 얼마 후 U.S.로 되돌아간다면 설치 프로그램을 다시 실행하세요. AllInOneIME를 입력 소스에 다시 추가합니다.
 
