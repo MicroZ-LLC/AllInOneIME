@@ -410,7 +410,7 @@ two-way door = a decision you can undo at any time
 2. その中の「Install AllInOneIME」をダブルクリックし、「Install」（インストール）をクリックします。入力メソッドは `~/Library/Input Methods` に、「AllInOneIME Settings」は `~/Applications` にインストールされます。このユーザ専用で、管理者パスワードは不要です。
 3. インストーラは Developer ID で署名され、Apple の公証を受けているので、初回に macOS が尋ねるのは、インターネットからダウンロードしたアプリを開くかどうかだけです。「開く」をクリックしてください。（0.6.3 より前のバージョンは公証を受けていなかったため、バージョンごとに一度、システム設定 → プライバシーとセキュリティ → このまま開く で許可する必要がありました。）
 
-これで AllInOneIME が有効になり、入力ソースに加わります。Ctrl+Space で切り替えます（🌐 キーで切り替わるのは、System Settings → Keyboard（システム設定 → キーボード）で「Press 🌐 key to」が「Change Input Source」に設定されている場合だけです）。インストーラから手動で追加するよう言われた場合、この Mac ではプログラムが有効にすることを許可していないので、一度だけ自分で追加してください：System Settings → Keyboard → Text Input → Input Sources → Edit… → +（左下）→ English → AllInOneIME（設定の「Input」で中国語を追加すれば、ピンインも入力できます）。
+これで AllInOneIME が有効になり、入力ソースに加わります。Ctrl+Space で切り替えます（🌐 キーで切り替わるのは、System Settings → Keyboard（システム設定 → キーボード）で「Press 🌐 key to」が「Change Input Source」に設定されている場合だけです）。インストーラから手動で追加するよう言われた場合、この Mac ではプログラムが有効にすることを許可していないので、一度だけ自分で追加してください：System Settings → Keyboard → Text Input → Input Sources → Edit… → +（左下）→ Chinese, Simplified → AllInOneIME（英語も同じように入力でき、設定の「Input」で中国語を追加すれば中国語も入力できます）。
 
 Ctrl+Space で AllInOneIME に切り替わらない場合や、しばらくすると U.S. に戻ってしまう場合は、インストーラをもう一度実行してください。AllInOneIME が入力ソースに追加し直されます。
 

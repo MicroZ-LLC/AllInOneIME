@@ -838,8 +838,8 @@ enum UpdateText {
     /// apply (voice input's only while it is offered), and where to see those still to allow; the commands named with the
     /// trigger the settings have.
     static var moved: String {
-        var text = UIText.triggered(tr("AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「英语」下面。",
-                      "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under English."))
+        var text = UIText.triggered(tr("AllInOneIME 现在有了自己的系统身份，所以 macOS 会重新询问你给过它的权限：辅助功能（读取选中的文字、自动补全）、从其他 App 粘贴（剪贴板历史）、自动化（@agent、@note 和 @imessage 用到的终端、备忘录和信息）、通讯录（@imessage）、提醒事项（@reminder）和通知（新版本）。macOS 询问时选允许，或者在 系统设置 → 隐私与安全性 里打开；「排查问题…」会列出还没允许的。在输入法列表里，它在「简体中文」下面。",
+                      "AllInOneIME now has its own system identity, so macOS asks again for the permissions you gave it: Accessibility (reading the selection, autocomplete), Paste from Other Apps (clipboard history), Automation (Terminal, Notes and Messages, for @agent, @note and @imessage), Contacts (@imessage), Reminders (@reminder) and Notifications (new versions). Allow them when macOS asks, or in System Settings → Privacy & Security; Troubleshoot… lists those still to allow. In your input sources, it's listed under Chinese, Simplified."))
         if Features.voiceInput {
             text += " " + tr("语音输入也会重新询问麦克风和语音识别。", "Voice input asks for the microphone and speech recognition again too.")
         }
