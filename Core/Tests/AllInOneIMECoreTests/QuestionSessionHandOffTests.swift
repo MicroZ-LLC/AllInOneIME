@@ -79,7 +79,7 @@ struct QuestionSessionHandOffTests {
         let launcher = Dying(dying: 0.3)
         let session = claude(launcher)
         defer { session.stop() }
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(launcher.processes.last)
         answer(process.inner, "1")
         _ = await collect(stream)
@@ -110,8 +110,8 @@ struct QuestionSessionHandOffTests {
         let fake = FakeClaude()
         let session = claude(fake)
         defer { session.stop() }
-        session.enter(QuestionConversation())
-        let answering = session.ask("one")
+        let enteredConversation1: QuestionConversation? = QuestionConversation()
+        let answering = session.ask("one", in: enteredConversation1)
         let process = try #require(fake.last)
         process.started()
         process.text("Part")
@@ -128,8 +128,8 @@ struct QuestionSessionHandOffTests {
         let newID = try store.sessionID()
         #expect(newID != id && next.arguments.contains(newID))
         // A later question (a new @question conversation) goes there too.
-        session.enter(QuestionConversation())
-        let later = session.ask("two")
+        let enteredConversation2: QuestionConversation? = QuestionConversation()
+        let later = session.ask("two", in: enteredConversation2)
         #expect(fake.processes.count == 2 && next.messages == ["two"])
         withExtendedLifetime(later) {}
     }
@@ -175,8 +175,8 @@ struct QuestionSessionHandOffTests {
     @Test func aRelaunchWhileAnsweringNeverResumesThatConversation() async throws {
         let fake = FakeClaude()
         let session = claude(fake)
-        session.enter(QuestionConversation())
-        let answering = session.ask("one")
+        let enteredConversation3: QuestionConversation? = QuestionConversation()
+        let answering = session.ask("one", in: enteredConversation3)
         let process = try #require(fake.last)
         process.started()
         process.text("Part")
@@ -187,8 +187,8 @@ struct QuestionSessionHandOffTests {
         // Relaunched: the next question, of a new conversation, goes into a new agent conversation.
         let relaunched = claude(fake)
         defer { relaunched.stop() }
-        relaunched.enter(QuestionConversation())
-        let next = relaunched.ask("two")
+        let relaunchedConversation = QuestionConversation()
+        let next = relaunched.ask("two", in: relaunchedConversation)
         let started = try #require(fake.last)
         #expect(fake.processes.count == 2 && !started.arguments.contains(id) && started.arguments.contains("--session-id"))
         withExtendedLifetime(next) {}

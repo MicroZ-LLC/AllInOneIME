@@ -81,8 +81,8 @@ struct QuestionSessionWebTests {
         kiro.base = folder
         let session = ClaudeSessionManager(backend: kiro, launcher: fake)
         defer { session.stop() }
-        session.enter(QuestionConversation(web: .only([])))
-        let stream = session.ask("what does the selected text say")
+        let enteredConversation1: QuestionConversation? = QuestionConversation(web: .only([]))
+        let stream = session.ask("what does the selected text say", in: enteredConversation1)
         let process = try #require(fake.last)
         func respond(_ method: String, _ result: [String: Any]) throws {
             let id = try #require(process.lines.last { $0["method"] as? String == method }?["id"])
@@ -103,9 +103,9 @@ struct QuestionSessionWebTests {
         #expect(plain.effective(.only([])) == nil && plain.effective(.open) == .open)
         let session = ClaudeSessionManager(backend: plain, launcher: fake)
         defer { session.stop() }
-        session.enter(QuestionConversation(web: .only([])))
+        let enteredConversation2: QuestionConversation? = QuestionConversation(web: .only([]))
         var failure: Error?
-        do { for try await _ in session.ask("about the screenshot") {} } catch { failure = error }
+        do { for try await _ in session.ask("about the screenshot", in: enteredConversation2) {} } catch { failure = error }
         #expect(failure as? ClaudeSessionError == .notWebOnly && fake.processes.isEmpty)
     }
 
@@ -122,8 +122,8 @@ struct QuestionSessionWebTests {
         let id = try store.sessionID()
         // The question is about a selection: the process made ready (with every web tool) is started again without them,
         // on the same new conversation.
-        session.enter(QuestionConversation(id: "panel", web: .only([])))
-        let first = session.ask("what does this mean")
+        let enteredConversation3: QuestionConversation? = QuestionConversation(id: "panel", web: .only([]))
+        let first = session.ask("what does this mean", in: enteredConversation3)
         let kept = try #require(fake.last)
         #expect(fake.processes.count == 2 && warm.terminated)
         #expect(kept.arguments.contains(id) && kept.arguments.contains("--session-id") && !kept.arguments.contains("WebSearch,WebFetch"))
@@ -133,8 +133,8 @@ struct QuestionSessionWebTests {
         var answers: [String] = []
         for try await answer in first { answers.append(answer) }
         // A follow-up with an address typed: started again on the same conversation, that site allowed.
-        session.enter(QuestionConversation(id: "panel", web: .only([url("https://example.com/docs")])))
-        _ = session.ask("and https://example.com/docs?")
+        let enteredConversation4: QuestionConversation? = QuestionConversation(id: "panel", web: .only([url("https://example.com/docs")]))
+        _ = session.ask("and https://example.com/docs?", in: enteredConversation4)
         let next = try #require(fake.last)
         #expect(fake.processes.count == 3 && kept.terminated)
         #expect(next.arguments.contains("WebFetch(domain:example.com)") && next.arguments.contains("--resume")

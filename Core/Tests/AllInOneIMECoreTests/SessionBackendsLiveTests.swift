@@ -19,7 +19,7 @@ struct SessionBackendsLiveTests {
 
     func ask(_ session: ClaudeSessionManager, _ question: String) async throws -> String {
         var answer = ""
-        for try await text in session.ask(question) { answer = text }
+        for try await text in session.ask(question, in: nil) { answer = text }
         return answer
     }
 

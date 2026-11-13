@@ -97,7 +97,7 @@ struct QuestionAnswerFooterTests {
         ClaudeSessionStore(backend).setAgentSessionID("gone")
         let session = ClaudeSessionManager(backend: backend, launcher: fake)
         defer { session.stop() }
-        let stream = session.answer("one")
+        let stream = session.request(nil).answer("one")
         let process = try #require(fake.last)
         func respond(_ method: String, _ result: [String: Any]? = nil, error: [String: Any]? = nil) throws {
             let id = try #require(process.lines.last { $0["method"] as? String == method }?["id"])
@@ -131,7 +131,7 @@ struct QuestionAnswerFooterTests {
         kiro.base = folder
         let session = ClaudeSessionManager(backend: kiro, launcher: fake)
         defer { session.stop() }
-        let stream = session.answer("one")
+        let stream = session.request(nil).answer("one")
         let process = try #require(fake.last)
         func respond(_ method: String, _ result: [String: Any]) throws {
             let id = try #require(process.lines.last { $0["method"] as? String == method }?["id"])

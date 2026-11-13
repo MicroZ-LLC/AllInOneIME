@@ -64,7 +64,7 @@ struct QuestionSessionCompactionTests {
         let fake = FakeClaude()
         let session = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })
         defer { session.stop() }
-        let stream = session.ask("a long one")
+        let stream = session.ask("a long one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.text("Part one.")
@@ -82,7 +82,7 @@ struct QuestionSessionCompactionTests {
             let fake = FakeClaude()
             let session = ClaudeSessionManager(backend: CodexBackend(base: folder.appendingPathComponent(UUID().uuidString)), launcher: fake)
             defer { session.stop() }
-            let stream = session.ask("hello")
+            let stream = session.ask("hello", in: nil)
             let process = try #require(fake.last)
             func respond(_ method: String, _ result: [String: Any]) throws {
                 let id = try #require(process.lines.last { $0["method"] as? String == method }?["id"])

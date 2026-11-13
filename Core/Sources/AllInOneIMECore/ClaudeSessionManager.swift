@@ -236,8 +236,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// What the web tools may reach in it, as the latest request sent there may: what a request of no conversation
         /// (`Request.web` nil) gets.
         var web = SessionWeb.open
-        /// The conversation `ask` and `answer` without a request go into (`enter`).
-        var entered: QuestionConversation?
         /// The processes started before the agent was found signed in again after it wasn't (`generation` up to this)
         /// are started again by the next question (`follow`): theirs may be the sign-in from before.
         var staleThrough = 0
@@ -423,23 +421,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// Asks `question` as a request of `conversation` (`request`, then `Request.ask`).
     public func ask(_ question: String, in conversation: QuestionConversation?) -> AsyncThrowingStream<String, Error> {
         request(conversation).ask(question)
-    }
-
-    /// The conversation `ask` and `answer` (without a request) go into from now on: one caller asking in turn. Nil: the
-    /// one now, whichever.
-    public func enter(_ conversation: QuestionConversation?) {
-        state.withLock { $0.entered = conversation }
-    }
-
-    /// Asks `question` (one user message: the text as the provider would get it, already redacted) in the conversation
-    /// `enter` said. The stream gives the answer so far each time more of it comes, and ends with the turn; given up
-    /// (cancelled), it interrupts the turn.
-    public func ask(_ question: String) -> AsyncThrowingStream<String, Error> { Self.texts(answer(question)) }
-
-    /// `ask`, with what the panel tells of the answer (`SessionReply`): whether its agent conversation is new, the
-    /// tokens it used.
-    public func answer(_ question: String) -> AsyncThrowingStream<SessionReply, Error> {
-        request(state.withLock { $0.entered }).answer(question)
     }
 
     /// The answer's text from `replies`, each time it changes.

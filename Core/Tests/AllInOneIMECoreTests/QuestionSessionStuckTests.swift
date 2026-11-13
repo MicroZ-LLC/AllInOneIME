@@ -31,12 +31,12 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let stuck = try #require(fake.last)
         stuck.started()
         stuck.messageStarted()
         stuck.text("Partial")
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         session.interrupt()  // Esc; the agent never ends the turn
         #expect(stuck.interrupts == 1)
         #expect(await clock.sleepers(2))  // the interrupt's time, and the second question's wait
@@ -55,7 +55,7 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.messageStarted()
@@ -77,12 +77,12 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.messageStarted()
         process.text("Still")
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         #expect(await clock.sleepers(2))
         clock.advance(by: ClaudeSessionManager.firstAnswerTimeout)
         let waited = await collect(second)
@@ -100,7 +100,7 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let session = manager(fake)
         session.availability = .ready
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         try #require(fake.last).exit(1, "error: unknown option '--name'")
         #expect(fake.processes.count == 2)  // tried once more the other way
         try #require(fake.last).exit(1, "error: unknown option '--name'")
@@ -145,7 +145,7 @@ struct QuestionSessionStuckTests {
         let now = Locked(initialState: 1000.0)
         let session = ClaudeSessionManager(launcher: launcher(program), store: store, userSettings: { nil },
                                            uptime: { now.withLock { $0 } })
-        let error = try #require(await collect(session.ask("hi")).error as? ClaudeSessionError)
+        let error = try #require(await collect(session.ask("hi", in: nil)).error as? ClaudeSessionError)
         guard case let .cannotLaunch(reason) = error else {
             Issue.record("\(error)")
             return
@@ -175,7 +175,7 @@ struct QuestionSessionStuckTests {
         for refused in [false, true] {
             let fake = FakeClaude()
             let session = kiro(fake, in: "kiro-\(refused)")
-            let stream = session.ask("hi")
+            let stream = session.ask("hi", in: nil)
             let process = try #require(fake.last)
             try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]])
             // Not offered, or offered and refused.

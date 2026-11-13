@@ -109,7 +109,7 @@ struct ClaudeSessionProviderTests {
                                "hooks": ["Stop": []], "permissions": ["allow": ["Bash"]]])
         let fake = FakeClaude()
         let session = manager(fake, userSettings: userFile)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         let written = folder.appendingPathComponent("provider-settings.json")
         let at = try #require(process.arguments.firstIndex(of: "--settings"))
@@ -125,7 +125,7 @@ struct ClaudeSessionProviderTests {
         // Bedrock taken out of the user's settings: the next start has no --settings, and the file goes.
         try writeUserSettings(["hooks": ["Stop": []]])
         session.stop()
-        _ = session.ask("again")
+        _ = session.ask("again", in: nil)
         #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--settings") == false)
         #expect(!FileManager.default.fileExists(atPath: written.path))
         // No user settings at all (none there, or none given).
@@ -168,7 +168,7 @@ struct ClaudeSessionProviderTests {
     @Test func anExpiredAWSSignInFailsTheTurnWithoutSigningTheSessionOut() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         // The error line says little, the result says what it was.
         process.started()
@@ -180,7 +180,7 @@ struct ClaudeSessionProviderTests {
 
         // Claude Code can't get credentials at all (awsCredentialExport failed): it ends before the session starts.
         session.stop()
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         try #require(fake.last).exit(1, "CredentialsProviderError: Could not load credentials from any providers")
         try #require(fake.last).exit(1, "CredentialsProviderError: Could not load credentials from any providers")
         #expect(await collect(next).error as? ClaudeSessionError == .awsSignInExpired)
@@ -230,7 +230,7 @@ struct ClaudeSessionProviderTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let stuck = try #require(fake.last)
         stuck.started()  // and then nothing (a sign-in waiting in a browser)
         #expect(await clock.sleepers(1))
@@ -243,7 +243,7 @@ struct ClaudeSessionProviderTests {
         stuck.exit(15)  // of no session now
 
         // The next question starts it again; once the model's message started, a long answer (a web search) is no timeout.
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         let process = try #require(fake.last)
         #expect(fake.processes.count == 2 && process.messages == ["again"])
         process.started()
@@ -259,8 +259,8 @@ struct ClaudeSessionProviderTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
-        let second = session.ask("two")
+        let first = session.ask("one", in: nil)
+        let second = session.ask("two", in: nil)
         #expect(await clock.sleepers(1))
         clock.advance(by: .seconds(30))
         #expect(await collect(first).error as? ClaudeSessionError == .noResponse)

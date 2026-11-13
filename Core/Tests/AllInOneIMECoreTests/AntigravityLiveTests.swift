@@ -33,7 +33,7 @@ struct AntigravityLiveTests {
         let asked = ContinuousClock.now
         var first: Duration?
         var answer = ""
-        for try await text in session.ask(question) {
+        for try await text in session.ask(question, in: nil) {
             if first == nil { first = ContinuousClock.now - asked }
             answer = text
         }

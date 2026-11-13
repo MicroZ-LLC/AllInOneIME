@@ -99,7 +99,7 @@ struct ACPSessionTests {
     @Test func aNewSessionIsMadeInTheFolderInItsModeAndAPromptStreams() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
         #expect(process.arguments == ["acp"] && process.directory == folder)
         // Only the handshake until the session is open.
@@ -132,7 +132,7 @@ struct ACPSessionTests {
         #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent("CLAUDE.md").path))
 
         // The next question in the same process: just a prompt.
-        let next = session.ask("and go?")
+        let next = session.ask("and go?", in: nil)
         #expect(prompts(process) == ["what is rust", "and go?"] && requests(process, "session/new").count == 1)
         chunk(process, "Also one.")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
@@ -147,7 +147,7 @@ struct ACPSessionTests {
         let process = try #require(fake.last)
         try open(process)
         #expect(prompts(process).isEmpty)
-        let stream = session.ask("刚才那个问题")
+        let stream = session.ask("刚才那个问题", in: nil)
         #expect(prompts(process) == ["刚才那个问题"])
         chunk(process, "你问的是 rust")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
@@ -157,7 +157,7 @@ struct ACPSessionTests {
     @Test func aToolCallStartsTheAnswerAgain() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("weather in Paris now")
+        let stream = session.ask("weather in Paris now", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "Let me look.")
@@ -173,19 +173,19 @@ struct ACPSessionTests {
     @Test func aCrashFailsThatQuestionAndTheNextLoadsTheSession() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let first = session.ask("remember 7341")
+        let first = session.ask("remember 7341", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "OK")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
         _ = await collect(first)
-        let stream = session.ask("count to 200")
+        let stream = session.ask("count to 200", in: nil)
         chunk(process, "1 2")
         process.exit(134, "panicked")
         let got = await collect(stream)
         #expect(got.answers == ["1 2"] && got.error as? ClaudeSessionError == .exited(134, "panicked"))
 
-        let next = session.ask("which number?")
+        let next = session.ask("which number?", in: nil)
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2 && restarted.arguments == ["acp"])
         try respond(restarted, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]])
@@ -209,7 +209,7 @@ struct ACPSessionTests {
         store.setAgentSessionID("sess_gone")
         session.remember(rounds: [QuestionChat.Round(question: "q", answer: "An earlier answer.")])
         #expect(session.missing([QuestionChat.Round(question: "q", answer: "An earlier answer.")]).isEmpty)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]])
         try respond(process, "session/load", error: ["code": -32603, "message": "Session not found"])
@@ -227,7 +227,7 @@ struct ACPSessionTests {
         let session = manager(fake)
         _ = try store.sessionID()
         store.setAgentSessionID("sess_1")
-        _ = session.ask("hi")
+        _ = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": false]])
         #expect(requests(process, "session/load").isEmpty && requests(process, "session/new").count == 1)
@@ -238,7 +238,7 @@ struct ACPSessionTests {
     @Test func whatTheAgentAsksIsRefused() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("create hello.txt")
+        let stream = session.ask("create hello.txt", in: nil)
         let process = try #require(fake.last)
         try open(process)
         process.say(["jsonrpc": "2.0", "id": 0, "method": "session/request_permission",
@@ -258,7 +258,7 @@ struct ACPSessionTests {
     @Test func givingUpTheAnswerCancelsTheTurnAndTheProcessStays() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("count to 200")
+        let stream = session.ask("count to 200", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "1 2 3")
@@ -270,7 +270,7 @@ struct ACPSessionTests {
         #expect(cancel["id"] == nil && (cancel["params"] as? [String: Any])?["sessionId"] as? String == "sess_1")
         #expect(!process.terminated && session.isRunning)
         // A question asked meanwhile waits for the cancelled turn to end.
-        let next = session.ask("still there?")
+        let next = session.ask("still there?", in: nil)
         #expect(prompts(process) == ["count to 200"])
         chunk(process, " 4")  // late: dropped
         try respond(process, "session/prompt", result: ["stopReason": "cancelled"])
@@ -284,13 +284,13 @@ struct ACPSessionTests {
     @Test func interruptBeforeTheSessionOpensSendsNoPrompt() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("long")
+        let stream = session.ask("long", in: nil)
         let process = try #require(fake.last)
         session.interrupt()
         #expect(await collect(stream).error is CancellationError)
         try open(process)
         #expect(prompts(process).isEmpty && requests(process, "session/cancel").isEmpty)
-        let next = session.ask("short")
+        let next = session.ask("short", in: nil)
         #expect(prompts(process) == ["short"])
         chunk(process, "ok")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
@@ -302,7 +302,7 @@ struct ACPSessionTests {
     @Test func signedOutFailsSoTheProviderAnswers() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": false],
                                                     "authMethods": [["id": "kiro-login", "name": "Kiro Login"]]])
@@ -343,7 +343,7 @@ struct ACPSessionTests {
         let session = manager(fake)
         // No session yet: a new chat in the folder.
         #expect(try session.handOff(program: "/u/kiro-cli").arguments == ["/u/kiro-cli", "chat"])
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         try open(process, newID: "sess_abc")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])

@@ -111,7 +111,7 @@ struct AntigravitySessionTests {
     @Test func aConversationIsOpenedOnItsAgentWithTheFastModelAndAPromptStreams() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
         #expect(process.arguments == ["acp", "--agent", "allinoneime", "--disable-telemetry"] && process.directory == folder)
         #expect(backend.environment == ["ALLINONEIME_SESSION": "antigravity"])
@@ -135,7 +135,7 @@ struct AntigravitySessionTests {
         #expect(got.answers.last == "A systems language." && got.error == nil)
         #expect(store.agentSessionID() == "d50c263c-uuid" && session.availability == .ready && !process.terminated)
         // The next question: a prompt, no model asked again.
-        let next = session.ask("and go?")
+        let next = session.ask("and go?", in: nil)
         #expect(prompts(process) == ["what is rust", "and go?"] && requests(process, "session/set_model").count == 1)
         chunk(process, "Also one.")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
@@ -169,7 +169,7 @@ struct AntigravitySessionTests {
     @Test func noFastModelOfferedThePromptGoesAtOnceAndARefusedModelChangesNothing() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         try respond(process, "session/new", result: ["sessionId": "s1", "models": ["availableModels": [["modelId": "gemini-4-argon-medium"]]]])
@@ -181,7 +181,7 @@ struct AntigravitySessionTests {
         // A new conversation in the same process (`newConversation`): the model asked again; refused, the prompt goes.
         let fake2 = FakeClaude()
         let other = manager(fake2)
-        let second = other.ask("again")
+        let second = other.ask("again", in: nil)
         let process2 = try #require(fake2.last)
         try initialize(process2)
         try respond(process2, "session/load", result: ["models": Self.models])  // the id kept by the first
@@ -198,7 +198,7 @@ struct AntigravitySessionTests {
     @Test func whatAgyAsksIsRefusedAndAToolOtherThanTheWebEndsTheProcess() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("run date")
+        let stream = session.ask("run date", in: nil)
         let process = try #require(fake.last)
         try open(process)
         // A permission (the shell, a file outside the folder): refused, as agy's own options would ("cancelled").
@@ -216,7 +216,7 @@ struct AntigravitySessionTests {
         #expect(await collect(stream).answers.last == "I can't run commands here." && !process.terminated)
 
         // A tool other than the web search that completed (the hook wasn't there): the process ends, the provider answers.
-        let next = session.ask("read /etc/hosts")
+        let next = session.ask("read /etc/hosts", in: nil)
         tool(process, "read_file", status: "completed", kind: "read")
         let error = await collect(next).error as? ClaudeSessionError
         #expect(error == .notWebOnly && error?.fallsBack == true && process.terminated)
@@ -331,7 +331,7 @@ struct AntigravitySessionTests {
     @Test func aRestartLoadsTheConversationAndAsksForTheModelAgain() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let first = session.ask("my favourite colour is teal")
+        let first = session.ask("my favourite colour is teal", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "OK")
@@ -340,7 +340,7 @@ struct AntigravitySessionTests {
         session.stop()
 
         let restarted = manager(fake)
-        let next = restarted.ask("what is my favourite colour?")
+        let next = restarted.ask("what is my favourite colour?", in: nil)
         let second = try #require(fake.last)
         #expect(fake.processes.count == 2 && second !== process)
         try initialize(second)
@@ -363,7 +363,7 @@ struct AntigravitySessionTests {
     @Test func signedOutFailsSoTheProviderAnswers() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         // As agy says it with no sign-in (checked with an empty HOME).
@@ -405,7 +405,7 @@ struct AntigravitySessionTests {
     @Test func handingOffResumesTheConversationInTerminal() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "Hello")

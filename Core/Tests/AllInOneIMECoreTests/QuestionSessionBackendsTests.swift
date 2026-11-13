@@ -82,7 +82,7 @@ struct QuestionSessionBackendsTests {
     @Test func aThreadIsStartedReadOnlyNamedAndATurnStreams() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
         #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil)
             && process.directory == folder.appendingPathComponent("codex-session"))
@@ -125,7 +125,7 @@ struct QuestionSessionBackendsTests {
         _ = try store.sessionID()
         store.setAgentSessionID("019a-kept")
         let session = codex(fake)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         #expect(params(process, "thread/resume")["threadId"] as? String == "019a-kept")
@@ -141,7 +141,7 @@ struct QuestionSessionBackendsTests {
 
         // The process gone, the thread too: a new one, named.
         process.exit(0)
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2)
         try initialize(restarted)
@@ -158,7 +158,7 @@ struct QuestionSessionBackendsTests {
     @Test func escInterruptsTheTurnByItsId() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("long")
+        let stream = session.ask("long", in: nil)
         let process = try #require(fake.last)
         try open(process)
         // Stopped before `turn/start` answered: the interrupt goes once the turn has its id.
@@ -170,7 +170,7 @@ struct QuestionSessionBackendsTests {
         #expect(params(process, "turn/interrupt")["threadId"] as? String == "019a-thread")
         completed(process, status: "interrupted")
         // The process stays; the next question goes to it.
-        let next = session.ask("short")
+        let next = session.ask("short", in: nil)
         #expect(turns(process) == ["long", "short"] && !process.terminated)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
         session.interrupt()
@@ -182,7 +182,7 @@ struct QuestionSessionBackendsTests {
     @Test func whatTheServerAsksIsRefused() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("delete my files")
+        let stream = session.ask("delete my files", in: nil)
         let process = try #require(fake.last)
         try open(process)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
@@ -210,7 +210,7 @@ struct QuestionSessionBackendsTests {
     @Test func aTurnThatFailsSignedOutOrAtTheLimitSaysSo() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try open(process)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
@@ -218,7 +218,7 @@ struct QuestionSessionBackendsTests {
         let error = await collect(stream).error as? ClaudeSessionError
         #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut)
         #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
-        let limited = session.ask("again")
+        let limited = session.ask("again", in: nil)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
         completed(process, status: "failed", error: ["message": "You've hit your usage limit.", "codexErrorInfo": "usageLimitExceeded"],
                   turn: "turn_2")
@@ -268,7 +268,7 @@ struct QuestionSessionBackendsTests {
         let edited = "Answer in French.\n"
         try Data(edited.utf8).write(to: store.directory.appendingPathComponent("AGENTS.md"))
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process, mcpServers: [
             "docs": ["url": "https://mcp.example.com/mcp", "bearer_token_env_var": "DOCS_TOKEN", "enabled": true,
@@ -290,7 +290,7 @@ struct QuestionSessionBackendsTests {
         #expect(await collect(stream).answers == ["Salut"])
         // Started again, resumed: the same.
         process.exit(0)
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         let restarted = try #require(fake.last)
         try initialize(restarted, mcpServers: ["docs": ["url": "https://mcp.example.com/mcp", "enabled": true]])
         let resume = params(restarted, "thread/resume")
@@ -305,7 +305,7 @@ struct QuestionSessionBackendsTests {
     @Test func codexIsNotAskedWhenItsConfigCantBeRead() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["userAgent": "test"])
         try respond(process, "config/read", error: ["code": -32603, "message": "failed to read config"])
