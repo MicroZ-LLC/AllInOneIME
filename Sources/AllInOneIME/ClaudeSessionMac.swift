@@ -1,5 +1,6 @@
 import AllInOneIMECore
 import AllInOneIMEMac
+import AppKit
 import Foundation
 
 /// The input method's own question sessions on the Mac (`ClaudeSessionManager`), one per agent that has one
@@ -50,11 +51,40 @@ enum ClaudeSessionMac {
     static var claudeURL: URL? {
         TerminalLauncher.claudePath.map { URL(fileURLWithPath: $0) }
             ?? CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"])
+            ?? desktopBundled(.claude)
     }
 
     /// Where `agent`'s program is, nil when it isn't installed.
     static func program(_ agent: SessionAgent) -> URL? {
-        agent == .claude ? claudeURL : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"])
+        agent == .claude ? claudeURL
+            : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"]) ?? desktopBundled(agent)
+    }
+
+    /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
+    /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
+    /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are
+    /// those apps' own layout and may move with an update: not found is just "not installed".
+    static func desktopBundled(_ agent: SessionAgent) -> URL? {
+        let fm = FileManager.default
+        func executable(_ url: URL) -> URL? { fm.isExecutableFile(atPath: url.path) ? url : nil }
+        switch agent {
+        case .codex:
+            guard let app = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.openai.codex") else { return nil }
+            return executable(app.appendingPathComponent("Contents/Resources/codex-cli/bin/codex"))
+        case .claude:
+            let root = fm.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Claude/claude-code")
+            let versions = ((try? fm.contentsOfDirectory(atPath: root.path)) ?? [])
+                .sorted { $0.compare($1, options: .numeric) == .orderedDescending }
+            for version in versions {
+                let folder = root.appendingPathComponent(version)
+                for hash in (try? fm.contentsOfDirectory(atPath: folder.path)) ?? [] {
+                    if let url = executable(folder.appendingPathComponent("\(hash)/claude.app/Contents/MacOS/claude")) { return url }
+                }
+            }
+            return nil
+        default:
+            return nil
+        }
     }
 
     /// The session of `agent`.
