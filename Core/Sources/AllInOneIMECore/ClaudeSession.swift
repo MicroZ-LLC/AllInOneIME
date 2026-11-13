@@ -390,8 +390,6 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// No sign of an answer within `ClaudeSessionManager.firstAnswerTimeout` (Claude Code stuck starting, a sign-in
     /// waiting in a browser): the process is ended.
     case noResponse
-    /// The session is open in Terminal (handed off): never two processes on one session.
-    case openInTerminal
     /// The process ended before its session started, tried twice (status, what it last said on stderr): an older
     /// Claude Code that doesn't know `--name`, a broken install.
     case failedToStart(Int32, String)
@@ -411,8 +409,8 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 
     public var fallsBack: Bool {
         switch self {
-        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .openInTerminal, .failedToStart,
-             .notWebOnly, .busy, .compacting:
+        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart, .notWebOnly, .busy,
+             .compacting:
             return true
         case .exited, .failed: return false
         }
@@ -439,8 +437,6 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
             return tr("AWS 登录已过期：在终端运行 aws sso login", "The AWS sign-in has expired: run aws sso login in Terminal")
         case .noResponse:
             return tr("\(short) 会话没有回应", "The \(short) session didn't respond")
-        case .openInTerminal:
-            return tr("输入法的 \(short) 会话正在终端里打开着", "The input method's \(short) session is open in Terminal")
         case let .failedToStart(status, message):
             return tr("\(short) 会话启动不了", "The \(short) session couldn't start") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
         case .notWebOnly:
@@ -518,8 +514,11 @@ public struct ClaudeSessionStore: Sendable {
     var providerSettingsFile: URL { directory.appendingPathComponent("provider-settings.json") }
     var memoryFile: URL { directory.appendingPathComponent("context.json") }
     var agentSessionFile: URL { directory.appendingPathComponent("agent-session") }
-    /// The process id of the Claude Code a hand-off started in Terminal, written by the script that starts it.
-    public var terminalPIDFile: URL { directory.appendingPathComponent("terminal.pid") }
+    /// Where the conversations' lock files are (`ConversationLock`).
+    var locks: URL { directory.appendingPathComponent("locks", isDirectory: true) }
+
+    /// The lock file of the conversation `id` (`ConversationLock`): held while a process is on it, ours or Terminal's.
+    public func lockFile(_ id: String) -> URL { locks.appendingPathComponent(id + ".lock") }
 
     /// The folder and its `files` (CLAUDE.md), each made when missing or still an earlier default.
     public func prepare() throws {
@@ -619,14 +618,5 @@ public struct ClaudeSessionStore: Sendable {
         try? FileManager.default.removeItem(at: resumableFile)
         try? FileManager.default.removeItem(at: memoryFile)
         return try sessionID()
-    }
-
-    /// The process id a hand-off's Terminal wrote, if any.
-    public func terminalPID() -> Int32? {
-        (try? String(contentsOf: terminalPIDFile, encoding: .utf8)).flatMap { Int32($0.trimmingCharacters(in: .whitespacesAndNewlines)) }
-    }
-
-    public func clearTerminalPID() {
-        try? FileManager.default.removeItem(at: terminalPIDFile)
     }
 }

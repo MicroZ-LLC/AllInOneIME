@@ -47,8 +47,10 @@ extension ClaudeSessionLauncher {
 /// is started again on it), so that it is warm when the question comes. A process that ended (a crash, killed) is
 /// started again on the same conversation (`--resume`) by its next question. A question asked while another
 /// is answered waits for it; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the process stays.
-/// Handing the session to Terminal (`handOff`) ends the process; while the Terminal one runs (its id in
-/// `ClaudeSessionStore.terminalPIDFile`), no process starts here and questions fail with `.openInTerminal`.
+/// One process writes a conversation at a time. Handing the conversation to Terminal (`handOff`) ends our process first,
+/// and waits for it; the conversation is Terminal's from then on, and questions after it go into a new one. Our process
+/// holds its conversation's lock (`ConversationLock`) while it runs, which Terminal waits for and then holds while its
+/// CLI runs (`terminalCommand`).
 /// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
 /// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; one
 /// whose agent begins compacting the conversation before answering fails with `.compacting` at once (not waited for); so
@@ -74,6 +76,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     public static let interruptTimeout: Duration = .seconds(5)
     /// The sign-in check's longest run; past it, it counts as signed out.
     public static let checkTimeout: Duration = .seconds(15)
+    /// The hand-off's longest wait for our process to end once asked to (SIGTERM), before it is killed: the main thread
+    /// waits (⌘⏎).
+    public static let handOffGrace: TimeInterval = 0.5
     /// A sign-in check that didn't find the agent ready stands this long (seconds) before the next one may run.
     public static let recheckInterval: TimeInterval = 60
 
@@ -87,14 +92,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private let answerIdleTimeout: Duration
     private let interruptTimeout: Duration
     private let answerClock: any Clock<Duration>
-    private let isAlive: @Sendable (Int32) -> Bool
     private let userSettings: @Sendable () -> URL?
     private let uptime: @Sendable () -> TimeInterval
     private let state = Locked(initialState: State())
     private let kept = Locked<Kept?>(initialState: nil)
+    /// The locks of the conversations our processes are on.
+    private let locks = ConversationLocks()
 
-    /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one). `userSettings`: the user's
-    /// Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
+    /// `userSettings`: the user's Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
     /// `answerClock`: what `firstAnswerTimeout`, `answerIdleTimeout`, `interruptTimeout` and `checkTimeout` are timed
     /// with; `uptime`: seconds, what `recheckInterval` is. `store`: nil, the backend's own folder.
     public init(backend: any SessionBackend = ClaudeCodeBackend(), launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore? = nil,
@@ -103,7 +108,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 answerIdleTimeout: Duration = ClaudeSessionManager.answerIdleTimeout,
                 interruptTimeout: Duration = ClaudeSessionManager.interruptTimeout,
                 answerClock: any Clock<Duration> = ContinuousClock(),
-                isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false },
                 userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() },
                 uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
         self.backend = backend
@@ -115,7 +119,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         self.answerIdleTimeout = answerIdleTimeout
         self.interruptTimeout = interruptTimeout
         self.answerClock = answerClock
-        self.isAlive = isAlive
         self.userSettings = userSettings
         self.uptime = uptime
     }
@@ -173,6 +176,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var resume: Bool
         /// The agent conversation it is on (`store`'s id when it started, or moved: `follow`).
         var conversation: String
+        /// That conversation's lock, held until it ends.
+        var lock: HeldLock
         /// The session started (its "init" came): a failure before that is the start's.
         var started = false
     }
@@ -202,7 +207,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         case send(any ClaudeSessionProcess, Data)
         case yield(AsyncThrowingStream<SessionReply, Error>.Continuation, SessionReply)
         case finish(AsyncThrowingStream<SessionReply, Error>.Continuation, Error?)
-        case terminate(any ClaudeSessionProcess)
+        /// Ended, and its conversation's lock let go once it has (`start`'s `exited`; at once if it has).
+        case terminate(any ClaudeSessionProcess, HeldLock?)
     }
 
     // MARK: - What it's asked
@@ -300,7 +306,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             if asked(&state) { rollOver(&state) }
             var actions = follow(&state)
             if state.running == nil {
-                guard !terminalOpen(), let (_, opening) = try? start(&state) else { return actions }
+                guard let (_, opening) = try? start(&state) else { return actions }
                 actions += opening
             }
             scheduleIdle(&state)
@@ -355,7 +361,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 if case .cancelled = termination { self?.cancel(id) }
             }
             let actions = state.withLock { state -> [Action] in
-                if terminalOpen() { return [.finish(continuation, ClaudeSessionError.openInTerminal)] }
                 let turn = Turn(id: id, message: question, continuation: continuation)
                 state.turns.append(turn)
                 let actions = pump(&state)
@@ -377,17 +382,44 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         perform(actions)
     }
 
-    /// Hands the session to Terminal: the process ends (a question being answered stops), and what Terminal is to run
-    /// (`SessionBackend.terminalArguments`, `program` being where the agent is) in the session's folder; `followUp`: a
-    /// follow-up goes after them as the last argument.
-    public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL) {
-        stop()
-        let id = try store.sessionID()
-        return (backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
-                                          resume: store.resumable, followUp: followUp), store.directory)
+    /// Hands the conversation now to Terminal (⌘⏎), never two processes writing it: our process ends first (a question
+    /// being answered stops), waited for (`handOffGrace`, then killed) and its lock let go; from then on the conversation
+    /// is Terminal's, and questions here go into a new one (a prewarm meanwhile too: one step under the lock), never
+    /// that one again. Returns what Terminal is to run (`SessionBackend.terminalArguments`, `program` being where the
+    /// agent is; `followUp`: a follow-up goes after them as the last argument) in the session's folder, and the
+    /// conversation's lock file, for Terminal to hold while it runs (`terminalCommand`).
+    public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL, lock: URL) {
+        let (handed, running, actions) = try state.withLock { state -> ((arguments: [String], id: String), Running?, [Action]) in
+            let id = try store.sessionID()
+            let arguments = backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
+                                                      resume: store.resumable, followUp: followUp)
+            state.idle?.cancel()
+            state.idle = nil
+            let turns = state.turns
+            state.turns = []
+            for turn in turns { turn.watchdog?.cancel() }
+            let running = state.running
+            state.running = nil  // what it still says, its exit too, is of no session now
+            rollOver(&state)
+            return ((arguments, id), running, turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) })
+        }
+        perform(actions)
+        if let running {
+            Self.end([running.process], grace: Self.handOffGrace)
+            running.lock.release()
+        }
+        return (handed.arguments, store.directory, store.lockFile(handed.id))
     }
 
-    public func handOff(claude: String) throws -> (arguments: [String], directory: URL) { try handOff(program: claude) }
+    public func handOff(claude: String) throws -> (arguments: [String], directory: URL, lock: URL) { try handOff(program: claude) }
+
+    /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,
+    /// `handOff`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
+    /// `/usr/bin/lockf`. A shell's `exec` keeps the window's process the CLI's (or lockf's, which waits for it).
+    public static func terminalCommand(_ arguments: [String], lock: URL) -> [String] {
+        let script = #"lock="$1"; shift; if [ -x /usr/bin/lockf ]; then exec /usr/bin/lockf -k -t 10 "$lock" "$@"; fi; exec "$@""#
+        return ["/bin/sh", "-c", script, "sh", lock.path] + arguments
+    }
 
     /// Ends the process, and the questions it was answering (the app quits, the settings changed).
     public func stop() {
@@ -397,9 +429,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let turns = state.turns
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
-            let process = state.running?.process
+            let running = state.running
             state.running = nil  // what it still says, its exit too, is of no session now
-            return turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) } + (process.map { [.terminate($0)] } ?? [])
+            return turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) }
+                + (running.map { [.terminate($0.process, $0.lock)] } ?? [])
         }
         perform(actions)
     }
@@ -408,10 +441,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// update, logging out). Each is asked to end, then what is left after `grace` seconds is killed; returns once
     /// they're gone, or then.
     public static func stop(_ managers: [ClaudeSessionManager], grace: TimeInterval) {
-        let processes = managers.flatMap { $0.end() }
-        let deadline = Date().addingTimeInterval(grace)
+        end(managers.flatMap { $0.end() }, grace: grace)
+    }
+
+    /// `processes`, asked to end, given `grace` seconds, then killed with what they started; returns once they're gone,
+    /// or a moment after they're killed.
+    private static func end(_ processes: [any ClaudeSessionProcess], grace: TimeInterval) {
+        for process in processes { process.terminate() }
+        var deadline = Date().addingTimeInterval(grace)
         while Date() < deadline, processes.contains(where: \.isRunning) { Thread.sleep(forTimeInterval: 0.02) }
-        for process in processes { process.kill() }
+        for process in processes where process.isRunning { process.kill() }
+        deadline = Date().addingTimeInterval(0.2)
+        while Date() < deadline, processes.contains(where: \.isRunning) { Thread.sleep(forTimeInterval: 0.02) }
     }
 
     /// `stop`, and the sign-in check's command ended too: the processes asked to end.
@@ -514,14 +555,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     // MARK: - The process
 
-    /// Whether the session is open in Terminal (handed off) and that Claude Code still runs.
-    private func terminalOpen() -> Bool {
-        guard let pid = store.terminalPID() else { return false }
-        if isAlive(pid) { return true }
-        store.clearTerminalPID()
-        return false
-    }
-
     /// Whether a question went into the agent conversation now: one from before the launch counts as asked once it has
     /// begun (Claude Code's started on a question; an agent's session id given).
     private func asked(_ state: inout State) -> Bool {
@@ -535,8 +568,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// history, and what was kept of it goes). The process, if it runs, moves to it once a question or `prewarm` needs
     /// it (`follow`).
     private func rollOver(_ state: inout State) {
-        _ = try? store.startOver()
+        let id = try? store.startOver()
         (state.owner, state.asked) = (nil, false)
+        // The locks of conversations no process holds any more go.
+        if let id { ConversationLock.prune(store.locks, keeping: store.lockFile(id)) }
     }
 
     /// The running process on the agent conversation now: as it is when it's on it; moved to it when the agent can open
@@ -546,21 +581,24 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         guard let running = state.running, let id = try? store.sessionID(), running.conversation != id else { return [] }
         if running.started, let lines = running.driver.newConversation() {
             state.running?.conversation = id
+            running.lock.hold(locks.hold(store.lockFile(id)))
             return lines.map { .send(running.process, $0) }
         }
         state.running = nil  // its exit is of no session now
         state.idle?.cancel()
         state.idle = nil
-        return [.terminate(running.process)]
+        return [.terminate(running.process, running.lock)]
     }
 
     /// Starts the process (with `--resume` once the session has a conversation), and what it is sent first (an ACP
-    /// handshake).
+    /// handshake). Its conversation's lock is held until it ends (`ConversationLocks`).
     private func start(_ state: inout State) throws -> (Running, opening: [Action]) {
         if let running = state.running { return (running, []) }
+        let held = HeldLock()
         do {
             try store.prepare()
             let id = try store.sessionID()
+            held.hold(locks.hold(store.lockFile(id)))
             let resume = store.resumable
             state.generation += 1
             let generation = state.generation
@@ -569,13 +607,21 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                                         directory: store.directory)
             let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
-                                             exited: { [weak self] in self?.exited(generation: generation, status: $0, message: $1) })
-            let running = Running(process: process, driver: driver, generation: generation, resume: resume, conversation: id)
+                                             exited: { [weak self] in
+                                                 held.release()
+                                                 self?.exited(generation: generation, status: $0, message: $1)
+                                             })
+            let running = Running(process: process, driver: driver, generation: generation, resume: resume, conversation: id,
+                                  lock: held)
             state.running = running
             return (running, driver.opening().map { .send(process, $0) })
         } catch ClaudeSessionError.notInstalled {
+            held.release()
             (state.availability, state.checkedAt) = (.notInstalled, uptime())
             throw ClaudeSessionError.notInstalled
+        } catch {
+            held.release()
+            throw error
         }
     }
 
@@ -670,7 +716,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.idle = nil
             let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, ClaudeSessionError.noResponse)]
             turn.done = true
-            return failure + [.terminate(running.process)] + pump(&state)
+            return failure + [.terminate(running.process, running.lock)] + pump(&state)
         }
         perform(actions)
         return wait
@@ -712,13 +758,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     private func idleElapsed(generation: Int) {
-        let process = state.withLock { state -> (any ClaudeSessionProcess)? in
-            guard let running = state.running, running.generation == generation, state.turns.isEmpty else { return nil }
+        let actions = state.withLock { state -> [Action] in
+            guard let running = state.running, running.generation == generation, state.turns.isEmpty else { return [] }
             state.running = nil
             state.idle = nil
-            return running.process
+            return [.terminate(running.process, running.lock)]
         }
-        process?.terminate()
+        perform(actions)
     }
 
     private func interruptAction(_ state: inout State) -> [Action] {
@@ -830,7 +876,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 state.running = nil  // its exit is of no session now
                 state.idle?.cancel()
                 state.idle = nil
-                actions.append(.terminate(running.process))
+                actions.append(.terminate(running.process, running.lock))
             }
             actions += pump(&state)
             if state.turns.isEmpty { scheduleIdle(&state) }
@@ -929,8 +975,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 continuation.finish(throwing: error)
             case let .finish(continuation, nil):
                 continuation.finish()
-            case let .terminate(process):
+            case let .terminate(process, lock):
                 process.terminate()
+                if !process.isRunning { lock?.release() }
             }
         }
     }

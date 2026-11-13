@@ -169,7 +169,10 @@ struct QuestionSessionStuckTests {
         let session = manager(FakeClaude())
         let id = try store.sessionID()
         #expect(try session.handOff(program: "/u/claude").arguments == ["/u/claude", "--session-id", id])
-        #expect(try session.handOff(program: "/u/claude", followUp: true).arguments == ["/u/claude", "--session-id", id, "--"])
+        // Handed off, the conversation is Terminal's: the next hand-off is of the new one.
+        let next = try store.sessionID()
+        #expect(next != id)
+        #expect(try session.handOff(program: "/u/claude", followUp: true).arguments == ["/u/claude", "--session-id", next, "--"])
     }
 
     // MARK: - Ended

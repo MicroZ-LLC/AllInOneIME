@@ -50888,6 +50888,7 @@
     },
     "The input method's %@ session is open in Terminal" : {
       "comment" : "输入法的 %@ 会话正在终端里打开着 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

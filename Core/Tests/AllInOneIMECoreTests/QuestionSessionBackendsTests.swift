@@ -112,7 +112,7 @@ struct QuestionSessionBackendsTests {
         // The thread is kept: the hand-off resumes it in Terminal.
         let store = ClaudeSessionStore(CodexBackend(base: folder))
         #expect(store.agentSessionID() == "019a-thread")
-        let (arguments, directory) = try session.handOff(program: "/u/codex")
+        let (arguments, directory, _) = try session.handOff(program: "/u/codex")
         #expect(arguments == ["/u/codex", "resume", "019a-thread"] && directory == store.directory)
         #expect(process.terminated)
         // The folder has the instructions as Codex reads them.

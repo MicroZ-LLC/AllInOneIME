@@ -11,8 +11,8 @@ struct ACPSessionTests {
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("kiro-session-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder, files: ACPBackend.kiro.files) }
 
-    func manager(_ fake: FakeClaude, alive: @escaping @Sendable (Int32) -> Bool = { _ in false }) -> ClaudeSessionManager {
-        ClaudeSessionManager(backend: ACPBackend.kiro, launcher: fake, store: store, isAlive: alive)
+    func manager(_ fake: FakeClaude) -> ClaudeSessionManager {
+        ClaudeSessionManager(backend: ACPBackend.kiro, launcher: fake, store: store)
     }
 
     func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
@@ -323,7 +323,7 @@ struct ACPSessionTests {
         try open(process, newID: "sess_abc")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
         _ = await collect(stream)
-        let (arguments, directory) = try session.handOff(program: "/u/kiro-cli")
+        let (arguments, directory, _) = try session.handOff(program: "/u/kiro-cli")
         #expect(arguments == ["/u/kiro-cli", "chat", "--resume-id", "sess_abc"] && directory == folder)
         #expect(process.terminated && !session.isRunning)
         // Start over: a new session (the agent's id forgotten).

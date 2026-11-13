@@ -84,10 +84,9 @@ struct ClaudeSessionTests {
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("claude-session-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
-    func manager(_ fake: FakeClaude, clock: any Clock<Duration> = ContinuousClock(),
-                 alive: @escaping @Sendable (Int32) -> Bool = { _ in false }) -> ClaudeSessionManager {
+    func manager(_ fake: FakeClaude, clock: any Clock<Duration> = ContinuousClock()) -> ClaudeSessionManager {
         // Not the user's real Claude Code settings (ClaudeSessionProviderTests has those).
-        ClaudeSessionManager(launcher: fake, store: store, clock: clock, isAlive: alive, userSettings: { nil })
+        ClaudeSessionManager(launcher: fake, store: store, clock: clock, userSettings: { nil })
     }
 
     /// Everything `stream` gives, and how it ended.
@@ -326,30 +325,23 @@ struct ClaudeSessionTests {
         #expect(reply["request_id"] as? String == "p1" && (reply["response"] as? [String: Any])?["behavior"] as? String == "deny")
     }
 
-    @Test func handingOffEndsTheProcessAndNoneStartsWhileTerminalHasIt() async throws {
+    @Test func handingOffEndsTheProcessAndTheNextQuestionStartsANewConversation() async throws {
         let fake = FakeClaude()
-        let terminal = Locked(initialState: true)
-        let session = manager(fake, alive: { pid in pid == 4242 && terminal.withLock { $0 } })
+        let session = manager(fake)
         let stream = session.ask("one")
         let process = try #require(fake.last)
         answer(process, "1")
         _ = await collect(stream)
-        let (arguments, directory) = try session.handOff(claude: "/u/claude")
-        #expect(process.terminated && !session.isRunning)
         let id = try store.sessionID()
-        #expect(arguments == ["/u/claude", "--resume", id] && directory == folder)
-        // Terminal's Claude Code runs (its script wrote its id): no process here, the question goes elsewhere.
-        try Data("4242".utf8).write(to: store.terminalPIDFile)
+        let (arguments, directory, lock) = try session.handOff(claude: "/u/claude")
+        #expect(process.terminated && !session.isRunning)
+        #expect(arguments == ["/u/claude", "--resume", id] && directory == folder && lock == store.lockFile(id))
+        // Terminal has that conversation now: an @question typed meanwhile, and the next question, start a new one here.
         session.prewarm()
-        let refused = await collect(session.ask("two"))
-        #expect(refused.error as? ClaudeSessionError == .openInTerminal && (refused.error as? ClaudeSessionError)?.fallsBack == true)
-        #expect(fake.processes.count == 1)
-        // It quit: the next question goes on here, in the new conversation the prewarm (an @question typed) began.
-        terminal.withLock { $0 = false }
-        _ = session.ask("three")
         #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--session-id") == true)
         #expect(fake.last?.arguments.contains(id) == false)
-        #expect(store.terminalPID() == nil)
+        _ = session.ask("two")
+        #expect(fake.processes.count == 2 && fake.last?.messages == ["two"])
     }
 
     @Test func signedOutAndNotInstalledFallBack() async throws {

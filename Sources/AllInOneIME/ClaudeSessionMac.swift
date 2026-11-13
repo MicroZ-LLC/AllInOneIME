@@ -13,14 +13,13 @@ import Foundation
 /// `claude auth status` with the session's own flags in its folder, Codex's `account/read`, Gemini CLI's settings and
 /// files, `kiro-cli whoami`), and when Settings shows the choice with a session or Automatic picked (or one is picked
 /// there); never at launch, nor with the AI provider picked.
-/// Handing one to Terminal (⌘⏎ in an @question conversation) ends our process and runs `claude --resume <id>`,
-/// `codex resume <thread>`, `gemini --resume <id>` or `kiro-cli chat --resume-id <id>` in the session's folder; that
-/// process's id goes in `ClaudeSessionStore.terminalPIDFile`, so that no process of ours starts on the session while it
-/// runs.
+/// Handing one to Terminal (⌘⏎ in an @question conversation) ends our process first (waited for), then runs `claude
+/// --resume <id>`, `codex resume <thread>`, `gemini --resume <id>` or `kiro-cli chat --resume-id <id>` in the session's
+/// folder under `lockf`, which holds the conversation's lock while it runs (`ClaudeSessionManager.terminalCommand`);
+/// questions after it go into a new conversation, never the one handed off.
 enum ClaudeSessionMac {
     static let manager = ClaudeSessionManager(
         launcher: launcher(ClaudeCodeBackend(), executable: { claudeURL }),
-        isAlive: { kill($0, 0) == 0 },
         userSettings: { ClaudeSession.userSettingsFile(environment: environment(.claude)) })
 
     static let codex = session(CodexBackend())
@@ -31,8 +30,7 @@ enum ClaudeSessionMac {
     static var managers: [SessionAgent: ClaudeSessionManager] { [.claude: manager, .codex: codex, .gemini: gemini, .kiro: kiro] }
 
     private static func session(_ backend: any SessionBackend) -> ClaudeSessionManager {
-        ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }),
-                             isAlive: { kill($0, 0) == 0 })
+        ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }))
     }
 
     /// Starts the agent with the login shell's environment and what the agent needs in it.
@@ -96,15 +94,15 @@ enum ClaudeSessionMac {
         config.questionSessionAgent(availability: { managers[$0]?.availability ?? .notInstalled })
     }
 
-    /// Opens the session the questions go to in a Terminal window: our process ends, the agent resumes it in the
-    /// session's folder, the next question typed (if any) as its first message, interactive after it (after "--", or
-    /// Gemini CLI's "-i": `SessionBackend.terminalArguments`). The script writes its process id first (`exec` keeps it).
+    /// Opens the conversation the questions go to in a Terminal window: our process ends first, the agent resumes the
+    /// conversation in the session's folder, holding its lock (`ClaudeSessionManager.terminalCommand`), the next question
+    /// typed (if any) as its first message, interactive after it (after "--", or Gemini CLI's "-i":
+    /// `SessionBackend.terminalArguments`). It is the CLI as the user set it up (their rules, tools and MCP servers).
     static func handOff(followUp: String) throws {
         let session = manager((try? Config.load()).flatMap(sessionAgent) ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
-        let (arguments, directory) = try session.handOff(program: program.path, followUp: !followUp.isEmpty)
-        let pidFile = session.store.terminalPIDFile.path
-        let argv = ["/bin/sh", "-c", "printf '%s' $$ > \"$1\"; shift; exec \"$@\"", "sh", pidFile] + arguments
+        let (arguments, directory, lock) = try session.handOff(program: program.path, followUp: !followUp.isEmpty)
+        let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
         if followUp.isEmpty {
             try TerminalLauncher.launch(argv, name: "\(session.backend.agent.rawValue)-session", directory: directory.path)
         } else {

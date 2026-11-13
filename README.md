@@ -265,35 +265,41 @@ in `~/.claude/settings.json` are used), with your login shell's PATH and the var
 (`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT` …). No API key. Each `@question`
 conversation in the panel is a new conversation in the session (a new Claude Code session id, a new Codex thread or ACP
 session), and its follow-ups go on in that one: the agent remembers the conversation's earlier rounds, not earlier
-conversations, and a question never carries every one before it. Whichever CLI it is, the
-session may read the web (search it, open pages) and nothing else: it can't read, list or change files on this Mac, run
-commands, use the CLI's MCP servers, extensions, plugins or apps, or start other agents, and it asks you for nothing
-(Claude Code: `--tools WebSearch,WebFetch`; Codex: no environment for commands and files, `CODEX_EXEC_SERVER_URL=none`,
-with its MCP servers, apps and agents turned off; Gemini CLI: a policy that allows `web_fetch` and `google_web_search`
-only, in `gemini-session`; Kiro CLI: an agent with `web_search` and `web_fetch` only). Continued in Terminal (⌘⏎), it is
-the CLI as you set it up, with its own tools and permission prompts. Only the question asked now is sent, with values
-hidden as for the provider (see Privacy) and, for a question about AllInOneIME, the user guide's excerpts. It starts
-when an `@question` is about to be asked (`@question` typed or picked, or one @'s Ask AI row highlighted; not for the
-magic key alone, nor in an app without AI or during secure input), with a new conversation made ready then (Codex and
-the ACP agents open it in the process they have; Claude Code's process starts again on a new session id), so the
-answer doesn't wait; it ends after 15 idle minutes, and a follow-up after that resumes its conversation. In it a
-conversation has no round limit, and ⌘⏎ offers continuing the same conversation in Terminal first (`claude --resume`,
-`codex resume`, `gemini --resume`, `kiro-cli chat --resume-id`); Start Over beside the setting begins a new one. Automatic (the default) uses the session of `@agent`'s agent when it is installed and signed
-in, else another one that is (in the order Claude Code, Codex, Gemini CLI, Kiro CLI), else the provider. Whether each
-CLI is installed and signed in is looked at the first time a question could go to a session, not at launch, and never
-while The AI provider is picked (`claude auth status`, Codex's account, Gemini CLI's settings and saved sign-in without
-starting it, `kiro-cli whoami`): one found ready stays so until the input method quits, any other is looked at again
-when needed, a minute later at the earliest. Settings looks again each time it shows the choice with a session or
-Automatic picked, and when you pick one there; with The AI provider picked it runs none of them. When the session can't
-answer (not installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in,
-open in Terminal, nothing within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting
-the conversation before it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction,
-not waited for) the provider answers at once and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. The panel's
-footer says who answered: the CLI (Claude Code, Codex, Gemini CLI, Kiro CLI) or the AI provider, "new conversation"
-when the CLI's conversation is new with that answer (the first question, or one it couldn't resume after a restart, so
-it doesn't have the rounds before), and the tokens the turn used when the CLI reports them (`12k tokens`). An answer that
-says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next question
-starts it again. Rewriting, translating and autocomplete always use the provider.
+conversations, and a question never carries every one before it. Whichever CLI it is, the session may read the web
+(search it, open pages) and nothing else: it can't read, list or change files on this Mac, run commands, use the CLI's
+MCP servers, extensions, plugins or apps, or start other agents, and it asks you for nothing (Claude Code:
+`--tools WebSearch,WebFetch`; Codex: no environment for commands and files, `CODEX_EXEC_SERVER_URL=none`, with its MCP
+servers, apps and agents turned off; Gemini CLI: a policy that allows `web_fetch` and `google_web_search` only, in
+`gemini-session`; Kiro CLI: an agent with `web_search` and `web_fetch` only). Continued in Terminal (⌘⏎), it is the CLI
+as you set it up, with its own tools and permission prompts. Only the question asked now is sent, with values hidden as
+for the provider (see Privacy) and, for a question about AllInOneIME, the user guide's excerpts. It starts when an
+`@question` is about to be asked (`@question` typed or picked, or one @'s Ask AI row highlighted; not for the magic key
+alone, nor in an app without AI or during secure input), with a new conversation made ready then (Codex and the ACP
+agents open it in the process they have; Claude Code's process starts again on a new session id), so the answer doesn't
+wait; it ends after 15 idle minutes, and a follow-up after that resumes its conversation. In it a conversation has no
+round limit, and ⌘⏎ offers continuing the same conversation in Terminal first (`claude --resume`, `codex resume`,
+`gemini --resume`, `kiro-cli chat --resume-id`); Start Over beside the setting begins a new one. Never two processes on
+one conversation: ⌘⏎ ends the session's own process first and waits for it (killed if it hasn't ended within half a
+second), Terminal's CLI holds the conversation's lock while it runs (`lockf` on `<session folder>/locks/<id>.lock`,
+waiting for ours to be let go), and the conversation is Terminal's from then on: the next `@question` (an @ typed
+meanwhile too) goes into a new conversation here, never the one handed off. Quitting or updating AllInOneIME ends every
+session's process, and after the relaunch no conversation from before is resumed. Automatic (the default) uses the
+session of `@agent`'s agent when it is installed and signed in, else another one that is (in the order Claude Code,
+Codex, Gemini CLI, Kiro CLI), else the provider. Whether each CLI is installed and signed in is looked at the first time
+a question could go to a session, not at launch, and never while The AI provider is picked (`claude auth status`,
+Codex's account, Gemini CLI's settings and saved sign-in without starting it, `kiro-cli whoami`): one found ready stays
+so until the input method quits, any other is looked at again when needed, a minute later at the earliest. Settings
+looks again each time it shows the choice with a session or Automatic picked, and when you pick one there; with The AI
+provider picked it runs none of them. When the session can't answer (not installed, signed out, it can't start, it can't
+be kept to the web, its usage limit, an expired AWS sign-in, nothing within 30 seconds, still answering an earlier
+question after 30 seconds, or the CLI compacting the conversation before it answers: Claude Code's `compact_boundary` or
+compacting status, Codex's context compaction, not waited for) the provider answers at once and the panel says why; a
+CLI that couldn't start isn't Automatic's pick until it is looked at again. The panel's footer says who answered: the
+CLI (Claude Code, Codex, Gemini CLI, Kiro CLI) or the AI provider, "new conversation" when the CLI's conversation is new
+with that answer (the first question, or one it couldn't resume after a restart, so it doesn't have the rounds before),
+and the tokens the turn used when the CLI reports them (`12k tokens`). An answer that says nothing for 3 minutes, or
+doesn't stop within 5 seconds of Esc, ends the session's process; the next question starts it again. Rewriting,
+translating and autocomplete always use the provider.
 
 To open the session yourself and read its history, in Terminal (one line per agent):
 
