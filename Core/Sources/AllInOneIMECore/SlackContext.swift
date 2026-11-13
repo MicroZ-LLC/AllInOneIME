@@ -63,10 +63,13 @@ public struct SlackAdapter: AppContextAdapter {
         }
         var messages: [AppMessage] = []
         if let list {
+            // Real Slack reports its message list's frame as 1×1 (seen 2026-11-12): then what shows is the page's frame.
+            let listFrame = list.node.frame.flatMap { $0.height > 40 ? $0 : nil }
+            let viewFrame = listFrame ?? web.node.frame
             for item in list.element.children().reversed() {
                 guard messages.count < AppSnapshot.Limits.messages, !deadline.isPast else { break }
                 let node = item.read()
-                if let view = list.node.frame, let frame = node.frame {
+                if let view = viewFrame, let frame = node.frame {
                     if frame.minY >= view.maxY || frame.height <= 1 { continue }  // below what shows (or off screen)
                     if frame.maxY <= view.minY { break }  // above it: so is every one before it
                 }
