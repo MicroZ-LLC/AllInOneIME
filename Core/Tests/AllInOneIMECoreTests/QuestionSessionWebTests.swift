@@ -47,7 +47,7 @@ struct QuestionSessionWebTests {
         #expect(ClaudeCodeBackend().effective(.only([url("https://a.com")])) == .only([url("https://a.com")]))
     }
 
-    @Test func codexGeminiAndKiroHaveNoWebToolsThen() throws {
+    @Test func codexAntigravityAndKiroHaveNoWebToolsThen() throws {
         let typed = SessionWeb.only([url("https://a.com")])
         let codex = CodexBackend(base: folder)
         #expect(codex.effective(typed) == .only([]) && codex.effective(.open) == .open)
@@ -56,17 +56,16 @@ struct QuestionSessionWebTests {
         #expect(codex.arguments(sessionID: "x", resume: false, settings: nil).contains("web_search=\"live\""))
         #expect(off.contains("features.shell_tool=false") && off.contains("agents.enabled=false"))
 
-        var gemini = ACPBackend.gemini
-        gemini.base = folder
-        #expect(gemini.effective(typed) == .only([]))
-        let policy = try #require(gemini.arguments(sessionID: "x", resume: false, settings: nil, web: .only([]))
-            .drop { $0 != "--policy" }.dropFirst().first)
-        #expect(policy == gemini.directory.appendingPathComponent("allinoneime-policy-offline.toml").path)
-        let offline = try #require(gemini.files.first { $0.path == "allinoneime-policy-offline.toml" }?.content)
-        #expect(offline.contains(#"toolName = "*""#) && offline.contains(#"decision = "deny""#) && !offline.contains("allow"))
-        #expect(gemini.arguments(sessionID: "x", resume: false, settings: nil).contains {
-            $0.hasSuffix("/allinoneime-policy.toml")
-        })
+        // Antigravity: its agent without tools (`allinoneime-offline`), decided by the conversation's web.
+        let antigravity = AntigravityBackend(base: folder)
+        #expect(antigravity.effective(typed) == .only([]))
+        let offlineAgent = antigravity.arguments(sessionID: "x", resume: false, settings: nil, web: .only([]))
+            .drop { $0 != "--agent" }.dropFirst().first
+        #expect(offlineAgent == AntigravityBackend.offlineAgentName)
+        let offline = try #require(antigravity.files.first { $0.path == ".agents/agents/allinoneime-offline.md" }?.content)
+        #expect(offline.contains("tools: []") && !offline.contains("search_web"))
+        #expect(antigravity.arguments(sessionID: "x", resume: false, settings: nil).drop { $0 != "--agent" }.dropFirst().first
+            == AntigravityBackend.agentName)
 
         let kiro = ACPBackend.kiro
         #expect(kiro.effective(typed) == .only([]))

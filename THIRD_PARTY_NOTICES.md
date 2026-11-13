@@ -31,6 +31,7 @@ Drawn in Settings → AI (`Resources/AILogos/*.svg`, made into the PDFs the app 
 |---|---|---|---|
 | Simple Icons: Claude, Anthropic, OpenAI, Google Gemini, Amazon Web Services and Apple logos | as published in November 2026 | CC0-1.0 | https://simpleicons.org |
 | Kiro's mark, made one color with its eyes cut out | from kiro.dev, November 2026 | Kiro's (Amazon's) trademark | https://kiro.dev |
+| Google Antigravity's mark, its outline alone in one color | from antigravity.google, November 2026 | Google's trademark | https://antigravity.google |
 
 The librime release build has these compiled into `librime.1.dylib` and its plugins (Lua into
 librime-lua); versions as pinned by librime 1.16.1:

@@ -6,7 +6,8 @@
 //   swift Scripts/make-ai-logos.swift
 //
 // The SVGs: Simple Icons' (CC0: claude, anthropic, openai, googlegemini, amazonwebservices, apple) as they publish them,
-// and Kiro's mark from kiro.dev made one color, its eyes cut out of it (kiro.svg). The marks are their owners' trademarks,
+// Kiro's mark from kiro.dev made one color, its eyes cut out of it (kiro.svg), and Google Antigravity's mark from
+// antigravity.google/favicon.svg, its outline alone, one color (antigravity.svg). The marks are their owners' trademarks,
 // shown to name their products.
 
 import AppKit

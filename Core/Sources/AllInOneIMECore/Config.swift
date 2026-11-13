@@ -212,8 +212,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
     /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
-    /// The CLI chosen as the AI (`ai`, `QuestionBackend`): the input method's own session on Claude Code, Codex, Gemini
-    /// CLI or Kiro CLI (`SessionAgent`) answers `@question`, and what has to be fast goes to `fastProvider`; nil: the AI is
+    /// The CLI chosen as the AI (`ai`, `QuestionBackend`): the input method's own session on Claude Code, Codex,
+    /// Antigravity or Kiro CLI (`SessionAgent`) answers `@question`, and what has to be fast goes to `fastProvider`; nil: the AI is
     /// `provider` (also for "provider", the choice of the provider for questions in 0.7.4's builds). This Mac's own (never
     /// synced): whether a CLI is installed and signed in is this Mac's.
     public var questionBackend: QuestionBackend?
@@ -538,8 +538,9 @@ public struct Config: Codable, Equatable, Sendable {
         questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
             .compactMap(ChatHandoff.Destination.init(rawValue:))
         // One this version doesn't know (a later one's), and 0.7.4's "provider", are none: the AI is the provider.
-        questionBackend = (try? c.decodeIfPresent(QuestionBackend.self, forKey: .questionBackend)).flatMap { $0 }
-            .flatMap { $0 == .provider ? nil : $0 }
+        // Gemini CLI's session (0.7.4's earlier builds) is Antigravity's (`QuestionBackend.init(file:)`).
+        questionBackend = (try? c.decodeIfPresent(String.self, forKey: .questionBackend)).flatMap { $0 }
+            .flatMap(QuestionBackend.init(file:)).flatMap { $0 == .provider ? nil : $0 }
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         // One this version doesn't know (a later one's) follows the system, not an error.

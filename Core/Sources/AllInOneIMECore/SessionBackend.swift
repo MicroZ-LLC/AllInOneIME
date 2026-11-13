@@ -2,7 +2,7 @@ import Foundation
 
 /// The agent a question session runs on (`ClaudeSessionManager`): how its process is started and talked to. Claude Code
 /// over stream-json (`ClaudeCodeBackend`), Codex over its app server (`CodexBackend`), or an agent that speaks the Agent
-/// Client Protocol (`ACPBackend`: Gemini CLI, Kiro CLI). The manager keeps what is the same for every agent: one
+/// Client Protocol (`ACPBackend`: Antigravity, Kiro CLI). The manager keeps what is the same for every agent: one
 /// process, prewarmed, reused, ended when idle, started again after a crash, the queue of questions, the first-answer
 /// timeout, the hand-off guard, redaction and catch-up, and the sign-in check, run when it is first needed.
 public protocol SessionBackend: Sendable {
@@ -45,8 +45,8 @@ public protocol SessionBackend: Sendable {
     /// What Terminal runs to go on in the session (the hand-off), `program` being where the agent is. `followUp`: the
     /// next question, typed with ⌘⏎, goes after these as the last argument, its first message (`TerminalLauncher.agent`,
     /// as after `AgentKind.terminalArguments`): they end with what makes it that message, the agent interactive after it,
-    /// whatever it starts with: "--" (Claude Code, Codex, Kiro CLI: no option after it), Gemini CLI's "-i" (a prompt
-    /// alone it answers once and exits).
+    /// whatever it starts with: "--" (Claude Code, Codex, Kiro CLI: no option after it), Antigravity's "-i" (its
+    /// `--prompt-interactive`: the message, then interactive).
     func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool, followUp: Bool) -> [String]
 }
 

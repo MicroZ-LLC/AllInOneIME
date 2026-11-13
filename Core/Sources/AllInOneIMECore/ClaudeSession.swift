@@ -2,14 +2,14 @@ import Crypto
 import Foundation
 
 /// The CLI chosen as the AI (`Config.questionBackend`, `Config.ai`): the input method's own session on an agent
-/// (`SessionAgent`): Claude Code's (`claudeSession`, its name in the file from before the others), Codex's, Gemini CLI's
+/// (`SessionAgent`): Claude Code's (`claudeSession`, its name in the file from before the others), Codex's, Antigravity's
 /// or Kiro CLI's, each a `ClaudeSessionManager`. `@question` goes to it; what has to be fast goes to the fast fallback
 /// (`Config.fastProvider`). None: the AI is the provider; so is `provider` (a file's "provider", 0.7.4's builds' choice of
 /// the provider for questions).
 public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
     case claudeSession
     case codexSession
-    case geminiSession
+    case antigravitySession
     case kiroSession
     /// The provider, as none is (`Config.ai`): what 0.7.4's builds wrote for questions answered by the provider.
     case provider
@@ -19,7 +19,7 @@ public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
         switch agent {
         case .claude: self = .claudeSession
         case .codex: self = .codexSession
-        case .gemini: self = .geminiSession
+        case .antigravity: self = .antigravitySession
         case .kiro: self = .kiroSession
         }
     }
@@ -29,17 +29,27 @@ public enum QuestionBackend: String, Codable, CaseIterable, Sendable {
         switch self {
         case .claudeSession: return .claude
         case .codexSession: return .codex
-        case .geminiSession: return .gemini
+        case .antigravitySession: return .antigravity
         case .kiroSession: return .kiro
         case .provider: return nil
         }
     }
 
     /// The agents that have a question session, in the order Settings lists them.
-    public static let sessionAgents: [SessionAgent] = [.claude, .codex, .gemini, .kiro]
+    public static let sessionAgents: [SessionAgent] = [.claude, .codex, .antigravity, .kiro]
 
     /// Every CLI's, in that order; not `provider`, which names none (a file's reads as none: `Config`).
     public static var allCases: [QuestionBackend] { sessionAgents.map(QuestionBackend.init) }
+
+    /// What a file's value names: its case, and Gemini CLI's session of 0.7.4's earlier builds ("geminiSession": Gemini
+    /// CLI no longer serves personal Google accounts) as Antigravity's, Google's CLI that took its place (on a Mac
+    /// without it, `Config.migrateGeminiCLISession` makes the provider the AI). Nil: one this version doesn't know.
+    public init?(file value: String) {
+        if value == Self.geminiCLISession { self = .antigravitySession } else { self.init(rawValue: value) }
+    }
+
+    /// Gemini CLI's session's value in 0.7.4's earlier builds.
+    public static let geminiCLISession = "geminiSession"
 }
 
 extension SessionAgent {
@@ -78,7 +88,7 @@ public struct QuestionConversation: Hashable, Sendable {
 /// inside it) could tell the agent to send what the conversation holds to an address of its own: with such text in the
 /// conversation only the addresses the user typed may be fetched, and with none typed the web tools are off. Each CLI
 /// keeps to it as far as it can (`SessionBackend.effective`): Claude Code fetches from those addresses' sites only
-/// (`WebFetch(domain:…)`, no search); Codex, Gemini CLI and Kiro CLI can't be kept to addresses, so theirs are off.
+/// (`WebFetch(domain:…)`, no search); Codex, Antigravity and Kiro CLI can't be kept to addresses, so theirs are off.
 public enum SessionWeb: Hashable, Sendable {
     /// The session's web tools as they are.
     case open

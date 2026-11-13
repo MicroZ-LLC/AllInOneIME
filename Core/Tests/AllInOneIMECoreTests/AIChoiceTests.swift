@@ -13,7 +13,7 @@ struct AIChoiceTests {
     // MARK: - The choices and their groups
 
     @Test func theChoicesByHowTheyConnect() {
-        #expect(AIChoice.all == [.cli(.claude), .cli(.codex), .cli(.gemini), .cli(.kiro), .provider(.anthropic), .provider(.openai),
+        #expect(AIChoice.all == [.cli(.claude), .cli(.codex), .cli(.antigravity), .cli(.kiro), .provider(.anthropic), .provider(.openai),
                                  .provider(.gemini), .provider(.bedrock), .provider(.hosted), .provider(.apple)])
         // Every choice once, every provider and every CLI among them.
         #expect(Set(AIChoice.all).count == AIChoice.all.count)
@@ -23,7 +23,7 @@ struct AIChoiceTests {
         let groups = AIChoice.groups(hosted: true, apple: .available)
         #expect(groups.map(\.group) == [.subscription, .apiKey, .cloud, .onDevice])
         #expect(groups.map(\.choices) == [
-            [.cli(.claude), .cli(.codex), .cli(.gemini), .cli(.kiro)],
+            [.cli(.claude), .cli(.codex), .cli(.antigravity), .cli(.kiro)],
             [.provider(.anthropic), .provider(.openai), .provider(.gemini)],
             [.provider(.bedrock), .provider(.hosted)],
             [.provider(.apple)],
@@ -41,7 +41,7 @@ struct AIChoiceTests {
     }
 
     @Test func eachChoiceHasAnIDAsTheFileWritesIt() {
-        #expect(AIChoice.all.map(\.id) == ["claudeSession", "codexSession", "geminiSession", "kiroSession",
+        #expect(AIChoice.all.map(\.id) == ["claudeSession", "codexSession", "antigravitySession", "kiroSession",
                                            "anthropic", "openai", "gemini", "bedrock", "hosted", "apple"])
         for choice in AIChoice.all { #expect(AIChoice(id: choice.id) == choice) }
         #expect(AIChoice(id: "provider") == nil && AIChoice(id: "") == nil && AIChoice(id: "copilotSession") == nil)
@@ -49,7 +49,7 @@ struct AIChoiceTests {
 
     @Test func theirNamesAndGroupsInEnglishAndChinese() async {
         await withInterfaceLanguage("en") {
-            #expect(AIChoice.all.map(\.name) == ["Claude Code", "Codex", "Gemini CLI", "Kiro CLI", "Claude API", "OpenAI-compatible",
+            #expect(AIChoice.all.map(\.name) == ["Claude Code", "Codex", "Antigravity", "Kiro CLI", "Claude API", "OpenAI-compatible",
                                                  "Gemini API", "Amazon Bedrock", "AllInOneIME Cloud", "Apple on-device"])
             #expect(AIChoice.Group.allCases.map(\.title) == ["With your subscription", "With an API key", "Cloud services", "On this Mac"])
             #expect(AIChoice.cli(.codex).detail(.signedIn) == "Through the CLI on this Mac, with your own subscription · Signed in")
@@ -69,14 +69,14 @@ struct AIChoiceTests {
     @Test func eachChoicesStatusFromWhatThisMacHas() {
         var config = Config.default
         config.awsProfile = "work"
-        let facts = AIFacts(sessions: [.claude: .ready, .codex: .signedOut, .gemini: .notInstalled],
+        let facts = AIFacts(sessions: [.claude: .ready, .codex: .signedOut, .antigravity: .notInstalled],
                             keys: [.anthropic: .saved(ending: "a1b2"), .openai: .shell("OPENAI_API_KEY"), .gemini: .missing],
                             hostedSignedIn: false, awsProfiles: ["default": "us-east-2", "work": "us-west-2", "bare": nil],
                             apple: .appleIntelligenceNotEnabled)
         func status(_ choice: AIChoice) -> AIStatus { facts.status(choice, config: config) }
         #expect(status(.cli(.claude)) == .signedIn)
         #expect(status(.cli(.codex)) == .signedOut)
-        #expect(status(.cli(.gemini)) == .notInstalled(program: "gemini"))
+        #expect(status(.cli(.antigravity)) == .notInstalled(program: "agy"))
         #expect(status(.cli(.kiro)) == .unknown)  // not looked at yet
         #expect(status(.provider(.anthropic)) == .key(.saved(ending: "a1b2")))
         #expect(status(.provider(.openai)) == .key(.shell("OPENAI_API_KEY")))
@@ -128,6 +128,10 @@ struct AIChoiceTests {
         #expect(try read(#"{"provider": "openai", "questionBackend": "provider"}"#).ai == .provider(.openai))
         #expect(try read(#"{"provider": "openai"}"#).questionBackend == nil)
         #expect(try read(#"{"provider": "apple", "questionBackend": "copilotSession"}"#).ai == .provider(.apple))
+        // Gemini CLI's session (0.7.4's earlier builds; Gemini CLI no longer serves personal Google accounts) is
+        // Antigravity's, the provider kept (`Config.migrateGeminiCLISession` makes it the provider without agy).
+        let gemini = try read(#"{"provider": "anthropic", "questionBackend": "geminiSession"}"#)
+        #expect(gemini.ai == .cli(.antigravity) && gemini.provider == .anthropic)
     }
 
     @Test func choosingKeepsEveryProvidersSettings() throws {
@@ -146,8 +150,8 @@ struct AIChoiceTests {
         #expect(written.contains(#""questionBackend":"codexSession""#) && written.contains(#""provider":"bedrock""#))
         #expect(try JSONDecoder().decode(Config.self, from: Data(written.utf8)).ai == .cli(.codex))
         // Another CLI: only the CLI changes.
-        config.ai = .cli(.gemini)
-        #expect(config.questionBackend == .geminiSession && config.provider == .bedrock)
+        config.ai = .cli(.antigravity)
+        #expect(config.questionBackend == .antigravitySession && config.provider == .bedrock)
         // A provider: it is the AI, the CLI forgotten (no key in the file), every provider's settings as they were.
         config.ai = .provider(.openai)
         #expect(config.ai == .provider(.openai) && config.questionBackend == nil)
@@ -337,7 +341,7 @@ struct AIChoiceTests {
             let mac = try service(#"{"provider": "anthropic"}"#, platform: .mac)
             let field = try #require(mac.document().field("provider"))
             #expect(field.value == .string("anthropic"))
-            #expect(field.choices?.prefix(4).map(\.value) == ["claudeSession", "codexSession", "geminiSession", "kiroSession"].map { .string($0) })
+            #expect(field.choices?.prefix(4).map(\.value) == ["claudeSession", "codexSession", "antigravitySession", "kiroSession"].map { .string($0) })
             #expect(mac.document().field("questionBackend") == nil)  // folded into it
             // A CLI chosen: its id, the provider kept, the provider's own fields and Test Connection left out.
             #expect((try? mac.set("provider", to: .string("codexSession")).get()) != nil)

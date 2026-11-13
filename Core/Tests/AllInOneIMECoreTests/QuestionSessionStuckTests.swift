@@ -161,8 +161,8 @@ struct QuestionSessionStuckTests {
             == ["/u/claude", "--resume", id])
         #expect(ACPBackend.kiro.terminalArguments(program: "/u/kiro-cli", sessionID: id, agentSessionID: "sess_1", resume: true)
             == ["/u/kiro-cli", "chat", "--resume-id", "sess_1", "--"])
-        #expect(ACPBackend.gemini.terminalArguments(program: "/u/gemini", sessionID: id, agentSessionID: "4f1c", resume: true)
-            == ["/u/gemini", "--resume", "4f1c", "-i"])
+        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: id, agentSessionID: "4f1c", resume: true)
+            == ["/u/agy", "--conversation", "4f1c", "-i"])
     }
 
     @Test func theHandOffHasTheFollowUpsArgumentsOnlyWithOne() throws {

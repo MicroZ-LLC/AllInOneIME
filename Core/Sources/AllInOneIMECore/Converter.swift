@@ -48,7 +48,7 @@ public final class Converter: Sendable {
     /// on in is pointed to (`ChatHandoff.guideNote`), since it reads files itself.
     public let userGuideFile: URL?
     let cache = Locked(initialState: LRUCache(capacity: 64))
-    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Codex, Gemini CLI, Kiro
+    /// The input method's own sessions (`ClaudeSessionManager`), one per agent (Claude Code, Codex, Antigravity, Kiro
     /// CLI): `@question` goes to the one `questionSession` says.
     public let questionSessions: [SessionAgent: ClaudeSessionManager]
     /// The Claude Code session, if any.

@@ -318,33 +318,38 @@ struct QuestionSessionRequestTests {
         withExtendedLifetime(second) {}
     }
 
-    @Test func geminiSendsAWaitingWritingTaskWithItsOfflinePolicy() async throws {
+    @Test func antigravitySendsAWaitingWritingTaskWithItsOfflineAgent() async throws {
         let fake = FakeClaude()
-        var gemini = ACPBackend.gemini
-        gemini.base = folder
-        let session = ClaudeSessionManager(backend: gemini, launcher: fake)
+        let session = ClaudeSessionManager(backend: AntigravityBackend(base: folder), launcher: fake)
         defer { session.stop() }
-        func policy(_ process: FakeClaude.Process) -> String? {
-            value("--policy", process.arguments).map { ($0 as NSString).lastPathComponent }
-        }
+        func agent(_ process: FakeClaude.Process) -> String? { value("--agent", process.arguments) }
+        /// agy's handshake: `initialize`, `session/new`, then the fast model set (`AntigravityDriver`).
         func open(_ process: FakeClaude.Process, session id: String) throws {
             try respond(process, "initialize", ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]], jsonrpc: true)
             try respond(process, "session/new", ["sessionId": id], jsonrpc: true)
+            try respond(process, "session/set_model", jsonrpc: true)
         }
         let first = session.ask("first question", in: QuestionConversation())
         let one = try #require(fake.last)
-        #expect(policy(one) == "allinoneime-policy.toml")
+        #expect(agent(one) == AntigravityBackend.agentName)
         try open(one, session: "g1")
         #expect(await Timing.eventually(within: 10) { prompts(one) == ["first question"] })
         let writing = session.ask("rewrite this", in: .oneOff)
+        let second = session.ask("second question", in: QuestionConversation())
         try respond(one, "session/prompt", ["stopReason": "end_turn"], jsonrpc: true)
         _ = await collect(first)
         let two = try #require(fake.last)
-        #expect(fake.processes.count == 2 && one.terminated && policy(two) == "allinoneime-policy-offline.toml")
+        #expect(fake.processes.count == 2 && one.terminated && agent(two) == AntigravityBackend.offlineAgentName)
         try open(two, session: "g2")
         #expect(await Timing.eventually(within: 10) { prompts(two) == ["rewrite this"] })
         #expect(prompts(one) == ["first question"])
-        withExtendedLifetime(writing) {}
+        try respond(two, "session/prompt", ["stopReason": "end_turn"], jsonrpc: true)
+        _ = await collect(writing)
+        let three = try #require(fake.last)
+        #expect(fake.processes.count == 3 && two.terminated && agent(three) == AntigravityBackend.agentName)
+        try open(three, session: "g3")
+        #expect(await Timing.eventually(within: 10) { prompts(three) == ["second question"] })
+        withExtendedLifetime(second) {}
     }
 
     /// An agent that can't have its web tools off isn't asked a writing task; a question behind it, with the web it may
