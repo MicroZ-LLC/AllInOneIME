@@ -20,6 +20,10 @@ private enum ShuangpinRime {
         } && FileManager.default.fileExists(atPath: RimeFixture.sharedData.appendingPathComponent("build/rime_ice.table.bin").path)
     }
 
+    static var openCCAvailable: Bool {
+        FileManager.default.fileExists(atPath: RimeFixture.thirdParty.appendingPathComponent("opencc/s2twp.json").path)
+    }
+
     static func run(_ scenario: String) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("shuangpin-rime-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -64,6 +68,7 @@ private enum ShuangpinRime {
         let patch = "patch:\n  schema_list:\n" + schemas.map { "    - schema: \($0)\n" }.joined()
         try patch.write(to: user.appendingPathComponent("default.custom.yaml"), atomically: true, encoding: .utf8)
         if traditional {
+            try #require(openCCAvailable, "no OpenCC data in ThirdParty/opencc (make deps): Traditional candidates can't be made")
             let schema = try String(contentsOf: RimeFixture.sharedData.appendingPathComponent("double_pinyin_flypy.schema.yaml"), encoding: .utf8)
             let characters = try #require(ChineseCharacters.taiwan.patch(schema: schema))
             let filter = "  engine/filters/+:\n    - lua_filter@*\(RemovedCandidates.luaFilter)\n"
@@ -159,5 +164,8 @@ struct ShuangpinRimeAcceptanceWorker {
 struct ShuangpinRimeTests {
     @Test func threeSchemesAndFullPinyin() throws { try ShuangpinRime.run("schemes") }
     @Test func switchesOnTheSameSessionWithoutRestart() throws { try ShuangpinRime.run("switch-without-restart") }
-    @Test func traditionalAndRemovedCandidateStayInShuangpin() throws { try ShuangpinRime.run("traditional-and-removal") }
+    /// Traditional characters need OpenCC's data (ThirdParty/opencc, `make deps`): without it librime keeps the
+    /// Simplified candidates (whlo → 网络), so it is skipped as the other Traditional suites are, unless the data is required.
+    @Test(.enabled(if: ShuangpinRime.openCCAvailable || RimeFixture.dataRequired, "no OpenCC data in ThirdParty/opencc (make deps)"))
+    func traditionalAndRemovedCandidateStayInShuangpin() throws { try ShuangpinRime.run("traditional-and-removal") }
 }
