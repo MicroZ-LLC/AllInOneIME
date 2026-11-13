@@ -14,7 +14,12 @@ INSTALLED_OR_NEW := Scripts/installed-input-method.sh --new "$(INSTALL_DIR)" $(I
 EARLIER_APP   := $(INSTALL_DIR)/$(APP_NAME).app
 # Any part of a codesigning identity's name, or its SHA-1 hash; falls back to ad-hoc signing if none matches.
 # If several match (two Apple Development certificates, say), the first `security find-identity -v` lists.
-SIGN_IDENTITY ?= Apple Development
+# Default: the release's own Developer ID certificate when this Mac has it, so a local build has the same signing
+# identity as the shipped one: macOS ties Accessibility and other privacy permissions to it, and a build signed with
+# another certificate shows up as a second "AllInOneIME" in System Settings with the permission off. Without it,
+# Apple Development as before.
+DEVID_CERT := $(shell Scripts/sign-identity.sh 'Developer ID Application' 2>/dev/null)
+SIGN_IDENTITY ?= $(if $(DEVID_CERT),$(firstword $(DEVID_CERT)),Apple Development)
 # That certificate as "HASH NAME" (Scripts/sign-identity.sh), looked up once; signed with by its hash, since
 # codesign refuses a name several match.
 SIGN_CERT = $(eval SIGN_CERT := $(shell Scripts/sign-identity.sh '$(SIGN_IDENTITY)'))$(SIGN_CERT)
@@ -29,7 +34,10 @@ TIMESTAMP = $(if $(findstring Developer ID,$(SIGN_CERT)),--timestamp)
 # signature makes macOS kill the input method at launch, so it is checked first and the built app is run once after.
 # The Developer ID profile is the App ID's of the bundle ID in Resources/Info.plist (AllInOneIME's own system identity
 # since 0.7.2, 9SR8N3UD5Y.com.allinoneime.inputmethod.AllInOneIME).
-PROFILE ?=
+# Signing with the Developer ID certificate (the default when this Mac has it) takes the shipped profile too, so the
+# local build matches the shipped one in its keychain entitlements as well.
+PROFILE ?= $(if $(findstring Developer ID,$(SIGN_CERT)),$(DIST_PROFILE))
+PROFILE_ALL_DEVICES ?= $(if $(findstring Developer ID,$(SIGN_CERT)),1)
 DIST_PROFILE ?= Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
 # The keychain access groups the entitlements give (one or more, the first the default): KeySync.accessGroup in the core.
 # The profile has to allow each (the team's `9SR8N3UD5Y.*` does).
