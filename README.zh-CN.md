@@ -196,6 +196,19 @@ agent（默认是 Claude Code 的 `claude` 命令）和它自己的账号，改�
 Intelligence 时，长对话放不进它很小的上下文：先缩短最早的几个答案，再去掉最早的几轮，候选框里会写「前面几轮已缩短」。
 对话按第一个问题存在「最近的问题」里，选出来就能看到所有轮次，接着聊。
 
+### @question 用输入法自己的会话（新）
+
+设置 →「AI」→「提问（@question）」（配置里的 `questionBackend`）选 `@question` 在哪里回答：自动、Claude Code 会话、Kiro CLI 会话或 AI 服务。
+会话是输入法为所有输入框留着的一个长期运行的 Claude Code（`claude -p`，stream JSON）或 Kiro CLI（`kiro-cli acp`）进程，
+在它自己的文件夹里（`~/Library/Application Support/AllInOneIME/claude-session` 或 `kiro-session`，有它自己的说明），
+用那个 CLI 自己的账号登录：Claude 或 Kiro 订阅、公司账号，或者 Amazon Bedrock 上的 Claude Code（用 `~/.claude/settings.json` 里的服务设置）。
+不用 API key。隔几天也记得以前问过的问题；它的工具只能读网页。只发现在问的这个问题，像发给 AI 服务时一样隐藏敏感信息（见「隐私」），
+问 AllInOneIME 本身的问题时再带上使用指南的几段。打魔法键时就启动，闲置 15 分钟后结束，下一个问题接着同一个会话。
+用会话时对话没有轮数限制，⌘⏎ 最先列出在终端里接着同一个会话聊（`claude --resume`、`kiro-cli chat --resume-id`）；设置旁边的「重新开始」开一个新会话。
+「自动」（默认）在 `@agent` 的 agent 的会话装了并已登录时用它，不然用另一个装了并已登录的（Claude Code 优先），再不然用 AI 服务。
+会话回答不了时（没装、没登录、用量到上限、AWS 登录过期、正在终端里打开、30 秒内没反应），由 AI 服务回答，候选框里写着原因。
+改写、翻译和续写总是用 AI 服务。
+
 ### 最近的问题（新）
 
 `@question` 后面不打字时，列出最近 5 个问题（最新的在前），右边是提问时间（「3 小时前」）。接着打字就筛选：每个词出现在问题里任何位置都算，
@@ -1101,6 +1114,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 | `rememberQuestions` | 在这台 Mac 上记住最近 5 个 `@question` 问题和答案，列在 `@question` 下面（见「最近的问题」） | `true` |
 | `questionRounds` | `@question` 对话在候选框里聊几轮后建议换个地方接着聊，2–10 | `5` |
 | `questionContinueIn` | `@question` 对话可以接着在哪里聊，按顺序，第一个是默认：`agent`（`@agent` 交给的那个，代替它自己那一项）、`claudeCode`、`geminiCLI`、`kiroCLI`、`customAgent`（各个 agent，装了才有）、`claudeWeb`、`chatgpt`、`gemini`、`copy` | `agent`、别的装了的 agent、Claude、ChatGPT、复制 |
+| `questionBackend` | `@question` 在哪里回答：`claudeSession`（输入法自己的 Claude Code 会话）、`kiroSession`（它的 Kiro CLI 会话）或 `provider`；不写：自动（见「@question 用输入法自己的会话」）。只属于这台 Mac，不同步 | 不写 |
 | `appProfiles` | 单个 App 的设置，按 bundle ID，每一项都可以不写：`noAI`、`suggestionsInsert`（同下，或者 `"source"`；同步）和 `suggestions`（`false`：那里不出建议的行，即「在这些 App 里」的「关闭」；只属于这台 Mac，不同步），设置里显示这几项；以前的版本留下、照样生效的：`inputLanguage`（语言代码，代码输入是 `"code"`）、`rewriteStyles`、`typeOut`、`translateAlways`、`autocomplete`（只属于这台 Mac，不同步）（见「按 App 设置」） | `{}` |
 | `autocomplete` | 续写：光标后出灰字，按 Tab 上屏；问的是你的 AI 服务（见「续写」）；不同步 | `false` |
 | `suggestions` | 建议（设置 →「通用」、输入法菜单）：`false` 关掉所有建议的行，插件的、建议命令的和代码输入的；只属于这台 Mac，不同步（见「建议和代码输入」） | 不写（开） |
@@ -1124,6 +1138,7 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 - 打拼音和 `@calculator` 插件的计算完全在本地。只有 `@improve`、`@translate`、`@question` 按执行键时，那一句话才会发到你选的 AI 服务（你自己的 Bedrock，或你填了 key 的服务）。勾上「黑话」并设了黑话库时，词表也会一起发过去。修改结果（结果出来后打要求再按 ⇧⏎）时，同样的请求连同显示的结果和你的要求再发一次；追问（⏎）时连同前面的对话一起发。
 - 为了停一会儿之后的请求不用等新建连接（0.7.0）：你写的变成发给你自己的云端服务（Claude API、Gemini API、OpenAI、Amazon Bedrock）的 AI 命令时（`@` 之后要打了字或选了文字、高亮的是 AI 的一行；只打 `@` 从不发），或在用这种服务续写的输入框里按第一个键时，如果最近 90 秒没有发过东西给这个服务，输入法向它的地址发一个 HEAD 请求，只有 `https://主机/`（Bedrock 是它所在区域的地址）：没有密钥、没有凭证、没有内容，要求登录一律拒绝。按 ⏎ 之前你打的什么都不发送。只发给服务自己的地址（`api.anthropic.com`、`generativelanguage.googleapis.com`、`api.openai.com`、`bedrock-runtime.<区域>.amazonaws.com`），从不发给你自己设的 base URL（别的服务、中转、这台 Mac 或局域网上的模型，哪怕是上面另一家服务的地址），而且只在那里真的请求成功过之后：这台 Mac 只记下是哪个地址、什么时候，别的都不记（放在 App 的缓存里，从不放进 config.json），30 天没有成功过就忘掉。为此从不看你的密钥和 AWS 文件。从不发给 AllInOneIME 云，安全输入时、关了 AI 的 App 里不发；发出之前会再查一次这些，还有服务和它的地址是不是没变。
 - 设置只在你选搜索的最后一行「修改：…」、或在「排查问题」里写了问题再按「检查」时把文字发给模型：这台 Mac 有 Apple 智能就用它（不离开这台 Mac），没有就用你选的服务。搜索本身什么都不发。改设置的请求发出你写的那句话（里面打的密钥先去掉）和允许改的设置现在的值：从不发密钥，也不发你对 AI 隐藏的词（只说有几个）；AWS profile 的名字只在这句话说到 AWS 或 Bedrock 时才发。问题会和遮掉敏感内容的检查结果一起发出：路径只到 `~`，没有密钥，日志只留固定的短语。两者都和别的请求一样会隐藏敏感信息（如果打开了）。光检查什么都不发；「检查」只多发测试连接的那一次请求（服务有密钥或凭证可测时才测）。
+- 设置 →「AI」→「提问（@question）」选了会话（或「自动」找到了一个）时，`@question` 发给本机的那个 Claude Code 或 Kiro CLI，用它自己的账号和服务，而不是 AI 服务：发的是现在问的问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时还有使用指南的几段。会话的记录留在那个 CLI 那里（Claude Code 或 Kiro CLI 自己的会话历史）；它的工具只能读网页。
 - `@question` 对话换个地方接着聊（聊满后按 ⌘1…，或按 ⌘⏎）时，对话连同你打的字发给你选的服务：本机的编程 agent（Claude Code、Gemini CLI、Kiro CLI 或你自己的，各用自己的账号和服务）、claude.ai、chatgpt.com 或 gemini.google.com，放在网址里或经剪贴板。发过去的是你看到的样子：发给 AI 的请求里隐藏的内容（见下）在里面是原样的，因为是你自己选择发到那里。不选就什么都不发；「复制对话」只是放到剪贴板。
 - 问 AllInOneIME 本身的 `@question`（提到它的名字、它的某个设置、命令或按键）会附上 App 自带使用指南里最相关的两三段，在本机挑选（最多约 3,000 字符）：是 App 自己的说明，不含你的任何内容（没有设置，没有密钥）；这样的对话接着到编程 agent 里聊时，给它的是指南的路径。别的问题照旧发送，一字不变。
 - 用 AllInOneIME 云时，那一句话经过开发者的服务器，再发给模型服务商（目前经 OpenRouter）：服务器只记次数，不保存也不记录内容。登录只保存你的邮箱。

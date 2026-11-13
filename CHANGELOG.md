@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.4 (unreleased)
+
+### Added
+
+- `@question` can be answered by a session of its own: Settings → AI → Questions (@question) (`questionBackend`, this Mac's own, never synced) picks Automatic, Claude Code session, Kiro CLI session or The AI provider. A session is one long-running Claude Code or Kiro CLI the input method keeps, in its own folder under `~/Library/Application Support/AllInOneIME`, signed in with that CLI's own account (a subscription, a company sign-in, or Claude Code on Amazon Bedrock), with no API key, and it remembers earlier questions across days. Only the question asked now is sent, values hidden as for the provider, with the user guide's excerpts for a question about AllInOneIME. It starts while you type the magic key, ends after 15 idle minutes and resumes the same session on the next question. A conversation in it has no round limit, ⌘⏎ offers continuing the same session in Terminal first, and Start Over begins a new one. Automatic, the default, uses `@agent`'s agent's session when it is installed and signed in, else another that is (Claude Code first), else the provider; when the session can't answer (not installed, signed out, its usage limit, an expired AWS sign-in, open in Terminal, nothing within 30 seconds) the provider answers and the panel says why. Rewriting, translating and autocomplete always use the provider.
+
 ## 0.7.3 (2026-11-12)
 
 ### Added

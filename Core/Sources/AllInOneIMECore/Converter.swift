@@ -198,7 +198,7 @@ public final class Converter: Sendable {
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
-        // The dedicated session of @agent's agent answers, unless it can't (below).
+        // The session picked for questions (`Config.questionSessionAgent`) answers, unless it can't (below).
         let session = command == .question ? questionSession(config) : nil
         // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
         // history), told it with the question.

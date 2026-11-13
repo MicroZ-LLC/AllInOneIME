@@ -31,6 +31,7 @@ struct QuestionBackendSettings: View {
                    tr("输入法自己的一个 Claude Code 或 Kiro CLI 会话，记得以前问过的问题；⌘⏎ 可以在终端里接着聊。改写、翻译、补全总是用上面的 AI 服务。",
                       "The input method's own Claude Code or Kiro CLI session, which remembers earlier questions; ⌘⏎ continues it in Terminal. Rewriting, translating and autocomplete always use the provider above."))
         }
+        .settingsRow(.questionBackend, shown: model.spot)
         .onAppear {
             ClaudeSessionMac.checkAvailability {
                 availability = ClaudeSessionMac.managers.mapValues(\.availability)
