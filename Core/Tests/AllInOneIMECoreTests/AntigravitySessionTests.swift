@@ -215,7 +215,7 @@ struct AntigravitySessionTests {
     }
 
     /// The hook's gate, run as agy runs it (`/bin/sh`, the tool's call on stdin): in the session's process only the web
-    /// search, whatever an argument says; in Terminal nothing decided.
+    /// search, whatever an argument says; in Terminal nothing decided ("allow": agy's own rules, never "ask").
     @Test func theGateAllowsTheWebSearchOnlyInTheSessionsProcess() throws {
         let script = base.appendingPathComponent("gate.sh")
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
@@ -250,7 +250,22 @@ struct AntigravitySessionTests {
         #expect(try decision(call("run_command", args: #"{"name":"search_web","CommandLine":"\"name\":\"search_web\""}"#)) == "deny")
         #expect(try decision("not json") == "deny")
         // Terminal (agy as the user set it up): agy's own rules.
-        #expect(try decision(call("run_command"), session: false) == "ask")
+        #expect(try decision(call("run_command"), session: false) == "allow")
+        #expect(try decision(call("search_web"), session: false) == "allow")
+    }
+
+    /// A folder whose gate is an earlier one, as written (it said "ask" in Terminal), gets the new one; one the user
+    /// changed is left.
+    @Test func anEarlierGateIsReplacedAndAChangedOneKept() throws {
+        let gate = folder.appendingPathComponent(".agents/allinoneime-web-only.sh")
+        try FileManager.default.createDirectory(at: gate.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(try #require(AntigravityBackend.earlierGates.first).utf8).write(to: gate)
+        #expect(AntigravityBackend.earlierGates.allSatisfy { $0.contains(#"echo '{"decision":"ask"}'"#) })
+        try store.prepare()
+        #expect(try String(contentsOf: gate, encoding: .utf8) == AntigravityBackend.gate)
+        try Data("#!/bin/sh\necho '{\"decision\":\"ask\"}'\n".utf8).write(to: gate)
+        try store.prepare()
+        #expect(try String(contentsOf: gate, encoding: .utf8) == "#!/bin/sh\necho '{\"decision\":\"ask\"}'\n")
     }
 
     // MARK: - After a restart, signed out

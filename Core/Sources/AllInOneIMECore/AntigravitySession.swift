@@ -20,8 +20,9 @@ import Foundation
 ///      its default one, with every tool, silently: so also
 ///   2. the folder's `.agents/hooks.json` (`hooks`, `gate`): before every tool, in the session's process
 ///      (`ALLINONEIME_SESSION`, its environment), anything but `search_web` is denied (the shell, reading and writing
-///      files, subagents, schedules, tasks, MCP tools); in Terminal (the hand-off) it says nothing (`ask`: agy's own
-///      permission rules, as the user set them up).
+///      files, subagents, schedules, tasks, MCP tools); in Terminal (the hand-off) it decides nothing (`allow`, which
+///      agy's docs say hands the call on to the next hook or its default policy: its own permission rules, as the user
+///      set them up; `ask` would make it prompt for every tool).
 ///   3. Every permission request is refused (`ACPDriver`), and a tool other than the web one that completes ends the
 ///      process (`AntigravityDriver`: `notWebOnly`, the provider answers).
 ///   Checked live: a shell command and reading /etc/hosts were refused by the hook (the model said so), the web search
@@ -48,7 +49,7 @@ public struct AntigravityBackend: SessionBackend {
             files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent),
                     SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent),
                     SessionFile(path: ".agents/hooks.json", content: Self.hooks),
-                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate)],
+                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates)],
             availability: [], resume: ["--conversation"], start: [], followUp: ["-i"], base: base,
             environment: [Self.sessionVariable: "antigravity"], signIn: signIn)
         self.model = model
@@ -110,9 +111,28 @@ public struct AntigravityBackend: SessionBackend {
         """
 
     /// Before each tool (its call as JSON on stdin; run in .agents): in the session's process, the web search allowed and
-    /// anything else denied; elsewhere (Terminal) nothing decided here ("ask": agy's own rules). The tool's name is read
-    /// as JSON (`plutil`), never matched in the text, where an argument could hold it.
+    /// anything else denied; elsewhere (Terminal) nothing decided here ("allow", which hands the call on to agy's own
+    /// rules; "ask" would prompt). The tool's name is read as JSON (`plutil`), never matched in the text, where an
+    /// argument could hold it.
     public static let gate = """
+        #!/bin/sh
+        # AllInOneIME's own Antigravity session may search the web, nothing else (agy acp in this folder, with
+        # \(sessionVariable) set). In Terminal (agy as you set it up) this decides nothing: "allow" hands the call on to
+        # agy's own rules.
+        name=$(/usr/bin/plutil -extract toolCall.name raw -o - - 2>/dev/null)
+        if [ -z "${\(sessionVariable):-}" ]; then
+          echo '{"decision":"allow"}'
+        elif [ "$name" = "search_web" ]; then
+          echo '{"decision":"allow"}'
+        else
+          echo '{"decision":"deny","reason":"In this session only searching the web is allowed."}'
+        fi
+
+        """
+
+    /// Earlier `gate` texts: a folder still holding one as written gets the new one. The first said "ask" outside the
+    /// session, which made agy prompt for every tool in Terminal.
+    static let earlierGates = ["""
         #!/bin/sh
         # AllInOneIME's own Antigravity session may search the web, nothing else (agy acp in this folder, with
         # \(sessionVariable) set). In Terminal (agy as you set it up) this says nothing.
@@ -125,7 +145,7 @@ public struct AntigravityBackend: SessionBackend {
           echo '{"decision":"deny","reason":"In this session only searching the web is allowed."}'
         fi
 
-        """
+        """]
 
     /// Whether agy is signed in, without running it: its Google sign-in in the login keychain, or a Gemini API key it
     /// is set to use (`modelProvider` "gemini" in ~/.gemini/antigravity-cli/settings.json, with GEMINI_API_KEY set), or
