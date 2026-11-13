@@ -15,6 +15,9 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- A tap of Caps Lock switches Chinese and English only when it's pressed on its own: not with Shift, Control, Option or Command held, and not while the mouse or trackpad is used during the press, as with a tap of Shift.
+- With a CLI chosen as the AI, what has to be fast goes to Amazon Bedrock only when its AWS profile has credentials a request can be signed with (keys, `credential_process`, SSO or a role), not just because the profile exists with a region; `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` in your shell count for `default` even with no AWS files. Settings → AI says "No credentials" for a profile with none.
+- Settings' folded parts (More… under Suggestions and under the AI's key, Commands → "Folders and sources…") fold again when clicked, also after something set in them opened them by themselves (an app with its own Insert, a base URL, a Git extension source added).
 - A CLI that only came with a desktop app (the Claude app's Claude Code, the ChatGPT app's `codex`) counts as installed for `@agent` too, as it does for the `@question` sessions, and runs from there: Settings → Commands → `@agent` no longer says it isn't installed, `@agent` (Claude Code, or a custom agent running `codex`) starts it in Terminal, and `@tasks` and the menu bar panel list Claude Code's tasks. Both look for it the same way.
 - `@tasks` and the menu bar panel's Claude tasks no longer sometimes wait for good for a `claude agents` (or `claude --bg`) that had already ended: the input method learns of its end from the process itself, as the `@question` sessions do, rather than from a wait that missed about one end in ten.
 

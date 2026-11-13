@@ -160,6 +160,7 @@ final class SettingsModel: ObservableObject {
         refreshAccount()
         refreshVoice()
         refreshJargonInBackground()
+        aws.refresh(profile: config.awsProfile)  // Bedrock's card and the fast fallback go by the profiles read (`aiFacts`)
     }
 
     /// The window opened again with these settings, kept since it was closed: the file read again if something else
@@ -390,11 +391,8 @@ final class SettingsModel: ObservableObject {
         saveKey(key, for: provider)
         guard keyError == nil else { return }
         choose(.provider(provider))
-        if let testRunner { testRunner() } else { runTest() }
+        runTest()
     }
-
-    /// The self-test's stand-in for Test Connection after Save and Use (nil: the real one).
-    var testRunner: (() -> Void)?
 
     /// Stores the provider's API key in the keychain. An empty or blank one does nothing: it never removes the key
     /// saved (that's `removeKey`, after the user confirmed).
@@ -430,16 +428,14 @@ final class SettingsModel: ObservableObject {
     @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
 
     /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,
-    /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions, Apple's model.
+    /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions and kinds, Apple's model.
     var aiFacts: AIFacts {
         let keyed: [Provider] = [.anthropic, .gemini, .openai]
-        // The profiles as the AWS Profile picker lists them (the resolver's, once read), else as the files had them.
-        let regions = aws.summaries.isEmpty ? profiles.map { ($0, AWSSharedConfig.region(profile: $0)) }
-            : aws.summaries.map { ($0.name, $0.region) }
         return AIFacts(sessions: sessionAvailability,
                        keys: Dictionary(uniqueKeysWithValues: keyed.map { ($0, keyState($0)) }),
                        hostedSignedIn: account != nil || keyState(.hosted).isSet,
-                       awsProfiles: Dictionary(regions, uniquingKeysWith: { first, _ in first }),
+                       // As read in the background (`AWSProfileModel.refresh`); until then Bedrock's card says "Checking…".
+                       awsProfiles: aws.requestProfiles,
                        apple: AppleModel.system.availability)
     }
 
@@ -984,7 +980,7 @@ final class SettingsModel: ObservableObject {
 
     /// Region shown when the field is empty: the profile's own region.
     var profileRegion: String {
-        aws.status(for: config.awsProfile)?.region ?? AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
+        aws.status(for: config.awsProfile)?.region ?? aws.summaries.first { $0.name == config.awsProfile }?.region ?? "us-east-1"
     }
 
     /// The profile's kind and when its credentials expire, or what's wrong ("Role via base: credentials expire at 15:30").
@@ -1098,6 +1094,9 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Test
 
+    /// What Test Connection runs (`SettingsStore.testConnection`); the self-test's counts its runs instead.
+    static var connectionTest: @MainActor (Config, @escaping Converter.CredentialLoader) async -> TestStatus = SettingsStore.testConnection
+
     func runTest() {
         testTask?.cancel()
         testStatus = .running
@@ -1106,7 +1105,7 @@ final class SettingsModel: ObservableObject {
         let resolver = aws.resolver
         testTask = Task { [weak self] in
             defer { self?.aws.refresh(profile: snapshot.awsProfile) }
-            let status = await SettingsStore.testConnection(snapshot) { try await resolver.resolve(profile: $0, forceRefresh: true) }
+            let status = await Self.connectionTest(snapshot) { try await resolver.resolve(profile: $0, forceRefresh: true) }
             self?.testStatus = status
         }
     }
@@ -1142,14 +1141,15 @@ struct SettingsView: View {
     @State private var openChip: Input?
     /// The README images: the options of this input drawn under the chips (a popover isn't in a page's image).
     private let chipShown: Input?
-    /// The AI page's More… opened.
-    @State private var showsMore = false
+    /// The AI page's More… (the base URL): open with one set until clicked, then as clicked.
+    @State private var aiMore = SettingsDisclosure()
     /// The AI page's choices shown (Change ▾), not only the one chosen.
     @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
-    /// Commands → "Folders and sources…" opened (it opens by itself too: `ExtensionSourcesSection.opensByItself`).
-    @State private var showsFolders = false
+    /// Commands → "Folders and sources…": open when it opens by itself (`ExtensionSourcesSection.opensByItself`) until
+    /// clicked, then as clicked.
+    @State private var foldersAndSources = SettingsDisclosure()
     /// Script Extensions' folders with no new commands, opened.
     @State private var showsOtherFolders = false
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -2576,7 +2576,7 @@ struct SettingsView: View {
                         pluginsSection
                         extensionsSection
                         // The plugins' folder, the extensions' folders and the extension sources, folded (owner, 0.7.4).
-                        ExtensionSourcesSection(model: model, opened: $showsFolders, folders: AnyView(extensionFolderRows))
+                        ExtensionSourcesSection(model: model, disclosure: $foldersAndSources, folders: AnyView(extensionFolderRows))
                     case .advanced:
                         typeOutSection
                         typingSection
@@ -2691,7 +2691,8 @@ struct SettingsView: View {
             (query, chosen, openChip) = ("", 0, nil)
             (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
             (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
-            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders, showsFolders) = (false, false, false, false, false, false)
+            (customModel, customProviderModel, troubleshooting, showsOtherFolders) = (false, false, false, false)
+            (aiMore, foldersAndSources) = (SettingsDisclosure(), SettingsDisclosure())
             (packToRemove, packToDelete) = (nil, nil)
             shown()
         }
@@ -3017,7 +3018,7 @@ struct SettingsView: View {
         if let error = model.keyError { Text(error).foregroundStyle(.red) }
         // More…: the base URL (and, for OpenAI's, the services that take its API); open whenever one is set.
         let baseURLSet = model.providerSettings(provider).baseURL != nil
-        DisclosureGroup(isExpanded: Binding(get: { showsMore || baseURLSet }, set: { showsMore = $0 })) {
+        DisclosureGroup(isExpanded: Binding(get: { aiMore.isExpanded(opensByItself: baseURLSet) }, set: { aiMore.click($0) })) {
             TextField(SettingsSpot.baseURL.title, text: providerBinding(provider, \.baseURL),
                       prompt: Text(ProviderSettings.defaults(for: provider).baseURL ?? ""))
                 .onSubmit { model.save() }

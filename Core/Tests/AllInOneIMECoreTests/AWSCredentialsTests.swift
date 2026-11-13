@@ -1134,6 +1134,47 @@ struct AWSCredentialResolverTests {
             == ["default", "proc", "role", "sso"])
     }
 
+    /// Bedrock counts as able to answer (the AI's status, the fast fallback) only with credentials its requests can be
+    /// signed with: a region alone isn't enough, and the environment's keys are, with no profile file at all.
+    @Test func aProfileCanAuthenticateOnlyWithCredentials() throws {
+        let home = try AWSCTHome(config: """
+            [profile work]
+            region = us-west-2
+            [profile proc]
+            credential_process = /usr/local/bin/my-creds
+            [profile role]
+            role_arn = arn:aws:iam::1:role/r
+            source_profile = keys
+            [profile sso]
+            sso_session = s
+            sso_account_id = 1
+            sso_role_name = r
+            [sso-session s]
+            sso_start_url = https://my-sso-portal.awsapps.com/start
+            sso_region = us-east-1
+            """, credentials: "[keys]\naws_access_key_id = AKIAKEYS\naws_secret_access_key = k\n")
+        defer { home.remove() }
+        let http = AWSCTHTTP(), runner = AWSCTRunner([AWSCT.processJSON("X")])
+        let resolver = AWSCT.resolver(home, http: http, runner: runner)
+        #expect(!resolver.canAuthenticate(profile: "work"))
+        #expect(["keys", "proc", "role", "sso"].allSatisfy { resolver.canAuthenticate(profile: $0) })
+        #expect(!resolver.canAuthenticate(profile: "gone") && !resolver.canAuthenticate(profile: "default"))
+        #expect(resolver.requestProfiles().first { $0.name == "work" }?.kind == .noCredentials)
+        #expect(!resolver.requestProfiles().contains { $0.name == "default" })
+        #expect(runner.runs.isEmpty && http.requests.isEmpty, "nothing runs or is fetched")
+
+        // The environment's keys and no files: "default" can authenticate, and is listed for the AI's status only.
+        let bare = try AWSCTHome()
+        defer { bare.remove() }
+        let keys = ["AWS_ACCESS_KEY_ID": "AKIAENV", "AWS_SECRET_ACCESS_KEY": "e", "AWS_REGION": "eu-west-1"]
+        let fromEnvironment = AWSCT.resolver(bare, environment: keys)
+        #expect(fromEnvironment.canAuthenticate(profile: "default") && fromEnvironment.canAuthenticate(profile: " "))
+        #expect(!fromEnvironment.canAuthenticate(profile: "work"), "a named profile never takes the environment's keys")
+        #expect(fromEnvironment.requestProfiles() == [AWSProfileSummary(name: "default", region: "eu-west-1", kind: .environment)])
+        #expect(fromEnvironment.profiles().isEmpty)
+        #expect(AIFacts(awsProfiles: fromEnvironment.requestProfiles()).isReady(.bedrock, config: Config.default))
+    }
+
     @Test func statusLinesSayTheKindAndWhenTheCredentialsExpire() async throws {
         let home = try AWSCTHome(config: """
             [profile proc]

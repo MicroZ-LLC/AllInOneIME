@@ -6,8 +6,8 @@ import SwiftUI
 /// in the apps with their own choice. The rows picked (picked before, they come first) are in Privacy → Learned….
 struct SuggestionsSection: View {
     @ObservedObject var model: SettingsModel
-    /// More… opened by a click (it opens by itself too: `opensByItself`).
-    @State private var showsMore = false
+    /// More…: open when it opens by itself (`opensByItself`) until clicked, then as clicked.
+    @State private var more = SettingsDisclosure()
 
     var body: some View {
         Section {
@@ -16,8 +16,8 @@ struct SuggestionsSection: View {
             }
             .settingsRow(.suggestions, shown: model.spot)
             // What a suggestion row inserts, for every source: everywhere, then the apps with their own.
-            DisclosureGroup(isExpanded: Binding(get: { showsMore || Self.opensByItself(model.config, spot: model.spot) },
-                                                set: { showsMore = $0 })) {
+            DisclosureGroup(isExpanded: Binding(get: { more.isExpanded(opensByItself: Self.opensByItself(model.config, spot: model.spot)) },
+                                                set: { more.click($0) })) {
                 SuggestionsInsertPicker(model: model)
                     .settingsRow(.suggestionsInsert, shown: model.spot)
                 AppInsertsList(model: model)
@@ -30,7 +30,9 @@ struct SuggestionsSection: View {
         }
         .disabled(!model.canSave)
         // Opened again, as a new window starts (`SettingsView`'s own state is reset the same way).
-        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in showsMore = false }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in more.reset() }
+        // The search pointing into it opens it, even folded by a click before.
+        .onChange(of: model.spot) { if model.spot == .suggestionsInsert || model.spot == .appInserts { more.reset() } }
     }
 
     /// More… shows open, whatever was clicked: with something set there (an app with its own choice, Insert set

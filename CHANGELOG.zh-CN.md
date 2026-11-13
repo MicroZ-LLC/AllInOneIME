@@ -15,6 +15,9 @@
 
 ### 修复
 
+- 大写锁定键只在单独按下时切换中英文：按住 Shift、Control、Option 或 Command 时不切换，按下期间用了鼠标或触控板也不切换，和单按 Shift 一样。
+- 选了 CLI 作为 AI 时，要快的只在 AWS profile 有能签名请求的凭证（密钥、`credential_process`、SSO 或角色）时才交给 Amazon Bedrock，不再只因为有这个 profile 和 region 就用它；即使没有任何 AWS 文件，shell 里的 `AWS_ACCESS_KEY_ID` 和 `AWS_SECRET_ACCESS_KEY` 也算 `default` 的凭证。没有凭证的 profile，设置 →「AI」里写「没有凭证」。
+- 设置里折叠的部分（「建议」下和 AI 的 key 下的「更多…」、「命令」→「文件夹和来源…」）点一下就能再收起，即使是里面设了东西而自己展开的（某个 App 有自己的「插入」、填了 base URL、加了 Git 扩展来源）。
 - 只随桌面 App 带来的 CLI（Claude App 里的 Claude Code、ChatGPT App 里的 `codex`），`@agent` 也当作已安装，和 `@question` 的会话一样，并从那里运行：设置 →「命令」→ `@agent` 不再说没装，`@agent`（Claude Code，或运行 `codex` 的自定义 agent）在终端里启动它，`@tasks` 和菜单栏面板列出 Claude Code 的任务。两边用同一种方法找它。
 - `@tasks` 和菜单栏面板里的 Claude 任务不会再偶尔一直等一个其实已经结束的 `claude agents`（或 `claude --bg`）：输入法从进程本身得知它结束了，和 `@question` 的会话一样，不再用那种大约十次漏掉一次的等待。
 

@@ -3,9 +3,11 @@
 # first valid one `security find-identity` lists whose name or SHA-1 hash contains IDENTITY, or nothing (and
 # fails) if none does. codesign itself refuses a name several identities match ("ambiguous"), e.g. two Apple
 # Development certificates in the keychain; signing with the hash leaves it no choice, and this says which.
-# Usage: Scripts/sign-identity.sh IDENTITY
+# With TEAM, only an identity of that team counts: its name ends in "(TEAM)", as Apple names every certificate.
+# Usage: Scripts/sign-identity.sh IDENTITY [TEAM]
 set -eu
 identity=${1:-}
+team=${2:-}
 [ -n "$identity" ] || exit 1
 
 list=$(security find-identity -v -p codesigning 2>/dev/null) || exit 1
@@ -13,7 +15,8 @@ list=$(security find-identity -v -p codesigning 2>/dev/null) || exit 1
 # each hash once, in the listed order.
 matches=$(printf '%s\n' "$list" \
     | sed -n 's/^ *[0-9][0-9]*) \([0-9A-F]\{40\}\) "\(.*\)"$/\1 \2/p' \
-    | grep -F -- "$identity" | awk '!seen[$1]++' || true)
+    | grep -F -- "$identity" | { if [ -n "$team" ]; then grep -E -- " \($team\)$"; else cat; fi; } \
+    | awk '!seen[$1]++' || true)
 [ -n "$matches" ] || exit 1
 
 first=$(printf '%s\n' "$matches" | head -1)

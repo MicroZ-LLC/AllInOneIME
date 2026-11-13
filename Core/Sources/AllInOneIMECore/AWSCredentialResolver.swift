@@ -596,9 +596,32 @@ public final class AWSCredentialResolver: Sendable {
     /// Every profile in the files with its region and kind, for the AWS Profile picker. Nothing runs.
     public func profiles() -> [AWSProfileSummary] {
         let files = AWSProfileFiles.read(context.locations)
-        let environment = context.environment()
-        return files.names.map { name in
-            AWSProfileSummary(name: name, region: files.region(name), kind: Self.kind(name, files: files, environment: environment) ?? .noCredentials)
+        return Self.summaries(files, environment: context.environment())
+    }
+
+    /// The profiles a Bedrock request may name, for the AI's status (`AIFacts.awsProfiles`): `profiles()`, and "default"
+    /// from the environment's keys when the files have no such profile (`AWSProfileKind.environment`). Nothing runs.
+    public func requestProfiles() -> [AWSProfileSummary] {
+        let files = AWSProfileFiles.read(context.locations), environment = context.environment()
+        var summaries = Self.summaries(files, environment: environment)
+        if !files.contains("default"), AWSEnvironment.credentials(environment) != nil {
+            summaries.insert(AWSProfileSummary(name: "default", region: AWSEnvironment.region(environment), kind: .environment), at: 0)
+        }
+        return summaries
+    }
+
+    /// Whether a request with the profile has credentials to sign it with, as far as the files and the environment tell
+    /// (`AWSProfileKind.canAuthenticate`): static keys, `credential_process`, SSO, a role, or the environment's keys for
+    /// "default". Nothing runs or is fetched.
+    public func canAuthenticate(profile: String) -> Bool {
+        let name = Self.name(profile)
+        let files = AWSProfileFiles.read(context.locations)
+        return Self.kind(name, files: files, environment: context.environment())?.canAuthenticate == true
+    }
+
+    private static func summaries(_ files: AWSProfileFiles, environment: [String: String]) -> [AWSProfileSummary] {
+        files.names.map { name in
+            AWSProfileSummary(name: name, region: files.region(name), kind: kind(name, files: files, environment: environment) ?? .noCredentials)
         }
     }
 
