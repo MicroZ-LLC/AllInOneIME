@@ -213,7 +213,7 @@ public struct AntigravityBackend: SessionBackend {
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
         AntigravityDriver(ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: nil), model: model,
-                          tools: web == .open ? Self.webTools : [])
+                          tools: web == .open ? Self.webTools : [], directory: directory, permissionFiles: files)
     }
 
     public func effective(_ web: SessionWeb) -> SessionWeb? { acp.effective(web) }
@@ -235,6 +235,8 @@ final class AntigravityDriver: SessionDriver {
     private let inner: ACPDriver
     private let model: String
     private let tools: Set<String>
+    private let directory: URL
+    private let permissionFiles: [SessionFile]
     /// The requests the inner driver sent, by id (their method, and the session they name): whose responses open a
     /// conversation, and which.
     private var sent: [Int: (method: String, session: String?)] = [:]
@@ -246,10 +248,12 @@ final class AntigravityDriver: SessionDriver {
     /// A `session/load` is answered: the conversation it replays first isn't checked (`strayTool`).
     private var loading = false
 
-    init(_ inner: ACPDriver, model: String, tools: Set<String>) {
+    init(_ inner: ACPDriver, model: String, tools: Set<String>, directory: URL, permissionFiles: [SessionFile]) {
         self.inner = inner
         self.model = model
         self.tools = tools
+        self.directory = directory
+        self.permissionFiles = permissionFiles
     }
 
     func opening() -> [Data] { pass(inner.opening()) }
@@ -258,6 +262,9 @@ final class AntigravityDriver: SessionDriver {
     func newConversation() -> [Data]? { inner.newConversation().map(pass) }
 
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data]) {
+        guard permissionFiles.allSatisfy({ file in
+            (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8)
+        }) else { return ([.failed(.notWebOnly, endsProcess: true)], []) }
         let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] ?? [:]
         if let setting, object["method"] == nil, object["id"] as? String == setting {
             self.setting = nil

@@ -54,6 +54,31 @@ struct ACPSessionTests {
         try respond(process, "session/set_mode")
     }
 
+    @Test func tamperedModeToolsAreRejectedBeforePrompt() throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        let answer = session.ask("hi", in: nil)
+        let process = try #require(fake.last)
+        let file = folder.appendingPathComponent(".kiro/agents/allinoneime.json")
+        try Data(#"{"name":"allinoneime","tools":["execute_bash"]}"#.utf8).write(to: file, options: .atomic)
+        try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": false]])
+        try respond(process, "session/new", result: ["sessionId": "sess_1", "modes": ["currentModeId": ACPBackend.kiroMode]])
+        #expect(requests(process, "session/prompt").isEmpty)
+        withExtendedLifetime(answer) {}
+        session.stop()
+    }
+
+    @Test func prepareRepairsKiroAgentFiles() throws {
+        try store.prepare()
+        for file in ACPBackend.kiro.files {
+            try Data("{}".utf8).write(to: folder.appendingPathComponent(file.path), options: .atomic)
+        }
+        try store.prepare()
+        for file in ACPBackend.kiro.files {
+            #expect(try Data(contentsOf: folder.appendingPathComponent(file.path)) == Data(file.content.utf8))
+        }
+    }
+
     func update(_ process: FakeClaude.Process, _ update: [String: Any], session: String = "sess_1") {
         process.say(["jsonrpc": "2.0", "method": "session/update", "params": ["sessionId": session, "update": update]])
     }

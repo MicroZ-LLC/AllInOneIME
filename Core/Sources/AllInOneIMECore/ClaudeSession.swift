@@ -585,13 +585,12 @@ public struct ClaudeSessionStore: Sendable {
     /// The lock file of the conversation `id` (`ConversationLock`): held while a process is on it, ours or Terminal's.
     public func lockFile(_ id: String) -> URL { locks.appendingPathComponent(id + ".lock") }
 
-    /// The folder and its `files` (CLAUDE.md), each made when missing or still an earlier default.
+    /// The folder and its trusted session files, repaired before each process starts.
     public func prepare() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for file in files {
             let url = directory.appendingPathComponent(file.path)
-            let written = try? String(contentsOf: url, encoding: .utf8)
-            guard written == nil || file.earlier.contains(written!) else { continue }
+            guard (try? Data(contentsOf: url)) != Data(file.content.utf8) else { continue }
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(file.content.utf8).write(to: url, options: .atomic)
         }

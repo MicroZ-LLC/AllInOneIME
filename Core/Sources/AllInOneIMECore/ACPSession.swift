@@ -285,6 +285,20 @@ final class ACPDriver: SessionDriver {
     /// modes at all) isn't asked: the session would run in its default one, with more tools than the web.
     private func opened(_ result: [String: Any]?) -> (events: [ClaudeSession.Event], replies: [Data]) {
         guard let mode else { return becameReady() }
+        // The advertised mode name alone says nothing about its permissions. Check the agent file again before a prompt.
+        if mode == ACPBackend.kiroMode || mode == ACPBackend.kiroOfflineMode {
+            let file = directory.appendingPathComponent(".kiro/agents/\(mode).json")
+            let expected = mode == ACPBackend.kiroMode ? ACPBackend.kiroAgent : ACPBackend.kiroOfflineAgent
+            guard (try? Data(contentsOf: file)) == Data(expected.utf8),
+                  let object = (try? JSONSerialization.jsonObject(with: Data(expected.utf8))) as? [String: Any],
+                  let tools = object["tools"] as? [String],
+                  let allowed = object["allowedTools"] as? [String],
+                  tools == allowed,
+                  Set(tools) == (mode == ACPBackend.kiroMode ? Set(["web_search", "web_fetch"]) : Set<String>()),
+                  object["includeMcpJson"] as? Bool == false else {
+                return ([.failed(.notWebOnly, endsProcess: true)], [])
+            }
+        }
         let modes = result?["modes"] as? [String: Any]
         if modes?["currentModeId"] as? String == mode { return becameReady() }
         let offered = (modes?["availableModes"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }

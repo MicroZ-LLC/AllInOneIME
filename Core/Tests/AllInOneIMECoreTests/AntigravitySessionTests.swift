@@ -15,6 +15,26 @@ struct AntigravitySessionTests {
     var folder: URL { backend.directory }
     var store: ClaudeSessionStore { ClaudeSessionStore(backend) }
 
+    @Test func prepareRepairsEveryPermissionFile() throws {
+        try store.prepare()
+        for file in backend.files {
+            let url = folder.appendingPathComponent(file.path)
+            try Data("name: \(file.path)\ntools: [shell]\n".utf8).write(to: url, options: .atomic)
+        }
+        try store.prepare()
+        for file in backend.files {
+            #expect(try Data(contentsOf: folder.appendingPathComponent(file.path)) == Data(file.content.utf8))
+        }
+    }
+
+    @Test func changedAgentToolsAreRejectedBeforeAnyPrompt() throws {
+        try store.prepare()
+        let driver = backend.driver(sessionID: "x", agentSessionID: nil, resume: false, directory: folder, web: .open)
+        try Data("name: allinoneime\ntools: [shell]\n".utf8)
+            .write(to: folder.appendingPathComponent(".agents/agents/allinoneime.md"), options: .atomic)
+        #expect(driver.received(Data("{}".utf8)).events == [.failed(.notWebOnly, endsProcess: true)])
+    }
+
     func manager(_ fake: FakeClaude) -> ClaudeSessionManager { ClaudeSessionManager(backend: backend, launcher: fake) }
 
     func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
@@ -203,6 +223,7 @@ struct AntigravitySessionTests {
     }
 
     @Test func withItsWebOffItRunsTheAgentWithoutToolsAndEvenTheSearchEndsIt() async throws {
+        try store.prepare()
         let typed = SessionWeb.only([])
         #expect(backend.effective(typed) == .only([]))
         #expect(backend.arguments(sessionID: "x", resume: false, settings: nil, web: typed)
@@ -292,9 +313,8 @@ struct AntigravitySessionTests {
         }
     }
 
-    /// A folder whose gate is an earlier one, as written (it said "ask" in Terminal), gets the new one; one the user
-    /// changed is left.
-    @Test func anEarlierGateIsReplacedAndAChangedOneKept() throws {
+    /// A folder whose gate is an earlier one, or was changed, gets the trusted gate back.
+    @Test func anEarlierOrChangedGateIsReplaced() throws {
         let gate = folder.appendingPathComponent(".agents/allinoneime-web-only.sh")
         try FileManager.default.createDirectory(at: gate.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(try #require(AntigravityBackend.earlierGates.first).utf8).write(to: gate)
@@ -303,7 +323,7 @@ struct AntigravitySessionTests {
         #expect(try String(contentsOf: gate, encoding: .utf8) == AntigravityBackend.gate)
         try Data("#!/bin/sh\necho '{\"decision\":\"ask\"}'\n".utf8).write(to: gate)
         try store.prepare()
-        #expect(try String(contentsOf: gate, encoding: .utf8) == "#!/bin/sh\necho '{\"decision\":\"ask\"}'\n")
+        #expect(try String(contentsOf: gate, encoding: .utf8) == AntigravityBackend.gate)
     }
 
     // MARK: - After a restart, signed out
