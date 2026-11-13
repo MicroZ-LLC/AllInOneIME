@@ -55,8 +55,8 @@ public enum ProcessOutput {
             launched.kill()
             if !exited { _ = ended.wait(timeout: .now() + 0.2) }
         }
-        out.fileHandleForReading.closeFile()
-        errors.fileHandleForReading.closeFile()
+        // The pipes are left to their readers (they end once the last writer has): closed under a read, a descriptor
+        // could be another file's by the time it reads again. A pipe not read to its end by then counts as empty.
         return Result(status: -1, output: output.withLock { $0 }, errors: said.withLock { $0 })
     }
 }

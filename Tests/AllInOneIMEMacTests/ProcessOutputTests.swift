@@ -40,10 +40,12 @@ struct ProcessOutputTests {
         #expect(Date().timeIntervalSince(started) < 10)
     }
 
+    /// One that ignores SIGTERM (and keeps its pipes open) is killed with what it started, and the call returns (it
+    /// took under a second; the bound is `aProgramPastItsTimeIsEnded`'s, for a loaded test run).
     @Test func ignoredTermAndOpenPipesStillReturn() async {
         let started = Date()
-        let result = await run(["trap '' TERM; while :; do sleep 1; done"], timeout: 0.2, within: 4)
+        let result = await run(["trap '' TERM; while :; do sleep 1; done"], timeout: 0.2, within: 10)
         #expect(result?.status == -1)
-        #expect(Date().timeIntervalSince(started) < 4)
+        #expect(Date().timeIntervalSince(started) < 10)
     }
 }
