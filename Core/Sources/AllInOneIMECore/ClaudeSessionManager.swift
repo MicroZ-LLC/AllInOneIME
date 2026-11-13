@@ -217,6 +217,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var running: Running?
         /// Processes being stopped; no replacement starts until their exit callbacks run.
         var retiring: [Int: Running] = [:]
+        /// A `prewarm` came while one of `retiring` still ran: its process starts once they have all ended (`exited`).
+        var prewarmWaiting = false
         var generation = 0
         /// The turn written (first) and the ones waiting, in order.
         var turns: [Turn] = []
@@ -349,14 +351,26 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             // With the web tools as they are: a question with text the user didn't type starts it again kept to the web
             // it may reach (`Request.web`).
             var actions = follow(&state, web: .open)
-            if state.running == nil, state.retiring.isEmpty {
-                guard let (_, opening) = try? start(&state, web: .open) else { return actions }
-                actions += opening
+            // Never two processes: one still ending (the conversation it was on left just now) is waited for.
+            guard state.running != nil || state.retiring.isEmpty else {
+                state.prewarmWaiting = true
+                return actions
             }
-            scheduleIdle(&state)
-            return actions
+            return actions + startPrewarmed(&state)
         }
         perform(actions)
+    }
+
+    /// `prewarm`'s process started, unless one runs (its idle time counted from now).
+    private func startPrewarmed(_ state: inout State) -> [Action] {
+        state.prewarmWaiting = false
+        var actions: [Action] = []
+        if state.running == nil {
+            guard let (_, opening) = try? start(&state, web: .open) else { return [] }
+            actions = opening
+        }
+        scheduleIdle(&state)
+        return actions
     }
 
     /// A request to the session: an `@question` of a conversation in the panel, or a writing task (its own conversation,
@@ -534,6 +548,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let actions = state.withLock { state -> [Action] in
             state.idle?.cancel()
             state.idle = nil
+            state.prewarmWaiting = false
             let turns = state.turns
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
@@ -830,6 +845,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle?.cancel()
         state.idle = nil
         turn.sent = true
+        state.prewarmWaiting = false  // the process a prewarm waited for is this one
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
@@ -1142,7 +1158,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The process ended (not by `stop` or the idle time: those let go of it first).
     private func exited(generation: Int, status: Int32, message: String) {
         let actions = state.withLock { state -> [Action] in
-            if state.retiring.removeValue(forKey: generation) != nil { return pump(&state) }
+            if state.retiring.removeValue(forKey: generation) != nil {
+                let pumped = pump(&state)
+                // The last one ended, nothing asked meanwhile: a prewarm that waited for it starts its process now.
+                guard state.prewarmWaiting, state.retiring.isEmpty, state.turns.isEmpty else { return pumped }
+                return pumped + startPrewarmed(&state)
+            }
             guard let running = state.running, running.generation == generation else { return [] }
             state.running = nil
             state.idle?.cancel()

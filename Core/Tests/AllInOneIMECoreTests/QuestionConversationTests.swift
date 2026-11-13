@@ -4,7 +4,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Each `@question` conversation in the panel is a new conversation of the session's agent (`QuestionConversation`,
-/// `ClaudeSessionManager.enter`), its follow-ups go on in that one, and `prewarm` gets the next one ready ahead of its
+/// `ClaudeSessionManager.request`), its follow-ups go on in that one, and `prewarm` gets the next one ready ahead of its
 /// question: Claude Code's process started again on a new session id, Codex and an ACP agent opening a new thread or
 /// session in the process they have.
 struct QuestionConversationTests {

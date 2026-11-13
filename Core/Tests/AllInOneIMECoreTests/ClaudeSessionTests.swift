@@ -141,6 +141,28 @@ struct ClaudeSessionTests {
         withExtendedLifetime(next) {}
     }
 
+    /// A prewarm while the process of the conversation left is still ending: the new one starts once it has, not before.
+    @Test func aPrewarmWaitsForTheOldProcessToEndThenStartsItsOwn() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: QuestionConversation())
+        let old = try #require(fake.last)
+        old.autoExitOnTerminate = false
+        answer(old, "1")
+        _ = await collect(first)
+        session.prewarm()
+        #expect(old.terminated && fake.processes.count == 1)
+        old.exit(143)
+        #expect(fake.processes.count == 2 && fake.last?.messages == [])
+        // Its question goes into it.
+        let second = session.ask("two", in: QuestionConversation())
+        #expect(await Timing.eventually { fake.last?.messages == ["two"] })
+        #expect(fake.processes.count == 2)
+        answer(try #require(fake.last), "2")
+        #expect(await collect(second).answers == ["2"])
+    }
+
     // MARK: - What it starts with and reads
 
     @Test func theFlagsAreTheCheckedOnes() {
