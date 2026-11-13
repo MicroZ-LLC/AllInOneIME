@@ -288,7 +288,10 @@ Automatic picked, and when you pick one there; with The AI provider picked it ru
 answer (not installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in,
 open in Terminal, nothing within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting
 the conversation before it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction,
-not waited for) the provider answers at once and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. An answer that
+not waited for) the provider answers at once and the panel says why; a CLI that couldn't start isn't Automatic's pick until it is looked at again. The panel's
+footer says who answered: the CLI (Claude Code, Codex, Gemini CLI, Kiro CLI) or the AI provider, "new conversation"
+when the CLI's conversation is new with that answer (the first question, or one it couldn't resume after a restart, so
+it doesn't have the rounds before), and the tokens the turn used when the CLI reports them (`12k tokens`). An answer that
 says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next question
 starts it again. Rewriting, translating and autocomplete always use the provider.
 

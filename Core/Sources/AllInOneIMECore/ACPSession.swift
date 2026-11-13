@@ -334,7 +334,8 @@ final class ACPDriver: SessionDriver {
             prompting = false
             if let failure { return ([.failed(failure, endsProcess: false)], []) }
             let cancelled = result?["stopReason"] as? String == "cancelled"
-            return ([.result(error: false, interrupted: cancelled, text: "", status: nil)], [])
+            let ended = ClaudeSession.Event.result(error: false, interrupted: cancelled, text: "", status: nil)
+            return ((Self.usage(result).map { [.usage($0)] } ?? []) + [ended], [])
         }
     }
 
@@ -370,6 +371,14 @@ final class ACPDriver: SessionDriver {
         serial += 1
         requests[serial] = kind
         return ClaudeSession.line(["jsonrpc": "2.0", "id": serial, "method": method, "params": params])
+    }
+
+    /// The tokens a prompt's response says it used (`usage`: `totalTokens`, else its input and output); nil: none said.
+    static func usage(_ result: [String: Any]?) -> Int? {
+        guard let usage = result?["usage"] as? [String: Any] else { return nil }
+        if let total = (usage["totalTokens"] as? NSNumber)?.intValue { return total }
+        let counts = ["inputTokens", "outputTokens"].compactMap { (usage[$0] as? NSNumber)?.intValue }
+        return counts.isEmpty ? nil : counts.reduce(0, +)
     }
 
     /// A JSON-RPC error as the session's: not signed in (ACP's auth_required, -32000, or its words), else its message.

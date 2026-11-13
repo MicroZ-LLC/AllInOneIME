@@ -6540,6 +6540,53 @@
         }
       }
     },
+    "%@ tokens" : {
+      "comment" : "%@ tokens — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Tokens"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ jetons"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ トークン"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 토큰"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ tokens"
+          }
+        }
+      }
+    },
     "%@ types it as typed · Esc as typed" : {
       "comment" : "%@ 原样输入 · Esc 原样输入 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
       "localizations" : {
@@ -28746,6 +28793,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還需要："
+          }
+        }
+      }
+    },
+    "new conversation" : {
+      "comment" : "新对话 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "neues Gespräch"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "conversación nueva"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nouvelle conversation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい会話"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "새 대화"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nova conversa"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新對話"
           }
         }
       }

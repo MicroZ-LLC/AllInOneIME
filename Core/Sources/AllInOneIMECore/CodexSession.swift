@@ -126,6 +126,8 @@ final class CodexDriver: SessionDriver {
     private var interruptPending = false
     /// The agent message the answer's text comes from now.
     private var messageItem: String?
+    /// The thread's tokens before the turn (its `total` less its first update's `last`), from the turn's first update.
+    private var tokensBefore: Int?
 
     init(directory: URL, threadID: String?, instructions: String = ClaudeSession.instructions) {
         self.directory = directory
@@ -231,6 +233,13 @@ final class CodexDriver: SessionDriver {
             return type == "userMessage" ? [] : [.working]
         case "thread/compacted":
             return [.compacting]
+        case "thread/tokenUsage/updated":
+            // The thread's total so far, less what it had before the turn: the turn's.
+            let usage = params["tokenUsage"] as? [String: Any]
+            func tokens(_ key: String) -> Int? { ((usage?[key] as? [String: Any])?["totalTokens"] as? NSNumber)?.intValue }
+            guard let total = tokens("total") else { return [] }
+            if tokensBefore == nil { tokensBefore = total - (tokens("last") ?? 0) }
+            return [.usage(total - (tokensBefore ?? 0))]
         case "item/reasoning/summaryTextDelta", "item/reasoning/textDelta", "item/reasoning/summaryPartAdded":
             return [.working]
         case "turn/completed":
@@ -318,7 +327,7 @@ final class CodexDriver: SessionDriver {
     }
 
     private func turn(_ text: String) -> Data {
-        (turnStarted, turnID, interruptPending, messageItem) = (true, nil, false, nil)
+        (turnStarted, turnID, interruptPending, messageItem, tokensBefore) = (true, nil, false, nil, nil)
         return request(.turn, "turn/start", ["threadId": threadID ?? "", "input": [["type": "text", "text": text]]])
     }
 

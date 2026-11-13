@@ -17,6 +17,13 @@ public struct ConversionUpdate: Equatable, Sendable {
     /// Said in the panel with the answer: why the dedicated Claude session didn't answer and the provider did
     /// (`ClaudeSessionError.fallbackNote`).
     public var note: String?
+    /// Who answered an `@question`: a question session (`QuestionBackend.claudeSession` …) or the AI provider; nil for
+    /// any other request.
+    public var answeredBy: QuestionBackend?
+    /// The session's agent conversation is new with this answer (`SessionReply.newConversation`).
+    public var newConversation = false
+    /// The tokens the session's turn used, as its CLI reports them (`SessionReply.tokens`).
+    public var tokens: Int?
 }
 
 /// Turns typed input into streamed `ConversionUpdate`s using the configured provider (`ChatClient`).
@@ -319,10 +326,12 @@ public final class Converter: Sendable {
             (protected, shortened) = QuestionChat.fit(protected, contextSize: client.apple.contextSize,
                                                       maxTokens: protected.inferenceConfig.maxTokens ?? config.maxTokens)
         }
+        // An @question's answer says it's the provider's.
+        let answeredBy: QuestionBackend? = command == .question ? .provider : nil
         if !fresh, let hit = cache.withLock({ $0.get(key) }) {
             continuation.yield(ConversionUpdate(
                 result: hit, rawText: "", isFinal: true, elapsed: elapsed(), firstTokenLatency: nil, fromCache: true, hidden: hidden,
-                shortened: shortened, note: note))
+                shortened: shortened, note: note, answeredBy: answeredBy))
             return
         }
         let stream = client.stream(protected, config: config, loadCredentials: loadCredentials, loadKey: loadKey)
@@ -340,7 +349,8 @@ public final class Converter: Sendable {
             if text.utf8.count > Self.maxOutputBytes { stopReason = "max_tokens"; break }
             continuation.yield(ConversionUpdate(
                 result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                firstTokenLatency: firstToken, fromCache: false, hidden: hidden, shortened: shortened, note: note))
+                firstTokenLatency: firstToken, fromCache: false, hidden: hidden, shortened: shortened, note: note,
+                answeredBy: answeredBy))
         }
         try Task.checkCancellation()
         // Cut off at the token limit, the text still reads as an answer: keep it, but don't cache it.
@@ -348,13 +358,14 @@ public final class Converter: Sendable {
         if !final.isEmpty, stopReason != "max_tokens" { cache.withLock { $0.set(key, final) } }
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
-            hidden: hidden, shortened: shortened, note: note))
+            hidden: hidden, shortened: shortened, note: note, answeredBy: answeredBy))
     }
 
-    /// `@question` answered by the dedicated Claude session (`ClaudeSessionManager.ask`): `message` is the question as
-    /// sent (redacted); the answer streams in as the provider's does, its placeholders put back. Throws what the session
-    /// failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came. Answered, the answer and
-    /// `told` (the earlier rounds' answers sent with the question) are in the session (`ClaudeSessionManager.remember`).
+    /// `@question` answered by the dedicated Claude session (`ClaudeSessionManager.answer`): `message` is the question as
+    /// sent (redacted); the answer streams in as the provider's does, its placeholders put back, with which session it
+    /// is, whether its conversation is new and the tokens it used (the panel's footer). Throws what the session failed
+    /// with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came. Answered, the answer and `told`
+    /// (the earlier rounds' answers sent with the question) are in the session (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, message: String, redaction: Redaction?, hidden: Int,
                               started: ContinuousClock.Instant, told: [String],
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
@@ -365,15 +376,18 @@ public final class Converter: Sendable {
         }
         var text = ""
         var firstToken: TimeInterval?
+        var latest = SessionReply(text: "")
+        let answeredBy = QuestionBackend(session.backend.agent)
         try Task.checkCancellation()  // given up: not sent
         do {
-            for try await answered in session.ask(message) {
-                text = answered
+            for try await reply in session.answer(message) {
+                (text, latest) = (reply.text, reply)
                 if firstToken == nil { firstToken = elapsed() }
                 if text.utf8.count > Self.maxOutputBytes { break }
                 continuation.yield(ConversionUpdate(
                     result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
-                    firstTokenLatency: firstToken, fromCache: false, hidden: hidden))
+                    firstTokenLatency: firstToken, fromCache: false, hidden: hidden, answeredBy: answeredBy,
+                    newConversation: reply.newConversation, tokens: reply.tokens))
             }
         } catch let error as ClaudeSessionError where firstToken != nil && error.fallsBack {
             throw ClaudeSessionError.failed(error.description(for: session.backend.agent))  // part of the answer is in: no other answers now
@@ -383,7 +397,7 @@ public final class Converter: Sendable {
         session.remember(answers: told + [final.versions.first?.text ?? ""])
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
-            hidden: hidden))
+            hidden: hidden, answeredBy: answeredBy, newConversation: latest.newConversation, tokens: latest.tokens))
     }
 
     /// The excerpts of the user guide for an @question conversation's `questions` (`UserGuide.excerpts`): nil when none

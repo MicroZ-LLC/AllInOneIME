@@ -83,6 +83,23 @@ public struct QuestionConversation: Hashable, Sendable {
     }
 }
 
+/// What a question session says of a question as it answers it (`ClaudeSessionManager.answer`): the answer so far, and
+/// what the panel's footer tells of it.
+public struct SessionReply: Equatable, Sendable {
+    public var text: String
+    /// The agent conversation it went into had no earlier question: the first of an `@question` conversation, or one
+    /// whose conversation couldn't be resumed (the agent began it afresh, without the rounds before).
+    public var newConversation: Bool
+    /// The tokens the turn used so far, as the CLI reports them (nil: it doesn't).
+    public var tokens: Int?
+
+    public init(text: String, newConversation: Bool = false, tokens: Int? = nil) {
+        self.text = text
+        self.newConversation = newConversation
+        self.tokens = tokens
+    }
+}
+
 /// The input method's own long-running Claude Code session (`ClaudeSessionManager` keeps its process), in a working
 /// folder of its own whose CLAUDE.md says what it is for (so no home or project CLAUDE.md is read). Each `@question`
 /// conversation in the panel is a conversation of its own (a session id, kept in `directory`/id while it is the current
@@ -278,6 +295,9 @@ public enum ClaudeSession {
         /// `system` "compact_boundary", or its status "compacting"; Codex's `thread/compacted`, or its
         /// `contextCompaction` item.
         case compacting
+        /// The tokens the turn used so far, as the agent reports them (Claude Code's `result` `usage`, Codex's
+        /// `thread/tokenUsage/updated`, an ACP agent's prompt response `usage`).
+        case usage(Int)
         /// The session or its turn failed (an ACP agent's error response); `endsProcess`: the process is of no use now.
         case failed(ClaudeSessionError, endsProcess: Bool)
         case other
@@ -324,6 +344,16 @@ public enum ClaudeSession {
         default:
             return .other
         }
+    }
+
+    /// The tokens a `result` line says its turn used (`usage`: the input, read from and written to the cache or not, and
+    /// the output); nil for any other line, or one without.
+    public static func usage(_ line: Data) -> Int? {
+        guard let object = try? JSONSerialization.jsonObject(with: line) as? [String: Any], object["type"] as? String == "result",
+              let usage = object["usage"] as? [String: Any] else { return nil }
+        let counts = ["input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens", "output_tokens"]
+            .compactMap { (usage[$0] as? NSNumber)?.intValue }
+        return counts.isEmpty ? nil : counts.reduce(0, +)
     }
 
     /// Whether `claude auth status` (JSON) says it is signed in; nil when it can't be read.

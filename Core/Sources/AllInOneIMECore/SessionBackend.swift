@@ -138,6 +138,8 @@ final class ClaudeStreamDriver: SessionDriver {
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data]) {
         let event = ClaudeSession.event(line)
         if case let .permissionRequest(id) = event { return ([event], [ClaudeSession.deny(requestID: id)]) }
+        // The turn's tokens before its end.
+        if case .result = event, let tokens = ClaudeSession.usage(line) { return ([.usage(tokens), event], []) }
         return ([event], [])
     }
 }

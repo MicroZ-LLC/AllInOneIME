@@ -32,6 +32,9 @@ public final class InputSession {
     public private(set) var lastShortened = false
     /// Why the Claude session didn't answer the last question and the provider did (`ConversionUpdate.note`).
     public private(set) var lastNote: String?
+    /// Who answered the last `@question`, whether its session's conversation is new, the tokens it used
+    /// (`ConversionUpdate.answeredBy`, `newConversation`, `tokens`): the panel's footer.
+    public private(set) var lastAnswer: PanelPresenter.Answer?
     /// The session `@question` goes to was asked to start for the question about to be asked (`prewarmQuestionSession`).
     private var questionSessionWarmed = false
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
@@ -1416,7 +1419,7 @@ public final class InputSession {
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id) { break }
                 tasks.cancel(.request)
-                (lastElapsed, lastFromCache, lastHidden, lastShortened, lastNote) = (nil, false, 0, false, nil)
+                (lastElapsed, lastFromCache, lastHidden, lastShortened, lastNote, lastAnswer) = (nil, false, 0, false, nil, nil)
                 log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code))")
                 tasks.translate(input, session: session, id: id, in: place(generates: false), converter: services.converter)
             case let .addReminder(reminder, input):
@@ -1525,6 +1528,7 @@ public final class InputSession {
         lastHidden = 0
         lastShortened = false
         lastNote = nil
+        lastAnswer = nil
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1564,6 +1568,7 @@ public final class InputSession {
         lastFromCache = false
         lastShortened = false
         lastNote = nil
+        lastAnswer = nil
         let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
         log.notice("conversion \(id) started (\(step))")
         var sent: String?
@@ -1590,6 +1595,9 @@ public final class InputSession {
             lastHidden = update.hidden
             lastShortened = update.shortened
             lastNote = update.note
+            lastAnswer = update.answeredBy.map {
+                PanelPresenter.Answer(by: $0, newConversation: update.newConversation, tokens: update.tokens)
+            }
             if update.isFinal {
                 lastElapsed = update.elapsed
                 lastFromCache = update.fromCache
@@ -1976,7 +1984,8 @@ public final class InputSession {
         let config = services.loadSettings()
         let jargon = services.jargon
         return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
-                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, note: lastNote, agent: agent,
+                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, note: lastNote,
+                              answer: lastAnswer, agent: agent,
                               agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
                               chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }

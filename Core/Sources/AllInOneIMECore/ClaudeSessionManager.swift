@@ -130,9 +130,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private final class Turn: @unchecked Sendable {
         let id: Int
         let message: String
-        let continuation: AsyncThrowingStream<String, Error>.Continuation
+        let continuation: AsyncThrowingStream<SessionReply, Error>.Continuation
         /// The answer so far (of the model's latest message: after a web search the answer starts again).
         var text = ""
+        /// It went into an agent conversation with no question before it (`SessionReply.newConversation`).
+        var newConversation = false
+        /// The tokens it used so far, as the agent says.
+        var tokens: Int?
         var restarts = false
         var error: ClaudeSessionError?
         /// Written to the process.
@@ -151,11 +155,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var watchdog: Task<Void, Never>?
         var attempt = 0
 
-        init(id: Int, message: String, continuation: AsyncThrowingStream<String, Error>.Continuation) {
+        init(id: Int, message: String, continuation: AsyncThrowingStream<SessionReply, Error>.Continuation) {
             self.id = id
             self.message = message
             self.continuation = continuation
         }
+
+        /// What the stream gives now.
+        var reply: SessionReply { SessionReply(text: text, newConversation: newConversation, tokens: tokens) }
     }
 
     private struct Running: @unchecked Sendable {
@@ -193,8 +200,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
     private enum Action {
         case send(any ClaudeSessionProcess, Data)
-        case yield(AsyncThrowingStream<String, Error>.Continuation, String)
-        case finish(AsyncThrowingStream<String, Error>.Continuation, Error?)
+        case yield(AsyncThrowingStream<SessionReply, Error>.Continuation, SessionReply)
+        case finish(AsyncThrowingStream<SessionReply, Error>.Continuation, Error?)
         case terminate(any ClaudeSessionProcess)
     }
 
@@ -318,6 +325,27 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// Asks `question` (one user message: the text as the provider would get it, already redacted). The stream gives
     /// the answer so far each time more of it comes, and ends with the turn; given up (cancelled), it interrupts the turn.
     public func ask(_ question: String) -> AsyncThrowingStream<String, Error> {
+        let replies = answer(question)
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    var last: String?
+                    for try await reply in replies where reply.text != last {
+                        last = reply.text
+                        continuation.yield(reply.text)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
+    }
+
+    /// `ask`, with what the panel tells of the answer (`SessionReply`): whether its agent conversation is new, the
+    /// tokens it used.
+    public func answer(_ question: String) -> AsyncThrowingStream<SessionReply, Error> {
         AsyncThrowingStream { continuation in
             let id = state.withLock { state -> Int in
                 state.serial += 1
@@ -570,6 +598,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle?.cancel()
         state.idle = nil
         turn.sent = true
+        turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
         return moved + opening + running.driver.message(turn.message).map { .send(running.process, $0) }
@@ -753,11 +782,19 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             store.markResumable()
             return []
         case let .sessionID(id):
-            // A session the agent made in place of the one it had (gone): it knows none of the earlier answers.
+            // A session the agent made in place of the one it had (gone): it knows none of the earlier answers, and the
+            // question goes into a new conversation.
             let previous = store.agentSessionID()
             store.setAgentSessionID(id)
-            if let previous, previous != id { forgetAnswers() }
+            if let previous, previous != id {
+                forgetAnswers()
+                turn?.newConversation = true
+            }
             return []
+        case let .usage(tokens):
+            guard let turn, !turn.done else { return [] }
+            turn.tokens = tokens
+            return turn.text.isEmpty ? [] : [.yield(turn.continuation, turn.reply)]
         case .permissionRequest, .working, .other:
             return []  // a permission request is answered by the driver
         case .compacting:
@@ -774,7 +811,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             guard let turn, !turn.done else { return [] }
             if turn.restarts { (turn.text, turn.restarts) = ("", false) }
             turn.text += text
-            return [.yield(turn.continuation, turn.text)]
+            return [.yield(turn.continuation, turn.reply)]
         case let .apiError(code, message):
             turn?.error = ClaudeSessionError.from(code: code, status: nil, message: message)
             return []
@@ -815,7 +852,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                     if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
                     actions.append(.finish(turn.continuation, error))
                 } else {
-                    if turn.text.isEmpty, !text.isEmpty { actions.append(.yield(turn.continuation, text)) }
+                    if turn.text.isEmpty, !text.isEmpty {
+                        turn.text = text
+                        actions.append(.yield(turn.continuation, turn.reply))
+                    }
                     actions.append(.finish(turn.continuation, nil))
                 }
             }
@@ -850,7 +890,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             if !running.started, !turn.retried, !turn.done {
                 turn.retried = true
                 turn.sent = false
-                if backend.retryTogglesResume { store.setResumable(!running.resume) }
+                if backend.retryTogglesResume {
+                    store.setResumable(!running.resume)
+                    // Its conversation couldn't be resumed: a new one, without the rounds before.
+                    if running.resume { state.asked = false }
+                }
                 return pump(&state)
             }
             state.turns.removeFirst()

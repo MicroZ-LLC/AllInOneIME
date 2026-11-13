@@ -36,6 +36,23 @@ public struct PanelPresenter {
     public var shortened: Bool
     /// Why the Claude session didn't answer and the provider did (`ConversionUpdate.note`).
     public var note: String?
+    /// Who answered the last `@question` (`ConversionUpdate.answeredBy`): its footer says so.
+    public var answer: Answer?
+
+    /// What an `@question`'s footer tells of who answered it: a question session's CLI, whether the session's
+    /// conversation is new with it (`SessionReply.newConversation`: the CLI doesn't have the rounds before), the tokens
+    /// it used as the CLI reports them; or the AI provider.
+    public struct Answer: Equatable, Sendable {
+        public var by: QuestionBackend
+        public var newConversation: Bool
+        public var tokens: Int?
+
+        public init(by: QuestionBackend, newConversation: Bool = false, tokens: Int? = nil) {
+            self.by = by
+            self.newConversation = newConversation
+            self.tokens = tokens
+        }
+    }
     /// The agent `@agent` hands to, and the custom one's command: where an `@question` conversation can go on.
     public var agent: AgentKind
     public var agentCommand: [String]
@@ -50,7 +67,8 @@ public struct PanelPresenter {
 
     public init(config: Config, language: String, terms: PlatformTerms = Platform.current.terms, app: String? = nil,
                 notice: String? = nil, elapsed: TimeInterval? = nil, fromCache: Bool = false, hidden: Int = 0,
-                shortened: Bool = false, note: String? = nil, agent: AgentKind = .claude, agentCommand: [String] = [],
+                shortened: Bool = false, note: String? = nil, answer: Answer? = nil, agent: AgentKind = .claude,
+                agentCommand: [String] = [],
                 jargon: @escaping () -> [JargonEntry] = { [] }, scriptStatus: @escaping (ScriptCommand) -> String? = { _ in nil },
                 chip: @escaping () -> TranslateMode.Chip? = { nil }, weekStats: @escaping () -> WeekStats.Snapshot? = { nil }) {
         self.config = config
@@ -63,6 +81,7 @@ public struct PanelPresenter {
         self.hidden = hidden
         self.shortened = shortened
         self.note = note
+        self.answer = answer
         self.agent = agent
         self.agentCommand = agentCommand
         self.jargon = jargon
@@ -92,6 +111,25 @@ public struct PanelPresenter {
 
     /// The time the last result took ("1.2s"), or that it was cached.
     private var time: String? { fromCache ? t.tr("缓存", "cached") : elapsed.map { String(format: "%.1fs", $0) } }
+
+    /// Who answered an `@question` (`answer`), short: "Claude Code · new conversation · 12k tokens", "AI provider".
+    func answeredBy(_ answer: Answer) -> String {
+        guard let agent = answer.by.agent else { return t.tr("AI 服务", "AI provider") }
+        var parts = [agent.displayName]
+        if answer.newConversation { parts.append(t.tr("新对话", "new conversation")) }
+        if let tokens = answer.tokens, tokens > 0 {
+            let count = Self.count(tokens)
+            parts.append(t.tr("\(count) tokens", "\(count) tokens"))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    /// A token count, short: 850, 1.2k, 12k.
+    static func count(_ tokens: Int) -> String {
+        if tokens < 1000 { return "\(tokens)" }
+        if tokens < 10000 { return String(format: "%.1fk", (Double(tokens) / 100).rounded(.down) / 10) }
+        return "\(tokens / 1000)k"
+    }
 
     // MARK: - The panel
 
@@ -705,6 +743,8 @@ public struct PanelPresenter {
         if hidden > 0, !composer.showsSavedAnswer { details.append(PanelRedaction.hiddenLine(hidden, language: language)) }
         if shortened, !composer.showsSavedAnswer { details.append(t.tr("前面几轮已缩短", "earlier rounds shortened")) }
         if let note, !composer.showsSavedAnswer { details.append(note) }
+        // Who answered: the session's CLI (the provider's answer after it couldn't has its note).
+        if let answer, !composer.showsSavedAnswer, note == nil || answer.by != .provider { details.append(answeredBy(answer)) }
         if !answering {
             if let date = composer.savedAnswerDate {
                 details.append(t.tr("保存于\(t.ago(date))", "saved \(t.ago(date))"))
