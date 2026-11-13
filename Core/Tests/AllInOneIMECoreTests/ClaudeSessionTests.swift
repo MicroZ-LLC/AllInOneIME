@@ -14,6 +14,8 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
         private let lock = NSLock()
         private var _lines: [[String: Any]] = []
         private var _terminated = false
+        private var _exited = false
+        var autoExitOnTerminate = true
 
         init(arguments: [String], directory: URL, output: @escaping @Sendable (Data) -> Void,
              exited: @escaping @Sendable (Int32, String) -> Void) {
@@ -39,7 +41,13 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
             lock.withLock { _lines.append(object) }
         }
 
-        func terminate() { lock.withLock { _terminated = true } }
+        var isRunning: Bool { lock.withLock { !_exited } }
+        func terminate() {
+            lock.withLock { _terminated = true }
+            if autoExitOnTerminate { exit(143) }
+        }
+        func kill() { exit(137) }
+
 
         func say(_ object: [String: Any]) { output(try! JSONSerialization.data(withJSONObject: object)) }
         func started() { say(["type": "system", "subtype": "init", "session_id": "x"]) }
@@ -54,7 +62,14 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
         func interrupted() {
             say(["type": "result", "subtype": "error_during_execution", "is_error": true, "terminal_reason": "aborted_streaming"])
         }
-        func exit(_ status: Int32 = 1, _ message: String = "") { exited(status, message) }
+        func exit(_ status: Int32 = 1, _ message: String = "") {
+            let first = lock.withLock { () -> Bool in
+                if _exited { return false }
+                _exited = true
+                return true
+            }
+            if first { exited(status, message) }
+        }
     }
 
     private let lock = NSLock()
@@ -107,6 +122,23 @@ struct ClaudeSessionTests {
             process.text((word.offset == 0 ? "" : " ") + word.element)
         }
         process.done(text)
+    }
+
+    @Test func replacementWaitsForOldExitAndStopEscalates() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: QuestionConversation())
+        let old = try #require(fake.last)
+        old.autoExitOnTerminate = false
+        old.started()
+        old.done("1")
+        _ = await collect(first)
+        let next = session.ask("two", in: QuestionConversation())
+        #expect(old.terminated && fake.processes.count == 1)
+        #expect(await Timing.eventually(within: 3) { fake.processes.count == 2 })
+        #expect(!old.isRunning)
+        withExtendedLifetime(next) {}
     }
 
     // MARK: - What it starts with and reads

@@ -20,6 +20,13 @@ extension ClaudeSessionProcess {
     public var isRunning: Bool { false }
 }
 
+private func terminateAfterGrace(_ process: any ClaudeSessionProcess) {
+    process.terminate()
+    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + ClaudeSessionManager.handOffGrace) {
+        if process.isRunning { process.kill() }
+    }
+}
+
 /// Starts the session's process: the real one (`ProcessClaudeSessionLauncher`), or a test's.
 public protocol ClaudeSessionLauncher: Sendable {
     /// Starts `claude` with `arguments` in `directory`. Each line it writes to its standard output goes to `output`, in
@@ -208,6 +215,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     private struct State {
         var running: Running?
+        /// Processes being stopped; no replacement starts until their exit callbacks run.
+        var retiring: [Int: Running] = [:]
         var generation = 0
         /// The turn written (first) and the ones waiting, in order.
         var turns: [Turn] = []
@@ -342,7 +351,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             // With the web tools as they are: a question with text the user didn't type starts it again kept to the web
             // it may reach (`Request.web`).
             var actions = follow(&state, web: .open)
-            if state.running == nil {
+            if state.running == nil, state.retiring.isEmpty {
                 guard let (_, opening) = try? start(&state, web: .open) else { return actions }
                 actions += opening
             }
@@ -512,6 +521,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
             let running = state.running
+            if let running { state.retiring[running.generation] = running }
             state.running = nil  // what it still says, its exit too, is of no session now
             rollOver(&state)
             return ((arguments, id), running, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
@@ -519,7 +529,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         perform(actions)
         if let running {
             Self.end([running.process], grace: Self.handOffGrace)
-            running.lock.release()
+            let deadline = Date().addingTimeInterval(0.2)
+            while Date() < deadline, state.withLock({ $0.retiring[running.generation] != nil }) {
+                Thread.sleep(forTimeInterval: 0.01)
+            }
+            guard !state.withLock({ $0.retiring[running.generation] != nil }) else {
+                throw ClaudeSessionError.failed("The previous session process has not exited")
+            }
         }
         return (handed.arguments, store.directory, store.lockFile(handed.id))
     }
@@ -543,6 +559,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
             let running = state.running
+            if let running { state.retiring[running.generation] = running }
             state.running = nil  // what it still says, its exit too, is of no session now
             return turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) }
                 + (running.map { [.terminate($0.process, $0.lock)] } ?? [])
@@ -570,9 +587,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `stop`, and the sign-in check's command ended too: the processes asked to end.
     private func end() -> [any ClaudeSessionProcess] {
-        let (process, check) = state.withLock { ($0.running?.process, $0.signInCheck) }
+        let (processes, check) = state.withLock { state in
+            ([state.running?.process].compactMap { $0 } + state.retiring.values.map(\.process), state.signInCheck)
+        }
         stop()
-        return [process, check?.end()].compactMap { $0 }
+        return processes + [check?.end()].compactMap { $0 }
     }
 
     /// A new conversation from now on ("start over" in the settings): the process ends, a new id is made.
@@ -747,6 +766,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             running.lock.hold(locks.hold(store.lockFile(id)))
             return lines.map { .send(running.process, $0) }
         }
+        state.retiring[running.generation] = running
         state.running = nil  // its exit is of no session now
         state.idle?.cancel()
         state.idle = nil
@@ -800,10 +820,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// still waits for its message (`Request`): into its own agent conversation, with its own web tools (`place`).
     private func pump(_ state: inout State) -> [Action] {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
+        guard state.retiring.isEmpty else { return [] }
         guard let turn = state.turns.first, !turn.sent, let message = turn.message else { return [] }
         let web = place(turn, &state)
         // On another agent conversation, or with other web tools: moved to this one, or started again on it.
         let moved = follow(&state, web: web)
+        if !state.retiring.isEmpty { return moved }
         let running: Running
         let opening: [Action]
         do {
@@ -920,6 +942,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 return []
             }
             state.turns.removeFirst()
+            state.retiring[running.generation] = running
             state.running = nil  // its exit is of no session now
             state.idle?.cancel()
             state.idle = nil
@@ -968,6 +991,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private func idleElapsed(generation: Int) {
         let actions = state.withLock { state -> [Action] in
             guard let running = state.running, running.generation == generation, state.turns.isEmpty else { return [] }
+            state.retiring[running.generation] = running
             state.running = nil
             state.idle = nil
             return [.terminate(running.process, running.lock)]
@@ -1081,6 +1105,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 turn.done = true
             }
             if endsProcess {
+                state.retiring[running.generation] = running
                 state.running = nil  // its exit is of no session now
                 state.idle?.cancel()
                 state.idle = nil
@@ -1133,6 +1158,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The process ended (not by `stop` or the idle time: those let go of it first).
     private func exited(generation: Int, status: Int32, message: String) {
         let actions = state.withLock { state -> [Action] in
+            if state.retiring.removeValue(forKey: generation) != nil { return pump(&state) }
             guard let running = state.running, running.generation == generation else { return [] }
             state.running = nil
             state.idle?.cancel()
@@ -1176,7 +1202,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             case let .send(process, line):
                 // It can't be written to (it ended, or closed its input): ended, its exit says the rest (`exited`, with
                 // its status and what it said on stderr).
-                do { try process.send(line) } catch { process.terminate() }
+                do { try process.send(line) } catch { terminateAfterGrace(process) }
             case let .yield(continuation, text):
                 continuation.yield(text)
             case let .finish(continuation, error?):
@@ -1184,7 +1210,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             case let .finish(continuation, nil):
                 continuation.finish()
             case let .terminate(process, lock):
-                process.terminate()
+                terminateAfterGrace(process)
                 if !process.isRunning { lock?.release() }
             }
         }
@@ -1333,7 +1359,7 @@ private final class SignInCheck: @unchecked Sendable {
             if state.continuation != nil { state.process = process }
             return state.continuation == nil
         }
-        if said { process.terminate() }
+        if said { terminateAfterGrace(process) }
     }
 
     /// What ends it after `ClaudeSessionManager.checkTimeout` (cancelled at once if it already said).
@@ -1373,7 +1399,7 @@ private final class SignInCheck: @unchecked Sendable {
         }
         guard let continuation = said.continuation else { return }
         said.timer?.cancel()
-        said.process?.terminate()
+        if let process = said.process { terminateAfterGrace(process) }
         continuation.resume(returning: availability)
     }
 }

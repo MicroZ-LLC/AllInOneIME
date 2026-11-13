@@ -239,8 +239,8 @@ struct ClaudeSessionProviderTests {
         clock.advance(by: .seconds(30))
         #expect(await collect(first).error as? ClaudeSessionError == .noResponse)
         // The waiting one went to a new process.
+        #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages == ["two"] })
         let process = try #require(fake.last)
-        #expect(fake.processes.count == 2 && process.messages == ["two"])
         answer(process, "2")
         #expect(await collect(second).answers == ["2"])
     }
