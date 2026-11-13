@@ -16,7 +16,8 @@ enum AILogos {
         switch choice {
         case .cli(.claude): return "claude"
         case .cli(.codex), .provider(.openai): return "openai"
-        case .cli(.gemini), .provider(.gemini): return "googlegemini"
+        case .cli(.antigravity): return "antigravity"
+        case .provider(.gemini): return "googlegemini"
         case .cli(.kiro): return "kiro"
         case .provider(.anthropic): return "anthropic"
         case .provider(.bedrock): return "amazonwebservices"

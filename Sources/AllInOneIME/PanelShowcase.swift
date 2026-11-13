@@ -293,8 +293,8 @@ enum SettingsPageImages {
         let shownChecks = doctor?.split(separator: ",") ?? []
         let fine = SelfTest.sampleAssistant(rig, fine: true)
         fine.dismissPreview()
-        // The AI page's CLIs: as the owner's design shows them (Gemini CLI not signed in), never this Mac's.
-        model.sessionAvailability = [.claude: .ready, .codex: .ready, .gemini: .signedOut, .kiro: .ready]
+        // The AI page's CLIs: as the owner's design shows them (Antigravity not signed in), never this Mac's.
+        model.sessionAvailability = [.claude: .ready, .codex: .ready, .antigravity: .signedOut, .kiro: .ready]
         func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "",
                     troubleshoot: Bool = false, choosingAI: Bool = false) {
             SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot,

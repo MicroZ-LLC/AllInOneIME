@@ -1,7 +1,7 @@
 import Foundation
 
 /// A question session on an agent that speaks the Agent Client Protocol (ACP: JSON-RPC 2.0, a message per line on
-/// stdin/stdout). Generic: each ACP agent (Kiro CLI, Gemini CLI) is one `ACPBackend` value, its launch command, folder,
+/// stdin/stdout). Generic: each ACP agent (Kiro CLI, Antigravity) is one `ACPBackend` value, its launch command, folder,
 /// files and sign-in check. What is sent: `initialize`, then `session/load` with the agent's id of the session when
 /// there is one and the agent can load sessions (else `session/new`), then `session/set_mode` to `mode` when the agent
 /// offers it, then one `session/prompt` per question; `session/cancel` stops a turn. What the agent asks (a permission,
@@ -19,28 +19,8 @@ import Foundation
 /// - ACP has no session title, and Kiro gives none: the session is found by its folder (`kiro-cli chat --resume` there
 ///   opens the latest session of the folder, the input method's).
 ///
-/// Gemini CLI (0.68.0, checked by running it signed out, in its source, and signed in to a local model server that
-/// records the tools it is offered):
-/// - `gemini --acp`; `initialize` says `loadSession: true` (no `session/list`, no titles). `session/new` gives a UUID,
-///   the one `gemini --resume` takes in the same folder (by name it can't: `--resume` takes a UUID, "latest" or a
-///   number); `session/load` replays the conversation first (`user_message_chunk`s, not part of any answer), and fails
-///   with -32603 for a session it no longer has (it deletes sessions idle for 30 days): a new one then.
-/// - `--skip-trust`: the folder is trusted for the run; in a folder that isn't, Gemini CLI doesn't read its GEMINI.md
-///   (and folder trust is on by default). `--extensions none`: none of the user's extensions (their MCP servers).
-///   `GEMINI_CLI_NO_RELAUNCH`: one Node process, not a second it would start for more memory (about 250 MB more).
-/// - Like Claude Code's and Kiro's sessions, it may read the web and nothing else: `--policy` with the folder's
-///   allinoneime-policy.toml (`geminiPolicy`) allows `web_fetch` and `google_web_search` without asking and denies every
-///   other tool, which leaves it out of what the model is offered (reading files, the shell, writing, its subagents, MCP
-///   tools). `--policy` is read in place of the user's ~/.gemini/policies, as the user's tier, and at the top priority of
-///   that tier, above every rule the user's settings make (`tools.allowed`, trusted MCP servers …): only an
-///   administrator's policies come before it. `--allowed-mcp-server-names` with a name no server has: none of the
-///   user's MCP servers starts. In Terminal (the hand-off) Gemini CLI has none of these: the file isn't where it looks.
-///   A follow-up goes there as `-i`'s value: a prompt alone Gemini CLI answers once and exits.
-/// - The folder's GEMINI.md is read (and the user's ~/.gemini/GEMINI.md too: there is no way to leave that out).
-/// - Signed out: `session/new` and `session/load` fail with -32000 ("Gemini API key is missing or not configured.",
-///   "Authentication required"). There is no command that says whether it is signed in, and starting it with a Google
-///   login whose saved credentials are gone opens a browser and waits: the check reads its settings and files instead
-///   (`geminiSignedIn`), and never starts it.
+/// Antigravity (`agy acp`): `AntigravityBackend`, AntigravitySession.swift (an `ACPBackend` and `ACPDriver` with its
+/// fast model and web-only check).
 public struct ACPBackend: SessionBackend {
     public var agent: SessionAgent
     /// The folder's name in the data folder.
@@ -139,91 +119,6 @@ public struct ACPBackend: SessionBackend {
                 SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent),
                 SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
-
-    /// Gemini CLI's policy for the session (its policy engine's TOML, priorities 0–999 within a tier): the web tools
-    /// allowed without asking, every other tool denied, so left out.
-    public static let geminiPolicy = """
-        # AllInOneIME's own Gemini CLI session (gemini --acp --policy this file): it may read the web, nothing else.
-        [[rule]]
-        toolName = ["web_fetch", "google_web_search"]
-        decision = "allow"
-        priority = 999
-
-        [[rule]]
-        toolName = "*"
-        decision = "deny"
-        priority = 998
-
-        """
-
-    /// Gemini CLI's policy for a conversation whose web tools are off (`SessionWeb`): every tool denied.
-    public static let geminiOfflinePolicy = """
-        # AllInOneIME's own Gemini CLI session, for a question with text the user didn't type: no tools.
-        [[rule]]
-        toolName = "*"
-        decision = "deny"
-        priority = 999
-
-        """
-
-    /// The name `--allowed-mcp-server-names` is given: no MCP server has it, so none starts.
-    public static let noMCPServer = "allinoneime-no-mcp-servers"
-
-    /// Gemini CLI on ACP, in its own folder with the instructions as its GEMINI.md and its policy.
-    public static let gemini = ACPBackend(
-        agent: .gemini, folderName: "gemini-session",
-        launch: geminiLaunch("./allinoneime-policy.toml"), offlineLaunch: geminiLaunch("./allinoneime-policy-offline.toml"),
-        files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions),
-                SessionFile(path: "allinoneime-policy.toml", content: geminiPolicy),
-                SessionFile(path: "allinoneime-policy-offline.toml", content: geminiOfflinePolicy)],
-        availability: [], resume: ["--resume"], start: [], followUp: ["-i"],
-        environment: ["GEMINI_CLI_NO_RELAUNCH": "true"], signIn: geminiSignedIn)
-
-    /// `gemini --acp` with `policy`.
-    static func geminiLaunch(_ policy: String) -> [String] {
-        ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", noMCPServer, "--policy", policy]
-    }
-
-    /// Whether Gemini CLI is signed in, as its settings and files say (in `home`, or the GEMINI_CLI_HOME of
-    /// `environment`): the sign-in its settings pick (`security.auth.selectedType`; the system's enforced or picked one
-    /// first, then the user's; `selectedAuthType` in settings from before 0.3). A Google login: its saved credentials (a
-    /// refresh token) are there. An API key or Vertex AI picked: signed in (the key may be in the environment, a .env or
-    /// the keychain, where Gemini CLI's own dialog keeps it). Another sign-in the user set up (a gateway …): signed in.
-    /// None picked: Gemini CLI uses an API key, so signed in when GEMINI_API_KEY is set (in `environment` or
-    /// ~/.gemini/.env, ~/.env) or a gateway is (GOOGLE_GEMINI_BASE_URL).
-    public static func geminiSignedIn(environment: [String: String], home: URL) -> Bool {
-        let configured = environment["GEMINI_CLI_HOME"]
-            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0, isDirectory: true) }
-        let folder = (configured ?? home).appendingPathComponent(".gemini", isDirectory: true)
-        func object(_ url: URL) -> [String: Any]? {
-            (try? Data(contentsOf: url)).flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
-        }
-        func picked(_ settings: [String: Any]?, enforced: Bool) -> String? {
-            let auth = (settings?["security"] as? [String: Any])?["auth"] as? [String: Any]
-            let keys = (enforced ? [auth?["enforcedType"]] : []) + [auth?["selectedType"], settings?["selectedAuthType"]]
-            return keys.lazy.compactMap { $0 as? String }.first { !$0.isEmpty }
-        }
-        let system = object(URL(fileURLWithPath: "/Library/Application Support/GeminiCli/settings.json"))
-        let user = object(folder.appendingPathComponent("settings.json"))
-        func set(_ name: String) -> Bool { environment[name].map { !$0.isEmpty } ?? false }
-        switch picked(system, enforced: true) ?? picked(user, enforced: false) {
-        case "oauth-personal":
-            let saved = object(folder.appendingPathComponent("oauth_creds.json"))?["refresh_token"] as? String
-            return saved?.isEmpty == false || set("GOOGLE_APPLICATION_CREDENTIALS")
-                || FileManager.default.fileExists(atPath: folder.appendingPathComponent("gemini-credentials.json").path)
-        case nil:
-            let dotEnv = [folder.appendingPathComponent(".env"), (configured ?? home).appendingPathComponent(".env")]
-                .compactMap { try? String(contentsOf: $0, encoding: .utf8) }
-                .contains { $0.split(whereSeparator: \.isNewline).contains { line in
-                    let line = line.trimmingCharacters(in: .whitespaces)
-                    return (line.hasPrefix("GEMINI_API_KEY=") || line.hasPrefix("export GEMINI_API_KEY="))
-                        && !line.hasSuffix("=")
-                } }
-            return set("GEMINI_API_KEY") || set("GOOGLE_GEMINI_BASE_URL") || dotEnv
-        default:
-            return true
-        }
-    }
 
     public var directory: URL { (base ?? CorePaths.dataDir).appendingPathComponent(folderName, isDirectory: true) }
     public var usesProviderSettings: Bool { false }

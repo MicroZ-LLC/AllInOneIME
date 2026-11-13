@@ -6,17 +6,17 @@ import Foundation
 /// The input method's own question sessions on the Mac (`ClaudeSessionManager`), one per agent that has one
 /// (`SessionAgent`): Claude Code's (`ClaudeSession`, `claude` where Terminal finds it or on the login shell's PATH, with
 /// the provider settings of the user's Claude Code settings, CLAUDE_CONFIG_DIR as that environment says), Codex's
-/// (`CodexBackend`, `codex app-server`), Gemini CLI's (`ACPBackend.gemini`, `gemini --acp`) and Kiro CLI's
+/// (`CodexBackend`, `codex app-server`), Antigravity's (`AntigravityBackend`, `agy acp`) and Kiro CLI's
 /// (`ACPBackend.kiro`, `kiro-cli acp`), each on the login shell's PATH and with its environment: the variables of the
 /// login shell the agent needs (`SessionAgent.environmentVariables`: CLAUDE_CONFIG_DIR, CODEX_HOME, GEMINI_API_KEY …,
 /// never logged) and what the agent needs in it (`SessionBackend.environment`). Whether each can answer is looked at
 /// when Settings → AI shows the choices (`ClaudeSessionManager.checkAvailability`: `claude auth status` with the
-/// session's own flags in its folder, Codex's `account/read`, Gemini CLI's settings and files, `kiro-cli whoami`): as it
+/// session's own flags in its folder, Codex's `account/read`, Antigravity's sign-in in the keychain, `kiro-cli whoami`): as it
 /// shows with a CLI chosen, as its choices are opened, and as a CLI is chosen there; never at launch, nor while a
 /// provider is the AI and the choices stay closed. The one chosen as the AI (`Config.ai`) is tried as a question comes,
 /// whatever was found.
 /// Handing one to Terminal (⌘⏎ in an @question conversation) ends our process first (waited for), then runs `claude
-/// --resume <id>`, `codex resume <thread>`, `gemini --resume <id>` or `kiro-cli chat --resume-id <id>` in the session's
+/// --resume <id>`, `codex resume <thread>`, `agy --conversation <id>` or `kiro-cli chat --resume-id <id>` in the session's
 /// folder under `lockf`, which holds the conversation's lock while it runs (`ClaudeSessionManager.terminalCommand`);
 /// questions after it go into a new conversation, never the one handed off.
 enum ClaudeSessionMac {
@@ -25,11 +25,11 @@ enum ClaudeSessionMac {
         userSettings: { ClaudeSession.userSettingsFile(environment: environment(.claude)) })
 
     static let codex = session(CodexBackend())
-    static let gemini = session(ACPBackend.gemini)
+    static let antigravity = session(AntigravityBackend())
     static let kiro = session(ACPBackend.kiro)
 
     /// The sessions by agent, for the converter.
-    static var managers: [SessionAgent: ClaudeSessionManager] { [.claude: manager, .codex: codex, .gemini: gemini, .kiro: kiro] }
+    static var managers: [SessionAgent: ClaudeSessionManager] { [.claude: manager, .codex: codex, .antigravity: antigravity, .kiro: kiro] }
 
     private static func session(_ backend: any SessionBackend) -> ClaudeSessionManager {
         ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }))
@@ -82,8 +82,25 @@ enum ClaudeSessionMac {
                 }
             }
             return nil
+        case .antigravity:
+            // Where agy's installer puts it, for a login shell whose PATH doesn't have it.
+            return executable(fm.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/agy"))
         default:
             return nil
+        }
+    }
+
+    /// A config that chose Gemini CLI's session (0.7.4's earlier builds) chooses Antigravity's when agy is on this Mac,
+    /// else the provider (`Config.migrateGeminiCLISession`). Once a launch, off the main thread.
+    static func migrateGeminiCLIChoice() {
+        DispatchQueue.global(qos: .utility).async {
+            do {
+                if try Config.migrateGeminiCLISession(antigravityInstalled: { program(.antigravity) != nil }) {
+                    log.notice("Gemini CLI's session chosen: moved to \((try? Config.load())?.questionBackend?.rawValue ?? "the provider", privacy: .public)")
+                }
+            } catch {
+                log.error("Gemini CLI's session choice not moved: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 
@@ -121,7 +138,7 @@ enum ClaudeSessionMac {
 
     /// Opens the conversation the questions go to in a Terminal window: our process ends first, the agent resumes the
     /// conversation in the session's folder, holding its lock (`ClaudeSessionManager.terminalCommand`), the next question
-    /// typed (if any) as its first message, interactive after it (after "--", or Gemini CLI's "-i":
+    /// typed (if any) as its first message, interactive after it (after "--", or Antigravity's "-i":
     /// `SessionBackend.terminalArguments`). It is the CLI as the user set it up (their rules, tools and MCP servers).
     static func handOff(followUp: String) throws {
         let session = manager((try? Config.load())?.questionSessionAgent ?? .claude)

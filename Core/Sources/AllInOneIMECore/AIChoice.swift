@@ -7,7 +7,7 @@ import Foundation
 /// signed in is this Mac's), else the AI is `provider`. With a CLI chosen `provider` stays as it was: what has to be
 /// fast goes there (`Config.fastProvider`).
 public enum AIChoice: Hashable, Sendable {
-    /// A CLI on this Mac (Claude Code, Codex, Gemini CLI, Kiro CLI), signed in with its own account.
+    /// A CLI on this Mac (Claude Code, Codex, Antigravity, Kiro CLI), signed in with its own account.
     case cli(SessionAgent)
     /// An API-key provider, a cloud service, or Apple's on-device model.
     case provider(Provider)

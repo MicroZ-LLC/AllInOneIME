@@ -4,8 +4,8 @@ import Testing
 @testable import AllInOneIMECore
 
 /// The question sessions added in 0.7.4 and what changed for all of them: Codex over its app server (`CodexBackend`, the
-/// fake answering as `codex app-server` 0.163 does), Gemini CLI over ACP (`ACPBackend.gemini`) and its sign-in read from
-/// its files; the name "AllInOneIME" each session has where the agent can name one; the sign-in checks run when a
+/// fake answering as `codex app-server` 0.163 does; Antigravity's, which took Gemini CLI's place, has
+/// AntigravitySessionTests); the name "AllInOneIME" each session has where the agent can name one; the sign-in checks run when a
 /// question could first go to a session, not at launch, kept for the launch when ready and looked at again after a
 /// failure; and the process started ahead only for an `@question` about to be asked.
 @Suite(.serialized)
@@ -225,8 +225,8 @@ struct QuestionSessionBackendsTests {
         #expect(await collect(limited).error as? ClaudeSessionError == .limitReached("You've hit your usage limit."))
         #expect(ClaudeSessionError.limitReached("").description(for: .codex) == "The Codex usage limit is reached")
         #expect(ClaudeSessionError.notInstalled.description(for: .codex) == "The codex command (Codex) isn't installed")
-        #expect(ClaudeSessionError.notInstalled.description(for: .gemini) == "The gemini command (Gemini CLI) isn't installed")
-        #expect(ClaudeSessionError.signedOut.description(for: .gemini) == "Gemini CLI isn't signed in: run gemini in Terminal")
+        #expect(ClaudeSessionError.notInstalled.description(for: .antigravity) == "The agy command (Antigravity) isn't installed")
+        #expect(ClaudeSessionError.signedOut.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
         // Claude Code's and Kiro CLI's words as they were.
         #expect(ClaudeSessionError.signedOut.description(for: .claude) == "Claude Code isn't signed in: run claude in Terminal and /login")
         #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
@@ -415,81 +415,6 @@ struct QuestionSessionBackendsTests {
         #expect(await check.value == .signedOut && process.terminated)
     }
 
-    // MARK: - Gemini CLI
-
-    @Test func geminiRunsOnACPInItsFolderTrustedWithoutExtensions() async throws {
-        let backend = ACPBackend.gemini
-        let policy = backend.directory.appendingPathComponent("allinoneime-policy.toml").path
-        #expect(backend.agent == .gemini && backend.arguments(sessionID: "x", resume: true, settings: nil)
-            == ["--acp", "--skip-trust", "--extensions", "none", "--allowed-mcp-server-names", "allinoneime-no-mcp-servers",
-                "--policy", policy])
-        #expect(backend.files.map(\.path) == ["GEMINI.md", "allinoneime-policy.toml", "allinoneime-policy-offline.toml"])
-        #expect(backend.files.first?.content == ClaudeSession.instructions)
-        #expect(backend.environment == ["GEMINI_CLI_NO_RELAUNCH": "true"])
-        #expect(backend.directory.lastPathComponent == "gemini-session")
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c-uuid", resume: true, followUp: false)
-            == ["/u/gemini", "--resume", "4f1c-uuid"])
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: nil, resume: false, followUp: false)
-            == ["/u/gemini"])
-        // A follow-up as `-i`'s value: interactive after it.
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: nil, resume: false) == ["/u/gemini", "-i"])
-        // Its check reads files: nothing is started (a Google login gone stale would open a browser).
-        let fake = FakeClaude()
-        var base = backend
-        base.base = folder
-        let session = ClaudeSessionManager(backend: base, launcher: fake)
-        _ = await session.checkAvailability()
-        #expect(fake.processes.isEmpty)
-        let missing = ClaudeSessionManager(backend: base, launcher: Missing())
-        #expect(await missing.checkAvailability() == .notInstalled)
-    }
-
-    @Test func geminiMayReadTheWebOnly() async throws {
-        // Its policy: the two web tools allowed without asking, above a rule that denies every tool (Gemini CLI then
-        // leaves the others out of what the model is offered); priorities in Gemini CLI's range.
-        struct Rule: Equatable {
-            var tools: [String]
-            var decision: String
-            var priority: Int
-        }
-        var rules: [Rule] = []
-        for block in ACPBackend.geminiPolicy.components(separatedBy: "[[rule]]").dropFirst() {
-            var rule = Rule(tools: [], decision: "", priority: -1)
-            for line in block.split(separator: "\n") {
-                let parts = line.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
-                guard parts.count == 2 else { continue }
-                let value = parts[1].trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
-                    .split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: "\" ")) }
-                switch parts[0] {
-                case "toolName": rule.tools = value
-                case "decision": rule.decision = value.first ?? ""
-                case "priority": rule.priority = Int(value.first ?? "") ?? -1
-                default: Issue.record("unexpected key \(parts[0])")
-                }
-            }
-            rules.append(rule)
-        }
-        #expect(rules == [Rule(tools: ["web_fetch", "google_web_search"], decision: "allow", priority: 999),
-                          Rule(tools: ["*"], decision: "deny", priority: 998)])
-
-        // The policy is written into the folder before the start, and the process is pointed at it there.
-        let fake = FakeClaude()
-        var backend = ACPBackend.gemini
-        backend.base = folder
-        let session = ClaudeSessionManager(backend: backend, launcher: fake)
-        let stream = session.ask("hi")
-        let process = try #require(fake.last)
-        let file = folder.appendingPathComponent("gemini-session/allinoneime-policy.toml")
-        #expect(process.directory == folder.appendingPathComponent("gemini-session"))
-        #expect(process.arguments.suffix(2) == ["--policy", file.path])
-        #expect(try String(contentsOf: file, encoding: .utf8) == ACPBackend.geminiPolicy)
-        // In Terminal (the hand-off) it is the user's own Gemini CLI.
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c", resume: true, followUp: false)
-            == ["/u/gemini", "--resume", "4f1c"])
-        session.interrupt()
-        _ = await collect(stream)
-    }
-
     /// A launcher with no program.
     struct Missing: ClaudeSessionLauncher {
         func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
@@ -497,37 +422,6 @@ struct QuestionSessionBackendsTests {
             throw ClaudeSessionError.notInstalled
         }
         func installed() -> Bool { false }
-    }
-
-    @Test func geminiIsSignedInAsItsSettingsAndFilesSay() throws {
-        let home = folder.appendingPathComponent("home", isDirectory: true)
-        let gemini = home.appendingPathComponent(".gemini", isDirectory: true)
-        try FileManager.default.createDirectory(at: gemini, withIntermediateDirectories: true)
-        func signedIn(_ environment: [String: String] = [:]) -> Bool { ACPBackend.geminiSignedIn(environment: environment, home: home) }
-        func settings(_ json: String) throws { try Data(json.utf8).write(to: gemini.appendingPathComponent("settings.json")) }
-        // Nothing set up.
-        #expect(!signedIn())
-        // None picked: an API key in the environment or a .env, or a gateway.
-        #expect(signedIn(["GEMINI_API_KEY": "k"]) && signedIn(["GOOGLE_GEMINI_BASE_URL": "https://gw"]) && !signedIn(["GEMINI_API_KEY": ""]))
-        try Data("# keys\nexport GEMINI_API_KEY=abc\n".utf8).write(to: gemini.appendingPathComponent(".env"))
-        #expect(signedIn())
-        try FileManager.default.removeItem(at: gemini.appendingPathComponent(".env"))
-        // A Google login: its saved credentials.
-        try settings(#"{"security":{"auth":{"selectedType":"oauth-personal"}}}"#)
-        #expect(!signedIn(["GEMINI_API_KEY": "k"]))
-        try Data(#"{"access_token":"a","refresh_token":"r"}"#.utf8).write(to: gemini.appendingPathComponent("oauth_creds.json"))
-        #expect(signedIn())
-        try Data(#"{"access_token":"a"}"#.utf8).write(to: gemini.appendingPathComponent("oauth_creds.json"))
-        #expect(!signedIn())
-        // An API key or Vertex AI picked (the key may be in the keychain), or settings from before 0.3.
-        try settings(#"{"security":{"auth":{"selectedType":"gemini-api-key"}}}"#)
-        #expect(signedIn())
-        try settings(#"{"selectedAuthType":"vertex-ai"}"#)
-        #expect(signedIn())
-        // GEMINI_CLI_HOME: its .gemini, not the home's.
-        let other = folder.appendingPathComponent("other", isDirectory: true)
-        try FileManager.default.createDirectory(at: other.appendingPathComponent(".gemini"), withIntermediateDirectories: true)
-        #expect(!signedIn(["GEMINI_CLI_HOME": other.path]))
     }
 
     // MARK: - Which sessions are looked at, and when
@@ -679,14 +573,19 @@ struct QuestionSessionBackendsTests {
 
     @Test func eachSessionHasItsNameAndPanelWords() {
         #expect(SessionAgent.sessionName == "AllInOneIME")
-        #expect(SessionAgent.allCases.map(\.displayName) == ["Claude Code", "Codex", "Gemini CLI", "Kiro CLI"])
-        #expect(SessionAgent.allCases.map(\.program) == ["claude", "codex", "gemini", "kiro-cli"])
-        #expect(SessionAgent(.custom) == nil && SessionAgent(.gemini) == .gemini && SessionAgent.codex.agentKind == nil)
+        #expect(SessionAgent.allCases.map(\.displayName) == ["Claude Code", "Codex", "Antigravity", "Kiro CLI"])
+        #expect(SessionAgent.allCases.map(\.program) == ["claude", "codex", "agy", "kiro-cli"])
+        // Gemini CLI is an @agent agent without a session; Codex and Antigravity have sessions and are no @agent agents.
+        #expect(SessionAgent(.custom) == nil && SessionAgent(.gemini) == nil && SessionAgent(.kiro) == .kiro)
+        #expect(SessionAgent.codex.agentKind == nil && SessionAgent.antigravity.agentKind == nil)
         // Codex is no @agent agent: nothing of the list is left out for it.
         #expect(ChatHandoff.withSession([.claudeCode, .geminiCLI, .copy], agent: .codex) == [.claudeSession, .claudeCode, .geminiCLI, .copy])
-        #expect(ChatHandoff.withSession([.claudeCode, .geminiCLI, .copy], agent: .gemini) == [.claudeSession, .claudeCode, .copy])
+        #expect(ChatHandoff.withSession([.claudeCode, .geminiCLI, .copy], agent: .antigravity)
+            == [.claudeSession, .claudeCode, .geminiCLI, .copy])
+        #expect(ChatHandoff.withSession([.claudeCode, .kiroCLI, .copy], agent: .kiro) == [.claudeSession, .claudeCode, .copy])
         #expect(SessionText.shortName(.claudeSession, session: .codex, language: "en") == "Codex (this session)")
-        #expect(SessionText.name(.claudeSession, session: .gemini, language: "en") == "Continue in Gemini CLI (the same session)")
+        #expect(SessionText.name(.claudeSession, session: .antigravity, language: "en") == "Continue in Antigravity (the same session)")
+        #expect(Composer.ChatMessages.english.opened(.antigravity) == "Opened the input method's Antigravity session in Terminal")
         #expect(Composer.ChatMessages.english.opened(.codex) == "Opened the input method's Codex session in Terminal")
         #expect(Composer.ChatMessages.english.opened(.claude) == "Opened the input method's Claude session in Terminal")
         #expect(Composer.ChatMessages.chinese.opened(.kiro) == "已在终端打开输入法的 Kiro 会话")

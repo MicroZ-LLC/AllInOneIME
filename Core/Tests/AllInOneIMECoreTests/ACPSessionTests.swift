@@ -337,9 +337,9 @@ struct ACPSessionTests {
     /// none chosen, the provider (Automatic is gone: AIChoiceTests has the rest).
     @Test func theSessionChosenNeverAutomatically() {
         typealias A = ClaudeSession.Availability
-        // Claude Code first, then the two added in 0.7.4, then Kiro CLI.
+        // Claude Code first, then Codex and Antigravity (added in 0.7.4), then Kiro CLI.
         let order = QuestionBackend.sessionAgents
-        #expect(order == [.claude, .codex, .gemini, .kiro])
+        #expect(order == [.claude, .codex, .antigravity, .kiro])
         for at in AgentKind.allCases {
             var config = Config.default
             config.agent = at
@@ -350,7 +350,7 @@ struct ACPSessionTests {
             }
         }
         // The file: Claude Code's keeps its name from before the others; 0.7.4's "provider" is none.
-        #expect(QuestionBackend.allCases.map(\.rawValue) == ["claudeSession", "codexSession", "geminiSession", "kiroSession"])
+        #expect(QuestionBackend.allCases.map(\.rawValue) == ["claudeSession", "codexSession", "antigravitySession", "kiroSession"])
         for backend in QuestionBackend.allCases {
             let decoded = try? JSONDecoder().decode(Config.self, from: Data(#"{"questionBackend":"\#(backend.rawValue)"}"#.utf8))
             #expect(decoded?.questionBackend == backend)

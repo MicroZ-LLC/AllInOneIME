@@ -192,7 +192,7 @@ enum SettingsSpot: String, CaseIterable {
         case .interfaceLanguage: return "interface language 界面语言 english chinese"
         case .iCloudSync: return "icloud drive sync macs learned words hidden words recent questions sync now remove 同步 云盘 多台 学到的词 隐藏的词 最近的问题 立即同步 移除"
         case .previousAppSettings: return "per-app app profiles starts in translate as you type autocomplete type out rewrite styles 按 App 开始 边打边译 续写 逐字上屏 改写 移除"
-        case .provider: return "ai provider change claude code codex gemini cli kiro cli subscription session sign in login @question api key anthropic claude api openai compatible deepseek ollama gemini api amazon bedrock aws allinoneime cloud apple intelligence on-device local 更换 订阅 会话 登录 提问 服务 本机 苹果 云"
+        case .provider: return "ai provider change claude code codex antigravity agy google kiro cli subscription session sign in login @question api key anthropic claude api openai compatible deepseek ollama gemini api amazon bedrock aws allinoneime cloud apple intelligence on-device local 更换 订阅 会话 登录 提问 服务 本机 苹果 云"
         case .model: return "model id 模型"
         case .apiKey: return "api key keychain 密钥 钥匙串"
         case .awsProfile: return "aws profile region sso role assume credential_process sts mfa 区域 角色 登录"

@@ -428,7 +428,7 @@ public final class Composer {
     /// The questions go to the input method's Claude session (`ClaudeSessionManager`, set by the controller): no round
     /// limit, and the hand-off offers going on in that session first (`ChatHandoff.withSession`).
     public var questionSession = false
-    /// Whose session that is (`Config.questionSessionAgent`): Claude Code's, Codex's, Gemini CLI's or Kiro CLI's.
+    /// Whose session that is (`Config.questionSessionAgent`): Claude Code's, Codex's, Antigravity's or Kiro CLI's.
     public var questionSessionAgent = SessionAgent.claude
     /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
     public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
