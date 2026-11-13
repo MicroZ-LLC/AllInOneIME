@@ -3,9 +3,9 @@ import SwiftUI
 
 /// Settings → AI's choice (`Config.ai`, the owner's design): collapsed, the AI chosen (`AIChosenRow`); open (Change ▾),
 /// every choice as a card by how it connects (`AIChoicesGrid`), the chosen one outlined. A CLI's card says whether it is
-/// installed and signed in, as last looked at. Each CLI's sign-in is looked at again (its program run,
-/// `ClaudeSessionMac.checkAvailability`) as this shows with a CLI chosen, as the cards open, and as a CLI is chosen
-/// (`SettingsModel.cli`); with a provider chosen and the cards closed, none is (no agent's program runs).
+/// installed and signed in, as last looked at. The CLI chosen is looked at as this shows, every CLI as the cards open and
+/// as a CLI is chosen (`SettingsModel.cli`), each as last found unless that is too old (`ClaudeSessionMac
+/// .checkAvailability`: its program runs only then); with a provider chosen and the cards closed, none is.
 struct AIChoiceSettings: View {
     @ObservedObject var model: SettingsModel
     /// The cards shown (Change ▾), not only the one chosen.
@@ -35,7 +35,8 @@ struct AIChoiceSettings: View {
         .onAppear {
             // A provider chosen, the cards closed: no agent's program is run to say so (a preview: nothing of this Mac's).
             guard model.persists, choosing || model.config.ai.agent != nil else { return }
-            ClaudeSessionMac.checkAvailability(done: shown)
+            let agents = choosing ? SessionAgent.allCases : [model.config.ai.agent].compactMap { $0 }  // the others as the cards open
+            ClaudeSessionMac.checkAvailability(agents, done: shown)
         }
         .onChange(of: choosing) { if choosing { model.refreshSessions() } }  // the cards opened: each CLI's sign-in
     }
@@ -68,11 +69,12 @@ extension SettingsModel {
         })
     }
 
-    /// Looks again whether each CLI is installed and signed in (`ClaudeSessionMac.checkAvailability`: each one's program
-    /// run), then shows it. A preview shows what it was given: nothing of this Mac's.
-    func refreshSessions() {
+    /// Looks whether each CLI is installed and signed in (`ClaudeSessionMac.checkAvailability`: as last found unless that
+    /// is too old; `force`: each one's program run now), then shows it. A preview shows what it was given: nothing of this
+    /// Mac's.
+    func refreshSessions(force: Bool = false) {
         guard persists else { return }
-        ClaudeSessionMac.checkAvailability { [weak self] in
+        ClaudeSessionMac.checkAvailability(SessionAgent.allCases, force: force) { [weak self] in
             self?.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
         }
     }

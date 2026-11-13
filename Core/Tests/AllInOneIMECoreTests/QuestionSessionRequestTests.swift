@@ -6,6 +6,7 @@ import Testing
 /// Each request to a question session (`ClaudeSessionManager.Request`) carries the conversation it is of and what its web
 /// tools may reach, as it was made: one waiting behind a question being answered is sent with exactly those, whatever
 /// another field asked meanwhile. A writing task never goes into an `@question` conversation and never has web tools.
+/// And a CLI found signed in again after it wasn't is started again by the next question.
 struct QuestionSessionRequestTests {
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("session-request-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
@@ -370,5 +371,57 @@ struct QuestionSessionRequestTests {
         #expect(await Timing.eventually(within: 10) { prompts(process) == ["a question"] })
         #expect(fake.processes.count == 1)
         withExtendedLifetime(question) {}
+    }
+
+    // MARK: - Signed in again
+
+    /// `claude auth status` (the sign-in check) run by `fake`: answered `signedIn`.
+    func answerCheck(_ fake: FakeClaude, signedIn: Bool) async throws {
+        #expect(await Timing.eventually(within: 10) { fake.processes.contains { $0.arguments.contains("auth") && !$0.terminated } })
+        let check = try #require(fake.processes.last { $0.arguments.contains("auth") })
+        check.say(["loggedIn": signedIn])
+        check.exit(signedIn ? 0 : 1)
+    }
+
+    /// Signed out when the process started (a question failed so), then found signed in (Settings → AI looked): the next
+    /// question starts the process again, on the same conversation, never asking the one with the old sign-in.
+    @Test func aCLISignedInAgainIsStartedAgainByTheNextQuestion() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let first = session.ask("one", in: panel)
+        let process = try #require(fake.last)
+        process.started()
+        process.say(["type": "assistant", "error": "authentication_failed",
+                     "message": ["content": [["type": "text", "text": "Not logged in · Please run /login"]]]])
+        process.say(["type": "result", "subtype": "success", "is_error": true, "result": "Not logged in"])
+        #expect(await collect(first).error as? ClaudeSessionError == .signedOut)
+        #expect(session.availability == .signedOut)
+        let look = Task { await session.checkAvailability(force: true) }
+        try await answerCheck(fake, signedIn: true)
+        #expect(await look.value == .ready)
+        _ = session.ask("two", in: panel)
+        let again = try #require(fake.processes.last { !$0.arguments.contains("auth") })
+        #expect(process.terminated && again !== process && again.messages == ["two"])
+        #expect(conversation(again) == conversation(process))
+    }
+
+    /// Found still signed in: the process stays.
+    @Test func aCLIFoundStillSignedInKeepsItsProcess() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let first = session.ask("one", in: panel)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("1")
+        _ = await collect(first)
+        let look = Task { await session.checkAvailability(force: true) }
+        try await answerCheck(fake, signedIn: true)
+        #expect(await look.value == .ready)
+        _ = session.ask("two", in: panel)
+        #expect(!process.terminated && process.messages == ["one", "two"])
     }
 }

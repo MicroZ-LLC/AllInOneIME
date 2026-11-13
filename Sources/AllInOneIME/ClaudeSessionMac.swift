@@ -11,10 +11,10 @@ import Foundation
 /// login shell the agent needs (`SessionAgent.environmentVariables`: CLAUDE_CONFIG_DIR, CODEX_HOME, GEMINI_API_KEY …,
 /// never logged) and what the agent needs in it (`SessionBackend.environment`). Whether each can answer is looked at
 /// when Settings → AI shows the choices (`ClaudeSessionManager.checkAvailability`: `claude auth status` with the
-/// session's own flags in its folder, Codex's `account/read`, Gemini CLI's settings and files, `kiro-cli whoami`): as it
-/// shows with a CLI chosen, as its choices are opened, and as a CLI is chosen there; never at launch, nor while a
-/// provider is the AI and the choices stay closed. The one chosen as the AI (`Config.ai`) is tried as a question comes,
-/// whatever was found.
+/// session's own flags in its folder, Codex's `account/read`, Gemini CLI's settings and files, `kiro-cli whoami`): the
+/// CLI chosen as it shows, every CLI as its choices are opened and as a CLI is chosen there, each as last found unless
+/// that is too old (signed in: for the launch; anything else: a minute); never at launch, nor while a provider is the AI
+/// and the choices stay closed. The one chosen as the AI (`Config.ai`) is tried as a question comes, whatever was found.
 /// Handing one to Terminal (⌘⏎ in an @question conversation) ends our process first (waited for), then runs `claude
 /// --resume <id>`, `codex resume <thread>`, `gemini --resume <id>` or `kiro-cli chat --resume-id <id>` in the session's
 /// folder under `lockf`, which holds the conversation's lock while it runs (`ClaudeSessionManager.terminalCommand`);
@@ -90,14 +90,18 @@ enum ClaudeSessionMac {
     /// The session of `agent`.
     static func manager(_ agent: SessionAgent) -> ClaudeSessionManager { managers[agent] ?? manager }
 
-    /// Looks again whether each agent is installed and signed in (`ClaudeSessionManager.checkAvailability`, all at once,
-    /// off the main thread), for Settings; `done` on the main thread after.
-    static func checkAvailability(done: (@MainActor @Sendable () -> Void)? = nil) {
+    /// Looks whether `agents` are installed and signed in (`ClaudeSessionManager.checkAvailability`, all at once, off the
+    /// main thread), for Settings; `done` on the main thread after. What was found stands (signed in: until the input
+    /// method quits; anything else: `ClaudeSessionManager.recheckInterval`, a minute), so Settings shown again runs no
+    /// CLI; `force` (a refresh asked for) looks now.
+    static func checkAvailability(_ agents: [SessionAgent], force: Bool = false,
+                                  done: (@MainActor @Sendable () -> Void)? = nil) {
+        let sessions = agents.compactMap { agent in managers[agent].map { (agent, $0) } }
         Task.detached {
             await withTaskGroup(of: Void.self) { group in
-                for (agent, session) in managers {
+                for (agent, session) in sessions {
                     group.addTask {
-                        let availability = await session.checkAvailability(force: true)
+                        let availability = await (force ? session.checkAvailability(force: true) : session.checkAvailability())
                         log.notice("\(agent.rawValue, privacy: .public) session: \(String(describing: availability), privacy: .public)")
                     }
                 }

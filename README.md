@@ -294,9 +294,11 @@ is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes
 one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
 from before is resumed. Whether each CLI is installed
 and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Gemini CLI's settings and saved
-sign-in without starting it, `kiro-cli whoami`): each time it shows with a CLI chosen, when you open the choices (Change
-▾) and when you choose a CLI there; never at launch nor for a question, and with a provider chosen and the choices
-closed it runs none of them. The one chosen is tried as a question comes. A CLI takes a second or more to answer, so
+sign-in without starting it, `kiro-cli whoami`): the CLI chosen when it shows, every CLI when you open the choices
+(Change ▾) and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else
+for a minute, so showing it again runs no CLI before then; never at launch nor for a question, and with a provider
+chosen and the choices closed it runs none of them. The one chosen is tried as a question comes; one found signed in
+after it wasn't has its session's process started again by the next question. A CLI takes a second or more to answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
 an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
 neither, autocomplete is off, and rewriting and translating go to the session too, more slowly, each request in a

@@ -425,8 +425,8 @@ final class SettingsModel: ObservableObject {
 
     // MARK: The AI (Settings → AI)
 
-    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: as the AI page shows with a CLI chosen
-    /// or its choices open, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
+    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: the CLI chosen as the AI page shows,
+    /// every CLI as its choices open, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
     @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
 
     /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,

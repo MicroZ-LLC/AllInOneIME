@@ -227,6 +227,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var web = SessionWeb.open
         /// The conversation `ask` and `answer` without a request go into (`enter`).
         var entered: QuestionConversation?
+        /// The processes started before the agent was found signed in again after it wasn't (`generation` up to this)
+        /// are started again by the next question (`follow`): theirs may be the sign-in from before.
+        var staleThrough = 0
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
@@ -269,10 +272,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return await check.value
     }
 
+    /// Signed in now after it wasn't (signed out, not installed, its session couldn't start), the process running is
+    /// started again by the next question (`State.staleThrough`).
     private func lookAtSignIn() async -> ClaudeSession.Availability {
         let found = await signInCheck()
         let now = uptime()
         return state.withLock { state in
+            if found == .ready, [.signedOut, .notInstalled, .cannotStart].contains(state.availability) {
+                state.staleThrough = state.generation
+            }
             (state.availability, state.checkedAt, state.checking, state.signInCheck) = (found, now, nil, nil)
             return found
         }
@@ -715,12 +723,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The running process on the agent conversation now, with the web tools `wanted` (the request's about to be sent,
     /// `prewarm`'s): as it is when it's on it with them; moved to it when the agent can open another conversation in the
     /// same process (`SessionDriver.newConversation`) and the web tools are the same; else ended, for `start` to start
-    /// one on it.
+    /// one on it. One started before the agent was found signed in again is ended too (`State.staleThrough`).
     private func follow(_ state: inout State, web wanted: SessionWeb) -> [Action] {
         guard let running = state.running, let id = try? store.sessionID() else { return [] }
         let web = backend.effective(wanted) ?? .only([])
-        guard running.conversation != id || running.web != web else { return [] }
-        if running.web == web, running.started, let lines = running.driver.newConversation() {
+        let stale = running.generation <= state.staleThrough
+        guard running.conversation != id || running.web != web || stale else { return [] }
+        if !stale, running.web == web, running.started, let lines = running.driver.newConversation() {
             state.running?.conversation = id
             running.lock.hold(locks.hold(store.lockFile(id)))
             return lines.map { .send(running.process, $0) }
