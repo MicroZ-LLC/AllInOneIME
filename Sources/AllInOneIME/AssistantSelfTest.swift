@@ -411,6 +411,113 @@ extension SelfTest {
         return config
     }
 
+    /// The settings pages as the owner simplified them (0.7.4): the candidate layout on Input and the previous per-app
+    /// settings on Advanced; what has no row of its own any more (how many texts the clipboard history keeps, iCloud's
+    /// learned words, a new version's notification) shown where it was only once set otherwise, with Restore Default;
+    /// Suggestions' More… and Commands' Folders and sources… folded until something is set there; Words to hide only
+    /// while hiding is on; @agent's On this Mac only for an agent not installed; the four links in one row; and the
+    /// search finding each of them on its page. `shown`: the texts of `model`'s page in a window, as VoiceOver finds them.
+    static func testSimplifiedPages(_ model: SettingsModel, shown: (SettingsPage) -> [String]) {
+        let saved = model.config
+        defer { (model.config, model.spot) = (saved, nil) }
+        func has(_ texts: [String], _ text: String) -> Bool { texts.contains { $0.contains(text) } }
+
+        // The search: each still found, on its page.
+        var previous = saved
+        previous.appProfiles = ["com.apple.mail": AppProfile(typeOut: true)]  // a previous per-app setting
+        let found: [(String, SettingsSpot, SettingsPage)] = [
+            ("横排", .candidateLayout, .input), ("keep", .clipboardHistory, .general), ("notify", .updates, .about),
+            ("icloud learned words", .iCloudSync, .general), ("codename", .wordsToHide, .privacy),
+            ("raycast", .scriptExtensions, .commands), ("trust its updates", .extensionSources, .commands),
+            ("insert id", .suggestionsInsert, .general), ("per-app insert", .appInserts, .general),
+            ("app profiles", .previousAppSettings, .advanced)]
+        let missed = found.filter { query, spot, page in
+            !SettingsSpot.search(query, trigger: "@", config: previous).contains(spot) || spot.page != page
+        }.map(\.0)
+        check(missed.isEmpty, "the search finds what moved or was folded, each on its page (missed: \(missed))")
+
+        // What opens by itself.
+        var more = Config.default
+        let foldedMore = !SuggestionsSection.opensByItself(more, spot: nil) && SuggestionsSection.opensByItself(more, spot: .appInserts)
+        more.suggestionsInsert = .title
+        let everywhere = SuggestionsSection.opensByItself(more, spot: nil)
+        more.suggestionsInsert = nil
+        more.appProfiles = ["com.apple.mail": AppProfile(suggestionsInsert: .titleAndLink)]
+        check(foldedMore && everywhere && SuggestionsSection.opensByItself(more, spot: nil),
+              "Suggestions' More… folded by default; open with Insert set, an app with its own, or the search pointing into it")
+        var source = Config.default
+        source.extensionSources = [ExtensionSource(url: "git@git.example.com:you/tools.git")]
+        let fresh = Config.default
+        check(!ExtensionSourcesSection.opensByItself(fresh, updates: 0, error: false, spot: nil)
+              && ExtensionSourcesSection.opensByItself(source, updates: 0, error: false, spot: nil)
+              && ExtensionSourcesSection.opensByItself(fresh, updates: 0, error: true, spot: nil)
+              && ExtensionSourcesSection.opensByItself(fresh, updates: 0, error: false, spot: .extensionSources),
+              "Commands' Folders and sources… folded by default; open with a source, an error, or the search pointing into it")
+
+        // Input and Advanced.
+        model.config = previous
+        let input = shown(.input), advanced = shown(.advanced)
+        check(has(input, SettingsSpot.candidateLayout.title) && !has(advanced, SettingsSpot.candidateLayout.title)
+              && has(advanced, SettingsSpot.previousAppSettings.title),
+              "the candidate layout on Input, not Advanced; the previous per-app settings on Advanced")
+
+        // General: the clipboard history's length and iCloud's learned words, set otherwise, with Restore Default; Insert
+        // and In these apps under More…, folded until the search points at them.
+        model.config = saved
+        model.config.clipboardHistoryLimit = 50
+        model.config.iCloudSync = ICloudSyncSettings(enabled: true, learnedWords: false)
+        model.spot = .clipboardHistory
+        let clipboard = shown(.general)
+        model.spot = .iCloudSync
+        let iCloud = shown(.general)
+        model.spot = .suggestions
+        let folded = shown(.general)
+        model.spot = .appInserts
+        let unfolded = shown(.general)
+        model.spot = nil
+        check(has(clipboard, tr("保留最近 50 条", "Keep the last 50")) && has(clipboard, tr("恢复默认", "Restore Default"))
+              && has(iCloud, tr("学到的词：不同步", "Learned words: not synced")),
+              "General: the clipboard history's 50 and iCloud's learned words off, each shown with Restore Default")
+        check(!folded.contains(SettingsSpot.suggestionsInsert.title) && !folded.contains(SettingsSpot.appInserts.title)
+              && has(folded, tr("更多…", "More…", key: "settings.more")) && has(unfolded, SettingsSpot.appInserts.title),
+              "Suggestions: Insert and In these apps under More…, folded; the search opens it")
+
+        // About: a new version's notification turned off, with Restore Default; the links in one row.
+        model.config = saved
+        model.config.notifiesUpdates = false
+        model.spot = .updates
+        let updates = shown(.about)
+        model.spot = .reportIssue
+        let links = shown(.about)
+        model.spot = nil
+        check(has(updates, tr("有新版本时通知我：关", "Notify me when a new version is out: Off"))
+              && [tr("网站", "Website"), tr("使用说明", "Documentation"), tr("更新日志", "Changelog"), tr("源代码", "Source code")]
+                  .allSatisfy { has(links, $0) },
+              "About: a new version's notification turned off shows with Restore Default; the four links")
+
+        // Privacy: Words to hide only while hiding is on.
+        model.config = saved
+        model.config.redaction.enabled = false
+        let notHiding = shown(.privacy)
+        model.config.redaction.enabled = true
+        let hiding = shown(.privacy)
+        check(!has(notHiding, SettingsSpot.wordsToHide.title) && has(hiding, SettingsSpot.wordsToHide.title),
+              "Privacy: Words to hide only while hiding sensitive information is on")
+
+        // Commands: @agent's On this Mac only for an agent not installed.
+        model.config = saved
+        model.config.agent = .claude
+        let program = AgentKind.claude.program() ?? "claude"
+        AgentAvailability.pretend(program, installed: true)
+        let installed = shown(.commands)
+        AgentAvailability.pretend(program, installed: false)
+        let missing = shown(.commands)
+        AgentAvailability.forget()
+        let onThisMac = tr("在这台 Mac 上", "On this Mac")
+        check(!installed.contains(onThisMac) && has(missing, onThisMac),
+              "@agent: On this Mac only when the agent chosen isn't installed")
+    }
+
     /// Settings → Assistant as its images show it, in the interface language: the canned answer's preview over the
     /// made-up findings (`troubledFacts`; `fine`: `fineFacts`, the typing speed in range; `noAccessibility`: with
     /// Accessibility not allowed, its list of what doesn't work fully), all from `rig`'s stand-ins and config file.
@@ -699,6 +806,13 @@ extension SelfTest {
         _ = pump(timeout: 1) { model.config.maxTokens == Config.default.maxTokens }
         check(model.config.maxTokens == Config.default.maxTokens, "Restore Default puts the default back (\(model.config.maxTokens))")
         close(ai)
+        // The pages as the owner simplified them (0.7.4), each in a window of its own, scrolled to `model.spot` if set.
+        testSimplifiedPages(model) { page in
+            let window = open(SettingsView(model: model, page: page, assistant: assistant), height: 900)
+            _ = pump(timeout: 1) { false }
+            defer { close(window) }
+            return texts(window)
+        }
 
         // The search: typed into, it lists rows at once and sends nothing; the row chosen shows on its page; Return on
         // "Change: …" (the only row when nothing matches) asks the AI, the preview at the top of the page.

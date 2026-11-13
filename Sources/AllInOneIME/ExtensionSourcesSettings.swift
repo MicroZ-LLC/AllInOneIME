@@ -2,11 +2,18 @@ import AllInOneIMECore
 import AppKit
 import SwiftUI
 
-/// Settings → Custom Commands → Extension Sources: each Git source with its commit, what's new and its buttons, and
-/// "Add from Link…", which clones one and shows what it holds before anything of it loads (`ExtensionSourceSheet`).
+/// Settings → Commands → "Folders and sources…" (owner, 0.7.4: what a developer sets, folded): the folders the page gives
+/// it (`folders`: the plugins' folder, Raycast's switch, the extension folders), then Extension Sources: each Git source
+/// with its commit, what's new and its buttons, and "Add from Link…", which clones one and shows what it holds before
+/// anything of it loads (`ExtensionSourceSheet`). It opens by itself with a source, an update or an error
+/// (`opensByItself`), or the search pointing into it.
 struct ExtensionSourcesSection: View {
     @ObservedObject var model: SettingsModel
     @ObservedObject var sources = ExtensionSourceController.shared
+    /// Opened by a click (the window's, so that it starts folded again when the window is opened again).
+    var opened: Binding<Bool> = .constant(false)
+    /// The rows before the sources.
+    var folders = AnyView(EmptyView())
     /// The add sheet (nil: closed), and the source whose sheet reviews it again (one in the config not trusted yet).
     @State private var adding: ExtensionSourceSheet.Start?
     @State private var removing: ExtensionSource?
@@ -16,26 +23,37 @@ struct ExtensionSourcesSection: View {
     @State private var actionError: String?
 
     var body: some View {
+        let open = opened.wrappedValue || opensByItself
         Section {
-            ForEach(model.config.extensionSources, id: \.url) { source in row(source) }
-            if model.config.extensionSources.isEmpty {
-                Text(tr("还没有来源。来源是一个 Git 仓库里的扩展包：用你自己的 git 和 SSH 设置克隆，检查之后才启用，有新提交时由你点「更新」。",
-                        "No sources yet. A source is an extension bundle in a Git repository: cloned with your own git and SSH setup, enabled only after you've reviewed it, and updated when you click Update."))
-                    .font(.caption).foregroundStyle(.secondary)
+            DisclosureGroup(isExpanded: Binding(get: { open }, set: { opened.wrappedValue = $0 })) {
+                Group {
+                    folders
+                    SectionTitle(SettingsSpot.extensionSources.title, icon: CommandIcons.scripts)
+                        .settingsRow(.extensionSources, shown: model.spot)
+                    ForEach(model.config.extensionSources, id: \.url) { source in row(source) }
+                    if model.config.extensionSources.isEmpty {
+                        Text(tr("还没有来源。来源是一个 Git 仓库里的扩展包：用你自己的 git 和 SSH 设置克隆，检查之后才启用，有新提交时由你点「更新」。",
+                                "No sources yet. A source is an extension bundle in a Git repository: cloned with your own git and SSH setup, enabled only after you've reviewed it, and updated when you click Update."))
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                    if let actionError {
+                        Label(actionError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).textSelection(.enabled)
+                    }
+                    Button(tr("从链接添加…", "Add from Link…")) { adding = ExtensionSourceSheet.Start(source: ExtensionSource(url: ""), cloneNow: false) }
+                }
+                .disabled(!model.canSave)
+            } label: {
+                Label(tr("文件夹和来源…", "Folders and sources…"), systemImage: "folder")
             }
-            if let actionError {
-                Label(actionError, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.red).textSelection(.enabled)
-            }
-            Button(tr("从链接添加…", "Add from Link…")) { adding = ExtensionSourceSheet.Start(source: ExtensionSource(url: ""), cloneNow: false) }
-        } header: {
-            SectionTitle(tr("扩展来源", "Extension Sources"), icon: CommandIcons.scripts)
+            .disclosureGroupStyle(RowDisclosureStyle())
         } footer: {
-            Text(tr("支持 ssh://、git@主机:路径、https:// 和 file:// 地址。不会自动更新：每天检查一次，有新提交时在这里提示。更新只做快进，不运行任何钩子；固定（pin）到标签或提交的来源不检查。",
-                    "ssh://, git@host:path, https:// and file:// addresses. Nothing updates by itself: sources are checked once a day and new commits are shown here. Update only fast-forwards and runs no hooks; a source pinned to a tag or commit isn't checked."))
-                .font(.caption).foregroundStyle(.secondary)
-                .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+            if open {
+                Text(tr("支持 ssh://、git@主机:路径、https:// 和 file:// 地址。不会自动更新：每天检查一次，有新提交时在这里提示。更新只做快进，不运行任何钩子；固定（pin）到标签或提交的来源不检查。",
+                        "ssh://, git@host:path, https:// and file:// addresses. Nothing updates by itself: sources are checked once a day and new commits are shown here. Update only fast-forwards and runs no hooks; a source pinned to a tag or commit isn't checked."))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
-        .disabled(!model.canSave)
         .sheet(item: $adding) { start in
             ExtensionSourceSheet(model: model, start: start)
         }
@@ -66,6 +84,18 @@ struct ExtensionSourcesSection: View {
         .onAppear { quarantine() }
         // The command line (or the file) may have changed the load list: the extensions are read again.
         .onChange(of: model.config.extensionFolders) { model.refreshExtensions() }
+    }
+
+    private var opensByItself: Bool {
+        Self.opensByItself(model.config, updates: sources.updateCount(for: model.config.extensionSources),
+                           error: model.pluginError != nil || model.extensionError != nil || actionError != nil, spot: model.spot)
+    }
+
+    /// Open whatever was clicked: with a source (its updates and errors are on its row), an update, an error (`error`:
+    /// the plugins', the extensions', the last Remove, Pin or Unpin's), or the search pointing at what is in it (the
+    /// extension folders are what Script Extensions' words find).
+    static func opensByItself(_ config: Config, updates: Int, error: Bool, spot: SettingsSpot?) -> Bool {
+        !config.extensionSources.isEmpty || updates > 0 || error || spot == .extensionSources || spot == .scriptExtensions
     }
 
     // MARK: A source

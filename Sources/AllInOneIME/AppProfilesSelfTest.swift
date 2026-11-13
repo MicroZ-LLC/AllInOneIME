@@ -170,8 +170,8 @@ extension SelfTest {
               "Same as everywhere there clears both, No AI kept (\(profile().map { "\($0)" } ?? "none"))")
     }
 
-    /// Settings' per-app settings in both languages, with sample apps (nothing saved): General's Insert in these apps and
-    /// the previous per-app settings; Privacy's Apps without AI.
+    /// Settings' per-app settings in both languages, with sample apps (nothing saved): General's Insert in these apps (its
+    /// More… open by itself: the apps have their own); Privacy's Apps without AI; Advanced's previous per-app settings.
     static func testPerAppImages(snapshotDirectory: URL) {
         let chosen = UIText.choice
         defer { UIText.choice = chosen }
@@ -180,7 +180,7 @@ extension SelfTest {
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.setOrder([Language.chinese, .english])
             preview.config.appProfiles = AppProfileSamples.profiles
-            for (page, suffix) in [(SettingsPage.general, ""), (.privacy, "-privacy")] {
+            for (page, suffix) in [(SettingsPage.general, ""), (.privacy, "-privacy"), (.advanced, "-advanced")] {
                 let url = snapshotDirectory.appendingPathComponent("\(name)\(suffix).png")
                 SettingsImage.render(preview, page: page, to: url) { seconds in _ = pump(timeout: seconds) { false } }
                 check(FileManager.default.fileExists(atPath: url.path), "the per-app settings rendered on \(page.rawValue) (\(language))")

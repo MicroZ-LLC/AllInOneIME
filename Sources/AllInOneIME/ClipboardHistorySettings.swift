@@ -2,9 +2,10 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import SwiftUI
 
-/// Settings → General → Clipboard history: its switch (no input-menu item: on by default, off here), how many it keeps,
-/// whether macOS lets it record (Privacy & Security → Paste from Other Apps, with a button to that page), and Clear
-/// History. Both keys are this Mac's own (never synced), as the history is.
+/// Settings → General → Clipboard history: its switch (no input-menu item: on by default, off here), why it isn't
+/// recording when macOS doesn't let it (Privacy & Security → Paste from Other Apps, with a button to that page), and
+/// Clear History. How many it keeps has no row of its own (owner, 0.7.4): set otherwise than 20 (by hand, an earlier
+/// version), it shows with Restore Default. Both keys are this Mac's own (never synced), as the history is.
 struct ClipboardHistorySection: View {
     @ObservedObject var model: SettingsModel
     /// Whether it may read the clipboard without asking, as macOS says now (told again as the window comes back from
@@ -20,10 +21,14 @@ struct ClipboardHistorySection: View {
             .settingsRow(.clipboardHistory, shown: model.spot)
             if model.config.clipboardHistoryOn {
                 let kept = model.config.clipboardHistoryKept
-                Stepper(value: Binding(get: { kept }, set: { model.setClipboardHistoryLimit($0) }), in: Config.clipboardHistoryLimits, step: 5) {
-                    Text(tr("保留最近 \(kept) 条", "Keep the last \(kept)"))
+                if kept != Config.defaultClipboardHistoryLimit {
+                    RestoreDefaultRow(title: tr("保留最近 \(kept) 条", "Keep the last \(kept)"),
+                                      note: RestoreDefaultRow.defaultIs("\(Config.defaultClipboardHistoryLimit)")) {
+                        model.setClipboardHistoryLimit(Config.defaultClipboardHistoryLimit)
+                    }
                 }
-                permission
+                // Only when something is wrong: recording is what it does.
+                if access != .allowed { permission }
                 HStack {
                     Text(tr("只存在这台 Mac 上，不同步，也不发给 AI。", "Kept on this Mac only: never synced, never sent to an AI."))
                         .font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
@@ -44,21 +49,16 @@ struct ClipboardHistorySection: View {
         }
     }
 
-    /// Recording, or why not and how to allow it: Paste from Other Apps set to Allow for AllInOneIME (it is listed once a
-    /// read has asked: ⌃V in a text field).
-    @ViewBuilder private var permission: some View {
-        if access == .allowed {
-            Label(tr("在记录：「从其他App粘贴」里 AllInOneIME 是「允许」", "Recording: Paste from Other Apps allows AllInOneIME"),
-                  systemImage: "checkmark.circle").font(.callout).foregroundStyle(.secondary)
-        } else {
-            HStack(alignment: .firstTextBaseline) {
-                Label(tr("没在记录：macOS 每次读剪贴板都要问。在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」；还没列出它的话，先在输入框里按一次 \(Platform.current.terms.paste)，macOS 问的时候允许。",
-                         "Not recording: macOS asks before each read of the clipboard. In Privacy & Security → Paste from Other Apps, set AllInOneIME to Allow; if it isn't listed yet, press \(Platform.current.terms.paste) in a text field once and allow it when macOS asks."),
-                      systemImage: "exclamationmark.triangle")
-                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                Spacer()
-                Button(tr("打开「隐私与安全性」…", "Open Privacy & Security…")) { ClipboardHistoryShared.openPrivacyPage() }
-            }
+    /// Why it isn't recording, and how to allow it: Paste from Other Apps set to Allow for AllInOneIME (it is listed once
+    /// a read has asked: ⌃V in a text field).
+    private var permission: some View {
+        HStack(alignment: .firstTextBaseline) {
+            Label(tr("没在记录：macOS 每次读剪贴板都要问。在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」；还没列出它的话，先在输入框里按一次 \(Platform.current.terms.paste)，macOS 问的时候允许。",
+                     "Not recording: macOS asks before each read of the clipboard. In Privacy & Security → Paste from Other Apps, set AllInOneIME to Allow; if it isn't listed yet, press \(Platform.current.terms.paste) in a text field once and allow it when macOS asks."),
+                  systemImage: "exclamationmark.triangle")
+                .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button(tr("打开「隐私与安全性」…", "Open Privacy & Security…")) { ClipboardHistoryShared.openPrivacyPage() }
         }
     }
 }

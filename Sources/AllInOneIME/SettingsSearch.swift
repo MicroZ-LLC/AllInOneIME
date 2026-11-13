@@ -6,11 +6,13 @@ import SwiftUI
 /// until it is used or another page is shown. A setting inside an input's chip (fuzzy pinyin in Chinese's) points at the
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
-    // General
+    // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
+    case candidateLayout
+    // General
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
-    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
+    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
     // AI
     case provider, model, apiKey, awsProfile, baseURL, testConnection
     // Privacy
@@ -18,7 +20,7 @@ enum SettingsSpot: String, CaseIterable {
     // Commands
     case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
     // Advanced
-    case typeOut, candidateLayout, useSelection, configFile, rimeFolder
+    case typeOut, useSelection, previousAppSettings, configFile, rimeFolder
     // About
     case updates, troubleshoot, reportIssue
 
@@ -26,17 +28,17 @@ enum SettingsSpot: String, CaseIterable {
     var page: SettingsPage {
         switch self {
         case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage: return .input
+             .codingLanguage, .candidateLayout: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
-             .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
+             .menuBarIcon, .interfaceLanguage, .iCloudSync:
             return .general
         case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
         case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
             return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
             return .commands
-        case .typeOut, .candidateLayout, .useSelection, .configFile, .rimeFolder: return .advanced
+        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
         case .updates, .troubleshoot, .reportIssue: return .about
         }
     }
@@ -323,5 +325,11 @@ extension View {
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    /// `settingsRow(spot, shown:)` that also stands in for `others`, rows not shown now (Words to hide with hiding off):
+    /// pointed at one of them, this row is scrolled to and outlined in its place.
+    func settingsRow(_ spot: SettingsSpot, standingIn others: [SettingsSpot], shown: SettingsSpot?) -> some View {
+        settingsRow(shown.map(\.row).flatMap { others.contains($0) ? $0 : nil } ?? spot, shown: shown)
     }
 }

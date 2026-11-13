@@ -14812,7 +14812,7 @@
       }
     },
     "Extension Sources" : {
-      "comment" : "扩展来源 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
+      "comment" : "扩展来源 — Sources/AllInOneIME/SettingsSearch.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15284,6 +15284,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "修正"
+          }
+        }
+      }
+    },
+    "Folders and sources…" : {
+      "comment" : "文件夹和来源… — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ordner und Quellen …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Carpetas y orígenes…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dossiers et sources…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "フォルダとソース…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "폴더 및 소스…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pastas e fontes…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檔案夾和來源⋯"
           }
         }
       }
@@ -18753,6 +18800,7 @@
     },
     "Learned words" : {
       "comment" : "学到的词 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18841,6 +18889,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "學到的詞和你自己的 Rime 設定"
+          }
+        }
+      }
+    },
+    "Learned words: not synced" : {
+      "comment" : "学到的词：不同步 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gelernte Wörter: nicht synchronisiert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palabras aprendidas: no se sincronizan"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mots appris : non synchronisés"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学習した単語：同期しない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "학습한 단어: 동기화 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Palavras aprendidas: não sincronizadas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "學到的詞：不同步"
           }
         }
       }
@@ -20495,6 +20590,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有指令"
+          }
+        }
+      }
+    },
+    "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder under Folders and sources…." : {
+      "comment" : "还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进「文件夹和来源…」里的文件夹就行。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch keine Erweiterungen. Lege Skripte, Erweiterungs-Bundles oder Raycast Script Commands in einen der Ordner unter „Ordner und Quellen …“."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aún no hay extensiones. Pon scripts, paquetes de extensiones o Script Commands de Raycast en una de las carpetas de «Carpetas y orígenes…»."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas encore d’extensions. Placez des scripts, des paquets d’extension ou des Script Commands Raycast dans un dossier de « Dossiers et sources… »."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拡張機能はまだありません。スクリプト、拡張機能バンドル、またはRaycast Script Commandsを「フォルダとソース…」のフォルダに入れてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "아직 확장 프로그램이 없습니다. ‘폴더 및 소스…’의 폴더에 스크립트, 확장 프로그램 번들 또는 Raycast Script Commands를 넣으세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma extensão ainda. Coloque scripts, pacotes de extensão ou Script Commands do Raycast em uma pasta de “Pastas e fontes…”."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還沒有擴充功能。把腳本、擴充套件或 Raycast 腳本指令放進「檔案夾和來源⋯」裡的檔案夾即可。"
           }
         }
       }
@@ -26503,6 +26645,7 @@
     },
     "Recording: Paste from Other Apps allows AllInOneIME" : {
       "comment" : "在记录：「从其他App粘贴」里 AllInOneIME 是「允许」 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37889,6 +38032,7 @@
     },
     "What pinyin learned from your choices (Rime's user dictionary), and your English words" : {
       "comment" : "拼音从你的选择里学到的词（Rime 的用户词典），和你的英文词 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -38078,6 +38222,7 @@
     },
     "What's new" : {
       "comment" : "更新日志 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

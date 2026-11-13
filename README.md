@@ -582,7 +582,7 @@ Plugins are JavaScript run in a separate process: they can reach only the websit
 from the [plugin library](https://github.com/MicroZ-LLC/AllInOneIME-plugins): it shows which websites a plugin
 contacts before installing; the library's index is signed and every file must match it. A newer version shows an
 "Update" button; nothing updates by itself. Your own plugins go in `~/.config/allinoneime/plugins/` ("Open Plugins
-Folder"): local plugins, never overwritten by the library.
+Folder", under Commands → "Folders and sources…"): local plugins, never overwritten by the library.
 "Link" plugins run no code: they put the text into a web address and open it in the browser, like `@x nice weather
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
 (`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
@@ -645,7 +645,7 @@ An app has two settings of its own; everything else is the same in every app:
 
 | Setting | Where | In the config |
 | --- | --- | --- |
-| What a suggestion row inserts there: with title, or with title and link; or Off, no suggestions there | Settings → General → Suggestions → "In these apps" | `suggestionsInsert` (synced with the settings); Off is `"suggestions": false` (this Mac's own: not synced) |
+| What a suggestion row inserts there: with title, or with title and link; or Off, no suggestions there | Settings → General → Suggestions → More… → "In these apps" | `suggestionsInsert` (synced with the settings); Off is `"suggestions": false` (this Mac's own: not synced) |
 | No AI: `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | Settings → Privacy → "Apps without AI" | `noAI` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications; Remove takes an app off that list (its
@@ -665,7 +665,7 @@ something, never naming them.
 - **Previous per-app settings.** What an earlier version set for an app, and Settings doesn't set any more, still works
   while it's set: the input it starts in (`inputLanguage`; one the app learned comes first), Always Translate as You
   Type (`translateAlways`), autocomplete always or never (`autocomplete`), typing out or not (`typeOut`) and its rewrite
-  styles (`rewriteStyles`). Settings → General → "Previous per-app settings", there only while an app has one, lists
+  styles (`rewriteStyles`). Settings → Advanced → "Previous per-app settings", there only while an app has one, lists
   them, a row per app, and Remove clears them for that app (its Insert, Off too, and No AI stay). An app set to no
   suggestions in an earlier version (`"suggestions": false`) is under "In these apps", at Off.
   Nothing in `config.json` is renamed or removed by 0.6.7, and these values sync as they did.
@@ -683,29 +683,35 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
 
 - **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
   to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
-  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; Clipboard history, with Keep the last, whether
-  macOS lets it record and Clear History; Sync through iCloud; and Previous per-app settings, only while an app has one.
+  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps" under More… (open by itself once either is
+  set); Clipboard history, with Clear History (and why it isn't recording, only when macOS doesn't let it); and Sync
+  through iCloud.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
-  default, and Code comes after them ("Code · Python"). Under the chips, each input has its options in a section under
+  default, and Code comes after them ("Code · Python"); then the candidate layout. Under them, each input has its options in a section under
   its name, always shown, with nothing to click. English has its words; Chinese its language pack, Typing (full
   pinyin, Shuangpin or Zhuyin), Characters and fuzzy pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
   library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this
   page.
 - **AI**: the provider, its model, its key or AWS profile, and Test Connection; the base URL is under More…, which opens
   by itself once one is set.
-- **Privacy**: hiding sensitive information before sending, the words to hide, Apps without AI, what `@agent` and
+- **Privacy**: hiding sensitive information before sending, the words to hide (while it's on), Apps without AI, what `@agent` and
   `@reply` take from Chrome, remembering recent questions (with Forget), and learning English words.
-- **Commands**: your commands, the agent `@agent` hands to, where an `@question` conversation continues, `@note` and
-  `@search`, plugins, script extensions (folders that bring no new commands fold into one row) and extension sources. A
-  plugin or script extension command with suggestions has their switch under it, and **Show in the @ list** next to it.
-- **Advanced**: typing results out (speed, typos), the candidate layout, "Use the selected text", the config file and
-  the Rime folder.
-- **About**: the version, updates, "Check for updates automatically" and "Notify me when a new version is out",
-  Troubleshoot…, Report an Issue… and links.
+- **Commands**: your commands, the agent `@agent` hands to (and "On this Mac" when it isn't installed, or is your own
+  command), where an `@question` conversation continues, `@note` and `@search`, plugins and script extensions; last,
+  "Folders and sources…", folded unless there is an extension source, an update or an error: the plugins folder, Find
+  Raycast scripts automatically, the extension folders (those that bring no new commands fold into one row), Add
+  Folder… and the extension sources. A plugin or script extension command with suggestions has their switch under it,
+  and **Show in the @ list** next to it.
+- **Advanced**: typing results out (speed, typos), "Use the selected text", Previous per-app settings (only while an app
+  has one), the config file and the Rime folder.
+- **About**: the version, updates and "Check for updates automatically", Troubleshoot…, the four links in a row, and
+  Report an Issue….
 
 A few settings have no row unless they're set to something other than their default (by hand in the config file, or by
 an earlier version): the output tokens, temperature, timeout and Thinking (AI), a kind of sensitive information left out
-(Privacy), the settings or the jargon list and custom commands not synced (Sync through iCloud), and Insert's "ID only".
+(Privacy), the settings, the jargon list and custom commands, or the learned words not synced (Sync through iCloud),
+Insert's "ID only", how many texts the clipboard history keeps (General), and a new version's notification turned off
+(About).
 Then their row shows, with Restore Default. Shown or not, they work as before.
 
 **Search.** Type in the field at the top of the sidebar and it lists the settings that match as you type (by name, by
@@ -775,8 +781,8 @@ our servers. It needs iCloud Drive (System Settings → Apple Account → iCloud
 so, with a button that opens that pane.
 
 Once it's on, Settings shows one status row with a ⋯ menu (Sync Now; API keys and passwords; Remove Hidden Words from
-iCloud…, Remove Recent Questions from iCloud… and Remove from iCloud…), and two switches under it: Learned words, and
-Hidden words and recent questions.
+iCloud…, Remove Recent Questions from iCloud… and Remove from iCloud…), and one switch under it: Hidden words and recent
+questions. Learned words sync with no switch of their own; turned off in the config, they show with Restore Default.
 
 | What | What syncs | Default |
 | --- | --- | --- |
@@ -924,7 +930,7 @@ In Settings → Input:
   - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages (French is told apart from English when it's one of your input languages).
 - **Code** (new): an input for writing code, after the languages and apart from them: added with Add… → Code, its chip after the languages ("Code · Python"), with its coding language (Python, Java, Go, TypeScript, JavaScript, C or C++). Tap Shift through the languages, then Code (Chinese → English → Code). You type letters, and the rows offer that language's keywords and snippets; see [Suggestions and Code](#suggestions-and-code-new).
 - **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's section shows its pack (version, size, where it came from) with Remove…, and removing the language offers to remove its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
-- **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical in Settings → Advanced → Candidate layout for one under the other (↑↓ choose). The command list and the results are always vertical.
+- **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical in Settings → Input → Candidate layout for one under the other (↑↓ choose). The command list and the results are always vertical.
 - Candidates, notices and the Translate as You Type chip appear without window animations. Committing a word hides its candidates immediately; the window is reused during continuous typing and closes after 400 ms of idle time.
 - **English words in pinyin** (with Chinese input): type a few letters and the English words they start come up among the candidates: bedr → Bedrock, and bedrock → Bedrock first (Space puts it in). Besides rime-ice's own English words: yours (English Words, in English's section, or in Chinese's without English: you add and remove them there), the English terms of your jargon list, and about 220 product and technical words rime-ice lacks (Bedrock, SageMaker, DynamoDB, LangGraph…). A word whose letters are all you typed comes first, unless they're pinyin too (xiaomi: second); a longer one second, or after the page while what you type may still be pinyin. The same letters put in as typed twice (bedrock ⏎, or a tap of Shift) are learned, with no command, and so is a word you type twice in English mode (after a tap of Shift; English mode itself is as it was, nothing shows there); the first time they're only remembered, until the app quits. In English mode a word is the letters between a space or a mark and a space, ⏎, a mark or a tap of Shift back to Chinese; not one you edit with ⌫ (while typing it or right after), one with a digit or a mark inside (example.com, don't, abc123), or one with a capital first (a name, a sentence's first word). Never in password fields, terminals and SSH clients, remote desktops and virtual machines, password managers, or apps with No AI (a terminal inside an editor, VS Code's say, can't be told from the editor); a password field that doesn't turn on secure input (on some web pages and in some Electron apps) can only be told apart with Accessibility, so nothing typed in a field is learned without it (System Settings → Privacy & Security → Accessibility), nor until it has confirmed that the field isn't a password field; never pinyin (rime-ice's corrected spellings too: zhogn; and your fuzzy pinyin), nothing that looks like a key or a number or holds one of your hidden words (switch: Settings → Privacy → "Learn English words"). A word you add that looks like a key, a card or phone number or an IP address is refused; adding one it learned makes it yours. They sync through iCloud with the learned words, merged by their letters; past 2,000 the oldest learned go first, never one you added. Privacy: learning looks at every word you type in English mode, on this Mac only, and sends nothing anywhere for it (no AI either); a word typed once stays in memory until the app quits, a word learned goes into your config file (`englishWords`) and leaves this Mac only when Sync through iCloud is on with the learned words (Settings → General), as the other learned words do. What the guards can't tell from a word (a password in a field that isn't a password field, all small letters, typed twice) could be learned: the list in Settings shows every word, ✕ removes one, and the switch turns learning off.
 - **Typing** (with Chinese input, new): Full pinyin (each syllable spelled out: nihao) or Shuangpin, each syllable in two keys, in one of the schemes rime-ice ships: Xiaohe (nihc → 你好), Ziranma, Microsoft, Sogou, Zhineng ABC, Pinyin Jiajia or Ziguang. Pick it under Chinese → Typing (Settings search finds it as shuangpin, 双拼 or a scheme's name). Nothing is downloaded: the schemes come with the Chinese pack, and the one you pick is deployed beside full pinyin in a second or two; the next key types with it, no restart. Your learned words (both share them), removed candidates, personal dictionaries, Characters, fuzzy pinyin (its pairs apply before the scheme's keys), English words among the candidates and every AI feature work as with full pinyin. The marked text shows what Rime shows for the scheme (Xiaohe's nihc as ni hao). After the magic key, the letters are still matched as command and app names as you type them, and the candidates line under the commands is the scheme's. Each scheme gets the same patch as `rime_ice.custom.yaml`, in a file of its own (`double_pinyin_flypy.custom.yaml` for Xiaohe), and the schema list (`default.custom.yaml`) names it; neither is written over a file of your own (with a `default.custom.yaml` of your own, add the scheme's schema to its `schema_list` yourself: `- schema: double_pinyin_flypy` for Xiaohe).
@@ -1156,7 +1162,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   its own. In the config: `hiddenFromCommandList`, this Mac's own. A Suggestions command is never in the list.
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
-  → General → **Insert**, under the Suggestions switch, for every source: **Default** (each source's own), **With title**
+  → General → **Insert**, under the Suggestions switch's More…, for every source: **Default** (each source's own), **With title**
   (`#1234 Fix login`), **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`) or **Markdown link**
   (`[Fix login](https://github.com/…/issues/1234)` in the place of the `#12` you typed; its `{arg}`, `#1234`, in a terminal), the
   same in every app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
@@ -1260,15 +1266,16 @@ suggestions use, and puts in the one you choose.
   AllInOneIME to **Allow**. AllInOneIME is listed there once macOS has asked about it: press ⌃V in a text field once and
   allow it. Until then nothing is recorded and macOS is never asked in the background; ⌃V still shows what's on the
   clipboard now (read then, so macOS may ask), with a row saying how to keep a history (⏎ on it opens that page), and in
-  a command ⌃V is as before. Settings → General → Clipboard history says whether it's recording, with a button to that
+  a command ⌃V is as before. Settings → General → Clipboard history says when it isn't recording, with a button to that
   page.
 - **Where it's kept:** on this Mac only, in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable
   only by your user account and left out of backups. Never synced, never sent to an AI or anywhere. **Clear History** in
   Settings → General deletes it. The first time the panel shows, its footer says so.
 - **Turning it off:** Settings → General → **Clipboard history** (on by default; there's no input-menu item). Off, ⌃V is
   as before 0.6.8 (in a command it appends the clipboard, elsewhere it goes to the app) and the history is deleted.
-  **Keep the last** sets how many it keeps, 5 to 100; a lower number drops the oldest at once. In the config:
-  `clipboardHistory` and `clipboardHistoryLimit`, this Mac's own (never synced).
+  It keeps the last 20; `clipboardHistoryLimit` in the config sets another number, 5 to 100 (a lower one drops the
+  oldest at once), and Settings then shows it with Restore Default. In the config: `clipboardHistory` and
+  `clipboardHistoryLimit`, this Mac's own (never synced).
 
 ## Installation
 
@@ -1298,7 +1305,7 @@ release key, installs it and restarts the input method. Your settings, language 
 if anything goes wrong the version you had is put back. AllInOneIME looks once a day by itself, in the background (turn it off
 with "Check for updates automatically" under About); nothing is installed until you click. When it finds a new version, a macOS
 notification says so, once a version: **Update** installs it as About does, **Don't Show Again** turns these notifications off
-(back on with "Notify me when a new version is out" under About), and clicking it opens About. It's never a window, so a key you
+(back on with Restore Default on its row under About), and clicking it opens About. It's never a window, so a key you
 are typing never lands on it; macOS asks whether AllInOneIME may notify you only before the first one, and if you say no, the
 line in About and the menu bar panel is all. This works from 0.6.3 on; to update an older version, or if you prefer, install the
 new version's disk image over it, without uninstalling first.
@@ -1442,7 +1449,7 @@ shows it with Restore Default:
   under Privacy.
 - In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
-All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings` and `jargon`, and `suggestionsInsert` `"id"`; then their row shows, with Restore Default. An app's settings other than `noAI`, `suggestionsInsert` and `suggestions` (Off in "In these apps") show under Previous per-app settings, with Remove. They work either way. The newer keys:
+All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings`, `jargon` and `learnedWords`, `suggestionsInsert` `"id"`, `clipboardHistoryLimit` and `notifiesUpdates`; then their row shows, with Restore Default. An app's settings other than `noAI`, `suggestionsInsert` and `suggestions` (Off in "In these apps") show under Previous per-app settings, with Remove. They work either way. The newer keys:
 
 | Key | What it does | Default |
 |---|---|---|
@@ -1480,9 +1487,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI`, `suggestionsInsert` (as below, or `"source"`; synced) and `suggestions` (`false`: no suggestion rows there, Off in "In these apps"; this Mac's own: not synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
-| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
+| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Suggestions → More… → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
 | `clipboardHistory` | Clipboard history (Settings → General): `false` turns it off (⌃V as before 0.6.8) and deletes the history; this Mac's own, never synced (see Clipboard history) | absent (on) |
-| `clipboardHistoryLimit` | How many texts clipboard history keeps (Settings → General → Keep the last), 5–100; a lower number drops the oldest at once; this Mac's own, never synced | absent (20) |
+| `clipboardHistoryLimit` | How many texts clipboard history keeps (shown under Settings → General → Clipboard history, with Restore Default, when not 20), 5–100; a lower number drops the oldest at once; this Mac's own, never synced | absent (20) |
 | `completionSources` | The completion sources approved, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); a plugin's as it was installed (or first found by 0.6.7.2) or turned on in Settings → Commands → Plugins; `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, approved as its extension source was added or turned on in Settings → Commands. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty), and is on with no entry here. Written by Settings and as plugins and sources are added; this Mac's own, never synced | `[]` |
 | `completionSourcesOff` | The completion sources you turned off in Settings, each by `plugin` and `source` (as above): off whatever else, through updates and restarts, until you turn one on again; this Mac's own, never synced | `[]` |
 | `hiddenFromCommandList` | The plugins and script extension commands with suggestions you took out of the @ command list (**Show in the @ list** off under one in Settings → Commands): a plugin's name, a script extension command's id. Their suggestions are as before; one that no longer has a suggestion source is in the list again. This Mac's own, never synced (as `disabledExtensions`) | `[]` |
