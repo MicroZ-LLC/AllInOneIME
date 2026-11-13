@@ -306,6 +306,8 @@ public final class Composer {
         public var snippetTooLong = "要插入的文字太长：最多 \(Composer.maxNoteLength) 字"
         /// A snippet with `{selection}` and a selection longer than `Composer.maxSelectionLength`: nothing goes in.
         public var snippetSelectionTooLong = "选中的文字太长：最多 \(Composer.maxSelectionLength) 字"
+        /// An `@question`'s answer goes on in the background (`answerToBackground`): where it will come.
+        public var answerInBackground = "回答要久一点，转到后台：好了会通知你，⌃V 可以粘贴"
         /// The interface language's code (`InterfaceLanguage`): a snippet's `{date:FMT}` is in its locale.
         public var language = "zh-Hans"
 
@@ -383,6 +385,8 @@ public final class Composer {
                 reply: .make(language: language, terms: terms),
                 snippetTooLong: t.tr("要插入的文字太长：最多 \(Composer.maxNoteLength) 字", "The text to insert is too long: \(Composer.maxNoteLength) characters at most"),
                 snippetSelectionTooLong: t.tr("选中的文字太长：最多 \(Composer.maxSelectionLength) 字", "The selected text is too long: \(Composer.maxSelectionLength) characters at most"),
+                answerInBackground: t.tr("回答要久一点，转到后台：好了会通知你，\(terms.paste) 可以粘贴",
+                                         "Taking longer: it goes on in the background — you'll be notified, then \(terms.paste) pastes it"),
                 language: language)
         }
 
@@ -4013,6 +4017,13 @@ public final class Composer {
             if let typed, !text.isEmpty { typedIntoField(typed) }
         }
         return effects
+    }
+
+    /// Request `id`'s answer goes on in the background (`InputSession.answerToBackground`): the draft and the panel go,
+    /// nothing is inserted (a selection stays as it is), and the notice says where the answer will come.
+    public func answerToBackground(id: Int) -> [Effect] {
+        guard phase == .translating(id: id) else { return [] }
+        return finish(committing: "") + [.notice(messages.answerInBackground)]
     }
 
     /// `effects`, whose commits are what the user typed (`typedIntoField`).

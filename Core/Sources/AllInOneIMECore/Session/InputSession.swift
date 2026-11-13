@@ -34,6 +34,8 @@ public final class InputSession {
     public private(set) var lastNote: String?
     /// The session `@question` goes to was asked to start for the question about to be asked (`prewarmQuestionSession`).
     private var questionSessionWarmed = false
+    /// The `@question` whose answer the panel waits for, and the relay it runs in (`answerToBackground`).
+    private var lateRelay: (request: Int, relay: AnswerRelay)?
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
     public private(set) var agent = AgentKind.claude
     public private(set) var agentCommand: [String] = []
@@ -233,6 +235,7 @@ public final class InputSession {
                 autocompleteLeft(.ignored)
                 clipboardLeft()
                 suggestionsLeft()
+                lateAnswerGoesOn()  // before the draft goes, which stops what it waited for
                 perform(composer.commitAll())
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
@@ -307,6 +310,7 @@ public final class InputSession {
                 autocompleteLeft(.unseen)
                 clipboardLeft()
                 suggestionsLeft()
+                lateAnswerGoesOn()
                 learnTypedInEnglish(englishModeWords.leftField())
                 tasks.close()  // what runs for the field stops (a save, a message, an agent goes on)
                 composer.forgetRecentLive()  // `@open`'s results kept for its texts go with the field's session
@@ -1476,6 +1480,8 @@ public final class InputSession {
             autocompletePaused(token)
         case let .suggestions(timer):
             suggestionsTimer(timer)
+        case let .lateAnswer(request):
+            answerToBackground(request)
         }
     }
 
@@ -1540,8 +1546,47 @@ public final class InputSession {
             return
         }
         let request = SessionTasks.Request(input: input, command: command, plan: plan, fresh: fresh, replyPage: replyPage,
-                                           replyContext: command == .reply ? composer.replyContext : nil)
+                                           replyContext: command == .reply ? composer.replyContext : nil,
+                                           question: command == .question && plan == nil ? questionContext(input, id: id) : nil)
         tasks.convert(request, id: id, in: place(generates: command?.kind == .generate), services: services)
+    }
+
+    // MARK: - What the user was looking at, and answers that take longer
+
+    /// An `@question` (or one @'s Ask AI) that the input method's session may answer (the provider isn't picked for
+    /// questions): it takes along what the user is looking at in this app (`AppSnapshot`, read by the shell as the
+    /// question starts; the apps' own parts only with the setting that takes the page along), and its answer runs in a
+    /// relay that goes on in the background once the panel has waited `LateAnswer.panelWait` (`answerToBackground`).
+    /// Whether a session answers, the converter decides; the provider's answer stays in the panel, as before.
+    private func questionContext(_ input: String, id: Int) -> QuestionContext? {
+        lateRelay = nil
+        guard services.loadSettings().questionBackend != .provider else { return nil }
+        let marked = composer.draftInPanel ? "" : composer.markedText
+        let request = AppSnapshot.Request(typed: input, marked: marked.isEmpty ? input : marked,
+                                          selection: composer.selection?.text, adapters: agentPageContext)
+        let relay = AnswerRelay(question: input, deliver: services.lateAnswer)
+        lateRelay = (id, relay)
+        emit(.startTimer(.lateAnswer(id), after: LateAnswer.panelWait))
+        return QuestionContext(snapshot: services.appSnapshot(app, request), relay: relay)
+    }
+
+    /// The panel's wait for request `id`'s answer is over: one the session is still answering goes on in the background
+    /// (`AnswerRelay.detach`) and the panel says so and goes, the draft with it, so that the user goes on typing; the
+    /// answer comes as a notification and in clipboard history (`SessionServices.lateAnswer`). Answered meanwhile, given
+    /// up (Esc), or answered by the provider: nothing changes.
+    private func answerToBackground(_ id: Int) {
+        guard let (request, relay) = lateRelay, request == id, composer.phase == .translating(id: id), relay.detach() else { return }
+        lateRelay = nil
+        log.notice("@question \(id): the answer goes on in the background")
+        perform(composer.answerToBackground(id: id))
+    }
+
+    /// The field left while the panel waits for an answer the session is giving: it goes on in the background, as past
+    /// the wait (a `show` script's run goes on the same way: `detachScript`), and comes as a notification.
+    private func lateAnswerGoesOn() {
+        guard let (request, relay) = lateRelay, composer.phase == .translating(id: request), relay.detach() else { return }
+        lateRelay = nil
+        log.notice("@question \(request): the field was left, the answer goes on in the background")
     }
 
     /// Where a request runs (`SessionTasks.Place`): the app's own rewrite styles, or no AI at all (`AppProfile`); a terminal
@@ -1814,8 +1859,10 @@ public final class InputSession {
     /// `@agent …` being written in a web browser: its page is asked for now, ready by ⏎; the draft given up (Esc, deleted,
     /// refused, another command), it's given back.
     private func wakePageIfAgent() {
-        // `@reply` with nothing selected, copied or pasted takes the page too.
+        // `@reply` with nothing selected, copied or pasted takes the page too, and so does an `@question` the session may
+        // answer (`questionContext`).
         let writingAgent = composer.draftCommand == .agent || composer.draftCommand == .reply && composer.replyTakesPage
+            || modelAhead == Command.question.name && services.loadSettings().questionBackend != .provider
         if wokenPage != nil, !writingAgent { return releasePage() }
         guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
         pageLookedFor = fieldSession
@@ -1839,6 +1886,8 @@ public final class InputSession {
         questionSessionWarmed = true
         let config = services.loadSettings()
         guard config.questionBackend != .provider, !secureInputActive(), config.allowsAI(in: app) else { return }
+        // What it may take along of the app, made ready by ⏎ (Slack's messages: `questionContext`).
+        if agentPageContext { services.wakeAppContext(app) }
         let converter = services.converter
         let before = converter.questionSessionAgent(config)
         tasks.start(nil) { post in

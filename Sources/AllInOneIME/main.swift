@@ -639,6 +639,10 @@ case "--page-context":
     PageContextReader.release(pid: chrome.processIdentifier)
     Thread.sleep(forTimeInterval: 0.3)  // the release runs in the background
     exit(0)
+case "--app-context":
+    // `--app-context [seconds] [tree]`: what an `@question` to the input method's session would take along of the app in
+    // front (`AppContextReader`), printed after `seconds` (3: time to bring the app to the front); nothing is sent or typed.
+    exit(MainActor.assumeIsolated { AppContextReader.debug(Array(arguments.dropFirst())) })
 case "--install-pack":
     exit(installPack(Array(arguments.dropFirst())))
 case "--adopt-pack":

@@ -102,6 +102,16 @@ public struct SessionServices {
     /// The web page the field is in, for `@agent` and `@reply` (`PageSource`; nil: none, or not to be read: the setting,
     /// no permission).
     public var page: (_ app: String?) -> PageSource?
+    /// What the user is looking at in the app in front, for an `@question` the input method's session may answer
+    /// (`AppSnapshot`, AppContext.swift): the reader, made now on the session's thread, run off it (blocking,
+    /// `AppSnapshot.budget` at most); nil: none (a shell without one, a test's).
+    public var appSnapshot: (_ app: String?, _ request: AppSnapshot.Request) -> (@Sendable () -> AppSnapshot?)?
+    /// An `@question` about to be asked in `app` (the session warmed for it): an app whose content is built only once it
+    /// is asked for (Slack's, `SlackAdapter`) is asked now, ready by ⏎.
+    public var wakeAppContext: (_ app: String?) -> Void
+    /// An `@question`'s answer that came after the panel stopped waiting for it, or failed then (`LateAnswer`): the shell
+    /// notifies and keeps it (`LateAnswer.actions`). From any thread.
+    public var lateAnswer: @Sendable (LateAnswer) -> Void
     /// Errors only the user can fix (a permission, an account): their notice stays up longer, the text on the clipboard
     /// too. Called off the session's thread.
     public var needsTheUser: @Sendable (Error) -> Bool
@@ -235,6 +245,9 @@ public struct SessionServices {
         englishTypedOnce = EnglishWords.TypedOnce()
         englishWordsHeld = EnglishWords.Held()
         page = { _ in nil }
+        appSnapshot = { _, _ in nil }
+        wakeAppContext = { _ in }
+        lateAnswer = { _ in }
         pastesInTerminal = { false }
         needsTheUser = { ($0 as? NoteError)?.needsTheUser ?? false }
         errorKind = { _ in nil }

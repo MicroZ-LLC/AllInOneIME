@@ -175,15 +175,18 @@ final class AgentMonitor: NSObject, UNUserNotificationCenterDelegate {
     }
 
     // Clicking the notification opens the task (or what a script extension printed in the background); an update's goes to
-    // the updater, with the button clicked (`SystemUpdateNotices`).
+    // the updater, with the button clicked (`SystemUpdateNotices`); an @question's answer from the background goes on the
+    // clipboard (`LateAnswers`).
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
                                             withCompletionHandler completionHandler: @escaping () -> Void) {
         let info = response.notification.request.content.userInfo
         let (id, run) = (info["agent"] as? String, info["scriptRun"] as? Int)
         let update = info[SystemUpdateNotices.userInfoKey] is String ? SystemUpdateNotices.action(response.actionIdentifier) : nil
+        let answer = info[LateAnswers.userInfoKey] as? String
         DispatchQueue.main.async {
             if let id { MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
             if let run { MainActor.assumeIsolated { ScriptTasks.shared.openResult(run) } }
+            if let answer { MainActor.assumeIsolated { LateAnswers.clicked(answer) } }
             if let update { MainActor.assumeIsolated { UpdateController.shared.respond(update) } }
             completionHandler()
         }

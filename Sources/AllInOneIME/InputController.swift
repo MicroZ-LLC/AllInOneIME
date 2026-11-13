@@ -99,6 +99,10 @@ final class AllInOneIMEInputController: IMKInputController {
         PageContextReader.applies(app: app, enabled: true) ? app.flatMap(PageContextReader.runningPID) : nil
     }
     var readPageContext: @Sendable (pid_t, CGPoint) -> PageContext? = { PageContextReader.read(pid: $0, pointer: $1) }
+    /// What an `@question` takes along of the app in front (`AppContextReader`; a self-test may put its own in).
+    var readAppContext: (String?, AppSnapshot.Request) -> (@Sendable () -> AppSnapshot?)? = { app, request in
+        MainActor.assumeIsolated { AppContextReader.reader(app: app, request: request) }
+    }
     /// Counts this controller's activations and deactivations: text inserted once a key is done goes nowhere if the
     /// field changed meanwhile (`SessionOutput.commitAfterKey`).
     private(set) var fieldSession = 0
@@ -223,6 +227,13 @@ final class AllInOneIMEInputController: IMKInputController {
                 })
             }.value
         }
+        // An @question the input method's session answers: what the app in front shows goes along (`AppContextReader`),
+        // and an answer that takes longer comes as a notification (`LateAnswers`).
+        services.appSnapshot = { app, request in
+            MainActor.assumeIsolated { MainThreadBox(box.value?.readAppContext(app, request)) }.value
+        }
+        services.wakeAppContext = { app in MainActor.assumeIsolated { AppContextReader.wake(app: app) } }
+        services.lateAnswer = { LateAnswers.deliver($0) }
         let leftovers = leftovers
         return InputSession(services: services, deliver: { event in
             DispatchQueue.main.async {

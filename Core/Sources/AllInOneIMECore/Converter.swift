@@ -188,9 +188,10 @@ public final class Converter: Sendable {
     /// `@reply`'s three replies as three versions (`runReply`, Reply.swift).
     /// `fresh`: asked again even if an answer is kept (a recent question asked again, `Composer.Effect.reask`); the new
     /// one is kept instead. With `turns`, a follow-up on the answer shown (`Refinement`): the whole answer again,
-    /// revised as the last instruction asks.
+    /// revised as the last instruction asks. `context`: what an `@question` takes along to the input method's session
+    /// (`QuestionContext`: the app it was asked in), and is told whether a session answers.
     public func generate(_ command: Command, input: String, app: String? = nil, fresh: Bool = false,
-                         turns: [Refinement.Turn] = []) -> AsyncThrowingStream<ConversionUpdate, Error> {
+                         turns: [Refinement.Turn] = [], context: QuestionContext? = nil) -> AsyncThrowingStream<ConversionUpdate, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
@@ -198,7 +199,7 @@ public final class Converter: Sendable {
                         try await self.runReply(input: input, app: app, fresh: fresh, turns: turns, continuation: continuation)
                     } else {
                         try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
-                                                  continuation: continuation)
+                                                  context: context, continuation: continuation)
                     }
                     continuation.finish()
                 } catch {
@@ -210,6 +211,7 @@ public final class Converter: Sendable {
     }
 
     private func runCommand(_ command: Command, input: String, app: String?, fresh: Bool = false, turns: [Refinement.Turn],
+                            context: QuestionContext? = nil,
                             continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         let started = ContinuousClock.now
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
@@ -217,25 +219,32 @@ public final class Converter: Sendable {
         // An @question conversation (`QuestionChat`): its turns are the answers and the questions after them, sent as
         // plain user and assistant turns, not as a refine.
         let chat = command == .question && !turns.isEmpty
+        // What the user was looking at as they asked (`AppSnapshot`): read now, while the session is looked for; it goes
+        // with a first question to a session only, never to the provider.
+        let reading = command == .question && turns.isEmpty && config.questionBackend != .provider
+            ? context?.snapshot.map { read in Task.detached { read() } } : nil
         // The session picked for questions (`Config.questionSessionAgent`) answers, unless it can't (below).
         let session = command == .question ? await questionSessionChecked(config) : nil
+        context?.relay?.answeredInSession(session != nil)
+        let block = session == nil ? nil : await reading?.value?.block()
         // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
         // history), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
         // Hidden from the model (`Redaction`): what the text holds, then what a custom command's own prompt does, then
         // a refine's turns (as for `convert`). For the session, numbered on from its earlier questions (one long
         // conversation: a placeholder never stands for two values), and the rounds it didn't see too.
-        func hide(_ redaction: inout Redaction?) -> (sent: String, last: String, missing: [QuestionChat.Round]) {
+        // The app's snapshot (`block`) last, in the same numbering.
+        func hide(_ redaction: inout Redaction?) -> (sent: String, last: String, missing: [QuestionChat.Round], context: String?) {
             let sent = redaction?.hide([input] + [command.custom?.prompt].compactMap { $0 }).first ?? input
             let last = Self.hideTurns(turns, with: &redaction, wrap: chat ? { $0 } : Prompt.refineMessage) ?? sent
             let rounds = missing.map { round in
                 QuestionChat.Round(question: redaction?.hide(round.question) ?? round.question,
                                    answer: redaction?.hide(round.answer) ?? round.answer)
             }
-            return (sent, last, rounds)
+            return (sent, last, rounds, block.map { redaction?.hide($0) ?? $0 })
         }
         var redaction: Redaction?
-        let texts: (sent: String, last: String, missing: [QuestionChat.Round])
+        let texts: (sent: String, last: String, missing: [QuestionChat.Round], context: String?)
         if let session {
             (redaction, texts) = session.redacting(config.redaction, hide)
         } else {
@@ -260,7 +269,8 @@ public final class Converter: Sendable {
             // The question typed last (`lastMessage` is the first one when nothing is hidden).
             let question = ClaudeSession.message(turns.last.map { redaction == nil ? $0.instruction : lastMessage } ?? sent,
                                                  after: texts.missing)
-            let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
+            let asked = hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question
+            let message = ClaudeSession.message(AppSnapshot.message(asked, context: texts.context), guide: guide)
             do {
                 try await runInSession(session, message: message, redaction: redaction, hidden: hidden, started: started,
                                        told: missing.map(\.answer), continuation: continuation)

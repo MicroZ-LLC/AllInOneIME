@@ -207,6 +207,9 @@ public enum TimerID: Hashable, Sendable {
     /// Suggestions' (`InputSession+Suggestions.swift`): Shift held long enough to turn Translate as You Type on or off, a
     /// pause before a query is asked again, a list's refresh (or its back-off or pause) due.
     case suggestions(SuggestionsTimer)
+    /// The panel's wait for an `@question`'s answer (request `Int`) is over (`LateAnswer.panelWait`): one still being
+    /// answered by the session goes on in the background.
+    case lateAnswer(Int)
 }
 
 /// A timer of suggestions' (`TimerID.suggestions`), counted: an older one of a kind does nothing.

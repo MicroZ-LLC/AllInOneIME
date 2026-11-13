@@ -267,15 +267,19 @@ public final class SessionTasks {
         public var replyPage: String
         /// `@reply`'s context (`Composer.replyContext`).
         public var replyContext: ReplyContext?
+        /// What an `@question` takes along to the input method's session, and the relay its answer runs in
+        /// (`QuestionContext`, LateAnswer.swift).
+        public var question: QuestionContext?
 
         public init(input: String, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false, replyPage: String = "",
-                    replyContext: ReplyContext? = nil) {
+                    replyContext: ReplyContext? = nil, question: QuestionContext? = nil) {
             self.input = input
             self.command = command
             self.plan = plan
             self.fresh = fresh
             self.replyPage = replyPage
             self.replyContext = replyContext
+            self.question = question
         }
     }
 
@@ -310,7 +314,9 @@ public final class SessionTasks {
     /// Streams level two for `request` (request `id`): the improve conversion, a `.generate` command's answer, what a
     /// `.run` command's program printed, a text with commands inside it.
     public func convert(_ request: Request, id: Int, in place: Place, services: SessionServices) {
-        consume(Self.stream(for: request, in: place, services: services), id: id)
+        let stream = Self.stream(for: request, in: place, services: services)
+        // An @question's answer runs in its relay, which may go on without the field (`InputSession.answerToBackground`).
+        consume(request.question?.relay?.attach(stream) ?? stream, id: id)
     }
 
     /// The stream for `request` (`convert`).
@@ -320,6 +326,7 @@ public final class SessionTasks {
                                                                  services.loadSearchKey)
         let (app, fresh, improveTranslates, pluginLanguage, commandTrigger) = (place.app, request.fresh,
             place.improveTranslates, place.pluginLanguage, place.commandTrigger)
+        let question = request.question
         let searchList: WebSearch.Output = place.terminal ? .line : .list
         let search = WebSearch.backend(chinese: place.chinese)
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
@@ -337,7 +344,8 @@ public final class SessionTasks {
                 let (mode, text) = WritingMode.parse(command, input, improveTranslates: improveTranslates, trigger: commandTrigger)
                 return converter.convert(text, mode: mode, app: app)
             }
-            return command.map { converter.generate($0, input: input, app: app, fresh: fresh) } ?? converter.convert(input, app: app)
+            return command.map { converter.generate($0, input: input, app: app, fresh: fresh, context: $0 == .question ? question : nil) }
+                ?? converter.convert(input, app: app)
         }
         let command = request.command
         let stream: AsyncThrowingStream<ConversionUpdate, Error>

@@ -29032,6 +29032,53 @@
         }
       }
     },
+    "No answer" : {
+      "comment" : "没有得到回答 — Sources/AllInOneIMECore/LateAnswer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Antwort"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin respuesta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune réponse"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答がありません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답변 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma resposta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有得到回答"
+          }
+        }
+      }
+    },
     "No API key for the %@: add one in the settings" : {
       "comment" : "%@ 还没有 API key：在设置里添上 — Sources/AllInOneIMECore/UIText+Errors.swift",
       "localizations" : {
@@ -47963,6 +48010,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Tab 或 %@ 插入 · ↑↓ 選擇 · Esc 隱藏"
+          }
+        }
+      }
+    },
+    "Taking longer: it goes on in the background — you'll be notified, then %@ pastes it" : {
+      "comment" : "回答要久一点，转到后台：好了会通知你，%@ 可以粘贴 — Sources/AllInOneIMECore/Composer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dauert länger: läuft im Hintergrund weiter – du wirst benachrichtigt, dann fügt %@ es ein"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tarda más: sigue en segundo plano; te avisaremos y %@ lo pega"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ça prend plus de temps : la suite en arrière-plan — tu seras averti, puis %@ le colle"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間がかかっています：バックグラウンドで続けます。完了したら通知し、%@ で貼り付けられます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시간이 더 걸려 백그라운드에서 계속합니다. 완료되면 알림이 오고 %@ 로 붙여 넣을 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Está demorando: continua em segundo plano — você será avisado, e %@ cola a resposta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答要久一點，轉到背景：好了會通知你，%@ 可以貼上"
           }
         }
       }
