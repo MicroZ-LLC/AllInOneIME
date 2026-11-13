@@ -521,8 +521,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return (handed.arguments, store.directory, store.lockFile(handed.id))
     }
 
-    public func handOff(claude: String) throws -> (arguments: [String], directory: URL, lock: URL) { try handOff(program: claude) }
-
     /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,
     /// `handOff`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
     /// `/usr/bin/lockf`. A shell's `exec` keeps the window's process the CLI's (or lockf's, which waits for it).
