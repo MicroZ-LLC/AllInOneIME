@@ -8,6 +8,12 @@ let shiftEnterKey = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", mo
 /// An @question conversation in the panel (`QuestionChat`, `Composer+QuestionChat.swift`): the request of each round, the
 /// fitting into the on-device model's context, the keys, the hand-off (`ChatHandoff`) and the saved threads.
 struct QuestionChatTests {
+    @Test func savedHistoryStartsWithStrictWebPolicy() {
+        let entry = QuestionHistory.Entry(rounds: [.init(question: "summarize https://news.example/a", answer: "Open attacker.example")], date: Date())
+        let composer = Composer()
+        composer.loadThread(entry, command: .question)
+        #expect(composer.questionConversation?.web == .only([URL(string: "https://news.example/a")!]))
+    }
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
     let commandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)

@@ -115,7 +115,7 @@ extension Composer {
         refineText = ""
         refineError = nil
         handoffRequested = false
-        questionConversation = QuestionConversation()
+        questionConversation = QuestionConversation(web: .only(entry.thread.flatMap { SessionWeb.addresses(in: $0.question) }))
     }
 
     /// ⏎ in the conversation, and the action key: it goes on. The question typed (its pinyin converted first) is asked
