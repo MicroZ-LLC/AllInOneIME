@@ -37,11 +37,21 @@ public protocol SessionBackend: Sendable {
     func signedIn(line: Data) -> Bool?
     /// Whether that command's exit `status` and `output` say it is signed in; nil: can't tell.
     func signedIn(status: Int32, output: Data) -> Bool?
-    /// What Terminal runs to go on in the session (the hand-off), `program` being where the agent is.
-    func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String]
+    /// What Terminal runs to go on in the session (the hand-off), `program` being where the agent is. `followUp`: the
+    /// next question, typed with ⌘⏎, goes after these as the last argument, its first message (`TerminalLauncher.agent`,
+    /// as after `AgentKind.terminalArguments`): they end with what makes it that message, the agent interactive after it,
+    /// whatever it starts with: "--" (Claude Code, Codex, Kiro CLI: no option after it), Gemini CLI's "-i" (a prompt
+    /// alone it answers once and exits).
+    func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool, followUp: Bool) -> [String]
 }
 
 extension SessionBackend {
+    /// What Terminal runs to go on in the session with a follow-up (`terminalArguments(…followUp: true)`): the
+    /// follow-up is appended as the last argument.
+    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
+        terminalArguments(program: program, sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, followUp: true)
+    }
+
     public var environment: [String: String] { [:] }
     public func signedIn(environment: [String: String], home: URL) -> Bool? { nil }
     public var availabilityInput: [Data] { [] }
@@ -98,8 +108,9 @@ public struct ClaudeCodeBackend: SessionBackend {
 
     public func signedIn(status: Int32, output: Data) -> Bool? { ClaudeSession.signedIn(authStatus: output) }
 
-    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
-        ClaudeSession.terminalArguments(claude: program, sessionID: sessionID, resume: resume)
+    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool,
+                                  followUp: Bool) -> [String] {
+        ClaudeSession.terminalArguments(claude: program, sessionID: sessionID, resume: resume) + (followUp ? ["--"] : [])
     }
 }
 

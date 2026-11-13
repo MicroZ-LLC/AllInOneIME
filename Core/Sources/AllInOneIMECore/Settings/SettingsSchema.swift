@@ -524,7 +524,9 @@ struct SettingsSchema {
                        + QuestionBackend.sessionAgents.map { (Choice(QuestionBackend($0).rawValue, $0.sessionTitle), nil) }
                        + [(Choice(QuestionBackend.provider.rawValue, tr("AI 服务", "The AI provider")), nil)],
                    platforms: [.mac]), to: &fields) { value in
-            store.config.questionBackend = value.string.flatMap(QuestionBackend.init(rawValue:))
+            // The sessions' processes end (`SettingsStore.questionBackendChanged`): the one picked starts with the next
+            // question.
+            store.setQuestionBackend(value.string.flatMap(QuestionBackend.init(rawValue:)))
         }
         return fields
     }

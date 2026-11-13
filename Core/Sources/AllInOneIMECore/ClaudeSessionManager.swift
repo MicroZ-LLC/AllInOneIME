@@ -6,12 +6,18 @@ public protocol ClaudeSessionProcess: AnyObject, Sendable {
     func send(_ line: Data) throws
     /// Closes its standard input: nothing more is written (a command that reads it to its end goes on).
     func closeInput()
-    /// Ends it (and what it started).
+    /// Ends it (and what it started): asked to (SIGTERM).
     func terminate()
+    /// Ends it and what it started at once (SIGKILL): what `terminate` didn't end.
+    func kill()
+    /// Whether it, or anything it started, still runs.
+    var isRunning: Bool { get }
 }
 
 extension ClaudeSessionProcess {
     public func closeInput() {}
+    public func kill() { terminate() }
+    public var isRunning: Bool { false }
 }
 
 /// Starts the session's process: the real one (`ProcessClaudeSessionLauncher`), or a test's.
@@ -41,7 +47,12 @@ extension ClaudeSessionLauncher {
 /// Handing the session to Terminal (`handOff`) ends the process; while the Terminal one runs (its id in
 /// `ClaudeSessionStore.terminalPIDFile`), no process starts here and questions fail with `.openInTerminal`.
 /// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
-/// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends.
+/// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; so
+/// does one answering that says nothing more (not a line) for `answerIdleTimeout`, and one stopped while it answered
+/// that doesn't end within `interruptTimeout` (an agent deaf to the interrupt): the process is stuck, the next question
+/// starts it again. A question waiting behind one being answered waits `firstAnswerTimeout` at most, then fails with
+/// `.busy` (the provider answers). A process that ends before its session starts, twice, fails the question with
+/// `.failedToStart` (the provider answers) and the agent is `.cannotStart` until its sign-in is looked at again.
 /// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
 /// never stands for two values, and which answers the session saw (`missing`, `remember`).
 /// Whether the agent can answer at all (`availability`) is looked at only once the session could answer a question
@@ -50,8 +61,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// Without a question for this long, the process ends.
     public static let idleTimeout: Duration = .seconds(15 * 60)
     /// A question's longest wait for the first sign of its answer (the model's message starting; a web search after
-    /// that may take longer).
+    /// that may take longer), and a question's longest wait behind another being answered.
     public static let firstAnswerTimeout: Duration = .seconds(30)
+    /// Once the answer started, the longest time without a line of the process (a web page read, the model thinking
+    /// say something every few seconds).
+    public static let answerIdleTimeout: Duration = .seconds(180)
+    /// A turn stopped (Esc) while it answered: how long it has to end before its process counts as stuck.
+    public static let interruptTimeout: Duration = .seconds(5)
     /// The sign-in check's longest run; past it, it counts as signed out.
     public static let checkTimeout: Duration = .seconds(15)
     /// A sign-in check that didn't find the agent ready stands this long (seconds) before the next one may run.
@@ -64,6 +80,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private let idleTimeout: Duration
     private let clock: any Clock<Duration>
     private let firstAnswerTimeout: Duration
+    private let answerIdleTimeout: Duration
+    private let interruptTimeout: Duration
     private let answerClock: any Clock<Duration>
     private let isAlive: @Sendable (Int32) -> Bool
     private let userSettings: @Sendable () -> URL?
@@ -73,11 +91,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `isAlive`: whether a process id is a running process (the hand-off's Terminal one). `userSettings`: the user's
     /// Claude Code settings.json (`ClaudeSession.userSettingsFile`), whose provider settings the session gets; nil: none.
-    /// `answerClock`: what `firstAnswerTimeout` and `checkTimeout` are timed with; `uptime`: seconds, what
-    /// `recheckInterval` is. `store`: nil, the backend's own folder.
+    /// `answerClock`: what `firstAnswerTimeout`, `answerIdleTimeout`, `interruptTimeout` and `checkTimeout` are timed
+    /// with; `uptime`: seconds, what `recheckInterval` is. `store`: nil, the backend's own folder.
     public init(backend: any SessionBackend = ClaudeCodeBackend(), launcher: any ClaudeSessionLauncher, store: ClaudeSessionStore? = nil,
                 idleTimeout: Duration = ClaudeSessionManager.idleTimeout, clock: any Clock<Duration> = ContinuousClock(),
                 firstAnswerTimeout: Duration = ClaudeSessionManager.firstAnswerTimeout,
+                answerIdleTimeout: Duration = ClaudeSessionManager.answerIdleTimeout,
+                interruptTimeout: Duration = ClaudeSessionManager.interruptTimeout,
                 answerClock: any Clock<Duration> = ContinuousClock(),
                 isAlive: @escaping @Sendable (Int32) -> Bool = { _ in false },
                 userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() },
@@ -88,6 +108,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         self.idleTimeout = idleTimeout
         self.clock = clock
         self.firstAnswerTimeout = firstAnswerTimeout
+        self.answerIdleTimeout = answerIdleTimeout
+        self.interruptTimeout = interruptTimeout
         self.answerClock = answerClock
         self.isAlive = isAlive
         self.userSettings = userSettings
@@ -115,9 +137,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         var done = false
         /// Started again once already after the process couldn't start the session.
         var retried = false
-        /// Some sign of the answer came (the model's message started, text, the turn's end): no `firstAnswerTimeout`.
+        /// Some sign of the answer came (the model's message started, text, the turn's end): no `firstAnswerTimeout`,
+        /// `answerIdleTimeout` from then on.
         var answering = false
-        /// Ends it after `firstAnswerTimeout` without a sign of the answer; one per time it is written.
+        /// How long ago it was written; once it answers, since the process's latest line; once given up while it
+        /// answered, since then (`ClaudeSessionManager.mark`).
+        var since: @Sendable () -> Duration = { .zero }
+        /// Ends it when it is overdue (`overdue`), or, waiting, after `firstAnswerTimeout` behind one that answers.
         var watchdog: Task<Void, Never>?
         var attempt = 0
 
@@ -149,11 +175,13 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// When `availability` was last found (`uptime`), nil: never; the sign-in check running, if one is.
         var checkedAt: TimeInterval?
         var checking: Task<ClaudeSession.Availability, Never>?
+        /// The sign-in check's run, while its command runs (ended with the rest when the input method quits).
+        var signInCheck: SignInCheck?
     }
 
     /// What is done once the lock is let go (finishing a stream runs its consumer's code).
     private enum Action {
-        case send(any ClaudeSessionProcess, generation: Int, Data)
+        case send(any ClaudeSessionProcess, Data)
         case yield(AsyncThrowingStream<String, Error>.Continuation, String)
         case finish(AsyncThrowingStream<String, Error>.Continuation, Error?)
         case terminate(any ClaudeSessionProcess)
@@ -195,7 +223,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let found = await signInCheck()
         let now = uptime()
         return state.withLock { state in
-            (state.availability, state.checkedAt, state.checking) = (found, now, nil)
+            (state.availability, state.checkedAt, state.checking, state.signInCheck) = (found, now, nil, nil)
             return found
         }
     }
@@ -213,6 +241,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let (backend, launcher, directory, clock) = (backend, launcher, store.directory, answerClock)
         return await withCheckedContinuation { continuation in
             let check = SignInCheck(backend: backend, continuation: continuation)
+            state.withLock { $0.signInCheck = check }
             do {
                 let process = try launcher.start(arguments, in: directory, output: { check.line($0) },
                                                  exited: { status, _ in check.exited(status) })
@@ -272,8 +301,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             }
             let actions = state.withLock { state -> [Action] in
                 if terminalOpen() { return [.finish(continuation, ClaudeSessionError.openInTerminal)] }
-                state.turns.append(Turn(id: id, message: question, continuation: continuation))
-                return pump(&state)
+                let turn = Turn(id: id, message: question, continuation: continuation)
+                state.turns.append(turn)
+                let actions = pump(&state)
+                // Behind one being answered: it waits so long at most.
+                if !turn.sent, state.turns.first?.answering == true { waitAtMost(turn) }
+                return actions
             }
             perform(actions)
         }
@@ -283,19 +316,20 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     public func interrupt() {
         let actions = state.withLock { state -> [Action] in
             guard let turn = state.turns.first, turn.sent, !turn.done else { return [] }
-            turn.done = true
+            givenUp(turn)
             return [.finish(turn.continuation, CancellationError())] + interruptAction(&state)
         }
         perform(actions)
     }
 
     /// Hands the session to Terminal: the process ends (a question being answered stops), and what Terminal is to run
-    /// (`SessionBackend.terminalArguments`, `program` being where the agent is) in the session's folder.
-    public func handOff(program: String) throws -> (arguments: [String], directory: URL) {
+    /// (`SessionBackend.terminalArguments`, `program` being where the agent is) in the session's folder; `followUp`: a
+    /// follow-up goes after them as the last argument.
+    public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL) {
         stop()
         let id = try store.sessionID()
         return (backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
-                                          resume: store.resumable), store.directory)
+                                          resume: store.resumable, followUp: followUp), store.directory)
     }
 
     public func handOff(claude: String) throws -> (arguments: [String], directory: URL) { try handOff(program: claude) }
@@ -313,6 +347,23 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return turns.filter { !$0.done }.map { .finish($0.continuation, CancellationError()) } + (process.map { [.terminate($0)] } ?? [])
         }
         perform(actions)
+    }
+
+    /// Ends the processes of `managers` and what each started, a sign-in check's too: the input method quits (an
+    /// update, logging out). Each is asked to end, then what is left after `grace` seconds is killed; returns once
+    /// they're gone, or then.
+    public static func stop(_ managers: [ClaudeSessionManager], grace: TimeInterval) {
+        let processes = managers.flatMap { $0.end() }
+        let deadline = Date().addingTimeInterval(grace)
+        while Date() < deadline, processes.contains(where: \.isRunning) { Thread.sleep(forTimeInterval: 0.02) }
+        for process in processes { process.kill() }
+    }
+
+    /// `stop`, and the sign-in check's command ended too: the processes asked to end.
+    private func end() -> [any ClaudeSessionProcess] {
+        let (process, check) = state.withLock { ($0.running?.process, $0.signInCheck) }
+        stop()
+        return [process, check?.end()].compactMap { $0 }
     }
 
     /// A new session from now on ("start over" in the settings): the process ends, a new id is made.
@@ -431,7 +482,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                                              exited: { [weak self] in self?.exited(generation: generation, status: $0, message: $1) })
             let running = Running(process: process, driver: driver, generation: generation, resume: resume)
             state.running = running
-            return (running, driver.opening().map { .send(process, generation: generation, $0) })
+            return (running, driver.opening().map { .send(process, $0) })
         } catch ClaudeSessionError.notInstalled {
             (state.availability, state.checkedAt) = (.notInstalled, uptime())
             throw ClaudeSessionError.notInstalled
@@ -456,27 +507,69 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle = nil
         turn.sent = true
         watch(turn)
-        return opening + running.driver.message(turn.message).map { .send(running.process, generation: running.generation, $0) }
+        return opening + running.driver.message(turn.message).map { .send(running.process, $0) }
     }
 
-    /// `turn`, just written, fails with `.noResponse` unless a sign of its answer comes within `firstAnswerTimeout`.
+    /// Now on `answerClock`, as how long ago it is (`Turn.since`).
+    private func mark() -> @Sendable () -> Duration { Self.mark(answerClock) }
+
+    private static func mark<C: Clock<Duration>>(_ clock: C) -> @Sendable () -> Duration {
+        let start = clock.now
+        return { start.duration(to: clock.now) }
+    }
+
+    /// `turn`, just written, is watched: it fails with `.noResponse` unless a sign of its answer comes within
+    /// `firstAnswerTimeout` (then `overdue`).
     private func watch(_ turn: Turn) {
-        turn.watchdog?.cancel()
         turn.answering = false
+        turn.since = mark()
+        rewatch(turn)
+    }
+
+    /// `turn`'s watchdog started (again): it wakes when the turn may be overdue (`overdue`), and again until it ends.
+    private func rewatch(_ turn: Turn) {
+        turn.watchdog?.cancel()
         turn.attempt += 1
-        let (id, attempt, clock, timeout) = (turn.id, turn.attempt, answerClock, firstAnswerTimeout)
+        let (id, attempt, clock, first) = (turn.id, turn.attempt, answerClock, left(turn))
         turn.watchdog = Task { [weak self] in
-            do { try await clock.sleep(for: timeout) } catch { return }
-            self?.noResponse(id, attempt: attempt)
+            var wait = first
+            while true {
+                do { try await clock.sleep(for: wait) } catch { return }
+                guard let next = self?.overdue(id, attempt: attempt) else { return }
+                wait = next
+            }
         }
     }
 
-    /// No sign of the answer to the turn `id` in time: it fails (falling back) and the process ends; the next question
-    /// starts one again.
-    private func noResponse(_ id: Int, attempt: Int) {
+    /// How long the sent `turn` may still take before it is overdue: its first sign within `firstAnswerTimeout` of being
+    /// written, then a line at least each `answerIdleTimeout`; given up while it answered, its end within
+    /// `interruptTimeout`.
+    private func left(_ turn: Turn) -> Duration {
+        let limit = !turn.answering ? firstAnswerTimeout : turn.done ? interruptTimeout : answerIdleTimeout
+        return limit - turn.since()
+    }
+
+    /// `turn` (sent) was given up (Esc): once it answers, it has `interruptTimeout` to end.
+    private func givenUp(_ turn: Turn) {
+        turn.done = true
+        guard turn.answering else { return }
+        turn.since = mark()
+        rewatch(turn)
+    }
+
+    /// The watchdog of the turn `id` woke: how much longer it waits (nil: no longer), or, the turn overdue (no sign of
+    /// its answer, its answer stalled, deaf to the interrupt), the turn fails (falling back, while none of the answer
+    /// came) and the process, stuck, ends; the next question starts one again.
+    private func overdue(_ id: Int, attempt: Int) -> Duration? {
+        var wait: Duration?
         let actions = state.withLock { state -> [Action] in
-            guard let turn = state.turns.first, turn.id == id, turn.attempt == attempt, turn.sent, !turn.answering,
+            guard let turn = state.turns.first, turn.id == id, turn.attempt == attempt, turn.sent,
                   let running = state.running else { return [] }
+            let left = left(turn)
+            guard left <= .zero else {
+                wait = left
+                return []
+            }
             state.turns.removeFirst()
             state.running = nil  // its exit is of no session now
             state.idle?.cancel()
@@ -484,6 +577,31 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, ClaudeSessionError.noResponse)]
             turn.done = true
             return failure + [.terminate(running.process)] + pump(&state)
+        }
+        perform(actions)
+        return wait
+    }
+
+    /// `turn`, waiting behind one being answered, fails with `.busy` (the provider answers) unless it is sent within
+    /// `firstAnswerTimeout` (`watch` replaces this watchdog).
+    private func waitAtMost(_ turn: Turn) {
+        guard turn.watchdog == nil, !turn.sent, !turn.done else { return }
+        turn.attempt += 1
+        let (id, attempt, clock, timeout) = (turn.id, turn.attempt, answerClock, firstAnswerTimeout)
+        turn.watchdog = Task { [weak self] in
+            do { try await clock.sleep(for: timeout) } catch { return }
+            self?.waitedTooLong(id, attempt: attempt)
+        }
+    }
+
+    private func waitedTooLong(_ id: Int, attempt: Int) {
+        let actions = state.withLock { state -> [Action] in
+            guard let index = state.turns.firstIndex(where: { $0.id == id }) else { return [] }
+            let turn = state.turns[index]
+            guard turn.attempt == attempt, !turn.sent, !turn.done else { return [] }
+            state.turns.remove(at: index)
+            turn.done = true
+            return [.finish(turn.continuation, ClaudeSessionError.busy)]
         }
         perform(actions)
     }
@@ -511,7 +629,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     private func interruptAction(_ state: inout State) -> [Action] {
         guard let running = state.running else { return [] }
-        return running.driver.interrupt().map { .send(running.process, generation: running.generation, $0) }
+        return running.driver.interrupt().map { .send(running.process, $0) }
     }
 
     /// The turn `id`'s stream was given up: interrupted if it's being answered, else dropped.
@@ -520,23 +638,28 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             guard let index = state.turns.firstIndex(where: { $0.id == id }) else { return [] }
             let turn = state.turns[index]
             guard !turn.done else { return [] }
-            turn.done = true
             guard turn.sent else {
+                turn.done = true
+                turn.watchdog?.cancel()
                 state.turns.remove(at: index)
                 return []
             }
+            givenUp(turn)
             return interruptAction(&state)
         }
         perform(actions)
     }
 
-    /// A line of the process's output: what it says (`SessionDriver.received`), and the lines written back.
+    /// A line of the process's output: what it says (`SessionDriver.received`), and the lines written back. Each line
+    /// while a turn answers puts its `answerIdleTimeout` off.
     private func received(_ line: Data, generation: Int) {
         let actions = state.withLock { state -> [Action] in
             guard let running = state.running, running.generation == generation else { return [] }
             let (events, replies) = running.driver.received(line)
-            return replies.map { .send(running.process, generation: generation, $0) }
+            let actions = replies.map { .send(running.process, $0) }
                 + events.flatMap { handle($0, generation: generation, &state) }
+            if let turn = state.turns.first, turn.sent, turn.answering, !turn.done { turn.since = mark() }
+            return actions
         }
         perform(actions)
     }
@@ -547,8 +670,14 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let turn = state.turns.first.flatMap { $0.sent ? $0 : nil }
         switch event {
         case .messageStarted, .text, .apiError, .result, .working:
-            turn?.answering = true
-            turn?.watchdog?.cancel()
+            // Answering from now on: `answerIdleTimeout` (`interruptTimeout`, given up already); the questions waiting
+            // behind it wait `firstAnswerTimeout` at most.
+            if let turn, !turn.answering {
+                turn.answering = true
+                turn.since = mark()
+                if turn.done { rewatch(turn) }
+                for waiting in state.turns.dropFirst() { waitAtMost(waiting) }
+            }
         default:
             break
         }
@@ -579,6 +708,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return []
         case let .failed(error, endsProcess):
             if error == .signedOut { (state.availability, state.checkedAt) = (.signedOut, uptime()) }
+            // Not to be asked as it is (not kept to the web): Automatic passes it by until it is looked at again.
+            if error == .notWebOnly { (state.availability, state.checkedAt) = (.cannotStart, uptime()) }
             var actions: [Action] = []
             if let turn {
                 state.turns.removeFirst()
@@ -599,6 +730,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             // A failure before the session started is the start's: its exit says what to do (`exited`).
             guard running.started, let turn else { return [] }
             state.turns.removeFirst()
+            turn.watchdog?.cancel()
             var actions: [Action] = []
             if !isError { state.availability = .ready }
             if !turn.done {
@@ -650,8 +782,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 return pump(&state)
             }
             state.turns.removeFirst()
-            // Credentials Claude Code couldn't get (an `awsCredentialExport` that failed) end it before it answers.
-            let error = ClaudeSessionError.isAWSCredentialError(message) ? ClaudeSessionError.awsSignInExpired : .exited(status, message)
+            let error: ClaudeSessionError
+            if ClaudeSessionError.isAWSCredentialError(message) {
+                // Credentials Claude Code couldn't get (an `awsCredentialExport` that failed) end it before it answers.
+                error = .awsSignInExpired
+            } else if !running.started, turn.retried {
+                // Ended twice before its session started: it can't start (an older version that doesn't know a flag, a
+                // broken install). The provider answers, saying why; Automatic passes it by until it is looked at again.
+                (state.availability, state.checkedAt) = (.cannotStart, uptime())
+                error = .failedToStart(status, message)
+            } else {
+                error = .exited(status, message)
+            }
             let failure: [Action] = turn.done ? [] : [.finish(turn.continuation, error)]
             return failure + pump(&state)
         }
@@ -661,12 +803,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private func perform(_ actions: [Action]) {
         for action in actions {
             switch action {
-            case let .send(process, generation, line):
-                do {
-                    try process.send(line)
-                } catch {
-                    exited(generation: generation, status: -1, message: error.localizedDescription)
-                }
+            case let .send(process, line):
+                // It can't be written to (it ended, or closed its input): ended, its exit says the rest (`exited`, with
+                // its status and what it said on stderr).
+                do { try process.send(line) } catch { process.terminate() }
             case let .yield(continuation, text):
                 continuation.yield(text)
             case let .finish(continuation, error?):
@@ -683,8 +823,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 // MARK: - The real process
 
 /// Starts `claude` with the core's `ProcessLauncher` (`Platform.current.processes`): its standard input and output
-/// piped, the output read line by line on a thread of its own. `executable`: where `claude` is (nil: not installed);
-/// `environment`: what it runs with (on the Mac the login shell's); `processes`: nil, the platform's as it starts.
+/// piped, the output read line by line on a thread of its own; its end told by its termination handler
+/// (`LaunchSpec.onExit`), never `waitUntilExit` on a dispatch thread, which sometimes never returns (a program that
+/// exited would count as running: a sign-in check found signed out, a question waiting for a process long gone).
+/// `executable`: where `claude` is (nil: not installed); `environment`: what it runs with (on the Mac the login shell's);
+/// `processes`: nil, the platform's as it starts.
 public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
     public var processes: (any ProcessLauncher)?
     public var executable: @Sendable () -> URL?
@@ -706,19 +849,22 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         let processes = processes ?? Platform.current.processes
         guard processes.canLaunch, let executable = executable() else { throw ClaudeSessionError.notInstalled }
         let input = Pipe(), out = Pipe(), errors = Pipe()
+        let ended = DispatchSemaphore(value: 0)
         let launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment(),
                                                        directory: directory, standardInput: .pipe(input),
-                                                       standardOutput: .pipe(out), standardError: .pipe(errors)))
+                                                       standardOutput: .pipe(out), standardError: .pipe(errors),
+                                                       onExit: { _ in ended.signal() }))
         let errorTail = Locked(initialState: Data())
         let errorsRead = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
+        // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes).
+        Thread.detachNewThread {
             let handle = errors.fileHandleForReading
             while case let chunk = handle.availableData, !chunk.isEmpty {
                 errorTail.withLock { $0 = ($0 + chunk).suffix(600) }
             }
             errorsRead.signal()
         }
-        DispatchQueue.global().async {
+        Thread.detachNewThread {
             let handle = out.fileHandleForReading
             var buffer = Data()
             while case let chunk = handle.availableData, !chunk.isEmpty {
@@ -729,7 +875,7 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
                     if !line.isEmpty { output(Data(line)) }
                 }
             }
-            launched.waitUntilExit()
+            ended.wait()
             _ = errorsRead.wait(timeout: .now() + 2)
             let message = String(decoding: errorTail.withLock { $0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
             exited(launched.terminationStatus, String(message.split(whereSeparator: \.isNewline).last ?? ""))
@@ -768,6 +914,13 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
         closeInput()
         process.terminate()
     }
+
+    func kill() {
+        closeInput()
+        process.kill()
+    }
+
+    var isRunning: Bool { process.treeIsRunning }
 }
 
 /// One run of a session's sign-in check (`ClaudeSessionManager.signInCheck`): what says first counts (a line of its
@@ -817,6 +970,13 @@ private final class SignInCheck: @unchecked Sendable {
     func exited(_ status: Int32) {
         let output = state.withLock { $0.output }
         finish(backend.signedIn(status: status, output: output) == true ? .ready : .signedOut)
+    }
+
+    /// Ended now (the input method quits): the command asked to end, returned (nil: none running).
+    func end() -> (any ClaudeSessionProcess)? {
+        let process = state.withLock { $0.process }
+        finish(.unknown)
+        return process
     }
 
     func finish(_ availability: ClaudeSession.Availability) {

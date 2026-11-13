@@ -20,7 +20,9 @@ import Foundation
 ///   Terminal (the hand-off) has the environment, and reads the file.
 /// - An MCP server it reaches over the network (`url`) still starts: each one `config/read` lists is turned off in the
 ///   thread's `config` (`enabled` false, given with its `url` or `command`, without which Codex rejects the config).
-/// - The thread's name is its title in Codex's own list; `codex resume AllInOneIME` opens it by that name.
+///   When `config/read` fails, which ones isn't known: the session isn't asked (`ClaudeSessionError.notWebOnly`).
+/// - The thread's name is its title in Codex's own list; `codex resume AllInOneIME` opens it by that name. A follow-up
+///   (the hand-off's) goes after "--": `codex resume <thread> -- <follow-up>`.
 /// - The answer comes as `item/agentMessage/delta` notifications (`delta`, per `itemId`: a new item after a tool starts
 ///   the answer again); the turn ends with `turn/completed`, its `turn.status` "completed", "interrupted" or "failed"
 ///   (`turn.error`: `message`, `codexErrorInfo`). `turn/start`'s response has the turn's id, which `turn/interrupt` takes.
@@ -90,8 +92,9 @@ public struct CodexBackend: SessionBackend {
 
     public func signedIn(status: Int32, output: Data) -> Bool? { nil }
 
-    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
-        [program] + (agentSessionID.map { ["resume", $0] } ?? [])
+    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool,
+                                  followUp: Bool) -> [String] {
+        [program] + (agentSessionID.map { ["resume", $0] } ?? []) + (followUp ? ["--"] : [])
     }
 }
 
@@ -243,8 +246,12 @@ final class CodexDriver: SessionDriver {
             if let failure { return ([.failed(failure, endsProcess: true)], []) }
             return ([], [Self.line(["method": "initialized"]), request(.config, "config/read", ["cwd": directory.path])])
         case .config:
-            // Unread (an error): the thread opens without it (no MCP server on this Mac can start anyway).
-            config = Self.mcpServersOff(result?["config"] as? [String: Any])
+            // Unread (an error, or no config in the answer): which MCP servers to turn off isn't known, and one reached
+            // over the network would start: not asked (the provider answers, saying why).
+            guard failure == nil, let read = result?["config"] as? [String: Any] else {
+                return ([.failed(.notWebOnly, endsProcess: true)], [])
+            }
+            config = Self.mcpServersOff(read)
             if let threadID {
                 return ([], [request(.resume, "thread/resume", threadParams.merging(["threadId": threadID]) { $1 })])
             }

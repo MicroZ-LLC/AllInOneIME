@@ -3437,6 +3437,53 @@
         }
       }
     },
+    "%@ couldn't be limited to reading the web, so it wasn't asked" : {
+      "comment" : "没法让 %@ 只读网页，所以没有问它 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ließ sich nicht auf das Lesen des Webs beschränken und wurde deshalb nicht gefragt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo limitar %@ a leer la web, así que no se le preguntó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ n’a pas pu être limité à la lecture du Web : il n’a donc pas été interrogé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ をウェブの閲覧だけに制限できなかったため、質問しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 웹 읽기로만 제한할 수 없어 묻지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível limitar o %@ a ler a web, então ele não foi consultado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讓 %@ 只讀取網頁，所以沒有問它"
+          }
+        }
+      }
+    },
     "%@ d" : {
       "comment" : "%@ 天 — Sources/AllInOneIMECore/Suggestions/SuggestionsSettings.swift",
       "localizations" : {
@@ -48955,6 +49002,53 @@
         }
       }
     },
+    "The %@ session couldn't start" : {
+      "comment" : "%@ 会话启动不了 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die %@-Sitzung konnte nicht starten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de %@ no pudo iniciarse"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session %@ n’a pas pu démarrer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ セッションを開始できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 세션을 시작할 수 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do %@ não pôde ser iniciada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 工作階段無法啟動"
+          }
+        }
+      }
+    },
     "The %@ session didn't respond" : {
       "comment" : "%@ 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift",
       "localizations" : {
@@ -49045,6 +49139,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 工作階段出錯"
+          }
+        }
+      }
+    },
+    "The %@ session is still answering an earlier question" : {
+      "comment" : "%@ 会话还在回答之前的问题 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die %@-Sitzung beantwortet noch eine frühere Frage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de %@ aún está respondiendo una pregunta anterior"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session %@ répond encore à une question précédente"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ セッションはまだ前の質問に回答しています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 세션이 아직 이전 질문에 답하고 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do %@ ainda está respondendo a uma pergunta anterior"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 工作階段還在回答之前的問題"
           }
         }
       }

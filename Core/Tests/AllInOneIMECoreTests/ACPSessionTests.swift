@@ -188,7 +188,7 @@ struct ACPSessionTests {
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]])
         try respond(process, "session/load", error: ["code": -32603, "message": "Session not found"])
-        try respond(process, "session/new", result: ["sessionId": "sess_2"])
+        try respond(process, "session/new", result: ["sessionId": "sess_2", "modes": ["currentModeId": ACPBackend.kiroMode]])
         #expect(prompts(process) == ["hi"] && store.agentSessionID() == "sess_2")
         chunk(process, "Hello", session: "sess_2")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])

@@ -520,7 +520,13 @@ final class ICloudSyncController: ObservableObject {
             let fd = open(key.path, O_EVTONLY)
             guard fd >= 0 else { return nil }
             let source = DispatchSource.makeFileSystemObjectSource(fileDescriptor: fd, eventMask: [.write, .rename, .delete], queue: .main)
-            source.setEventHandler { MainActor.assumeIsolated { ICloudSyncController.shared.changed() } }
+            source.setEventHandler {
+                MainActor.assumeIsolated {
+                    ICloudSyncController.shared.changed()
+                    // The config file saved (Settings, an editor): the questions' sessions follow it at once.
+                    ClaudeSessionMac.followConfig()
+                }
+            }
             source.setCancelHandler { close(fd) }
             source.resume()
             return source

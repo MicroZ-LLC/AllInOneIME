@@ -253,8 +253,11 @@ struct QuestionSessionBackendsTests {
         #expect(backend.environment == ["CODEX_EXEC_SERVER_URL": "none"])
         // The sign-in check and Codex in Terminal (the hand-off: the user's own Codex) as they were.
         #expect(backend.availabilityArguments(settings: nil) == ["app-server"])
-        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true)
+        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true, followUp: false)
             == ["/u/codex", "resume", "019a"])
+        // A follow-up after "--": one starting with "-" is no option.
+        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true)
+            == ["/u/codex", "resume", "019a", "--"])
     }
 
     @Test func codexTurnsTheUsersMCPServersOffAndHasTheFoldersInstructions() async throws {
@@ -299,20 +302,19 @@ struct QuestionSessionBackendsTests {
         #expect(await collect(next).error == nil)
     }
 
-    @Test func codexOpensTheThreadWhenItsConfigCantBeRead() async throws {
+    @Test func codexIsNotAskedWhenItsConfigCantBeRead() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
         let stream = session.ask("hi")
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["userAgent": "test"])
         try respond(process, "config/read", error: ["code": -32603, "message": "failed to read config"])
-        let start = params(process, "thread/start")
-        #expect(start["config"] == nil && start["developerInstructions"] as? String == ClaudeSession.instructions)
-        try respond(process, "thread/start", result: ["thread": ["id": "019a-thread", "turns": []]])
-        try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
-        delta(process, "Hi.")
-        completed(process)
-        #expect(await collect(stream).answers == ["Hi."])
+        // Which MCP servers to turn off isn't known (one reached over the network would start): no thread; the provider
+        // answers, saying why.
+        let got = await collect(stream)
+        #expect(got.error as? ClaudeSessionError == .notWebOnly && ClaudeSessionError.notWebOnly.fallsBack)
+        #expect(requests(process, "thread/start").isEmpty && process.terminated)
+        #expect(session.availability == .cannotStart)
     }
 
     // MARK: - The sign-in checks
@@ -425,9 +427,12 @@ struct QuestionSessionBackendsTests {
         #expect(backend.files.first?.content == ClaudeSession.instructions)
         #expect(backend.environment == ["GEMINI_CLI_NO_RELAUNCH": "true"])
         #expect(backend.directory.lastPathComponent == "gemini-session")
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c-uuid", resume: true)
+        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c-uuid", resume: true, followUp: false)
             == ["/u/gemini", "--resume", "4f1c-uuid"])
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: nil, resume: false) == ["/u/gemini"])
+        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: nil, resume: false, followUp: false)
+            == ["/u/gemini"])
+        // A follow-up as `-i`'s value: interactive after it.
+        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: nil, resume: false) == ["/u/gemini", "-i"])
         // Its check reads files: nothing is started (a Google login gone stale would open a browser).
         let fake = FakeClaude()
         var base = backend
@@ -479,7 +484,7 @@ struct QuestionSessionBackendsTests {
         #expect(process.arguments.suffix(2) == ["--policy", file.path])
         #expect(try String(contentsOf: file, encoding: .utf8) == ACPBackend.geminiPolicy)
         // In Terminal (the hand-off) it is the user's own Gemini CLI.
-        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c", resume: true)
+        #expect(backend.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c", resume: true, followUp: false)
             == ["/u/gemini", "--resume", "4f1c"])
         session.interrupt()
         _ = await collect(stream)

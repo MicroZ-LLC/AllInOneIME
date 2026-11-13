@@ -6,11 +6,13 @@ import Foundation
 /// (`SessionAgent`): Claude Code's (`ClaudeSession`, `claude` where Terminal finds it or on the login shell's PATH, with
 /// the provider settings of the user's Claude Code settings, CLAUDE_CONFIG_DIR as that environment says), Codex's
 /// (`CodexBackend`, `codex app-server`), Gemini CLI's (`ACPBackend.gemini`, `gemini --acp`) and Kiro CLI's
-/// (`ACPBackend.kiro`, `kiro-cli acp`), each on the login shell's PATH and with its environment (and what the agent needs
-/// in it: `SessionBackend.environment`). Whether each can answer (the default for `@question`) is looked at the first
-/// time a question could go to it (`ClaudeSessionManager.checkAvailability`: `claude auth status` with the session's own
-/// flags in its folder, Codex's `account/read`, Gemini CLI's settings and files, `kiro-cli whoami`), and when Settings
-/// shows them; never at launch.
+/// (`ACPBackend.kiro`, `kiro-cli acp`), each on the login shell's PATH and with its environment: the variables of the
+/// login shell the agent needs (`SessionAgent.environmentVariables`: CLAUDE_CONFIG_DIR, CODEX_HOME, GEMINI_API_KEY …,
+/// never logged) and what the agent needs in it (`SessionBackend.environment`). Whether each can answer (the default for
+/// `@question`) is looked at the first time a question could go to it (`ClaudeSessionManager.checkAvailability`:
+/// `claude auth status` with the session's own flags in its folder, Codex's `account/read`, Gemini CLI's settings and
+/// files, `kiro-cli whoami`), and when Settings shows the choice with a session or Automatic picked (or one is picked
+/// there); never at launch, nor with the AI provider picked.
 /// Handing one to Terminal (⌘⏎ in an @question conversation) ends our process and runs `claude --resume <id>`,
 /// `codex resume <thread>`, `gemini --resume <id>` or `kiro-cli chat --resume-id <id>` in the session's folder; that
 /// process's id goes in `ClaudeSessionStore.terminalPIDFile`, so that no process of ours starts on the session while it
@@ -19,7 +21,7 @@ enum ClaudeSessionMac {
     static let manager = ClaudeSessionManager(
         launcher: launcher(ClaudeCodeBackend(), executable: { claudeURL }),
         isAlive: { kill($0, 0) == 0 },
-        userSettings: { ClaudeSession.userSettingsFile(environment: ShellEnvironment.current) })
+        userSettings: { ClaudeSession.userSettingsFile(environment: environment(.claude)) })
 
     static let codex = session(CodexBackend())
     static let gemini = session(ACPBackend.gemini)
@@ -35,9 +37,14 @@ enum ClaudeSessionMac {
 
     /// Starts the agent with the login shell's environment and what the agent needs in it.
     private static func launcher(_ backend: any SessionBackend, executable: @escaping @Sendable () -> URL?) -> ProcessClaudeSessionLauncher {
-        let extra = backend.environment
+        let (agent, extra) = (backend.agent, backend.environment)
         return ProcessClaudeSessionLauncher(executable: executable,
-                                            environment: { ShellEnvironment.current.merging(extra) { $1 } })
+                                            environment: { environment(agent).merging(extra) { $1 } })
+    }
+
+    /// The login shell's environment with what of it `agent` needs (`SessionAgent.environmentVariables`).
+    private static func environment(_ agent: SessionAgent) -> [String: String] {
+        ShellEnvironment.current(with: agent.environmentVariables)
     }
 
     /// Where `claude` is, nil when it isn't installed.
@@ -70,6 +77,19 @@ enum ClaudeSessionMac {
         }
     }
 
+    /// Where `@question` goes was changed in Settings' settings document (the pane's picker does the same): every
+    /// session's process ends (with a question it was answering), and the next question starts the one picked.
+    static func backendChanged() {
+        for session in managers.values { session.stop() }
+    }
+
+    /// The sessions follow the config file as it is now (`Converter.questionSessionsFollow`): another backend picked
+    /// in it (by hand, by another Mac's settings), the old one's process ends at once. Main thread (`LiveConfig`).
+    static func followConfig() {
+        guard let config = LiveConfig.currentIfValid else { return }
+        sharedConverter.questionSessionsFollow(config)
+    }
+
     /// The agent whose session `@question` goes to with `config` (`Config.questionSessionAgent`, as the converter
     /// decides it), nil: the provider.
     static func sessionAgent(_ config: Config) -> SessionAgent? {
@@ -77,12 +97,12 @@ enum ClaudeSessionMac {
     }
 
     /// Opens the session the questions go to in a Terminal window: our process ends, the agent resumes it in the
-    /// session's folder, the next question typed (if any) as its first message. The script writes its process id first
-    /// (`exec` keeps it).
+    /// session's folder, the next question typed (if any) as its first message, interactive after it (after "--", or
+    /// Gemini CLI's "-i": `SessionBackend.terminalArguments`). The script writes its process id first (`exec` keeps it).
     static func handOff(followUp: String) throws {
         let session = manager((try? Config.load()).flatMap(sessionAgent) ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
-        let (arguments, directory) = try session.handOff(program: program.path)
+        let (arguments, directory) = try session.handOff(program: program.path, followUp: !followUp.isEmpty)
         let pidFile = session.store.terminalPIDFile.path
         let argv = ["/bin/sh", "-c", "printf '%s' $$ > \"$1\"; shift; exec \"$@\"", "sh", pidFile] + arguments
         if followUp.isEmpty {

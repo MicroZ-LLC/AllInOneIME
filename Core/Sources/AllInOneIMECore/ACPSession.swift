@@ -13,7 +13,8 @@ import Foundation
 ///   replays it as `session/update`s first, before its response: not part of any answer). Unknown ids load as new ones.
 /// - The folder's `.kiro/steering/*.md` are read (and the user's ~/.kiro/steering too: there is no way to leave those
 ///   out); its `.kiro/agents/allinoneime.json` (`kiroAgent`) is offered as the mode "allinoneime", which has only the
-///   web tools, allowed without asking, and no MCP servers.
+///   web tools, allowed without asking, and no MCP servers. A Kiro that doesn't offer it (or won't switch to it) isn't
+///   asked: its default agent has the file tools (`ClaudeSessionError.notWebOnly`, the provider answers).
 /// - Signed out: `session/new` fails with -32000 "Authentication required …"; `kiro-cli whoami` exits 1.
 /// - ACP has no session title, and Kiro gives none: the session is found by its folder (`kiro-cli chat --resume` there
 ///   opens the latest session of the folder, the input method's).
@@ -34,6 +35,7 @@ import Foundation
 ///   that tier, above every rule the user's settings make (`tools.allowed`, trusted MCP servers …): only an
 ///   administrator's policies come before it. `--allowed-mcp-server-names` with a name no server has: none of the
 ///   user's MCP servers starts. In Terminal (the hand-off) Gemini CLI has none of these: the file isn't where it looks.
+///   A follow-up goes there as `-i`'s value: a prompt alone Gemini CLI answers once and exits.
 /// - The folder's GEMINI.md is read (and the user's ~/.gemini/GEMINI.md too: there is no way to leave that out).
 /// - Signed out: `session/new` and `session/load` fail with -32000 ("Gemini API key is missing or not configured.",
 ///   "Authentication required"). There is no command that says whether it is signed in, and starting it with a Google
@@ -51,9 +53,11 @@ public struct ACPBackend: SessionBackend {
     public var files: [SessionFile]
     /// The command that exits 0 when signed in.
     public var availability: [String]
-    /// What Terminal runs after the program: `resume` + the agent's id of the session, `start` when there's none yet.
+    /// What Terminal runs after the program: `resume` + the agent's id of the session, `start` when there's none yet;
+    /// then `followUp` before a follow-up (`SessionBackend.terminalArguments`).
     public var resume: [String]
     public var start: [String]
+    public var followUp: [String]
     /// The data folder, the sessions' parent (tests: their own).
     public var base: URL?
     /// What the agent's process needs in its environment besides the user's.
@@ -63,7 +67,7 @@ public struct ACPBackend: SessionBackend {
     public var signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)?
 
     public init(agent: SessionAgent, folderName: String, launch: [String], mode: String? = nil, files: [SessionFile] = [],
-                availability: [String], resume: [String], start: [String], base: URL? = nil,
+                availability: [String], resume: [String], start: [String], followUp: [String] = ["--"], base: URL? = nil,
                 environment: [String: String] = [:],
                 signIn: (@Sendable (_ environment: [String: String], _ home: URL) -> Bool)? = nil) {
         self.agent = agent
@@ -74,6 +78,7 @@ public struct ACPBackend: SessionBackend {
         self.availability = availability
         self.resume = resume
         self.start = start
+        self.followUp = followUp
         self.base = base
         self.environment = environment
         self.signIn = signIn
@@ -136,7 +141,7 @@ public struct ACPBackend: SessionBackend {
                  "--policy", "./allinoneime-policy.toml"],
         files: [SessionFile(path: "GEMINI.md", content: ClaudeSession.instructions),
                 SessionFile(path: "allinoneime-policy.toml", content: geminiPolicy)],
-        availability: [], resume: ["--resume"], start: [],
+        availability: [], resume: ["--resume"], start: [], followUp: ["-i"],
         environment: ["GEMINI_CLI_NO_RELAUNCH": "true"], signIn: geminiSignedIn)
 
     /// Whether Gemini CLI is signed in, as its settings and files say (in `home`, or the GEMINI_CLI_HOME of
@@ -198,8 +203,9 @@ public struct ACPBackend: SessionBackend {
 
     public func signedIn(status: Int32, output: Data) -> Bool? { status == 0 }
 
-    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
-        [program] + (agentSessionID.map { self.resume + [$0] } ?? start)
+    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool,
+                                  followUp: Bool) -> [String] {
+        [program] + (agentSessionID.map { self.resume + [$0] } ?? start) + (followUp ? self.followUp : [])
     }
 }
 
@@ -315,6 +321,8 @@ final class ACPDriver: SessionDriver {
             let (events, replies) = opened(result)
             return ([.sessionID(id)] + events, replies)
         case .setMode:
+            // Not in its mode: not asked in the agent's default one.
+            if failure != nil { return ([.failed(.notWebOnly, endsProcess: true)], []) }
             return becameReady()
         case .prompt:
             prompting = false
@@ -324,14 +332,15 @@ final class ACPDriver: SessionDriver {
         }
     }
 
-    /// The session is open: into its mode first, when the agent offers it and it isn't in it.
+    /// The session is open: into its mode first when it isn't in it. An agent that doesn't offer the mode (or says no
+    /// modes at all) isn't asked: the session would run in its default one, with more tools than the web.
     private func opened(_ result: [String: Any]?) -> (events: [ClaudeSession.Event], replies: [Data]) {
+        guard let mode else { return becameReady() }
         let modes = result?["modes"] as? [String: Any]
+        if modes?["currentModeId"] as? String == mode { return becameReady() }
         let offered = (modes?["availableModes"] as? [[String: Any]] ?? []).compactMap { $0["id"] as? String }
-        if let mode, let agentSessionID, offered.contains(mode), modes?["currentModeId"] as? String != mode {
-            return ([], [request(.setMode, "session/set_mode", ["sessionId": agentSessionID, "modeId": mode])])
-        }
-        return becameReady()
+        guard offered.contains(mode), let agentSessionID else { return ([.failed(.notWebOnly, endsProcess: true)], []) }
+        return ([], [request(.setMode, "session/set_mode", ["sessionId": agentSessionID, "modeId": mode])])
     }
 
     private func becameReady() -> (events: [ClaudeSession.Event], replies: [Data]) {

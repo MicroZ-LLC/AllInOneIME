@@ -64,6 +64,7 @@ public final class Converter: Sendable {
     /// Only a session never looked at is waited for; one found not ready is looked at again meanwhile, for the next
     /// question (no more than once a minute), so that a question never waits for an agent known to be signed out.
     public func questionSessionChecked(_ config: Config) async -> ClaudeSessionManager? {
+        questionSessionsFollow(config)  // another backend picked since: the old one's process ends
         for agent in config.questionSessionCandidates {
             guard let session = questionSessions[agent] else { continue }
             var availability = session.availability
@@ -75,6 +76,36 @@ public final class Converter: Sendable {
             if availability == .ready { break }
         }
         return questionSession(config)
+    }
+
+    /// Where questions went when last looked at (`questionSessionsFollow`, `questionSessionChecked`): the backend picked,
+    /// or Automatic with @agent's agent.
+    private let questionChoice = Locked<String?>(initialState: nil)
+
+    /// Notes where `config` sends questions; whether that changed since the last note (false the first time).
+    private func note(_ config: Config) -> Bool {
+        let choice = config.questionBackend?.rawValue ?? "automatic:\(config.agent.rawValue)"
+        return questionChoice.withLock { last -> Bool in
+            defer { last = choice }
+            return last != nil && last != choice
+        }
+    }
+
+    /// The sessions follow `config` (read anew: Settings, its settings document, the file edited by hand): when where
+    /// questions go changed since it was last looked at (here, or as a question or its prewarm picked a session), every
+    /// session's process but the one questions go to now ends at once, with what it was answering, rather than staying
+    /// up for `ClaudeSessionManager.idleTimeout`. The first look only notes it (no session was started before).
+    public func questionSessionsFollow(_ config: Config) {
+        guard note(config) else { return }
+        let current = questionSessionAgent(config)
+        for (agent, session) in questionSessions where agent != current { session.stop() }
+    }
+
+    /// Ends every question session's process and what it started, and a sign-in check running: the input method
+    /// quits (an update, logging out). Asked to end, then killed after `grace` seconds
+    /// (`ClaudeSessionManager.stop(_:grace:)`); returns once they're gone, or then.
+    public func stopQuestionSessions(grace: TimeInterval = CommandRunner.stopGrace) {
+        ClaudeSessionManager.stop(Array(questionSessions.values), grace: grace)
     }
 
     public init(
@@ -219,6 +250,8 @@ public final class Converter: Sendable {
         let chat = command == .question && !turns.isEmpty
         // The session picked for questions (`Config.questionSessionAgent`) answers, unless it can't (below).
         let session = command == .question ? await questionSessionChecked(config) : nil
+        // Given up (Esc) while the sign-in was looked at: nothing goes to the agent (or the provider).
+        try Task.checkCancellation()
         // The rounds of the conversation the session didn't see (the provider answered them, or they are from the saved
         // history), told it with the question.
         let missing = session?.missing(Array(QuestionChat.rounds(first: input, turns: turns, latest: nil).dropLast())) ?? []
@@ -326,6 +359,7 @@ public final class Converter: Sendable {
         }
         var text = ""
         var firstToken: TimeInterval?
+        try Task.checkCancellation()  // given up: not sent
         do {
             for try await answered in session.ask(message) {
                 text = answered

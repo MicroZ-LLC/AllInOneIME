@@ -191,7 +191,9 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         MainActor.assumeIsolated { SettingsWindow.shared.save() }  // what was typed in Settings without ⏎
-        CommandRunner.stopAll()  // what script extensions started doesn't outlive the input method
+        // What script extensions started, and the questions' sessions (each agent's process and what it started), don't
+        // outlive the input method: stopped side by side, half a second at most.
+        DispatchQueue.concurrentPerform(iterations: 2) { $0 == 0 ? CommandRunner.stopAll() : sharedConverter.stopQuestionSessions() }
         SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
         WeekStatsShared.store.flushNow()  // this week's counts not written yet
     }
@@ -199,10 +201,11 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 
 /// SIGTERM (an update, `make install`, logging out): what was typed in the settings window without ⏎ (a model ID, the
 /// region) is saved first, as closing the window saves it (`SettingsWindow.save`, on the main thread, waited for at
-/// most half a second), the programs running for script extensions, and what they started, are stopped
-/// (`CommandRunner.stopAll`, at most half a second), the English words learned and the candidates removed not written
-/// yet go into the config file (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the
-/// signal's default would end it. Handled on a queue of its own, not in a signal handler and not on the main thread: a
+/// most half a second), the programs running for script extensions and the questions' sessions' agents, and what they
+/// started, are stopped (`CommandRunner.stopAll`, `Converter.stopQuestionSessions`, side by side, at most half a
+/// second), the English words learned and the candidates removed not written yet go into the config file
+/// (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the signal's default would end
+/// it. Handled on a queue of its own, not in a signal handler and not on the main thread: a
 /// main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
@@ -215,7 +218,7 @@ private let terminationSignal: DispatchSourceSignal = {
             saved.signal()
         }
         _ = saved.wait(timeout: .now() + 0.5)
-        CommandRunner.stopAll()
+        DispatchQueue.concurrentPerform(iterations: 2) { $0 == 0 ? CommandRunner.stopAll() : sharedConverter.stopQuestionSessions() }
         SessionServices.englishWordsWriter.drain(within: 0.5)
         WeekStatsShared.store.flushNow()
         _exit(0)
@@ -295,10 +298,12 @@ func runServer(showSettings: Bool = false) -> Never {
     LiveConfig.parsedAnew = { SessionServices.englishWordsWriter.retry() }
     // This week's stats: the user's own commands deleted or renamed keep no name there, now and each time the config
     // file is read anew (`WeekStatsShared.keepOwnCommands`).
+    // The questions' sessions follow it too: another backend picked in the file, the old one's process ends.
     let retryEnglishWords = LiveConfig.parsedAnew
     LiveConfig.parsedAnew = {
         retryEnglishWords()
         WeekStatsShared.keepOwnCommands()
+        sharedConverter.questionSessionsFollow(LiveConfig.current)
     }
     WeekStatsShared.keepOwnCommands()
     // Translate as You Type goes off when another app becomes active, a text field in it or not.

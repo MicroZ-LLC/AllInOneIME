@@ -211,7 +211,7 @@ public enum ClaudeSession {
     }
 
     /// What Terminal runs to go on in the session (the hand-off): Claude Code, interactive, on the same session, with all
-    /// of its history (`--session-id` while it has none yet).
+    /// of its history (`--session-id` while it has none yet). A follow-up goes after "--" (`ClaudeCodeBackend`).
     public static func terminalArguments(claude: String, sessionID: String, resume: Bool) -> [String] {
         [claude] + (resume ? ["--resume", sessionID] : ["--session-id", sessionID])
     }
@@ -316,6 +316,10 @@ public enum ClaudeSession {
         case ready
         case notInstalled
         case signedOut
+        /// Its session couldn't be used when a question was asked: the process ended before the session started (an
+        /// older version that doesn't know a flag), or it couldn't be kept to the web (`ClaudeSessionError.notWebOnly`).
+        /// Automatic passes it by until its sign-in is looked at again.
+        case cannotStart
     }
 }
 
@@ -336,6 +340,15 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     case noResponse
     /// The session is open in Terminal (handed off): never two processes on one session.
     case openInTerminal
+    /// The process ended before its session started, tried twice (status, what it last said on stderr): an older
+    /// Claude Code that doesn't know `--name`, a broken install.
+    case failedToStart(Int32, String)
+    /// The agent couldn't be kept to reading the web, so it wasn't asked: Kiro CLI without the input method's agent
+    /// (`ACPBackend.kiroMode`), Codex whose config couldn't be read (the MCP servers to turn off unknown).
+    case notWebOnly
+    /// A question waited `ClaudeSessionManager.firstAnswerTimeout` for an earlier one the session is still answering
+    /// (or that it didn't stop when asked to).
+    case busy
     /// The process ended while it answered (status, what it last said on stderr).
     case exited(Int32, String)
     /// The turn failed some other way (Claude Code's message).
@@ -343,7 +356,9 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
 
     public var fallsBack: Bool {
         switch self {
-        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .openInTerminal: return true
+        case .notInstalled, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .openInTerminal, .failedToStart,
+             .notWebOnly, .busy:
+            return true
         case .exited, .failed: return false
         }
     }
@@ -371,6 +386,12 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
             return tr("\(short) 会话没有回应", "The \(short) session didn't respond")
         case .openInTerminal:
             return tr("输入法的 \(short) 会话正在终端里打开着", "The input method's \(short) session is open in Terminal")
+        case let .failedToStart(status, message):
+            return tr("\(short) 会话启动不了", "The \(short) session couldn't start") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
+        case .notWebOnly:
+            return tr("没法让 \(name) 只读网页，所以没有问它", "\(name) couldn't be limited to reading the web, so it wasn't asked")
+        case .busy:
+            return tr("\(short) 会话还在回答之前的问题", "The \(short) session is still answering an earlier question")
         case let .exited(status, message):
             return tr("\(short) 会话意外退出", "The \(short) session quit unexpectedly") + " (\(status))" + (message.isEmpty ? "" : ": \(message)")
         case let .failed(message):

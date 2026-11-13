@@ -47,6 +47,40 @@ public enum SessionAgent: String, Codable, CaseIterable, Sendable {
     /// The program it runs: `claude`, `codex`, `gemini`, `kiro-cli`.
     public var program: String { agentKind?.program() ?? "codex" }
 
+    /// The variables of the user's login shell its session's process needs besides PATH (an input method started by
+    /// launchd has none of them): where its settings are, its API key or token, the provider and model it uses, a
+    /// proxy. Passed on as they are (`ShellEnvironment.current(with:)` on the Mac), never logged.
+    public var environmentVariables: [String] {
+        let proxy = ["HTTPS_PROXY", "HTTP_PROXY", "ALL_PROXY", "NO_PROXY", "https_proxy", "http_proxy", "all_proxy",
+                     "no_proxy", "NODE_EXTRA_CA_CERTS", "SSL_CERT_FILE"]
+        let aws = ["AWS_PROFILE"] + AWSEnvironment.variables
+        switch self {
+        case .claude:
+            return ["CLAUDE_CONFIG_DIR", "ANTHROPIC_API_KEY", "ANTHROPIC_AUTH_TOKEN", "ANTHROPIC_BASE_URL", "ANTHROPIC_MODEL",
+                    "ANTHROPIC_SMALL_FAST_MODEL", "ANTHROPIC_DEFAULT_OPUS_MODEL", "ANTHROPIC_DEFAULT_SONNET_MODEL",
+                    "ANTHROPIC_DEFAULT_HAIKU_MODEL", "ANTHROPIC_CUSTOM_HEADERS", "CLAUDE_CODE_OAUTH_TOKEN",
+                    "CLAUDE_CODE_USE_BEDROCK", "CLAUDE_CODE_USE_VERTEX", "CLAUDE_CODE_USE_FOUNDRY", "ANTHROPIC_BEDROCK_BASE_URL",
+                    "AWS_BEARER_TOKEN_BEDROCK", "ANTHROPIC_VERTEX_PROJECT_ID", "ANTHROPIC_VERTEX_BASE_URL", "CLOUD_ML_REGION",
+                    "ANTHROPIC_FOUNDRY_API_KEY", "ANTHROPIC_FOUNDRY_RESOURCE", "ANTHROPIC_FOUNDRY_BASE_URL",
+                    "GOOGLE_APPLICATION_CREDENTIALS"] + aws + proxy
+        case .codex:
+            return ["CODEX_HOME", "CODEX_API_KEY", "OPENAI_API_KEY", "OPENAI_BASE_URL", "OPENAI_ORGANIZATION", "OPENAI_PROJECT",
+                    "AZURE_OPENAI_API_KEY"] + aws + proxy
+        case .gemini:
+            return ["GEMINI_CLI_HOME", "GEMINI_API_KEY", "GOOGLE_API_KEY", "GOOGLE_CLOUD_PROJECT", "GOOGLE_CLOUD_PROJECT_ID",
+                    "GOOGLE_CLOUD_LOCATION", "GOOGLE_GENAI_USE_VERTEXAI", "GOOGLE_GENAI_USE_GCA", "GOOGLE_APPLICATION_CREDENTIALS",
+                    "GOOGLE_GEMINI_BASE_URL", "GEMINI_MODEL", "CLOUDSDK_CONFIG"] + proxy
+        case .kiro:
+            return ["KIRO_API_KEY"] + aws + proxy
+        }
+    }
+
+    /// Every agent's `environmentVariables`, each once.
+    public static var environmentVariables: [String] {
+        var seen = Set<String>()
+        return allCases.flatMap(\.environmentVariables).filter { seen.insert($0).inserted }
+    }
+
     /// What the user runs in Terminal to sign in (Claude Code's is its own words: `ClaudeSessionError`).
     var signIn: String {
         switch self {

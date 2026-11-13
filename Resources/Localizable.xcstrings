@@ -142,6 +142,53 @@
         }
       }
     },
+    " — can't start" : {
+      "comment" : " — 启动不了 — Sources/AllInOneIME/ClaudeSessionSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — startet nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — no se puede iniciar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — ne démarre pas"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 起動できません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 시작할 수 없음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — não inicia"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " — 無法啟動"
+          }
+        }
+      }
+    },
     " — claude isn't installed" : {
       "comment" : " — 没装 claude — Sources/AllInOneIME/ClaudeSessionSettings.swift",
       "extractionState" : "stale",

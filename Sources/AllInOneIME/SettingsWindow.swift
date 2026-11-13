@@ -118,6 +118,9 @@ final class SettingsModel: ObservableObject {
         if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
         observation = store.observe { [weak self] _ in self?.objectWillChange.send() }
         store.questionsForgotten = { [weak self] in self?.forgetQuestions() }
+        // Another backend for @question picked in the settings document: the sessions' processes end, the next question
+        // starts the one picked (as the pane's picker does, `QuestionBackendSettings`).
+        store.questionBackendChanged = { [weak self] in if self?.persists == true { ClaudeSessionMac.backendChanged() } }
     }
 
     var canSave: Bool { store.canSave }
