@@ -277,7 +277,7 @@ public struct Redaction: Sendable {
               let kind = Self.kind(named: text.substring(with: match.range(at: 1))),
               match.numberOfRanges == 3 || Self.looksPlaceholder(match, in: text),
               !texts.contains(where: { $0.original.contains(token) }) else { return nil }
-        return hidden.first { $0.kind == kind && $0.number == number }?.value
+        return hidden.first { $0.kind == kind && $0.number == number && used.contains($0.placeholder) }?.value
     }
 
     /// Whether a bracketed match is a placeholder rather than words in brackets ("(item 1)"): in square brackets,

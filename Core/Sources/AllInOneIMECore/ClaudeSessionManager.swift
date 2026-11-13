@@ -648,7 +648,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// it as the request goes in), so that a later question there never gives one of its placeholders another value.
     public func redacting<T>(_ settings: RedactionSettings, for request: Request,
                              _ body: (inout Redaction?) -> T) -> (redaction: Redaction?, result: T) {
-        let done = redacting(settings, body)
+        let done: (redaction: Redaction?, result: T)
+        if request.continues {
+            done = redacting(settings, body)
+        } else {
+            // A new panel conversation must not inherit values hidden in another one.
+            var fresh = Redaction(settings)
+            let result = body(&fresh)
+            done = (fresh, result)
+        }
         if let redaction = done.redaction {
             state.withLock { _ in request.turn.hidden = (redaction.numbers, redaction.hidden) }
         }

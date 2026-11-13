@@ -196,23 +196,46 @@ struct QuestionSessionRequestTests {
         let one = try #require(fake.last)
         one.started()
         one.text("Sent")
-        // Another conversation, made while the first is answered: numbered on, and kept for the one it goes into.
+        // Another conversation starts numbering afresh; its follow-up continues from that map.
         let panel = QuestionConversation()
         let second = session.request(panel)
         #expect(!second.continues)
-        #expect(hide("and b@two.com", second) == "and [EMAIL_2]")
-        let asked = second.ask("and [EMAIL_2]")
+        #expect(hide("and b@two.com", second) == "and [EMAIL_1]")
+        let asked = second.ask("and [EMAIL_1]")
         one.done("Sent.")
         _ = await collect(answering)
         let two = try #require(fake.last)
-        #expect(two.messages == ["and [EMAIL_2]"] && conversation(two) != conversation(one))
+        #expect(two.messages == ["and [EMAIL_1]"] && conversation(two) != conversation(one))
         two.started()
         two.done("OK.")
         _ = await collect(asked)
         let followUp = session.request(panel)
         #expect(followUp.continues)
-        #expect(hide("now c@three.com", followUp) == "now [EMAIL_3]", "a placeholder of the conversation given to another value")
+        #expect(hide("now c@three.com", followUp) == "now [EMAIL_2]", "a placeholder of the conversation given to another value")
     }
+
+    @Test func placeholdersStayWithinTheirConversation() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        let first = session.request(QuestionConversation())
+        let hidden = session.redacting(settings, for: first) { redaction in redaction?.hide("secret@company.com") ?? "" }
+        #expect(hidden.result == "[EMAIL_1]")
+        let stream = first.ask(hidden.result)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("ok")
+        _ = await collect(stream)
+        let second = session.request(QuestionConversation())
+        let fresh = session.redacting(settings, for: second) { redaction in
+            redaction?.hide("Write [EMAIL_1] literally") ?? ""
+        }
+        #expect(fresh.result == "Write [EMAIL_1] literally")
+        #expect(fresh.redaction?.restore("[EMAIL_1]") == "[EMAIL_1]")
+    }
+
+
 
     // MARK: - Codex and ACP agents
 
