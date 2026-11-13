@@ -36,12 +36,18 @@ struct QuestionSessionMacAcceptanceTests {
         let section = try #require(readme.range(of: "To open the session yourself").map { String(readme[$0.lowerBound...].prefix(1500)) })
         #expect(section.contains("claude-session") && section.contains("claude --resume AllInOneIME"), "Claude Code")
         #expect(section.contains("codex resume AllInOneIME"), "Codex")
-        #expect(section.contains("gemini-session") && section.contains("gemini --resume"), "Gemini CLI")
+        // Antigravity's CLI in Gemini CLI's place: its folder, and agy resuming there (the folder's latest conversation,
+        // `agy --continue`, or one by its id, `agy --conversation`).
+        #expect(section.contains("antigravity-session") && (section.contains("agy --continue") || section.contains("agy --conversation")),
+                "Antigravity")
+        #expect(!section.contains("gemini-session") && !section.contains("gemini --resume"), "Gemini CLI's session is gone")
         #expect(section.contains("kiro-session") && section.contains("kiro-cli chat --resume"), "Kiro CLI")
         let chinese = try read("README.zh-CN.md")
-        for needle in ["claude --resume AllInOneIME", "codex resume AllInOneIME", "gemini-session", "kiro-session", "kiro-cli chat --resume"] {
+        for needle in ["claude --resume AllInOneIME", "codex resume AllInOneIME", "antigravity-session", "kiro-session", "kiro-cli chat --resume"] {
             #expect(chinese.contains(needle), "README.zh-CN.md: \(needle)")
         }
+        #expect(chinese.contains("agy --continue") || chinese.contains("agy --conversation"), "README.zh-CN.md: agy")
+        #expect(!chinese.contains("gemini-session"), "README.zh-CN.md: Gemini CLI's session is gone")
     }
 
     // MARK: - 2. When the sign-in is looked at
@@ -64,20 +70,47 @@ struct QuestionSessionMacAcceptanceTests {
         #expect(!main.contains("ClaudeSessionMac"), "launch touches the sessions")
     }
 
-    /// Opening Settings (its @question pane appearing) looks again, forced, at every agent.
-    @Test func openingSettingsForcesALook() throws {
+    /// Settings → AI looks at a CLI's sign-in as last found (`ClaudeSessionManager.checkAvailability()`, cached: signed in
+    /// for the launch, anything else for a minute), never forced, and only there: the page opening looks at the CLI chosen
+    /// alone; the cards opened (Change ▾) look at every CLI; with a provider chosen and the cards closed, at none; never at
+    /// launch (`nothingLooksAtTheSignInAtLaunch`).
+    @Test func openingTheAIPageLooksAtTheChosenCLIAsLastFound() throws {
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        let appear = try #require(settings.range(of: ".onAppear").map { String(settings[$0.lowerBound...].prefix(300)) })
-        #expect(appear.contains("ClaudeSessionMac.checkAvailability"))
+        // The page opening: a provider chosen (no CLI) and the cards closed, nothing; else the CLI chosen alone (every CLI
+        // only with the cards open), not forced.
+        let appear = try #require(settings.range(of: ".onAppear").map { String(settings[$0.lowerBound...].prefix(600)) })
+        let appearBody = appear[..<(appear.range(of: ".onChange")?.lowerBound ?? appear.endIndex)]
+        let look = try #require(appearBody.range(of: "ClaudeSessionMac.checkAvailability("))
+        let before = appearBody[..<look.lowerBound]
+        #expect(before.contains("guard") && before.contains("choosing") && before.contains("ai.agent != nil"), "\(before)")
+        #expect(before.contains("choosing ? SessionAgent.allCases : [model.config.ai.agent]"), "the page opening looks at more than the CLI chosen: \(before)")
+        let call = appearBody[look.lowerBound...].prefix { $0 != "\n" }
+        #expect(!call.contains("force"), "the page opening forces a look: \(call)")
+        // The cards opened: every CLI, as last found.
+        let change = try #require(settings.range(of: ".onChange(of: choosing)").map { String(settings[$0.lowerBound...].prefix(120)) })
+        #expect(change.contains("if choosing") && change.contains("refreshSessions()") && !change.contains("force: true"), "\(change)")
+        let refresh = try #require(settings.range(of: "func refreshSessions(").map { String(settings[$0.lowerBound...].prefix(400)) })
+        #expect(refresh.contains("force: Bool = false") && refresh.contains("checkAvailability(SessionAgent.allCases, force: force)"),
+                "\(refresh)")
+        // Nothing asks for a forced look at a sign-in.
+        for (name, code) in try inputMethodSources() {
+            #expect(!code.contains("refreshSessions(force: true)"), "\(name) forces a look at the sign-ins")
+            for line in code.split(separator: "\n") where line.contains("ClaudeSessionMac.checkAvailability(") {
+                #expect(!line.contains("force: true"), "\(name) forces a look at a sign-in: \(line)")
+            }
+        }
+        // The Mac's look: as last found unless forced.
         let mac = try code("Sources/AllInOneIME/ClaudeSessionMac.swift")
-        let check = try #require(mac.range(of: "static func checkAvailability").map { String(mac[$0.lowerBound...].prefix(700)) })
-        #expect(check.contains("checkAvailability(force: true)") && check.contains("managers"))
+        let check = try #require(mac.range(of: "static func checkAvailability").map { String(mac[$0.lowerBound...].prefix(900)) })
+        #expect(check.contains("force: Bool = false") && check.contains("managers"), "\(check)")
+        #expect(check.contains("force ? session.checkAvailability(force: true) : session.checkAvailability()"), "\(check)")
     }
 
     // MARK: - 5. What each session's process gets
 
     /// Every session's process is started with what its agent needs in its environment (Codex's
-    /// CODEX_EXEC_SERVER_URL=none, Gemini CLI's GEMINI_CLI_NO_RELAUNCH).
+    /// CODEX_EXEC_SERVER_URL=none, Antigravity's ALLINONEIME_SESSION, which its folder's hook goes by). Only the session's
+    /// process: the hand-off to Terminal (the user's own agy) isn't given it.
     @Test func everySessionGetsItsAgentsEnvironment() throws {
         let mac = try code("Sources/AllInOneIME/ClaudeSessionMac.swift")
         let launcher = try #require(mac.range(of: "private static func launcher").map { String(mac[$0.lowerBound...].prefix(500)) })
@@ -85,9 +118,16 @@ struct QuestionSessionMacAcceptanceTests {
         #expect(mac.contains("launcher: launcher(ClaudeCodeBackend()"))
         let session = try #require(mac.range(of: "private static func session").map { String(mac[$0.lowerBound...].prefix(400)) })
         #expect(session.contains("launcher(backend"))
-        for backend in ["CodexBackend()", "ACPBackend.gemini", "ACPBackend.kiro"] {
+        for backend in ["CodexBackend()", "AntigravityBackend()", "ACPBackend.kiro"] {
             #expect(mac.contains("session(\(backend))"), "\(backend)")
         }
+        #expect(!mac.contains("ACPBackend.gemini"), "Gemini CLI's session is still started")
+        // The variable is the core's (AntigravityBackend.environment): nothing of the Mac's sets it, the hand-off included.
+        for (name, code) in try inputMethodSources() {
+            #expect(!code.contains("ALLINONEIME_SESSION") && !code.contains("sessionVariable"), "\(name) sets the session's variable")
+        }
+        let handOff = try #require(mac.range(of: "static func handOff(").map { String(mac[$0.lowerBound...].prefix(1200)) })
+        #expect(!handOff.contains("environment"), "the hand-off is given an environment of the session's: \(handOff)")
     }
 
     /// The user's own Gemini CLI and Codex settings are never written: nothing in the sources names them as a file to write.

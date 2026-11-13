@@ -6,8 +6,9 @@ import Testing
 @testable import AllInOneIMECore
 
 // Acceptance tests for 0.7.4's `@question` session (written from the spec, not from the implementation):
-// 1. One choice of AI (Settings → AI), by how it connects: the subscription CLIs (Claude Code, Codex, Gemini CLI, Kiro
-//    CLI), an API key (Claude API, OpenAI-compatible, Gemini API), cloud (Bedrock, AllInOneIME Cloud), on-device (Apple).
+// 1. One choice of AI (Settings → AI), by how it connects: the subscription CLIs (Claude Code, Codex, Google
+//    Antigravity's CLI `agy` (in Gemini CLI's place, owner's decision), Kiro CLI), an API key (Claude API,
+//    OpenAI-compatible, Gemini API), cloud (Bedrock, AllInOneIME Cloud), on-device (Apple).
 //    No Automatic: nothing set is the AI provider. A CLI chosen: @question goes to that CLI's long-running session (a
 //    CLI that can't start or isn't signed in falls back with why); what has to be fast (rewriting, translating,
 //    autocomplete) goes to the provider set up, else Apple's on-device model, else autocomplete is off and a writing task
@@ -17,25 +18,29 @@ import Testing
 //    forces a look); a question never waits for a look.
 // 3. The process starts only for an @question row typed, picked or highlighted; never for the magic key alone, in an app
 //    with No AI, or during secure input.
-// 4. The session is named AllInOneIME (Claude's --name and fixed id, Codex's thread name; Gemini's and Kiro's folder).
-// 5. Every backend may read the web only.
+// 4. The session is named AllInOneIME (Claude's --name and fixed id, Codex's thread name; Antigravity's and Kiro's
+//    folder).
+// 5. Every backend may read the web only (Antigravity: `agy acp --agent allinoneime --disable-telemetry` in its folder
+//    antigravity-session, web search only, as agy has no page-open tool; with the web off, agent allinoneime-offline with
+//    no tools; a PreToolUse hook in the folder denies every tool but search_web while ALLINONEIME_SESSION is set; a stray
+//    tool ends the process and the provider answers with why). The web is decided per request, in every backend.
 // 6. Esc interrupts the answer; what the agent asks is always denied.
 //
-// The agents are fake CLIs: small Python scripts named claude, codex, gemini and kiro-cli in a folder of the test's,
+// The agents are fake CLIs: small Python scripts named claude, codex, agy and kiro-cli in a folder of the test's,
 // started through the real launcher (`ProcessClaudeSessionLauncher` over `FoundationProcessLauncher`), which log their
 // arguments, folder, environment and every line they read.
 
-/// Fake `claude`, `codex`, `gemini` and `kiro-cli`, each a real program speaking its agent's protocol.
+/// Fake `claude`, `codex`, `agy` and `kiro-cli`, each a real program speaking its agent's protocol.
 final class FakeAgentCLIs: @unchecked Sendable {
     let root: URL
     let bin: URL
     let logs: URL
-    /// The fake user's home: GEMINI_CLI_HOME and CODEX_HOME point into it.
+    /// The fake user's home (HOME): CODEX_HOME points into it; the user's ~/.gemini is in it (`userGeminiConfig`).
     let home: URL
     private let settings = Locked<[String: String]>(initialState: [:])
     private let removed = Locked<Set<String>>(initialState: [])
 
-    static let programs = ["claude", "codex", "gemini", "kiro-cli"]
+    static let programs = ["claude", "codex", "agy", "kiro-cli"]
 
     init() throws {
         root = FileManager.default.temporaryDirectory.appendingPathComponent("aio-accept-\(UUID().uuidString)", isDirectory: true)
@@ -53,7 +58,9 @@ final class FakeAgentCLIs: @unchecked Sendable {
     /// A behavior of the fakes: FAKE_SIGNED_OUT, FAKE_HANG (an answer that stops after "Partial" until interrupted),
     /// FAKE_IGNORE_INTERRUPT, FAKE_PERMISSION, FAKE_FAIL_START, FAKE_AUTH_SLOW (`claude auth status` takes 8 s), FAKE_NO_MODE
     /// (Kiro offers no agent of the input method's), FAKE_SLOW_OPEN (Codex's `thread/start`, an ACP agent's `session/new` and
-    /// `session/load` answered after 3 s), FAKE_SLOW_ANSWER (Claude Code answers a message after 2 s), each a
+    /// `session/load` answered after 3 s), FAKE_SLOW_ANSWER (Claude Code answers a message after 2 s), FAKE_STRAY_TOOL (agy
+    /// runs a shell command, `run_command`, that completes, before answering), FAKE_STRAY_AFTER_TEXT (the same after the
+    /// first words of its answer), FAKE_WEB_SEARCH (agy searches the web, `search_web`, before answering), each a
     /// comma-separated list of programs.
     func set(_ name: String, _ programs: [String]) {
         settings.withLock { $0[name] = programs.joined(separator: ",") }
@@ -71,7 +78,7 @@ final class FakeAgentCLIs: @unchecked Sendable {
 
     var environment: [String: String] {
         let behavior = settings.withLock { $0 }
-        return ["PATH": "/usr/bin:/bin", "HOME": home.path, "FAKE_LOG": logs.path, "GEMINI_CLI_HOME": home.path,
+        return ["PATH": "/usr/bin:/bin", "HOME": home.path, "FAKE_LOG": logs.path,
                 "CODEX_HOME": home.appendingPathComponent(".codex").path, "LANG": "en_US.UTF-8"].merging(behavior) { $1 }
     }
 
@@ -122,8 +129,7 @@ final class FakeAgentCLIs: @unchecked Sendable {
             let argv = start["argv"] as? [String] ?? []
             switch program {
             case "claude": return argv.contains("-p")
-            case "kiro-cli": return argv.first == "acp"
-            case "gemini": return argv.contains("--acp")
+            case "kiro-cli", "agy": return argv.first == "acp"
             default: return true  // codex: the session's server (a check is a server too: see `checks`)
             }
         }
@@ -179,6 +185,23 @@ final class FakeAgentCLIs: @unchecked Sendable {
         }
     }
 
+    /// The agent's id of `program`'s `n`th conversation (from 1, across its runs): agy's a UUID, as agy's own ids are;
+    /// the other ACP agents' "sess_fake_<n>".
+    static func sessionID(_ program: String, _ n: Int) -> String {
+        program == "agy" ? String(format: "%08d-aaaa-4bbb-8ccc-000000000000", n) : "sess_fake_\(n)"
+    }
+
+    /// Whether `program` is in the comma-separated list `value` (a FAKE_ setting).
+    static func listed(_ value: String?, _ program: String) -> Bool {
+        (value ?? "").split(separator: ",").contains { $0 == program }
+    }
+
+    /// Whether the process of `start` (`starts`) still runs.
+    static func isRunning(_ start: [String: Any]) -> Bool {
+        guard let pid = start["pid"] as? Int else { return false }
+        return kill(pid_t(pid), 0) == 0
+    }
+
     func cleanUp() { try? FileManager.default.removeItem(at: root) }
 
     /// The fakes. Each logs its start (argv, folder, a few environment variables, the descriptors it has open past 2) and
@@ -220,8 +243,34 @@ final class FakeAgentCLIs: @unchecked Sendable {
             except OSError:
                 pass
         return fds
-    keys = ["CODEX_EXEC_SERVER_URL", "GEMINI_CLI_NO_RELAUNCH", "GEMINI_CLI_HOME", "CODEX_HOME"]
-    log("start", argv=args, cwd=os.getcwd(), env={k: os.environ.get(k) for k in keys}, fds=open_fds())
+    keys = ["CODEX_EXEC_SERVER_URL", "CODEX_HOME", "HOME", "ALLINONEIME_SESSION"]
+    def agy_agent():
+        # As agy does with --agent: the folder's .agents/agents/<name>.md, its front matter's tools and mcpServers; an
+        # agent it can't find is its default one, with every tool, silently.
+        name = args[args.index("--agent") + 1] if "--agent" in args and args.index("--agent") + 1 < len(args) else None
+        if name is None:
+            return {"name": None, "found": False, "tools": ["*"], "mcpServers": ["*"]}
+        try:
+            text = open(os.path.join(os.getcwd(), ".agents", "agents", name + ".md")).read()
+        except OSError:
+            return {"name": name, "found": False, "tools": ["*"], "mcpServers": ["*"]}
+        front = text.split("---")[1] if text.startswith("---") else ""
+        found = {"name": name, "found": True, "tools": None, "mcpServers": None}
+        key = None
+        for line in front.split("\n"):
+            stripped = line.strip()
+            if stripped.startswith("- ") and key in ("tools", "mcpServers"):
+                found[key].append(stripped[2:].strip())
+                continue
+            key = None
+            for k in ("tools", "mcpServers"):
+                if line.startswith(k + ":"):
+                    rest = line[len(k) + 1:].strip()
+                    found[k] = [] if rest in ("", "[]") else [rest]
+                    key = k if rest == "" else None
+        return found
+    agent = agy_agent() if prog == "agy" else None
+    log("start", argv=args, cwd=os.getcwd(), env={k: os.environ.get(k) for k in keys}, fds=open_fds(), agent=agent)
     signed_out = listed("FAKE_SIGNED_OUT")
     hangs = listed("FAKE_HANG")
     asks = listed("FAKE_PERMISSION")
@@ -364,6 +413,9 @@ final class FakeAgentCLIs: @unchecked Sendable {
                 out({"id": i, "result": {}})
 
     def acp():
+        if prog == "agy" and args[:1] != ["acp"]:
+            log("exit", status=2)
+            sys.exit(2)
         if prog == "kiro-cli" and args[:1] == ["whoami"]:
             if signed_out:
                 sys.stderr.write("Not logged in\n")
@@ -372,7 +424,7 @@ final class FakeAgentCLIs: @unchecked Sendable {
             out({"email": "user@example.com"})
             log("exit", status=0)
             sys.exit(0)
-        if (prog == "kiro-cli" and args[:1] != ["acp"]) or (prog == "gemini" and "--acp" not in args):
+        if prog == "kiro-cli" and args[:1] != ["acp"]:
             log("exit", status=2)
             sys.exit(2)
         sid = None
@@ -389,9 +441,23 @@ final class FakeAgentCLIs: @unchecked Sendable {
                     pass
             return {"modes": {"currentModeId": "kiro_default",
                               "availableModes": [{"id": "kiro_default", "name": "Default"}] + [{"id": n, "name": n} for n in found]}}
+        def models():
+            # agy: its models, the default a slow one (session/set_model picks another).
+            if prog != "agy":
+                return {}
+            return {"models": {"currentModelId": "gemini-3.8-pro-high",
+                               "availableModels": [{"modelId": "gemini-3.8-pro-high", "name": "Gemini 3.8 Pro (High)"},
+                                                   {"modelId": "gemini-3.8-flash-low", "name": "Gemini 3.8 Flash (Low)"}]}}
         def chunk(t):
             return {"jsonrpc": "2.0", "method": "session/update",
                     "params": {"sessionId": sid, "update": {"sessionUpdate": "agent_message_chunk", "content": {"type": "text", "text": t}}}}
+        def tool(name, title, kind):
+            # A tool agy ran: its call, then its completion.
+            for status in ("pending", "completed"):
+                out({"jsonrpc": "2.0", "method": "session/update",
+                     "params": {"sessionId": sid, "update": {"sessionUpdate": "tool_call" if status == "pending" else "tool_call_update",
+                                                            "toolCallId": "call_" + name, "name": name, "title": title,
+                                                            "kind": kind, "status": status}}})
         for obj in lines():
             m = obj.get("method")
             i = obj.get("id")
@@ -405,12 +471,20 @@ final class FakeAgentCLIs: @unchecked Sendable {
                 if signed_out:
                     out({"jsonrpc": "2.0", "id": i, "error": {"code": -32000, "message": "Authentication required"}})
                     continue
-                sid = p.get("sessionId") if m == "session/load" else next_id("sess_fake_")
+                if m == "session/load":
+                    sid = p.get("sessionId")
+                elif prog == "agy":
+                    sid = "%08d-aaaa-4bbb-8ccc-000000000000" % int(next_id(""))
+                else:
+                    sid = next_id("sess_fake_")
                 result = modes()
+                result.update(models())
                 if m == "session/new":
                     result["sessionId"] = sid
                 out({"jsonrpc": "2.0", "id": i, "result": result})
-            elif m == "session/set_mode":
+            elif m == "session/set_mode" and prog == "kiro-cli":
+                out({"jsonrpc": "2.0", "id": i, "result": {}})
+            elif m == "session/set_model" and prog == "agy":
                 out({"jsonrpc": "2.0", "id": i, "result": {}})
             elif m == "session/prompt":
                 text = p["prompt"][0]["text"]
@@ -425,7 +499,14 @@ final class FakeAgentCLIs: @unchecked Sendable {
                     out(chunk("Partial"))
                     pending = i
                     continue
-                name = "Gemini" if prog == "gemini" else "Kiro"
+                if listed("FAKE_WEB_SEARCH"):
+                    tool("search_web", "Searching the web", "search")
+                if listed("FAKE_STRAY_TOOL"):
+                    tool("run_command", "cat ~/.ssh/id_rsa", "execute")
+                if listed("FAKE_STRAY_AFTER_TEXT"):
+                    out(chunk("Partial"))
+                    tool("run_command", "cat ~/.ssh/id_rsa", "execute")
+                name = "Antigravity" if prog == "agy" else "Kiro"
                 for w in words(name + " says: " + text.split("\n")[0]):
                     out(chunk(w))
                 out({"jsonrpc": "2.0", "id": i, "result": {"stopReason": "end_turn"}})
@@ -540,8 +621,10 @@ struct QuestionSessionAcceptanceTests {
         }
         let claude = ClaudeCodeBackend()
         let codex = CodexBackend(base: fakes.root)
-        var gemini = ACPBackend.gemini
-        gemini.base = fakes.root
+        // Signed in unless FAKE_SIGNED_OUT names agy (its own check reads this Mac's keychain).
+        let antigravity = AntigravityBackend(base: fakes.root, signIn: { environment, _ in
+            !FakeAgentCLIs.listed(environment["FAKE_SIGNED_OUT"], "agy")
+        })
         var kiro = ACPBackend.kiro
         kiro.base = fakes.root
         let claudeStore = ClaudeSessionStore(directory: fakes.root.appendingPathComponent("claude-session", isDirectory: true))
@@ -549,21 +632,51 @@ struct QuestionSessionAcceptanceTests {
             .claude: ClaudeSessionManager(backend: claude, launcher: launcher(claude), store: claudeStore,
                                           firstAnswerTimeout: firstAnswerTimeout, userSettings: { nil }, uptime: uptime),
             .codex: ClaudeSessionManager(backend: codex, launcher: launcher(codex), uptime: uptime),
-            .gemini: ClaudeSessionManager(backend: gemini, launcher: launcher(gemini), uptime: uptime),
+            .antigravity: ClaudeSessionManager(backend: antigravity, launcher: launcher(antigravity), uptime: uptime),
             .kiro: ClaudeSessionManager(backend: kiro, launcher: launcher(kiro), uptime: uptime),
         ])
     }
 
-    /// Gemini CLI signed in with an API key (or signed out: a Google login with no saved credentials), with an MCP server
-    /// of the user's in its settings.
-    func geminiSettings(_ fakes: FakeAgentCLIs, signedIn: Bool) throws -> URL {
-        let folder = fakes.home.appendingPathComponent(".gemini", isDirectory: true)
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-        let type = signedIn ? "gemini-api-key" : "oauth-personal"
-        let url = folder.appendingPathComponent("settings.json")
-        try Data(#"{"security":{"auth":{"selectedType":"\#(type)"}},"mcpServers":{"filesystem":{"command":"npx","args":["fs"]}}}"#.utf8)
-            .write(to: url)
-        return url
+    /// The user's own ~/.gemini config, each file with an MCP server of the user's (a file system one): Gemini CLI's
+    /// settings, agy's global MCP config (~/.gemini/config/mcp_config.json, antigravity.google/docs/mcp) and the
+    /// Antigravity app's. The files, with what each holds.
+    @discardableResult
+    func userGeminiConfig(_ fakes: FakeAgentCLIs) throws -> [URL: Data] {
+        let server = #"{"filesystem":{"command":"npx","args":["-y","@modelcontextprotocol/server-filesystem","/"]}}"#
+        let files = [".gemini/settings.json": #"{"security":{"auth":{"selectedType":"oauth-personal"}},"mcpServers":\#(server)}"#,
+                     ".gemini/config/mcp_config.json": #"{"mcpServers":\#(server)}"#,
+                     ".gemini/antigravity/mcp_config.json": #"{"mcpServers":\#(server)}"#]
+        var written: [URL: Data] = [:]
+        for (path, text) in files {
+            let url = fakes.home.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(text.utf8).write(to: url)
+            written[url] = Data(text.utf8)
+        }
+        return written
+    }
+
+    /// The front matter of an agy agent file (`.agents/agents/<name>.md`): its `tools` and `mcpServers` lists (nil: not
+    /// said, which is agy's default: every tool, the user's MCP servers).
+    func agyAgent(_ url: URL) -> (tools: [String]?, mcpServers: [String]?)? {
+        guard let text = try? String(contentsOf: url, encoding: .utf8), text.hasPrefix("---") else { return nil }
+        let front = text.components(separatedBy: "---").dropFirst().first ?? ""
+        var found: [String: [String]] = [:]
+        var key: String?
+        for line in front.split(separator: "\n", omittingEmptySubsequences: false).map(String.init) {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("- "), let open = key {
+                found[open, default: []].append(String(trimmed.dropFirst(2)).trimmingCharacters(in: .whitespaces))
+                continue
+            }
+            key = nil
+            for name in ["tools", "mcpServers"] where line.hasPrefix(name + ":") {
+                let rest = line.dropFirst(name.count + 1).trimmingCharacters(in: .whitespaces)
+                found[name] = rest.isEmpty || rest == "[]" ? [] : [rest]
+                key = rest.isEmpty ? name : nil
+            }
+        }
+        return (found["tools"], found["mcpServers"])
     }
 
     func config(_ backend: QuestionBackend?, agent: AgentKind = .claude) -> Config {
@@ -609,9 +722,15 @@ struct QuestionSessionAcceptanceTests {
         await withInterfaceLanguage("en") {
             let groups = AIChoice.groups(hosted: true, apple: .available)
             #expect(groups.map(\.group) == [.subscription, .apiKey, .cloud, .onDevice])
-            #expect(groups.map { $0.choices.map(\.name) } == [["Claude Code", "Codex", "Gemini CLI", "Kiro CLI"],
-                                                             ["Claude API", "OpenAI-compatible", "Gemini API"],
-                                                             ["Amazon Bedrock", "AllInOneIME Cloud"], ["Apple on-device"]])
+            // Antigravity's CLI in Gemini CLI's place (named for Antigravity, never Gemini CLI).
+            let names = groups.map { $0.choices.map(\.name) }
+            #expect(names.count == 4 && names.dropFirst().map { $0 } == [["Claude API", "OpenAI-compatible", "Gemini API"],
+                                                                         ["Amazon Bedrock", "AllInOneIME Cloud"], ["Apple on-device"]],
+                    "\(names)")
+            let clis = names.first ?? []
+            #expect(clis.count == 4 && clis[0] == "Claude Code" && clis[1] == "Codex" && clis[2].contains("Antigravity")
+                    && clis[3] == "Kiro CLI", "\(clis)")
+            #expect(!names.joined().contains("Gemini CLI"), "\(names)")
             #expect(groups.flatMap(\.choices) == AIChoice.all)
             #expect(!AIChoice.all.contains { $0.name.localizedCaseInsensitiveContains("automatic") })
         }
@@ -627,8 +746,8 @@ struct QuestionSessionAcceptanceTests {
         // A CLI chosen keeps the provider (the fast fallback); a provider chosen forgets the CLI.
         var config = Config.default
         config.ai = .provider(.anthropic)
-        config.ai = .cli(.gemini)
-        #expect(config.ai == .cli(.gemini) && config.provider == .anthropic)
+        config.ai = .cli(.antigravity)
+        #expect(config.ai == .cli(.antigravity) && config.provider == .anthropic && config.questionBackend == .antigravitySession)
         config.ai = .provider(.bedrock)
         #expect(config.ai == .provider(.bedrock) && config.questionBackend == nil)
     }
@@ -638,7 +757,7 @@ struct QuestionSessionAcceptanceTests {
     @Test func nothingSetIsTheProviderWhateverAtAgentUses() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         let s = sessions(fakes)
         defer { s.stop() }
         for agent in [AgentKind.kiro, .gemini, .claude, .custom] {
@@ -662,7 +781,7 @@ struct QuestionSessionAcceptanceTests {
     @Test func theCLIChosenAnswersWhateverAtAgentUses() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         let s = sessions(fakes)
         defer { s.stop() }
         let apple = StubAppleModel(answer: ["From the provider."])
@@ -671,7 +790,7 @@ struct QuestionSessionAcceptanceTests {
         let converter = Converter(loadConfig: { settings.config }, appleModel: apple, questionSessions: s.all)
         let first = try await ask("hello", converter)
         #expect(answer(first) == "Claude says: hello" && first?.note == nil, "\(String(describing: answer(first)))")
-        #expect(fakes.checks("claude") == 0 && ["codex", "gemini", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
+        #expect(fakes.checks("claude") == 0 && ["codex", "agy", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
         #expect(s[.claude].isRunning)
         // Codex chosen, @agent's agent Claude Code: Codex answers, Claude Code's process ends.
         settings.config = config(.codexSession, agent: .claude)
@@ -679,7 +798,7 @@ struct QuestionSessionAcceptanceTests {
         #expect(answer(second) == "Codex says: hello", "\(String(describing: answer(second)))")
         #expect(fakes.checks("codex") == 0 && fakes.sessionStarts("claude").count == 1)
         #expect(await Timing.eventually(within: 10) { !s[.claude].isRunning }, "two CLIs' sessions run")
-        #expect(apple.requests.isEmpty && ["gemini", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
+        #expect(apple.requests.isEmpty && ["agy", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
     }
 
     /// A CLI chosen: what has to be fast goes to the provider set up (its key), else Apple's on-device model, else nowhere
@@ -735,8 +854,8 @@ struct QuestionSessionAcceptanceTests {
     }
 
     /// Whether `messages`' process (`FakeAgentCLIs.messages`) of `program` ran with the web tools off: Claude Code with no
-    /// tools, Codex with web search disabled, Gemini CLI under a policy that allows nothing, Kiro CLI in an agent with no
-    /// tools and no MCP servers. Nil when it can't be told.
+    /// tools, Codex with web search disabled, agy in an agent of its folder with no tools and no MCP servers (on: the web
+    /// search alone), Kiro CLI in an agent with no tools and no MCP servers. Nil when it can't be told.
     func webOff(_ program: String, argv: [String], received: [[String: Any]], fakes: FakeAgentCLIs) -> Bool? {
         func value(_ flag: String) -> String? { argv.firstIndex(of: flag).flatMap { $0 + 1 < argv.count ? argv[$0 + 1] : nil } }
         switch program {
@@ -746,9 +865,12 @@ struct QuestionSessionAcceptanceTests {
         case "codex":
             if argv.contains(#"web_search="disabled""#) { return !argv.contains(#"web_search="live""#) }
             return argv.contains(#"web_search="live""#) ? false : nil
-        case "gemini":
-            guard let policy = value("--policy"), let text = try? String(contentsOfFile: policy, encoding: .utf8) else { return nil }
-            return !text.contains(#"decision = "allow""#)
+        case "agy":
+            guard argv.first == "acp", let name = value("--agent"),
+                  let agent = agyAgent(fakes.root.appendingPathComponent("antigravity-session/.agents/agents/\(name).md")),
+                  let tools = agent.tools else { return nil }
+            if tools.isEmpty && agent.mcpServers == [] { return true }
+            return tools == ["search_web"] && agent.mcpServers == [] ? false : nil
         default:
             guard let mode = received.first(where: { $0["method"] as? String == "session/set_mode" })
                 .flatMap({ ($0["params"] as? [String: Any])?["modeId"] as? String }) else { return nil }
@@ -766,11 +888,11 @@ struct QuestionSessionAcceptanceTests {
     @Test func aWritingTaskForTheCLIIsAOneOffConversationWithoutTheWeb() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         let s = sessions(fakes)
         defer { s.stop() }
         for (backend, program) in [(QuestionBackend.claudeSession, "claude"), (.codexSession, "codex"),
-                                   (.geminiSession, "gemini"), (.kiroSession, "kiro-cli")] {
+                                   (.antigravitySession, "agy"), (.kiroSession, "kiro-cli")] {
             // The provider is Apple's model, unavailable: nothing faster.
             let converter = converter(config(backend), s, apple: StubAppleModel(.appleIntelligenceNotEnabled, answer: ["never"]))
             let conversation = QuestionConversation()
@@ -809,7 +931,7 @@ struct QuestionSessionAcceptanceTests {
     @Test func automaticWithNoneSignedInIsTheProvider() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: false)
+        try userGeminiConfig(fakes)
         fakes.set("FAKE_SIGNED_OUT", FakeAgentCLIs.programs)
         let s = sessions(fakes)
         defer { s.stop() }
@@ -825,12 +947,12 @@ struct QuestionSessionAcceptanceTests {
     @Test func aPickedSessionThatIsSignedOutFallsBackAndSaysWhy() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: false)
+        try userGeminiConfig(fakes)
         fakes.set("FAKE_SIGNED_OUT", FakeAgentCLIs.programs)
         let s = sessions(fakes)
         defer { s.stop() }
         for (backend, agent) in [(QuestionBackend.claudeSession, SessionAgent.claude), (.codexSession, .codex),
-                                 (.geminiSession, .gemini), (.kiroSession, .kiro)] {
+                                 (.antigravitySession, .antigravity), (.kiroSession, .kiro)] {
             let apple = StubAppleModel(answer: ["From the provider."])
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: apple, questionSessions: s.all)
@@ -849,7 +971,7 @@ struct QuestionSessionAcceptanceTests {
         let s = sessions(fakes)
         defer { s.stop() }
         for (backend, agent) in [(QuestionBackend.claudeSession, SessionAgent.claude), (.codexSession, .codex),
-                                 (.geminiSession, .gemini), (.kiroSession, .kiro)] {
+                                 (.antigravitySession, .antigravity), (.kiroSession, .kiro)] {
             let apple = StubAppleModel(answer: ["From the provider."])
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: apple, questionSessions: s.all)
@@ -864,11 +986,11 @@ struct QuestionSessionAcceptanceTests {
     @Test func aPickedSessionThatFailsToStartFallsBackAndSaysWhy() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         fakes.set("FAKE_FAIL_START", FakeAgentCLIs.programs)
         let s = sessions(fakes)
         defer { s.stop() }
-        for backend in [QuestionBackend.claudeSession, .codexSession, .geminiSession, .kiroSession] {
+        for backend in [QuestionBackend.claudeSession, .codexSession, .antigravitySession, .kiroSession] {
             let apple = StubAppleModel(answer: ["From the provider."])
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: apple, questionSessions: s.all)
@@ -897,7 +1019,7 @@ struct QuestionSessionAcceptanceTests {
     @Test func nothingIsCheckedAtLaunchOrWithTheProviderPicked() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         let s = sessions(fakes)
         defer { s.stop() }
         try await withInterfaceLanguage("en") {
@@ -1051,7 +1173,7 @@ struct QuestionSessionAcceptanceTests {
             #expect(host.composer.draftCommand == .question)
             #expect(settled(20) { fakes.sessionStarts("claude").count == 1 })
             #expect(fakes.checks("claude") == 0, "a sign-in looked at for @question")
-            #expect(["codex", "gemini", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
+            #expect(["codex", "agy", "kiro-cli"].allSatisfy { fakes.starts($0).isEmpty })
             host.type("what is rust")
             Thread.sleep(forTimeInterval: 0.3)
             #expect(fakes.sessionStarts("claude").count == 1, "started once")
@@ -1166,11 +1288,14 @@ struct QuestionSessionAcceptanceTests {
         #expect(fakes.methods("codex").filter { $0 == "thread/start" }.count == 1)
     }
 
-    @Test func geminiAndKiroKeepOneSessionInAFixedFolder() async throws {
+    /// Antigravity's and Kiro's session: one conversation kept in a fixed folder (antigravity-session, kiro-session),
+    /// loaded again after a restart. Antigravity's model is chosen with `session/set_model` in each process, after the
+    /// conversation opens and before anything is asked in it.
+    @Test func antigravityAndKiroKeepOneSessionInAFixedFolder() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
-        for (backend, program, folder) in [(QuestionBackend.geminiSession, "gemini", "gemini-session"),
+        try userGeminiConfig(fakes)
+        for (backend, program, folder) in [(QuestionBackend.antigravitySession, "agy", "antigravity-session"),
                                            (.kiroSession, "kiro-cli", "kiro-session")] {
             let s = sessions(fakes)
             let settings = config(backend)
@@ -1190,8 +1315,23 @@ struct QuestionSessionAcceptanceTests {
             let load = received.filter { $0["method"] as? String == "session/load" }
             #expect(new.count == 1 && load.count == 1, "\(program): \(fakes.methods(program))")
             let loadParams = load.first?["params"] as? [String: Any]
-            #expect(loadParams?["sessionId"] as? String == "sess_fake_1")
+            #expect(loadParams?["sessionId"] as? String == FakeAgentCLIs.sessionID(program, 1), "\(program): \(String(describing: loadParams))")
             #expect(URL(fileURLWithPath: loadParams?["cwd"] as? String ?? "").resolvingSymlinksInPath().path == expected)
+            guard program == "agy" else { continue }
+            // Each process: the model set (one agy offered) in the conversation opened, before the question.
+            let runs = fakes.runs(program).filter { $0.argv.first == "acp" }
+            #expect(runs.count == 2)
+            for run in runs {
+                let methods = run.received.compactMap { $0["method"] as? String }
+                let opened = try #require(methods.firstIndex { $0 == "session/new" || $0 == "session/load" }, "\(methods)")
+                let set = try #require(methods.firstIndex(of: "session/set_model"), "no session/set_model: \(methods)")
+                let prompt = try #require(methods.firstIndex(of: "session/prompt"), "\(methods)")
+                #expect(opened < set && set < prompt, "\(methods)")
+                let params = run.received.first { $0["method"] as? String == "session/set_model" }?["params"] as? [String: Any]
+                #expect(params?["sessionId"] as? String == FakeAgentCLIs.sessionID(program, 1), "\(String(describing: params))")
+                #expect(["gemini-3.8-pro-high", "gemini-3.8-flash-low"].contains(params?["modelId"] as? String ?? ""),
+                        "a model agy doesn't offer: \(String(describing: params))")
+            }
         }
     }
 
@@ -1260,42 +1400,67 @@ struct QuestionSessionAcceptanceTests {
         #expect(try FileManager.default.attributesOfItem(atPath: userConfig.path)[.modificationDate] as? Date == before)
     }
 
-    @Test func geminiHasAPolicyOfTheWebToolsOnlyAndNoMCPServer() async throws {
+    /// Antigravity's session: `agy acp --agent allinoneime --disable-telemetry` in its folder (antigravity-session), the
+    /// agent agy runs there the web search alone (agy has no tool that opens a page) with no MCP servers, its process
+    /// marked as the session's (ALLINONEIME_SESSION, what the folder's hook goes by); no MCP server asked for over ACP,
+    /// no file system or terminal offered; nothing in the folder names an MCP server; the user's ~/.gemini untouched.
+    /// (Whether agy itself leaves the user's global MCP servers unstarted for such an agent can't be told with a fake:
+    /// what the input method gives it is what is checked.)
+    @Test func antigravityHasAnAgentOfTheWebSearchOnlyAndNoMCPServer() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        let userSettings = try geminiSettings(fakes, signedIn: true)
-        let before = try Data(contentsOf: userSettings)
-        let modified = try FileManager.default.attributesOfItem(atPath: userSettings.path)[.modificationDate] as? Date
+        let userFiles = try userGeminiConfig(fakes)
+        let modified = try Dictionary(uniqueKeysWithValues: userFiles.keys.map {
+            ($0, try FileManager.default.attributesOfItem(atPath: $0.path)[.modificationDate] as? Date)
+        })
         let s = sessions(fakes)
         defer { s.stop() }
-        let settings = config(.geminiSession, agent: .claude)
+        let settings = config(.antigravitySession, agent: .claude)
         let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
         // Settings → AI looks at the sign-in (the CLI chosen), then a question.
-        #expect(await s[.gemini].checkAvailability(force: true) == .ready)
-        #expect(answer(try await ask("hello", converter)) == "Gemini says: hello")
-        let start = try #require(fakes.sessionStarts("gemini").first)
-        let argv = start["argv"] as? [String] ?? []
-        func value(_ flag: String) -> String? { argv.firstIndex(of: flag).map { argv[$0 + 1] } }
-        let folder = fakes.root.appendingPathComponent("gemini-session")
-        let policy = try #require(value("--policy"))
-        #expect(URL(fileURLWithPath: policy).resolvingSymlinksInPath().path
-                == folder.appendingPathComponent("allinoneime-policy.toml").resolvingSymlinksInPath().path)
-        // The policy allows the two web tools and nothing else.
-        let text = try String(contentsOfFile: policy, encoding: .utf8)
-        let rules = text.components(separatedBy: "[[rule]]").dropFirst().map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        let allows = rules.filter { $0.contains(#"decision = "allow""#) }
-        #expect(allows.count == 1 && allows[0].contains(#""web_fetch""#) && allows[0].contains(#""google_web_search""#), "\(rules)")
-        #expect(allows.allSatisfy { !$0.contains("read_file") && !$0.contains("run_shell_command") && !$0.contains("\"*\"") })
-        #expect(rules.contains { $0.contains(#"toolName = "*""#) && $0.contains(#"decision = "deny""#) }, "\(rules)")
-        // A server name none of the user's has.
-        let names = try #require(value("--allowed-mcp-server-names"))
-        let userServers = ((try JSONSerialization.jsonObject(with: before) as? [String: Any])?["mcpServers"] as? [String: Any])?.keys
-        #expect(!names.isEmpty && !(userServers.map(Array.init) ?? []).contains(names))
-        #expect(value("--extensions") == "none")
-        #expect((start["env"] as? [String: Any])?["GEMINI_CLI_NO_RELAUNCH"] as? String == "true")
-        // The user's settings aren't written.
-        #expect(try Data(contentsOf: userSettings) == before)
-        #expect(try FileManager.default.attributesOfItem(atPath: userSettings.path)[.modificationDate] as? Date == modified)
+        #expect(await s[.antigravity].checkAvailability(force: true) == .ready)
+        #expect(answer(try await ask("hello", converter)) == "Antigravity says: hello")
+        let start = try #require(fakes.sessionStarts("agy").first)
+        #expect(start["argv"] as? [String] == ["acp", "--agent", "allinoneime", "--disable-telemetry"], "\(start)")
+        let folder = fakes.root.appendingPathComponent("antigravity-session")
+        #expect(URL(fileURLWithPath: start["cwd"] as? String ?? "").resolvingSymlinksInPath().path == folder.resolvingSymlinksInPath().path)
+        #expect(((start["env"] as? [String: Any])?["ALLINONEIME_SESSION"] as? String ?? "").isEmpty == false,
+                "the session's process isn't marked as the session's: the hook would let every tool through: \(start)")
+        // The agent agy found by that name: the folder's, the web search alone, no MCP servers.
+        let found = start["agent"] as? [String: Any]
+        #expect(found?["found"] as? Bool == true && found?["tools"] as? [String] == ["search_web"]
+                && found?["mcpServers"] as? [String] == [], "\(String(describing: found))")
+        let agent = try #require(agyAgent(folder.appendingPathComponent(".agents/agents/allinoneime.md")))
+        #expect(agent.tools == ["search_web"] && agent.mcpServers == [], "\(agent)")
+        let offline = try #require(agyAgent(folder.appendingPathComponent(".agents/agents/allinoneime-offline.md")))
+        #expect(offline.tools == [] && offline.mcpServers == [], "\(offline)")
+        // Over ACP: no MCP server asked for as the conversation opens; no file system or terminal offered.
+        let received = fakes.received("agy")
+        let opens = received.filter { ["session/new", "session/load"].contains($0["method"] as? String ?? "") }
+        #expect(!opens.isEmpty)
+        for open in opens {
+            #expect(((open["params"] as? [String: Any])?["mcpServers"] as? [Any])?.isEmpty == true, "\(open)")
+        }
+        let initialize = try #require(received.first { $0["method"] as? String == "initialize" })
+        let capabilities = (initialize["params"] as? [String: Any])?["clientCapabilities"] as? [String: Any]
+        let fs = capabilities?["fs"] as? [String: Any]
+        #expect(fs?["readTextFile"] as? Bool != true && fs?["writeTextFile"] as? Bool != true && capabilities?["terminal"] as? Bool != true,
+                "\(String(describing: capabilities))")
+        // Nothing in the folder names an MCP server: no workspace MCP config (.agents/mcp_config.json) or settings with one.
+        let files = FileManager.default.enumerator(at: folder, includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? []
+        for file in files where file.pathExtension == "json" {
+            guard let object = (try? Data(contentsOf: file)).flatMap({ try? JSONSerialization.jsonObject(with: $0) as? [String: Any] })
+            else { continue }
+            let servers = object["mcpServers"]
+            #expect(servers == nil || (servers as? [String: Any])?.isEmpty == true || (servers as? [Any])?.isEmpty == true,
+                    "\(file.path) names an MCP server: \(String(describing: servers))")
+        }
+        // The user's ~/.gemini isn't written.
+        for (url, data) in userFiles {
+            #expect(try Data(contentsOf: url) == data, "\(url.path) changed")
+            #expect(try FileManager.default.attributesOfItem(atPath: url.path)[.modificationDate] as? Date == modified[url] ?? nil,
+                    "\(url.path) written")
+        }
     }
 
     @Test func kiroRunsInAnAgentWithTheWebToolsOnly() async throws {
@@ -1330,10 +1495,10 @@ struct QuestionSessionAcceptanceTests {
     @Test func aSessionsProcessHoldsNoOtherDescriptors() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         let s = sessions(fakes, real: true)
         defer { s.stop() }
-        for backend in [QuestionBackend.claudeSession, .codexSession, .geminiSession, .kiroSession] {
+        for backend in [QuestionBackend.claudeSession, .codexSession, .antigravitySession, .kiroSession] {
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
             _ = try await ask("hello", converter)
@@ -1351,12 +1516,12 @@ struct QuestionSessionAcceptanceTests {
         try await withInterfaceLanguage("en") {
             let fakes = try FakeAgentCLIs()
             defer { fakes.cleanUp() }
-            _ = try geminiSettings(fakes, signedIn: true)
+            try userGeminiConfig(fakes)
             fakes.set("FAKE_HANG", FakeAgentCLIs.programs)
             let s = sessions(fakes)
             defer { s.stop() }
             for (backend, program) in [(QuestionBackend.claudeSession, "claude"), (.codexSession, "codex"),
-                                       (.geminiSession, "gemini"), (.kiroSession, "kiro-cli")] {
+                                       (.antigravitySession, "agy"), (.kiroSession, "kiro-cli")] {
                 let settings = Settings(config(backend))
                 let host = host(settings, s)
                 host.press(FakeHost.at)
@@ -1379,7 +1544,7 @@ struct QuestionSessionAcceptanceTests {
                     default:
                         return lines.contains { line in
                             line["method"] as? String == "session/cancel" && line["id"] == nil
-                                && (line["params"] as? [String: Any])?["sessionId"] as? String == "sess_fake_1"
+                                && (line["params"] as? [String: Any])?["sessionId"] as? String == FakeAgentCLIs.sessionID(program, 1)
                         }
                     }
                 }
@@ -1394,11 +1559,11 @@ struct QuestionSessionAcceptanceTests {
     @Test func whatAnAgentAsksIsAlwaysDenied() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
+        try userGeminiConfig(fakes)
         fakes.set("FAKE_PERMISSION", FakeAgentCLIs.programs)
         let s = sessions(fakes)
         defer { s.stop() }
-        for backend in [QuestionBackend.claudeSession, .codexSession, .geminiSession, .kiroSession] {
+        for backend in [QuestionBackend.claudeSession, .codexSession, .antigravitySession, .kiroSession] {
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
             _ = try await ask("hello", converter)
@@ -1421,7 +1586,7 @@ struct QuestionSessionAcceptanceTests {
             #expect(decision != "accept" && decision != "approved" && decision != "acceptForSession", "\(id): \(reply)")
         }
         // ACP: the permission never allowed, the file and the terminal refused.
-        for program in ["gemini", "kiro-cli"] {
+        for program in ["agy", "kiro-cli"] {
             #expect(await Timing.eventually(within: 10) { fakes.received(program).filter { $0["method"] == nil }.count >= 3 })
             let replies = Dictionary(fakes.received(program).filter { $0["method"] == nil }.compactMap { line in
                 (line["id"] as? Int).map { ($0, line) }
@@ -1479,12 +1644,12 @@ struct QuestionSessionAcceptanceTests {
     @Test func escWhileTheSessionOpensSendsNothing() async throws {
         let fakes = try FakeAgentCLIs()
         defer { fakes.cleanUp() }
-        _ = try geminiSettings(fakes, signedIn: true)
-        fakes.set("FAKE_SLOW_OPEN", ["codex", "gemini", "kiro-cli"])
+        try userGeminiConfig(fakes)
+        fakes.set("FAKE_SLOW_OPEN", ["codex", "agy", "kiro-cli"])
         let s = sessions(fakes)
         defer { s.stop() }
         for (backend, program, opening) in [(QuestionBackend.codexSession, "codex", "thread/start"),
-                                            (.geminiSession, "gemini", "session/new"), (.kiroSession, "kiro-cli", "session/new")] {
+                                            (.antigravitySession, "agy", "session/new"), (.kiroSession, "kiro-cli", "session/new")] {
             let apple = StubAppleModel(answer: ["P"])
             let settings = config(backend)
             let converter = Converter(loadConfig: { settings }, appleModel: apple, questionSessions: s.all)
@@ -1606,15 +1771,320 @@ struct QuestionSessionAcceptanceTests {
     }
 
     /// ⌘⏎ with the next question typed: Terminal goes on in the same session with it as the first message, interactively
-    /// (the Mac's hand-off appends the follow-up as the last argument: `TerminalLauncher.agent`). Gemini CLI takes a
-    /// positional prompt as a one-shot run; `-i` (as `@agent`'s `AgentKind.terminalArguments`) keeps it interactive.
-    @Test func theHandOffWithAFollowUpStaysInteractive() {
+    /// (the Mac's hand-off appends the follow-up as the last argument: `TerminalLauncher.agent`). Antigravity's: `agy
+    /// --conversation <id>` in its folder, the conversation the questions went into; agy's `-i` (`--prompt-interactive`)
+    /// keeps it interactive after the follow-up (`-p`, `--prompt` or `--print` would run it once and exit). It is the
+    /// user's own agy: nothing marks it as the session's (ALLINONEIME_SESSION), so the folder's hook leaves it alone.
+    @Test func theHandOffWithAFollowUpStaysInteractive() async throws {
         let followUp = "and what about Go?"
-        let gemini = ACPBackend.gemini.terminalArguments(program: "/u/gemini", sessionID: "x", agentSessionID: "4f1c", resume: true)
-            + [followUp]
-        #expect(gemini.contains("--resume") && gemini.contains("4f1c"))
-        let before = gemini.dropLast().last
-        #expect(before == "-i" || before == "--prompt-interactive", "\(gemini) runs once and exits")
+        func oneShot(_ argv: [String]) -> Bool { argv.contains { ["-p", "--prompt", "--print", "acp"].contains($0) } }
+        let direct = AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "4f1c",
+                                                            resume: true, followUp: true) + [followUp]
+        #expect(Array(direct.prefix(3)) == ["/u/agy", "--conversation", "4f1c"], "\(direct)")
+        let before = direct.dropLast().last
+        #expect((before == "-i" || before == "--prompt-interactive") && !oneShot(direct), "\(direct) runs once and exits")
+        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "4f1c", resume: true,
+                                                       followUp: false) == ["/u/agy", "--conversation", "4f1c"])
+
+        // Through the session, after a question: its conversation, in its folder.
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let s = sessions(fakes)
+        defer { s.stop() }
+        let settings = config(.antigravitySession)
+        let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
+        #expect(answer(try await ask("what is rust", converter, in: QuestionConversation())) == "Antigravity says: what is rust")
+        let conversation = try #require(fakes.messages("agy").last?.conversation)
+        let (arguments, directory, lock) = try s[.antigravity].handOff(program: "/u/agy", followUp: true)
+        let argv = arguments + [followUp]
+        #expect(Array(argv.prefix(3)) == ["/u/agy", "--conversation", conversation], "\(argv) vs \(conversation)")
+        #expect((argv.dropLast().last == "-i" || argv.dropLast().last == "--prompt-interactive") && !oneShot(argv), "\(argv)")
+        #expect(directory.resolvingSymlinksInPath().path
+                == fakes.root.appendingPathComponent("antigravity-session").resolvingSymlinksInPath().path, "\(directory.path)")
+        let command = ClaudeSessionManager.terminalCommand(argv, lock: lock)
+        #expect(!command.contains { $0.contains(AntigravityBackend.sessionVariable) }, "\(command)")
+    }
+
+    // MARK: - Antigravity's session (in Gemini CLI's place)
+
+    /// The command of the PreToolUse hook Antigravity's folder has for every tool (`.agents/hooks.json`, as
+    /// antigravity.google/docs/hooks has it: a hook's name, its PreToolUse matcher groups, "*" or "" for every tool); the
+    /// commands found.
+    func agyHookCommands(_ folder: URL) throws -> [String] {
+        let url = folder.appendingPathComponent(".agents/hooks.json")
+        let hooks = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any], "\(url.path)")
+        var commands: [String] = []
+        for case let hook as [String: Any] in hooks.values where hook["enabled"] as? Bool != false {
+            for group in hook["PreToolUse"] as? [[String: Any]] ?? [] where ["*", "", ".*"].contains(group["matcher"] as? String ?? "") {
+                for handler in group["hooks"] as? [[String: Any]] ?? [] where handler["type"] as? String == "command" {
+                    if let command = handler["command"] as? String { commands.append(command) }
+                }
+            }
+        }
+        return commands
+    }
+
+    /// What the hook `command` decides for a call of the tool `name` (nil: a call without a name) with `args`, run as agy
+    /// runs a hook (the docs' input on stdin, `/bin/sh -c`) in `directory` with `environment`: its `decision`, its exit
+    /// status, its output.
+    func agyHook(_ command: String, tool name: String?, args: [String: Any] = [:], in directory: URL,
+                 environment: [String: String]) throws -> (decision: String?, status: Int32, output: String) {
+        var call: [String: Any] = ["args": args]
+        if let name { call["name"] = name }
+        let input = try JSONSerialization.data(withJSONObject: [
+            "toolCall": call, "stepIdx": 3, "conversationId": "ec33ebf9-0cba-4100-8142-c61503f6c587",
+            "workspacePaths": [directory.deletingLastPathComponent().path], "modelName": "gemini-3.8-flash-low"])
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/bin/sh")
+        process.arguments = ["-c", command]
+        process.currentDirectoryURL = directory
+        process.environment = environment
+        let stdin = Pipe(), stdout = Pipe(), stderr = Pipe()
+        (process.standardInput, process.standardOutput, process.standardError) = (stdin, stdout, stderr)
+        signal(SIGPIPE, SIG_IGN)  // a hook that ends without reading its input
+        try process.run()
+        try? stdin.fileHandleForWriting.write(contentsOf: input)
+        try? stdin.fileHandleForWriting.close()
+        let output = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        let decision = (try? JSONSerialization.jsonObject(with: output) as? [String: Any])?["decision"] as? String
+        return (decision, process.terminationStatus, String(decoding: output, as: UTF8.self))
+    }
+
+    /// The tools of agy (and its MCP servers') the session mustn't run, each with arguments that name the web search.
+    static let agyOtherTools = ["run_command", "view_file", "list_dir", "grep_search", "write_to_file", "replace_file_content",
+                                "multi_replace_file_content", "read_url_content", "browser_subagent", "invoke_subagent",
+                                "manage_task", "schedule", "mcp_filesystem_read_file", "filesystem/read_file", "Search_web",
+                                "search_web_extra", " search_web", "search-web", ""]
+
+    /// Antigravity's PreToolUse hook, run as agy runs it: in the session's process (ALLINONEIME_SESSION as the session's
+    /// process has it) every tool but `search_web` is denied, whatever its arguments say, and the web search is let
+    /// through (the input method refuses every permission request, so one asked for would be no search); a call without a
+    /// name is denied too. Without the variable (the user's own agy in Terminal, the hand-off in that folder) it decides
+    /// nothing: "allow", which hands the call on to agy's own rules (antigravity.google/docs/hooks: "allow" delegates to
+    /// the default policy; "ask" prompts, "deny" blocks).
+    @Test func antigravitysHookDeniesEveryToolButTheWebSearchOnlyInTheSession() async throws {
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let s = sessions(fakes)
+        defer { s.stop() }
+        let settings = config(.antigravitySession)
+        let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
+        #expect(answer(try await ask("hello", converter)) == "Antigravity says: hello")
+        let start = try #require(fakes.sessionStarts("agy").first)
+        let marked = try #require((start["env"] as? [String: Any])?["ALLINONEIME_SESSION"] as? String, "\(start)")
+        let folder = fakes.root.appendingPathComponent("antigravity-session")
+        let commands = try agyHookCommands(folder)
+        #expect(commands.count == 1, "\(commands)")
+        let command = try #require(commands.first, "no PreToolUse hook for every tool in \(folder.path)/.agents/hooks.json")
+        // Where the implementation runs it (.agents, the hooks file's folder).
+        let agents = folder.appendingPathComponent(".agents")
+        let user = ["PATH": "/usr/bin:/bin", "HOME": fakes.home.path]
+        let session = user.merging([AntigravityBackend.sessionVariable: marked]) { $1 }
+
+        let search = try agyHook(command, tool: "search_web", args: ["query": "swift 6.3 release"], in: agents, environment: session)
+        #expect(search.status == 0 && (search.decision == "allow" || search.decision == "auto_approve"),
+                "the web search isn't let through: \(search)")
+        for name in Self.agyOtherTools {
+            let run = try agyHook(command, tool: name, args: ["CommandLine": #"echo "name":"search_web""#, "name": "search_web",
+                                                               "query": "search_web"], in: agents, environment: session)
+            #expect(run.status == 0 && run.decision == "deny", "\(name.debugDescription) not denied in the session: \(run)")
+        }
+        let nameless = try agyHook(command, tool: nil, args: ["name": "search_web"], in: agents, environment: session)
+        #expect(nameless.decision == "deny", "a call without a name: \(nameless)")
+
+        // Not the session's process: nothing decided, nothing prompted.
+        for name in ["search_web", "run_command", "view_file", "mcp_filesystem_read_file"] {
+            let run = try agyHook(command, tool: name, in: agents, environment: user)
+            #expect(run.status == 0 && run.decision != "deny", "\(name) denied in the user's own agy: \(run)")
+            #expect(run.decision == "allow",
+                    "the hook decides \(String(describing: run.decision)) for \(name) in the user's own agy (\"ask\" makes agy prompt, \"allow\" hands it to agy's own rules): \(run.output)")
+        }
+    }
+
+    /// agy's docs don't say which folder a hook's command runs in (their example, "./scripts/lint.sh", reads as the
+    /// project's): the session's hook denies a shell command whether agy runs it in the session's folder or in .agents.
+    @Test func antigravitysHookDeniesWhicheverFolderItRunsIn() async throws {
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let s = sessions(fakes)
+        defer { s.stop() }
+        let settings = config(.antigravitySession)
+        let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["P"]), questionSessions: s.all)
+        _ = try await ask("hello", converter)
+        let folder = fakes.root.appendingPathComponent("antigravity-session")
+        let command = try #require(try agyHookCommands(folder).first)
+        let session = ["PATH": "/usr/bin:/bin", "HOME": fakes.home.path, AntigravityBackend.sessionVariable: "antigravity"]
+        for directory in [folder, folder.appendingPathComponent(".agents")] {
+            let run = try agyHook(command, tool: "run_command", args: ["CommandLine": "cat ~/.ssh/id_rsa"], in: directory,
+                                  environment: session)
+            #expect(run.decision == "deny", "run in \(directory.lastPathComponent): \(command) says \(run)")
+        }
+    }
+
+    /// A tool other than the web search that agy ran anyway (it completed) ends its process at once, and the provider
+    /// answers saying why. With the web off (text the user didn't type: agent allinoneime-offline), the web search is
+    /// such a tool too. The web search with the web on is not: agy answers and its process stays.
+    @Test func aStrayToolEndsAntigravitysProcessAndTheProviderAnswers() async throws {
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let s = sessions(fakes)
+        defer { s.stop() }
+        let settings = config(.antigravitySession)
+        let converter = Converter(loadConfig: { settings }, appleModel: StubAppleModel(answer: ["From the provider."]),
+                                  questionSessions: s.all)
+        func last() throws -> [String: Any] { try #require(fakes.sessionStarts("agy").last) }
+
+        // The web search, the web on: agy answers, its process stays.
+        fakes.set("FAKE_WEB_SEARCH", ["agy"])
+        let searched = try await ask("what is new in swift", converter)
+        #expect(answer(searched) == "Antigravity says: what is new in swift" && searched?.note == nil,
+                "\(String(describing: answer(searched))) \(String(describing: searched?.note))")
+        let searching = try last()
+        #expect(s[.antigravity].isRunning && FakeAgentCLIs.isRunning(searching))
+        s.stop()  // the next process starts with the next behavior
+        #expect(await Timing.eventually(within: 10) { !FakeAgentCLIs.isRunning(searching) })
+
+        // A shell command that completed: the process ends, the provider answers with why.
+        fakes.set("FAKE_WEB_SEARCH", [])
+        fakes.set("FAKE_STRAY_TOOL", ["agy"])
+        let stray = try await ask("hello", converter)
+        #expect(answer(stray) == "From the provider.", "\(String(describing: answer(stray)))")
+        #expect(stray?.note?.contains("Antigravity") == true, "\(String(describing: stray?.note))")
+        let strayProcess = try last()
+        #expect(await Timing.eventually(within: 10) { !FakeAgentCLIs.isRunning(strayProcess) }, "agy still runs after a stray tool")
+        #expect(!s[.antigravity].isRunning)
+
+        // The web off for this question (text the user didn't type): the web search ends it too.
+        fakes.set("FAKE_STRAY_TOOL", [])
+        fakes.set("FAKE_WEB_SEARCH", ["agy"])
+        let untrusted = QuestionConversation(web: SessionWeb(untrusted: true, typed: "summarize this"))
+        let offline = try await ask("summarize this: <selected text from a web page>", converter, in: untrusted)
+        let offlineProcess = try last()
+        #expect((offlineProcess["argv"] as? [String] ?? []).contains(AntigravityBackend.offlineAgentName), "\(offlineProcess)")
+        #expect(answer(offline) == "From the provider." && offline?.note?.isEmpty == false,
+                "\(String(describing: answer(offline))) \(String(describing: offline?.note))")
+        #expect(await Timing.eventually(within: 10) { !FakeAgentCLIs.isRunning(offlineProcess) },
+                "agy searched the web with the web off and still runs")
+
+        // After the first words of the answer: the process ends all the same.
+        fakes.set("FAKE_WEB_SEARCH", [])
+        fakes.set("FAKE_STRAY_AFTER_TEXT", ["agy"])
+        _ = try? await ask("hello again", converter)
+        let late = try last()
+        #expect(late["pid"] as? Int != strayProcess["pid"] as? Int)
+        #expect(await Timing.eventually(within: 10) { !FakeAgentCLIs.isRunning(late) }, "agy still runs after a stray tool")
+    }
+
+    /// A config that chose Gemini CLI's session (0.7.4's earlier builds: "geminiSession") chooses Antigravity's once agy
+    /// is on this Mac; without agy the key is removed and the AI provider answers. Nothing else in the file changes (@agent's
+    /// Gemini CLI stays); done once; a file with another choice, or none, isn't touched.
+    @Test func geminiCLIsSessionChosenBecomesAntigravitysOrTheProvider() async throws {
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let url = fakes.root.appendingPathComponent("config.json")
+        let text = """
+            {
+              "provider": "apple",
+              "questionBackend": "geminiSession",
+              "agent": "gemini",
+              "uiLanguage": "en",
+              "openai": {"baseURL": "https://example.test/v1", "model": "m"}
+            }
+
+            """
+        func file() throws -> [String: Any] {
+            try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        }
+        let original = try #require(try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any])
+        func othersKept(_ object: [String: Any]) -> Bool {
+            let keys = Set(original.keys).subtracting(["questionBackend"])
+            return Set(object.keys).subtracting(["questionBackend"]) == keys
+                && keys.allSatisfy { NSDictionary(dictionary: [$0: object[$0]!]).isEqual(to: [$0: original[$0]!]) }
+        }
+
+        // agy on this Mac: Antigravity's.
+        try Data(text.utf8).write(to: url)
+        #expect(try Config.migrateGeminiCLISession(at: url, antigravityInstalled: { true }))
+        var object = try file()
+        #expect(object["questionBackend"] as? String == "antigravitySession", "\(object)")
+        #expect(othersKept(object), "\(object)")
+        #expect(try Config.load(from: url).ai == .cli(.antigravity))
+        #expect(try Config.load(from: url).agent == .gemini)
+        let moved = try Data(contentsOf: url)
+        #expect(try !Config.migrateGeminiCLISession(at: url, antigravityInstalled: { true }))
+        #expect(try Data(contentsOf: url) == moved)
+
+        // No agy: the key removed, the provider is the AI and answers, no CLI started.
+        try Data(text.utf8).write(to: url)
+        #expect(try Config.migrateGeminiCLISession(at: url, antigravityInstalled: { false }))
+        object = try file()
+        #expect(object["questionBackend"] == nil, "\(object)")
+        #expect(othersKept(object), "\(object)")
+        let settings = try Config.load(from: url)
+        #expect(settings.ai == .provider(.apple) && settings.questionSessionAgent == nil)
+        fakes.uninstall("agy")
+        let s = sessions(fakes)
+        defer { s.stop() }
+        let apple = StubAppleModel(answer: ["From the provider."])
+        let update = try await ask("what is rust", Converter(loadConfig: { settings }, appleModel: apple, questionSessions: s.all))
+        #expect(answer(update) == "From the provider." && update?.note == nil && apple.requests.count == 1)
+        #expect(!fakes.anyStarted)
+
+        // Another choice, or none: untouched.
+        for other in [#"{"provider": "apple", "questionBackend": "claudeSession"}"#, #"{"provider": "apple"}"#,
+                      #"{"provider": "apple", "questionBackend": "antigravitySession"}"#] {
+            try Data(other.utf8).write(to: url)
+            #expect(try !Config.migrateGeminiCLISession(at: url, antigravityInstalled: { false }), "\(other)")
+            #expect(try String(contentsOf: url, encoding: .utf8) == other)
+        }
+    }
+
+    /// The CLI chosen was found (its install check passed) but its program can't be started at all: gone since (an
+    /// uninstall or update meanwhile) or not runnable. The question falls back to the AI provider, which answers saying
+    /// why, in every backend; the launcher's error ("The file “agy” doesn't exist.") never reaches the user as a failed
+    /// question.
+    @Test func aChosenCLIWhoseProgramCannotBeLaunchedFallsBackAndSaysWhy() async throws {
+        let fakes = try FakeAgentCLIs()
+        defer { fakes.cleanUp() }
+        let gone = fakes.root.appendingPathComponent("gone", isDirectory: true)  // never made
+        let notRunnable = fakes.root.appendingPathComponent("not-runnable", isDirectory: true)
+        try FileManager.default.createDirectory(at: notRunnable, withIntermediateDirectories: true)
+        for program in FakeAgentCLIs.programs {
+            let url = notRunnable.appendingPathComponent(program)
+            try Data(FakeAgentCLIs.script.utf8).write(to: url)
+            try FileManager.default.setAttributes([.posixPermissions: 0o644], ofItemAtPath: url.path)
+        }
+        let backends: [(QuestionBackend, any SessionBackend)] = [
+            (.claudeSession, ClaudeCodeBackend()), (.codexSession, CodexBackend(base: fakes.root)),
+            (.antigravitySession, AntigravityBackend(base: fakes.root, signIn: { _, _ in true })),
+            (.kiroSession, { var kiro = ACPBackend.kiro; kiro.base = fakes.root; return kiro }())]
+        for (label, folder) in [("gone", gone), ("not runnable", notRunnable)] {
+            for (choice, backend) in backends {
+                let agent = backend.agent
+                let program = folder.appendingPathComponent(agent.program)
+                let extra = backend.environment
+                let launcher = ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                            environment: { fakes.environment.merging(extra) { $1 } })
+                #expect(launcher.installed(), "\(agent): the install check")
+                let manager = agent == .claude
+                    ? ClaudeSessionManager(backend: backend, launcher: launcher,
+                                           store: ClaudeSessionStore(directory: fakes.root.appendingPathComponent("claude-session")),
+                                           userSettings: { nil })
+                    : ClaudeSessionManager(backend: backend, launcher: launcher)
+                defer { manager.stop() }
+                let apple = StubAppleModel(answer: ["From the provider."])
+                let settings = config(choice)
+                let converter = Converter(loadConfig: { settings }, appleModel: apple, questionSessions: [agent: manager])
+                var update: ConversionUpdate?
+                var failure: Error?
+                do { update = try await ask("hello", converter) } catch { failure = error }
+                let note = update?.note ?? ""
+                #expect(failure == nil && answer(update) == "From the provider."
+                        && (note.contains(agent.shortName) || note.contains(agent.program)),
+                        "\(agent), program \(label): answered \(String(describing: answer(update))), note \(note.debugDescription), error \(String(describing: failure))")
+            }
+        }
     }
 
     /// Whether `condition` holds within `timeout` seconds (blocking: for a FakeHost test's synchronous turn).
