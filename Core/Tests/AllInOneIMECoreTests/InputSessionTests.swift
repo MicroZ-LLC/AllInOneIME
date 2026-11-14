@@ -42,12 +42,12 @@ struct InputSessionTests {
         let converter = Converter(loadConfig: { settings.config }, appleModel: StubAppleModel(answer: ["P"]),
                                   questionSessions: [.claude: claude])
         // The key's thread: this one, until the key is handled (synchronous code stays on its thread).
-        let keyThread = Locked<mach_port_t?>(initialState: pthread_mach_thread_np(pthread_self()))
+        let keyThread = Locked<UInt?>(initialState: threadID())
         let elsewhere = Locked(initialState: 0)
         let host = host(settings) { services in
             let load = services.loadSettings
             services.loadSettings = {
-                if keyThread.withLock({ $0 }) != pthread_mach_thread_np(pthread_self()) { elsewhere.withLock { $0 += 1 } }
+                if keyThread.withLock({ $0 }) != threadID() { elsewhere.withLock { $0 += 1 } }
                 return load()
             }
             services.converter = converter
@@ -1025,4 +1025,13 @@ struct InputSessionTests {
             #expect(host.document == "Hello there.", "the version highlighted goes in (\(host.document))")
         }
     }
+}
+
+/// This thread, on every platform (`pthread_t` is a pointer on Darwin, an integer on Linux).
+private func threadID() -> UInt {
+    #if canImport(Darwin)
+    UInt(bitPattern: pthread_self())
+    #else
+    UInt(pthread_self())
+    #endif
 }
