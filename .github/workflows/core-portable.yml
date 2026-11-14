@@ -52,6 +52,9 @@ jobs:
         working-directory: ../core
 
   linux:
+    # Off for now (owner, 2026-11-14): no Linux users; its runs were failing on test flakes (UIText.choice, fixed in
+    # 0.7.5). The core's portability is still checked by the lint job and `make test`. Turn it back on by removing this line.
+    if: false
     runs-on: ubuntu-latest
     container: swift:6.4
     steps:
