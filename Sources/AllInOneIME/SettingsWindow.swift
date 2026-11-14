@@ -3265,6 +3265,9 @@ final class SettingsWindow {
     /// After the window's language changed.
     func updateTitle() { window?.title = Self.title }
 
+    /// The login shell answered: the agents installed shown again as found on its PATH (`AgentAvailability`).
+    func programsFound() { model?.objectWillChange.send() }
+
     /// Whether the window is open (an update opens it again once the input method restarts).
     var isVisible: Bool { window?.isVisible == true }
 

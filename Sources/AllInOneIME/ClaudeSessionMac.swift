@@ -48,17 +48,18 @@ enum ClaudeSessionMac {
         ShellEnvironment.current(with: agent.environmentVariables)
     }
 
-    /// Where `claude` is, nil when it isn't installed.
+    /// Where `claude` is, nil when it isn't installed. On the login shell's PATH (`ShellEnvironment.path`: on the main
+    /// thread, the fallback until the shell has answered), as every lookup here.
     static var claudeURL: URL? {
         TerminalLauncher.claudePath.map { URL(fileURLWithPath: $0) }
-            ?? CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"])
+            ?? CommandRunner.resolve("claude", path: ShellEnvironment.path)
             ?? desktopBundled(.claude)
     }
 
     /// Where `agent`'s program is, nil when it isn't installed.
     static func program(_ agent: SessionAgent) -> URL? {
         agent == .claude ? claudeURL
-            : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"]) ?? desktopBundled(agent)
+            : CommandRunner.resolve(agent.program, path: ShellEnvironment.path) ?? desktopBundled(agent)
     }
 
     /// The agent whose program `program` is (`claude`, `codex`, `agy`, `kiro-cli`: `@agent`'s, a custom agent's
@@ -73,7 +74,7 @@ enum ClaudeSessionMac {
     /// and runnable (`CommandRunner.isInstalled`).
     static func isInstalled(_ program: String) -> Bool {
         guard let agent = agent(program: program) else {
-            return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+            return CommandRunner.isInstalled(program, path: ShellEnvironment.path)
         }
         return self.program(agent) != nil
     }

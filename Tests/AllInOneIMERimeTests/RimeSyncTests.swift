@@ -64,17 +64,19 @@ extension RimeEngineTests {
     }
 
     /// A redeploy asked for while the learned words sync (fuzzy pinyin changed meanwhile) waits for the sync, then runs.
-    @Test func aRedeployWaitsForTheLearnedWordsSync() throws {
+    /// The sync ends on the main queue, which starts the redeploy there: what it changes is read there too.
+    @Test func aRedeployWaitsForTheLearnedWordsSync() async throws {
         _ = try RimeFixture.startup.get()
         #expect(RimeService.shared.waitUntilReady(timeout: 60))
-        var finished = false
-        #expect(RimeService.shared.syncUserData { _ in finished = true })
-        let generation = RimeService.shared.generation
+        let finished = Locked(initialState: false)
+        #expect(RimeService.shared.syncUserData { _ in finished.withLock { $0 = true } })
+        let generation = await MainActor.run { RimeService.shared.generation }
         RimeService.shared.redeploy()
-        #expect(RimeService.shared.generation == generation, "not while syncing")
+        #expect(await MainActor.run { RimeService.shared.generation } == generation, "not while syncing")
         let deadline = Date().addingTimeInterval(60)
-        while !finished, Date() < deadline { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
-        #expect(finished && RimeService.shared.generation == generation + 1, "run once the sync ended")
+        while !finished.withLock({ $0 }), Date() < deadline { try await Task.sleep(for: .milliseconds(50)) }
+        let after = await MainActor.run { RimeService.shared.generation }
+        #expect(finished.withLock { $0 } && after == generation + 1, "run once the sync ended")
         #expect(RimeService.shared.waitUntilReady(timeout: 60))
     }
 }

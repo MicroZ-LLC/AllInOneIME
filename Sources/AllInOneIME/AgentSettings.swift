@@ -89,15 +89,21 @@ struct AgentSettingsPage: View {
 }
 
 /// Whether an agent's program is on this Mac, for `@agent`'s settings and the `@question` hand-off: each program looked up
-/// once (the first lookup asks the login shell for its PATH), again once the settings window opens. Main thread only.
+/// once on the login shell's PATH, again once the settings window opens (`ProgramAvailability`). Never waiting for the
+/// shell: until it has answered, on the fallback PATH and not kept; once it has, the field typed in (its hand-off's
+/// choices) and Settings ask again.
+@MainActor
 enum AgentAvailability {
-    private static var found: [String: Bool] = [:]
+    private static let programs = ProgramAvailability {
+        AllInOneIMEInputController.activeController?.applySettings()
+        SettingsWindow.shared.programsFound()
+    }
 
     /// Looked up again from now on (the Settings window opens).
-    static func forget() { found = [:] }
+    static func forget() { programs.forget() }
 
     /// The self-test's: `program` taken as installed or not, until `forget`.
-    static func pretend(_ program: String, installed: Bool) { found[program] = installed }
+    static func pretend(_ program: String, installed: Bool) { programs.pretend(program, installed: installed) }
 
     static func installed(_ kind: AgentKind, custom: [String]) -> Bool {
         kind.program(custom: custom).map(installed(program:)) ?? false
@@ -106,9 +112,6 @@ enum AgentAvailability {
     /// Whether `program` (`AgentKind.program`) is on this Mac, as the question sessions find it
     /// (`ClaudeSessionMac.isInstalled`): an agent's CLI also where Terminal finds it or inside its desktop app.
     static func installed(program: String) -> Bool {
-        if let known = found[program] { return known }
-        let installed = ClaudeSessionMac.isInstalled(program)
-        found[program] = installed
-        return installed
+        programs.installed(program) { ClaudeSessionMac.isInstalled(program) }
     }
 }

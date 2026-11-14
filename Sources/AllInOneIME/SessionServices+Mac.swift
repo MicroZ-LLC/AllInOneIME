@@ -138,7 +138,7 @@ extension SessionServices {
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueClaudeSession = { try await ClaudeSessionMac.handOff(followUp: $0) }
-        services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }
+        services.agentInstalled = { kind, custom in MainActor.assumeIsolated { AgentAvailability.installed(kind, custom: custom) } }
         services.launchInTerminal = { try TerminalLauncher.launch($0) }
         services.programInstalled = { program in
             if program.isEmpty { return false }  // a custom agent without a command
