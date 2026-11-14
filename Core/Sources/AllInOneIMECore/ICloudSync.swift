@@ -46,7 +46,7 @@ public enum ICloudSync {
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
+        "switchKey", "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
@@ -384,8 +384,10 @@ public enum ICloudSync {
         var out: [String: AIConfig.JSONValue] = [:]
         if categories.contains(.settings) {
             for key in settingsKeys { out[key] = encoded[key] }
-            // Written into the file only when off (the trigger: when it isn't @); synced either way.
+            // Written into the file only when off (the trigger: when it isn't @, the switch key: when it isn't Shift);
+            // synced either way.
             out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
+            out["switchKey"] = .string(config.switchKey.rawValue)
             out["notifiesUpdates"] = .bool(config.notifiesUpdates)
             out["commandTrigger"] = .string(config.commandTrigger)
             if case var .object(redaction)? = encoded["redaction"] {
@@ -1044,6 +1046,9 @@ public enum ICloudSync {
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil
+        case "switchKey":
+            guard case let .string(name) = value else { return .wrongType }
+            return SwitchKey(rawValue: name) == nil ? .unknownValue : nil
         case "chineseCharacters":
             guard case let .string(name) = value else { return .wrongType }
             return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil

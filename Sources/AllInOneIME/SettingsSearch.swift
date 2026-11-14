@@ -8,7 +8,7 @@ import SwiftUI
 enum SettingsSpot: String, CaseIterable {
     // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
-    case candidateLayout
+    case switchKey, candidateLayout
     // General
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
@@ -28,7 +28,7 @@ enum SettingsSpot: String, CaseIterable {
     var page: SettingsPage {
         switch self {
         case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage, .candidateLayout: return .input
+             .codingLanguage, .switchKey, .candidateLayout: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync:
@@ -108,6 +108,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return tr("扩展来源", "Extension Sources")
         case .typeOut: return tr("逐字上屏", "Type results out")
         case .candidateLayout: return tr("候选排列", "Candidate layout")
+        case .switchKey: return UIText.switchKeyLabel
         case .useSelection: return tr("使用选中的文字", "Use the selected text")
         case .configFile: return tr("配置文件", "Config file")
         case .rimeFolder: return tr("Rime 用户目录", "Rime user folder")
@@ -218,6 +219,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .switchKey: return "switch key shift caps lock capslock capitals chinese english input language 切换 中英文 大写锁定 大写 输入语言"
         case .useSelection: return "selection selected text 选中 文字"
         case .configFile: return "config file json 配置文件"
         case .rimeFolder: return "rime folder 目录"

@@ -70,9 +70,13 @@ extension AllInOneIMEInputController {
         }
         inputs.addItem(.separator())
         if current.inputs.count > 1 {
-            let shiftNote = NSMenuItem(title: tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"), action: nil, keyEquivalent: "")
-            shiftNote.isEnabled = false
-            inputs.addItem(shiftNote)
+            // The key that switches them (`Config.switchKey`).
+            let switchNote = NSMenuItem(title: current.switchKey == .capsLock
+                                            ? tr("✓ 是默认；大写锁定键切换", "✓ is the default; Caps Lock switches")
+                                            : tr("✓ 是默认；Shift 切换", "✓ is the default; Shift switches"),
+                                        action: nil, keyEquivalent: "")
+            switchNote.isEnabled = false
+            inputs.addItem(switchNote)
         }
         let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addInput.target = self

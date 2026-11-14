@@ -164,6 +164,31 @@ extension UIText {
            "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too.")
     }
 
+    /// The key that switches the input language (Settings → Input, `Config.switchKey`): its row's name, each choice's,
+    /// and what the row says under it (with Caps Lock: that it no longer locks capitals).
+    public static var switchKeyLabel: String { tr("切换输入语言", "Switch input language") }
+    public static func name(_ key: SwitchKey) -> String {
+        switch key {
+        case .shift: return tr("单按 Shift", "Tap Shift")
+        case .capsLock: return tr("按大写锁定键", "Caps Lock")
+        }
+    }
+    public static func switchKeyHelp(_ key: SwitchKey) -> String? {
+        key == .capsLock ? tr("大写锁定键不再锁大写，打大写用 Shift。", "Caps Lock no longer locks capitals; type them with Shift.") : nil
+    }
+
+    /// What the input languages' row says under them: with more than one input (`switches`), the key that switches them
+    /// (`Config.switchKey`); with one, that it doesn't.
+    public static func inputLanguagesHelp(_ key: SwitchKey, switches: Bool) -> String {
+        switch (key, switches) {
+        case (.shift, true): return tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
+        case (.shift, false): return tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch")
+        case (.capsLock, true):
+            return tr("按大写锁定键切换；新的输入框从第一个开始。", "Press Caps Lock to switch; new text fields start in the first.")
+        case (.capsLock, false): return tr("只有一种时大写锁定键不切换", "With one, Caps Lock doesn't switch")
+        }
+    }
+
     /// How Chinese is typed in pinyin (Settings → Input → Chinese, `Config.pinyinScheme`): its name, and what it says
     /// under it.
     public static var pinyinSchemeLabel: String { tr("输入方式", "Typing") }

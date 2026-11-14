@@ -11605,6 +11605,53 @@
         }
       }
     },
+    "An input after the languages, a press of Caps Lock away: you type letters, and the rows under the caret offer this coding language's keywords and snippets and the words already in the field; %@ or Tab inserts." : {
+      "comment" : "排在输入语言后面，按大写锁定键切到它：打字母，光标下面列出这种编程语言的关键字、代码片段和输入框里已有的词，%@ 或 Tab 插入。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Eingabe nach den Sprachen, ein Druck auf die Feststelltaste entfernt: Du tippst Buchstaben, und die Zeilen unter der Einfügemarke bieten Schlüsselwörter und Snippets dieser Programmiersprache und die Wörter, die schon im Feld stehen; %@ oder Tab fügt ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una entrada después de los idiomas, a una pulsación de Bloq Mayús: escribes letras y las filas bajo el cursor ofrecen las palabras clave y los fragmentos de este lenguaje de programación y las palabras que ya hay en el campo; %@ o Tab inserta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Une saisie après les langues, à une pression de Verr. Maj : vous tapez des lettres, et les lignes sous le curseur proposent les mots-clés et extraits de ce langage de programmation et les mots déjà dans le champ ; %@ ou Tab insère."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力言語の後ろにある入力で、Caps Lockキーを押すと切り替わります。英字を打つと、カーソルの下にこのプログラミング言語のキーワード・スニペットと入力欄にある単語が並び、%@ か Tab で挿入します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 언어 뒤에 있는 입력으로, Caps Lock 키를 누르면 전환됩니다. 영문자를 입력하면 커서 아래에 이 프로그래밍 언어의 키워드·스니펫과 입력란에 이미 있는 단어가 나오고, %@ 또는 Tab으로 삽입합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma entrada depois dos idiomas, a um toque de Caps Lock: você digita letras, e as linhas sob o cursor oferecem as palavras-chave e os trechos desta linguagem de programação e as palavras que já estão no campo; %@ ou Tab insere."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排在輸入語言後面，按大寫鎖定鍵切到它：打字母，游標下面列出這種程式語言的關鍵字、程式碼片段和輸入框裡已有的詞，%@ 或 Tab 插入。"
+          }
+        }
+      }
+    },
     "An input after the languages, a tap of Shift away: you type letters, and the rows under the caret offer this coding language's keywords and snippets and the words already in the field; %@ or Tab inserts." : {
       "comment" : "排在输入语言后面，单按 Shift 切到它：打字母，光标下面列出这种编程语言的关键字、代码片段和输入框里已有的词，%@ 或 Tab 插入。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Suggestions.swift",
       "localizations" : {
@@ -15375,6 +15422,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "候選排列方式"
+          }
+        }
+      }
+    },
+    "Caps Lock" : {
+      "comment" : "按大写锁定键 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Feststelltaste"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloq Mayús"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verr. Maj"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lockキー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lock 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lock"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按大寫鎖定鍵"
+          }
+        }
+      }
+    },
+    "Caps Lock no longer locks capitals; type them with Shift." : {
+      "comment" : "大写锁定键不再锁大写，打大写用 Shift。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Feststelltaste stellt keine Großbuchstaben mehr fest; tippe sie mit der Umschalttaste."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bloq Mayús ya no bloquea las mayúsculas; escríbelas con Mayúsculas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verr. Maj ne verrouille plus les majuscules ; tapez-les avec Maj."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lockキーで大文字は固定されなくなります。大文字はShiftで入力します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lock 키로 더 이상 대문자가 고정되지 않습니다. 대문자는 Shift로 입력하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lock não fixa mais as maiúsculas; digite-as com Shift."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "大寫鎖定鍵不再鎖定大寫，打大寫用 Shift。"
           }
         }
       }
@@ -26397,6 +26538,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在這台 Mac 上允許之前，它什麼都不執行。"
+          }
+        }
+      }
+    },
+    "it's learned: in this app, switch with Caps Lock before typing, twice in a row" : {
+      "comment" : "这是学出来的：在这个 App 里打字前用大写锁定键切换，连续两次就记住 — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "wird gelernt: in dieser App vor dem Tippen mit der Feststelltaste wechseln, zweimal hintereinander"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "se aprende: en esta app, cambia con Bloq Mayús antes de escribir, dos veces seguidas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "c’est appris : dans cette app, changez avec Verr. Maj avant de taper, deux fois de suite"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "学習で決まります：このAppで入力前にCaps Lockキーで切り替えるのを2回続けると覚えます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "학습됩니다: 이 앱에서 입력하기 전에 Caps Lock 키로 전환하기를 두 번 연속 하면 기억합니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "é aprendido: neste app, alterne com Caps Lock antes de digitar, duas vezes seguidas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是學出來的：在這個 App 裡打字前用大寫鎖定鍵切換，連續兩次就記住"
           }
         }
       }
@@ -37722,6 +37910,53 @@
         }
       }
     },
+    "Press Caps Lock to switch; new text fields start in the first." : {
+      "comment" : "按大写锁定键切换；新的输入框从第一个开始。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zum Wechseln die Feststelltaste drücken; neue Textfelder starten mit der ersten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Bloq Mayús para cambiar; los campos de texto nuevos empiezan en el primero."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur Verr. Maj pour changer ; les nouveaux champs de texte commencent dans la première."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lockキーで切り替え。新しいテキストフィールドは最初の言語で開始します。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caps Lock 키를 눌러 전환하며, 새 입력란은 첫 번째 언어로 시작합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Caps Lock para alternar; novos campos de texto começam no primeiro."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按大寫鎖定鍵切換；新的文字欄位從第一個開始。"
+          }
+        }
+      }
+    },
     "Press either ⌥ and let go right away; holding right ⌥ still dictates. @ commands also run on Return." : {
       "comment" : "按一下 ⌥ 马上松开，左右都行；按住右 ⌥ 仍然是说话。@ 命令按 ⏎ 也执行。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
@@ -48639,6 +48874,53 @@
         }
       }
     },
+    "Switch input language" : {
+      "comment" : "切换输入语言 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingabesprache wechseln"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambiar idioma de entrada"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Changer de langue de saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力言語の切り替え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 언어 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Alternar idioma de entrada"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "切換輸入語言"
+          }
+        }
+      }
+    },
     "Sync through iCloud" : {
       "comment" : "通过 iCloud 同步 — Sources/AllInOneIMECore/ICloudSyncDoctor.swift",
       "localizations" : {
@@ -49399,8 +49681,55 @@
         }
       }
     },
+    "Tap Shift" : {
+      "comment" : "单按 Shift — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Umschalttaste antippen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsar Mayúsculas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pression sur Maj"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift単押し"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shift 짧게 누르기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tocar em Shift"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單按 Shift"
+          }
+        }
+      }
+    },
     "Tap Shift to switch; new text fields start in the first." : {
-      "comment" : "单按 Shift 切换；新的输入框从第一个开始。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "单按 Shift 切换；新的输入框从第一个开始。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -59549,8 +59878,55 @@
         }
       }
     },
+    "With one, Caps Lock doesn't switch" : {
+      "comment" : "只有一种时大写锁定键不切换 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bei nur einer wechselt die Feststelltaste nicht"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con un solo idioma, Bloq Mayús no cambia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une seule langue, Verr. Maj ne change rien"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1つだけの場合、Caps Lockキーでは切り替わりません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하나뿐이면 Caps Lock 키로 전환되지 않음"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com apenas um, Caps Lock não alterna"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只有一種時，大寫鎖定鍵不會切換"
+          }
+        }
+      }
+    },
     "With one, Shift doesn't switch" : {
-      "comment" : "只有一种时 Shift 不切换 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "只有一种时 Shift 不切换 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

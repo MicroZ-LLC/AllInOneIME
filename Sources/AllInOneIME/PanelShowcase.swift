@@ -330,6 +330,10 @@ enum SettingsPageImages {
         model.config = saved
         model.config.suggestionsInsert = .markdownLink
         render(.general, "insert-markdown-link")
+        // Caps Lock switching the input language (0.7.4), with what it says under it.
+        model.config = saved
+        model.config.switchKey = .capsLock
+        render(.input, "input-caps-lock")
         model.config = saved
         // The AI page: its choices open (Change ▾), the one chosen outlined; and Claude Code chosen, with where what has to
         // be fast goes.

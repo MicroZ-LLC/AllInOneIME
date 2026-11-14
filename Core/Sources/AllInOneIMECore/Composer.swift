@@ -852,6 +852,9 @@ public final class Composer {
     private var voiceKeySided = false
     /// When Shift went down with no other key since (nil once any key is pressed).
     private var shiftPressedAt: TimeInterval?
+    /// Whether a tap of Shift switches the input language: with Shift the switch key (`Config.switchKey`, the default).
+    /// With Caps Lock it is just Shift, and the session switches on a press of Caps Lock instead (`shiftTapped`).
+    public var shiftTapSwitches = true
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
     /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
@@ -1857,11 +1860,11 @@ public final class Composer {
         let toggle = isShift && !modifiers.contains(.shift)
             && held.map { $0 <= Self.shiftTapWindow && !pointerUsedWithin(max($0, 0)) } == true
         shiftPressedAt = nil
-        return toggle ? shiftTap() : []
+        return toggle && shiftTapSwitches ? shiftTap() : []
     }
 
     /// A tap of Shift, as `handleFlagsChanged` tells one: the next input language. Translate as You Type's chip, its
-    /// source part clicked, does the same.
+    /// source part clicked, does the same, and so does a press of Caps Lock with it the switch key (`Config.switchKey`).
     public func shiftTapped() -> [Effect] {
         forField(shiftTap())
     }

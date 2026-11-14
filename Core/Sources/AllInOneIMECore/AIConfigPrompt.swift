@@ -107,6 +107,8 @@ public enum AIConfigPrompt {
     }
 
     static func system(_ context: Context, compact: Bool, refining: Bool, scope: Scope = .everything) -> String {
+        // The key that switches the input language (`Config.switchKey`), as the note names it.
+        let switchKey = context.config.switchKey == .capsLock ? "Caps Lock" : "Shift"
         var text = """
             You change the settings of AllInOneIME, an input method on a Mac, as the user describes them. Reply with JSON \
             only, no Markdown and nothing else, in exactly this shape:
@@ -123,8 +125,8 @@ public enum AIConfigPrompt {
             - A setting for one app: key "appProfiles.<app>.<field>", the app as the user named it ("WeChat", "Mail") or its \
             bundle ID; the value null means the same as everywhere.
             - An app's starting language ("Chinese in WeChat"), rewrite styles or typing out: change nothing, and say in the \
-            note, in the user's language, that the starting language is learned (switch it with Shift before typing, twice \
-            in a row, in that app) and styles and typing out are set for every app.
+            note, in the user's language, that the starting language is learned (switch it with \(switchKey) before typing, twice in \
+            a row, in that app) and styles and typing out are set for every app.
             - "Output", "translate into" and "translation" languages are outputLanguages; the languages the user types \
             in are inputLanguages. Leave the one not asked about as it is.
             - Choosing a provider ("use Claude", "switch to Gemini") is provider, with its model only if the user names one.

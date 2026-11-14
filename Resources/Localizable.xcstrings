@@ -3542,6 +3542,53 @@
         }
       }
     },
+    "✓ is the default; Caps Lock switches" : {
+      "comment" : "✓ 是默认；大写锁定键切换 — Sources/AllInOneIME/InputMenu.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ ist der Standard; Feststelltaste wechselt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ es el predeterminado; Bloq Mayús cambia"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ indique la langue par défaut ; Verr. Maj pour changer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓がデフォルト。Caps Lockキーで切り替え"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ 표시가 기본값, Caps Lock 키로 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ é o padrão; Caps Lock alterna"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "✓ 是預設；大寫鎖定鍵切換"
+          }
+        }
+      }
+    },
     "✓ is the default; Shift switches" : {
       "comment" : "✓ 是默认；Shift 切换 — Sources/AllInOneIME/InputMenu.swift",
       "localizations" : {
@@ -5334,6 +5381,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "@question 聊滿 %@ 輪後（或隨時按 ⌘⏎），⌘1、⌘2 ⋯ 會把對話帶到這些地方繼續；拖移可重新排序，第一個是預設。對話會傳送到你選的服務。"
+          }
+        }
+      }
+    },
+    "After the languages, a press of Caps Lock away: rows of this language's keywords and snippets" : {
+      "comment" : "在输入语言后面，按大写锁定键切到它：列出这种编程语言的关键字和代码片段 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach den Sprachen, ein Druck auf die Feststelltaste entfernt: Zeilen mit Schlüsselwörtern und Snippets dieser Sprache"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de los idiomas, a una pulsación de Bloq Mayús: filas con las palabras clave y los fragmentos de este lenguaje"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après les langues, à une pression de Verr. Maj : des lignes de mots-clés et d’extraits de ce langage"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力言語の後ろ、Caps Lockキーを押すと切り替わります。この言語のキーワードとスニペットが並びます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력 언어 다음, Caps Lock 키를 누르면 전환: 이 언어의 키워드와 스니펫이 표시됩니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depois dos idiomas, a um toque de Caps Lock: linhas com as palavras-chave e os trechos desta linguagem"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在輸入語言後面，按大寫鎖定鍵切到它：列出這種程式語言的關鍵字和程式碼片段"
           }
         }
       }

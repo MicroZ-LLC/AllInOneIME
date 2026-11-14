@@ -73,7 +73,7 @@ A new install writes English; to type Chinese, French, Korean or Hindi too, add 
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Right-click a candidate, ⌃⌦ | While you type pinyin: removes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), for good: any candidate, the dictionary's words and emoji too, and the English words among the candidates (by their letters); it no longer comes up as a candidate, whatever you type (a longer phrase or a sentence with it in it still does), and what pinyin learned of it from your choices is forgotten (an emoji removed leaves the word it comes with as it was). An English word stays on your list of English words. Nothing is put in. Settings → Input → Chinese → Removed candidates brings one back (✕), and so does adding an English word again in English Words; they sync through iCloud with the learned words |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
-| Caps Lock twice, quickly | The same as a tap of Shift, with what you're typing too (the second press within about half a second; it turns the light off again). One press is Caps Lock as usual (capitals, light on), and the letters go to the app as typed. In password fields Caps Lock is left to macOS. AllInOneIME stays under English in Input Sources |
+| Caps Lock | Caps Lock as usual, unless Settings → Input → Switch input language is set to Caps Lock (`switchKey`; Tap Shift is the default): then each press switches as a tap of Shift does, with what you're typing too, and the light goes off again at once. Caps Lock then no longer locks capitals (type them with Shift), and a tap of Shift switches nothing. In password fields Caps Lock is left to macOS. AllInOneIME stays under English in Input Sources |
 
 ## Commands
 
@@ -699,7 +699,7 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
   set); Clipboard history, with Clear History (and why it isn't recording, only when macOS doesn't let it); and Sync
   through iCloud.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
-  default, and Code comes after them ("Code · Python"); then the candidate layout. Under them, each input has its options in a section under
+  default, and Code comes after them ("Code · Python"); then Switch input language (Tap Shift or Caps Lock) and the candidate layout. Under them, each input has its options in a section under
   its name, always shown, with nothing to click. English has its words; Chinese its language pack, Typing (full
   pinyin, Shuangpin or Zhuyin), Characters and fuzzy pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
   library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this

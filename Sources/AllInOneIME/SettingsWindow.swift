@@ -1296,6 +1296,24 @@ struct SettingsView: View {
            "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result.")
     }
 
+    /// Input → the key that switches the input language (`Config.switchKey`, owner 0.7.4): a tap of Shift, or a press of
+    /// Caps Lock, which then no longer locks capitals (the input method turns its lock off again at once).
+    private var switchKeyRow: some View {
+        LabeledContent {
+            Picker("", selection: $model.config.switchKey) {
+                ForEach(SwitchKey.allCases, id: \.self) { Text(UIText.name($0)).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } label: {
+            if let note = UIText.switchKeyHelp(model.config.switchKey) {
+                titled(SettingsSpot.switchKey.title, note)
+            } else {
+                Text(SettingsSpot.switchKey.title)
+            }
+        }
+        .settingsRow(.switchKey, shown: model.spot)
+    }
+
     /// Input → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
     /// macOS's own panel (owner, 0.7.4: with the input languages, no longer in Advanced).
     private var candidateLayoutRow: some View {
@@ -1399,17 +1417,15 @@ struct SettingsView: View {
     }
 
     /// The input languages as chips, in their order (the first is the default: new text fields start in it; with two,
-    /// Shift switches), Code after them with its coding language; ⊗ removes one, dragging reorders the languages, and
-    /// "Add…" adds one. The packs on their way under them, then how the candidates are laid out; each input's options
-    /// follow in sections of their own.
+    /// the switch key switches), Code after them with its coding language; ⊗ removes one, dragging reorders the
+    /// languages, and "Add…" adds one. The packs on their way under them, then the key that switches and how the
+    /// candidates are laid out; each input's options follow in sections of their own.
     @ViewBuilder private var inputSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     titled(SettingsSpot.inputLanguages.title,
-                           model.config.inputs.count > 1
-                           ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
-                           : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+                           UIText.inputLanguagesHelp(model.config.switchKey, switches: model.config.inputs.count > 1))
                     Spacer()
                 }
                 HStack(spacing: 6) {
@@ -1427,6 +1443,7 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
+            switchKeyRow
             candidateLayoutRow
 
         } header: {
@@ -2673,6 +2690,7 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.typeOutMistakes) { model.save() }
         .onChange(of: model.config.candidateLayout) { model.save() }
+        .onChange(of: model.config.switchKey) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)

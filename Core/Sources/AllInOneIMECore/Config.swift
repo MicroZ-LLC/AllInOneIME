@@ -259,6 +259,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// default, also for a file from before the setting), or in a column. The other lists (commands, results) are
     /// always a column.
     public var candidateLayout: CandidateArrangement
+    /// The key that switches the input language (`SwitchKey`): a tap of Shift (the default, also for a file from before
+    /// the setting), or a press of Caps Lock, whose lock is turned off again at once (Settings → Input). Written into the
+    /// file only when it isn't Shift.
+    public var switchKey: SwitchKey
     /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
     /// installed when the user clicks Update. On by default.
     public var checkForUpdates: Bool
@@ -419,6 +423,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutVaries = false
         self.typeOutMistakes = false
         self.candidateLayout = .horizontal
+        self.switchKey = .shift
         self.checkForUpdates = true
         self.notifiesUpdates = true
         self.sendsInstallID = true
@@ -450,6 +455,7 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
+        case switchKey
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
         case rememberQuestions, questionRounds, questionContinueIn, questionBackend
@@ -565,6 +571,8 @@ public struct Config: Codable, Equatable, Sendable {
         typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
         // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
+        // The same: Shift.
+        switchKey = (try? c.decodeIfPresent(SwitchKey.self, forKey: .switchKey)).flatMap { $0 } ?? d.switchKey
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
         sendsInstallID = try c.decodeIfPresent(Bool.self, forKey: .sendsInstallID) ?? d.sendsInstallID
@@ -761,6 +769,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
+        // Only Caps Lock: a file from before the setting doesn't gain the key, nor one back on Shift.
+        if switchKey != .shift { try c.encode(switchKey, forKey: .switchKey) }
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         // Only once turned off: a file from before the switch doesn't gain the key.
         if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
@@ -883,6 +893,15 @@ public enum CandidateArrangement: String, Codable, CaseIterable, Sendable {
     case vertical
     /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page): the default.
     case horizontal
+}
+
+/// The key that switches the input language (`Config.switchKey`).
+public enum SwitchKey: String, Codable, CaseIterable, Sendable {
+    /// A tap of Shift: the default.
+    case shift
+    /// A press of Caps Lock on its own: the input method turns its lock off again at once, so it no longer locks capitals
+    /// (Shift types them), and a tap of Shift switches nothing.
+    case capsLock
 }
 
 public enum ConfigError: Error, LocalizedError, Equatable {

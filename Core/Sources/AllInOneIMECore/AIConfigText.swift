@@ -214,13 +214,17 @@ extension AIConfig {
                "\(count) more not added: at most \(AIConfig.maxWordsAdded) at a time, each one line of at most \(AIConfig.maxWordLength) characters")
         }
         var unknownApp: String { tr("找不到这个 App", "no such app found") }
-        /// Why an app's field that can't be set here any more is refused: where it starts is learned (Shift before typing,
-        /// in two of its fields in a row: `LearnedStore.corrected`); rewrite styles and typing out are set for every app.
-        func notPerApp(_ field: RemovedAppField) -> String {
+        /// Why an app's field that can't be set here any more is refused: where it starts is learned (the switch key,
+        /// `switchKey`, before typing, in two of its fields in a row: `LearnedStore.corrected`); rewrite styles and typing
+        /// out are set for every app.
+        func notPerApp(_ field: RemovedAppField, switchKey: SwitchKey = .shift) -> String {
             switch field {
             case .inputLanguage:
-                return tr("这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住",
-                          "it's learned: in this app, switch with Shift before typing, twice in a row")
+                return switchKey == .capsLock
+                    ? tr("这是学出来的：在这个 App 里打字前用大写锁定键切换，连续两次就记住",
+                         "it's learned: in this app, switch with Caps Lock before typing, twice in a row")
+                    : tr("这是学出来的：在这个 App 里打字前用 Shift 切换，连续两次就记住",
+                         "it's learned: in this app, switch with Shift before typing, twice in a row")
             case .rewriteStyles, .typeOut:
                 return tr("现在对所有 App 一起设置，不再按 App 设", "it's set for every app now, not per app")
             }

@@ -314,8 +314,7 @@ struct SettingsSchema {
         var fields: [Field] = []
         let store = store
         var languages = Field(id: "inputLanguages", kind: .choices, label: tr("输入语言", "Input languages"),
-                              help: config.inputLanguages.count > 1 ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
-                                  : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"),
+                              help: UIText.inputLanguagesHelp(config.switchKey, switches: config.inputLanguages.count > 1),
                               value: .array(config.inputLanguages.map { .string($0.rawValue) }))
         // The characters Chinese is typed in (`Config.typedChinese`, which may read the system's languages): read once.
         let chinese = config.typedChinese
@@ -328,6 +327,13 @@ struct SettingsSchema {
         }
         // Code, after the languages and apart from them (decision 22).
         code(&fields)
+        // The key that switches the inputs: Shift, or Caps Lock, whose lock the Mac turns off again after each press (Windows
+        // doesn't yet: Shift there).
+        add(choice("switchKey", UIText.switchKeyLabel, UIText.switchKeyHelp(config.switchKey), value: .string(config.switchKey.rawValue),
+                   choices: SwitchKey.allCases.map { (Choice($0.rawValue, UIText.name($0)), nil) }, platforms: [.mac]),
+            to: &fields) { value in
+            store.config.switchKey = value.string.flatMap(SwitchKey.init(rawValue:)) ?? store.config.switchKey
+        }
         add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
                    config.candidateLayout == .horizontal
                        ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",

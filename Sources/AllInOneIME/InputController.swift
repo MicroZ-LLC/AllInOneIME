@@ -96,6 +96,8 @@ final class AllInOneIMEInputController: IMKInputController {
     var copyWeekStatsImage: (@escaping @MainActor (Bool) -> Void) -> Void = { done in
         MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
     }
+    /// Turns Caps Lock's lock on or off (`CapsLockKey`; the self-test touches none).
+    var setCapsLock: (Bool) -> Void = CapsLockKey.setLock
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
@@ -1051,6 +1053,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     guard let self, self.fieldSession == asked else { return }
                     self.apply(self.session.weekStatsImageCopied(copied), client: nil)
                 }
+            case let .platform(.setCapsLock(on)):
+                setCapsLock(on)  // a press of Caps Lock, the switch key, switched the language: its lock off again
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
