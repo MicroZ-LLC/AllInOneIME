@@ -192,7 +192,7 @@ public final class InputSession {
         composer.characterBeforeCaret = { [weak self] in self?.characterBeforeCaret() }
         composer.aiRefusal = { [weak self] in self?.aiRefusal() }
         composer.readFieldText = { [weak self] in self?.readFieldText() }
-        composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
+        composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.pageSource() != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
         // This week's stats: the characters typed, as a number (InputSession+WeekStats.swift).
         composer.typedIntoField = { [weak self] typed in self?.countTyped(typed) }
@@ -351,6 +351,9 @@ public final class InputSession {
     /// The app of the key being handled, else the field's.
     var app: String? { keyContext?.field?.app ?? field.app }
     var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
+    /// Whether the text of the field of the key being handled (else the focused one's) stays on this device: a terminal, a
+    /// password manager (`FieldInfo.textStaysHere`). No command reads its selection, its text or its page.
+    var fieldTextStaysHere: Bool { (keyContext?.field ?? field).textStaysHere }
 
     /// `text` as it goes into the field: into a terminal, line breaks, tabs and other control characters only as a paste
     /// (`Composer.actsInTerminal`: a line break typed there is Return, the shell runs the line; a tab is completion, ^D
@@ -918,7 +921,8 @@ public final class InputSession {
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
     /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
     /// field all the same; the selection, unless that "@" comes right after a word or the field is known as a password
-    /// field). A shell where reading is cheap reads it all.
+    /// field). Nothing of the field's text for a command where it stays here (`FieldInfo.textStaysHere`: a terminal, a
+    /// password manager). A shell where reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
@@ -928,21 +932,23 @@ public final class InputSession {
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
-        // as a password field (`selectionMayBeRead`).
+        // as a password field (`selectionMayBeRead`). Where the field's text stays here (a terminal, a password manager)
+        // neither the character before the caret nor the selection is read: the command starts as in a terminal.
         let config = services.loadSettings()
         if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
-            let terminal = (context.field ?? field).terminal
-            if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
+            let staysHere = (context.field ?? field).textStaysHere
+            if lastTyped.character != nil, !staysHere { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
-            if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
+            if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !staysHere,
                usesSelection(in: (context.field ?? field).app, config: config), !nothingLeavesDevice() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
-        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device).
-        if composer.draftCommand == .reply, !nothingLeavesDevice(),
+        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device,
+        // nor where the field's text stays here).
+        if composer.draftCommand == .reply, !nothingLeavesDevice(), !(context.field ?? field).textStaysHere,
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
@@ -952,10 +958,11 @@ public final class InputSession {
     }
 
     /// What of the field a modifier change may need, given what was read of it so far: `@reply`'s text, where a tap of
-    /// Option runs it.
+    /// Option runs it (not where the field's text stays here: `FieldInfo.textStaysHere`).
     public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
         guard context.read.contains(.secure), !context.secure, !field.secure else { return [.secure] }
-        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice() ? [.secure, .text] : [.secure]
+        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice()
+            && !(context.field ?? field).textStaysHere ? [.secure, .text] : [.secure]
     }
 
     /// A key held back and handed on late, as if typed now (clipboard history's, typed while ⏎ waited for its rows:
@@ -1160,9 +1167,11 @@ public final class InputSession {
     /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`) and the app not
     /// learned as one whose field doesn't take a result in its place (`usesSelection`), never during secure input, nor in
     /// a field known as a password field where it isn't on (`passwordField`: unknown is read as before, no key waiting to
-    /// tell it), nor in a terminal (its selection is no text being edited: what goes back would be typed at the prompt).
+    /// tell it), nor in a terminal (its selection is no text being edited: what goes back would be typed at the prompt),
+    /// nor in a password manager, whatever its field says (`FieldInfo.textStaysHere`: a command starts there as in a
+    /// terminal).
     private func selectionMayBeRead() -> Bool {
-        usesSelection(in: app, config: services.loadSettings()) && !nothingLeavesDevice() && !terminal
+        usesSelection(in: app, config: services.loadSettings()) && !nothingLeavesDevice() && !fieldTextStaysHere
     }
 
     /// Commands work on the selection in `app`: `useSelection` on (the config's: off, nowhere), and `app` not one whose
@@ -1193,8 +1202,9 @@ public final class InputSession {
 
     /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
     /// typed into the field (`lastTyped`), unless the pointer was used since (a click may have moved the caret). A field
-    /// that tells its text (not a terminal) must have that character there, with nothing selected: what the app did with
-    /// its text meanwhile (cleared it, moved the caret) the input method doesn't see.
+    /// that tells its text (not a terminal, nor a password manager's, where none of it is read: `FieldInfo.textStaysHere`)
+    /// must have that character there, with nothing selected: what the app did with its text meanwhile (cleared it, moved
+    /// the caret) the input method doesn't see.
     private func characterBeforeCaret() -> Character? {
         keyContext.flatMap { characterBeforeCaret(in: $0) }
     }
@@ -1202,7 +1212,7 @@ public final class InputSession {
     private func characterBeforeCaret(in context: FieldContext) -> Character? {
         guard let typed = lastTyped.character,
               !caretMayHaveMoved(within: ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
-        guard !(context.field ?? field).terminal, context.read.contains(.beforeCaret) else { return typed }
+        guard !(context.field ?? field).textStaysHere, context.read.contains(.beforeCaret) else { return typed }
         switch context.beforeCaret {
         case .unknown: return typed  // a field that tells no caret, or reads nothing back
         case .nothing: return nil  // a selection (a command may work on it), the start
@@ -1212,9 +1222,9 @@ public final class InputSession {
 
     /// The text around the caret, for `@reply` (`Composer.readFieldText`): as the field told it with the key that runs it
     /// (or last: after dictation). None during secure input or in a field known as a password field
-    /// (`nothingLeavesDevice`), nor in a terminal.
+    /// (`nothingLeavesDevice`), nor in a terminal or a password manager (`FieldInfo.textStaysHere`).
     private func readFieldText() -> FieldText? {
-        guard !nothingLeavesDevice(), !terminal else { return nil }
+        guard !nothingLeavesDevice(), !fieldTextStaysHere else { return nil }
         if let context = keyContext, context.read.contains(.text) { return context.text }
         return fieldText
     }
@@ -1864,7 +1874,7 @@ public final class InputSession {
         if wokenPage != nil, !writingAgent { return releasePage() }
         guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
         pageLookedFor = fieldSession
-        guard let page = services.page(app) else { return }
+        guard let page = pageSource() else { return }
         wokenPage = page
         page.wake()
     }
@@ -1894,6 +1904,12 @@ public final class InputSession {
         }
     }
 
+    /// The web page the field is in (`SessionServices.page`), never where the field's text stays here
+    /// (`FieldInfo.textStaysHere`: a terminal, a password manager).
+    private func pageSource() -> PageSource? {
+        fieldTextStaysHere ? nil : services.page(app)
+    }
+
     /// The page given back, if `@agent` asked for it.
     private func releasePage() {
         wokenPage?.release()
@@ -1912,7 +1928,7 @@ public final class InputSession {
     /// at once). Until the page is in, the session waits (`waitsForPage`): the request starts even if the field is gone.
     private func withPage(_ prompt: String, render: @escaping @Sendable (PageContext, String) -> String = { $0.prompt(request: $1) },
                           _ start: @escaping (String, String?) -> Void) {
-        guard agentPageContext, let page = wokenPage ?? services.page(app) else { return start(prompt, nil) }
+        guard agentPageContext, let page = wokenPage ?? pageSource() else { return start(prompt, nil) }
         if wokenPage == nil { page.wake() }  // typed fast (or pasted): asked for now
         wokenPage = nil  // given back once read
         pageLookedFor = -1  // another `@agent` in this field asks again

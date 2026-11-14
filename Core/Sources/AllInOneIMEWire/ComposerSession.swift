@@ -118,8 +118,9 @@ public final class ComposerSession: @unchecked Sendable {
         self.log = log
         self.field = field
         composer.modifierRoles = .windows
+        // Never where the field's text stays here (a terminal, a password manager: `textStaysHere`), as on the Mac.
         composer.readSelection = { [unowned self] in
-            guard let context = self.context, !context.selText.isEmpty else { return nil }
+            guard !self.textStaysHere, let context = self.context, !context.selText.isEmpty else { return nil }
             return Composer.Selection(text: context.selText, range: context.selection)
         }
         composer.characterBeforeCaret = { [unowned self] in self.context?.before.last }
@@ -447,6 +448,14 @@ public final class ComposerSession: @unchecked Sendable {
     ]
 
     public static func isTerminal(_ process: String) -> Bool { terminals.contains(process.lowercased()) }
+
+    /// Whether the field's text stays on this device (`FieldInfo.textStaysHere`, the Mac's one check): a terminal, or a
+    /// password manager by its program ("win:1password.exe"; `field.app` may be a packaged app's AUMID). A command never
+    /// starts on its selection there; what is typed after it is sent as usual.
+    public var textStaysHere: Bool {
+        FieldInfo(app: field.app, terminal: Self.isTerminal(field.process)).textStaysHere
+            || PasswordManagers.contains("win:" + field.process)
+    }
 
     // MARK: - Reading a key
 
