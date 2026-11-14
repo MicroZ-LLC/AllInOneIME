@@ -1338,9 +1338,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 /// (`LaunchSpec.onExit`), never `waitUntilExit` on a dispatch thread, which sometimes never returns (a program that
 /// exited would count as running: a sign-in check found signed out, a question waiting for a process long gone).
 /// Its end (`exited`) is told once it has ended and its output has been read to its end; once it was killed (SIGKILL
-/// to its group, `ClaudeSessionProcess.kill`; one asked to end is, after `ClaudeSessionManager.handOffGrace`, unless its
-/// end was told by then), as soon as it has ended itself: something it started that left its group may hold its output
-/// open for as long as it runs, which the signal doesn't reach (`PipedEnd`).
+/// to its group, `ClaudeSessionProcess.kill`; one asked to end is, after `ClaudeSessionManager.handOffGrace`, unless by
+/// then its end was told and nothing of its group runs), as soon as it has ended itself: something it started that left
+/// its group may hold its output open for as long as it runs, which the signal doesn't reach (`PipedEnd`).
 /// `executable`: where `claude` is (nil: not installed); `environment`: what it runs with (on the Mac the login shell's);
 /// `processes`: nil, the platform's as it starts. One found that won't launch (gone since, not executable) throws
 /// `ClaudeSessionError.cannotLaunch`, saying why (`launchFailure`).
@@ -1493,15 +1493,16 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
         try? input.close()
     }
 
-    /// Asked to end (SIGTERM to its group); killed after `ClaudeSessionManager.handOffGrace` unless its end was told by
-    /// then: it may have ended at once while something it started that left its group holds its output open, and its
-    /// end, which waits for that output's end until it is killed (`PipedEnd`), would never be told. The one timer that
-    /// kills it: the manager starts none.
+    /// Asked to end (SIGTERM to its group); killed after `ClaudeSessionManager.handOffGrace` unless by then its end was
+    /// told and nothing of its group runs. Its end not told: it may have ended at once while something it started that
+    /// left its group holds its output open, and its end, which waits for that output's end until it is killed
+    /// (`PipedEnd`), would never be told. Its end told: something in its group that ignores SIGTERM may still run after
+    /// it ended (`isRunning`, its group's). The one timer that kills it: the manager starts none.
     func terminate() {
         closeInput()
         process.terminate()
         DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + ClaudeSessionManager.handOffGrace) { [self] in
-            if !end.told { kill() }
+            if !end.told || isRunning { kill() }
         }
     }
 

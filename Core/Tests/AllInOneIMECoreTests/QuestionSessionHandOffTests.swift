@@ -124,12 +124,15 @@ struct QuestionSessionHandOffTests {
         let before = Date()
         _ = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.wasKilled && !process.isRunning)
-        #expect(Date().timeIntervalSince(before) < 3)
+        // Killed once `handOffGrace` is over: about half a second alone, 4–5 seconds seen under the full suite's parallel
+        // load. The bound holds under that load and still fails a hand-off that waits far longer than its grace.
+        #expect(Date().timeIntervalSince(before) < 15)
     }
 
     /// The hand-off that can't end our process (still running a moment after it was killed) opens no Terminal, and the
     /// conversation stays the one questions here go into, never a new one with Terminal not opened on the old: a retry
-    /// hands off the same. It says so, in the interface language.
+    /// hands off the same. It says only that Terminal wasn't opened on it, and why, in the interface language: not that
+    /// the conversation is still here (the panel closed as ⌘⏎ was pressed).
     @Test func aProcessThatOutlivesItsKillKeepsTheConversationHere() async throws {
         let launcher = Dying(dying: nil, killable: false)
         let session = claude(launcher)
@@ -152,8 +155,8 @@ struct QuestionSessionHandOffTests {
         #expect(session.request(panel).continues, "its follow-up goes on in it")
         let english = await withInterfaceLanguage("en") { error.localizedDescription }
         let chinese = await withInterfaceLanguage("zh-Hans") { error.localizedDescription }
-        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end); it stays here")
-        #expect(chinese == "没能在终端打开这个对话（会话的进程没有结束），对话还在这里")
+        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end)")
+        #expect(chinese == "没能在终端打开这个对话（会话的进程没有结束）")
     }
 
     /// Terminal that can't be opened once our process has ended (`open` throws): the conversation stays here too, and
@@ -186,8 +189,8 @@ struct QuestionSessionHandOffTests {
     }
 
     /// A question asked while the hand-off waited went into the new conversation: a hand-off that fails then can't put
-    /// the old one back, and says that questions here go into a new conversation.
-    @Test func aHandOffThatFailsAfterAQuestionMeanwhileSaysTheConversationIsNew() async throws {
+    /// the old one back. It says the same as one that did: Terminal wasn't opened on the conversation, and why.
+    @Test func aHandOffThatFailsAfterAQuestionMeanwhileLeavesTheNewConversation() async throws {
         let launcher = Dying(dying: nil, killable: false)
         let session = claude(launcher)
         defer { session.stop() }
@@ -202,8 +205,9 @@ struct QuestionSessionHandOffTests {
         #expect(error == SessionHandOffError(reason: .stillRunning, kept: false))
         #expect(try store.sessionID() != id)
         let english = await withInterfaceLanguage("en") { error.localizedDescription }
-        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end); "
-                + "questions here now go into a new conversation")
+        let chinese = await withInterfaceLanguage("zh-Hans") { error.localizedDescription }
+        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end)")
+        #expect(chinese == "没能在终端打开这个对话（会话的进程没有结束）")
         withExtendedLifetime(meanwhile) {}
     }
 
