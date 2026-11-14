@@ -541,6 +541,38 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
+/// A hand-off to Terminal (⌘⏎, `ClaudeSessionManager.handOffOnceEnded`) that didn't reach it: why, and whether the
+/// conversation stayed the one questions here go into (`kept`; else they go into a new one, a question having gone there
+/// meanwhile). What it says is in the interface language, as it is shown.
+public struct SessionHandOffError: LocalizedError, Equatable, Sendable {
+    public enum Reason: Equatable, Sendable {
+        /// Our process still ran a moment after it was killed: Terminal wasn't opened.
+        case stillRunning
+        /// Terminal couldn't be opened on it (why, as said in the interface language).
+        case terminal(String)
+    }
+
+    public var reason: Reason
+    public var kept: Bool
+
+    public init(reason: Reason, kept: Bool) {
+        self.reason = reason
+        self.kept = kept
+    }
+
+    public var errorDescription: String? {
+        let why: String
+        switch reason {
+        case .stillRunning: why = tr("会话的进程没有结束", "the session's process didn't end")
+        case let .terminal(message): why = message
+        }
+        return kept
+            ? tr("没能在终端打开这个对话（\(why)），对话还在这里", "Couldn't open the conversation in Terminal (\(why)); it stays here")
+            : tr("没能在终端打开这个对话（\(why)），这里的问题会进入新的对话",
+                 "Couldn't open the conversation in Terminal (\(why)); questions here now go into a new conversation")
+    }
+}
+
 /// The session's id and folder on disk: `id` holds the id of the conversation questions go into now, made when there is
 /// none, a new one for each new conversation (`startOver`: a request sent into a new one, `prewarm`, Settings' "Start
 /// over"); `resumable` is there once that conversation has begun (Claude Code started it on a question), so the process
@@ -669,6 +701,16 @@ public struct ClaudeSessionStore: Sendable {
     public func setAgentSessionID(_ id: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? Data((id + "\n").utf8).write(to: agentSessionFile, options: .atomic)
+    }
+
+    /// The conversation `id` the one now again, as it was before `startOver` (a hand-off that didn't reach Terminal:
+    /// `ClaudeSessionManager.handOffOnceEnded`): whether it resumes, the agent's id of it. Its memory is the caller's to
+    /// save.
+    func restore(_ id: String, resumable: Bool, agentSessionID: String?) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? Data((id + "\n").utf8).write(to: idFile, options: .atomic)
+        setResumable(resumable)
+        if let agentSessionID { setAgentSessionID(agentSessionID) } else { try? FileManager.default.removeItem(at: agentSessionFile) }
     }
 
     /// A new conversation from now on (the old one stays in the agent's history).

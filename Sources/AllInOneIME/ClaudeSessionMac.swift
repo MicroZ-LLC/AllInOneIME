@@ -168,15 +168,18 @@ enum ClaudeSessionMac {
     /// conversation in the session's folder, holding its lock (`ClaudeSessionManager.terminalCommand`), the next question
     /// typed (if any) as its first message, interactive after it (after "--", or Antigravity's "-i":
     /// `SessionBackend.terminalArguments`). It is the CLI as the user set it up (their rules, tools and MCP servers).
+    /// Terminal not opened (`SessionHandOffError`), the conversation stays here (`handOffOnceEnded` puts it back).
     static func handOff(followUp: String) async throws {
         let session = manager((try? Config.load())?.questionSessionAgent ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
-        let (arguments, directory, lock) = try await session.handOffOnceEnded(program: program.path, followUp: !followUp.isEmpty)
-        let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
-        if followUp.isEmpty {
-            try TerminalLauncher.launch(argv, name: "\(session.backend.agent.rawValue)-session", directory: directory.path)
-        } else {
-            try TerminalLauncher.agent(argv, prompt: followUp, directory: directory.path)
+        let name = "\(session.backend.agent.rawValue)-session"
+        try await session.handOffOnceEnded(program: program.path, followUp: !followUp.isEmpty) { arguments, directory, lock in
+            let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
+            if followUp.isEmpty {
+                try TerminalLauncher.launch(argv, name: name, directory: directory.path)
+            } else {
+                try TerminalLauncher.agent(argv, prompt: followUp, directory: directory.path)
+            }
         }
         log.notice("\(session.backend.agent.rawValue, privacy: .public) session handed to Terminal")
     }

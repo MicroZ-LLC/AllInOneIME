@@ -60,8 +60,8 @@ extension ClaudeSessionLauncher {
 /// process stays.
 /// One process writes a conversation at a time. Handing the conversation to Terminal (`handOffOnceEnded`) ends our
 /// process first, and waits for it; the conversation is Terminal's from then on, and questions after it go into a new
-/// one. Our process holds its conversation's lock (`ConversationLock`) while it runs, which Terminal waits for and then
-/// holds while its CLI runs (`terminalCommand`).
+/// one (a hand-off that doesn't reach Terminal puts it back). Our process holds its conversation's lock
+/// (`ConversationLock`) while it runs, which Terminal waits for and then holds while its CLI runs (`terminalCommand`).
 /// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
 /// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; one
 /// whose agent begins compacting the conversation before answering fails with `.compacting` at once (not waited for); so
@@ -509,24 +509,33 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// folder, and the conversation's lock file, for Terminal to hold while it runs (`terminalCommand`), which waits for
     /// ours. `handOffOnceEnded` returns once our process has ended.
     public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL, lock: URL) {
-        let (handed, running) = try handOver(program: program, followUp: followUp)
+        let (handed, running, _) = try handOver(program: program, followUp: followUp)
         if let running { perform([.terminate(running.process, running.lock)]) }
         return handed
     }
 
-    /// `handOff`, returning once our process has ended: asked to end, given `handOffGrace`, then killed with what it
-    /// started. Whether it has is the process's own state (`ClaudeSessionProcess.isRunning`), not its exit told, which
-    /// may come later; its conversation's lock is let go then. Waited for on the task (`Task.sleep`), never holding a
-    /// thread: the hand-off runs off the key's thread, on Swift's shared pool. Throws when it is still running a moment
-    /// after it was killed.
-    public func handOffOnceEnded(program: String, followUp: Bool = false) async throws
-        -> (arguments: [String], directory: URL, lock: URL) {
-        let (handed, running) = try handOver(program: program, followUp: followUp)
+    /// `handOff`, once our process has ended: asked to end, given `handOffGrace`, then killed with what it started.
+    /// Whether it has is the process's own state (`ClaudeSessionProcess.isRunning`), not its exit told, which may come
+    /// later; its conversation's lock is let go then, and `open` (Terminal opened on what is returned) runs. Waited for on
+    /// the task (`Task.sleep`), never holding a thread: the hand-off runs off the key's thread, on Swift's shared pool.
+    /// Throws `SessionHandOffError` when it doesn't reach Terminal: our process still running a moment after it was
+    /// killed (Terminal not opened), or `open` threw. The conversation is put back then (`putBack`): questions here go on
+    /// in it, and a retry hands off the same; unless a request was made meanwhile (it went into the new one).
+    @discardableResult
+    public func handOffOnceEnded(program: String, followUp: Bool = false,
+                                 open: (_ arguments: [String], _ directory: URL, _ lock: URL) throws -> Void = { _, _, _ in })
+        async throws -> (arguments: [String], directory: URL, lock: URL) {
+        let (handed, running, before) = try handOver(program: program, followUp: followUp)
         if let running {
             guard await Self.ended(running.process, grace: Self.handOffGrace) else {
-                throw ClaudeSessionError.failed("The previous session process has not exited")
+                throw SessionHandOffError(reason: .stillRunning, kept: putBack(before))
             }
             running.lock.release()
+        }
+        do {
+            try open(handed.arguments, handed.directory, handed.lock)
+        } catch {
+            throw SessionHandOffError(reason: .terminal(UIText.describe(error)), kept: putBack(before))
         }
         return handed
     }
@@ -549,14 +558,31 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return true
     }
 
+    /// The conversation a hand-off left (`handOver`) as it was, for `putBack`; `next`, the new one it went on to.
+    private struct Handed {
+        var id: String
+        var next: String?
+        var resumable: Bool
+        var agentSessionID: String?
+        var owner: String?
+        var asked: Bool?
+        var web: SessionWeb
+        var kept: Kept
+    }
+
     /// The hand-off under the lock: what Terminal is to run, of the conversation now (its id); our process let go of
-    /// (`retiring` until its exit is told), with the questions it was answering; a new conversation from now on.
+    /// (`retiring` until its exit is told), with the questions it was answering; a new conversation from now on. And the
+    /// conversation left, as it was (`putBack`).
     private func handOver(program: String, followUp: Bool)
-        throws -> (handed: (arguments: [String], directory: URL, lock: URL), running: Running?) {
-        let (handed, running, actions) = try state.withLock { state -> ((arguments: [String], id: String), Running?, [Action]) in
+        throws -> (handed: (arguments: [String], directory: URL, lock: URL), running: Running?, before: Handed) {
+        let (handed, running, before, actions) = try state.withLock {
+            state -> ((arguments: [String], id: String), Running?, Handed, [Action]) in
             let id = try store.sessionID()
-            let arguments = backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
+            let agentSessionID = store.agentSessionID()
+            let arguments = backend.terminalArguments(program: program, sessionID: id, agentSessionID: agentSessionID,
                                                       resume: store.resumable, followUp: followUp)
+            var before = Handed(id: id, resumable: store.resumable, agentSessionID: agentSessionID, owner: state.owner,
+                                asked: state.asked, web: state.web, kept: kept.withLock { load(&$0, id: id) })
             state.idle?.cancel()
             state.idle = nil
             let turns = state.turns
@@ -566,10 +592,38 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             if let running { state.retiring[running.generation] = running }
             state.running = nil  // what it still says, its exit too, is of no session now
             rollOver(&state)
-            return ((arguments, id), running, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
+            before.next = try? store.sessionID()
+            return ((arguments, id), running, before, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
         }
         perform(actions)
-        return ((handed.arguments, store.directory, store.lockFile(handed.id)), running)
+        return ((handed.arguments, store.directory, store.lockFile(handed.id)), running, before)
+    }
+
+    /// A hand-off that didn't reach Terminal (`handOffOnceEnded`): the conversation it left (`handOver`) is the one now
+    /// again, as it was (its id, whether it resumes, the agent's id of it, what was hidden in it and which panel
+    /// conversation is its), so that nothing of it is lost here and a retry hands off the same. Only while the new one
+    /// is untouched: no request made since, none placed in it; else false, the new one stays. A process a prewarm
+    /// started on the new one meanwhile ends: the next question starts one on this one.
+    private func putBack(_ before: Handed) -> Bool {
+        let actions = state.withLock { state -> [Action]? in
+            guard state.turns.isEmpty, state.owner == nil, state.asked != true,
+                  (try? store.sessionID()) == before.next else { return nil }
+            store.restore(before.id, resumable: before.resumable, agentSessionID: before.agentSessionID)
+            kept.withLock { kept in
+                kept = before.kept
+                store.save(before.kept.memory)
+            }
+            (state.owner, state.asked, state.web) = (before.owner, before.asked, before.web)
+            guard let running = state.running, running.conversation != before.id else { return [] }
+            state.retiring[running.generation] = running
+            state.running = nil  // its exit is of no session now
+            state.idle?.cancel()
+            state.idle = nil
+            return [.terminate(running.process, running.lock)]
+        }
+        guard let actions else { return false }
+        perform(actions)
+        return true
     }
 
     /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,

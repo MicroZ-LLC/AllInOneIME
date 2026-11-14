@@ -1413,12 +1413,14 @@ public final class InputSession {
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
             case let .continueClaudeSession(followUp):
-                // Off the key's thread: it waits for our process to end (on the task, holding no thread).
-                let handOff = SessionSendableBox(value: services.continueClaudeSession)
+                // Off the key's thread: it waits for our process to end (on the task, holding no thread). A failure says
+                // why, and where the conversation is (`SessionHandOffError`).
+                let (handOff, log) = (SessionSendableBox(value: services.continueClaudeSession), log)
                 tasks.start(nil) { post in
                     do {
                         try await handOff.value(followUp)
                     } catch {
+                        log.error("@question: could not open the Claude session: \(String(describing: error))")
                         post(.notice(UIText.describe(error)))
                     }
                 }
