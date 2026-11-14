@@ -97,7 +97,8 @@ final class AllInOneIMEInputController: IMKInputController {
         MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
     }
     /// Turns Caps Lock's lock on or off (`CapsLockKey`; the self-test touches none).
-    var setCapsLock: (Bool) -> Void = CapsLockKey.setLock
+    /// Off: kept off for a moment (`CapsLockKey.keepOff`).
+    var setCapsLock: @MainActor (Bool) -> Void = { $0 ? CapsLockKey.setLock(true) : CapsLockKey.keepOff() }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
