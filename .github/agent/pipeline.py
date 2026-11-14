@@ -559,12 +559,17 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
 
 def start_checks(pr: int, branch: str, base: str, sha: str) -> dict[str, str]:
     """Starts each of the gate's workflows that hasn't run on the PR's head (a PR made, or a branch pushed, with the job's
-    token starts no workflow by itself). Returns each workflow's latest run's status on it ("started" if just now)."""
+    token starts no workflow by itself). Returns each workflow's latest run's status on it ("started" if just now,
+    "unsuccessful" if it ended without success)."""
     status = {}
     for workflow in GATE_WORKFLOWS:
         runs = gh("api", f"repos/{REPO}/actions/workflows/{workflow}/runs?head_sha={sha}&per_page=1") or {}
         if runs.get("workflow_runs"):
-            status[workflow] = runs["workflow_runs"][0]["status"]
+            run = runs["workflow_runs"][0]
+            # A run that ended without success (cancelled, or failed before it reported) is "unsuccessful": an older
+            # passing status from it on this head mustn't count.
+            done_ok = run["status"] != "completed" or run.get("conclusion") == "success"
+            status[workflow] = run["status"] if done_ok else "unsuccessful"
             continue
         inputs = {"base": base} if workflow == "quality.yml" else {"pr": str(pr)}
         gh("api", "-X", "POST", f"repos/{REPO}/actions/workflows/{workflow}/dispatches", "--input", "-",
@@ -616,6 +621,12 @@ def gate_state(pr: dict, runs: dict[str, str]) -> tuple[list[str], list[str]]:
     failed = [name for name, (_, state) in latest.items() if state == "fail"]
     waiting = [name for name, (_, state) in latest.items() if state == "pending"]
     for name, workflow in WORKFLOW_OF.items():
+        # Its workflow's latest run ended without success: failed, whatever an older status says.
+        if runs.get(workflow) == "unsuccessful":
+            waiting = [n for n in waiting if n != name]
+            if name not in failed:
+                failed.append(name)
+            continue
         # A run of its workflow still queued or running (a rerun) answers anew: wait for it, whatever the old status says.
         if runs.get(workflow) not in (None, "completed"):
             failed = [n for n in failed if n != name]
