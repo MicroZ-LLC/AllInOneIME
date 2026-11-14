@@ -124,7 +124,9 @@ struct QuestionSessionHandOffTests {
         let before = Date()
         _ = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.wasKilled && !process.isRunning)
-        #expect(Date().timeIntervalSince(before) < 3)
+        // Killed once `handOffGrace` is over: about half a second alone, 4–5 seconds seen under the full suite's parallel
+        // load. The bound holds under that load and still fails a hand-off that waits far longer than its grace.
+        #expect(Date().timeIntervalSince(before) < 15)
     }
 
     /// The hand-off that can't end our process (still running a moment after it was killed) opens no Terminal, and the
