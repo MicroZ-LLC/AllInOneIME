@@ -86,7 +86,7 @@ final class CandidatePanel: NSPanel {
         animationBehavior = .none
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        collectionBehavior = Self.behavior
         // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
         acceptsMouseMovedEvents = true
         view.drawsBackground = false
@@ -258,9 +258,17 @@ final class CandidatePanel: NSPanel {
 
     /// Back on screen as it shows: the app shown again (never activated), an alpha lost with no reason given back, and
     /// ordered in (`reorder`: out and in again, the window server's record of it made anew).
+    /// Where it shows: on every Space, beside full-screen windows, not moved by Mission Control, not in the window cycle.
+    static let behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+
     private func putBack(reorder: Bool) {
         Self.unhideAppIfHidden()
         restoreLostAlpha()
+        // On every Space again: AppKit tells the window server only when the behavior changes, so setting the same one is
+        // skipped; through none it is told again (a window that lost it shows on one Space only, GitHub #61: not seen
+        // here, made by hand with the window server's tags cleared, put back by this at once).
+        collectionBehavior = []
+        collectionBehavior = Self.behavior
         if reorder { orderOut(nil) }
         orderFrontRegardless()
     }
@@ -309,7 +317,7 @@ final class CandidatePanel: NSPanel {
         case .first:
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
         case .again:
-            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public); ordered in again")
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), on the active Space: \(self.isOnActiveSpace, privacy: .public), on all Spaces: \(self.collectionBehavior.contains(.canJoinAllSpaces), privacy: .public); ordered in again")
             putBack(reorder: true)
             DispatchQueue.main.async { [weak self] in self?.presence(.reordered) }
         case .reordered:
@@ -461,30 +469,6 @@ final class CandidatePanel: NSPanel {
     static func screen(for anchor: NSRect) -> NSScreen? {
         let anchor = usable(anchor)
         return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
-    }
-}
-
-/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
-/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
-/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
-/// while it shows: `handler`, on the main thread, as long as this is kept.
-final class ScreenEvents {
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
-
-    init(_ handler: @escaping @MainActor () -> Void) {
-        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
-        let events: [(NotificationCenter, Notification.Name)] = [
-            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
-            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
-            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
-        ]
-        observers = events.map { center, name in
-            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
-        }
-    }
-
-    deinit {
-        for (center, observer) in observers { center.removeObserver(observer) }
     }
 }
 
