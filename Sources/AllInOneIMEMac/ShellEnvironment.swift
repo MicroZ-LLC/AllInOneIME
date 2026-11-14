@@ -3,7 +3,8 @@ import AllInOneIMECore
 
 /// The environment a program started from the input method gets: the input method's own, with the
 /// PATH of the user's login shell (an input method started by launchd only has the system folders,
-/// so `python3` from Homebrew, pyenv or nvm wouldn't be found). The shell is asked once.
+/// so `python3` from Homebrew, pyenv or nvm wouldn't be found). The shell is asked once, in the background at launch
+/// (`warmUp`); the main thread never waits for it (`path`, `readiness`).
 public enum ShellEnvironment {
     public static let fallbackPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 
@@ -36,9 +37,29 @@ public enum ShellEnvironment {
     /// there instead of in the keychain, the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`),
     /// the AWS variables Bedrock's credentials may come from (`AWSEnvironment`), and what the questions' sessions need
     /// (`SessionAgent.environmentVariables`).
-    public static let login: [String: String] = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
-                                                                + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
-                                                                + AWSEnvironment.variables + SessionAgent.environmentVariables)
+    public static let login: [String: String] = {
+        let values = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
+                                 + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
+                                 + AWSEnvironment.variables + SessionAgent.environmentVariables)
+        readiness.markReady()
+        return values
+    }()
+
+    /// Whether the login shell has answered (`login` read, by whoever asked first). Until then the main thread doesn't ask
+    /// it, which would wait for the shell (a `.zshrc` that takes seconds held the first text field's focus, and the keys
+    /// typed meanwhile, that long; one that hangs, `loginTimeout`): it takes the fallback (`path`) and asks again once
+    /// the shell has answered (`ShellReadiness.whenReady`).
+    public static let readiness = ShellReadiness { DispatchQueue.global(qos: .utility).async { _ = current } }
+
+    /// Reads the login shell in the background, once: the input method at launch; else the main thread's first question.
+    public static func warmUp() { readiness.start() }
+
+    /// The PATH programs are looked for on: the login shell's (`current`'s). On the main thread never waited for: the
+    /// fallback PATH until the shell has answered (`readiness`, the read started then), so an answer found on it isn't
+    /// to be kept. Anywhere else waited for, as `current` is.
+    public static var path: String {
+        readiness.value(fallback: fallbackPath) { current["PATH"] ?? fallbackPath }
+    }
 
     /// `names` as the user's interactive login shell sets them up (unset ones are left out): those it printed in
     /// `loginTimeout` seconds, none if it printed nothing by then.
@@ -80,6 +101,69 @@ public enum ShellEnvironment {
             if !value.isEmpty { values[String(part[..<eq])] = value }
         }
         return values
+    }
+}
+
+/// Whether the login shell has answered (`ShellEnvironment.readiness`; a test makes its own), and what waits for that on
+/// the main thread.
+public final class ShellReadiness: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ready: Bool
+    private var started = false
+    private var waiting: [@MainActor @Sendable () -> Void] = []
+    /// Reads the shell in the background, `markReady` once it has answered.
+    private let read: @Sendable () -> Void
+
+    /// `ready`: answered already; `read`: reads the shell in the background (asked once, by `start`).
+    public init(ready: Bool = false, read: @escaping @Sendable () -> Void = {}) {
+        self.ready = ready
+        self.read = read
+    }
+
+    public var isReady: Bool { lock.withLock { ready } }
+
+    /// Starts reading the shell (`read`), unless it has answered or is being read.
+    public func start() {
+        let starts = lock.withLock { () -> Bool in
+            guard !ready, !started else { return false }
+            started = true
+            return true
+        }
+        if starts { read() }
+    }
+
+    /// The shell has answered: what waits for it (`whenReady`) runs on the main thread.
+    public func markReady() {
+        let actions = lock.withLock { () -> [@MainActor @Sendable () -> Void] in
+            ready = true
+            defer { waiting = [] }
+            return waiting
+        }
+        guard !actions.isEmpty else { return }
+        DispatchQueue.main.async { MainActor.assumeIsolated { for action in actions { action() } } }
+    }
+
+    /// Runs `action` on the main thread once the shell has answered (the read started if it wasn't); soon, after what
+    /// is queued there, when it has already.
+    public func whenReady(_ action: @escaping @MainActor @Sendable () -> Void) {
+        let waits = lock.withLock { () -> Bool in
+            guard !ready else { return false }
+            waiting.append(action)
+            return true
+        }
+        if waits {
+            start()
+        } else {
+            DispatchQueue.main.async { MainActor.assumeIsolated { action() } }
+        }
+    }
+
+    /// `value()`, what the shell gave (waited for), once it has answered or off the main thread; on the main thread
+    /// before then, `fallback`, never waited for (the read started).
+    public func value<Value>(onMainThread: Bool = Thread.isMainThread, fallback: Value, _ value: () -> Value) -> Value {
+        guard onMainThread, !isReady else { return value() }
+        start()
+        return fallback
     }
 }
 

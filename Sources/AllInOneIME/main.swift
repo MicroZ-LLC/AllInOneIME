@@ -238,8 +238,9 @@ func runServer(showSettings: Bool = false) -> Never {
     }
     log.info("IMKServer started: \(name, privacy: .public)")
     terminationSignal.resume()
-    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
-    DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
+    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it, and the
+    // main thread never does (the fallback PATH until then: `ShellEnvironment.path`).
+    ShellEnvironment.warmUp()
     // A custom command a built-in now has the name of (a custom @reply): renamed in the config, said once in the next
     // text field (`BuiltinRenames`).
     BuiltinRenames.apply()
@@ -593,6 +594,7 @@ case "--selftest":
         RimeDirectories.override = URL(fileURLWithPath: arguments[index + 1])
     }
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
+    _ = ShellEnvironment.current  // the login shell's answer, as the input method has it once it has warmed up
     exit(MainActor.assumeIsolated {
         SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
                      autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"),
@@ -603,6 +605,7 @@ case "--showcase":
     MainActor.assumeIsolated { PanelShowcase.run(output: directory, dark: arguments.contains("dark"), chinese: arguments.contains("zh")) }
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
+    _ = ShellEnvironment.current  // the agents installed as the window shows them once the login shell has answered
     MainActor.assumeIsolated {
         // `extensions=<folder>[,<found folder>…]`: the Custom Commands page shows those folders' extensions instead of
         // the user's (the first as added, the others as found by Spotlight).

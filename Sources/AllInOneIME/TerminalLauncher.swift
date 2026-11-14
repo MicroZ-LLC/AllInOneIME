@@ -49,7 +49,9 @@ enum TerminalLauncher {
 
     /// Opens a new Terminal window in `directory` (else the home folder) that runs `argv` (a custom
     /// `terminal` command), each argument quoted as one word, with the login shell's PATH. `promptFile`: its text is the
-    /// last argument, read when the script runs (the file is deleted then).
+    /// last argument, read when the script runs (the file is deleted then). Before the login shell has answered, the
+    /// script is written with the fallback PATH (the main thread never waits for the shell: `ShellEnvironment.path`),
+    /// then again with the shell's, waited for in the background, before Terminal is asked to run it.
     ///
     /// Terminal is asked to open a window and then to run the script there, again until the script
     /// says it started: a login shell that starts a wrapper first (the Kiro CLI's `kiro-cli-term`)
@@ -61,25 +63,29 @@ enum TerminalLauncher {
         let base = folder.appendingPathComponent("\(name)-\(UUID().uuidString)")
         let scriptURL = base.appendingPathExtension("command")
         let marker = base.appendingPathExtension("started")
-        let path = ShellEnvironment.current["PATH"] ?? ShellEnvironment.fallbackPath
         let changeDirectory = directory.map { "cd \(shellQuote($0)) 2>/dev/null || cd ~ || exit 1" } ?? "cd ~ || exit 1"
         // The file's text as it is, trailing line breaks too (the "x" keeps them from `$(…)`).
         let readPrompt = promptFile.map {
             "prompt=\"$(cat -- \(shellQuote($0.path)); printf x)\"; prompt=\"${prompt%x}\"; rm -f -- \(shellQuote($0.path))\n"
         } ?? ""
-        let script = """
-            #!/bin/zsh -f
-            : > \(shellQuote(marker.path))
-            rm -f -- "$0"
-            export PATH=\(shellQuote(path))
-            \(changeDirectory)
-            \(readPrompt)exec \(argv.map(shellQuote).joined(separator: " "))\(promptFile == nil ? "" : " \"$prompt\"")
+        func write(path: String) throws {
+            let script = """
+                #!/bin/zsh -f
+                : > \(shellQuote(marker.path))
+                rm -f -- "$0"
+                export PATH=\(shellQuote(path))
+                \(changeDirectory)
+                \(readPrompt)exec \(argv.map(shellQuote).joined(separator: " "))\(promptFile == nil ? "" : " \"$prompt\"")
 
-            """
-        try Data(script.utf8).write(to: scriptURL, options: .atomic)
-        try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+                """
+            try Data(script.utf8).write(to: scriptURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: scriptURL.path)
+        }
+        let shellAnswered = ShellEnvironment.readiness.isReady
+        try write(path: ShellEnvironment.path)
         DispatchQueue.global().async {
             defer { try? FileManager.default.removeItem(at: marker) }
+            if !shellAnswered { try? write(path: ShellEnvironment.path) }  // the login shell's PATH, waited for here
             if runWhenReady(scriptURL, marker: marker) { return }
             DispatchQueue.main.async {
                 let terminal = URL(fileURLWithPath: "/System/Applications/Utilities/Terminal.app")
