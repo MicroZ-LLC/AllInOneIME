@@ -6,7 +6,9 @@ public protocol ClaudeSessionProcess: AnyObject, Sendable {
     func send(_ line: Data) throws
     /// Closes its standard input: nothing more is written (a command that reads it to its end goes on).
     func closeInput()
-    /// Ends it (and what it started): asked to (SIGTERM).
+    /// Ends it (and what it started): asked to (SIGTERM); one that hasn't ended `ClaudeSessionManager.handOffGrace`
+    /// later is killed by the process itself, its own timer (`ProcessClaudeSessionLauncher`'s): the manager starts
+    /// none.
     func terminate()
     /// Ends it and what it started at once (SIGKILL): what `terminate` didn't end.
     func kill()
@@ -18,13 +20,6 @@ extension ClaudeSessionProcess {
     public func closeInput() {}
     public func kill() { terminate() }
     public var isRunning: Bool { false }
-}
-
-private func terminateAfterGrace(_ process: any ClaudeSessionProcess) {
-    process.terminate()
-    DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + ClaudeSessionManager.handOffGrace) {
-        if process.isRunning { process.kill() }
-    }
 }
 
 /// Starts the session's process: the real one (`ProcessClaudeSessionLauncher`), or a test's.
@@ -90,7 +85,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The sign-in check's longest run; past it, it counts as signed out.
     public static let checkTimeout: Duration = .seconds(15)
     /// The hand-off's longest wait for our process to end once asked to (SIGTERM), before it is killed (⌘⏎:
-    /// `handOffOnceEnded` waits for it); a process stopped is killed after it too.
+    /// `handOffOnceEnded` waits for it); a process stopped is killed after it too, by its own timer
+    /// (`ClaudeSessionProcess.terminate`).
     public static let handOffGrace: TimeInterval = 0.5
     /// A sign-in check that didn't find the agent ready stands this long (seconds) before the next one may run.
     public static let recheckInterval: TimeInterval = 60
@@ -1318,7 +1314,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             case let .send(process, line):
                 // It can't be written to (it ended, or closed its input): ended, its exit says the rest (`exited`, with
                 // its status and what it said on stderr).
-                do { try process.send(line) } catch { terminateAfterGrace(process) }
+                do { try process.send(line) } catch { process.terminate() }
             case let .yield(continuation, text):
                 continuation.yield(text)
             case let .finish(continuation, error?):
@@ -1326,7 +1322,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             case let .finish(continuation, nil):
                 continuation.finish()
             case let .terminate(process, lock):
-                terminateAfterGrace(process)
+                process.terminate()
                 if !process.isRunning { lock?.release() }
             }
         }
@@ -1497,7 +1493,8 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
 
     /// Asked to end (SIGTERM to its group); killed after `ClaudeSessionManager.handOffGrace` unless its end was told by
     /// then: it may have ended at once while something it started that left its group holds its output open, and its
-    /// end, which waits for that output's end until it is killed (`PipedEnd`), would never be told.
+    /// end, which waits for that output's end until it is killed (`PipedEnd`), would never be told. The one timer that
+    /// kills it: the manager starts none.
     func terminate() {
         closeInput()
         process.terminate()
@@ -1540,7 +1537,7 @@ private final class SignInCheck: @unchecked Sendable {
             if state.continuation != nil { state.process = process }
             return state.continuation == nil
         }
-        if said { terminateAfterGrace(process) }
+        if said { process.terminate() }
     }
 
     /// What ends it after `ClaudeSessionManager.checkTimeout` (cancelled at once if it already said).
@@ -1580,7 +1577,7 @@ private final class SignInCheck: @unchecked Sendable {
         }
         guard let continuation = said.continuation else { return }
         said.timer?.cancel()
-        if let process = said.process { terminateAfterGrace(process) }
+        if let process = said.process { process.terminate() }
         continuation.resume(returning: availability)
     }
 }

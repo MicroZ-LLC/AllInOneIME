@@ -271,6 +271,54 @@ struct QuestionSessionStuckTests {
         #expect(process.terminated && process.killed && !session.isRunning)
     }
 
+    /// A platform whose programs never end, asked to or killed: each one's signals counted.
+    final class Unending: ProcessLauncher, @unchecked Sendable {
+        final class Launched: LaunchedProcess, @unchecked Sendable {
+            private let signals = Locked(initialState: (terminations: 0, kills: 0))
+            var terminations: Int { signals.withLock { $0.terminations } }
+            var kills: Int { signals.withLock { $0.kills } }
+            var processIdentifier: Int32 { 0 }
+            var isRunning: Bool { true }
+            var treeIsRunning: Bool { true }
+            var terminationStatus: Int32 { 0 }
+            func waitUntilExit() {}
+            func terminate() -> Bool { signals.withLock { $0.terminations += 1 }; return true }
+            func kill() -> Bool { signals.withLock { $0.kills += 1 }; return true }
+        }
+
+        private let launched = Locked<[Launched]>(initialState: [])
+        var last: Launched? { launched.withLock { $0.last } }
+        var canLaunch: Bool { true }
+        var environment: [String: String] { [:] }
+        var loginEnvironment: [String: String] { [:] }
+        func isRunnable(_ program: URL) -> Bool { true }
+
+        func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess {
+            // Its output ends at once (nothing reads on for ever); the program itself never does.
+            for case let .pipe(pipe) in [spec.standardOutput, spec.standardError] { try pipe.fileHandleForWriting.close() }
+            let process = Launched()
+            launched.withLock { $0.append(process) }
+            return process
+        }
+    }
+
+    /// A process stopped (the real one's, `ProcessClaudeSessionLauncher`) that hasn't ended by `handOffGrace` is killed
+    /// once, by its own timer: not by a second one the manager starts too.
+    @Test func aStoppedProcessIsKilledOnceAfterItsGrace() async throws {
+        let platform = Unending()
+        let session = manager(ProcessClaudeSessionLauncher(processes: platform, executable: { URL(fileURLWithPath: "/u/claude") },
+                                                           environment: { [:] }))
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(platform.last)
+        session.stop()
+        #expect(process.terminations == 1)
+        #expect(await Timing.eventually(within: 30) { process.kills > 0 }, "never killed")
+        // A second timer would have fired by now as well (they wait as long).
+        try await Task.sleep(for: .seconds(ClaudeSessionManager.handOffGrace * 2))
+        #expect(process.terminations == 1 && process.kills == 1, "killed \(process.kills) times")
+    }
+
     /// A process stopped whose end is never told (it ignores even the kill, or what told it is stuck): a question asked
     /// meanwhile waits for its own process `firstAnswerTimeout` at most, then fails so that the provider answers; no
     /// second process starts while the first may still run.

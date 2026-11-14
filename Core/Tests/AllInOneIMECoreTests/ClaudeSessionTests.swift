@@ -124,7 +124,10 @@ struct ClaudeSessionTests {
         process.done(text)
     }
 
-    @Test func replacementWaitsForOldExitAndStopEscalates() async throws {
+    /// A question of a new conversation while the process before it is still ending: its process starts once that
+    /// one has ended (killed by its own timer if it doesn't end when asked: `ClaudeSessionProcess.terminate`,
+    /// `QuestionSessionStuckTests.aStoppedProcessIsKilledOnceAfterItsGrace`), not before.
+    @Test func replacementWaitsForOldExit() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
         defer { session.stop() }
@@ -136,6 +139,9 @@ struct ClaudeSessionTests {
         _ = await collect(first)
         let next = session.ask("two", in: QuestionConversation())
         #expect(old.terminated && fake.processes.count == 1)
+        try await Task.sleep(for: .seconds(ClaudeSessionManager.handOffGrace * 2))
+        #expect(fake.processes.count == 1, "started while the one before still ran")
+        old.kill()  // its own timer's kill
         #expect(await Timing.eventually(within: 3) { fake.processes.count == 2 })
         #expect(!old.isRunning)
         withExtendedLifetime(next) {}
