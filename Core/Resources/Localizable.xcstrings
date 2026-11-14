@@ -1085,6 +1085,53 @@
         }
       }
     },
+    " (saved questions are kept; Settings → AI → “Forget” deletes them)" : {
+      "comment" : "（已存的问题保留；要删除，在设置 → AI 里点「忘掉」） — Sources/AllInOneIMECore/AIConfigText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (gespeicherte Fragen bleiben; „Vergessen“ unter Einstellungen → KI löscht sie)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (las preguntas guardadas se conservan; «Olvidar» en Ajustes → IA las elimina)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (les questions enregistrées sont conservées ; « Oublier » dans Réglages → IA les supprime)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（保存した質問は残ります。設定 → AI の「忘れる」で削除できます）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (저장된 질문은 유지됩니다. 설정 → AI의 ‘잊기’로 삭제합니다)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (as perguntas salvas são mantidas; “Esquecer” em Ajustes → IA as apaga)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（已存的問題保留；要刪除，在設定 → AI 裡點「忘掉」）"
+          }
+        }
+      }
+    },
     " (saved questions are kept; Settings → General → “Clear” deletes them)" : {
       "comment" : "（已存的问题保留；要删除，在设置 → 通用里点「清除」） — Sources/AllInOneIMECore/AIConfigText.swift",
       "localizations" : {
@@ -1134,6 +1181,7 @@
     },
     " (saved questions are kept; Settings → Privacy → “Forget” deletes them)" : {
       "comment" : "（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」） — Sources/AllInOneIMECore/AIConfigText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2684,8 +2732,103 @@
         }
       }
     },
+    "@question goes to the CLI (a second or more); what has to be fast (rewriting, translating, autocomplete) uses %@." : {
+      "comment" : "@question 走 CLI（要 1 秒以上）；改写、翻译、续写这些要快的，自动用「%@」。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question geht an die CLI (eine Sekunde oder mehr); was schnell sein muss (Umschreiben, Übersetzen, Autovervollständigung), nutzt %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question va a la CLI (un segundo o más); lo que tiene que ser rápido (reescribir, traducir, autocompletar) usa %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question passe par la CLI (une seconde ou plus) ; ce qui doit être rapide (réécriture, traduction, saisie semi-automatique) utilise %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question は CLI に送ります（1 秒以上かかります）。速さが必要なもの（書き換え、翻訳、オートコンプリート）は %@ を使います。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question는 CLI로 갑니다(1초 이상 걸림). 빨라야 하는 작업(다시 쓰기, 번역, 자동 완성)은 %@을(를) 씁니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question vai para a CLI (um segundo ou mais); o que precisa ser rápido (reescrever, traduzir, autocompletar) usa %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question 走 CLI（要 1 秒以上）；改寫、翻譯、續寫這些要快的，自動用「%@」。"
+          }
+        }
+      }
+    },
+    "@question goes to the CLI (a second or more); with no faster AI, autocomplete is off, and rewriting and translating go to it too, more slowly." : {
+      "comment" : "@question 走 CLI（要 1 秒以上）；没有更快的 AI，续写关闭，改写、翻译也走它，会慢一些。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question geht an die CLI (eine Sekunde oder mehr); ohne schnellere KI ist die Autovervollständigung aus, und Umschreiben und Übersetzen gehen auch an sie, langsamer."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question va a la CLI (un segundo o más); sin una IA más rápida, el autocompletado está desactivado y reescribir y traducir también van a ella, más despacio."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question passe par la CLI (une seconde ou plus) ; sans IA plus rapide, la saisie semi-automatique est désactivée, et la réécriture et la traduction passent aussi par elle, plus lentement."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question は CLI に送ります（1 秒以上かかります）。より速い AI がないので、オートコンプリートはオフになり、書き換えと翻訳も CLI に送るため遅くなります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question는 CLI로 갑니다(1초 이상 걸림). 더 빠른 AI가 없어 자동 완성은 꺼지고, 다시 쓰기와 번역도 CLI로 가서 더 느립니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question vai para a CLI (um segundo ou mais); sem uma IA mais rápida, o autocompletar fica desligado, e reescrever e traduzir também vão para ela, mais devagar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question 走 CLI（要 1 秒以上）；沒有更快的 AI，續寫關閉，改寫、翻譯也走它，會慢一些。"
+          }
+        }
+      }
+    },
     "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month (about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell." : {
       "comment" : "@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3674,6 +3817,7 @@
     },
     "%@ didn't accept the API key: check it in Settings → Commands" : {
       "comment" : "%@ 不接受这个 API key：在设置 → 命令里检查一下 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3721,6 +3865,7 @@
     },
     "%@ didn't accept the API key: check it in Settings → Web Search" : {
       "comment" : "%@ 不接受这个 API key：在设置 → 网页搜索里检查一下 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4990,6 +5135,7 @@
     },
     "%@ lists the text and images you copied lately and puts in the one you choose; ⇧↓ ⇧↑ choose several texts, and %@ puts them in one per line. Kept on this Mac only, never what a password manager marks as concealed. Off, %@ works as before." : {
       "comment" : "按 %@ 列出最近复制的文字和图片，选一条就放进去；⇧↓ ⇧↑ 多选文字，%@ 一行一条放进去。只存在这台 Mac 上，密码管理器标成隐藏的内容不记。关掉后 %@ 和以前一样。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5031,6 +5177,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 %@ 列出最近複製的文字和圖片，選一條就放進去；⇧↓ ⇧↑ 多選文字，%@ 一行一條放進去。只存在這台 Mac 上，密碼管理器標成隱藏的內容不記。關掉後 %@ 和以前一樣。"
+          }
+        }
+      }
+    },
+    "%@ lists the text and images you copied lately to put one back in; kept on this Mac only, never what a password manager hides." : {
+      "comment" : "按 %@ 列出最近复制的文字和图片，选一条放进去；只存在这台 Mac 上，不记密码管理器隐藏的内容。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ listet die zuletzt kopierten Texte und Bilder, um einen wieder einzusetzen; nur auf diesem Mac gespeichert, nie, was ein Passwortmanager verbirgt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ muestra los textos e imágenes que copiaste hace poco para volver a pegar uno; se guardan solo en este Mac, nunca lo que oculta un gestor de contraseñas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ liste les textes et images copiés récemment pour en remettre un ; conservés sur ce Mac uniquement, jamais ce qu’un gestionnaire de mots de passe masque."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で最近コピーしたテキストと画像を一覧し、選んだものを入れます。このMacにだけ保存し、パスワードマネージャが隠す内容は保存しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@를 누르면 최근에 복사한 텍스트와 이미지가 나열되고 하나를 골라 넣습니다. 이 Mac에만 보관하며 암호 관리자가 숨기는 내용은 보관하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ lista os textos e imagens que você copiou recentemente para colocar um de volta; guardados só neste Mac, nunca o que um gerenciador de senhas oculta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 %@ 列出最近複製的文字和圖片，選一條放進去；只存在這台 Mac 上，不記密碼管理器隱藏的內容。"
           }
         }
       }
@@ -7107,6 +7300,7 @@
     },
     "%%.1f s: %%@" : {
       "comment" : "%%.1f 秒：%%@ — Sources/AllInOneIMECore/Settings/SettingsChecks.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8330,6 +8524,7 @@
     },
     "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; what has to be fast (rewriting, translating, autocomplete) uses %@." : {
       "comment" : "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；改写、翻译、续写这些要快的，自动用「%@」。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8377,6 +8572,7 @@
     },
     "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; with no faster AI here, autocomplete is off, and rewriting and translating go to it too, more slowly." : {
       "comment" : "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；没有更快的 AI 可用，续写关闭，改写、翻译也交给它，会慢一些。 — Sources/AllInOneIMECore/AIChoice.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9366,6 +9562,7 @@
     },
     "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart." : {
       "comment" : "打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10259,6 +10456,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Agent"
+          }
+        }
+      }
+    },
+    "AI" : {
+      "comment" : "AI — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI"
           }
         }
       }
@@ -11601,6 +11845,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先前的 Rime 錯誤已解決"
+          }
+        }
+      }
+    },
+    "An English word you type twice comes up among pinyin's candidates; it needs Accessibility, to skip password fields." : {
+      "comment" : "同一个英文词打两次，以后就出现在拼音的候选里；需要辅助功能权限，用来避开密码框。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein englisches Wort, das du zweimal tippst, erscheint unter den Pinyin-Kandidaten; dafür sind Bedienungshilfen nötig, um Passwortfelder auszulassen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra en inglés que escribes dos veces aparece entre los candidatos de pinyin; necesita Accesibilidad para omitir los campos de contraseña."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot anglais tapé deux fois apparaît parmi les candidats du pinyin ; il faut l’Accessibilité, pour éviter les champs de mot de passe."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "2回入力した英単語はピンインの候補に出てきます。パスワード欄を避けるためにアクセシビリティが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "두 번 입력한 영어 단어는 병음 후보에 나타납니다. 암호 필드를 건너뛰려면 손쉬운 사용이 필요합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra em inglês digitada duas vezes aparece entre os candidatos do pinyin; precisa de Acessibilidade para ignorar campos de senha."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同一個英文詞打兩次，以後就出現在拼音的候選裡；需要輔助使用權限，用來避開密碼框。"
           }
         }
       }
@@ -15099,6 +15390,7 @@
     },
     "Can't reach %@" : {
       "comment" : "无法连接 %@ — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15146,6 +15438,7 @@
     },
     "Can't read this kind of content (%@)" : {
       "comment" : "读不了这种内容（%@） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17899,6 +18192,7 @@
     },
     "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app." : {
       "comment" : "选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19425,6 +19719,7 @@
     },
     "Couldn't read the %@ response" : {
       "comment" : "%@ 的响应无法解析 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21495,8 +21790,56 @@
         }
       }
     },
+    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp); see docs/extensions.md." : {
+      "comment" : "每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp），写法见 docs/extensions.md。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jedes Skript ist ein @-Befehl, benannt nach seiner Datei (convert-timestamp.sh → @converttimestamp); siehe docs/extensions.md."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada script es un comando @ con el nombre de su archivo (convert-timestamp.sh → @converttimestamp); consulta docs/extensions.md."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque script est une commande @ nommée d’après son fichier (convert-timestamp.sh → @converttimestamp) ; voir docs/extensions.md."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "各スクリプトはファイル名から名付けられた @ コマンドです（convert-timestamp.sh → @converttimestamp）。詳しくは docs/extensions.md を参照してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "각 스크립트는 파일 이름을 딴 @ 명령입니다(convert-timestamp.sh → @converttimestamp). docs/extensions.md를 참고하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada script é um comando @ com o nome do seu arquivo (convert-timestamp.sh → @converttimestamp); veja docs/extensions.md."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每個腳本是一個 @ 指令，名字取自檔名（convert-timestamp.sh → @converttimestamp），寫法見 docs/extensions.md。"
+          }
+        }
+      }
+    },
     "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one." : {
       "comment" : "每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23618,8 +23961,56 @@
         }
       }
     },
+    "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3)." : {
+      "comment" : "全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3）。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volles Pinyin schreibt jede Silbe aus (nihao), Shuangpin tippt jede mit zwei Tasten (Xiaohe: nihc), Zhuyin tippt Bopomofo auf den Daqian-Tasten (ㄋㄧˇ: su3)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El pinyin completo escribe cada sílaba entera (nihao), Shuangpin cada una con dos teclas (Xiaohe: nihc) y Zhuyin escribe bopomofo con las teclas Daqian (ㄋㄧˇ: su3)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le pinyin complet écrit chaque syllabe en entier (nihao), le Shuangpin chacune en deux touches (Xiaohe : nihc), le Zhuyin tape le bopomofo sur les touches Daqian (ㄋㄧˇ : su3)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼は音節をすべてつづり（nihao）、双拼は音節を2キーで入力し（小鶴：nihc）、注音は大千配列で注音符号を入力します（ㄋㄧˇ：su3）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음은 음절을 모두 입력하고(nihao), 쌍병은 음절마다 두 키로 입력하며(샤오허: nihc), 주음은 다첸 배열로 주음 부호를 입력합니다(ㄋㄧˇ: su3)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pinyin completo escreve cada sílaba por inteiro (nihao), o Shuangpin digita cada uma em duas teclas (Xiaohe: nihc) e o Zhuyin digita bopomofo nas teclas Daqian (ㄋㄧˇ: su3)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼把每個音節拼全（nihao），雙拼每個音節打兩個鍵（小鶴雙拼：nihc），注音按大千鍵位打注音符號（ㄋㄧˇ：su3）。"
+          }
+        }
+      }
+    },
     "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc); Zhuyin types Bopomofo on the Standard (Daqian) keys (ㄋㄧˇ: su3). It changes at once. Shuangpin keeps your learned words, fuzzy pinyin, characters and English words; Zhuyin keeps the characters, without fuzzy pinyin or English words." : {
       "comment" : "全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）；注音按标准（大千）键位打注音符号（ㄋㄧˇ：su3）。换了马上生效。双拼照样用学过的词、模糊音、字形和英文词；注音用字形，没有模糊音和英文词。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -23808,7 +24199,7 @@
       }
     },
     "General" : {
-      "comment" : "通用 — Sources/AllInOneIMECore/Session/InputSession.swift",
+      "comment" : "通用 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -25550,6 +25941,7 @@
     },
     "input method" : {
       "comment" : "输入法 — Sources/AllInOneIMECore/Settings/SettingsChecks.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -29995,6 +30387,7 @@
     },
     "No %@ credit left: see the usage and limits in its dashboard" : {
       "comment" : "%@ 的额度用完了：在它的控制台里看看用量和上限 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30230,6 +30623,7 @@
     },
     "No API key for web search: add one in Settings → Commands (or set %@ in your shell)" : {
       "comment" : "网页搜索还没有 API key：在设置 → 命令里添上（或在 shell 里设置 %@） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30277,6 +30671,7 @@
     },
     "No API key for web search: add one in Settings → Web Search (or set %@ in your shell)" : {
       "comment" : "网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 %@） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30512,7 +30907,7 @@
       }
     },
     "No credentials" : {
-      "comment" : "没有凭证 — Sources/AllInOneIMECore/AWSProfiles.swift",
+      "comment" : "没有凭证 — Sources/AllInOneIMECore/AIChoice.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31832,6 +32227,7 @@
     },
     "No text found on the page (pages that need JavaScript can't be read)" : {
       "comment" : "网页上没有找到文字（要靠 JavaScript 显示的网页读不了） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -31926,6 +32322,7 @@
     },
     "No web results for this search" : {
       "comment" : "网页搜索没有找到结果 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32302,6 +32699,7 @@
     },
     "Not a web address: %@" : {
       "comment" : "不是网址：%@ — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39092,6 +39490,7 @@
     },
     "Read a web page; inside a sentence, context for the AI" : {
       "comment" : "读网页正文，可放在句中给 AI 当上下文 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -39139,6 +39538,7 @@
     },
     "read the page" : {
       "comment" : "读网页 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -40785,6 +41185,7 @@
     },
     "results" : {
       "comment" : "搜索结果 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -43843,6 +44244,7 @@
     },
     "search the web" : {
       "comment" : "搜索网页 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -43890,6 +44292,7 @@
     },
     "Search the web; inside a sentence, context for the AI" : {
       "comment" : "搜索网页，可放在句中给 AI 当上下文 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -44686,6 +45089,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "先選取一些文字，再輸入 @improve、@translate、@question ⋯ 並按 Enter：指令會處理選取的文字（打字時它會保持選取且不變），你選的結果會取代它；按 Esc 則不做任何更改。如果在某個應用程式中運作不正常，請關閉這項設定。"
+          }
+        }
+      }
+    },
+    "Selection not used in %@" : {
+      "comment" : "「%@」里不用选中的文字 — Sources/AllInOneIMECore/Learned.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auswahl in %@ nicht verwendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selección sin usar en %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sélection non utilisée dans %@"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ では選択したテキストを使わない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 선택한 텍스트 사용 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Seleção não usada em %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」裡不用選取的文字"
           }
         }
       }
@@ -46525,6 +46975,53 @@
         }
       }
     },
+    "Simplified or Traditional characters, for pinyin and the AI's replies; Taiwan's also uses Taiwan's words (软件 → 軟體)." : {
+      "comment" : "拼音和 AI 的回复用简体字还是繁体字；台湾的还会换成台湾的用词（软件 → 軟體）。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vereinfachte oder traditionelle Schriftzeichen, für Pinyin und die Antworten der KI; Taiwan verwendet auch Taiwans Wörter (软件 → 軟體)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres simplificados o tradicionales, para el pinyin y las respuestas de la IA; el de Taiwán usa también las palabras de Taiwán (软件 → 軟體)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caractères simplifiés ou traditionnels, pour le pinyin et les réponses de l’IA ; Taïwan utilise aussi les mots de Taïwan (软件 → 軟體)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインとAIの返答に使う簡体字か繁体字。台湾は台湾の語彙も使います（软件 → 軟體）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음과 AI 답변에 쓸 간체자 또는 번체자. 대만은 대만 어휘도 씁니다(软件 → 軟體)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Caracteres simplificados ou tradicionais, para o pinyin e as respostas da IA; o de Taiwan também usa as palavras de Taiwan (软件 → 軟體)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音和 AI 的回覆用簡體字還是繁體字；台灣的還會換成台灣的用詞（软件 → 軟體）。"
+          }
+        }
+      }
+    },
     "snippet" : {
       "comment" : "代码片段 — Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift",
       "localizations" : {
@@ -46663,6 +47160,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "列表用的鍵（↓ ↑ ⏎ Esc）有些 App 也會收到"
+          }
+        }
+      }
+    },
+    "Some features don't fully work without it; if it's already on in System Settings, turn it off and on again." : {
+      "comment" : "没有它，一些功能不能完全正常；系统设置里已经打开的话，先关掉再打开。 — Sources/AllInOneIMECore/Doctor.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ohne sie funktionieren manche Funktionen nicht vollständig; ist sie in den Systemeinstellungen schon an, schalte sie aus und wieder ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin ella, algunas funciones no van del todo bien; si ya está activada en Ajustes del Sistema, desactívala y vuelve a activarla."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sans elle, certaines fonctions ne marchent pas entièrement ; si elle est déjà activée dans Réglages Système, désactivez-la puis réactivez-la."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "これがないと一部の機能が完全には動きません。システム設定ですでにオンなら、一度オフにしてからオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 권한이 없으면 일부 기능이 완전히 작동하지 않습니다. 시스템 설정에서 이미 켜져 있다면 껐다가 다시 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem ela, alguns recursos não funcionam totalmente; se já estiver ativada nos Ajustes do Sistema, desative e ative de novo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有它，一些功能不能完全正常；系統設定裡已經打開的話，先關掉再打開。"
           }
         }
       }
@@ -50577,6 +51121,7 @@
     },
     "The %@ response is too large" : {
       "comment" : "%@ 的响应太大 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -53553,6 +54098,7 @@
     },
     "The page answered HTTP %@" : {
       "comment" : "网页返回 HTTP %@ — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -53600,6 +54146,7 @@
     },
     "The page is larger than 2 MB" : {
       "comment" : "网页太大（超过 2 MB） — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -54779,6 +55326,7 @@
     },
     "The search is too long: %@ characters and %@ words at most" : {
       "comment" : "要搜的内容太长：最多 %@ 个字、%@ 个词 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -56475,6 +57023,7 @@
     },
     "Too many searches at once for %@: try again in a moment" : {
       "comment" : "%@ 搜索太频繁，稍后再试 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -57848,6 +58397,7 @@
     },
     "Type what to search for after @search" : {
       "comment" : "在 @search 后面写上要搜的内容 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -58982,6 +59532,7 @@
     },
     "Web Search (@search)" : {
       "comment" : "网页搜索（@search） — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -59265,6 +59816,53 @@
         }
       }
     },
+    "What a suggestion row puts in, such as \"#1234 Fix login\" with title or \"[Fix login](https://…)\" as a Markdown link; by default what its plugin or command says." : {
+      "comment" : "建议的行插入什么，比如带标题是「#1234 Fix login」，Markdown 链接是「[Fix login](https://…)」；默认按插件或命令自己定的。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einsetzt, etwa „#1234 Fix login“ mit Titel oder „[Fix login](https://…)“ als Markdown-Link; standardmäßig, was ihr Plug-in oder Befehl vorgibt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencia, como «#1234 Fix login» con título o «[Fix login](https://…)» como enlace Markdown; por omisión, lo que diga su plugin o comando."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion, comme « #1234 Fix login » avec titre ou « [Fix login](https://…) » en lien Markdown ; par défaut, ce que dit son plug-in ou sa commande."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が入れる内容。タイトル付きなら「#1234 Fix login」、Markdown リンクなら「[Fix login](https://…)」。デフォルトはプラグインやコマンドの指定どおりです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 넣는 내용. 예를 들어 제목 포함이면 “#1234 Fix login”, Markdown 링크면 “[Fix login](https://…)”. 기본값은 플러그인이나 명령이 정한 대로입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere, como “#1234 Fix login” com título ou “[Fix login](https://…)” como link Markdown; por padrão, o que o plugin ou comando diz."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼，比如帶標題是「#1234 Fix login」，Markdown 連結是「[Fix login](https://…)」；預設按外掛或指令自己定的。"
+          }
+        }
+      }
+    },
     "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", and with title and link adds its link." : {
       "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
       "extractionState" : "stale",
@@ -59315,6 +59913,7 @@
     },
     "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", with title and link adds its link, and Markdown link puts \"[Fix login](https://…)\" in place of the #1234 typed." : {
       "comment" : "建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接，Markdown 链接是「[Fix login](https://…)」，替换掉打的 #1234。 — Sources/AllInOneIMECore/Suggestions/SuggestionsInsert.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -59645,6 +60244,7 @@
     },
     "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too." : {
       "comment" : "拼音打出简体字还是繁体字。台湾的还会换成台湾的用词（软件 → 軟體）。AI 润色和回复也用这种字。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -61103,6 +61703,7 @@
     },
     "Your %@ plan doesn't include this search" : {
       "comment" : "你的 %@ 套餐不支持这种搜索 — Sources/AllInOneIMECore/UIText+Errors.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

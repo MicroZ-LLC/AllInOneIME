@@ -3,7 +3,7 @@ import Foundation
 /// The characters Chinese typed in pinyin comes out in (`Config.chineseCharacters`, Settings → Input → Chinese →
 /// Characters): Simplified, or Traditional as Taiwan or Hong Kong write it. Rime converts its candidates (rime-ice's
 /// `traditionalization` switch, with OpenCC's data: `patch`), and whatever reasons about the language typed takes Chinese
-/// for this one (`language`): the AI's prompts, Translate as You Type, `@reply`, screen text, web search, dictation.
+/// for this one (`language`): the AI's prompts, Translate as You Type, `@reply`, screen text, dictation.
 public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     case simplified
     /// Taiwan's characters and words (软件 → 軟體, 网络 → 網路).

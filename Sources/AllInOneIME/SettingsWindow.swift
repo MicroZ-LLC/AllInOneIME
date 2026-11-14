@@ -36,11 +36,17 @@ final class SettingsModel: ObservableObject {
     /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
     /// was last shown or something was forgotten.
     @Published private(set) var learned: [LearnedItem] = []
+    /// The apps whose selection isn't used (`LearnedStore.selectionOffApps`): Learned… lists them after `learned`.
+    @Published private(set) var selectionOffApps: [String] = []
     /// Whether this week's stats keep any count (`WeekStatsShared`): Learned… lists them too.
     @Published private(set) var weekStatsKept = false
 
+    /// How many rows Learned… lists (this week's stats apart).
+    var learnedCount: Int { learned.count + selectionOffApps.count }
+
     func refreshLearned() {
         learned = LearnedShared.store.items(appName: { AppNames.name(for: $0) }, chinese: config.typedChinese)
+        selectionOffApps = LearnedShared.store.selectionOffApps
         let week = WeekStatsShared.store.stats.snapshot(for: .current)
         weekStatsKept = WeekStatsShared.store.stats.hasCommands || week.firstRecordedDay != nil
     }
@@ -56,6 +62,12 @@ final class SettingsModel: ObservableObject {
     /// app, a model's temperature …).
     func forget(_ item: LearnedItem) {
         LearnedShared.store.forget(item)
+        refreshLearned()
+    }
+
+    /// Forget on an app whose selection isn't used: it's used there again (and learned again if it still fails).
+    func forgetSelectionOff(_ app: String) {
+        LearnedShared.store.forgetSelectionOff(in: app)
         refreshLearned()
     }
 
@@ -154,7 +166,6 @@ final class SettingsModel: ObservableObject {
         shownAt = Date()
         refreshPluginsInBackground { [weak self] in self?.refreshExtensionsInBackground(discover: discoverExtensions) }
         refreshKeys()
-        refreshSearchKey()
         refreshNotionTokenInBackground()
         refreshNotesFolder()
         refreshAccount()
@@ -168,8 +179,8 @@ final class SettingsModel: ObservableObject {
     /// test's result, the errors of before, a link pasted and not tested, the control pointed at.
     func reopened() {
         reloadIfChanged()
-        (testStatus, searchTestStatus, notesTestStatus) = (.idle, .idle, .idle)
-        (keyError, searchKeyError, notionTokenError, accountError) = (nil, nil, nil, nil)
+        (testStatus, notesTestStatus) = (.idle, .idle)
+        (keyError, notionTokenError, accountError) = (nil, nil, nil)
         (pluginError, extensionError, voiceError) = (nil, nil, nil)
         notionLink = ""
         spot = nil
@@ -447,61 +458,6 @@ final class SettingsModel: ObservableObject {
         var shown = config
         shown.provider = fast
         return shown
-    }
-
-    // MARK: Web search (@search)
-
-    /// Where the web search key comes from (nil until looked up), the last save's error, and the test.
-    @Published private(set) var searchKeySource: APIKeys.Source?
-    @Published private(set) var searchKeyEnding: String?
-    @Published private(set) var searchKeyError: String?
-    @Published private(set) var searchTestStatus: TestStatus = .idle
-    private var searchTestTask: Task<Void, Never>?
-
-    func refreshSearchKey() {
-        // A preview (the self-test's README images) shows no key and never asks the user's keychain.
-        guard persists, Self.looksUpKeys else {
-            searchKeySource = APIKeys.Source.none
-            return
-        }
-        Task.detached {
-            // The first look asks the user's shell for its variables (BRAVE_API_KEY): not on the main thread.
-            let source = WebSearch.keySource()
-            let ending = APIKeys.keyEnding(account: WebSearch.backend.keyAccount)
-            await MainActor.run { [weak self] in
-                self?.searchKeySource = source
-                self?.searchKeyEnding = ending
-            }
-        }
-    }
-
-    /// Stores the web search key in the keychain, never in the config; an empty one does nothing (`removeSearchKey`).
-    func saveSearchKey(_ key: String) {
-        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
-        searchKeyError = store.saveSearchKey(key)
-        searchTestStatus = .idle
-        refreshSearchKey()
-    }
-
-    /// Removes the web search key: Remove Key…, confirmed.
-    func removeSearchKey() {
-        guard persists else { return }
-        searchKeyError = store.removeSearchKey()
-        searchTestStatus = .idle
-        refreshSearchKey()
-    }
-
-    var searchKeyState: KeyState { KeyState(searchKeySource, ending: searchKeyEnding) }
-
-    /// One search with the key as it is kept, to see that it works.
-    func testSearch() {
-        searchTestTask?.cancel()
-        searchTestStatus = .running
-        let query = tr("输入法", "input method")
-        searchTestTask = Task { [weak self] in
-            let status = await SettingsStore.testSearch(query)
-            self?.searchTestStatus = status
-        }
     }
 
     // MARK: Notes (@note)
@@ -1128,8 +1084,7 @@ struct SettingsView: View {
     @State private var editingKey: Provider?
     /// The key sheet: a provider other than the one in use whose key the Assistant asked for.
     @State private var keySheet: KeySheetRequest?
-    /// The web search key row's paste field.
-    @State private var editingSearchKey = false
+    /// The Notion token row's paste field.
     @State private var editingNotionToken = false
     /// The page shown (General when none is asked for) and what's typed in the sidebar's search field.
     @State private var page: SettingsPage
@@ -1329,16 +1284,21 @@ struct SettingsView: View {
         .settingsRow(.candidateLayout, shown: model.spot)
     }
 
-    /// Advanced → commands on the selected text.
+    /// Advanced → commands on the selected text (`Composer.selection`, `useSelection`): no switch (owner, 0.7.5), the input
+    /// method learns it per app (an app whose field doesn't take a result in place of its selection, `LearnedStore`:
+    /// Privacy → Learned…). Turned off in the config (by hand, an earlier version, the search's Change), it shows with
+    /// Restore Default.
     @ViewBuilder private var typingSection: some View {
-        Section {
-            // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
-            Toggle(isOn: $model.config.useSelection) {
-                titled(.useSelection)
+        if !model.config.useSelection {
+            Section {
+                RestoreDefaultRow(title: SettingsSpot.useSelection.title + tr("：", ": ") + tr("关", "Off"),
+                                  note: RestoreDefaultRow.defaultIs(tr("开", "On"))) {
+                    model.config.useSelection = true
+                }
+                .settingsRow(.useSelection, shown: model.spot)
             }
-            .settingsRow(.useSelection, shown: model.spot)
+            .disabled(!model.canSave)
         }
-        .disabled(!model.canSave)
     }
 
     /// What the candidate layout's row says for `layout`, as the core's settings document says it too.
@@ -1348,48 +1308,6 @@ struct SettingsView: View {
                  "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
             : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。",
                  "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page.")
-    }
-
-    /// Commands → `@question`: where its conversation goes on (`ChatHandoff`; QuestionChatSettings.swift): the chips, the
-    /// card's width for them (every agent installed, the web, Copy), scrolled sideways when there are more.
-    @ViewBuilder private var questionSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(alignment: .top) {
-                    titled(SettingsSpot.questionContinueIn.title,
-                           model.triggered(tr("@question 聊满 \(QuestionChat.rounds(model.config.questionRounds)) 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，第一个是默认。",
-                              "After \(QuestionChat.rounds(model.config.questionRounds)) rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there, the first by default.")))
-                    Spacer()
-                    let missing = model.missingContinueChoices
-                    if !missing.isEmpty {
-                        Menu(tr("添加…", "Add…")) {
-                            ForEach(missing, id: \.self) { destination in
-                                Button(SessionText.name(destination, picked: model.config.agent,
-                                                        custom: model.config.agentCommand, language: UIText.language)) {
-                                    model.addContinueIn(destination)
-                                }
-                            }
-                        }
-                        .fixedSize()
-                    }
-                }
-                ScrollView(.horizontal, showsIndicators: false) {
-                    // The agents by name (a custom one's from its command), `.atAgent` by @agent's.
-                    LanguageChips(items: model.continueChoices,
-                                  name: {
-                                      SessionText.shortName($0, picked: model.config.agent, custom: model.config.agentCommand,
-                                                            language: UIText.language)
-                                  },
-                                  firstNote: tr("默认", "default"),
-                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
-                        .fixedSize()
-                }
-            }
-            .settingsRow(.questionContinueIn, shown: model.spot)
-        } header: {
-            SectionTitle(model.triggered(tr("提问（@question）", "Questions (@question)")), icon: CommandIcons.icon(for: .question))
-        }
-        .disabled(!model.canSave)
     }
 
     /// The menu bar icon and the interface language.
@@ -1538,42 +1456,13 @@ struct SettingsView: View {
                    : tr("添加输入语言", "Add an input language"))
     }
 
-    /// What @translate writes in, and what @improve offers: the languages, in order (a line in each); the rewrite styles,
-    /// in order; whether @improve also translates; and the jargon list, with the Jargon style (or one already chosen).
-    @ViewBuilder private var writingSection: some View {
+    /// Settings → AI → AI Commands (owner, 0.7.5): what the AI commands do, each command's options together. `@improve`:
+    /// the rewrite styles, in order (drag to reorder), whether it also translates, and the jargon list (with the Jargon
+    /// style or a list chosen already). `@translate`: the languages it writes in, a line in each, in order. `@question`:
+    /// where a conversation goes on (`ChatHandoff`; QuestionChatSettings.swift: the chips, scrolled sideways when they're
+    /// more than the card's width), and the recent questions kept (`QuestionHistory`; off forgets them).
+    @ViewBuilder private var aiCommandsSection: some View {
         Section {
-            // @translate writes a line in each, in this order (three versions with only one).
-            LabeledContent {
-                HStack(spacing: 6) {
-                    // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
-                    let chinese = model.config.typedChinese
-                    LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
-                                  firstNote: nil,
-                                  reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
-                    Menu(tr("添加…", "Add…")) {
-                        ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
-                            Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
-                        }
-                    }
-                    .fixedSize()
-                    .accessibilityIdentifier(Self.addOutputLanguageID)
-                }
-            } label: {
-                if model.config.hasLanguageToTranslateInto {
-                    titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
-                } else {
-                    // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
-                    let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(SettingsSpot.outputLanguages.title)
-                        Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
-                                "Add one besides \(typed): a sentence isn't translated into its own language"))
-                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            // Opened from @translate's notice (nothing to translate into): this is where.
-            .settingsRow(.outputLanguages, shown: model.spot)
             // Like the languages: the styles added, in the order they're shown; drag to reorder.
             LabeledContent {
                 HStack(spacing: 6) {
@@ -1617,8 +1506,88 @@ struct SettingsView: View {
                 }
                 .settingsRow(.jargonList, shown: model.spot)
             }
+            // @translate writes a line in each, in this order (three versions with only one).
+            LabeledContent {
+                HStack(spacing: 6) {
+                    // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
+                    let chinese = model.config.typedChinese
+                    LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
+                                  firstNote: nil,
+                                  reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
+                    Menu(tr("添加…", "Add…")) {
+                        ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
+                            Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
+                        }
+                    }
+                    .fixedSize()
+                    .accessibilityIdentifier(Self.addOutputLanguageID)
+                }
+            } label: {
+                if model.config.hasLanguageToTranslateInto {
+                    titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
+                } else {
+                    // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
+                    let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(SettingsSpot.outputLanguages.title)
+                        Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
+                                "Add one besides \(typed): a sentence isn't translated into its own language"))
+                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+            }
+            // Opened from @translate's notice (nothing to translate into): this is where.
+            .settingsRow(.outputLanguages, shown: model.spot)
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(alignment: .top) {
+                    titled(SettingsSpot.questionContinueIn.title,
+                           model.triggered(tr("@question 对话里按 ⌘⏎，到这些地方接着聊；第一个是默认。",
+                                              "⌘⏎ in an @question conversation continues it in one of these; the first is the default.")))
+                    Spacer()
+                    let missing = model.missingContinueChoices
+                    if !missing.isEmpty {
+                        Menu(tr("添加…", "Add…")) {
+                            ForEach(missing, id: \.self) { destination in
+                                Button(SessionText.name(destination, picked: model.config.agent,
+                                                        custom: model.config.agentCommand, language: UIText.language)) {
+                                    model.addContinueIn(destination)
+                                }
+                            }
+                        }
+                        .fixedSize()
+                    }
+                }
+                ScrollView(.horizontal, showsIndicators: false) {
+                    // The agents by name (a custom one's from its command), `.atAgent` by @agent's.
+                    LanguageChips(items: model.continueChoices,
+                                  name: {
+                                      SessionText.shortName($0, picked: model.config.agent, custom: model.config.agentCommand,
+                                                            language: UIText.language)
+                                  },
+                                  firstNote: tr("默认", "default"),
+                                  reorder: { model.setContinueIn($0) }, remove: { model.removeContinueIn($0) })
+                        .fixedSize()
+                }
+            }
+            .settingsRow(.questionContinueIn, shown: model.spot)
+            // The recent @questions (`QuestionHistory`); off forgets them too. Their only place in the window (owner, 0.7.5).
+            Toggle(isOn: Binding(get: { model.config.rememberQuestions }, set: { model.setRememberQuestions($0) })) {
+                titled(SettingsSpot.rememberQuestions.title,
+                       model.triggered(tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题和答案；关掉会忘掉它们。",
+                                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions and their answers; turning it off forgets them.")))
+            }
+            .settingsRow(.rememberQuestions, shown: model.spot)
+            HStack {
+                Text(model.recentQuestions == 0 ? tr("没有保存的问题。", "No questions saved.")
+                     : model.recentQuestions == 1 ? tr("保存了 1 个问题。", "1 saved question.")
+                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved questions."))
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button(tr("忘掉（\(model.recentQuestions)）", "Forget (\(model.recentQuestions))")) { model.clearRecentQuestions() }
+                    .disabled(model.recentQuestions == 0)
+            }
         } header: {
-            SectionTitle(tr("翻译和改写", "Translate and Rewrite"), icon: CommandIcons.translate)
+            SectionTitle(tr("AI 命令", "AI Commands"), icon: CommandIcons.icon(for: .improve))
         }
         .disabled(!model.canSave)
     }
@@ -1746,8 +1715,8 @@ struct SettingsView: View {
             SectionTitle(SettingsSpot.scriptExtensions.title, icon: CommandIcons.scripts)
                 .settingsRow(.scriptExtensions, shown: model.spot)
         } footer: {
-            Text(tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
-                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
+            Text(tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp），写法见 docs/extensions.md。",
+                    "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp); see docs/extensions.md.")
                     .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                 .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
@@ -1973,45 +1942,6 @@ struct SettingsView: View {
         .disabled(!model.canSave)
         .onAppear { if model.spot == .provider { choosingAI = true } }
         .onChange(of: model.spot) { if model.spot == .provider { choosingAI = true } }
-    }
-
-    @ViewBuilder private var webSearchSection: some View {
-        if Command.webSearchOffered {
-            // The key lives in the keychain, not in the config file: this works even when the file is broken.
-            Section {
-                LabeledContent("API key") {
-                    KeyRowContent(state: model.searchKeyState, missing: tr("还没有 API key", "No API key yet"),
-                                  prompt: tr("粘贴 Brave Search 的 API key", "Paste a Brave Search API key"),
-                                  removeTitle: { everywhere in
-                                      everywhere ? tr("从你所有的 Mac 上删除搜索 API key？", "Remove the search API key from all your Macs?")
-                                          : tr("从这台 Mac 上删除搜索 API key？", "Remove the search API key from this Mac?")
-                                  },
-                                  save: { model.saveSearchKey($0) },
-                                  remove: model.searchKeySource == .keychain ? { model.removeSearchKey() } : nil,
-                                  editing: $editingSearchKey)
-                }
-                if let error = model.searchKeyError { Text(error).foregroundStyle(.red) }
-                HStack {
-                    Button(tr("测试", "Test")) { model.testSearch() }
-                        .disabled(model.searchTestStatus == .running || model.searchKeySource == APIKeys.Source.none)
-                    Button(tr("获取 API key…", "Get an API Key…")) { NSWorkspace.shared.open(WebSearch.backend.keyPage) }
-                    switch model.searchTestStatus {
-                    case .idle: EmptyView()
-                    case .running: ProgressView().controlSize(.small)
-                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                    }
-                }
-                Text(model.triggered(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
-                            + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
-                        "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
-                            + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                            + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell.")))
-                    .font(.caption).foregroundStyle(.secondary)
-            } header: {
-                SectionTitle(model.triggered(tr("网页搜索（@search）", "Web Search (@search)")), icon: CommandIcons.webSearch)
-            }
-        }
     }
 
     /// Where `@note` saves (`Config.notes`): Notes, Notion (its token in the keychain, never in the config; the link of a
@@ -2417,8 +2347,8 @@ struct SettingsView: View {
                         "Dubeolsik (2-set): keys give jamo, composed into syllables as you type, e.g. g k s → 한. Shift for ㄲ ㄸ ㅃ ㅆ ㅉ and ㅒ ㅖ."))
                     .foregroundStyle(.secondary)
             case .hindi:
-                Text(tr("用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 ।",
-                        "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)."))
+                Text(tr("用拉丁字母按发音打出天城文（namaste → नमस्ते）：空格上屏第一种写法，数字选别的。",
+                        "Type it as it sounds in Latin letters for Devanagari (namaste → नमस्ते): Space puts in the first spelling, a digit another."))
                     .foregroundStyle(.secondary)
             }
         } header: {
@@ -2569,7 +2499,6 @@ struct SettingsView: View {
                         // The keys first, then the menu bar and the interface language (the owner, 0.6.7).
                         keysSection
                         appearanceSection
-                        writingSection
                         autocompleteSection
                         SuggestionsSection(model: model)
                         ClipboardHistorySection(model: model)
@@ -2580,16 +2509,16 @@ struct SettingsView: View {
                         inputSection
                         ForEach(model.config.inputs, id: \.self) { input in inputOptions(input) }
                     case .ai:
+                        // Who answers, then what the AI commands do, then the model's parameters (owner, 0.7.5).
                         providerSection
+                        aiCommandsSection
                         requestSection
                     case .privacy:
                         PrivacySection(model: model)
                     case .commands:
                         commandsSection
                         AgentSettingsPage(model: model)
-                        questionSection
                         notesSection
-                        webSearchSection
                         pluginsSection
                         extensionsSection
                         // The plugins' folder, the extensions' folders and the extension sources, folded (owner, 0.7.4).
@@ -2707,7 +2636,7 @@ struct SettingsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { note in
             page = (note.userInfo?["page"] as? String).flatMap(SettingsPage.init(rawValue:)) ?? Self.firstPage
             (query, chosen, openChip) = ("", 0, nil)
-            (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
+            (editingKey, keySheet, editingNotionToken) = (nil, nil, false)
             (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
             (customModel, customProviderModel, troubleshooting, showsOtherFolders) = (false, false, false, false)
             (aiMore, foldersAndSources) = (SettingsDisclosure(), SettingsDisclosure())
@@ -2991,10 +2920,8 @@ struct SettingsView: View {
             }
         }
         let context = "\(AppleModel.system.contextSize / 1024)K"
-        Text(tr("用这台 Mac 自带的模型（macOS 26 起）：不用 API key，不花钱，文字不离开这台 Mac。模型较小：上下文约 \(context) tokens，"
-                    + "支持的语言少一些，效果不如云端的模型。",
-                "Uses the model built into this Mac (macOS 26 and later): no API key, no cost, and nothing leaves the Mac. "
-                    + "It is a small model: about \(context) tokens of context, fewer languages, and results below the cloud models'."))
+        Text(tr("这台 Mac 自带的模型：免费，文字不离开这台 Mac，但比云端的模型小（上下文约 \(context) tokens）。",
+                "The model built into this Mac: free, and nothing leaves the Mac, but smaller than the cloud models (about \(context) tokens of context)."))
             .font(.caption).foregroundStyle(.secondary)
     }
 

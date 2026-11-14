@@ -61,7 +61,7 @@ extension SelfTest {
             opened.removeAll()
             let before = (client.inserted, model.requests.count)
             translate("good morning")
-            let page = SettingsPage.general.title
+            let page = SettingsPage.ai.title
             _ = pump(timeout: 2.5) { !opened.isEmpty }  // the notice up a while: nothing opens meanwhile
             let shown = controller.panelModel()
             let line = "\(shown.status)"
@@ -71,7 +71,7 @@ extension SelfTest {
                   && shown.footer.hasPrefix(tr("空格 / ⏎ 打开设置", "Space / ⏎ open the settings")),
                   "[\(ui)] …the notice, still up, names the page and offers ⏎ (\(line) | \(shown.footer))")
             if key == "⏎" { _ = enter(controller, client) } else { _ = space(controller, client) }
-            check(opened == ["general/outputLanguages"] && client.inserted.last == "good morning" && client.marked.isEmpty
+            check(opened == ["ai/outputLanguages"] && client.inserted.last == "good morning" && client.marked.isEmpty
                   && controller.composer.phase == .idle,
                   "[\(ui)] \(key) on it opens Settings on \(page) at the languages; the sentence goes in as typed (\(opened), \(client.inserted.last ?? "-"))")
         }
@@ -170,7 +170,7 @@ extension SelfTest {
             _ = pump(timeout: 1.5) { translateToAdd() != nil && settingsWindow().map(inFront) == true }
             let window = settingsWindow()
             check(window.map(inFront) == true && window.flatMap { NSApp.orderedWindows.firstIndex(of: $0) } == 0 && !early
-                  && opened == ["general/outputLanguages"],
+                  && opened == ["ai/outputLanguages"],
                   "settings \(start): only ⏎ on the notice shows them, in front of every window on screen (key: "
                       + "\(window?.isKeyWindow ?? false), active: \(NSApp.isActive))")
             let spot = SettingsWindow.shared.spot
@@ -184,7 +184,7 @@ extension SelfTest {
             let pick = start == "closed" ? UIText.name(OutputLanguage("fr")) : nil
             let listed = addMenu(picking: pick)
             check(spot == .outputLanguages && listed == others,
-                  "…on Translate & Rewrite, its Add… outlined, listing the \(others.count) other languages"
+                  "…on AI → AI Commands, its Add… outlined, listing the \(others.count) other languages"
                       + (start == "closed" ? ", Chinese (typed here) too " : " ")
                       + "(\(spot?.rawValue ?? "no outline"); \(listed.count): \(listed.prefix(3))…)")
             if pick != nil {
@@ -231,7 +231,7 @@ extension SelfTest {
         }
         controller.toggleTranslateMode()
         let notice = controller.notice ?? "-"
-        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.general.title),
+        check(!TranslateModeShared.state.isOn && controller.composer.translateMode == nil && notice.contains(SettingsPage.ai.title),
               "Translate as You Type with English alone stays off, and says where to add one (\(notice))")
         // French added after English, as the notice says: on at once, into French, not "on: English" with everything typed
         // going in as typed until French is picked on the chip.
@@ -251,7 +251,7 @@ extension SelfTest {
         controller.applySettings()
         let gone = controller.notice ?? "-"
         let off = !TranslateModeShared.state.isOn && controller.composer.translateMode == nil && !MenuBarIcon.shared.translating
-        check(off && gone.contains(tr("没有要翻译成的语言", "No language to translate into")) && gone.contains(SettingsPage.general.title),
+        check(off && gone.contains(tr("没有要翻译成的语言", "No language to translate into")) && gone.contains(SettingsPage.ai.title),
               "…French removed while it's on, it goes off and says where to add one (\(gone))")
     }
 }

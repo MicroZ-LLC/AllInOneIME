@@ -59,6 +59,20 @@ public enum SessionText {
         return (rest, range.upperBound)
     }
 
+    /// Whether a field didn't take `result` in place of `selection` (`Composer.Effect.replaceSelection`), as `read` tells
+    /// the field's text in a range (UTF-16; nil: it doesn't say): the selection's text still where it was, and the result
+    /// not there. Nil where that can't be told: no range (read with Accessibility), an empty selection, a result that
+    /// starts with it (only the rest goes in, after it: `afterSelection`), or the field doesn't say.
+    public static func selectionNotReplaced(_ selection: Composer.Selection, by result: String,
+                                            read: (Range<Int>) -> String?) -> Bool? {
+        guard let range = selection.range, !selection.text.isEmpty, !result.hasPrefix(selection.text) else { return nil }
+        let start = range.lowerBound
+        guard let there = read(start..<start + selection.text.utf16.count) else { return nil }
+        guard there == selection.text else { return false }
+        guard let resultThere = read(start..<start + result.utf16.count) else { return nil }
+        return resultThere != result
+    }
+
     // MARK: - Notices
 
     /// How long a notice stays up: by its length, and longer for what the user has to act on.

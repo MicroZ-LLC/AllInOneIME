@@ -937,7 +937,7 @@ public final class InputSession {
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               config.useSelection, !nothingLeavesDevice() {
+               usesSelection(in: (context.field ?? field).app, config: config), !nothingLeavesDevice() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
@@ -1157,12 +1157,18 @@ public final class InputSession {
 
     // MARK: - What the composer asks of the field
 
-    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`), never during
-    /// secure input, nor in a field known as a password field where it isn't on (`passwordField`: unknown is read as
-    /// before, no key waiting to tell it), nor in a terminal (its selection is no text being edited: what goes back would
-    /// be typed at the prompt).
+    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`) and the app not
+    /// learned as one whose field doesn't take a result in its place (`usesSelection`), never during secure input, nor in
+    /// a field known as a password field where it isn't on (`passwordField`: unknown is read as before, no key waiting to
+    /// tell it), nor in a terminal (its selection is no text being edited: what goes back would be typed at the prompt).
     private func selectionMayBeRead() -> Bool {
-        services.loadSettings().useSelection && !nothingLeavesDevice() && !terminal
+        usesSelection(in: app, config: services.loadSettings()) && !nothingLeavesDevice() && !terminal
+    }
+
+    /// Commands work on the selection in `app`: `useSelection` on (the config's: off, nowhere), and `app` not one whose
+    /// field didn't take a result in place of its selection (`LearnedStore.selectionOff`, learned per app).
+    private func usesSelection(in app: String?, config: Config) -> Bool {
+        config.useSelection && !(app.map(services.learned.selectionOff) ?? false)
     }
 
     /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key, where it may be read
@@ -1232,7 +1238,7 @@ public final class InputSession {
     /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
     /// settings name it (the Mac's General since Settings v2, Windows' Translate & Rewrite).
     var noTranslationTargetText: String {
-        let (enter, page) = (terms.enter, terms.device == .mac ? tr("通用", "General") : tr("翻译与改写", "Translate & Rewrite"))
+        let (enter, page) = (terms.enter, terms.device == .mac ? tr("AI", "AI") : tr("翻译与改写", "Translate & Rewrite"))
         return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
     }
 
@@ -1583,7 +1589,7 @@ public final class InputSession {
         let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
                                   improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
-                                  commandTrigger: config.commandTrigger, chinese: config.typedChinese)
+                                  commandTrigger: config.commandTrigger)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).

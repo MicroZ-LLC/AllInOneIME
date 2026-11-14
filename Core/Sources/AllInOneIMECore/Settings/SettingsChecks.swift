@@ -3,7 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 
-// The settings' Test buttons: Test Connection (the AI provider), the web search's and the Notion link's. Each works on
+// The settings' Test buttons: Test Connection (the AI provider) and the Notion link's. Each works on
 // what it is given (a copy of the config, the key as kept), off whatever thread or actor shows its answer.
 
 extension SettingsStore {
@@ -37,23 +37,6 @@ extension SettingsStore {
             let rewrite = final.rewrites.first { !shown.contains($0.line.text.wordingKey) }
                 .map { "\n" + (RewriteStyle.named($0.style).map(UIText.name) ?? $0.style) + tr("：", ": ") + $0.line.text } ?? ""
             return .passed(String(format: tr("%.1f 秒：%@%@", "%.1f s: %@%@"), elapsed, first, rewrite))
-        } catch {
-            return .failed(UIText.describe(error))
-        }
-    }
-
-    /// The web search's Test: one search for `query` with the key as it is kept. Reading the key may ask the keychain
-    /// (and the login password): it is read on another thread.
-    public static func testSearch(_ query: String = tr("输入法", "input method")) async -> TestStatus {
-        let started = Date()
-        do {
-            let key = await Task.detached { WebSearch.loadKey() }.value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            guard !key.isEmpty else {
-                throw WebSearch.SearchError.missingKey(variable: WebSearch.backend.keyVariables.first ?? "")
-            }
-            let first = try await WebSearch.search(query, key: key).first
-            let shown = first.map { $0.title.isEmpty ? $0.url : $0.title } ?? ""
-            return .passed(String(format: tr("%.1f 秒：%@", "%.1f s: %@"), Date().timeIntervalSince(started), shown))
         } catch {
             return .failed(UIText.describe(error))
         }

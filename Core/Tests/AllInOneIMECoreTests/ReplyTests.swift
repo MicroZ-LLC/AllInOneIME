@@ -378,13 +378,9 @@ struct ReplyTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == text)
     }
 
-    @Test func theRenameNoticeSaysWhatWasRenamedAndWhyOnlyForABuiltInOffered() {
+    @Test func theRenameNoticeSaysWhatWasRenamedAndWhy() {
         #expect(Composer.ReplyMessages.english.renamed(old: "reply", new: "myreply") == "Your own @reply is now @myreply: @reply is built in")
         #expect(Composer.ReplyMessages.chinese.renamed(old: "Note", new: "mynote") == "你自己的 @note 改名为 @mynote：@note 现在是内置命令")
-        // @read is built in but off (not offered): nothing is said about it being built in.
-        #expect(Command.off.contains(.read))
-        #expect(Composer.ReplyMessages.english.renamed(old: "read", new: "myread") == "Your own @read is now @myread")
-        #expect(Composer.ReplyMessages.chinese.renamed(old: "read", new: "myownread") == "你自己的 @read 改名为 @myownread")
     }
 
     @Test func theIntentWithTheCommandsOutputsIsCappedToo() {

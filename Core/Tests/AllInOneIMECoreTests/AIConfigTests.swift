@@ -135,9 +135,9 @@ struct AIConfigTests {
     @Test func rememberQuestionsOffSaysTheSavedOnesAreKept() throws {
         let off = #"{"changes": [{"key": "rememberQuestions", "value": false}]}"#
         #expect(try rows(off).map { $0.text(chinese: false) }
-                == ["Remember recent questions: on → off (saved questions are kept; Settings → Privacy → “Forget” deletes them)"])
+                == ["Remember recent questions: on → off (saved questions are kept; Settings → AI → “Forget” deletes them)"])
         #expect(try rows(off, env: env(chinese: true)).map { $0.text(chinese: true) }
-                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）"])
+                == ["记住最近的问题：开 → 关（已存的问题保留；要删除，在设置 → AI 里点「忘掉」）"])
         #expect(try rows(off).first?.edit == .flag(.rememberQuestions, false))
         var forgetting = config
         forgetting.rememberQuestions = false

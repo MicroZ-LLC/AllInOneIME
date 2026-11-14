@@ -609,14 +609,15 @@ enum SelfTest {
 
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        // The translate languages are dragged into order (General: under the input languages' chips).
+        // The translate languages are dragged into order (AI → AI Commands: under the rewrite styles, none here).
         let japanese = OutputLanguage("ja")
         config.setOrder([OutputLanguage.english, japanese])
+        config.rewriteStyles = []
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
         config.setOrder([Language.english])  // one input chip above them
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))  // its chips' page
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .ai))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -627,8 +628,8 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The translate languages' row is the first from the top with two handles (the input languages' one chip is
-        // above it): its two handles, left to right.
+        // The translate languages' row is the first from the top with two handles (no rewrite style's chip above it):
+        // its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
         let rows = Dictionary(grouping: all) { Int(($0.1.midY / 4).rounded()) }.sorted { $0.key > $1.key }.map(\.value)
         guard !rows.isEmpty else { return check(false, "language chips have drag handles") }
@@ -1498,8 +1499,7 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        // @read is off for now (`Command.off`): @reply, then @reminder.
-        check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
+        check(both.prefix(2) == ["reply", "reminder"], "@r offers @reply and @reminder first (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         // The command its letters start comes first; one @'s other rows for the text follow it.
@@ -2124,10 +2124,8 @@ enum SelfTest {
         showAfresh(controller.panelModel())
     }
 
-    /// @py, @js and @search through the controller, with ⏎ as the action key: results come back as
-    /// candidates (@py and @js from their child processes), output with several lines goes in as printed
-    /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
-    /// search key is a stand-in: the user's keychain is never read here.
+    /// @py and @js through the controller, with ⏎ as the action key: results come back as candidates (from their
+    /// child processes), output with several lines goes in as printed (in a terminal as one line).
     /// Typed out with typos fixed on the way (`Config.typeOutMistakes`): the field ends up with exactly the text,
     /// each typo taken back by its range. Esc or another key while a typo is in the field leaves none behind. No
     /// typos in a terminal, nor in a field that tells no caret. Seeded "random" numbers, short pauses.
@@ -2287,18 +2285,16 @@ enum SelfTest {
 
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
-        section("@py, @js, @search", needs: .composing)
+        section("@py, @js", needs: .composing)
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
-        let (secureInput, installed, commands, searchKey) =
-            (controller.services.secureInputActive, controller.services.programInstalled, controller.composer.commands, controller.services.loadSearchKey)
+        let (secureInput, installed, commands) =
+            (controller.services.secureInputActive, controller.services.programInstalled, controller.composer.commands)
         controller.services.secureInputActive = { false }
         controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
-        controller.services.loadSearchKey = { nil }
         defer {
             controller.services.secureInputActive = secureInput
             controller.services.programInstalled = installed
-            controller.services.loadSearchKey = searchKey
             controller.setCommands(commands)
         }
         // Only the built-in commands, so the user's own can't come first in the list.
@@ -2448,22 +2444,6 @@ enum SelfTest {
 
         testExtensions(controller, client, start: start, typeText: typeText, waitForEnd: waitForEnd, clear: clear)
 
-        // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
-        // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
-        if !Command.webSearchOffered {
-            press(controller, client, "@", code: 0x13, flags: .shift)
-            type("sea", controller, client)
-            check(!controller.composer.paletteMatches.contains(.webSearch), "@search isn't offered (off for now)")
-            clear()
-        } else if start("search") {
-            type("pingguo", controller, client)  // 苹果: apple
-            _ = act(controller, client)
-            waitForEnd()
-            let expected = UIText.describe(WebSearch.SearchError.missingKey(variable: WebSearch.backend.keyVariables[0]))
-            check(failure() == expected, "@search without a key says where to add one (\(failure() ?? "no error"))")
-        } else {
-            check(false, "@search is picked from the list ('\(client.marked)')")
-        }
         clear()
         check(!controller.composer.isComposing && client.marked.isEmpty, "nothing left composing")
     }

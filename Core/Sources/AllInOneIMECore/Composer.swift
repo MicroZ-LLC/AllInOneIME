@@ -3396,7 +3396,7 @@ public final class Composer {
         default: refineRequest = nil
         }
         // Text the user didn't type in the question (the selection, a screenshot's text, the output of a command inside
-        // it, a page `@read` read): the session's web tools may reach only the addresses typed (`SessionWeb`). A saved
+        // it): the session's web tools may reach only the addresses typed (`SessionWeb`). A saved
         // question asked again (`saved`) may hold text the user didn't type, and doesn't say which: it reaches no
         // address, and has no web search, as a saved conversation (`loadThread`).
         let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false

@@ -50,8 +50,8 @@ public enum SuggestionsInsert: String, CaseIterable, Codable, Sendable {
 
     /// What Settings says of it, with GitHub's issues for an example: one sentence, the same on every platform.
     public static var help: String {
-        tr("建议的行插入什么：默认按插件或命令自己定的；比如 GitHub issue，带标题是「#1234 Fix login」，带标题和链接再加上它的链接，Markdown 链接是「[Fix login](https://…)」，替换掉打的 #1234。",
-           "What a suggestion row puts in: by default what its plugin or command says; for a GitHub issue, with title is \"#1234 Fix login\", with title and link adds its link, and Markdown link puts \"[Fix login](https://…)\" in place of the #1234 typed.")
+        tr("建议的行插入什么，比如带标题是「#1234 Fix login」，Markdown 链接是「[Fix login](https://…)」；默认按插件或命令自己定的。",
+           "What a suggestion row puts in, such as \"#1234 Fix login\" with title or \"[Fix login](https://…)\" as a Markdown link; by default what its plugin or command says.")
     }
 
     /// Where it is chosen, for Settings → Plugins, where a plugin's completions are turned on.

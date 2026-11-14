@@ -1226,7 +1226,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 17)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 15)
         // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
@@ -1252,7 +1252,7 @@ struct ComposerTests {
         #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.oneAtHighlighted == 16 && a.oneAtFirstVisible == 10)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 14 && a.oneAtFirstVisible == 8)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1292,7 +1292,7 @@ struct ComposerTests {
         _ = b.handleKeyDown(backspaceKey)
         #expect(b.draft == "@")
         #expect(b.handleKeyDown(backspaceKey).effects == [.updateMarkedText, .hidePanel] && b.phase == .idle)
-        // "@" inside a command offers the commands that run in a text (@read); a letter none of them
+        // "@" inside a command offers the commands that run in a text (@py); a letter none of them
         // starts with leaves the "@" as text (a mention). After words already inserted it opens the commands.
         let (m, me) = improveDraft(key: .optionTap)
         type("nihao", m)
@@ -1378,7 +1378,7 @@ struct ComposerTests {
         type("nihao", r)
         #expect(tapOption(r, at: 5).first == .startCommand(catalog.first { $0.name == "respond" }!, input: "你好", id: 1))
         // A terminal command starts its window with the text as one argument; nothing is inserted.
-        let t = start("sh")  // "s" alone is @search first
+        let t = start("sh")  // "s" alone is @settings first
         type("ls", t)
         let terminal = tapOption(t, at: 5)
         #expect(terminal.contains(.launchInTerminal(argv: ["zsh", "-c", "ls"])) && commits(terminal).isEmpty && !t.isLevelTwo)

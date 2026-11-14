@@ -240,7 +240,7 @@ struct AppProfileTests {
 
     @Test func whichCommandsUseAI() {
         #expect([Command.improve, .translate, .question, .agent, .edit].allSatisfy { $0.usesAI })
-        #expect(![Command.open, .read, .note, .reminder, .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue]
+        #expect(![Command.open, .note, .reminder, .py, .js, .tasks, .settings, .imessage, .reportIssue]
             .contains { $0.usesAI })
         let custom = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply."),
                                       CustomCommand(name: "shout", type: .run, argv: ["tr", "a-z", "A-Z"])])

@@ -272,7 +272,6 @@ static class SectionIcons
             "apps" => "",
             "plugins" => "",
             "extensions" => "",
-            "search" => "",
             "notes" => "",
             "commands" => "",
             "advanced" => "",

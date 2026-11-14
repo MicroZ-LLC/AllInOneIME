@@ -235,7 +235,7 @@ struct AIChoiceTests {
 
     @Test func theNoteUnderACLISaysWhereWhatIsFastGoes() async {
         await withInterfaceLanguage("zh") {
-            #expect(AIChoice.fallbackNote(.apple) == "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；改写、翻译、续写这些要快的，自动用「Apple 本机」。")
+            #expect(AIChoice.fallbackNote(.apple) == "@question 走 CLI（要 1 秒以上）；改写、翻译、续写这些要快的，自动用「Apple 本机」。")
             #expect(AIChoice.fallbackNote(nil).contains("续写关闭"))
         }
         await withInterfaceLanguage("en") {

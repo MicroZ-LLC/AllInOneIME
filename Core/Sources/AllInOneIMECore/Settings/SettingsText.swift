@@ -148,8 +148,8 @@ extension UIText {
     /// Clipboard history's switch (Settings → General, `Config.clipboardHistory`), under its name: what ⌃V does with it,
     /// what is kept and where, and that off, ⌃V is as before.
     public static func clipboardHistoryHelp(terms: PlatformTerms = Platform.current.terms) -> String {
-        tr("按 \(terms.paste) 列出最近复制的文字和图片，选一条就放进去；⇧↓ ⇧↑ 多选文字，\(terms.enter) 一行一条放进去。只存在这台 Mac 上，密码管理器标成隐藏的内容不记。关掉后 \(terms.paste) 和以前一样。",
-           "\(terms.paste) lists the text and images you copied lately and puts in the one you choose; ⇧↓ ⇧↑ choose several texts, and \(terms.enter) puts them in one per line. Kept on this Mac only, never what a password manager marks as concealed. Off, \(terms.paste) works as before.")
+        tr("按 \(terms.paste) 列出最近复制的文字和图片，选一条放进去；只存在这台 Mac 上，不记密码管理器隐藏的内容。",
+           "\(terms.paste) lists the text and images you copied lately to put one back in; kept on this Mac only, never what a password manager hides.")
     }
 
     /// How many texts clipboard history keeps (`Config.clipboardHistoryLimit`), the label of its number.
@@ -160,8 +160,8 @@ extension UIText {
     public static var chineseCharactersLabel: String { tr("字形", "Characters") }
     public static var chineseCharactersHelp: String {
         // Not "translates": into the other characters is a translation (the output languages name Simplified Chinese so).
-        tr("拼音打出简体字还是繁体字。台湾的还会换成台湾的用词（软件 → 軟體）。AI 润色和回复也用这种字。",
-           "Whether pinyin types Simplified or Traditional characters. Traditional (Taiwan) also uses Taiwan's words (软件 → 軟體). The AI's polishing and replies use it too.")
+        tr("拼音和 AI 的回复用简体字还是繁体字；台湾的还会换成台湾的用词（软件 → 軟體）。",
+           "Simplified or Traditional characters, for pinyin and the AI's replies; Taiwan's also uses Taiwan's words (软件 → 軟體).")
     }
 
     /// The key that switches the input language (Settings → Input, `Config.switchKey`): its row's name, each choice's,
@@ -193,8 +193,8 @@ extension UIText {
     /// under it.
     public static var pinyinSchemeLabel: String { tr("输入方式", "Typing") }
     public static var pinyinSchemeHelp: String {
-        tr("全拼把每个音节拼全（nihao）；双拼每个音节打两个键（小鹤双拼：nihc）；注音按标准（大千）键位打注音符号（ㄋㄧˇ：su3）。换了马上生效。双拼照样用学过的词、模糊音、字形和英文词；注音用字形，没有模糊音和英文词。",
-           "Full pinyin spells each syllable out (nihao); Shuangpin types each in two keys (Xiaohe: nihc); Zhuyin types Bopomofo on the Standard (Daqian) keys (ㄋㄧˇ: su3). It changes at once. Shuangpin keeps your learned words, fuzzy pinyin, characters and English words; Zhuyin keeps the characters, without fuzzy pinyin or English words.")
+        tr("全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3）。",
+           "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3).")
     }
 
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it

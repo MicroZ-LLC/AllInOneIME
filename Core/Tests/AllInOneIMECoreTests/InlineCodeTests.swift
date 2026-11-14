@@ -35,7 +35,7 @@ struct InlineCodeTests {
 
     @Test func builtInCommands() {
         #expect(Command.builtins.contains(.py) && Command.builtins.contains(.js) && Command.py.kind == .run && Command.js.kind == .run)
-        #expect(Command.py.isCode && Command.js.isCode && !Command.read.isCode && !Command.question.isCode)
+        #expect(Command.py.isCode && Command.js.isCode && !Command.open.isCode && !Command.question.isCode)
         #expect(Command.py.typesLatin && Command.js.typesLatin)
         // @py is offered only where python3 runs; @js needs nothing but this app.
         #expect(Command.py.program == "python3" && Command.js.program == nil)
@@ -120,15 +120,16 @@ struct InlineCodeTests {
         let effects = c.handleKeyDown(enterKey).effects
         #expect(effects.first == .startRun(.py, input: "x = \"@stock AAPL\"; x", id: 1))
         #expect(!effects.contains(.commandUsed("stock")))
-        let read = Composer(engine: FakeEngine())
-        read.setInputMode(.english)
-        typeKeys("@js \"@read https://example.com\"", read)
-        #expect(read.handleKeyDown(enterKey).effects.first == .startRun(.js, input: "\"@read https://example.com\"", id: 1))
+        let inner = Composer(engine: FakeEngine())
+        inner.setInputMode(.english)
+        typeKeys("@js \"@py 1\"", inner)
+        #expect(inner.handleKeyDown(enterKey).effects.first == .startRun(.js, input: "\"@py 1\"", id: 1))
     }
 
     @Test func codeThatPrintsNothing() {
-        func ran(_ code: String, messages: Composer.Messages = .chinese) -> Composer {
+        func ran(_ code: String, messages: Composer.Messages = .chinese, commands: [Command] = Command.builtins) -> Composer {
             let c = Composer(engine: FakeEngine())
+            c.commands = commands
             c.messages = messages
             c.setInputMode(.english)
             typeKeys(code, c)
@@ -139,7 +140,9 @@ struct InlineCodeTests {
         #expect(ran("@py x = 5").phase == .failed("代码没有输出：最后写一个表达式，或者把结果打印出来"))
         #expect(ran("@js let y = 1", messages: .english).phase
             == .failed("The code printed nothing: end it with an expression, or print the result"))
-        #expect(ran("@read example.com").phase == .failed("没有得到结果"))  // other commands as before
+        // Other commands as before.
+        let upper = Command.catalog([CustomCommand(name: "upper", type: .run, argv: ["tr", "a-z", "A-Z"])])
+        #expect(ran("@upper example", commands: upper).phase == .failed("没有得到结果"))
     }
 
     /// (@imessage's program is Messages.app, which only a Mac has.)

@@ -468,8 +468,8 @@ struct IconTokenTests {
 
     /// Each built-in command has a built-in icon of its own; none is the generic one.
     @Test func eachBuiltInCommandHasItsOwn() {
-        let builtins = [Command.improve, .translate, .question, .reply, .agent, .open, .read, .note, .reminder, .py, .js,
-                        .webSearch, .tasks, .settings, .imessage, .reportIssue]
+        let builtins = [Command.improve, .translate, .question, .reply, .agent, .open, .note, .reminder, .py, .js, .tasks,
+                        .settings, .imessage, .reportIssue]
         let glyphs = builtins.map { IconToken.command($0).glyph }
         #expect(Set(glyphs.map { "\($0)" }).count == builtins.count, "one each")
         #expect(glyphs.allSatisfy { if case let .builtin(builtin) = $0 { return builtin != .command } else { return false } })
@@ -479,8 +479,8 @@ struct IconTokenTests {
     /// The list a shell maps (`Builtin`): its names are the ones documented, each with an Apple symbol.
     @Test func theBuiltInsAreTheListAShellMaps() {
         #expect(IconToken.Builtin.allCases.map(\.rawValue) == [
-            "improve", "translate", "question", "reply", "agent", "open", "read", "note", "reminder", "python", "javascript",
-            "webSearch", "tasks", "settings", "message", "reportIssue", "stats", "command", "plugin", "link", "prompt", "run",
+            "improve", "translate", "question", "reply", "agent", "open", "note", "reminder", "python", "javascript",
+            "tasks", "settings", "message", "reportIssue", "stats", "command", "plugin", "link", "prompt", "run",
             "terminal", "snippet", "scriptInsert", "scriptShow", "scriptList", "scriptSilent", "scriptBackground",
             "scriptStatus", "done", "working", "needsYou", "image",
         ])

@@ -19,19 +19,8 @@ extension UIText {
         if let error = error as? AWSCredentialError { return error.shortMessage(language: language) }
         // Settings → Assistant's request too long for Apple Intelligence on this Mac: a shorter one, or the provider to set up.
         if let error = error as? AIConfigService.TooLong { return error.line(language: language, describe: { describe($0) }) }
-        if let error = error as? WebReader.ReadError {
-            switch error {
-            case let .invalidURL(text): return tr("不是网址：\(text)", "Not a web address: \(text)")
-            case let .http(status): return tr("网页返回 HTTP \(status)", "The page answered HTTP \(status)")
-            case let .unsupported(type): return tr("读不了这种内容（\(type)）", "Can't read this kind of content (\(type))")
-            case .empty: return tr("网页上没有找到文字（要靠 JavaScript 显示的网页读不了）",
-                                   "No text found on the page (pages that need JavaScript can't be read)")
-            case .tooLarge: return tr("网页太大（超过 2 MB）", "The page is larger than 2 MB")
-            }
-        }
-        if let error = error as? WebSearch.SearchError { return describe(error) }
         if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error,
-           [Command.read, .py, .js, .webSearch].contains(where: { $0.name == name }) {
+           [Command.py, .js].contains(where: { $0.name == name }) {
             return commandTrigger + name + tr("：", ": ") + underlying
         }
         if let error = error as? NoteError { return error.message(language: language) }
@@ -167,37 +156,6 @@ extension UIText {
         case .busy: return "Apple Intelligence 正忙：稍后再试"
         case let .timedOut(seconds): return "Apple Intelligence \(Int(seconds)) 秒内没有回应"
         case let .failed(detail): return "Apple Intelligence：\(detail)"
-        }
-    }
-
-    /// A web search error (`@search`): where to add the key (the Mac's Commands, Settings v2; Windows' Web Search), what
-    /// the service said.
-    public static func describe(_ error: WebSearch.SearchError) -> String {
-        let mac = Platform.current.terms.device == .mac
-        switch error {
-        case let .missingKey(variable):
-            return mac ? tr("网页搜索还没有 API key：在设置 → 命令里添上（或在 shell 里设置 \(variable)）",
-                            "No API key for web search: add one in Settings → Commands (or set \(variable) in your shell)")
-                : tr("网页搜索还没有 API key：在设置 → 网页搜索里添上（或在 shell 里设置 \(variable)）",
-                     "No API key for web search: add one in Settings → Web Search (or set \(variable) in your shell)")
-        case .emptyQuery: return triggered(tr("在 @search 后面写上要搜的内容", "Type what to search for after @search"))
-        case .queryTooLong:
-            return tr("要搜的内容太长：最多 \(WebSearch.maxQueryLength) 个字、\(WebSearch.maxQueryWords) 个词",
-                      "The search is too long: \(WebSearch.maxQueryLength) characters and \(WebSearch.maxQueryWords) words at most")
-        case let .rejectedKey(service):
-            return mac ? tr("\(service) 不接受这个 API key：在设置 → 命令里检查一下", "\(service) didn't accept the API key: check it in Settings → Commands")
-                : tr("\(service) 不接受这个 API key：在设置 → 网页搜索里检查一下", "\(service) didn't accept the API key: check it in Settings → Web Search")
-        case let .rateLimited(service):
-            return tr("\(service) 搜索太频繁，稍后再试", "Too many searches at once for \(service): try again in a moment")
-        case let .quotaExceeded(service):
-            return tr("\(service) 的额度用完了：在它的控制台里看看用量和上限",
-                      "No \(service) credit left: see the usage and limits in its dashboard")
-        case let .notInPlan(service): return tr("你的 \(service) 套餐不支持这种搜索", "Your \(service) plan doesn't include this search")
-        case let .unreachable(service): return tr("无法连接 \(service)", "Can't reach \(service)")
-        case let .http(service, status, detail): return "\(service) HTTP \(status)" + (detail.map { tr("：", ": ") + $0 } ?? "")
-        case let .invalidResponse(service): return tr("\(service) 的响应无法解析", "Couldn't read the \(service) response")
-        case let .tooLarge(service): return tr("\(service) 的响应太大", "The \(service) response is too large")
-        case .noResults: return tr("网页搜索没有找到结果", "No web results for this search")
         }
     }
 

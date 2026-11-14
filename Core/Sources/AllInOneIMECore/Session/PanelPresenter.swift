@@ -238,7 +238,6 @@ public struct PanelPresenter {
             case .translating:
                 let polishing = config.writtenLanguage(of: composer.selectionInUse ?? composer.sentText).isSame(as: config.outputLanguage)
                 let loading = command?.kind == .generate ? t.tr("AI 回答中…", "Answering…")
-                    : command == .webSearch ? t.tr("搜索中…", "Searching…")
                     : command?.script.map { t.tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? t.tr("运行中…", "Running…")
                     : command?.kind == .link ? t.tr("运行句中的命令，然后在浏览器打开…", "Running the commands inside, then opening the browser…")

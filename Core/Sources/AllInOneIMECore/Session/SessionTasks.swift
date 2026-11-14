@@ -285,7 +285,7 @@ public final class SessionTasks {
     public struct Place: Sendable {
         /// The app's own rewrite styles, or no AI at all (`AppProfile`).
         public var app: String?
-        /// A terminal runs each line it is given: there `@search`'s list, and a program's output, goes in as one line.
+        /// A terminal runs each line it is given: there a program's output goes in as one line.
         public var terminal: Bool
         /// Line breaks can go into the terminal as a paste (the Mac's `TerminalPaste`): an answer keeps them.
         public var pastesInTerminal: Bool
@@ -294,18 +294,15 @@ public final class SessionTasks {
         public var commandTrigger: String
         /// The language script plugins are told (`UIText.pluginLanguage`).
         public var pluginLanguage: Language
-        /// The characters Chinese is typed in (`Config.typedChinese`): the Chinese pages `@search` asks for.
-        public var chinese: ChineseCharacters
 
         public init(app: String?, terminal: Bool, pastesInTerminal: Bool, improveTranslates: Bool,
-                    pluginLanguage: Language, commandTrigger: String = "@", chinese: ChineseCharacters = .simplified) {
+                    pluginLanguage: Language, commandTrigger: String = "@") {
             self.app = app
             self.terminal = terminal
             self.pastesInTerminal = pastesInTerminal
             self.improveTranslates = improveTranslates
             self.commandTrigger = commandTrigger
             self.pluginLanguage = pluginLanguage
-            self.chinese = chinese
         }
     }
 
@@ -318,8 +315,7 @@ public final class SessionTasks {
     /// The stream for `request` (`convert`).
     public static func stream(for request: Request, in place: Place, services: SessionServices)
         -> AsyncThrowingStream<ConversionUpdate, Error> {
-        let (runPlugin, runProgram, converter, loadSearchKey) = (services.runPlugin, services.runProgram, services.converter,
-                                                                 services.loadSearchKey)
+        let (runPlugin, runProgram, converter) = (services.runPlugin, services.runProgram, services.converter)
         let (app, fresh, improveTranslates, pluginLanguage, commandTrigger) = (place.app, request.fresh,
             place.improveTranslates, place.pluginLanguage, place.commandTrigger)
         // An @question inside the text (not the request's own) is a conversation of its own.
@@ -327,13 +323,9 @@ public final class SessionTasks {
         let conversationOf: @Sendable (Command) -> QuestionConversation? = { command in
             command == request.command ? conversation : command == .question ? QuestionConversation() : nil
         }
-        let searchList: WebSearch.Output = place.terminal ? .line : .list
-        let search = WebSearch.backend(chinese: place.chinese)
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            if command == .read { return WebReader.stream(input) }
             // @py, @js: the code runs in a child process, like a custom program (never in this one).
             if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
-            if command == .webSearch { return WebSearch.stream(input, output: searchList, backend: search, loadKey: loadSearchKey) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }  // sent as written, after confirming
@@ -350,15 +342,11 @@ public final class SessionTasks {
         let command = request.command
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan = request.plan, !plan.isEmpty {
-            // @search inside a text is context for the AI, but not where the text goes out as written: into a
-            // web page (a link) or to a person (a message).
-            let innerSearch = WebSearch.Output.inside(command)
             let (replyContext, replyPage) = (request.replyContext, request.replyPage)
             // The commands inside the text first (together), then this one on the text with their outputs.
             stream = CommandPipeline.run(plan, inner: { command, argument in
-                // Its errors (@search's missing key, a program that ran too long) in the interface language.
-                described(command == .webSearch ? WebSearch.stream(argument, output: innerSearch, backend: search, loadKey: loadSearchKey)
-                    : streamFor(command, argument))
+                // Its errors (a program that ran too long) in the interface language.
+                described(streamFor(command, argument))
             }, outer: { text in
                 // @reply: the text with the commands' outputs is what to reply (capped as what's typed is), sent with the
                 // rest of its context, and the page if it goes along.

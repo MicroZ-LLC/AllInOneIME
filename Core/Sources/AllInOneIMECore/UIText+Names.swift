@@ -82,14 +82,12 @@ extension InterfaceWords {
         case .reply: return tr("回复对方：\(paste) 粘贴消息或截图", "Reply: \(paste) their message or a screenshot")
         case .agent: return tr("交给 \(agentName) 去做", "Hand it to \(agentName)")
         case .open: return tr("找文件、文件夹或 App 并打开", "Find a file, folder or app and open it")
-        case .read: return tr("读网页正文，可放在句中给 AI 当上下文", "Read a web page; inside a sentence, context for the AI")
         case .tasks: return tr("后台 Claude 任务的进度和回复", "Background Claude tasks: progress and replies")
         case .settings: return tr("打开设置", "Open the settings")
         case .note: return tr("存一条笔记到\(UIText.afterChineseWord(noteDestinationName))", "Save a note to \(noteDestinationName)")
         case .reminder: return tr("加到提醒事项，时间直接写在里面", "Add to Reminders; write the time in it")
         case .py: return tr("运行 Python，结果可以直接上屏", "Run Python; insert the result")
         case .js: return tr("运行 JavaScript，结果可以直接上屏", "Run JavaScript; insert the result")
-        case .webSearch: return tr("搜索网页，可放在句中给 AI 当上下文", "Search the web; inside a sentence, context for the AI")
         case .imessage: return tr("发 iMessage：选联系人，写好后确认再发", "Send an iMessage: pick someone, write, confirm")
         case .reportIssue: return tr("报告问题：在 GitHub 上新建问题，附上版本等信息", "Report an issue on GitHub, with your versions and settings")
         case .stats: return WeekStatsWords(language: language).commandSummary
@@ -166,14 +164,12 @@ extension InterfaceWords {
             return terms.terminal == .terminalApp ? tr("在终端打开 \(agent)", "open \(agent) in Terminal")
                 : tr("在终端打开 \(agent)", "open \(agent) in a terminal")
         case .open: return tr("搜索并打开", "search and open")
-        case .read: return tr("读网页", "read the page")
         case .tasks: return tr("查看后台任务", "show the background tasks")
         case .settings: return tr("打开设置", "open the settings")
         case .note: return tr("存到\(UIText.afterChineseWord(noteDestinationName))", "save to \(noteDestinationName)")
         case .reminder: return tr("看一下再加到提醒事项", "check, then add to Reminders")
         case .py: return tr("运行 Python", "run Python")
         case .js: return tr("运行 JavaScript", "run JavaScript")
-        case .webSearch: return tr("搜索网页", "search the web")
         case .imessage: return tr("确认后发送", "check, then send")
         case .reportIssue: return tr("看一下再在 GitHub 上新建问题", "check, then open a new issue on GitHub")
         case .stats: return WeekStatsWords(language: language).openStats
@@ -194,7 +190,6 @@ extension InterfaceWords {
 
     /// The row comment of an answer: "回答" / "answer", the agent's name.
     public func answerLabel(_ command: Command?) -> String {
-        if command == .webSearch { return tr("搜索结果", "results") }
         if command?.kind == .run { return command?.plugin.map { UIText.commandTrigger + $0.name } ?? tr("输出", "output") }
         if command == .reply { return tr("回复", "reply") }
         return command == .agent ? UIText.agentName : tr("回答", "answer")

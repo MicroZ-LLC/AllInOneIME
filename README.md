@@ -83,7 +83,7 @@ commands below start with it (`~improve`), and so does the app's own text that n
 | Command | What it does |
 |---|---|
 | `@improve` | Polish: 1–3 are three versions in the sentence's own language, the rewrite styles (added and ordered in the settings) numbered on after them, 0 is the original. No translation; with "@improve also translates" on, it works like `@translate @improve` |
-| `@translate` | Translate into the languages you added (Settings → General → Translate to, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
+| `@translate` | Translate into the languages you added (Settings → AI → AI Commands → Translate to, drag to reorder), a line each, three versions with only one; the sentence's own language is skipped. `@translate @improve` together translates and rewrites in one request |
 | `@question` | Ask a question; the answer appears in the candidates, ⇧⏎ or Space inserts it, ⌘C copies it. Type on and ⏎ asks a follow-up: the panel becomes a conversation of up to 5 rounds, then offers to continue in Claude or another AI. With nothing typed after it, it lists your last 5 questions, newest first; typing narrows them down (words anywhere in the question, any case, Chinese too). A digit, ↑↓ then ⏎, or a click shows a question's saved answer at once, offline, to insert or copy as usual; ⌘R there asks it again for a fresh answer. With no match, or nothing picked, ⏎ asks what you typed |
 | `@reply` | Writes three replies to the message you're answering, in the other party's language and the tone of the app (casual in chat apps, formal in mail, where each reply is a whole email body; or the first of the app's own rewrite styles, set in an earlier version). Give it the message by selecting it, copying it and pressing ⌃V ⏎ in the draft, or taking a screenshot (⌃⇧⌘4, or WeChat's own) and pressing ⌃V ⏎; what you type after it says what to reply: `@reply politely decline`. ⌘R writes three more; see [Replying](#replying-with-reply-new) |
 | `@agent` | Hands the task to a coding agent on your Mac, picked in Settings → Commands → Agent (@agent): Claude Code (the default), Gemini CLI, Kiro CLI, or a command of your own (what you typed is added as its last argument). The page also shows whether each is installed and how it starts. Claude Code runs in the background by default, with a notification when it's done (click it to open the session in Terminal and go on), or see `@tasks`; turn off "Claude Code runs in the background and notifies me" there to open it in Terminal. The other agents open in Terminal with what you typed as their first message. Each uses its own sign-in and settings. In Google Chrome it takes the page along: the address and title, the field you typed in with its form or section (★ marks where you are), the selected text and what's visible in the window — never a password field, never the whole page — so `@agent why doesn't this work` in a sign-in form's username field is about that field, and `@agent why is this blocked` on a pipeline page is about that page; the agent judges which. The page's text goes to the agent as read, marked as coming from the web (not as instructions from you). It needs Accessibility; Chrome builds its page tree for it only while `@agent` is being written there, turned back off after (Settings → Privacy → "@agent and @reply take the Chrome page along" turns it all off). The first time it opens Terminal, macOS asks whether AllInOneIME may control Terminal: click OK. (It was `@claude` before 0.6.4.) |
@@ -173,8 +173,10 @@ instruction for `@improve` and `@translate` (`@translate ja`, `@improve more for
 `@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
 selection stays as it is. Up to 5000 characters; never read during secure input or in a
 terminal. In apps such as Chrome and Slack the selection is read just after the `@`: a key you press while it's still
-being read is done as soon as it's read, in the order you typed. Turn it off under Settings → Advanced → "Use the
-selected text" if it misbehaves in an app.
+being read is done as soon as it's read, in the order you typed. There is no switch for it: an app whose field doesn't
+take the result in place of the selection (the selected text still there afterwards, the result not) is remembered on
+this Mac, and its selection isn't used again; Settings → Privacy → Learned… lists it, and Forget lets it try again.
+`"useSelection": false` in the config turns it off in every app.
 
 ### Replying with @reply (new)
 
@@ -246,7 +248,7 @@ screenshot's as it was read), quoted as a block of its own. The choices:
 - **Gemini** on the web, the conversation on the clipboard to paste.
 - **Copy the conversation**, in Markdown (**Q:** / **A:**).
 
-Which ones, and in which order (the first is the default): Settings → Commands → "Continue a conversation in"
+Which ones, and in which order (the first is the default): Settings → AI → AI Commands → "Continue a conversation in"
 (`questionContinueIn` in the config); with more than 5, ⌘6 … ⌘9 pick the rest. "@agent's agent" there is whichever
 agent Settings → Commands → Agent picks, by its name; an agent that isn't installed right now keeps its place in the list when you
 edit it. With Apple Intelligence on this Mac a long conversation doesn't fit its small context: the oldest answers are
@@ -345,7 +347,7 @@ conversation shows all its rounds: type to go on with it. With no match, or noth
 that goes on, replaces the saved one.
 
 - They're kept only on this Mac (see Privacy): not while secure input is on, and never for questions on selected text.
-- Settings → Privacy → "Remember recent questions" turns it off (`rememberQuestions` in the config); turned off there,
+- Settings → AI → AI Commands → "Remember recent questions" turns it off (`rememberQuestions` in the config); turned off there,
   it deletes them too. Turned off through the settings search's Change: … (see [Settings](#settings-new)), they're kept, so
   that undoing it puts back exactly what was (its preview says so); "Forget (N)" deletes them.
 
@@ -693,9 +695,7 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
 - **This Week**: [this week's stats](#this-weeks-stats-new), with This Week / Last Week, the picture to copy or save, and
   "Hide my command names in the image".
 
-- **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
-  to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
-  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps" under More… (open by itself once either is
+- **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Autocomplete (Beta); Suggestions, with Insert and "In these apps" under More… (open by itself once either is
   set); Clipboard history, with Clear History (and why it isn't recording, only when macOS doesn't let it); and Sync
   through iCloud.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
@@ -704,26 +704,29 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
   pinyin, Shuangpin or Zhuyin), Characters and fuzzy pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
   library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this
   page.
-- **AI**: the provider, its model, its key or AWS profile, and Test Connection; the base URL is under More…, which opens
-  by itself once one is set.
+- **AI**: the AI that answers (the provider, its model, its key or AWS profile, and Test Connection; the base URL is
+  under More…, which opens by itself once one is set); then **AI Commands**, each AI command's options together:
+  `@improve`'s rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a
+  list is set), `@translate`'s languages (Translate to), and `@question`'s: where a conversation continues and
+  remembering recent questions (with Forget), their only place in Settings.
 - **Privacy**: hiding sensitive information before sending, the words to hide (while it's on), Apps without AI, what `@agent` and
-  `@reply` take from Chrome, remembering recent questions (with Forget), and learning English words.
+  `@reply` take from Chrome, learning English words, and Learned….
 - **Commands**: your commands, the agent `@agent` hands to (and "On this Mac" when it isn't installed, or is your own
-  command), where an `@question` conversation continues, `@note` and `@search`, plugins and script extensions; last,
+  command), `@note`, plugins and script extensions; last,
   "Folders and sources…", folded unless there is an extension source, an update or an error: the plugins folder, Find
   Raycast scripts automatically, the extension folders (those that bring no new commands fold into one row), Add
   Folder… and the extension sources. A plugin or script extension command with suggestions has their switch under it,
   and **Show in the @ list** next to it.
-- **Advanced**: typing results out (speed, typos), "Use the selected text", Previous per-app settings (only while an app
-  has one), the config file and the Rime folder.
+- **Advanced**: typing results out (speed, typos), Previous per-app settings (only while an app has one), the config
+  file and the Rime folder.
 - **About**: the version, updates and "Check for updates automatically", Troubleshoot…, the four links in a row, and
   Report an Issue….
 
 A few settings have no row unless they're set to something other than their default (by hand in the config file, or by
 an earlier version): the output tokens, temperature, timeout and Thinking (AI), a kind of sensitive information left out
 (Privacy), the settings, the jargon list and custom commands, or the learned words not synced (Sync through iCloud),
-Insert's "ID only", how many texts the clipboard history keeps (General), and a new version's notification turned off
-(About).
+Insert's "ID only", how many texts the clipboard history keeps (General), "Use the selected text" turned off
+(`useSelection`, Advanced), and a new version's notification turned off (About).
 Then their row shows, with Restore Default. Shown or not, they work as before.
 
 **Search.** Type in the field at the top of the sidebar and it lists the settings that match as you type (by name, by
@@ -792,9 +795,8 @@ words pinyin learned the same on all your Macs, through your own iCloud Drive: n
 our servers. It needs iCloud Drive (System Settings → Apple Account → iCloud); without it the switch stays off and says
 so, with a button that opens that pane.
 
-Once it's on, Settings shows one status row with a ⋯ menu (Sync Now; API keys and passwords; Remove Hidden Words from
-iCloud…, Remove Recent Questions from iCloud… and Remove from iCloud…), and one switch under it: Hidden words and recent
-questions. Learned words sync with no switch of their own; turned off in the config, they show with Restore Default.
+Once it's on, Settings shows one status row with a ⋯ menu (Sync Now; API keys and passwords; Remove from iCloud…), and
+one switch under it: Hidden words and recent questions. Learned words sync with no switch of their own; turned off in the config, they show with Restore Default.
 
 | What | What syncs | Default |
 | --- | --- | --- |
@@ -829,9 +831,8 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   Turning "Remember recent questions" off deletes them on that Mac only, and turned on again, the other Macs' questions
   come back to it. A Forget made while a Mac doesn't sync the recent questions (or doesn't remember them) is that Mac's
   alone.
-- Turning off hidden words and recent questions leaves what was synced in iCloud: **Remove Hidden Words from iCloud…**
-  and **Remove Recent Questions from iCloud…** in the ⋯ menu (asked first) take them out; other Macs keep theirs, and one
-  that still syncs them puts its own back.
+- Turning off hidden words and recent questions leaves what was synced in iCloud until you remove it with **Remove from
+  iCloud…** (below).
 - A value from another Mac that this one can't use (a provider without a key here, an AWS profile it doesn't have, a value
   out of range) isn't applied: the status line and Troubleshoot (Settings → About) say which.
 - A file iCloud hasn't downloaded yet is waited for, never taken as empty; a `settings.json` that can't be read is set
@@ -865,8 +866,11 @@ the input method starts, every 30 minutes (after a pause in typing) and on Sync 
   another Mac still awaiting Allow (`unconfirmedCommands`), clipboard history and its settings (`clipboardHistory`,
   `clipboardHistoryLimit`), and the sync switches themselves (each Mac's own). What a
   suggestion row inserts and Code's language do sync, with the settings.
-- Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud; **Remove from iCloud…** in the ⋯
-  menu (asked first) moves the folder to the Trash and turns sync off on this Mac.
+- Turning it off stops syncing and leaves everything as it is, on this Mac and in iCloud. **Remove from iCloud…** in the ⋯
+  menu takes all of it out of iCloud: its confirmation lists what goes (the settings, custom commands and jargon list,
+  learned words, hidden words and recent questions), then the folder goes to the Trash and sync turns off on this Mac;
+  what is on this Mac stays, and API keys stay in iCloud Keychain. Other Macs still syncing put theirs back: turn it off
+  there first.
 - The settings search's Change: … ("sync through iCloud") turns it on or off; what syncs is only chosen in Settings →
   General. In the config: `iCloudSync` (`enabled`, `settings`, `jargon`, `learnedWords`, `hiddenWords`, `recentQuestions`, `keys`).
 
@@ -950,9 +954,9 @@ In Settings → Input:
 - **Characters** (with Chinese input, new): Simplified, Traditional (Taiwan) or Traditional (Hong Kong), under Chinese → Characters. Traditional (Taiwan) types Taiwan's characters and words (ruanjian → 軟體, wangluo → 網路, xinxi → 資訊), Traditional (Hong Kong) Hong Kong's characters (軟件, 網絡), and with either `"` and `'` give 「」 and 『』. Until you pick one it follows your Mac's preferred languages (Hong Kong's Chinese: Hong Kong; other Traditional Chinese, Taiwan's or Macau's: Taiwan; any other: Simplified), the candidates too once you change them (from the next text field). It applies everywhere, not only to the candidates: `@improve`, the rewrite styles and polishing keep the characters the text is written in: what you type stays Traditional (the AI is told Taiwan's or Hong Kong's), a Simplified selection stays Simplified; `@translate` and Translate as You Type take Traditional Chinese as the language you type (translating into Traditional Chinese is skipped, the chip says 繁), and Chinese (`zh`) is called Simplified Chinese in the languages to translate into (the chip says 简): from Traditional characters it's a translation. Text you didn't type (a selection, the clipboard) goes by its own characters: a page in Simplified characters you select is translated into Traditional Chinese, and with Simplified chosen, Traditional text into Chinese; `@reply` answers in your characters when it answers in Chinese; a screenshot's text is read as Traditional Chinese first, `@search` asks for Traditional Chinese pages, and `@reminder` reads Traditional dates (下個禮拜五下午三點, 兩個小時以後). The input menu and Settings call the input "Chinese (Traditional)". A change deploys the dictionaries again in a second or two. The conversion is OpenCC's (its `s2twp` and `s2hk`, on this Mac; the data comes with the app). It swaps whole words, so a few Simplified words only have their Taiwan form (运行 → 執行, never 運行). Like fuzzy pinyin, it goes into `rime_ice.custom.yaml`, never over a file of your own.
 - **Fuzzy pinyin** (with Chinese input): sounds you don't tell apart typed either way, e.g. z ↔ zh, n ↔ l, in ↔ ing. Under Chinese, turn on "Fuzzy pinyin" and pick the pairs; the dictionaries are deployed again in a second or two. It writes `rime_ice.custom.yaml` in the Rime user folder, and never over a file of your own there.
 - **Personal dictionaries** (Chinese input): Chinese → Personal Dictionaries → **Import or Update…** adds a UTF-8 Rime `.dict.yaml` vocabulary file alongside rime-ice. The list shows its Rime `name`, source filename and entry count; importing the same `name` again replaces its saved copy. Editing the source alone doesn't update it. Import, update and removal redeploy automatically, and Settings reports deployment progress or errors. Each one compiles pinyin's dictionary again (all of rime-ice's words with yours), which can take a minute or so; Chinese input pauses until it's done. What Rime built of them goes when the last one is removed. The Chinese language pack must be installed first. The dictionaries' copies stay on this Mac, outside iCloud sync and AI context; your source, custom Rime files and learned words are kept. But a word you pick from one is learned like any other: into Rime's user dictionary, which syncs to your other Macs with the learned words when that's on (Settings → General → Sync through iCloud), and stays after its dictionary is removed. If you have your own `rime_ice.custom.yaml`, the import is refused before any files change: back up and move that customization aside, or attach the dictionary manually in Rime to keep it.
-- **Translate to** (`@translate`, in Settings → General): add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` says there's nothing to translate into yet, and ⏎ on that notice opens Settings at Translate to, outlined (the sentence goes in as typed). Translate as You Type doesn't turn on then, and says where to add one.
+- **Translate to** (`@translate`, in Settings → AI → AI Commands): add the languages to translate into (Spanish, French, German, Japanese, Korean, Chinese, Hindi, Bengali, Tamil and the other main Indian languages…) and drag them into order. Hindi typed in Latin letters ("aap kaise ho") comes back in Devanagari. `@translate` writes a line in each, in this order (three versions with only one); the sentence's own language is skipped. A new install translates into the first language in your Mac's preferred languages that isn't English; with English alone, `@translate` says there's nothing to translate into yet, and ⏎ on that notice opens Settings at Translate to, outlined (the sentence goes in as typed). Translate as You Type doesn't turn on then, and says where to add one.
 - **Keyboard layouts**: French types with the layout picked in its section (`keyboardLayouts` in the config). For the other languages, under the input method macOS keeps your last Latin layout (AZERTY, QWERTZ, Spanish, US International…), so you type as usual, `@` included wherever your layout has it, and dead keys compose in a command's text too (⌥E then E → é, ^ then e → ê). Layouts without Latin letters (Russian, Hindi InScript) can't be used under an input method: switch to them with ⌃Space, or paste (⌃V) text into a command.
-- `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in Settings → General to make `@improve` always do that.
+- `@improve` polishes and rewrites without translating; `@translate @improve` together translates and rewrites in one request. Turn on "@improve also translates" in Settings → AI → AI Commands to make `@improve` always do that.
 
 A personal dictionary can look like this (the entry fields are separated by **tabs**):
 
@@ -970,7 +974,7 @@ Use lowercase Latin pinyin, spaces between syllables, and `v` for `ü`. Weight i
 
 ## Rewrite styles
 
-After lines 1–3 come the rewrites, **in the language you typed**: English rewrites for English, Chinese rewrites for Chinese. Pick any of them in Settings → General → Rewrite styles:
+After lines 1–3 come the rewrites, **in the language you typed**: English rewrites for English, Chinese rewrites for Chinese. Pick any of them in Settings → AI → AI Commands → Rewrite styles:
 
 - Polish: same tone, more natural
 - Concise
@@ -995,7 +999,7 @@ COE = an incident review
 two-way door = a decision you can undo at any time
 ```
 
-Under "Jargon list" in Settings → General (shown with the Jargon style), click "New" to create an empty list at `~/.config/allinoneime/jargon.txt` and open it;
+Under "Jargon list" in Settings → AI → AI Commands (shown with the Jargon style), click "New" to create an empty list at `~/.config/allinoneime/jargon.txt` and open it;
 if you already have a list file, click "Choose File…" to use it where it is (`jargonFile` in the config). Changes apply right away.
 Only the first 150 terms are read. With "Jargon" checked, the list is sent to Bedrock along with each request.
 
@@ -1482,7 +1486,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `addedEnglishWords` | Those of `englishWords` you added in Settings (the others were learned): past 2,000 words the oldest learned go first | `[]` |
 | `removedCandidates` | The candidates you removed (a right-click or ⌃⌦ while typing pinyin), as shown, the oldest first: none comes up again as a candidate until removed from here (Settings → Input → Chinese → Removed candidates, ✕). At most 5,000, the oldest go first. Syncs with the learned words | `[]` |
 | `learnsEnglishWords` | The same letters put in as typed twice while typing pinyin (bedrock ⏎), or a word typed twice in English mode, are learned as an English word | `true` |
-| `useSelection` | Commands work on the text selected in the field (see On the selected text) | `true` |
+| `useSelection` | Commands work on the text selected in the field (see On the selected text); `false` turns it off in every app, otherwise it's learned per app | `true` |
 | `checkForUpdates` | Look for a new version once a day, in the background; nothing is installed until you click | `true` |
 | `notifiesUpdates` | A new version found that way is told once in a macOS notification, with Update and Don't Show Again (which turns this off); only while `checkForUpdates` is on | `true` |
 | `sendsInstallID` | The update check's request for the manifest carries this Mac's random install ID, so installs can be counted (see Privacy); off deletes it. Never synced | `true` |
@@ -1548,7 +1552,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - This week's stats (Settings → This Week, `@stats`, the menu bar panel's row) keep counts and command names, never what you type: each command run (its name, whether it is your own, built-in or a plugin's, whether it used AI), the apps they ran in as salted hashes of their bundle IDs (only how many apps is shown), the clipboard history pastes and how many characters you typed through the input method (a number only, never the characters themselves), per day, for the last 8 calendar weeks, in `~/Library/Application Support/AllInOneIME/usage.json` (readable only by your user account), not in config.json. A command of your own that you delete or rename loses its name there (its runs are kept, without it; one still waiting for its answer then isn't counted). The salt is random and isn't in that file: it is the input method's own keychain item, on this Mac only, never synced (lost, a new one is made, and the week's apps are counted again from there; if the keychain won't keep it or can't read it, the apps aren't counted until the input method starts again, and those counted before are kept). A usage.json that can't be read is kept beside it as `usage.json.unreadable-<date>`, never written over. Nothing is counted during secure input or in a field AllInOneIME knows is a password field. Never what you typed, a command's text or what was pasted, never a time finer than the day. They stay on this Mac: never synced (not with iCloud either), never sent. The picture goes only where you copy or save it. Settings → Privacy → Learned… lists them; Forget there, or Forget All, deletes them (those kept aside too) and the salt, and a command still waiting for its answer isn't counted when it comes.
 - `@open` searches only on this Mac. It remembers what you opened with it (the latest 200), in the input method's own preferences (not in config.json), to list those first.
 - For "Add App…" in Settings (General → In these apps, Privacy → Apps without AI), the input method keeps the bundle IDs of the last 12 apps you typed in, in its own preferences; nothing else about them.
-- What the input method learns on this Mac stays on this Mac, never in the config file and never synced: each app's starting input (and the switches toward one), the apps where typos couldn't be fixed and the suggestion rows you picked, in `~/Library/Application Support/AllInOneIME/learned.json` (app IDs, inputs, counts and times, and for a picked row what it matched, such as an issue number or an item of your list; never text you typed), and with them the apps where autocomplete stopped by itself and the models that refuse a temperature (kept where they were before). What 0.6.6 and earlier kept elsewhere moves in at the first launch. Settings → Privacy → Learned… lists all of it, with Forget for each and Forget All.
+- What the input method learns on this Mac stays on this Mac, never in the config file and never synced: each app's starting input (and the switches toward one), the apps where typos couldn't be fixed, those whose field didn't take a result in place of the selection, and the suggestion rows you picked, in `~/Library/Application Support/AllInOneIME/learned.json` (app IDs, inputs, counts and times, and for a picked row what it matched, such as an issue number or an item of your list; never text you typed), and with them the apps where autocomplete stopped by itself and the models that refuse a temperature (kept where they were before). What 0.6.6 and earlier kept elsewhere moves in at the first launch. Settings → Privacy → Learned… lists all of it, with Forget for each and Forget All.
 - `@question` remembers your last 5 questions with their answers and when they were asked, only on this Mac (unless you choose to sync them through iCloud, see above), in `~/Library/Application Support/AllInOneIME/recent-questions.json` (readable only by your user account), to list them under `@question`; a saved answer is shown from there without going online. Nothing is kept while secure input is on, and questions asked on selected text aren't kept at all (their answer is about the selection, which would end up on disk). Turning off "Remember recent questions" in Settings → Privacy deletes them too; turning it off through the search's Change: … (`rememberQuestions` in the config) keeps them, so it can be undone exactly. "Forget" deletes them.
 - To list your notes, the menu bar panel keeps the id (the note's in Notes, the file's path, or the Notion page's address) and first line (up to 80 characters) of the last 30 notes saved with `@note`, in the input method's own preferences, also while the panel is off. Opening the panel never asks Notion anything.
 - `@py` and `@js` run only when you press the action key, and only code you typed or pasted yourself: the AI's answers and other commands' output are never run as code. `@py` uses your Mac's `python3`, which can read and write files and go online as it does in Terminal; `@js` runs in a separate process that can't read files, reach the network or run other programs. Neither runs during secure input.
@@ -1563,7 +1567,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   what pinyin learned, nothing else of the Rime folder: your custom phrases and Rime settings stay on the Mac), and only
   if you turn them on, the words you hide from the AI (in `settings.json`) and `questions.json` (recent questions and
   answers, readable only by your user account). Turning those two off leaves them in iCloud until you remove them
-  ("Remove Hidden Words from iCloud…", "Remove Recent Questions from iCloud…" in the ⋯ menu). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, what
+  ("Remove from iCloud…" in the ⋯ menu, which removes all of it). Never: API keys, tokens or passwords, extension sources, extension folders and plugins, what
   the input method learned on this Mac, clipboard history and its settings, the recent apps, window state, the sync switches. iCloud Drive is end-to-end encrypted only with
   Advanced Data Protection. This Mac's own record of what it synced is in
   `~/Library/Application Support/AllInOneIME/iCloudSync/state.json`.
