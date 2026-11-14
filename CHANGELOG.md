@@ -2,6 +2,12 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.5 (unreleased)
+
+### Changed
+
+- AllInOneIME Cloud gives 200 free requests a day (was 20); the installer and Settings → AI say so.
+
 ## 0.7.4 (2026-11-14)
 
 ### Added

@@ -1354,7 +1354,7 @@ The app it installs has no Chinese dictionaries (they're the Chinese language pa
 
 ## Setting up the AI
 
-Translations and rewrites go to the AI provider picked in Settings → AI. A new install starts on AllInOneIME Cloud: sign in, and there are 20 free requests a day. On a Mac with Apple Intelligence, it can run on this Mac instead, with no account (see "Apple Intelligence on this Mac" below). Or use your own provider, the costs on your account: Amazon Bedrock in your AWS account, the Claude API, Gemini or an OpenAI-compatible service (see "Other AI providers" below).
+Translations and rewrites go to the AI provider picked in Settings → AI. A new install starts on AllInOneIME Cloud: sign in, and there are 200 free requests a day. On a Mac with Apple Intelligence, it can run on this Mac instead, with no account (see "Apple Intelligence on this Mac" below). Or use your own provider, the costs on your account: Amazon Bedrock in your AWS account, the Claude API, Gemini or an OpenAI-compatible service (see "Other AI providers" below).
 
 ### Amazon Bedrock
 
