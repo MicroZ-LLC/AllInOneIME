@@ -2969,8 +2969,8 @@ struct SettingsView: View {
                 Button(tr("用邮箱登录 / 注册", "Sign in / Sign up with Email")) { model.signIn(.email) }.disabled(model.accountBusy)
                 if model.accountBusy { ProgressView().controlSize(.small) }
             }
-            Text(tr("登录后每天免费 20 次，不用自己的 AWS 或 API key。",
-                    "Signed in, you get 20 free requests a day, without an AWS account or API key of your own."))
+            Text(tr("登录后每天免费 200 次，不用自己的 AWS 或 API key。",
+                    "Signed in, you get 200 free requests a day, without an AWS account or API key of your own."))
                 .font(.caption).foregroundStyle(.secondary)
         }
         if let error = model.accountError { Text(error).foregroundStyle(.red) }

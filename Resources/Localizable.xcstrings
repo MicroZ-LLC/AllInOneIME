@@ -26029,49 +26029,49 @@
         }
       }
     },
-    "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (20 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
-      "comment" : "按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 20 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。 — Sources/AllInOneIMEInstaller/main.swift",
+    "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
+      "comment" : "按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。 — Sources/AllInOneIMEInstaller/main.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Drück Ctrl+Leertaste, um dorthin zu wechseln, und tippe dann @improve in ein beliebiges Textfeld. Melde dich beim ersten Mal bei AllInOneIME Cloud an (20 kostenlose Anfragen pro Tag) oder nutze auf einem Mac mit Apple Intelligence einfach diese – ganz ohne Account."
+            "value" : "Drück Ctrl+Leertaste, um dorthin zu wechseln, und tippe dann @improve in ein beliebiges Textfeld. Melde dich beim ersten Mal bei AllInOneIME Cloud an (200 kostenlose Anfragen pro Tag) oder nutze auf einem Mac mit Apple Intelligence einfach diese – ganz ohne Account."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pulsa Ctrl+Espacio para cambiar a él y escribe @improve en cualquier campo de texto. La primera vez, inicia sesión en AllInOneIME Cloud (20 solicitudes gratis al día); o, en un Mac con Apple Intelligence, úsala sin cuenta."
+            "value" : "Pulsa Ctrl+Espacio para cambiar a él y escribe @improve en cualquier campo de texto. La primera vez, inicia sesión en AllInOneIME Cloud (200 solicitudes gratis al día); o, en un Mac con Apple Intelligence, úsala sin cuenta."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Appuyez sur Ctrl+Espace pour y passer, puis tapez @improve dans n’importe quel champ de texte. La première fois, connectez-vous à AllInOneIME Cloud (20 requêtes gratuites par jour) ; ou, sur un Mac doté d’Apple Intelligence, utilisez-la sans compte."
+            "value" : "Appuyez sur Ctrl+Espace pour y passer, puis tapez @improve dans n’importe quel champ de texte. La première fois, connectez-vous à AllInOneIME Cloud (200 requêtes gratuites par jour) ; ou, sur un Mac doté d’Apple Intelligence, utilisez-la sans compte."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ctrl+スペースで切り替えて、任意のテキストフィールドで@improveと入力します。初回はAllInOneIME Cloudにサインインしてください（1日20リクエストまで無料）。Apple Intelligence搭載のMacなら、アカウントなしでApple Intelligenceを使うこともできます。"
+            "value" : "Ctrl+スペースで切り替えて、任意のテキストフィールドで@improveと入力します。初回はAllInOneIME Cloudにサインインしてください（1日200リクエストまで無料）。Apple Intelligence搭載のMacなら、アカウントなしでApple Intelligenceを使うこともできます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ctrl+Space를 눌러 전환한 다음, 아무 입력란에서나 @improve를 입력하세요. 처음에는 AllInOneIME Cloud에 로그인하세요 (하루 20회 무료 요청). Apple Intelligence를 지원하는 Mac에서는 계정 없이 Apple Intelligence를 사용할 수도 있습니다."
+            "value" : "Ctrl+Space를 눌러 전환한 다음, 아무 입력란에서나 @improve를 입력하세요. 처음에는 AllInOneIME Cloud에 로그인하세요 (하루 200회 무료 요청). Apple Intelligence를 지원하는 Mac에서는 계정 없이 Apple Intelligence를 사용할 수도 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pressione Ctrl+Espaço para mudar para ele e digite @improve em qualquer campo de texto. Na primeira vez, inicie sessão no AllInOneIME Cloud (20 solicitações gratuitas por dia); ou, em um Mac com Apple Intelligence, use-a sem conta."
+            "value" : "Pressione Ctrl+Espaço para mudar para ele e digite @improve em qualquer campo de texto. Na primeira vez, inicie sessão no AllInOneIME Cloud (200 solicitações gratuitas por dia); ou, em um Mac com Apple Intelligence, use-a sem conta."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按 Ctrl+Space 切換到它，然後在任何文字欄位中輸入 @improve。第一次使用時，請登入 AllInOneIME Cloud（每天 20 次免費要求）；或者在支援 Apple Intelligence 的 Mac 上，不需帳號即可使用它。"
+            "value" : "按 Ctrl+Space 切換到它，然後在任何文字欄位中輸入 @improve。第一次使用時，請登入 AllInOneIME Cloud（每天 200 次免費要求）；或者在支援 Apple Intelligence 的 Mac 上，不需帳號即可使用它。"
           }
         }
       }
@@ -31038,49 +31038,49 @@
         }
       }
     },
-    "Signed in, you get 20 free requests a day, without an AWS account or API key of your own." : {
-      "comment" : "登录后每天免费 20 次，不用自己的 AWS 或 API key。 — Sources/AllInOneIME/SettingsWindow.swift",
+    "Signed in, you get 200 free requests a day, without an AWS account or API key of your own." : {
+      "comment" : "登录后每天免费 200 次，不用自己的 AWS 或 API key。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nach der Anmeldung bekommst du 20 kostenlose Anfragen pro Tag, ohne eigenen AWS-Account oder API-Schlüssel."
+            "value" : "Nach der Anmeldung bekommst du 200 kostenlose Anfragen pro Tag, ohne eigenen AWS-Account oder API-Schlüssel."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Con la sesión iniciada, tienes 20 solicitudes gratis al día, sin cuenta de AWS ni clave de API propia."
+            "value" : "Con la sesión iniciada, tienes 200 solicitudes gratis al día, sin cuenta de AWS ni clave de API propia."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "En vous connectant, vous disposez de 20 requêtes gratuites par jour, sans compte AWS ni clé API personnelle."
+            "value" : "En vous connectant, vous disposez de 200 requêtes gratuites par jour, sans compte AWS ni clé API personnelle."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サインインすると、自分のAWSアカウントやAPIキーなしで1日20リクエストまで無料で使えます。"
+            "value" : "サインインすると、自分のAWSアカウントやAPIキーなしで1日200リクエストまで無料で使えます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "로그인하면 자체 AWS 계정이나 API 키 없이 하루 20회 무료로 요청할 수 있습니다."
+            "value" : "로그인하면 자체 AWS 계정이나 API 키 없이 하루 200회 무료로 요청할 수 있습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Com a sessão iniciada, você tem 20 solicitações gratuitas por dia, sem conta da AWS nem chave de API própria."
+            "value" : "Com a sessão iniciada, você tem 200 solicitações gratuitas por dia, sem conta da AWS nem chave de API própria."
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "登入後，每天可免費使用 20 次，不需要你自己的 AWS 帳號或 API 金鑰。"
+            "value" : "登入後，每天可免費使用 200 次，不需要你自己的 AWS 帳號或 API 金鑰。"
           }
         }
       }

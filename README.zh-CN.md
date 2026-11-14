@@ -1014,7 +1014,7 @@ make install
 
 ## 配置 AI
 
-翻译和改写发给你在设置 →「AI」里选的服务。新装默认是 AllInOneIME 云：登录就行，每天 20 次免费。支持 Apple Intelligence 的 Mac 也可以在本机运行，不用账号（见下面的「本机的 Apple Intelligence」）。也可以用你自己的 AI 服务，费用记在你的账号上：AWS 账号里的 Amazon Bedrock、Claude API、Gemini 或兼容 OpenAI 的服务（见下面的「其他 AI 服务」）。
+翻译和改写发给你在设置 →「AI」里选的服务。新装默认是 AllInOneIME 云：登录就行，每天 200 次免费。支持 Apple Intelligence 的 Mac 也可以在本机运行，不用账号（见下面的「本机的 Apple Intelligence」）。也可以用你自己的 AI 服务，费用记在你的账号上：AWS 账号里的 Amazon Bedrock、Claude API、Gemini 或兼容 OpenAI 的服务（见下面的「其他 AI 服务」）。
 
 ### Amazon Bedrock
 
