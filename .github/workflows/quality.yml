@@ -1,7 +1,7 @@
 # The gate every change passes before it merges into mainline or a release branch (AGENTS.md): `make lint` (the static
-# checks, against their baselines) and the full `make test`, on the Mac mini (the xcode-27 runner: the tests need
+# checks, against their baselines) and the full `make test`, on GitHub's xcode-27 macOS runner (the tests need
 # Xcode 27), offline: no keys, no AWS files, no live tests. Require the check "Quality gate" (Scripts/protect-branches.sh):
-# it passes only when both jobs passed, so a PR from a fork, which never runs on the Mac mini (its code isn't trusted
+# it passes only when both jobs passed, so a PR from a fork, which never runs here (its code isn't trusted
 # there), fails it instead of skipping it; a maintainer who has read such a change pushes it to a branch here to have
 # it checked. The agent pipeline starts this workflow itself on its PRs' branches (workflow_dispatch): a PR made with
 # the job's token starts no workflow.

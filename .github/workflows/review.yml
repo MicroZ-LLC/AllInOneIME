@@ -33,17 +33,17 @@ jobs:
     if: >-
       github.event_name == 'workflow_dispatch' ||
       (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
-    runs-on: xcode-27
+    runs-on: [self-hosted, macmini-agent]
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
         with:
           clean: false            # keeps the quality gate's .build
           fetch-depth: 0          # the base and the PR's head
+          persist-credentials: false
       - name: The reviewers' CLIs
         # Codex and Claude Code install into ~/.local/bin, which the runner's service doesn't have on its PATH.
         run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          persist-credentials: false
       - run: git clean -ffdx -e .build/
       - name: Review
         env:
