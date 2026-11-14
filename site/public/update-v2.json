@@ -1,15 +1,15 @@
 {
-  "build" : "31",
-  "generated" : "2026-11-12T08:52:13Z",
+  "build" : "32",
+  "generated" : "2026-11-14T08:39:26Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.3",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.4",
   "schema" : 1,
-  "sha256" : "3f50bb45341809c2b174b091e0c751a370f7191784d5720942fd9c0245077b99",
-  "size" : 36084724,
+  "sha256" : "99e8d12396d1797f63bb2dc69563f6f55210fb034b7763dca1f5bc642cda5af5",
+  "size" : 37071479,
   "summary" : {
-    "en" : "This Week: how much you used AllInOneIME this week, kept only on this Mac. Shuangpin and Zhuyin, @question that keeps the conversation going (⏎ asks, ⇧⏎ inserts) and knows AllInOneIME's settings, clipboard history you can filter by typing, ← → pages in long lists, clearer panels, and icons and a test run for your own commands.",
-    "zh" : "本周统计：看这周用了多少 AllInOneIME，只存在这台 Mac 上。支持双拼和注音；@question 可以接着问（⏎ 追问，⇧⏎ 上屏），也懂 AllInOneIME 的设置；剪贴板历史打字就能筛选；长列表用 ← → 翻页；面板更清楚；自己的命令可以选图标、试运行。"
+    "en" : "Answer @question with the Claude Code, Codex, Antigravity or Kiro subscription you already have, from one AI picker in Settings → AI. Settings → Input can make Caps Lock switch Chinese and English instead of Shift (Shift stays the default). Lighter settings: less-used options folded away.",
+    "zh" : "@question 可以用你已有的 Claude Code、Codex、Antigravity 或 Kiro 订阅回答，设置 →「AI」里一个选择器管所有 AI。设置 →「输入」里可以改用大写锁定键切换中英文（默认仍是 Shift）。设置更清爽：不常用的选项收起来了。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.3/AllInOneIME-0.7.3-update.zip",
-  "version" : "0.7.3"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.4/AllInOneIME-0.7.4-update.zip",
+  "version" : "0.7.4"
 }
