@@ -616,6 +616,12 @@ def gate_state(pr: dict, runs: dict[str, str]) -> tuple[list[str], list[str]]:
     failed = [name for name, (_, state) in latest.items() if state == "fail"]
     waiting = [name for name, (_, state) in latest.items() if state == "pending"]
     for name, workflow in WORKFLOW_OF.items():
+        # A run of its workflow still queued or running (a rerun) answers anew: wait for it, whatever the old status says.
+        if runs.get(workflow) not in (None, "completed"):
+            failed = [n for n in failed if n != name]
+            if name not in waiting:
+                waiting.append(name)
+            continue
         if name not in latest:  # not reported: fine while its workflow runs, a failure once it ended without it
             (failed if runs.get(workflow) == "completed" else waiting).append(name)
     return failed, waiting

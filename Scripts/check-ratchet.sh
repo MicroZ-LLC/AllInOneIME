@@ -124,8 +124,10 @@ EOF
     fi
 fi
 
-[ $status -eq 0 ] || exit 1
-if grep -q '^shrank$' "$tmp/result"; then
-    echo "check-ratchet: files shrank or went under the limit; lock that in: Scripts/check-ratchet.sh --update"
+# A file that shrank has its number lowered in the same change, or it could grow back to the old number later unseen.
+if [ "$mode" != --update ] && grep -q '^shrank$' "$tmp/result"; then
+    echo "check-ratchet: files shrank or went under the limit; lock that in with Scripts/check-ratchet.sh --update (or make lint-baseline) and commit $list" >&2
+    status=1
 fi
+[ $status -eq 0 ] || exit 1
 echo "check-ratchet: no file grew ($(wc -l <"$tmp/listed" | tr -d ' ') listed over $LIMIT lines of code)"
