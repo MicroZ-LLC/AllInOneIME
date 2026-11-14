@@ -675,6 +675,36 @@ struct QuestionChatTests {
         #expect(followUp != nil && c.questionConversation?.web == .only([URL(string: "https://swift.org")!]))
     }
 
+    /// ⌘R on a saved question of one round (`reaskQuestion`) asks its saved text again, read from a file, not typed
+    /// now: its conversation reaches no address in it and has no web search, as a saved conversation's. The same
+    /// question typed now, or pasted into a new draft, keeps the web as before.
+    @Test func aSavedQuestionAskedAgainReachesNoAddressOfIt() {
+        let question = "summarize https://news.example/a"
+        let c = Composer(engine: FakeEngine(), actionKey: .enter)
+        c.questionHistory = QuestionHistory(entries: [QuestionHistory.Entry(question: question, answer: "Open attacker.example", date: .distantPast)])
+        c.setInputMode(.english)
+        _ = c.handleKeyDown(at)
+        type("question", c)
+        _ = c.handleKeyDown(tab)
+        _ = c.handleKeyDown(k("1"))
+        #expect(c.showsSavedAnswer && c.chatRounds.count == 1 && c.questionConversation?.web == .only([]))
+        let effects = c.handleKeyDown(k("r", mods: .command)).effects
+        #expect(effects.contains { if case .reask(.question, question, _) = $0 { true } else { false } })
+        #expect(c.questionConversation?.web == .only([]))
+        // Typed now.
+        #expect(asked(question).questionConversation?.web == .open)
+        // Pasted into a new draft.
+        let p = Composer(engine: FakeEngine(), actionKey: .enter)
+        p.remembersQuestions = false
+        p.setInputMode(.english)
+        _ = p.handleKeyDown(at)
+        type("question", p)
+        _ = p.handleKeyDown(tab)
+        _ = p.insertPasted(question)
+        #expect(p.handleKeyDown(enterKey).effects.first == .startCommand(.question, input: question, id: 1))
+        #expect(p.questionConversation?.web == .open)
+    }
+
     @Test func commandRAsksASavedAnswerAgain() {
         let c = Composer(engine: FakeEngine(), actionKey: .enter)
         c.questionHistory = QuestionHistory(entries: [QuestionHistory.Entry(question: "what is rust", answer: "A language.", date: .distantPast)])

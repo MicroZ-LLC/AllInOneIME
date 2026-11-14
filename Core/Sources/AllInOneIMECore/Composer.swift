@@ -3279,7 +3279,9 @@ public final class Composer {
         handoffRequested = false
     }
 
-    func startAction() -> Response {
+    /// The action key on the draft: its command starts. `saved`: the draft is a saved question asked again
+    /// (`reaskQuestion`), read from a file, not typed now.
+    func startAction(saved: Bool = false) -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
         // Only an @ command is ever sent: without one the input method just types.
@@ -3391,9 +3393,12 @@ public final class Composer {
         default: refineRequest = nil
         }
         // Text the user didn't type in the question (the selection, a screenshot's text, the output of a command inside
-        // it, a page `@read` read): the session's web tools may reach only the addresses typed (`SessionWeb`).
+        // it, a page `@read` read): the session's web tools may reach only the addresses typed (`SessionWeb`). A saved
+        // question asked again (`saved`) may hold text the user didn't type, and doesn't say which: it reaches no
+        // address, and has no web search, as a saved conversation (`loadThread`).
         let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false
-        questionConversation = command == .question ? QuestionConversation(web: SessionWeb(untrusted: untrusted, typed: typed)) : nil
+        let web = saved ? SessionWeb.only([]) : SessionWeb(untrusted: untrusted, typed: typed)
+        questionConversation = command == .question ? QuestionConversation(web: web) : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
@@ -4116,7 +4121,8 @@ extension Composer {
     }
 
     /// ⌘R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
-    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`).
+    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`). Its conversation reaches no web
+    /// address, and has no web search (`startAction(saved:)`), as a saved conversation's (`loadThread`).
     func reaskQuestion() -> [Effect] {
         guard recalled != nil else { return [] }
         // In an app with no AI the saved answers may still be shown (nothing is sent), but not asked again: the answer
@@ -4126,10 +4132,10 @@ extension Composer {
         questionPick = nil
         result = .empty
         activeCommand = nil
-        // Read from a file, not typed now: a command in it that runs code stays text.
+        // Read from a file, not typed now: a command in it that runs code stays text, and no address in it is reached.
         draftHasOutsideText = true
         setLevelOnePhase()
-        return startAction().effects.map {
+        return startAction(saved: true).effects.map {
             if case let .startCommand(command, input, id) = $0, command == .question { return .reask(command, input: input, id: id) }
             return $0
         }
