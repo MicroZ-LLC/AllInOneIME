@@ -214,6 +214,41 @@ struct QuestionSessionRequestTests {
         #expect(hide("now c@three.com", followUp) == "now [EMAIL_2]", "a placeholder of the conversation given to another value")
     }
 
+    /// A new conversation's question that failed before it was asked (no CLI to start) leaves its agent conversation
+    /// unasked, and the next conversation goes into that one: none of the first one's hidden values or numbers go with
+    /// it, so the next one's follow-up puts back its own value, never the first one's under the same placeholder.
+    @Test func aConversationThatFailedBeforeItWasAskedLeavesNothingHiddenToTheNext() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        func hide(_ text: String, _ request: ClaudeSessionManager.Request) -> (redaction: Redaction?, result: String) {
+            session.redacting(settings, for: request) { redaction in redaction?.hide(text) ?? text }
+        }
+        fake.missing = true
+        let first = session.request(QuestionConversation())
+        #expect(hide("To a@one.com.", first).result == "To [EMAIL_1].")
+        #expect(await collect(first.ask("To [EMAIL_1].")).error as? ClaudeSessionError == .notInstalled)
+        fake.missing = false
+
+        let panel = QuestionConversation()
+        let second = session.request(panel)
+        #expect(!second.continues)
+        #expect(hide("To b@two.com.", second).result == "To [EMAIL_1].")
+        let asked = second.ask("To [EMAIL_1].")
+        let process = try #require(fake.last)
+        process.started()
+        process.done("OK.")
+        _ = await collect(asked)
+
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let shorter = hide("shorter", followUp)
+        #expect(shorter.result == "shorter")
+        #expect(shorter.redaction?.restore("To [EMAIL_1].") == "To b@two.com.", "the first conversation's value put back")
+        #expect(hide("and c@three.com", followUp).result == "and [EMAIL_2]")
+    }
+
     @Test func placeholdersStayWithinTheirConversation() async throws {
         let fake = FakeClaude()
         let session = claude(fake)

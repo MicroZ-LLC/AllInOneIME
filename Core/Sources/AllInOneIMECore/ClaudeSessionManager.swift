@@ -725,16 +725,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         remember(rounds: rounds)
     }
 
-    /// What a request's hiding numbered (`redacting(_:for:_:)`), kept for the agent conversation now, which it goes into.
-    private func keep(_ hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?) {
-        guard let hidden else { return }
+    /// What a request's hiding numbered (`redacting(_:for:_:)`; nil: nothing), kept for the agent conversation now, which
+    /// it goes into as the first of its panel conversation (`place`): in place of anything kept for it before. A new one
+    /// has nothing; the one now, never asked, may have what a request that failed before it was asked hid there (another
+    /// panel conversation's, numbered from 1 as this one's is), which must never be put back in this one's answers.
+    private func keepOnly(_ hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?) {
         kept.withLock { kept in
             guard let id = try? store.sessionID() else { return }
             var current = load(&kept, id: id)
-            for (kind, number) in hidden.numbers {
-                current.memory.numbers[kind.rawValue] = max(current.memory.numbers[kind.rawValue] ?? 0, number)
-            }
-            current.known += hidden.values.filter { !current.known.contains($0) }
+            let numbers = Dictionary(uniqueKeysWithValues: (hidden?.numbers ?? [:]).map { ($0.rawValue, $1) })
+            let values = hidden?.values ?? []
+            guard numbers != current.memory.numbers || values != current.known else { return }
+            (current.memory.numbers, current.known) = (numbers, values)
             store.save(current.memory)
             kept = current
         }
@@ -901,15 +903,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// `turn`, about to be written, put in its agent conversation (once: sent again after a failed start, it is there):
-    /// a new one, what its hiding numbered kept for it, unless it goes on in the one now (`Request.continues`, and that
-    /// is still its conversation's); the one now when no question went into it yet. The web tools it may have: its own
-    /// (`Request.web`), or the conversation's.
+    /// a new one, what its hiding numbered kept for it alone, unless it goes on in the one now (`Request.continues`, and
+    /// that is still its conversation's); the one now when no question went into it yet, what was kept for it before
+    /// gone (`keepOnly`). The web tools it may have: its own (`Request.web`), or the conversation's.
     private func place(_ turn: Turn, _ state: inout State) -> SessionWeb {
         if !turn.placed {
             if !turn.continues || (turn.owner != nil && turn.owner != state.owner) {
                 if asked(&state) { rollOver(&state) }
                 state.owner = turn.owner
-                keep(turn.hidden)
+                keepOnly(turn.hidden)
             }
             if let web = turn.web { state.web = web }
             turn.conversation = try? store.sessionID()
