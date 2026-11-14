@@ -186,7 +186,7 @@ struct ClaudeSessionProviderTests {
         #expect(await collect(next).error as? ClaudeSessionError == .awsSignInExpired)
     }
 
-    @Test func theProviderAnswersWhenTheAWSSignInExpired() async throws {
+    @Test(TaskLanguage("en")) func theProviderAnswersWhenTheAWSSignInExpired() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
         let (converter, apple) = converter(session)
@@ -226,7 +226,7 @@ struct ClaudeSessionProviderTests {
 
     /// Whatever the session failed with, the provider answers while none of the answer came: a crash too, its note
     /// saying so; once some of it came, the question fails saying why, and the provider isn't asked.
-    @Test func aCrashBeforeAnyTextFallsBackAndOneAfterSaysWhy() async throws {
+    @Test(TaskLanguage("en")) func aCrashBeforeAnyTextFallsBackAndOneAfterSaysWhy() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
         let (converter, apple) = converter(session)

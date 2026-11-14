@@ -3,9 +3,12 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Runs `body` in the interface language `choice` ("zh", "en"), then puts the one before back. The language is the
-/// process's (`UIText.choice`): the tests that set it take turns, whichever suite they are in, waiting for theirs
-/// suspended (`TestTurn`): in its turn a test may wait for its session's work (`FakeHost.settle`), which needs a thread.
+/// Runs `body` in the interface language `choice` ("zh", "en"), then puts the one before back. In an interface of the
+/// task's own (`UIText.scopedInterface`, with @ as its command trigger): what `body`, the tasks it starts and the
+/// sessions it makes read and set (a session sets them as it reads its settings), whatever the sessions of the tests
+/// running alongside set the process's to meanwhile. The process's language is set with it, for what is read off the
+/// task: the tests that set it take turns, whichever suite they are in, waiting for theirs suspended (`TestTurn`): in
+/// its turn a test may wait for its session's work (`FakeHost.settle`), which needs a thread.
 func withInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) async rethrows -> T {
     try await interfaceLanguageTurn.run { try inInterfaceLanguage(choice, body) }
 }
@@ -16,10 +19,30 @@ func inInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows -
     let before = UIText.choice
     UIText.choice = choice
     defer { UIText.choice = before }
-    return try body()
+    guard UIText.scopedInterface == nil else { return try body() }  // the task's own already: set above
+    return try UIText.$scopedInterface.withValue(UIText.ScopedInterface(choice: choice, commandTrigger: "@"), operation: body)
 }
 
 private let interfaceLanguageTurn = TestTurn()
+
+/// A test in the interface language `language` of its own task (`UIText.scopedLanguage`), the tasks it starts with it
+/// (a request's, as the converter makes it): what it gets and what it checks that against are in the same language,
+/// whatever the sessions of the tests running alongside set the process's to meanwhile.
+struct TaskLanguage: SuiteTrait, TestTrait, TestScoping {
+    let language: String
+
+    init(_ language: String) { self.language = language }
+
+    var isRecursive: Bool { true }
+
+    func scopeProvider(for test: Test, testCase: Test.Case?) -> TaskLanguage? {
+        testCase == nil ? nil : self
+    }
+
+    func provideScope(for test: Test, testCase: Test.Case?, performing function: @Sendable () async throws -> Void) async throws {
+        try await UIText.$scopedLanguage.withValue(language) { try await function() }
+    }
+}
 
 /// What a text field's session says around the composer (`SessionText`), in Simplified Chinese and English: in the
 /// language each call is given.
@@ -107,7 +130,11 @@ struct SessionTextTests {
         #expect(SessionText.inputName(.english, language: "en") == "English")
         #expect(SessionText.noticeDuration("x", long: true) == 12 && SessionText.noticeDuration("", long: false) == 1.2)
         #expect(SessionText.noticeDuration(String(repeating: "x", count: 200), long: false) == 5)
-        #expect(SessionText.shortName(.atAgent, picked: .claude, language: "en") == "@agent's agent (Claude Code)")
+        // With @ as the command trigger: the process's is the one of whichever session read its settings last (a test's
+        // alongside, with "~", say).
+        UIText.$scopedCommandTrigger.withValue("@") {
+            #expect(SessionText.shortName(.atAgent, picked: .claude, language: "en") == "@agent's agent (Claude Code)")
+        }
         #expect(SessionText.name(.copy, language: "zh-Hans") == "复制对话")
         #expect(SessionText.name(.claudeWeb, language: "en") == "Claude (web)")
     }

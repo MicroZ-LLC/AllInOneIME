@@ -32,23 +32,31 @@ struct QuestionSessionHandOffTests {
     }
 
     /// FakeClaude's processes, each still running for `dying` seconds after it is asked to end (nil: until killed; not
-    /// `killable`: even then).
+    /// `killable`: even then). `conversation`: what each reads each time it is asked to end (the session's conversation
+    /// then: `askedIn`).
     final class Dying: ClaudeSessionLauncher, @unchecked Sendable {
         final class Process: ClaudeSessionProcess, @unchecked Sendable {
             let inner: FakeClaude.Process
             let dying: TimeInterval?
             let killable: Bool
+            let conversation: (@Sendable () -> String?)?
             private let ends = Locked<Date?>(initialState: .distantFuture)
             private let killed = Locked(initialState: false)
+            private let asked = Locked<[String?]>(initialState: [])
 
-            init(_ inner: FakeClaude.Process, dying: TimeInterval?, killable: Bool) {
+            init(_ inner: FakeClaude.Process, dying: TimeInterval?, killable: Bool, conversation: (@Sendable () -> String?)?) {
                 self.inner = inner
                 self.dying = dying
                 self.killable = killable
+                self.conversation = conversation
             }
 
             func send(_ line: Data) throws { try inner.send(line) }
             func terminate() {
+                if let conversation {
+                    let now = conversation()
+                    asked.withLock { $0.append(now) }
+                }
                 inner.terminate()
                 ends.withLock { ends in if ends == .distantFuture { ends = dying.map { Date().addingTimeInterval($0) } ?? .distantFuture } }
             }
@@ -58,23 +66,28 @@ struct QuestionSessionHandOffTests {
             }
             var wasKilled: Bool { killed.withLock { $0 } }
             var isRunning: Bool { ends.withLock { $0.map { Date() < $0 } ?? false } }
+            /// What `conversation` read each time it was asked to end, in order.
+            var askedIn: [String?] { asked.withLock { $0 } }
         }
 
         let fake = FakeClaude()
         let dying: TimeInterval?
         let killable: Bool
+        let conversation: (@Sendable () -> String?)?
         private let started = Locked<[Process]>(initialState: [])
         var processes: [Process] { started.withLock { $0 } }
 
-        init(dying: TimeInterval?, killable: Bool = true) {
+        init(dying: TimeInterval?, killable: Bool = true, conversation: (@Sendable () -> String?)? = nil) {
             self.dying = dying
             self.killable = killable
+            self.conversation = conversation
         }
 
         func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
                    exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess {
             let inner = try fake.start(arguments, in: directory, output: output, exited: exited)
-            let process = Process(try #require(inner as? FakeClaude.Process), dying: dying, killable: killable)
+            let process = Process(try #require(inner as? FakeClaude.Process), dying: dying, killable: killable,
+                                  conversation: conversation)
             started.withLock { $0.append(process) }
             return process
         }
@@ -102,15 +115,18 @@ struct QuestionSessionHandOffTests {
     /// The hand-off asks our process to end and moves on to a new conversation at once, in one step, while it waits
     /// for the process to end: the conversation is Terminal's already.
     @Test func theHandOffMovesOnAtOnceWhileItWaits() async throws {
-        let launcher = Dying(dying: 0.3)
+        let launcher = Dying(dying: 0.3, conversation: { [folder] in try? ClaudeSessionStore(directory: folder).sessionID() })
         let session = claude(launcher)
         defer { session.stop() }
         session.prewarm()
         let process = try #require(launcher.processes.last)
         let id = try store.sessionID()
         let handing = Task { try await session.handOffOnceEnded(program: "/u/claude") }
-        #expect(await Timing.eventually(within: 0.2) { (try? store.sessionID()) != id }, "not moved on at once")
-        #expect(process.inner.terminated && process.isRunning)
+        // Our process asked to end, and the conversation a new one already as it was: moved on before it could end, while
+        // the hand-off waits for it (to end by itself 0.3 s later). Read as it was asked, whenever this test gets to look.
+        #expect(await Timing.eventually { process.inner.terminated }, "our process not asked to end")
+        let next = try store.sessionID()
+        #expect(next != id && process.askedIn.first == next, "not moved on as our process was asked to end: \(process.askedIn)")
         let (arguments, _, _) = try await handing.value
         #expect(arguments == ["/u/claude", "--session-id", id] && !process.isRunning)
     }

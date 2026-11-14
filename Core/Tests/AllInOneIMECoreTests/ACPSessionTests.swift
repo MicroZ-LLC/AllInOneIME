@@ -339,7 +339,7 @@ struct ACPSessionTests {
         #expect(ACPBackend.kiro.signedIn(status: 0, output: Data()) == true && ACPBackend.kiro.signedIn(status: 1, output: Data()) == false)
     }
 
-    @Test func signedOutThroughTheConverterTheProviderAnswersAndSaysWhy() async throws {
+    @Test(TaskLanguage("en")) func signedOutThroughTheConverterTheProviderAnswersAndSaysWhy() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
         var settings = Config.default

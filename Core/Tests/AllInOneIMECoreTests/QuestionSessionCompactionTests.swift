@@ -29,7 +29,7 @@ struct QuestionSessionCompactionTests {
         #expect(event(#"{"type":"system","subtype":"init","session_id":"s"}"#) == .started)
     }
 
-    @Test func compactingBeforeTheAnswerFallsBackAtOnceAndSaysWhy() async throws {
+    @Test(TaskLanguage("en")) func compactingBeforeTheAnswerFallsBackAtOnceAndSaysWhy() async throws {
         let fake = FakeClaude()
         // A first-answer timeout far off: what ends the wait is the compaction, not the timeout.
         let session = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder),
