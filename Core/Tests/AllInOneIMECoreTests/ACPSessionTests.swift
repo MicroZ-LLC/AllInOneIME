@@ -68,6 +68,25 @@ struct ACPSessionTests {
         session.stop()
     }
 
+    /// Kiro's agent files changed while its process runs (not by us: we put them back before each start): the next
+    /// question isn't sent, it fails so that the provider answers, and the process ends, as Antigravity's.
+    @Test func agentFilesChangedBetweenQuestionsEndTheProcessBeforeTheNextIsSent() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: nil)
+        let process = try #require(fake.last)
+        try open(process)
+        chunk(process, "1")
+        try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
+        #expect(await collect(first).answers == ["1"])
+        try Data(#"{"name":"allinoneime","tools":["execute_bash"],"allowedTools":["execute_bash"]}"#.utf8)
+            .write(to: folder.appendingPathComponent(".kiro/agents/allinoneime.json"), options: .atomic)
+        let second = session.ask("two", in: nil)
+        #expect(await collect(second).error as? ClaudeSessionError == .notWebOnly)
+        #expect(prompts(process) == ["one"] && process.terminated && session.availability == .cannotStart)
+    }
+
     /// The agent files (their tools) are put back; the steering (instructions) the user changed stays.
     @Test func prepareRepairsKiroAgentFiles() throws {
         try store.prepare()

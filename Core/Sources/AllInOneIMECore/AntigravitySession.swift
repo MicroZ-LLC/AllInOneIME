@@ -264,14 +264,7 @@ final class AntigravityDriver: SessionDriver {
     func message(_ text: String) -> [Data] { pass(inner.message(text)) }
     func interrupt() -> [Data] { pass(inner.interrupt()) }
     func newConversation() -> [Data]? { inner.newConversation().map(pass) }
-    func refusal() -> ClaudeSessionError? { permissionsKept ? nil : .notWebOnly }
-
-    /// Whether the folder's files that keep agy to its tools are as written.
-    private var permissionsKept: Bool {
-        permissionFiles.allSatisfy { file in
-            (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8)
-        }
-    }
+    func refusal() -> ClaudeSessionError? { permissionFiles.kept(in: directory) ? nil : .notWebOnly }
 
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data]) {
         let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] ?? [:]
@@ -288,7 +281,7 @@ final class AntigravityDriver: SessionDriver {
         let opened = request.map { $0.method == "session/new" || $0.method == "session/load" } == true
         if request?.method == "session/load" { loading = false }
         // A conversation opens: nothing goes into it (a question waiting for it) with the files changed.
-        if opened, !permissionsKept { return ([.failed(.notWebOnly, endsProcess: true)], []) }
+        if opened, let refusal = refusal() { return ([.failed(refusal, endsProcess: true)], []) }
         let (events, replies) = inner.received(line)
         let lines = pass(replies)
         if setting != nil {

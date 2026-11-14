@@ -80,6 +80,15 @@ public struct SessionFile: Equatable, Sendable {
     }
 }
 
+extension Array where Element == SessionFile {
+    /// Whether each is in `directory` as written: an enforced one (`SessionFile.enforced`) changed since the process
+    /// started (`ClaudeSessionStore.prepare` put it back) may give its agent more than the web. A driver's
+    /// `permissionFiles`, read as a conversation opens and before each question (`SessionDriver.refusal`).
+    func kept(in directory: URL) -> Bool {
+        allSatisfy { file in (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8) }
+    }
+}
+
 /// What talks to one running process of a session, for `ClaudeSessionManager` (called under its lock, one call at a
 /// time): the lines to write, and what each line read says (`ClaudeSession.Event`) with the lines to answer it with.
 public protocol SessionDriver: AnyObject {
@@ -96,8 +105,8 @@ public protocol SessionDriver: AnyObject {
     /// (Claude Code's process has one conversation: a new one is a new process; one still opening).
     func newConversation() -> [Data]?
     /// Why the process may not be sent a question now, looked at before each is written (nil: it may): the question
-    /// fails with it (the provider answers) and the process ends. Antigravity's, when its folder's files that keep it to
-    /// its tools changed since it started.
+    /// fails with it (the provider answers) and the process ends. An ACP agent's (Kiro's, Antigravity's), when its
+    /// folder's files that keep it to its tools changed since it started.
     func refusal() -> ClaudeSessionError?
 }
 
