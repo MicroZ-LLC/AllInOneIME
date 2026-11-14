@@ -256,6 +256,12 @@ public struct FieldInfo: Equatable, Sendable {
         self.terminal = terminal
         self.secure = secure
     }
+
+    /// Whether the field's text stays on this device: a terminal's (its text isn't being edited), or any field of a
+    /// password manager's (`PasswordManagers`), whatever the field says of itself (0.7.5). There a command starts as it
+    /// does in a terminal: no selection, nor the text around the caret, nor the web page is read for it; what is typed
+    /// after the command is sent as usual. The one check on the Mac and on Windows.
+    public var textStaysHere: Bool { terminal || PasswordManagers.contains(app) }
 }
 
 /// What the field says when a key goes down, read by the shell before it hands the key on: the core never asks the field

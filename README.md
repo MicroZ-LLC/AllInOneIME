@@ -171,11 +171,12 @@ as it was; so does a selection you change meanwhile, which cancels the command. 
 instruction for `@improve` and `@translate` (`@translate ja`, `@improve more formal`) and the question for `@question`
 (`@question what does this mean`), about the selection. `@open`, `@agent`, `@tasks`, `@settings`, `@reminder`,
 `@imessage`, `@reportissue`, terminal commands and script extensions don't use it: they take what you type, and the
-selection stays as it is. Up to 5000 characters; never read during secure input or in a
-terminal. In apps such as Chrome and Slack the selection is read just after the `@`: a key you press while it's still
-being read is done as soon as it's read, in the order you typed. There is no switch for it: an app whose field doesn't
-take the result in place of the selection (the selected text still there afterwards, the result not) is remembered on
-this Mac, and its selection isn't used again; Settings → Privacy → Learned… lists it, and Forget lets it try again.
+selection stays as it is. Up to 5000 characters; never read during secure input, in a terminal or in a password
+manager (1Password, Bitwarden, Passwords …: no text of its fields is read for a command). In apps such as Chrome and
+Slack the selection is read just after the `@`: a key you press while it's still being read is done as soon as it's
+read, in the order you typed. There is no switch for it: an app whose field doesn't take the result in place of the
+selection (the selected text still there afterwards, the result not) is remembered on this Mac, and its selection isn't
+used again; Settings → Privacy → Learned… lists it, and Forget lets it try again.
 `"useSelection": false` in the config turns it off in every app.
 
 ### Replying with @reply (new)

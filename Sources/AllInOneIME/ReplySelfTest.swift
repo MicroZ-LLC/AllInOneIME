@@ -244,6 +244,10 @@ extension SelfTest {
         terminal.document = "ls -la"
         terminal.bundleIDOverride = "com.apple.Terminal"
         check(controller.readFieldText(from: terminal) == nil, "none in a terminal")
+        let vault = FakeTextClient()
+        vault.document = "Wi-Fi: hunter2"
+        vault.bundleIDOverride = "com.1password.1password"
+        check(controller.readFieldText(from: vault) == nil, "none in a password manager, as in a terminal")
 
         section("@reply in Chrome takes the page", needs: .composing)
         // A process that doesn't exist: the page tree is asked of no one (the page is the stand-in's).

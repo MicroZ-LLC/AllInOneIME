@@ -375,6 +375,14 @@ enum SelfTest {
         check(controller.composer.selection == nil && client.marked == "@", "not read with \"Use the selected text\" off")
         settings.useSelection = true
         _ = escape(controller, client)
+        // Nor in a password manager, whatever its field says: "@" starts as in a terminal (`FieldInfo.textStaysHere`).
+        select()
+        let bundleBefore = client.bundleIDOverride
+        client.bundleIDOverride = "com.1password.1password"
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && client.marked == "@", "not read in a password manager (marked '\(client.marked)')")
+        _ = escape(controller, client)
+        client.bundleIDOverride = bundleBefore
 
         // A result replaces exactly the selection: by its range, and where the field ignores ranges, as the selected text.
         for ignores in [false, true] {
