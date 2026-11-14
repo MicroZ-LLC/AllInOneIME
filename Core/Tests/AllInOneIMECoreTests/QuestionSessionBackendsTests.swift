@@ -217,21 +217,26 @@ struct QuestionSessionBackendsTests {
         completed(process, status: "failed", error: ["message": "401 Unauthorized", "codexErrorInfo": "unauthorized"])
         let error = await collect(stream).error as? ClaudeSessionError
         #expect(error == .signedOut && session.availability == .signedOut)
-        #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
+        // The words in English, in the interface language's turn (other tests change it meanwhile).
+        await withInterfaceLanguage("en") {
+            #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
+        }
         let limited = session.ask("again", in: nil)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
         completed(process, status: "failed", error: ["message": "You've hit your usage limit.", "codexErrorInfo": "usageLimitExceeded"],
                   turn: "turn_2")
         #expect(await collect(limited).error as? ClaudeSessionError == .limitReached("You've hit your usage limit."))
-        #expect(ClaudeSessionError.limitReached("").description(for: .codex) == "The Codex usage limit is reached")
-        #expect(ClaudeSessionError.notInstalled.description(for: .codex) == "The codex command (Codex) isn't installed")
-        #expect(ClaudeSessionError.notInstalled.description(for: .antigravity) == "The agy command (Antigravity) isn't installed")
-        #expect(ClaudeSessionError.signedOut.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
-        // Claude Code's and Kiro CLI's words as they were.
-        #expect(ClaudeSessionError.signedOut.description(for: .claude) == "Claude Code isn't signed in: run claude in Terminal and /login")
-        #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
-        #expect(ClaudeSessionError.noResponse.description(for: .kiro) == "The Kiro session didn't respond")
-        #expect(ClaudeSessionError.notInstalled.description(for: .claude) == "The claude command (Claude Code) isn't installed")
+        await withInterfaceLanguage("en") {
+            #expect(ClaudeSessionError.limitReached("").description(for: .codex) == "The Codex usage limit is reached")
+            #expect(ClaudeSessionError.notInstalled.description(for: .codex) == "The codex command (Codex) isn't installed")
+            #expect(ClaudeSessionError.notInstalled.description(for: .antigravity) == "The agy command (Antigravity) isn't installed")
+            #expect(ClaudeSessionError.signedOut.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
+            // Claude Code's and Kiro CLI's words as they were.
+            #expect(ClaudeSessionError.signedOut.description(for: .claude) == "Claude Code isn't signed in: run claude in Terminal and /login")
+            #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
+            #expect(ClaudeSessionError.noResponse.description(for: .kiro) == "The Kiro session didn't respond")
+            #expect(ClaudeSessionError.notInstalled.description(for: .claude) == "The claude command (Claude Code) isn't installed")
+        }
     }
 
     // MARK: - Codex reads the web, nothing else
