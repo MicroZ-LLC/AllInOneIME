@@ -35,10 +35,15 @@ public enum UIText {
 
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
     /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged` on
-    /// the main queue: at once when it is changed there, else soon after.
+    /// the main queue: at once when it is changed there, else soon after. In a task with an interface of its own
+    /// (`scopedInterface`), its choice, set with the process's.
     public static var choice: String? {
-        get { state.withLock { $0.choice } }
+        get {
+            if let scoped = scopedInterface { return scoped.choice }
+            return state.withLock { $0.choice }
+        }
         set {
+            scopedInterface?.choice = newValue
             let changed = state.withLock { state -> Bool in
                 guard state.choice != newValue else { return false }
                 state.choice = newValue
@@ -81,16 +86,56 @@ public enum UIText {
     public static let systemLanguage = InterfaceLanguage.pick(preferred: Locale.preferredLanguages,
                                                                shipped: InterfaceLanguage.shipped(in: .main))
 
-    /// The interface language's code: "zh-Hans", "en", … (`scopedLanguage`, where one is set).
-    public static var language: String { scopedLanguage ?? state.withLock { $0.language } }
+    /// The interface language's code: "zh-Hans", "en", … (`scopedLanguage`, where one is set; else `scopedInterface`'s).
+    public static var language: String { scopedLanguage ?? scopedInterface?.language ?? state.withLock { $0.language } }
 
     /// Whether the interface is Chinese: what only comes in Chinese and English (key names, …) is Chinese then.
-    public static var chinese: Bool { scopedLanguage.map(InterfaceLanguage.isChinese) ?? state.withLock { $0.chinese } }
+    public static var chinese: Bool {
+        (scopedLanguage ?? scopedInterface?.language).map(InterfaceLanguage.isChinese) ?? state.withLock { $0.chinese }
+    }
 
     /// The interface language of what one task makes (or one synchronous scope: `$scopedLanguage.withValue`), the
     /// process's left as it is: a settings document in the language its settings say, for a window in another process
     /// (`SettingsService`). Nil: the process's.
     @TaskLocal public static var scopedLanguage: String?
+
+    /// An interface of its own for what one task does and the tasks it starts (or one synchronous scope:
+    /// `$scopedInterface.withValue`): its language as chosen, read and set there as `choice` (`language` and `chinese`
+    /// follow it, a `scopedLanguage` before it), and its command trigger (`commandTrigger`); the process's are set with
+    /// them, for what is read off the task. A test's (`withInterfaceLanguage`): what it and the sessions it makes set, as
+    /// they read their settings, stays its own, whatever the sessions of the tests running alongside set the process's
+    /// to meanwhile. Nil: the process's.
+    @TaskLocal public static var scopedInterface: ScopedInterface?
+
+    /// The interface one task has of its own, apart from the process's (`scopedInterface`).
+    public final class ScopedInterface: Sendable {
+        private let state: Locked<(choice: String?, commandTrigger: String?)>
+
+        /// `commandTrigger` nil: the process's, until one is set in the task.
+        public init(choice: String?, commandTrigger: String? = nil) {
+            state = Locked(initialState: (choice, commandTrigger))
+        }
+
+        /// As `UIText.choice` is in its task: "zh", "en" or a shipped code; nil follows the system.
+        public var choice: String? {
+            get { state.withLock { $0.choice } }
+            set { state.withLock { $0.choice = newValue } }
+        }
+
+        /// As `UIText.commandTrigger` is in its task (nil: the process's).
+        public var commandTrigger: String? {
+            get { state.withLock { $0.commandTrigger } }
+            set { state.withLock { $0.commandTrigger = newValue } }
+        }
+
+        /// Its language's code, as `UIText.language` is in its task.
+        var language: String { UIText.language(for: choice) }
+    }
+
+    /// The language's code `choice` picks (as `choice` is in the settings: nil follows the system).
+    static func language(for choice: String?) -> String {
+        state.withLock { picked(choice: choice, shipped: $0.shipped, system: $0.system) }
+    }
 
     /// The interface text in the interface language as it is now (`language`): what a shell hands the core's text that
     /// takes its language (`PanelPresenter`, `SessionText`), and what `UIText`'s own texts are made with.

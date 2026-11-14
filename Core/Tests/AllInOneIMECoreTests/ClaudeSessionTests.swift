@@ -502,7 +502,7 @@ struct ClaudeSessionTests {
         #expect(apple.requests.isEmpty)
     }
 
-    @Test func withoutClaudeTheProviderAnswersAndThePanelSaysWhy() async throws {
+    @Test(TaskLanguage("en")) func withoutClaudeTheProviderAnswersAndThePanelSaysWhy() async throws {
         let fake = FakeClaude()
         fake.missing = true
         let session = manager(fake)

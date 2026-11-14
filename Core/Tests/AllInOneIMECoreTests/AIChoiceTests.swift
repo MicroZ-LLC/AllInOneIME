@@ -326,7 +326,7 @@ struct AIChoiceTests {
         #expect(process.arguments[tools + 1] == "" && !process.arguments.contains("--allowedTools"))
     }
 
-    @Test func aQuestionTheCLICantAnswerGoesToTheFallbackOrFails() async throws {
+    @Test(TaskLanguage("en")) func aQuestionTheCLICantAnswerGoesToTheFallbackOrFails() async throws {
         var config = Config.default
         config.ai = .provider(.bedrock)
         config.ai = .cli(.claude)
