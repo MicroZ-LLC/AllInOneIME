@@ -437,10 +437,6 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
 # thread when one waits.
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
-# Nor this Mac's desktop apps: a CLI that only came with one (the Claude app's Claude Code, the ChatGPT app's codex) isn't
-# looked for (`ClaudeSessionMac.noDesktopBundledVariable`), so the tests' fake CLIs, or none, are what is found, as on a
-# Mac without those apps.
-TEST_DESKTOP := ALLINONEIME_NO_DESKTOP_CLIS=1
 test: deps strings-check check-ios
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
@@ -450,8 +446,8 @@ test: deps strings-check check-ios
 	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
-	$(TEST_AWS) $(TEST_THREADS) $(TEST_DESKTOP) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) $(TEST_DESKTOP) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
 	exit $$status
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac

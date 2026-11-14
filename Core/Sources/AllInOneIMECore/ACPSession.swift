@@ -116,8 +116,8 @@ public struct ACPBackend: SessionBackend {
     public static let kiro = ACPBackend(
         agent: .kiro, folderName: "kiro-session", launch: ["acp"], mode: kiroMode, offlineMode: kiroOfflineMode,
         files: [SessionFile(path: ".kiro/steering/allinoneime.md", content: ClaudeSession.instructions),
-                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent),
-                SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent)],
+                SessionFile(path: ".kiro/agents/allinoneime.json", content: kiroAgent, enforced: true),
+                SessionFile(path: ".kiro/agents/allinoneime-offline.json", content: kiroOfflineAgent, enforced: true)],
         availability: ["whoami", "-f", "json"], resume: ["chat", "--resume-id"], start: ["chat"])
 
     public var directory: URL { (base ?? CorePaths.dataDir).appendingPathComponent(folderName, isDirectory: true) }
@@ -130,7 +130,8 @@ public struct ACPBackend: SessionBackend {
     }
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
-        ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: web == .open ? mode : offlineMode ?? mode)
+        ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: web == .open ? mode : offlineMode ?? mode,
+                  permissionFiles: files.filter(\.enforced))
     }
 
     /// Its web tools off (any `only`) in its offline mode or launch; one with neither can't have them off.
@@ -151,7 +152,10 @@ public struct ACPBackend: SessionBackend {
     }
 }
 
-/// One ACP process: the handshake, then the prompts, as `ACPBackend` says.
+/// One ACP process: the handshake, then the prompts, as `ACPBackend` says. The folder's files that keep the agent to
+/// its tools (`permissionFiles`: Kiro's agent files) are read as a conversation opens and before each question
+/// (`refusal`), never on every line: one changed since the start (`ClaudeSessionStore.prepare` put them back) ends the
+/// process (`notWebOnly`).
 final class ACPDriver: SessionDriver {
     private enum Request {
         case initialize, load, new, setMode, prompt
@@ -159,6 +163,7 @@ final class ACPDriver: SessionDriver {
 
     private let directory: URL
     private let mode: String?
+    private let permissionFiles: [SessionFile]
     /// The agent's id of the session: the one to load, then the one open.
     private var agentSessionID: String?
     /// The session is open (loaded or new, in its mode): prompts go.
@@ -171,11 +176,14 @@ final class ACPDriver: SessionDriver {
     /// The prompt being answered.
     private var prompting = false
 
-    init(directory: URL, agentSessionID: String?, mode: String?) {
+    init(directory: URL, agentSessionID: String?, mode: String?, permissionFiles: [SessionFile] = []) {
         self.directory = directory
         self.agentSessionID = agentSessionID
         self.mode = mode
+        self.permissionFiles = permissionFiles
     }
+
+    func refusal() -> ClaudeSessionError? { permissionFiles.kept(in: directory) ? nil : .notWebOnly }
 
     func opening() -> [Data] {
         [request(.initialize, "initialize", ["protocolVersion": 1,
@@ -282,8 +290,10 @@ final class ACPDriver: SessionDriver {
     }
 
     /// The session is open: into its mode first when it isn't in it. An agent that doesn't offer the mode (or says no
-    /// modes at all) isn't asked: the session would run in its default one, with more tools than the web.
+    /// modes at all) isn't asked: the session would run in its default one, with more tools than the web. Nor is one
+    /// whose files that keep it to its tools changed (`refusal`): its mode's name says nothing of what the mode allows.
     private func opened(_ result: [String: Any]?) -> (events: [ClaudeSession.Event], replies: [Data]) {
+        if let refusal = refusal() { return ([.failed(refusal, endsProcess: true)], []) }
         guard let mode else { return becameReady() }
         let modes = result?["modes"] as? [String: Any]
         if modes?["currentModeId"] as? String == mode { return becameReady() }

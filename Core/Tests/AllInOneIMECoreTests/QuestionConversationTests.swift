@@ -4,7 +4,7 @@ import Testing
 @testable import AllInOneIMECore
 
 /// Each `@question` conversation in the panel is a new conversation of the session's agent (`QuestionConversation`,
-/// `ClaudeSessionManager.enter`), its follow-ups go on in that one, and `prewarm` gets the next one ready ahead of its
+/// `ClaudeSessionManager.request`), its follow-ups go on in that one, and `prewarm` gets the next one ready ahead of its
 /// question: Claude Code's process started again on a new session id, Codex and an ACP agent opening a new thread or
 /// session in the process they have.
 struct QuestionConversationTests {
@@ -135,14 +135,14 @@ struct QuestionConversationTests {
         let fake = FakeClaude()
         let session = claude(fake)
         defer { session.stop() }
-        session.enter(nil)
-        let first = session.ask("one")
+        let enteredConversation1: QuestionConversation? = nil
+        let first = session.ask("one", in: enteredConversation1)
         let process = try #require(fake.last)
         process.started()
         process.done("1")
         _ = await collect(first)
-        session.enter(nil)
-        _ = session.ask("two")
+        let enteredConversation2: QuestionConversation? = nil
+        _ = session.ask("two", in: enteredConversation2)
         #expect(fake.processes.count == 1 && process.messages == ["one", "two"])
     }
 
@@ -167,8 +167,8 @@ struct QuestionConversationTests {
         try respond(process, "initialize", result: ["userAgent": "test"])
         try respond(process, "config/read", result: ["config": ["model": "gpt"]])
         try respond(process, "thread/start", result: ["thread": ["id": "t1", "name": NSNull()]])
-        session.enter(QuestionConversation())
-        let first = session.ask("one")
+        let enteredConversation3: QuestionConversation? = QuestionConversation()
+        let first = session.ask("one", in: enteredConversation3)
         #expect(await Timing.eventually(within: 10) { requests(process, "turn/start").count == 1 })
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1"]])
         process.say(["method": "item/agentMessage/delta", "params": ["threadId": "t1", "itemId": "m", "delta": "1"]])
@@ -182,8 +182,8 @@ struct QuestionConversationTests {
         #expect(named.map { $0["threadId"] as? String } == ["t1", "t2"])
         #expect(named.allSatisfy { $0["name"] as? String == "AllInOneIME" })
         #expect(ClaudeSessionStore(backend).agentSessionID() == "t2")
-        session.enter(QuestionConversation())
-        _ = session.ask("two")
+        let enteredConversation4: QuestionConversation? = QuestionConversation()
+        _ = session.ask("two", in: enteredConversation4)
         #expect(await Timing.eventually(within: 10) { requests(process, "turn/start").count == 2 })
         #expect((requests(process, "turn/start").last?["params"] as? [String: Any])?["threadId"] as? String == "t2")
         #expect(fake.processes.count == 1)
@@ -193,8 +193,8 @@ struct QuestionConversationTests {
         let fake = FakeClaude()
         let session = ClaudeSessionManager(backend: CodexBackend(base: folder), launcher: fake)
         defer { session.stop() }
-        session.enter(QuestionConversation())
-        let first = session.ask("one")
+        let enteredConversation5: QuestionConversation? = QuestionConversation()
+        let first = session.ask("one", in: enteredConversation5)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["userAgent": "test"])
         try respond(process, "config/read", result: ["config": ["model": "gpt"]])
@@ -203,8 +203,8 @@ struct QuestionConversationTests {
         process.say(["method": "turn/completed", "params": ["threadId": "t1", "turn": ["id": "turn_1", "status": "completed"]]])
         _ = await collect(first)
         // No prewarm (asked at once): the thread opens, then the question goes.
-        session.enter(QuestionConversation())
-        let second = session.ask("two")  // kept: a stream let go of is given up (Esc)
+        let enteredConversation6: QuestionConversation? = QuestionConversation()
+        let second = session.ask("two", in: enteredConversation6)  // kept: a stream let go of is given up (Esc)
         #expect(requests(process, "thread/start").count == 2 && requests(process, "turn/start").count == 1)
         try respond(process, "thread/start", result: ["thread": ["id": "t2", "name": NSNull()]])
         #expect(await Timing.eventually(within: 10) { requests(process, "turn/start").count == 2 })
@@ -224,8 +224,8 @@ struct QuestionConversationTests {
         try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]], jsonrpc: true)
         try respond(process, "session/new", result: ["sessionId": "sess_1", "modes": modes], jsonrpc: true)
         try respond(process, "session/set_mode", jsonrpc: true)
-        session.enter(QuestionConversation())
-        let first = session.ask("one")
+        let enteredConversation7: QuestionConversation? = QuestionConversation()
+        let first = session.ask("one", in: enteredConversation7)
         #expect(await Timing.eventually(within: 10) { requests(process, "session/prompt").count == 1 })
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"], jsonrpc: true)
         _ = await collect(first)
@@ -236,8 +236,8 @@ struct QuestionConversationTests {
         #expect(requests(process, "session/set_mode").count == 2)
         #expect((requests(process, "session/set_mode").last?["params"] as? [String: Any])?["sessionId"] as? String == "sess_2")
         try respond(process, "session/set_mode", jsonrpc: true)
-        session.enter(QuestionConversation())
-        _ = session.ask("two")
+        let enteredConversation8: QuestionConversation? = QuestionConversation()
+        _ = session.ask("two", in: enteredConversation8)
         #expect(await Timing.eventually(within: 10) { requests(process, "session/prompt").count == 2 })
         #expect((requests(process, "session/prompt").last?["params"] as? [String: Any])?["sessionId"] as? String == "sess_2")
         #expect(ClaudeSessionStore(kiro).agentSessionID() == "sess_2" && fake.processes.count == 1)

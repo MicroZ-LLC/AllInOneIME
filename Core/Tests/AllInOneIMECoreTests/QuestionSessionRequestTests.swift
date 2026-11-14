@@ -171,7 +171,7 @@ struct QuestionSessionRequestTests {
         process.started()
         process.done("1")
         _ = await collect(answering)
-        session.remember(answers: ["1"])
+        session.remember(rounds: rounds)
         #expect(session.missing(rounds, for: session.request(panel)).isEmpty)
         // Another conversation's request made first: this one goes into a new agent conversation.
         let other = session.request(QuestionConversation())
@@ -196,22 +196,110 @@ struct QuestionSessionRequestTests {
         let one = try #require(fake.last)
         one.started()
         one.text("Sent")
-        // Another conversation, made while the first is answered: numbered on, and kept for the one it goes into.
+        // Another conversation starts numbering afresh; its follow-up continues from that map.
         let panel = QuestionConversation()
         let second = session.request(panel)
         #expect(!second.continues)
-        #expect(hide("and b@two.com", second) == "and [EMAIL_2]")
-        let asked = second.ask("and [EMAIL_2]")
+        #expect(hide("and b@two.com", second) == "and [EMAIL_1]")
+        let asked = second.ask("and [EMAIL_1]")
         one.done("Sent.")
         _ = await collect(answering)
         let two = try #require(fake.last)
-        #expect(two.messages == ["and [EMAIL_2]"] && conversation(two) != conversation(one))
+        #expect(two.messages == ["and [EMAIL_1]"] && conversation(two) != conversation(one))
         two.started()
         two.done("OK.")
         _ = await collect(asked)
         let followUp = session.request(panel)
         #expect(followUp.continues)
-        #expect(hide("now c@three.com", followUp) == "now [EMAIL_3]", "a placeholder of the conversation given to another value")
+        #expect(hide("now c@three.com", followUp) == "now [EMAIL_2]", "a placeholder of the conversation given to another value")
+    }
+
+    /// A new conversation's question that failed before it was asked (no CLI to start) leaves its agent conversation
+    /// unasked, and the next conversation goes into that one: none of the first one's hidden values or numbers go with
+    /// it, so the next one's follow-up puts back its own value, never the first one's under the same placeholder.
+    @Test func aConversationThatFailedBeforeItWasAskedLeavesNothingHiddenToTheNext() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        func hide(_ text: String, _ request: ClaudeSessionManager.Request) -> (redaction: Redaction?, result: String) {
+            session.redacting(settings, for: request) { redaction in redaction?.hide(text) ?? text }
+        }
+        fake.missing = true
+        let first = session.request(QuestionConversation())
+        #expect(hide("To a@one.com.", first).result == "To [EMAIL_1].")
+        #expect(await collect(first.ask("To [EMAIL_1].")).error as? ClaudeSessionError == .notInstalled)
+        fake.missing = false
+
+        let panel = QuestionConversation()
+        let second = session.request(panel)
+        #expect(!second.continues)
+        #expect(hide("To b@two.com.", second).result == "To [EMAIL_1].")
+        let asked = second.ask("To [EMAIL_1].")
+        let process = try #require(fake.last)
+        process.started()
+        process.done("OK.")
+        _ = await collect(asked)
+
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let shorter = hide("shorter", followUp)
+        #expect(shorter.result == "shorter")
+        #expect(shorter.redaction?.restore("To [EMAIL_1].") == "To b@two.com.", "the first conversation's value put back")
+        #expect(hide("and c@three.com", followUp).result == "and [EMAIL_2]")
+    }
+
+    @Test func placeholdersStayWithinTheirConversation() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        let first = session.request(QuestionConversation())
+        let hidden = session.redacting(settings, for: first) { redaction in redaction?.hide("secret@company.com") ?? "" }
+        #expect(hidden.result == "[EMAIL_1]")
+        let stream = first.ask(hidden.result)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("ok")
+        _ = await collect(stream)
+        let second = session.request(QuestionConversation())
+        let fresh = session.redacting(settings, for: second) { redaction in
+            redaction?.hide("Write [EMAIL_1] literally") ?? ""
+        }
+        #expect(fresh.result == "Write [EMAIL_1] literally")
+        #expect(fresh.redaction?.restore("[EMAIL_1]") == "[EMAIL_1]")
+    }
+
+    /// A follow-up's answer puts back what its own conversation hid before, though the follow-up itself hid nothing
+    /// (only it goes in: the agent has the earlier rounds with their placeholders).
+    @Test func aFollowUpPutsBackWhatItsConversationHidBefore() async throws {
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let settings = RedactionSettings(enabled: true)
+        let panel = QuestionConversation()
+        let first = session.request(panel)
+        let hidden = session.redacting(settings, for: first) { redaction in redaction?.hide("mail secret@company.com") ?? "" }
+        #expect(hidden.result == "mail [EMAIL_1]")
+        let stream = first.ask(hidden.result)
+        let process = try #require(fake.last)
+        process.started()
+        process.done("ok")
+        _ = await collect(stream)
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let shorter = session.redacting(settings, for: followUp) { redaction in redaction?.hide("shorter") ?? "" }
+        #expect(shorter.result == "shorter")
+        #expect(shorter.redaction?.restore("To [EMAIL_1].") == "To secret@company.com.")
+    }
+
+    @Test func identicalAnswersToDifferentQuestionsAreDifferentTurns() throws {
+        let session = claude(FakeClaude())
+        let first = QuestionChat.Round(question: "Is it ready?", answer: "Yes")
+        let second = QuestionChat.Round(question: "Is it safe?", answer: "Yes")
+        session.remember(rounds: [first])
+        #expect(session.missing([first]).isEmpty)
+        #expect(session.missing([second]) == [second])
     }
 
     // MARK: - Codex and ACP agents

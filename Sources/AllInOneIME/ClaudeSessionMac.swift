@@ -81,10 +81,9 @@ enum ClaudeSessionMac {
     /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
     /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
     /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are
-    /// those apps' own layout and may move with an update: not found is just "not installed". None in the test runs
-    /// (`noDesktopBundledVariable`).
+    /// those apps' own layout and may move with an update: not found is just "not installed". Nothing in the
+    /// environment switches it off.
     static func desktopBundled(_ agent: SessionAgent) -> URL? {
-        guard ProcessInfo.processInfo.environment[noDesktopBundledVariable] == nil else { return nil }
         let fm = FileManager.default
         func executable(_ url: URL) -> URL? { fm.isExecutableFile(atPath: url.path) ? url : nil }
         switch agent {
@@ -109,12 +108,6 @@ enum ClaudeSessionMac {
             return nil
         }
     }
-
-    /// Set (to anything) in the environment of the test runs (`make test`, and the input method they start): no copy in
-    /// a desktop app is found (`desktopBundled`), so a test's own CLIs on the PATH, or none ("not installed"), aren't
-    /// passed over for the Claude app's or the ChatGPT app's copy on the Mac the tests run on. The input method is never
-    /// started with it.
-    static let noDesktopBundledVariable = "ALLINONEIME_NO_DESKTOP_CLIS"
 
     /// A config that chose Gemini CLI's session (0.7.4's earlier builds) chooses Antigravity's when agy is on this Mac,
     /// else the provider (`Config.migrateGeminiCLISession`). Once a launch, off the main thread.
@@ -170,15 +163,18 @@ enum ClaudeSessionMac {
     /// conversation in the session's folder, holding its lock (`ClaudeSessionManager.terminalCommand`), the next question
     /// typed (if any) as its first message, interactive after it (after "--", or Antigravity's "-i":
     /// `SessionBackend.terminalArguments`). It is the CLI as the user set it up (their rules, tools and MCP servers).
-    static func handOff(followUp: String) throws {
+    /// Terminal not opened (`SessionHandOffError`), the conversation stays here (`handOffOnceEnded` puts it back).
+    static func handOff(followUp: String) async throws {
         let session = manager((try? Config.load())?.questionSessionAgent ?? .claude)
         guard let program = program(session.backend.agent) else { throw ClaudeSessionError.notInstalled }
-        let (arguments, directory, lock) = try session.handOff(program: program.path, followUp: !followUp.isEmpty)
-        let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
-        if followUp.isEmpty {
-            try TerminalLauncher.launch(argv, name: "\(session.backend.agent.rawValue)-session", directory: directory.path)
-        } else {
-            try TerminalLauncher.agent(argv, prompt: followUp, directory: directory.path)
+        let name = "\(session.backend.agent.rawValue)-session"
+        try await session.handOffOnceEnded(program: program.path, followUp: !followUp.isEmpty) { arguments, directory, lock in
+            let argv = ClaudeSessionManager.terminalCommand(arguments, lock: lock)
+            if followUp.isEmpty {
+                try TerminalLauncher.launch(argv, name: name, directory: directory.path)
+            } else {
+                try TerminalLauncher.agent(argv, prompt: followUp, directory: directory.path)
+            }
         }
         log.notice("\(session.backend.agent.rawValue, privacy: .public) session handed to Terminal")
     }

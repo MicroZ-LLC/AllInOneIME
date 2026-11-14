@@ -11,7 +11,7 @@ import Foundation
 ///   answer) and remembers it; an id it doesn't have loads as a new conversation.
 /// - The model: its default is slow (first token 5.5–8 s); `session/set_model` to `model` (≈1.7 s), sent after each
 ///   `session/new` and `session/load` before any prompt (`AntigravityDriver`).
-/// - Reading the web and nothing else, three ways, each enough alone for what it covers:
+/// - Reading the web and nothing else is enforced by the agent and hook; completed tools are checked afterward:
 ///   1. `--agent allinoneime`: the folder's `.agents/agents/allinoneime.md` (`agent`), whose `tools` are `search_web`
 ///      alone (agy adds `manage_task`) and `mcpServers` none; a conversation whose web tools are off runs
 ///      `allinoneime-offline` (`offlineAgent`, no tools; `SessionWeb`, decided per process from the conversation's
@@ -47,9 +47,9 @@ public struct AntigravityBackend: SessionBackend {
             launch: ["acp", "--agent", Self.agentName, "--disable-telemetry"],
             offlineLaunch: ["acp", "--agent", Self.offlineAgentName, "--disable-telemetry"],
             // hooks.json names the gate by its path in the folder: `files`.
-            files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent),
-                    SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent),
-                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates)],
+            files: [SessionFile(path: ".agents/agents/\(Self.agentName).md", content: Self.agent, enforced: true),
+                    SessionFile(path: ".agents/agents/\(Self.offlineAgentName).md", content: Self.offlineAgent, enforced: true),
+                    SessionFile(path: ".agents/\(Self.gateFile)", content: Self.gate, earlier: Self.earlierGates, enforced: true)],
             availability: [], resume: ["--conversation"], start: [], followUp: ["-i"], base: base,
             environment: [Self.sessionVariable: "antigravity"], signIn: signIn)
         self.model = model
@@ -201,7 +201,7 @@ public struct AntigravityBackend: SessionBackend {
     /// `acp`'s files, then hooks.json, written for the folder the session is in now (`hooks(in:)`).
     public var files: [SessionFile] {
         acp.files + [SessionFile(path: ".agents/hooks.json", content: Self.hooks(in: directory),
-                                 earlier: Self.earlierHooks)]
+                                 earlier: Self.earlierHooks, enforced: true)]
     }
     public var usesProviderSettings: Bool { false }
     public var retryTogglesResume: Bool { false }
@@ -213,7 +213,8 @@ public struct AntigravityBackend: SessionBackend {
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
         AntigravityDriver(ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: nil), model: model,
-                          tools: web == .open ? Self.webTools : [])
+                          tools: web == .open ? Self.webTools : [], directory: directory,
+                          permissionFiles: files.filter(\.enforced))
     }
 
     public func effective(_ web: SessionWeb) -> SessionWeb? { acp.effective(web) }
@@ -230,11 +231,16 @@ public struct AntigravityBackend: SessionBackend {
 
 /// An `ACPDriver` with what agy needs besides: after the conversation opens (`session/new`, `session/load`), the model
 /// is set (`session/set_model`) before anything else is sent (the questions wait for its answer; one it refuses leaves
-/// agy's default); and a tool other than `tools` that completes ends the process (`notWebOnly`).
+/// agy's default); and a tool other than `tools` that completes ends the process (`notWebOnly`). The folder's files
+/// that keep agy to its tools (`permissionFiles`) are read as a conversation opens and before each question
+/// (`refusal`), never on every line: one changed since the start (`ClaudeSessionStore.prepare` put them back) ends the
+/// process (`notWebOnly`).
 final class AntigravityDriver: SessionDriver {
     private let inner: ACPDriver
     private let model: String
     private let tools: Set<String>
+    private let directory: URL
+    private let permissionFiles: [SessionFile]
     /// The requests the inner driver sent, by id (their method, and the session they name): whose responses open a
     /// conversation, and which.
     private var sent: [Int: (method: String, session: String?)] = [:]
@@ -246,16 +252,19 @@ final class AntigravityDriver: SessionDriver {
     /// A `session/load` is answered: the conversation it replays first isn't checked (`strayTool`).
     private var loading = false
 
-    init(_ inner: ACPDriver, model: String, tools: Set<String>) {
+    init(_ inner: ACPDriver, model: String, tools: Set<String>, directory: URL, permissionFiles: [SessionFile]) {
         self.inner = inner
         self.model = model
         self.tools = tools
+        self.directory = directory
+        self.permissionFiles = permissionFiles
     }
 
     func opening() -> [Data] { pass(inner.opening()) }
     func message(_ text: String) -> [Data] { pass(inner.message(text)) }
     func interrupt() -> [Data] { pass(inner.interrupt()) }
     func newConversation() -> [Data]? { inner.newConversation().map(pass) }
+    func refusal() -> ClaudeSessionError? { permissionFiles.kept(in: directory) ? nil : .notWebOnly }
 
     func received(_ line: Data) -> (events: [ClaudeSession.Event], replies: [Data]) {
         let object = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any] ?? [:]
@@ -271,6 +280,8 @@ final class AntigravityDriver: SessionDriver {
         let request = object["method"] == nil ? (object["id"] as? Int).flatMap { sent.removeValue(forKey: $0) } : nil
         let opened = request.map { $0.method == "session/new" || $0.method == "session/load" } == true
         if request?.method == "session/load" { loading = false }
+        // A conversation opens: nothing goes into it (a question waiting for it) with the files changed.
+        if opened, let refusal = refusal() { return ([.failed(refusal, endsProcess: true)], []) }
         let (events, replies) = inner.received(line)
         let lines = pass(replies)
         if setting != nil {

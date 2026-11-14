@@ -63,6 +63,23 @@ struct SessionTasksTests {
         #expect(inbox.updates(counting: tasks).isEmpty, "once stopped, nothing of it counts")
     }
 
+    @Test func closingTheFieldCancelsQuestionPrewarmBeforeItStartsCLI() async {
+        let inbox = Inbox()
+        let tasks = SessionTasks(deliver: inbox.deliver)
+        let (permission, release) = AsyncStream<Void>.makeStream()
+        let started = Locked(initialState: false)
+        tasks.start(.questionPrewarm) { _ in
+            for await _ in permission { break }
+            guard !Task.isCancelled else { return }
+            started.withLock { $0 = true }
+        }
+        tasks.close()
+        release.yield(())
+        release.finish()
+        try? await Task.sleep(for: .milliseconds(30))
+        #expect(!started.withLock { $0 })
+    }
+
     @Test func aProgramsOutputGoesIntoATerminalOnOneLine() async throws {
         var services = SessionServices()
         services.runProgram = { _, _ in

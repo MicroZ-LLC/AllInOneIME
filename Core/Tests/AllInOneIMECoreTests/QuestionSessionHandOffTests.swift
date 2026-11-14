@@ -31,17 +31,20 @@ struct QuestionSessionHandOffTests {
         process.done(text)
     }
 
-    /// FakeClaude's processes, each still running for `dying` seconds after it is asked to end (nil: until killed).
+    /// FakeClaude's processes, each still running for `dying` seconds after it is asked to end (nil: until killed; not
+    /// `killable`: even then).
     final class Dying: ClaudeSessionLauncher, @unchecked Sendable {
         final class Process: ClaudeSessionProcess, @unchecked Sendable {
             let inner: FakeClaude.Process
             let dying: TimeInterval?
+            let killable: Bool
             private let ends = Locked<Date?>(initialState: .distantFuture)
             private let killed = Locked(initialState: false)
 
-            init(_ inner: FakeClaude.Process, dying: TimeInterval?) {
+            init(_ inner: FakeClaude.Process, dying: TimeInterval?, killable: Bool) {
                 self.inner = inner
                 self.dying = dying
+                self.killable = killable
             }
 
             func send(_ line: Data) throws { try inner.send(line) }
@@ -51,7 +54,7 @@ struct QuestionSessionHandOffTests {
             }
             func kill() {
                 killed.withLock { $0 = true }
-                ends.withLock { $0 = Date() }
+                if killable { ends.withLock { $0 = Date() } }
             }
             var wasKilled: Bool { killed.withLock { $0 } }
             var isRunning: Bool { ends.withLock { $0.map { Date() < $0 } ?? false } }
@@ -59,17 +62,19 @@ struct QuestionSessionHandOffTests {
 
         let fake = FakeClaude()
         let dying: TimeInterval?
+        let killable: Bool
         private let started = Locked<[Process]>(initialState: [])
         var processes: [Process] { started.withLock { $0 } }
 
-        init(dying: TimeInterval?) {
+        init(dying: TimeInterval?, killable: Bool = true) {
             self.dying = dying
+            self.killable = killable
         }
 
         func start(_ arguments: [String], in directory: URL, output: @escaping @Sendable (Data) -> Void,
                    exited: @escaping @Sendable (Int32, String) -> Void) throws -> any ClaudeSessionProcess {
             let inner = try fake.start(arguments, in: directory, output: output, exited: exited)
-            let process = Process(try #require(inner as? FakeClaude.Process), dying: dying)
+            let process = Process(try #require(inner as? FakeClaude.Process), dying: dying, killable: killable)
             started.withLock { $0.append(process) }
             return process
         }
@@ -79,19 +84,35 @@ struct QuestionSessionHandOffTests {
         let launcher = Dying(dying: 0.3)
         let session = claude(launcher)
         defer { session.stop() }
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(launcher.processes.last)
         answer(process.inner, "1")
         _ = await collect(stream)
         let id = try store.sessionID()
         let before = Date()
-        let (arguments, _, lock) = try session.handOff(program: "/u/claude")
+        let (arguments, _, lock) = try await session.handOffOnceEnded(program: "/u/claude")
         // Returned once our process had ended (it took 0.3 s), not killed.
         #expect(Date().timeIntervalSince(before) >= 0.25 && !process.isRunning && !process.wasKilled)
         #expect(arguments == ["/u/claude", "--resume", id] && lock == store.lockFile(id))
         // Its lock let go: Terminal can have it.
         let terminal = try #require(ConversationLock.take(lock))
         terminal.release()
+    }
+
+    /// The hand-off asks our process to end and moves on to a new conversation at once, in one step, while it waits
+    /// for the process to end: the conversation is Terminal's already.
+    @Test func theHandOffMovesOnAtOnceWhileItWaits() async throws {
+        let launcher = Dying(dying: 0.3)
+        let session = claude(launcher)
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(launcher.processes.last)
+        let id = try store.sessionID()
+        let handing = Task { try await session.handOffOnceEnded(program: "/u/claude") }
+        #expect(await Timing.eventually(within: 0.2) { (try? store.sessionID()) != id }, "not moved on at once")
+        #expect(process.inner.terminated && process.isRunning)
+        let (arguments, _, _) = try await handing.value
+        #expect(arguments == ["/u/claude", "--session-id", id] && !process.isRunning)
     }
 
     @Test func oneThatDoesNotEndIsKilledBeforeTerminalStarts() async throws {
@@ -101,22 +122,122 @@ struct QuestionSessionHandOffTests {
         session.prewarm()
         let process = try #require(launcher.processes.last)
         let before = Date()
-        _ = try session.handOff(program: "/u/claude")
+        _ = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.wasKilled && !process.isRunning)
         #expect(Date().timeIntervalSince(before) < 3)
+    }
+
+    /// The hand-off that can't end our process (still running a moment after it was killed) opens no Terminal, and the
+    /// conversation stays the one questions here go into, never a new one with Terminal not opened on the old: a retry
+    /// hands off the same. It says so, in the interface language.
+    @Test func aProcessThatOutlivesItsKillKeepsTheConversationHere() async throws {
+        let launcher = Dying(dying: nil, killable: false)
+        let session = claude(launcher)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let stream = session.ask("one", in: panel)
+        let process = try #require(launcher.processes.last)
+        answer(process.inner, "1")
+        _ = await collect(stream)
+        let id = try store.sessionID()
+        var failure: SessionHandOffError?
+        do {
+            _ = try await session.handOffOnceEnded(program: "/u/claude") { _, _, _ in Issue.record("Terminal opened") }
+        } catch {
+            failure = error as? SessionHandOffError
+        }
+        let error = try #require(failure, "not the hand-off's error")
+        #expect(error == SessionHandOffError(reason: .stillRunning, kept: true) && process.wasKilled)
+        #expect(try store.sessionID() == id && store.resumable, "the conversation now is a new one")
+        #expect(session.request(panel).continues, "its follow-up goes on in it")
+        let english = await withInterfaceLanguage("en") { error.localizedDescription }
+        let chinese = await withInterfaceLanguage("zh-Hans") { error.localizedDescription }
+        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end); it stays here")
+        #expect(chinese == "没能在终端打开这个对话（会话的进程没有结束），对话还在这里")
+    }
+
+    /// Terminal that can't be opened once our process has ended (`open` throws): the conversation stays here too, and
+    /// the next question resumes it in a process of ours.
+    @Test func aTerminalThatWontOpenKeepsTheConversationHere() async throws {
+        struct NoTerminal: LocalizedError { var errorDescription: String? { "no Terminal" } }
+        let fake = FakeClaude()
+        let session = claude(fake)
+        defer { session.stop() }
+        let panel = QuestionConversation()
+        let stream = session.ask("one", in: panel)
+        let process = try #require(fake.last)
+        answer(process, "1")
+        _ = await collect(stream)
+        let id = try store.sessionID()
+        var failure: Error?
+        do {
+            _ = try await session.handOffOnceEnded(program: "/u/claude") { _, _, _ in throw NoTerminal() }
+        } catch {
+            failure = error
+        }
+        #expect(failure as? SessionHandOffError == SessionHandOffError(reason: .terminal("no Terminal"), kept: true))
+        #expect(try store.sessionID() == id && process.terminated)
+        let followUp = session.request(panel)
+        #expect(followUp.continues)
+        let next = followUp.ask("two")
+        let resumed = try #require(fake.last)
+        #expect(fake.processes.count == 2 && resumed.arguments.contains("--resume") && resumed.arguments.contains(id))
+        withExtendedLifetime(next) {}
+    }
+
+    /// A question asked while the hand-off waited went into the new conversation: a hand-off that fails then can't put
+    /// the old one back, and says that questions here go into a new conversation.
+    @Test func aHandOffThatFailsAfterAQuestionMeanwhileSaysTheConversationIsNew() async throws {
+        let launcher = Dying(dying: nil, killable: false)
+        let session = claude(launcher)
+        defer { session.stop() }
+        session.prewarm()
+        let id = try store.sessionID()
+        let handing = Task { try await session.handOffOnceEnded(program: "/u/claude") }
+        #expect(await Timing.eventually(within: 5) { (try? store.sessionID()) != id }, "handed over")
+        let meanwhile = session.request(QuestionConversation())
+        var failure: Error?
+        do { _ = try await handing.value } catch { failure = error }
+        let error = try #require(failure as? SessionHandOffError)
+        #expect(error == SessionHandOffError(reason: .stillRunning, kept: false))
+        #expect(try store.sessionID() != id)
+        let english = await withInterfaceLanguage("en") { error.localizedDescription }
+        #expect(english == "Couldn't open the conversation in Terminal (the session's process didn't end); "
+                + "questions here now go into a new conversation")
+        withExtendedLifetime(meanwhile) {}
+    }
+
+    /// Our process ended, its exit told only later (its output still being read, say): the hand-off goes on, by the
+    /// process's own end, and lets go of its lock for Terminal; the next process starts once the exit is told.
+    @Test func aLateExitDoesNotFailTheHandOff() async throws {
+        let launcher = Dying(dying: 0.1)
+        let session = claude(launcher)
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(launcher.processes.last)
+        process.inner.autoExitOnTerminate = false
+        let (_, _, lock) = try await session.handOffOnceEnded(program: "/u/claude")
+        #expect(!process.isRunning && !process.wasKilled)
+        let terminal = try #require(ConversationLock.take(lock), "our lock is still held")
+        terminal.release()
+        // Told now: a prewarm meanwhile starts its process then.
+        session.prewarm()
+        #expect(launcher.processes.count == 1)
+        process.inner.exit(143)
+        #expect(launcher.processes.count == 2)
     }
 
     @Test func aQuestionAnsweredWhenHandedOffStopsAndWhatComesAfterGoesIntoANewConversation() async throws {
         let fake = FakeClaude()
         let session = claude(fake)
         defer { session.stop() }
-        session.enter(QuestionConversation())
-        let answering = session.ask("one")
+        let enteredConversation1: QuestionConversation? = QuestionConversation()
+        let answering = session.ask("one", in: enteredConversation1)
         let process = try #require(fake.last)
         process.started()
         process.text("Part")
         let id = try store.sessionID()
-        let (arguments, _, _) = try session.handOff(program: "/u/claude", followUp: true)
+        let (arguments, _, _) = try await session.handOffOnceEnded(program: "/u/claude", followUp: true)
         #expect(arguments == ["/u/claude", "--resume", id, "--"])
         #expect(await collect(answering).error is CancellationError && process.terminated)
         // What our process still says is of no conversation now.
@@ -128,8 +249,8 @@ struct QuestionSessionHandOffTests {
         let newID = try store.sessionID()
         #expect(newID != id && next.arguments.contains(newID))
         // A later question (a new @question conversation) goes there too.
-        session.enter(QuestionConversation())
-        let later = session.ask("two")
+        let enteredConversation2: QuestionConversation? = QuestionConversation()
+        let later = session.ask("two", in: enteredConversation2)
         #expect(fake.processes.count == 2 && next.messages == ["two"])
         withExtendedLifetime(later) {}
     }
@@ -161,7 +282,7 @@ struct QuestionSessionHandOffTests {
         try respond(process, "initialize", ["userAgent": "test"])
         try respond(process, "config/read", ["config": ["model": "gpt"]])
         try respond(process, "thread/start", ["thread": ["id": "t1", "name": NSNull()]])
-        let (arguments, directory, _) = try session.handOff(program: "/u/codex")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/codex")
         #expect(arguments == ["/u/codex", "resume", "t1"] && directory == backend.directory && process.terminated)
         #expect(ClaudeSessionStore(backend).agentSessionID() == nil)
         session.prewarm()
@@ -175,8 +296,8 @@ struct QuestionSessionHandOffTests {
     @Test func aRelaunchWhileAnsweringNeverResumesThatConversation() async throws {
         let fake = FakeClaude()
         let session = claude(fake)
-        session.enter(QuestionConversation())
-        let answering = session.ask("one")
+        let enteredConversation3: QuestionConversation? = QuestionConversation()
+        let answering = session.ask("one", in: enteredConversation3)
         let process = try #require(fake.last)
         process.started()
         process.text("Part")
@@ -187,8 +308,8 @@ struct QuestionSessionHandOffTests {
         // Relaunched: the next question, of a new conversation, goes into a new agent conversation.
         let relaunched = claude(fake)
         defer { relaunched.stop() }
-        relaunched.enter(QuestionConversation())
-        let next = relaunched.ask("two")
+        let relaunchedConversation = QuestionConversation()
+        let next = relaunched.ask("two", in: relaunchedConversation)
         let started = try #require(fake.last)
         #expect(fake.processes.count == 2 && !started.arguments.contains(id) && started.arguments.contains("--session-id"))
         withExtendedLifetime(next) {}

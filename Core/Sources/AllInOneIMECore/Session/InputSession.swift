@@ -1,5 +1,7 @@
 import Foundation
 
+private struct SessionSendableBox<Value>: @unchecked Sendable { let value: Value }
+
 /// One text field's input session, the same on every platform: the `Composer`, and what goes on around it. Before a key:
 /// secure input (nothing composed, keys go straight in), the app taking the marked text on its own, the settings and the
 /// commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
@@ -1411,12 +1413,16 @@ public final class InputSession {
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
             case let .continueClaudeSession(followUp):
-                do {
-                    try services.continueClaudeSession(followUp)
-                    log.notice("@question: the Claude session handed to Terminal (\(followUp.count) chars typed)")
-                } catch {
-                    log.error("@question: could not open the Claude session: \(String(describing: error))")
-                    say(UIText.describe(error))
+                // Off the key's thread: it waits for our process to end (on the task, holding no thread). A failure says
+                // why, and where the conversation is (`SessionHandOffError`).
+                let (handOff, log) = (SessionSendableBox(value: services.continueClaudeSession), log)
+                tasks.start(nil) { post in
+                    do {
+                        try await handOff.value(followUp)
+                    } catch {
+                        log.error("@question: could not open the Claude session: \(String(describing: error))")
+                        post(.notice(UIText.describe(error)))
+                    }
                 }
             case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
@@ -1879,11 +1885,16 @@ public final class InputSession {
         }
         guard !questionSessionWarmed else { return }
         questionSessionWarmed = true
+        // The settings are read here, on the session's thread, never in the task: the Mac's are the main thread's
+        // (`LiveConfig`).
         let config = services.loadSettings()
         let converter = services.converter
         guard let session = converter.questionSession(config), !secureInputActive(), config.allowsAI(in: app) else { return }
-        tasks.start(nil) { _ in
+        let secureInput = SessionSendableBox(value: services.secureInputActive)
+        tasks.start(.questionPrewarm) { _ in
+            guard !Task.isCancelled, !secureInput.value() else { return }
             converter.questionSessionsFollow(config)  // another CLI chosen since: the old one's process ends
+            guard !Task.isCancelled, !secureInput.value() else { return }
             session.prewarm()
         }
     }

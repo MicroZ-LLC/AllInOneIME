@@ -82,9 +82,9 @@ struct QuestionSessionBackendsTests {
     @Test func aThreadIsStartedReadOnlyNamedAndATurnStreams() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
-        #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil)
+        #expect(process.arguments == CodexBackend(base: folder).arguments(sessionID: "x", resume: false, settings: nil, web: .open)
             && process.directory == folder.appendingPathComponent("codex-session"))
         // No "jsonrpc": the app server's lines don't have it.
         #expect(process.lines.first?["jsonrpc"] == nil && process.lines.first?["method"] as? String == "initialize")
@@ -112,7 +112,7 @@ struct QuestionSessionBackendsTests {
         // The thread is kept: the hand-off resumes it in Terminal.
         let store = ClaudeSessionStore(CodexBackend(base: folder))
         #expect(store.agentSessionID() == "019a-thread")
-        let (arguments, directory, _) = try session.handOff(program: "/u/codex")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/codex")
         #expect(arguments == ["/u/codex", "resume", "019a-thread"] && directory == store.directory)
         #expect(process.terminated)
         // The folder has the instructions as Codex reads them.
@@ -125,7 +125,7 @@ struct QuestionSessionBackendsTests {
         _ = try store.sessionID()
         store.setAgentSessionID("019a-kept")
         let session = codex(fake)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         #expect(params(process, "thread/resume")["threadId"] as? String == "019a-kept")
@@ -141,7 +141,7 @@ struct QuestionSessionBackendsTests {
 
         // The process gone, the thread too: a new one, named.
         process.exit(0)
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2)
         try initialize(restarted)
@@ -158,7 +158,7 @@ struct QuestionSessionBackendsTests {
     @Test func escInterruptsTheTurnByItsId() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("long")
+        let stream = session.ask("long", in: nil)
         let process = try #require(fake.last)
         try open(process)
         // Stopped before `turn/start` answered: the interrupt goes once the turn has its id.
@@ -170,7 +170,7 @@ struct QuestionSessionBackendsTests {
         #expect(params(process, "turn/interrupt")["threadId"] as? String == "019a-thread")
         completed(process, status: "interrupted")
         // The process stays; the next question goes to it.
-        let next = session.ask("short")
+        let next = session.ask("short", in: nil)
         #expect(turns(process) == ["long", "short"] && !process.terminated)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
         session.interrupt()
@@ -182,7 +182,7 @@ struct QuestionSessionBackendsTests {
     @Test func whatTheServerAsksIsRefused() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("delete my files")
+        let stream = session.ask("delete my files", in: nil)
         let process = try #require(fake.last)
         try open(process)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
@@ -210,28 +210,33 @@ struct QuestionSessionBackendsTests {
     @Test func aTurnThatFailsSignedOutOrAtTheLimitSaysSo() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try open(process)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_1", "items": [], "status": "inProgress"]])
         completed(process, status: "failed", error: ["message": "401 Unauthorized", "codexErrorInfo": "unauthorized"])
         let error = await collect(stream).error as? ClaudeSessionError
-        #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut)
-        #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
-        let limited = session.ask("again")
+        #expect(error == .signedOut && session.availability == .signedOut)
+        // The words in English, in the interface language's turn (other tests change it meanwhile).
+        await withInterfaceLanguage("en") {
+            #expect(error?.description(for: .codex) == "Codex isn't signed in: run codex login in Terminal")
+        }
+        let limited = session.ask("again", in: nil)
         try respond(process, "turn/start", result: ["turn": ["id": "turn_2", "items": [], "status": "inProgress"]])
         completed(process, status: "failed", error: ["message": "You've hit your usage limit.", "codexErrorInfo": "usageLimitExceeded"],
                   turn: "turn_2")
         #expect(await collect(limited).error as? ClaudeSessionError == .limitReached("You've hit your usage limit."))
-        #expect(ClaudeSessionError.limitReached("").description(for: .codex) == "The Codex usage limit is reached")
-        #expect(ClaudeSessionError.notInstalled.description(for: .codex) == "The codex command (Codex) isn't installed")
-        #expect(ClaudeSessionError.notInstalled.description(for: .antigravity) == "The agy command (Antigravity) isn't installed")
-        #expect(ClaudeSessionError.signedOut.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
-        // Claude Code's and Kiro CLI's words as they were.
-        #expect(ClaudeSessionError.signedOut.description(for: .claude) == "Claude Code isn't signed in: run claude in Terminal and /login")
-        #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
-        #expect(ClaudeSessionError.noResponse.description(for: .kiro) == "The Kiro session didn't respond")
-        #expect(ClaudeSessionError.notInstalled.description(for: .claude) == "The claude command (Claude Code) isn't installed")
+        await withInterfaceLanguage("en") {
+            #expect(ClaudeSessionError.limitReached("").description(for: .codex) == "The Codex usage limit is reached")
+            #expect(ClaudeSessionError.notInstalled.description(for: .codex) == "The codex command (Codex) isn't installed")
+            #expect(ClaudeSessionError.notInstalled.description(for: .antigravity) == "The agy command (Antigravity) isn't installed")
+            #expect(ClaudeSessionError.signedOut.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
+            // Claude Code's and Kiro CLI's words as they were.
+            #expect(ClaudeSessionError.signedOut.description(for: .claude) == "Claude Code isn't signed in: run claude in Terminal and /login")
+            #expect(ClaudeSessionError.signedOut.description(for: .kiro) == "Kiro CLI isn't signed in: run kiro-cli login in Terminal")
+            #expect(ClaudeSessionError.noResponse.description(for: .kiro) == "The Kiro session didn't respond")
+            #expect(ClaudeSessionError.notInstalled.description(for: .claude) == "The claude command (Claude Code) isn't installed")
+        }
     }
 
     // MARK: - Codex reads the web, nothing else
@@ -239,7 +244,7 @@ struct QuestionSessionBackendsTests {
     @Test func codexStartsWithoutAnEnvironmentAppsOrOtherAgents() {
         let backend = CodexBackend(base: folder)
         // Each with -c: a setting this Codex doesn't know is left aside (--disable would stop the server).
-        #expect(backend.arguments(sessionID: "x", resume: true, settings: nil) == [
+        #expect(backend.arguments(sessionID: "x", resume: true, settings: nil, web: .open) == [
             "app-server",
             "-c", "features.shell_tool=false", "-c", "features.view_image=false", "-c", "features.apps=false",
             "-c", "features.plugins=false", "-c", "features.tool_suggest=false", "-c", "features.multi_agent=false",
@@ -248,7 +253,7 @@ struct QuestionSessionBackendsTests {
             "-c", "tools.experimental_request_user_input.enabled=false", "-c", "skills.include_instructions=false",
             "-c", "include_permissions_instructions=false", "-c", "web_search=\"live\"",
         ])
-        #expect(backend.arguments(sessionID: "x", resume: false, settings: nil) == backend.arguments(sessionID: "x", resume: true, settings: nil))
+        #expect(backend.arguments(sessionID: "x", resume: false, settings: nil, web: .open) == backend.arguments(sessionID: "x", resume: true, settings: nil, web: .open))
         // No environment for commands and files: no shell, no apply_patch, no view_image, no MCP server on this Mac.
         #expect(backend.environment == ["CODEX_EXEC_SERVER_URL": "none"])
         // The sign-in check and Codex in Terminal (the hand-off: the user's own Codex) as they were.
@@ -256,7 +261,7 @@ struct QuestionSessionBackendsTests {
         #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true, followUp: false)
             == ["/u/codex", "resume", "019a"])
         // A follow-up after "--": one starting with "-" is no option.
-        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true)
+        #expect(backend.terminalArguments(program: "/u/codex", sessionID: "x", agentSessionID: "019a", resume: true, followUp: true)
             == ["/u/codex", "resume", "019a", "--"])
     }
 
@@ -268,7 +273,7 @@ struct QuestionSessionBackendsTests {
         let edited = "Answer in French.\n"
         try Data(edited.utf8).write(to: store.directory.appendingPathComponent("AGENTS.md"))
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process, mcpServers: [
             "docs": ["url": "https://mcp.example.com/mcp", "bearer_token_env_var": "DOCS_TOKEN", "enabled": true,
@@ -290,7 +295,7 @@ struct QuestionSessionBackendsTests {
         #expect(await collect(stream).answers == ["Salut"])
         // Started again, resumed: the same.
         process.exit(0)
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         let restarted = try #require(fake.last)
         try initialize(restarted, mcpServers: ["docs": ["url": "https://mcp.example.com/mcp", "enabled": true]])
         let resume = params(restarted, "thread/resume")
@@ -305,14 +310,14 @@ struct QuestionSessionBackendsTests {
     @Test func codexIsNotAskedWhenItsConfigCantBeRead() async throws {
         let fake = FakeClaude()
         let session = codex(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try respond(process, "initialize", result: ["userAgent": "test"])
         try respond(process, "config/read", error: ["code": -32603, "message": "failed to read config"])
         // Which MCP servers to turn off isn't known (one reached over the network would start): no thread; the provider
         // answers, saying why.
         let got = await collect(stream)
-        #expect(got.error as? ClaudeSessionError == .notWebOnly && ClaudeSessionError.notWebOnly.fallsBack)
+        #expect(got.error as? ClaudeSessionError == .notWebOnly)
         #expect(requests(process, "thread/start").isEmpty && process.terminated)
         #expect(session.availability == .cannotStart)
     }

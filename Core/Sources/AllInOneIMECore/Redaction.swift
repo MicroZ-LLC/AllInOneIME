@@ -277,6 +277,8 @@ public struct Redaction: Sendable {
               let kind = Self.kind(named: text.substring(with: match.range(at: 1))),
               match.numberOfRanges == 3 || Self.looksPlaceholder(match, in: text),
               !texts.contains(where: { $0.original.contains(token) }) else { return nil }
+        // Its conversation's values only (`known` too: a follow-up's answer may repeat an earlier round's placeholder);
+        // a new conversation's hiding starts with none of another's (`ClaudeSessionManager.redacting(_:for:_:)`).
         return hidden.first { $0.kind == kind && $0.number == number }?.value
     }
 

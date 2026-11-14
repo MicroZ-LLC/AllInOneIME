@@ -31,12 +31,12 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let stuck = try #require(fake.last)
         stuck.started()
         stuck.messageStarted()
         stuck.text("Partial")
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         session.interrupt()  // Esc; the agent never ends the turn
         #expect(stuck.interrupts == 1)
         #expect(await clock.sleepers(2))  // the interrupt's time, and the second question's wait
@@ -55,7 +55,7 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.messageStarted()
@@ -77,16 +77,16 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
+        let first = session.ask("one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.messageStarted()
         process.text("Still")
-        let second = session.ask("two")
+        let second = session.ask("two", in: nil)
         #expect(await clock.sleepers(2))
         clock.advance(by: ClaudeSessionManager.firstAnswerTimeout)
         let waited = await collect(second)
-        #expect(waited.error as? ClaudeSessionError == .busy && ClaudeSessionError.busy.fallsBack)
+        #expect(waited.error as? ClaudeSessionError == .busy)
         // The answer being given goes on in its process.
         #expect(!process.terminated && process.messages == ["one"])
         process.text(" going")
@@ -100,13 +100,13 @@ struct QuestionSessionStuckTests {
         let fake = FakeClaude()
         let session = manager(fake)
         session.availability = .ready
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         try #require(fake.last).exit(1, "error: unknown option '--name'")
         #expect(fake.processes.count == 2)  // tried once more the other way
         try #require(fake.last).exit(1, "error: unknown option '--name'")
         let got = await collect(stream)
         let error = try #require(got.error as? ClaudeSessionError)
-        #expect(error == .failedToStart(1, "error: unknown option '--name'") && error.fallsBack)
+        #expect(error == .failedToStart(1, "error: unknown option '--name'"))
         #expect(error.fallbackNote(for: .claude).contains("unknown option"))
         #expect(session.availability == .cannotStart)
         // Automatic passes it by until it is looked at again.
@@ -138,19 +138,19 @@ struct QuestionSessionStuckTests {
                 }
             }
             let error = ClaudeSessionError.cannotLaunch("Program not found: /u/agy")
-            #expect(error.fallsBack && error.fallbackNote(for: .antigravity)
+            #expect(error.fallbackNote(for: .antigravity)
                 == "The Antigravity session couldn't start: Program not found: /u/agy; the AI provider answered this time")
         }
 
         let now = Locked(initialState: 1000.0)
         let session = ClaudeSessionManager(launcher: launcher(program), store: store, userSettings: { nil },
                                            uptime: { now.withLock { $0 } })
-        let error = try #require(await collect(session.ask("hi")).error as? ClaudeSessionError)
+        let error = try #require(await collect(session.ask("hi", in: nil)).error as? ClaudeSessionError)
         guard case let .cannotLaunch(reason) = error else {
             Issue.record("\(error)")
             return
         }
-        #expect(error.fallsBack && reason.contains(program.path))
+        #expect(reason.contains(program.path))
         #expect(session.availability == .cannotStart && !session.isRunning)
         // Made executable meanwhile: Settings looks again once `recheckInterval` has passed, and finds it ready.
         try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
@@ -175,7 +175,7 @@ struct QuestionSessionStuckTests {
         for refused in [false, true] {
             let fake = FakeClaude()
             let session = kiro(fake, in: "kiro-\(refused)")
-            let stream = session.ask("hi")
+            let stream = session.ask("hi", in: nil)
             let process = try #require(fake.last)
             try respond(process, "initialize", result: ["protocolVersion": 1, "agentCapabilities": ["loadSession": true]])
             // Not offered, or offered and refused.
@@ -184,7 +184,7 @@ struct QuestionSessionStuckTests {
                         result: ["sessionId": "sess_1", "modes": ["currentModeId": "kiro_default", "availableModes": offered]])
             if refused { try respond(process, "session/set_mode", error: ["code": -32603, "message": "no such agent"]) }
             let got = await collect(stream)
-            #expect(got.error as? ClaudeSessionError == .notWebOnly && ClaudeSessionError.notWebOnly.fallsBack, "refused \(refused)")
+            #expect(got.error as? ClaudeSessionError == .notWebOnly, "refused \(refused)")
             #expect(!process.lines.contains { $0["method"] as? String == "session/prompt" } && process.terminated)
             #expect(session.availability == .cannotStart)
             #expect(ClaudeSessionError.notWebOnly.description(for: .kiro).contains("Kiro CLI"))
@@ -196,24 +196,25 @@ struct QuestionSessionStuckTests {
     @Test func aFollowUpInTerminalComesAfterWhatMakesItTheMessage() {
         let id = "8d6a1f6e-0d2c-4c4e-9a43-0c1a2b3c4d5e"
         let claude = ClaudeCodeBackend()
-        #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true)
+        #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true, followUp: true)
             == ["/u/claude", "--resume", id, "--"])
         #expect(claude.terminalArguments(program: "/u/claude", sessionID: id, agentSessionID: nil, resume: true, followUp: false)
             == ["/u/claude", "--resume", id])
-        #expect(ACPBackend.kiro.terminalArguments(program: "/u/kiro-cli", sessionID: id, agentSessionID: "sess_1", resume: true)
+        #expect(ACPBackend.kiro.terminalArguments(program: "/u/kiro-cli", sessionID: id, agentSessionID: "sess_1", resume: true, followUp: true)
             == ["/u/kiro-cli", "chat", "--resume-id", "sess_1", "--"])
-        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: id, agentSessionID: "4f1c", resume: true)
+        #expect(AntigravityBackend().terminalArguments(program: "/u/agy", sessionID: id, agentSessionID: "4f1c", resume: true, followUp: true)
             == ["/u/agy", "--conversation", "4f1c", "-i"])
     }
 
-    @Test func theHandOffHasTheFollowUpsArgumentsOnlyWithOne() throws {
+    @Test func theHandOffHasTheFollowUpsArgumentsOnlyWithOne() async throws {
         let session = manager(FakeClaude())
         let id = try store.sessionID()
-        #expect(try session.handOff(program: "/u/claude").arguments == ["/u/claude", "--session-id", id])
+        #expect(try await session.handOffOnceEnded(program: "/u/claude").arguments == ["/u/claude", "--session-id", id])
         // Handed off, the conversation is Terminal's: the next hand-off is of the new one.
         let next = try store.sessionID()
         #expect(next != id)
-        #expect(try session.handOff(program: "/u/claude", followUp: true).arguments == ["/u/claude", "--session-id", next, "--"])
+        #expect(try await session.handOffOnceEnded(program: "/u/claude", followUp: true).arguments
+                == ["/u/claude", "--session-id", next, "--"])
     }
 
     // MARK: - Ended
@@ -270,4 +271,123 @@ struct QuestionSessionStuckTests {
         ClaudeSessionManager.stop([session], grace: 0.1)
         #expect(process.terminated && process.killed && !session.isRunning)
     }
+
+    /// A platform whose programs never end, asked to or killed: each one's signals counted.
+    final class Unending: ProcessLauncher, @unchecked Sendable {
+        final class Launched: LaunchedProcess, @unchecked Sendable {
+            private let signals = Locked(initialState: (terminations: 0, kills: 0))
+            var terminations: Int { signals.withLock { $0.terminations } }
+            var kills: Int { signals.withLock { $0.kills } }
+            var processIdentifier: Int32 { 0 }
+            var isRunning: Bool { true }
+            var treeIsRunning: Bool { true }
+            var terminationStatus: Int32 { 0 }
+            func waitUntilExit() {}
+            func terminate() -> Bool { signals.withLock { $0.terminations += 1 }; return true }
+            func kill() -> Bool { signals.withLock { $0.kills += 1 }; return true }
+        }
+
+        private let launched = Locked<[Launched]>(initialState: [])
+        var last: Launched? { launched.withLock { $0.last } }
+        var canLaunch: Bool { true }
+        var environment: [String: String] { [:] }
+        var loginEnvironment: [String: String] { [:] }
+        func isRunnable(_ program: URL) -> Bool { true }
+
+        func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess {
+            // Its output ends at once (nothing reads on for ever); the program itself never does.
+            for case let .pipe(pipe) in [spec.standardOutput, spec.standardError] { try pipe.fileHandleForWriting.close() }
+            let process = Launched()
+            launched.withLock { $0.append(process) }
+            return process
+        }
+    }
+
+    /// A process stopped (the real one's, `ProcessClaudeSessionLauncher`) that hasn't ended by `handOffGrace` is killed
+    /// once, by its own timer: not by a second one the manager starts too.
+    @Test func aStoppedProcessIsKilledOnceAfterItsGrace() async throws {
+        let platform = Unending()
+        let session = manager(ProcessClaudeSessionLauncher(processes: platform, executable: { URL(fileURLWithPath: "/u/claude") },
+                                                           environment: { [:] }))
+        defer { session.stop() }
+        session.prewarm()
+        let process = try #require(platform.last)
+        session.stop()
+        #expect(process.terminations == 1)
+        #expect(await Timing.eventually(within: 30) { process.kills > 0 }, "never killed")
+        // A second timer would have fired by now as well (they wait as long).
+        try await Task.sleep(for: .seconds(ClaudeSessionManager.handOffGrace * 2))
+        #expect(process.terminations == 1 && process.kills == 1, "killed \(process.kills) times")
+    }
+
+    /// A process stopped whose end is never told (it ignores even the kill, or what told it is stuck): a question asked
+    /// meanwhile waits for its own process `firstAnswerTimeout` at most, then fails so that the provider answers; no
+    /// second process starts while the first may still run.
+    @Test func aQuestionWaitingForAProcessThatNeverEndsFallsBack() async throws {
+        let stubborn = Stubborn()
+        let clock = ManualClock()
+        let session = manager(stubborn, answerClock: clock)
+        defer { session.stop() }
+        session.prewarm()
+        let first = try #require(stubborn.last)
+        session.stop()
+        let stream = session.ask("hi", in: nil)
+        try #require(await clock.sleepers(within: 10), "the question waits with no time limit")
+        clock.advance(by: ClaudeSessionManager.firstAnswerTimeout)
+        #expect(await collect(stream).error as? ClaudeSessionError == .noResponse)
+        #expect(stubborn.last === first && first.terminated)
+    }
+
+    #if os(macOS)
+    /// A session's program (`script`'s text after `#!/bin/sh`) that leaves a child in a process group of its own (`set
+    /// -m`) holding its output open for a minute, each child's pid written to `children`; the children killed by `body`'s end.
+    func withAChildOutsideTheGroup(_ script: String, _ body: (_ program: URL, _ children: URL) async throws -> Void) async throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let children = folder.appendingPathComponent("children")
+        let program = folder.appendingPathComponent("claude")
+        try Data("#!/bin/sh\nset -m\n/bin/sleep 60 &\necho $! >> '\(children.path)'\n\(script)\n".utf8).write(to: program)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
+        defer {
+            let pids = (try? String(contentsOf: children, encoding: .utf8)) ?? ""
+            for pid in pids.split(whereSeparator: \.isNewline).compactMap({ Int32($0) }) { _ = kill(pid, SIGKILL) }
+        }
+        try await body(program, children)
+    }
+
+    func count(_ children: URL) -> Int {
+        ((try? String(contentsOf: children, encoding: .utf8)) ?? "").split(whereSeparator: \.isNewline).count
+    }
+
+    /// Killed, a session's process is ended as soon as it has ended itself, though a child that left its group (which the
+    /// kill doesn't reach) holds its output open: its exit is told, its pipes no longer read.
+    @Test func aKilledProcessEndsThoughAChildOutsideItsGroupHoldsItsOutput() async throws {
+        try await withAChildOutsideTheGroup("exec /bin/sleep 60") { program, children in
+            let launcher = ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                        environment: { [:] })
+            let ended = Locked<Int32?>(initialState: nil)
+            let process = try launcher.start([], in: folder, output: { _ in },
+                                             exited: { status, _ in ended.withLock { $0 = status } })
+            #expect(await Timing.eventually(within: 10) { count(children) == 1 })
+            process.kill()
+            #expect(await Timing.eventually(within: 15) { ended.withLock { $0 } != nil }, "its end never told")
+            #expect(!process.isRunning)
+        }
+    }
+
+    /// Stopped, a session's process that ends at once (SIGTERM), leaving a child outside its group holding its output: its
+    /// end is told all the same, and the session starts its next process (a prewarm's, waiting for it).
+    @Test func aStoppedProcessWhoseChildHoldsItsOutputLetsTheNextOneStart() async throws {
+        try await withAChildOutsideTheGroup("exec /bin/sleep 60") { program, children in
+            let session = manager(ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                               environment: { [:] }))
+            defer { session.stop() }
+            session.prewarm()
+            #expect(await Timing.eventually(within: 10) { count(children) == 1 })
+            session.stop()
+            session.prewarm()
+            #expect(await Timing.eventually(within: 15) { count(children) == 2 }, "the next process never started")
+            #expect(session.isRunning)
+        }
+    }
+    #endif
 }

@@ -33,7 +33,7 @@ struct AntigravityLiveTests {
         let asked = ContinuousClock.now
         var first: Duration?
         var answer = ""
-        for try await text in session.ask(question) {
+        for try await text in session.ask(question, in: nil) {
             if first == nil { first = ContinuousClock.now - asked }
             answer = text
         }
@@ -97,7 +97,7 @@ struct AntigravityLiveTests {
         print("LIVE AGY web: \(searched)")
         #expect(searched.contains("search_web") && !web.answer.isEmpty)
         #expect(again.isRunning)
-        let (arguments, directory, _) = try again.handOff(program: agy.path)
+        let (arguments, directory, _) = try await again.handOffOnceEnded(program: agy.path)
         print("LIVE AGY hand-off: \(arguments.joined(separator: " "))  in \(directory.path)")
         #expect(arguments == [agy.path, "--conversation", conversation])
         again.stop()

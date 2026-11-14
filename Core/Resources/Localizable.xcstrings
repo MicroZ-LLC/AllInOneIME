@@ -19092,6 +19092,100 @@
         }
       }
     },
+    "Couldn't open the conversation in Terminal (%@); it stays here" : {
+      "comment" : "没能在终端打开这个对话（%@），对话还在这里 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Gespräch konnte nicht im Terminal geöffnet werden (%@); es bleibt hier"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo abrir la conversación en Terminal (%@); sigue aquí"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ouvrir la conversation dans Terminal (%@) ; elle reste ici"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話をターミナルで開けませんでした（%@）。会話はここに残っています"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 대화를 열지 못했습니다(%@). 대화는 여기에 그대로 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível abrir a conversa no Terminal (%@); ela continua aqui"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒能在終端機打開這個對話（%@），對話還在這裡"
+          }
+        }
+      }
+    },
+    "Couldn't open the conversation in Terminal (%@); questions here now go into a new conversation" : {
+      "comment" : "没能在终端打开这个对话（%@），这里的问题会进入新的对话 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Gespräch konnte nicht im Terminal geöffnet werden (%@); Fragen hier gehen jetzt in ein neues Gespräch"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo abrir la conversación en Terminal (%@); las preguntas de aquí van ahora a una conversación nueva"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ouvrir la conversation dans Terminal (%@) ; les questions posées ici vont désormais dans une nouvelle conversation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話をターミナルで開けませんでした（%@）。ここでの質問はこれから新しい会話に入ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 대화를 열지 못했습니다(%@). 이제 여기서 하는 질문은 새 대화로 들어갑니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível abrir a conversa no Terminal (%@); as perguntas daqui agora vão para uma conversa nova"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒能在終端機打開這個對話（%@），這裡的問題會進入新的對話"
+          }
+        }
+      }
+    },
     "Couldn't open the plugin library: " : {
       "comment" : "无法打开插件库： — Sources/AllInOneIMECore/Settings/SettingsStore.swift",
       "localizations" : {
@@ -54538,6 +54632,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取的文字太長（%@ 個字元，最多 %@ 個）：未使用"
+          }
+        }
+      }
+    },
+    "the session's process didn't end" : {
+      "comment" : "会话的进程没有结束 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "der Prozess der Sitzung wurde nicht beendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "el proceso de la sesión no terminó"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "le processus de la session ne s'est pas arrêté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "セッションのプロセスが終了しませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "세션 프로세스가 종료되지 않았습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "o processo da sessão não terminou"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工作階段的程序沒有結束"
           }
         }
       }

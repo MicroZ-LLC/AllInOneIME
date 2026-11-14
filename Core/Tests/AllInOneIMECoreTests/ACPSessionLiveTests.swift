@@ -29,7 +29,7 @@ struct ACPSessionLiveTests {
         let start = ContinuousClock.now
         var first: Duration?
         var answer = ""
-        for try await text in session.ask(question) {
+        for try await text in session.ask(question, in: nil) {
             if first == nil { first = ContinuousClock.now - start }
             answer = text
         }
@@ -63,6 +63,7 @@ struct ACPSessionLiveTests {
         print("LIVE KIRO Q4 (shell asked): \(shell.answer)")
         session.stop()
         print("LIVE KIRO session id: \(id)  folder: \(Self.folder.path)")
-        print("LIVE KIRO hand-off: \(try session.handOff(program: "kiro-cli").arguments.joined(separator: " "))")
+        let handed = try await session.handOffOnceEnded(program: "kiro-cli")
+        print("LIVE KIRO hand-off: \(handed.arguments.joined(separator: " "))")
     }
 }

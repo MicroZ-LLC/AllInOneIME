@@ -12,6 +12,53 @@ import AllInOneIMETestSupport
 /// (`withInterfaceLanguage`).
 @Suite(.serialized)
 struct InputSessionTests {
+    @Test func handingOffDoesNotWaitOnTheKeyThread() async {
+        let entered = Locked(initialState: false)
+        let released = Locked(initialState: false)
+        let host = host {
+            $0.continueClaudeSession = { _ in
+                entered.withLock { $0 = true }
+                _ = await Timing.eventually(within: 3) { released.withLock { $0 } }
+            }
+        }
+        let started = Date()
+        host.session.perform([.continueClaudeSession(followUp: "next")])
+        #expect(Date().timeIntervalSince(started) < 0.1)
+        #expect(await Timing.eventually(within: 2) { entered.withLock { $0 } })
+        released.withLock { $0 = true }
+    }
+
+    /// `@question` picked while a CLI is the AI: its process starts ahead, off the key's thread, and nothing there reads
+    /// the settings (the Mac's are the main thread's, `LiveConfig`): they're read on the key's thread before.
+    @Test func theQuestionPrewarmReadsNoSettingsOffTheKeyThread() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("prewarm-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let fake = FakeClaude()
+        let claude = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })
+        defer { claude.stop() }
+        let settings = Settings()
+        settings.config.provider = .apple
+        settings.config.questionBackend = QuestionBackend(.claude)
+        let converter = Converter(loadConfig: { settings.config }, appleModel: StubAppleModel(answer: ["P"]),
+                                  questionSessions: [.claude: claude])
+        // The key's thread: this one, until the key is handled (synchronous code stays on its thread).
+        let keyThread = Locked<UInt?>(initialState: threadID())
+        let elsewhere = Locked(initialState: 0)
+        let host = host(settings) { services in
+            let load = services.loadSettings
+            services.loadSettings = {
+                if keyThread.withLock({ $0 }) != threadID() { elsewhere.withLock { $0 += 1 } }
+                return load()
+            }
+            services.converter = converter
+        }
+        host.composer.setInputMode(.english)
+        pick("que", in: host)
+        keyThread.withLock { $0 = nil }
+        #expect(await Timing.eventually(within: 10) { fake.processes.count == 1 }, "its process started ahead")
+        #expect(elsewhere.withLock { $0 } == 0, "the settings read off the key's thread")
+    }
+
     /// The settings the session reads: pinyin first, Shift to English; English then Chinese to translate into; English
     /// interface; `@agent` in a terminal, not in the background.
     final class Settings: @unchecked Sendable {
@@ -978,4 +1025,13 @@ struct InputSessionTests {
             #expect(host.document == "Hello there.", "the version highlighted goes in (\(host.document))")
         }
     }
+}
+
+/// This thread, on every platform (`pthread_t` is a pointer on Darwin, an integer on Linux).
+private func threadID() -> UInt {
+    #if canImport(Darwin)
+    UInt(bitPattern: pthread_self())
+    #else
+    UInt(pthread_self())
+    #endif
 }

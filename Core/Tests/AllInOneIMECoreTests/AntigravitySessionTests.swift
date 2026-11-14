@@ -15,7 +15,67 @@ struct AntigravitySessionTests {
     var folder: URL { backend.directory }
     var store: ClaudeSessionStore { ClaudeSessionStore(backend) }
 
+    @Test func prepareRepairsEveryPermissionFile() throws {
+        // Each of its files keeps it to its tools (the agents' lists, the hook and its gate).
+        let loose = backend.files.filter { !$0.enforced }.map(\.path)
+        #expect(loose.isEmpty)
+        try store.prepare()
+        for file in backend.files {
+            let url = folder.appendingPathComponent(file.path)
+            try Data("name: \(file.path)\ntools: [shell]\n".utf8).write(to: url, options: .atomic)
+        }
+        try store.prepare()
+        for file in backend.files {
+            #expect(try Data(contentsOf: folder.appendingPathComponent(file.path)) == Data(file.content.utf8))
+        }
+    }
+
+    /// The files that keep agy to its tools are read before a question (`refusal`), not on every line agy says.
+    @Test func changedAgentToolsAreRejectedBeforeAnyPrompt() throws {
+        try store.prepare()
+        let driver = backend.driver(sessionID: "x", agentSessionID: nil, resume: false, directory: folder, web: .open)
+        #expect(driver.refusal() == nil)
+        try Data("name: allinoneime\ntools: [shell]\n".utf8)
+            .write(to: folder.appendingPathComponent(".agents/agents/allinoneime.md"), options: .atomic)
+        #expect(driver.refusal() == .notWebOnly)
+        #expect(!driver.received(Data("{}".utf8)).events.contains(.failed(.notWebOnly, endsProcess: true)))
+    }
+
     func manager(_ fake: FakeClaude) -> ClaudeSessionManager { ClaudeSessionManager(backend: backend, launcher: fake) }
+
+    /// A file that keeps agy to its tools changed while its process runs (not by us: we put them back before each
+    /// start): the next question isn't sent, it fails so that the provider answers, and the process ends.
+    @Test func filesChangedBetweenQuestionsEndTheProcessBeforeTheNextIsSent() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: nil)
+        let process = try #require(fake.last)
+        try open(process)
+        chunk(process, "1")
+        try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
+        #expect(await collect(first).answers == ["1"])
+        try Data("{}".utf8).write(to: folder.appendingPathComponent(".agents/hooks.json"), options: .atomic)
+        let second = session.ask("two", in: nil)
+        #expect(await collect(second).error as? ClaudeSessionError == .notWebOnly)
+        #expect(prompts(process) == ["one"] && process.terminated && session.availability == .cannotStart)
+    }
+
+    /// Changed before agy's conversation opens: nothing goes into it, the model isn't set, and the process ends.
+    @Test func filesChangedBeforeTheConversationOpensEndTheProcess() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let stream = session.ask("one", in: nil)
+        let process = try #require(fake.last)
+        try initialize(process)
+        try Data("#!/bin/sh\necho '{\"decision\":\"allow\"}'\n".utf8)
+            .write(to: folder.appendingPathComponent(".agents/\(AntigravityBackend.gateFile)"), options: .atomic)
+        try respond(process, "session/new", result: ["sessionId": "d50c263c-uuid", "models": Self.models,
+                                                     "modes": ["currentModeId": "default"]])
+        #expect(await collect(stream).error as? ClaudeSessionError == .notWebOnly)
+        #expect(requests(process, "session/set_model").isEmpty && prompts(process).isEmpty && process.terminated)
+    }
 
     func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
         var answers: [String] = []
@@ -91,7 +151,7 @@ struct AntigravitySessionTests {
     @Test func aConversationIsOpenedOnItsAgentWithTheFastModelAndAPromptStreams() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let process = try #require(fake.last)
         #expect(process.arguments == ["acp", "--agent", "allinoneime", "--disable-telemetry"] && process.directory == folder)
         #expect(backend.environment == ["ALLINONEIME_SESSION": "antigravity"])
@@ -115,7 +175,7 @@ struct AntigravitySessionTests {
         #expect(got.answers.last == "A systems language." && got.error == nil)
         #expect(store.agentSessionID() == "d50c263c-uuid" && session.availability == .ready && !process.terminated)
         // The next question: a prompt, no model asked again.
-        let next = session.ask("and go?")
+        let next = session.ask("and go?", in: nil)
         #expect(prompts(process) == ["what is rust", "and go?"] && requests(process, "session/set_model").count == 1)
         chunk(process, "Also one.")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
@@ -149,7 +209,7 @@ struct AntigravitySessionTests {
     @Test func noFastModelOfferedThePromptGoesAtOnceAndARefusedModelChangesNothing() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         try respond(process, "session/new", result: ["sessionId": "s1", "models": ["availableModels": [["modelId": "gemini-4-argon-medium"]]]])
@@ -161,7 +221,7 @@ struct AntigravitySessionTests {
         // A new conversation in the same process (`newConversation`): the model asked again; refused, the prompt goes.
         let fake2 = FakeClaude()
         let other = manager(fake2)
-        let second = other.ask("again")
+        let second = other.ask("again", in: nil)
         let process2 = try #require(fake2.last)
         try initialize(process2)
         try respond(process2, "session/load", result: ["models": Self.models])  // the id kept by the first
@@ -178,7 +238,7 @@ struct AntigravitySessionTests {
     @Test func whatAgyAsksIsRefusedAndAToolOtherThanTheWebEndsTheProcess() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("run date")
+        let stream = session.ask("run date", in: nil)
         let process = try #require(fake.last)
         try open(process)
         // A permission (the shell, a file outside the folder): refused, as agy's own options would ("cancelled").
@@ -196,13 +256,14 @@ struct AntigravitySessionTests {
         #expect(await collect(stream).answers.last == "I can't run commands here." && !process.terminated)
 
         // A tool other than the web search that completed (the hook wasn't there): the process ends, the provider answers.
-        let next = session.ask("read /etc/hosts")
+        let next = session.ask("read /etc/hosts", in: nil)
         tool(process, "read_file", status: "completed", kind: "read")
         let error = await collect(next).error as? ClaudeSessionError
-        #expect(error == .notWebOnly && error?.fallsBack == true && process.terminated)
+        #expect(error == .notWebOnly && process.terminated)
     }
 
     @Test func withItsWebOffItRunsTheAgentWithoutToolsAndEvenTheSearchEndsIt() async throws {
+        try store.prepare()
         let typed = SessionWeb.only([])
         #expect(backend.effective(typed) == .only([]))
         #expect(backend.arguments(sessionID: "x", resume: false, settings: nil, web: typed)
@@ -292,9 +353,8 @@ struct AntigravitySessionTests {
         }
     }
 
-    /// A folder whose gate is an earlier one, as written (it said "ask" in Terminal), gets the new one; one the user
-    /// changed is left.
-    @Test func anEarlierGateIsReplacedAndAChangedOneKept() throws {
+    /// A folder whose gate is an earlier one, or was changed, gets the trusted gate back.
+    @Test func anEarlierOrChangedGateIsReplaced() throws {
         let gate = folder.appendingPathComponent(".agents/allinoneime-web-only.sh")
         try FileManager.default.createDirectory(at: gate.deletingLastPathComponent(), withIntermediateDirectories: true)
         try Data(try #require(AntigravityBackend.earlierGates.first).utf8).write(to: gate)
@@ -303,7 +363,7 @@ struct AntigravitySessionTests {
         #expect(try String(contentsOf: gate, encoding: .utf8) == AntigravityBackend.gate)
         try Data("#!/bin/sh\necho '{\"decision\":\"ask\"}'\n".utf8).write(to: gate)
         try store.prepare()
-        #expect(try String(contentsOf: gate, encoding: .utf8) == "#!/bin/sh\necho '{\"decision\":\"ask\"}'\n")
+        #expect(try String(contentsOf: gate, encoding: .utf8) == AntigravityBackend.gate)
     }
 
     // MARK: - After a restart, signed out
@@ -311,7 +371,7 @@ struct AntigravitySessionTests {
     @Test func aRestartLoadsTheConversationAndAsksForTheModelAgain() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let first = session.ask("my favourite colour is teal")
+        let first = session.ask("my favourite colour is teal", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "OK")
@@ -320,7 +380,7 @@ struct AntigravitySessionTests {
         session.stop()
 
         let restarted = manager(fake)
-        let next = restarted.ask("what is my favourite colour?")
+        let next = restarted.ask("what is my favourite colour?", in: nil)
         let second = try #require(fake.last)
         #expect(fake.processes.count == 2 && second !== process)
         try initialize(second)
@@ -343,13 +403,13 @@ struct AntigravitySessionTests {
     @Test func signedOutFailsSoTheProviderAnswers() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try initialize(process)
         // As agy says it with no sign-in (checked with an empty HOME).
         try respond(process, "session/new", error: ["code": -32000, "message": "Authentication required"])
         let error = await collect(stream).error as? ClaudeSessionError
-        #expect(error == .signedOut && error?.fallsBack == true && session.availability == .signedOut && process.terminated)
+        #expect(error == .signedOut && session.availability == .signedOut && process.terminated)
         #expect(requests(process, "session/set_model").isEmpty)
         #expect(error?.description(for: .antigravity) == "Antigravity isn't signed in: run agy in Terminal")
     }
@@ -385,16 +445,16 @@ struct AntigravitySessionTests {
     @Test func handingOffResumesTheConversationInTerminal() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         try open(process)
         chunk(process, "Hello")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
         _ = await collect(stream)
         // `agy --conversation <the ACP session's id>` in the folder (checked: it resumes it); a follow-up as -i's value.
-        let (arguments, directory, _) = try session.handOff(program: "/u/agy")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/agy")
         #expect(arguments == ["/u/agy", "--conversation", "d50c263c-uuid"] && directory == folder && process.terminated)
-        #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "c1", resume: true)
+        #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "c1", resume: true, followUp: true)
             == ["/u/agy", "--conversation", "c1", "-i"])
         #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: nil, resume: false, followUp: false)
             == ["/u/agy"])

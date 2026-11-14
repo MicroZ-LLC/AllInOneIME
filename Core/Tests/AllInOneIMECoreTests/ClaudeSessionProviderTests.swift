@@ -109,7 +109,7 @@ struct ClaudeSessionProviderTests {
                                "hooks": ["Stop": []], "permissions": ["allow": ["Bash"]]])
         let fake = FakeClaude()
         let session = manager(fake, userSettings: userFile)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         let written = folder.appendingPathComponent("provider-settings.json")
         let at = try #require(process.arguments.firstIndex(of: "--settings"))
@@ -125,7 +125,7 @@ struct ClaudeSessionProviderTests {
         // Bedrock taken out of the user's settings: the next start has no --settings, and the file goes.
         try writeUserSettings(["hooks": ["Stop": []]])
         session.stop()
-        _ = session.ask("again")
+        _ = session.ask("again", in: nil)
         #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--settings") == false)
         #expect(!FileManager.default.fileExists(atPath: written.path))
         // No user settings at all (none there, or none given).
@@ -140,6 +140,7 @@ struct ClaudeSessionProviderTests {
         try store.prepare()
         let now = try String(contentsOf: file, encoding: .utf8)
         #expect(now == ClaudeSession.instructions && !now.contains("WebSearch") && now.contains("when you have a tool for it"))
+        // Instructions, not what keeps it to its tools (its flags do): the user's own stay.
         try Data("My own.".utf8).write(to: file)
         try store.prepare()
         #expect(try String(contentsOf: file, encoding: .utf8) == "My own.")
@@ -159,16 +160,15 @@ struct ClaudeSessionProviderTests {
         #expect(error(nil, nil, "The SSO session associated with this profile has expired or is otherwise invalid. To refresh this SSO session run aws sso login") == .awsSignInExpired)
         // Bedrock's other errors as before: the account's access isn't a sign-in.
         let denied = "API Error: 400 Error 002: Access to Bedrock models is not allowed for this account"
-        #expect(error(nil, 400, denied) == .failed(denied) && !error(nil, 400, denied).fallsBack)
+        #expect(error(nil, 400, denied) == .failed(denied))
         #expect(error("authentication_failed", nil, "Not logged in · Please run /login") == .signedOut)
-        #expect(ClaudeSessionError.awsSignInExpired.fallsBack)
         #expect(ClaudeSessionError.awsSignInExpired.errorDescription?.contains("aws sso login") == true)
     }
 
     @Test func anExpiredAWSSignInFailsTheTurnWithoutSigningTheSessionOut() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         // The error line says little, the result says what it was.
         process.started()
@@ -180,7 +180,7 @@ struct ClaudeSessionProviderTests {
 
         // Claude Code can't get credentials at all (awsCredentialExport failed): it ends before the session starts.
         session.stop()
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         try #require(fake.last).exit(1, "CredentialsProviderError: Could not load credentials from any providers")
         try #require(fake.last).exit(1, "CredentialsProviderError: Could not load credentials from any providers")
         #expect(await collect(next).error as? ClaudeSessionError == .awsSignInExpired)
@@ -198,13 +198,70 @@ struct ClaudeSessionProviderTests {
         #expect(last?.note == ClaudeSessionError.awsSignInExpired.fallbackNote)
     }
 
+    @Test func anErrorBeforeTextFallsBackButAnErrorAfterTextDoesNot() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        let (converter, apple) = converter(session)
+        let first = converter.generate(.question, input: "first")
+        #expect(await Timing.eventually { fake.last?.messages.count == 1 })
+        fail(try #require(fake.last), code: "unknown", "Network failed")
+        let fallback = try await final(first)
+        #expect(fallback?.result.versions.first?.text == "From the provider.")
+        #expect(fallback?.note?.contains("Network failed") == true && apple.requests.count == 1)
+
+        let second = converter.generate(.question, input: "second")
+        #expect(await Timing.eventually { fake.last?.messages.count == 2 })
+        let process = try #require(fake.last)
+        process.started()
+        process.text("Partial")
+        process.say(["type": "result", "subtype": "error_during_execution", "is_error": true, "result": "Network failed"])
+        do {
+            _ = try await final(second)
+            Issue.record("Expected the partial answer's error")
+        } catch {
+            #expect((error as? DescribedError) != nil)
+        }
+        #expect(apple.requests.count == 1)
+    }
+
+    /// Whatever the session failed with, the provider answers while none of the answer came: a crash too, its note
+    /// saying so; once some of it came, the question fails saying why, and the provider isn't asked.
+    @Test func aCrashBeforeAnyTextFallsBackAndOneAfterSaysWhy() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        let (converter, apple) = converter(session)
+        let crash = ClaudeSessionError.exited(134, "Segmentation fault")
+        let first = converter.generate(.question, input: "first")
+        #expect(await Timing.eventually { fake.last?.messages.count == 1 })
+        let one = try #require(fake.last)
+        one.started()
+        one.exit(134, "Segmentation fault")
+        let fallback = try await final(first)
+        #expect(fallback?.result.versions.first?.text == "From the provider." && apple.requests.count == 1)
+        #expect(fallback?.note == crash.fallbackNote(for: .claude))
+
+        let second = converter.generate(.question, input: "second")
+        #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages.count == 1 })
+        let two = try #require(fake.last)
+        two.started()
+        two.text("Half")
+        two.exit(134, "Segmentation fault")
+        do {
+            _ = try await final(second)
+            Issue.record("the partial answer's crash was not said")
+        } catch {
+            #expect((error as? DescribedError)?.message == crash.description(for: .claude), "\(error)")
+        }
+        #expect(apple.requests.count == 1)
+    }
+
     // MARK: - No answer in time
 
     @Test func noSignOfAnAnswerInTimeEndsTheProcessAndFallsBack() async throws {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let stuck = try #require(fake.last)
         stuck.started()  // and then nothing (a sign-in waiting in a browser)
         #expect(await clock.sleepers(1))
@@ -212,12 +269,12 @@ struct ClaudeSessionProviderTests {
         #expect(!stuck.terminated)
         clock.advance(by: .seconds(1))
         let got = await collect(stream)
-        #expect(got.error as? ClaudeSessionError == .noResponse && ClaudeSessionError.noResponse.fallsBack)
+        #expect(got.error as? ClaudeSessionError == .noResponse)
         #expect(stuck.terminated && !session.isRunning)
         stuck.exit(15)  // of no session now
 
         // The next question starts it again; once the model's message started, a long answer (a web search) is no timeout.
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         let process = try #require(fake.last)
         #expect(fake.processes.count == 2 && process.messages == ["again"])
         process.started()
@@ -233,14 +290,14 @@ struct ClaudeSessionProviderTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, answerClock: clock)
-        let first = session.ask("one")
-        let second = session.ask("two")
+        let first = session.ask("one", in: nil)
+        let second = session.ask("two", in: nil)
         #expect(await clock.sleepers(1))
         clock.advance(by: .seconds(30))
         #expect(await collect(first).error as? ClaudeSessionError == .noResponse)
         // The waiting one went to a new process.
+        #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages == ["two"] })
         let process = try #require(fake.last)
-        #expect(fake.processes.count == 2 && process.messages == ["two"])
         answer(process, "2")
         #expect(await collect(second).answers == ["2"])
     }
@@ -318,7 +375,10 @@ struct ClaudeSessionProviderTests {
         let four = again.generate(.question, input: "what is rust", turns: saved)
         #expect(await Timing.eventually { fake.processes.count == 2 && fake.last?.messages.count == 1 })
         #expect(try #require(fake.last).messages[0]
-                == ClaudeSession.message("and now?", after: [QuestionChat.Round(question: "y", answer: "An answer from elsewhere.")]))
+                == ClaudeSession.message("and now?", after: [
+                    .init(question: "what is rust", answer: "Go is simpler."),
+                    .init(question: "x", answer: "Rust."),
+                    .init(question: "y", answer: "An answer from elsewhere.")]))
         answer(try #require(fake.last), "Now.")
         _ = try await final(four)
     }

@@ -435,8 +435,8 @@ public enum ClaudeSession {
     }
 }
 
-/// Why the session didn't answer. `fallsBack`: before any of the answer came, the provider answers instead (with
-/// `message` said in the panel).
+/// Why the session didn't answer: whichever it is, before any of the answer came the provider answers instead (the
+/// panel says why, `fallbackNote`); after some of it came, the question fails so (`description(for:)`).
 public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// No `claude` command on this Mac.
     case notInstalled
@@ -451,7 +451,7 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     /// were found (`isAWSCredentialError`).
     case awsSignInExpired
     /// No sign of an answer within `ClaudeSessionManager.firstAnswerTimeout` (Claude Code stuck starting, a sign-in
-    /// waiting in a browser): the process is ended.
+    /// waiting in a browser): the process is ended. Or no process to ask within it: the one before still ending.
     case noResponse
     /// The process ended before its session started, tried twice (status, what it last said on stderr): an older
     /// Claude Code that doesn't know `--name`, a broken install.
@@ -469,15 +469,6 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     case exited(Int32, String)
     /// The turn failed some other way (Claude Code's message).
     case failed(String)
-
-    public var fallsBack: Bool {
-        switch self {
-        case .notInstalled, .cannotLaunch, .signedOut, .limitReached, .awsSignInExpired, .noResponse, .failedToStart,
-             .notWebOnly, .busy, .compacting:
-            return true
-        case .exited, .failed: return false
-        }
-    }
 
     public var errorDescription: String? { description(for: .claude) }
 
@@ -550,6 +541,38 @@ public enum ClaudeSessionError: Error, LocalizedError, Equatable, Sendable {
     }
 }
 
+/// A hand-off to Terminal (⌘⏎, `ClaudeSessionManager.handOffOnceEnded`) that didn't reach it: why, and whether the
+/// conversation stayed the one questions here go into (`kept`; else they go into a new one, a question having gone there
+/// meanwhile). What it says is in the interface language, as it is shown.
+public struct SessionHandOffError: LocalizedError, Equatable, Sendable {
+    public enum Reason: Equatable, Sendable {
+        /// Our process still ran a moment after it was killed: Terminal wasn't opened.
+        case stillRunning
+        /// Terminal couldn't be opened on it (why, as said in the interface language).
+        case terminal(String)
+    }
+
+    public var reason: Reason
+    public var kept: Bool
+
+    public init(reason: Reason, kept: Bool) {
+        self.reason = reason
+        self.kept = kept
+    }
+
+    public var errorDescription: String? {
+        let why: String
+        switch reason {
+        case .stillRunning: why = tr("会话的进程没有结束", "the session's process didn't end")
+        case let .terminal(message): why = message
+        }
+        return kept
+            ? tr("没能在终端打开这个对话（\(why)），对话还在这里", "Couldn't open the conversation in Terminal (\(why)); it stays here")
+            : tr("没能在终端打开这个对话（\(why)），这里的问题会进入新的对话",
+                 "Couldn't open the conversation in Terminal (\(why)); questions here now go into a new conversation")
+    }
+}
+
 /// The session's id and folder on disk: `id` holds the id of the conversation questions go into now, made when there is
 /// none, a new one for each new conversation (`startOver`: a request sent into a new one, `prewarm`, Settings' "Start
 /// over"); `resumable` is there once that conversation has begun (Claude Code started it on a question), so the process
@@ -585,13 +608,18 @@ public struct ClaudeSessionStore: Sendable {
     /// The lock file of the conversation `id` (`ConversationLock`): held while a process is on it, ours or Terminal's.
     public func lockFile(_ id: String) -> URL { locks.appendingPathComponent(id + ".lock") }
 
-    /// The folder and its `files` (CLAUDE.md), each made when missing or still an earlier default.
+    /// The folder and its `files`: an enforced one (`SessionFile.enforced`) put back before each process starts whenever
+    /// it isn't as written; the others (CLAUDE.md, AGENTS.md) made when missing or still an earlier default.
     public func prepare() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         for file in files {
             let url = directory.appendingPathComponent(file.path)
-            let written = try? String(contentsOf: url, encoding: .utf8)
-            guard written == nil || file.earlier.contains(written!) else { continue }
+            if file.enforced {
+                guard (try? Data(contentsOf: url)) != Data(file.content.utf8) else { continue }
+            } else {
+                let written = try? String(contentsOf: url, encoding: .utf8)
+                guard written == nil || file.earlier.contains(written!) else { continue }
+            }
             try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             try Data(file.content.utf8).write(to: url, options: .atomic)
         }
@@ -673,6 +701,16 @@ public struct ClaudeSessionStore: Sendable {
     public func setAgentSessionID(_ id: String) {
         try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try? Data((id + "\n").utf8).write(to: agentSessionFile, options: .atomic)
+    }
+
+    /// The conversation `id` the one now again, as it was before `startOver` (a hand-off that didn't reach Terminal:
+    /// `ClaudeSessionManager.handOffOnceEnded`): whether it resumes, the agent's id of it. Its memory is the caller's to
+    /// save.
+    func restore(_ id: String, resumable: Bool, agentSessionID: String?) {
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        try? Data((id + "\n").utf8).write(to: idFile, options: .atomic)
+        setResumable(resumable)
+        if let agentSessionID { setAgentSessionID(agentSessionID) } else { try? FileManager.default.removeItem(at: agentSessionFile) }
     }
 
     /// A new conversation from now on (the old one stays in the agent's history).

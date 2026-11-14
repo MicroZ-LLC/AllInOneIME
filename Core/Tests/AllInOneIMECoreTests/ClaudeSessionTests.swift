@@ -14,6 +14,8 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
         private let lock = NSLock()
         private var _lines: [[String: Any]] = []
         private var _terminated = false
+        private var _exited = false
+        var autoExitOnTerminate = true
 
         init(arguments: [String], directory: URL, output: @escaping @Sendable (Data) -> Void,
              exited: @escaping @Sendable (Int32, String) -> Void) {
@@ -39,7 +41,13 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
             lock.withLock { _lines.append(object) }
         }
 
-        func terminate() { lock.withLock { _terminated = true } }
+        var isRunning: Bool { lock.withLock { !_exited } }
+        func terminate() {
+            lock.withLock { _terminated = true }
+            if autoExitOnTerminate { exit(143) }
+        }
+        func kill() { exit(137) }
+
 
         func say(_ object: [String: Any]) { output(try! JSONSerialization.data(withJSONObject: object)) }
         func started() { say(["type": "system", "subtype": "init", "session_id": "x"]) }
@@ -54,7 +62,14 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
         func interrupted() {
             say(["type": "result", "subtype": "error_during_execution", "is_error": true, "terminal_reason": "aborted_streaming"])
         }
-        func exit(_ status: Int32 = 1, _ message: String = "") { exited(status, message) }
+        func exit(_ status: Int32 = 1, _ message: String = "") {
+            let first = lock.withLock { () -> Bool in
+                if _exited { return false }
+                _exited = true
+                return true
+            }
+            if first { exited(status, message) }
+        }
     }
 
     private let lock = NSLock()
@@ -109,6 +124,51 @@ struct ClaudeSessionTests {
         process.done(text)
     }
 
+    /// A question of a new conversation while the process before it is still ending: its process starts once that
+    /// one has ended (killed by its own timer if it doesn't end when asked: `ClaudeSessionProcess.terminate`,
+    /// `QuestionSessionStuckTests.aStoppedProcessIsKilledOnceAfterItsGrace`), not before.
+    @Test func replacementWaitsForOldExit() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: QuestionConversation())
+        let old = try #require(fake.last)
+        old.autoExitOnTerminate = false
+        old.started()
+        old.done("1")
+        _ = await collect(first)
+        let next = session.ask("two", in: QuestionConversation())
+        #expect(old.terminated && fake.processes.count == 1)
+        try await Task.sleep(for: .seconds(ClaudeSessionManager.handOffGrace * 2))
+        #expect(fake.processes.count == 1, "started while the one before still ran")
+        old.kill()  // its own timer's kill
+        #expect(await Timing.eventually(within: 3) { fake.processes.count == 2 })
+        #expect(!old.isRunning)
+        withExtendedLifetime(next) {}
+    }
+
+    /// A prewarm while the process of the conversation left is still ending: the new one starts once it has, not before.
+    @Test func aPrewarmWaitsForTheOldProcessToEndThenStartsItsOwn() async throws {
+        let fake = FakeClaude()
+        let session = manager(fake)
+        defer { session.stop() }
+        let first = session.ask("one", in: QuestionConversation())
+        let old = try #require(fake.last)
+        old.autoExitOnTerminate = false
+        answer(old, "1")
+        _ = await collect(first)
+        session.prewarm()
+        #expect(old.terminated && fake.processes.count == 1)
+        old.exit(143)
+        #expect(fake.processes.count == 2 && fake.last?.messages == [])
+        // Its question goes into it.
+        let second = session.ask("two", in: QuestionConversation())
+        #expect(await Timing.eventually { fake.last?.messages == ["two"] })
+        #expect(fake.processes.count == 2)
+        answer(try #require(fake.last), "2")
+        #expect(await collect(second).answers == ["2"])
+    }
+
     // MARK: - What it starts with and reads
 
     @Test func theFlagsAreTheCheckedOnes() {
@@ -161,7 +221,7 @@ struct ClaudeSessionTests {
     @Test func theFirstQuestionStartsTheSessionAndALaterProcessResumesIt() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("what is rust")
+        let stream = session.ask("what is rust", in: nil)
         let first = try #require(fake.last)
         let id = try store.sessionID()
         #expect(first.arguments.contains("--session-id") && first.arguments.contains(id) && first.directory == folder)
@@ -174,7 +234,7 @@ struct ClaudeSessionTests {
         // It ended (killed, a crash): the next question starts it again, on the same session.
         first.exit(9)
         #expect(!session.isRunning)
-        let next = session.ask("and go?")
+        let next = session.ask("and go?", in: nil)
         let second = try #require(fake.last)
         #expect(fake.processes.count == 2 && Array(second.arguments.drop { $0 != "--resume" }.prefix(2)) == ["--resume", id])
         answer(second, "Also a systems language.")
@@ -188,7 +248,7 @@ struct ClaudeSessionTests {
         let process = try #require(fake.last)
         #expect(session.isRunning && process.lines.isEmpty)
         session.prewarm()  // already running
-        let stream = session.ask("刚才那个问题")
+        let stream = session.ask("刚才那个问题", in: nil)
         #expect(fake.processes.count == 1 && process.messages == ["刚才那个问题"])
         answer(process, "你问的是 rust")
         #expect(await collect(stream).answers.last == "你问的是 rust")
@@ -198,7 +258,7 @@ struct ClaudeSessionTests {
         let fake = FakeClaude()
         let clock = ManualClock()
         let session = manager(fake, clock: clock)
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         answer(process, "1")
         _ = await collect(stream)
@@ -210,7 +270,7 @@ struct ClaudeSessionTests {
         #expect(!session.isRunning)
         // Its exit afterwards is of no session; the next question resumes it.
         process.exit(0)
-        _ = session.ask("two")
+        _ = session.ask("two", in: nil)
         #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--resume") == true)
     }
 
@@ -221,7 +281,7 @@ struct ClaudeSessionTests {
         session.prewarm()
         let process = try #require(fake.last)
         #expect(await clock.sleepers(1))
-        let stream = session.ask("slow one")
+        let stream = session.ask("slow one", in: nil)
         #expect(await Timing.eventually { clock.sleeping == 0 })  // no idle time while it answers
         clock.advance(by: .seconds(20 * 60))
         #expect(!process.terminated)
@@ -235,15 +295,14 @@ struct ClaudeSessionTests {
     @Test func aCrashWhileAnsweringFailsThatQuestionAndTheNextResumes() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.text("Half")
         process.exit(134, "Segmentation fault")
         let got = await collect(stream)
         #expect(got.answers == ["Half"] && got.error as? ClaudeSessionError == .exited(134, "Segmentation fault"))
-        #expect((got.error as? ClaudeSessionError)?.fallsBack == false)
-        let next = session.ask("again")
+        let next = session.ask("again", in: nil)
         let restarted = try #require(fake.last)
         #expect(fake.processes.count == 2 && restarted.arguments.contains("--resume") && restarted.messages == ["again"])
         answer(restarted, "Whole")
@@ -255,7 +314,7 @@ struct ClaudeSessionTests {
         let session = manager(fake)
         _ = try store.sessionID()
         store.markResumable()  // but Claude Code has no conversation for it ("No conversation found")
-        let stream = session.ask("hello")
+        let stream = session.ask("hello", in: nil)
         let first = try #require(fake.last)
         #expect(first.arguments.contains("--resume"))
         first.say(["type": "result", "subtype": "error_during_execution", "is_error": true])  // before any init
@@ -270,7 +329,7 @@ struct ClaudeSessionTests {
     @Test func givingUpTheAnswerInterruptsTheTurnAndTheProcessStays() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("count to 200")
+        let stream = session.ask("count to 200", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.text("1 2 3")
@@ -280,7 +339,7 @@ struct ClaudeSessionTests {
         #expect(await Timing.eventually { process.interrupts == 1 })
         #expect(!process.terminated && session.isRunning)
         // A question asked meanwhile waits for the interrupted turn to end.
-        let next = session.ask("still there?")
+        let next = session.ask("still there?", in: nil)
         #expect(process.messages == ["count to 200"])
         process.interrupted()
         #expect(process.messages == ["count to 200", "still there?"])
@@ -292,7 +351,7 @@ struct ClaudeSessionTests {
     @Test func interruptEndsTheAnswerAtOnce() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("long")
+        let stream = session.ask("long", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.text("a")
@@ -304,7 +363,7 @@ struct ClaudeSessionTests {
     @Test func aWebSearchStartsTheAnswerAgain() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("weather in Paris now")
+        let stream = session.ask("weather in Paris now", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.messageStarted()
@@ -318,7 +377,7 @@ struct ClaudeSessionTests {
     @Test func aPermissionRequestIsDenied() throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        _ = session.ask("run ls")
+        _ = session.ask("run ls", in: nil)
         let process = try #require(fake.last)
         process.say(["type": "control_request", "request_id": "p1", "request": ["subtype": "can_use_tool", "tool_name": "Bash"]])
         let reply = try #require(process.lines.last?["response"] as? [String: Any])
@@ -328,26 +387,26 @@ struct ClaudeSessionTests {
     @Test func handingOffEndsTheProcessAndTheNextQuestionStartsANewConversation() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("one")
+        let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         answer(process, "1")
         _ = await collect(stream)
         let id = try store.sessionID()
-        let (arguments, directory, lock) = try session.handOff(claude: "/u/claude")
+        let (arguments, directory, lock) = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.terminated && !session.isRunning)
         #expect(arguments == ["/u/claude", "--resume", id] && directory == folder && lock == store.lockFile(id))
         // Terminal has that conversation now: an @question typed meanwhile, and the next question, start a new one here.
         session.prewarm()
         #expect(fake.processes.count == 2 && fake.last?.arguments.contains("--session-id") == true)
         #expect(fake.last?.arguments.contains(id) == false)
-        _ = session.ask("two")
+        _ = session.ask("two", in: nil)
         #expect(fake.processes.count == 2 && fake.last?.messages == ["two"])
     }
 
     @Test func signedOutAndNotInstalledFallBack() async throws {
         let fake = FakeClaude()
         let session = manager(fake)
-        let stream = session.ask("hi")
+        let stream = session.ask("hi", in: nil)
         let process = try #require(fake.last)
         process.started()
         process.say(["type": "assistant", "error": "authentication_failed",
@@ -358,7 +417,7 @@ struct ClaudeSessionTests {
         #expect(signedOut.answers.isEmpty && signedOut.error as? ClaudeSessionError == .signedOut)
         #expect(session.availability == .signedOut)
         // Over the subscription's limit.
-        let limited = session.ask("hi again")
+        let limited = session.ask("hi again", in: nil)
         process.started()
         process.say(["type": "assistant", "error": "rate_limit", "message": ["content": [["type": "text", "text": "You've hit your limit"]]]])
         process.say(["type": "result", "subtype": "success", "is_error": true, "result": "You've hit your limit"])
@@ -367,8 +426,8 @@ struct ClaudeSessionTests {
         let missing = FakeClaude()
         missing.missing = true
         let none = ClaudeSessionManager(launcher: missing, store: ClaudeSessionStore(directory: folder.appendingPathComponent("b")))
-        let error = await collect(none.ask("hi")).error as? ClaudeSessionError
-        #expect(error == .notInstalled && error?.fallsBack == true && none.availability == .notInstalled)
+        let error = await collect(none.ask("hi", in: nil)).error as? ClaudeSessionError
+        #expect(error == .notInstalled && none.availability == .notInstalled)
     }
 
     @Test func whichBackendAnswers() {

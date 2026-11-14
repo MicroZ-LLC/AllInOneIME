@@ -51,25 +51,10 @@ public protocol SessionBackend: Sendable {
 }
 
 extension SessionBackend {
-    /// The arguments with the web tools as they are.
-    public func arguments(sessionID: String, resume: Bool, settings: URL?) -> [String] {
-        arguments(sessionID: sessionID, resume: resume, settings: settings, web: .open)
-    }
-
-    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL) -> any SessionDriver {
-        driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: .open)
-    }
-
     /// No address can be kept to: any `only` is no web.
     public func effective(_ web: SessionWeb) -> SessionWeb? {
         if case .only = web { return .only([]) }
         return .open
-    }
-
-    /// What Terminal runs to go on in the session with a follow-up (`terminalArguments(…followUp: true)`): the
-    /// follow-up is appended as the last argument.
-    public func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool) -> [String] {
-        terminalArguments(program: program, sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, followUp: true)
     }
 
     public var environment: [String: String] { [:] }
@@ -79,15 +64,28 @@ extension SessionBackend {
 }
 
 /// A file of the session's folder: `path` in it, its `content`, and earlier defaults that are replaced by it.
+/// `enforced`: one that keeps the agent to its tools (an agent's tool list, a hook and its gate), put back as `content`
+/// before each start whatever is there (`ClaudeSessionStore.prepare`); else (the instructions) one the user changed stays.
 public struct SessionFile: Equatable, Sendable {
     public var path: String
     public var content: String
     public var earlier: [String] = []
+    public var enforced = false
 
-    public init(path: String, content: String, earlier: [String] = []) {
+    public init(path: String, content: String, earlier: [String] = [], enforced: Bool = false) {
         self.path = path
         self.content = content
         self.earlier = earlier
+        self.enforced = enforced
+    }
+}
+
+extension Array where Element == SessionFile {
+    /// Whether each is in `directory` as written: an enforced one (`SessionFile.enforced`) changed since the process
+    /// started (`ClaudeSessionStore.prepare` put it back) may give its agent more than the web. A driver's
+    /// `permissionFiles`, read as a conversation opens and before each question (`SessionDriver.refusal`).
+    func kept(in directory: URL) -> Bool {
+        allSatisfy { file in (try? Data(contentsOf: directory.appendingPathComponent(file.path))) == Data(file.content.utf8) }
     }
 }
 
@@ -106,10 +104,15 @@ public protocol SessionDriver: AnyObject {
     /// `thread/start`, an ACP agent's `session/new`), once the one it has is open and no turn is answered; nil: it can't
     /// (Claude Code's process has one conversation: a new one is a new process; one still opening).
     func newConversation() -> [Data]?
+    /// Why the process may not be sent a question now, looked at before each is written (nil: it may): the question
+    /// fails with it (the provider answers) and the process ends. An ACP agent's (Kiro's, Antigravity's), when its
+    /// folder's files that keep it to its tools changed since it started.
+    func refusal() -> ClaudeSessionError?
 }
 
 extension SessionDriver {
     public func newConversation() -> [Data]? { nil }
+    public func refusal() -> ClaudeSessionError? { nil }
 }
 
 // MARK: - Claude Code

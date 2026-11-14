@@ -302,9 +302,10 @@ public final class Converter: Sendable {
             let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
             do {
                 try await runInSession(session, sessionRequest, message: message, redaction: redaction, hidden: hidden,
-                                       started: started, told: missing.map(\.answer), continuation: continuation)
+                                       started: started, told: missing,
+                                       question: turns.last?.instruction ?? input, continuation: continuation)
                 return
-            } catch let error as ClaudeSessionError where error.fallsBack {
+            } catch let error as ClaudeSessionError {
                 guard !route.slow else { throw ClaudeSessionError.failed(error.description(for: session.backend.agent)) }
                 note = error.fallbackNote(for: session.backend.agent)
             }
@@ -358,11 +359,13 @@ public final class Converter: Sendable {
     /// `@question` answered by the dedicated Claude session, as its `request` (`ClaudeSessionManager.Request.answer`):
     /// `message` is the question as sent (redacted); the answer streams in as the provider's does, its placeholders put
     /// back, with which session it is, whether its conversation is new and the tokens it used (the panel's footer).
-    /// Throws what the session failed with: a `ClaudeSessionError` that `fallsBack` only before any of the answer came.
+    /// Throws what the session failed with: a `ClaudeSessionError` (the provider answers) only before any of the answer
+    /// came; after some of it, a `DescribedError` saying it (no other answer then).
     /// Answered, the answer and `told` (the earlier rounds' answers sent with the question) are in the session
     /// (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, _ request: ClaudeSessionManager.Request, message: String,
-                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant, told: [String],
+                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant,
+                              told: [QuestionChat.Round], question: String,
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
         func answer(_ text: String, complete: Bool) -> ConversionResult {
@@ -377,19 +380,19 @@ public final class Converter: Sendable {
         do {
             for try await reply in request.answer(message) {
                 (text, latest) = (reply.text, reply)
-                if firstToken == nil { firstToken = elapsed() }
+                if firstToken == nil, !text.isEmpty { firstToken = elapsed() }
                 if text.utf8.count > Self.maxOutputBytes { break }
                 continuation.yield(ConversionUpdate(
                     result: answer(text, complete: false), rawText: text, isFinal: false, elapsed: elapsed(),
                     firstTokenLatency: firstToken, fromCache: false, hidden: hidden, answeredBy: answeredBy,
                     newConversation: reply.newConversation, tokens: reply.tokens))
             }
-        } catch let error as ClaudeSessionError where firstToken != nil && error.fallsBack {
-            throw ClaudeSessionError.failed(error.description(for: session.backend.agent))  // part of the answer is in: no other answers now
+        } catch let error as ClaudeSessionError where !text.isEmpty {
+            throw DescribedError(message: error.description(for: session.backend.agent))
         }
         try Task.checkCancellation()
         let final = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .empty : answer(text, complete: true)
-        session.remember(answers: told + [final.versions.first?.text ?? ""], for: request)
+        session.remember(rounds: told + [.init(question: question, answer: final.versions.first?.text ?? "")], for: request)
         continuation.yield(ConversionUpdate(
             result: final, rawText: text, isFinal: true, elapsed: elapsed(), firstTokenLatency: firstToken, fromCache: false,
             hidden: hidden, answeredBy: answeredBy, newConversation: latest.newConversation, tokens: latest.tokens))

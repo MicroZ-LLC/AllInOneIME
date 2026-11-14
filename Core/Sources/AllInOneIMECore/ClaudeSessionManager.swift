@@ -6,7 +6,9 @@ public protocol ClaudeSessionProcess: AnyObject, Sendable {
     func send(_ line: Data) throws
     /// Closes its standard input: nothing more is written (a command that reads it to its end goes on).
     func closeInput()
-    /// Ends it (and what it started): asked to (SIGTERM).
+    /// Ends it (and what it started): asked to (SIGTERM); one that hasn't ended `ClaudeSessionManager.handOffGrace`
+    /// later is killed by the process itself, its own timer (`ProcessClaudeSessionLauncher`'s): the manager starts
+    /// none.
     func terminate()
     /// Ends it and what it started at once (SIGKILL): what `terminate` didn't end.
     func kill()
@@ -51,17 +53,18 @@ extension ClaudeSessionLauncher {
 /// question. A question asked while another is answered waits for it, and is sent into its own conversation with its
 /// own web tools whatever was asked meanwhile; stopping one (`ask`'s stream given up: Esc) interrupts its turn and the
 /// process stays.
-/// One process writes a conversation at a time. Handing the conversation to Terminal (`handOff`) ends our process first,
-/// and waits for it; the conversation is Terminal's from then on, and questions after it go into a new one. Our process
-/// holds its conversation's lock (`ConversationLock`) while it runs, which Terminal waits for and then holds while its
-/// CLI runs (`terminalCommand`).
+/// One process writes a conversation at a time. Handing the conversation to Terminal (`handOffOnceEnded`) ends our
+/// process first, and waits for it; the conversation is Terminal's from then on, and questions after it go into a new
+/// one (a hand-off that doesn't reach Terminal puts it back). Our process holds its conversation's lock
+/// (`ConversationLock`) while it runs, which Terminal waits for and then holds while its CLI runs (`terminalCommand`).
 /// A question with no sign of an answer within `firstAnswerTimeout` (Claude Code stuck starting, an `awsAuthRefresh`
 /// sign-in waiting in a browser) fails with `.noResponse`, which falls back to the provider, and the process ends; one
 /// whose agent begins compacting the conversation before answering fails with `.compacting` at once (not waited for); so
 /// does one answering that says nothing more (not a line) for `answerIdleTimeout`, and one stopped while it answered
 /// that doesn't end within `interruptTimeout` (an agent deaf to the interrupt): the process is stuck, the next question
 /// starts it again. A question waiting behind one being answered waits `firstAnswerTimeout` at most, then fails with
-/// `.busy` (the provider answers). A process that ends before its session starts, twice, fails the question with
+/// `.busy` (the provider answers); so does one waiting for its process to start while ours before it is still ending
+/// (with `.noResponse`). A process that ends before its session starts, twice, fails the question with
 /// `.failedToStart` (the provider answers) and the agent is `.cannotStart` until its sign-in is looked at again; so is
 /// one whose program won't launch at all (`.cannotLaunch`: gone since it was found, not executable).
 /// It also keeps what one long session needs across questions: the values hidden (`redacting`), so that a placeholder
@@ -81,8 +84,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     public static let interruptTimeout: Duration = .seconds(5)
     /// The sign-in check's longest run; past it, it counts as signed out.
     public static let checkTimeout: Duration = .seconds(15)
-    /// The hand-off's longest wait for our process to end once asked to (SIGTERM), before it is killed: the main thread
-    /// waits (⌘⏎).
+    /// The hand-off's longest wait for our process to end once asked to (SIGTERM), before it is killed (⌘⏎:
+    /// `handOffOnceEnded` waits for it); a process stopped is killed after it too, by its own timer
+    /// (`ClaudeSessionProcess.terminate`).
     public static let handOffGrace: TimeInterval = 0.5
     /// A sign-in check that didn't find the agent ready stands this long (seconds) before the next one may run.
     public static let recheckInterval: TimeInterval = 60
@@ -208,6 +212,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     private struct State {
         var running: Running?
+        /// Processes being stopped; no replacement starts until their exit callbacks run (a question waits for that
+        /// `firstAnswerTimeout` at most: `waitForStart`).
+        var retiring: [Int: Running] = [:]
+        /// A `prewarm` came while one of `retiring` still ran: its process starts once they have all ended (`exited`).
+        var prewarmWaiting = false
         var generation = 0
         /// The turn written (first) and the ones waiting, in order.
         var turns: [Turn] = []
@@ -227,8 +236,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// What the web tools may reach in it, as the latest request sent there may: what a request of no conversation
         /// (`Request.web` nil) gets.
         var web = SessionWeb.open
-        /// The conversation `ask` and `answer` without a request go into (`enter`).
-        var entered: QuestionConversation?
         /// The processes started before the agent was found signed in again after it wasn't (`generation` up to this)
         /// are started again by the next question (`follow`): theirs may be the sign-in from before.
         var staleThrough = 0
@@ -342,14 +349,26 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             // With the web tools as they are: a question with text the user didn't type starts it again kept to the web
             // it may reach (`Request.web`).
             var actions = follow(&state, web: .open)
-            if state.running == nil {
-                guard let (_, opening) = try? start(&state, web: .open) else { return actions }
-                actions += opening
+            // Never two processes: one still ending (the conversation it was on left just now) is waited for.
+            guard state.running != nil || state.retiring.isEmpty else {
+                state.prewarmWaiting = true
+                return actions
             }
-            scheduleIdle(&state)
-            return actions
+            return actions + startPrewarmed(&state)
         }
         perform(actions)
+    }
+
+    /// `prewarm`'s process started, unless one runs (its idle time counted from now).
+    private func startPrewarmed(_ state: inout State) -> [Action] {
+        state.prewarmWaiting = false
+        var actions: [Action] = []
+        if state.running == nil {
+            guard let (_, opening) = try? start(&state, web: .open) else { return [] }
+            actions = opening
+        }
+        scheduleIdle(&state)
+        return actions
     }
 
     /// A request to the session: an `@question` of a conversation in the panel, or a writing task (its own conversation,
@@ -416,23 +435,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         request(conversation).ask(question)
     }
 
-    /// The conversation `ask` and `answer` (without a request) go into from now on: one caller asking in turn. Nil: the
-    /// one now, whichever.
-    public func enter(_ conversation: QuestionConversation?) {
-        state.withLock { $0.entered = conversation }
-    }
-
-    /// Asks `question` (one user message: the text as the provider would get it, already redacted) in the conversation
-    /// `enter` said. The stream gives the answer so far each time more of it comes, and ends with the turn; given up
-    /// (cancelled), it interrupts the turn.
-    public func ask(_ question: String) -> AsyncThrowingStream<String, Error> { Self.texts(answer(question)) }
-
-    /// `ask`, with what the panel tells of the answer (`SessionReply`): whether its agent conversation is new, the
-    /// tokens it used.
-    public func answer(_ question: String) -> AsyncThrowingStream<SessionReply, Error> {
-        request(state.withLock { $0.entered }).answer(question)
-    }
-
     /// The answer's text from `replies`, each time it changes.
     static func texts(_ replies: AsyncThrowingStream<SessionReply, Error>) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
@@ -495,39 +497,135 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         perform(actions)
     }
 
-    /// Hands the conversation now to Terminal (⌘⏎), never two processes writing it: our process ends first (a question
-    /// being answered stops), waited for (`handOffGrace`, then killed) and its lock let go; from then on the conversation
-    /// is Terminal's, and questions here go into a new one (a prewarm meanwhile too: one step under the lock), never
-    /// that one again. Returns what Terminal is to run (`SessionBackend.terminalArguments`, `program` being where the
-    /// agent is; `followUp`: a follow-up goes after them as the last argument) in the session's folder, and the
-    /// conversation's lock file, for Terminal to hold while it runs (`terminalCommand`).
-    public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL, lock: URL) {
-        let (handed, running, actions) = try state.withLock { state -> ((arguments: [String], id: String), Running?, [Action]) in
+    /// Hands the conversation now to Terminal (⌘⏎), never two processes writing it: our process is asked to end (a
+    /// question being answered stops) and holds the conversation's lock until it has; from then on the conversation is
+    /// Terminal's, and questions here go into a new one (a prewarm meanwhile too: one step under the lock), never that one
+    /// again. Once our process has ended (asked to, given `handOffGrace`, then killed with what it started; whether it
+    /// has is the process's own state, `ClaudeSessionProcess.isRunning`, not its exit told, which may come later), its
+    /// lock is let go and `open` runs: Terminal opened on what Terminal is to run (`SessionBackend.terminalArguments`,
+    /// `program` being where the agent is; `followUp`: a follow-up goes after them as the last argument) in the
+    /// session's folder, holding the conversation's lock file while it runs (`terminalCommand`), which waits for ours.
+    /// Returns those. Waited for on the task (`Task.sleep`), never holding a thread: the hand-off runs off the key's
+    /// thread, on Swift's shared pool.
+    /// Throws `SessionHandOffError` when it doesn't reach Terminal: our process still running a moment after it was
+    /// killed (Terminal not opened), or `open` threw. The conversation is put back then (`putBack`): questions here go on
+    /// in it, and a retry hands off the same; unless a request was made meanwhile (it went into the new one).
+    @discardableResult
+    public func handOffOnceEnded(program: String, followUp: Bool = false,
+                                 open: (_ arguments: [String], _ directory: URL, _ lock: URL) throws -> Void = { _, _, _ in })
+        async throws -> (arguments: [String], directory: URL, lock: URL) {
+        let (handed, running, before) = try handOver(program: program, followUp: followUp)
+        if let running {
+            guard await Self.ended(running.process, grace: Self.handOffGrace) else {
+                throw SessionHandOffError(reason: .stillRunning, kept: putBack(before))
+            }
+            running.lock.release()
+        }
+        do {
+            try open(handed.arguments, handed.directory, handed.lock)
+        } catch {
+            throw SessionHandOffError(reason: .terminal(UIText.describe(error)), kept: putBack(before))
+        }
+        return handed
+    }
+
+    /// `handOffOnceEnded` returning at once: our process asked to end (its lock let go once it has), Terminal not
+    /// opened. Kept only for the acceptance test that hands off so
+    /// (`QuestionSessionAcceptanceTests.theHandOffWithAFollowUpStaysInteractive`); the input method never does.
+    func handOff(program: String, followUp: Bool) throws -> (arguments: [String], directory: URL, lock: URL) {
+        let (handed, running, _) = try handOver(program: program, followUp: followUp)
+        if let running { perform([.terminate(running.process, running.lock)]) }
+        return handed
+    }
+
+    /// `process` asked to end (SIGTERM), given `grace` seconds, then killed with what it started (SIGKILL); whether it has
+    /// ended (`isRunning`) by half a second after.
+    private static func ended(_ process: any ClaudeSessionProcess, grace: TimeInterval) async -> Bool {
+        process.terminate()
+        if await ended(process, within: grace) { return true }
+        process.kill()
+        return await ended(process, within: 0.5)
+    }
+
+    private static func ended(_ process: any ClaudeSessionProcess, within seconds: TimeInterval) async -> Bool {
+        let deadline = ContinuousClock.now + .seconds(seconds)
+        while process.isRunning {
+            guard ContinuousClock.now < deadline else { return false }
+            do { try await Task.sleep(for: .milliseconds(20)) } catch { return !process.isRunning }
+        }
+        return true
+    }
+
+    /// The conversation a hand-off left (`handOver`) as it was, for `putBack`; `next`, the new one it went on to.
+    private struct Handed {
+        var id: String
+        var next: String?
+        var resumable: Bool
+        var agentSessionID: String?
+        var owner: String?
+        var asked: Bool?
+        var web: SessionWeb
+        var kept: Kept
+    }
+
+    /// The hand-off under the lock: what Terminal is to run, of the conversation now (its id); our process let go of
+    /// (`retiring` until its exit is told), with the questions it was answering; a new conversation from now on. And the
+    /// conversation left, as it was (`putBack`).
+    private func handOver(program: String, followUp: Bool)
+        throws -> (handed: (arguments: [String], directory: URL, lock: URL), running: Running?, before: Handed) {
+        let (handed, running, before, actions) = try state.withLock {
+            state -> ((arguments: [String], id: String), Running?, Handed, [Action]) in
             let id = try store.sessionID()
-            let arguments = backend.terminalArguments(program: program, sessionID: id, agentSessionID: store.agentSessionID(),
+            let agentSessionID = store.agentSessionID()
+            let arguments = backend.terminalArguments(program: program, sessionID: id, agentSessionID: agentSessionID,
                                                       resume: store.resumable, followUp: followUp)
+            var before = Handed(id: id, resumable: store.resumable, agentSessionID: agentSessionID, owner: state.owner,
+                                asked: state.asked, web: state.web, kept: kept.withLock { load(&$0, id: id) })
             state.idle?.cancel()
             state.idle = nil
             let turns = state.turns
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
             let running = state.running
+            if let running { state.retiring[running.generation] = running }
             state.running = nil  // what it still says, its exit too, is of no session now
             rollOver(&state)
-            return ((arguments, id), running, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
+            before.next = try? store.sessionID()
+            return ((arguments, id), running, before, turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) })
         }
         perform(actions)
-        if let running {
-            Self.end([running.process], grace: Self.handOffGrace)
-            running.lock.release()
-        }
-        return (handed.arguments, store.directory, store.lockFile(handed.id))
+        return ((handed.arguments, store.directory, store.lockFile(handed.id)), running, before)
     }
 
-    public func handOff(claude: String) throws -> (arguments: [String], directory: URL, lock: URL) { try handOff(program: claude) }
+    /// A hand-off that didn't reach Terminal (`handOffOnceEnded`): the conversation it left (`handOver`) is the one now
+    /// again, as it was (its id, whether it resumes, the agent's id of it, what was hidden in it and which panel
+    /// conversation is its), so that nothing of it is lost here and a retry hands off the same. Only while the new one
+    /// is untouched: no request made since, none placed in it; else false, the new one stays. A process a prewarm
+    /// started on the new one meanwhile ends: the next question starts one on this one.
+    private func putBack(_ before: Handed) -> Bool {
+        let actions = state.withLock { state -> [Action]? in
+            guard state.turns.isEmpty, state.owner == nil, state.asked != true,
+                  (try? store.sessionID()) == before.next else { return nil }
+            store.restore(before.id, resumable: before.resumable, agentSessionID: before.agentSessionID)
+            kept.withLock { kept in
+                kept = before.kept
+                store.save(before.kept.memory)
+            }
+            (state.owner, state.asked, state.web) = (before.owner, before.asked, before.web)
+            guard let running = state.running, running.conversation != before.id else { return [] }
+            state.retiring[running.generation] = running
+            state.running = nil  // its exit is of no session now
+            state.idle?.cancel()
+            state.idle = nil
+            return [.terminate(running.process, running.lock)]
+        }
+        guard let actions else { return false }
+        perform(actions)
+        return true
+    }
 
     /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,
-    /// `handOff`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
+    /// `handOffOnceEnded`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
     /// `/usr/bin/lockf`. A shell's `exec` keeps the window's process the CLI's (or lockf's, which waits for it).
     public static func terminalCommand(_ arguments: [String], lock: URL) -> [String] {
         let script = #"lock="$1"; shift; if [ -x /usr/bin/lockf ]; then exec /usr/bin/lockf -k -t 10 "$lock" "$@"; fi; exec "$@""#
@@ -539,10 +637,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         let actions = state.withLock { state -> [Action] in
             state.idle?.cancel()
             state.idle = nil
+            state.prewarmWaiting = false
             let turns = state.turns
             state.turns = []
             for turn in turns { turn.watchdog?.cancel() }
             let running = state.running
+            if let running { state.retiring[running.generation] = running }
             state.running = nil  // what it still says, its exit too, is of no session now
             return turns.filter { !$0.done }.flatMap { finish($0, CancellationError()) }
                 + (running.map { [.terminate($0.process, $0.lock)] } ?? [])
@@ -570,9 +670,11 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `stop`, and the sign-in check's command ended too: the processes asked to end.
     private func end() -> [any ClaudeSessionProcess] {
-        let (process, check) = state.withLock { ($0.running?.process, $0.signInCheck) }
+        let (processes, check) = state.withLock { state in
+            ([state.running?.process].compactMap { $0 } + state.retiring.values.map(\.process), state.signInCheck)
+        }
         stop()
-        return [process, check?.end()].compactMap { $0 }
+        return processes + [check?.end()].compactMap { $0 }
     }
 
     /// A new conversation from now on ("start over" in the settings): the process ends, a new id is made.
@@ -640,7 +742,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return kept.withLock { kept in
             guard let id = try? store.sessionID() else { return rounds }
             let answered = Set(load(&kept, id: id).memory.answered)
-            return rounds.filter { !answered.contains(ClaudeSession.fingerprint($0.answer)) }
+            return rounds.filter { !answered.contains(Self.turnIdentity($0)) }
         }
     }
 
@@ -648,7 +750,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// it as the request goes in), so that a later question there never gives one of its placeholders another value.
     public func redacting<T>(_ settings: RedactionSettings, for request: Request,
                              _ body: (inout Redaction?) -> T) -> (redaction: Redaction?, result: T) {
-        let done = redacting(settings, body)
+        let done: (redaction: Redaction?, result: T)
+        if request.continues {
+            done = redacting(settings, body)
+        } else {
+            // A new panel conversation must not inherit values hidden in another one.
+            var fresh = Redaction(settings)
+            let result = body(&fresh)
+            done = (fresh, result)
+        }
         if let redaction = done.redaction {
             state.withLock { _ in request.turn.hidden = (redaction.numbers, redaction.hidden) }
         }
@@ -662,29 +772,36 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `remember` for `request`'s answer: kept while the agent conversation it went into is the one now (one left since
     /// is never gone on in).
-    public func remember(answers: [String], for request: Request) {
+    public func remember(rounds: [QuestionChat.Round], for request: Request) {
         guard let id = state.withLock({ _ in request.turn.conversation }), id == (try? store.sessionID()) else { return }
-        remember(answers: answers)
+        remember(rounds: rounds)
     }
 
-    /// What a request's hiding numbered (`redacting(_:for:_:)`), kept for the agent conversation now, which it goes into.
-    private func keep(_ hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?) {
-        guard let hidden else { return }
+    /// What a request's hiding numbered (`redacting(_:for:_:)`; nil: nothing), kept for the agent conversation now, which
+    /// it goes into as the first of its panel conversation (`place`): in place of anything kept for it before. A new one
+    /// has nothing; the one now, never asked, may have what a request that failed before it was asked hid there (another
+    /// panel conversation's, numbered from 1 as this one's is), which must never be put back in this one's answers.
+    private func keepOnly(_ hidden: (numbers: [Redaction.Kind: Int], values: [Redaction.Hidden])?) {
         kept.withLock { kept in
             guard let id = try? store.sessionID() else { return }
             var current = load(&kept, id: id)
-            for (kind, number) in hidden.numbers {
-                current.memory.numbers[kind.rawValue] = max(current.memory.numbers[kind.rawValue] ?? 0, number)
-            }
-            current.known += hidden.values.filter { !current.known.contains($0) }
+            let numbers = Dictionary(uniqueKeysWithValues: (hidden?.numbers ?? [:]).map { ($0.rawValue, $1) })
+            let values = hidden?.values ?? []
+            guard numbers != current.memory.numbers || values != current.known else { return }
+            (current.memory.numbers, current.known) = (numbers, values)
             store.save(current.memory)
             kept = current
         }
     }
 
-    /// `answers` are in the session now: it gave them, or was told them as context.
-    public func remember(answers: [String]) {
-        let prints = answers.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(ClaudeSession.fingerprint)
+    /// A turn is identified by both its question and answer, so identical answers to different questions stay distinct.
+    private static func turnIdentity(_ round: QuestionChat.Round) -> String {
+        ClaudeSession.fingerprint(round.question + "\u{1F}" + round.answer)
+    }
+
+    /// `rounds` are in the session now: it gave them, or was told them as context.
+    public func remember(rounds: [QuestionChat.Round]) {
+        let prints = rounds.filter { !$0.answer.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.map(Self.turnIdentity)
         guard !prints.isEmpty else { return }
         kept.withLock { kept in
             guard let id = try? store.sessionID() else { return }
@@ -739,6 +856,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             running.lock.hold(locks.hold(store.lockFile(id)))
             return lines.map { .send(running.process, $0) }
         }
+        state.retiring[running.generation] = running
         state.running = nil  // its exit is of no session now
         state.idle?.cancel()
         state.idle = nil
@@ -792,10 +910,18 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// still waits for its message (`Request`): into its own agent conversation, with its own web tools (`place`).
     private func pump(_ state: inout State) -> [Action] {
         while let first = state.turns.first, first.done, !first.sent { state.turns.removeFirst() }
+        guard state.retiring.isEmpty else {
+            waitForStart(&state)
+            return []
+        }
         guard let turn = state.turns.first, !turn.sent, let message = turn.message else { return [] }
         let web = place(turn, &state)
         // On another agent conversation, or with other web tools: moved to this one, or started again on it.
         let moved = follow(&state, web: web)
+        if !state.retiring.isEmpty {
+            waitForStart(&state)
+            return moved
+        }
         let running: Running
         let opening: [Action]
         do {
@@ -816,6 +942,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         state.idle?.cancel()
         state.idle = nil
         turn.sent = true
+        state.prewarmWaiting = false  // the process a prewarm waited for is this one
+        // Not to be asked as it is now (Antigravity's files that keep it to its tools changed): the question fails so,
+        // its process ends.
+        if let refusal = running.driver.refusal() {
+            return moved + opening + handle(.failed(refusal, endsProcess: true), generation: running.generation, &state)
+        }
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
@@ -823,15 +955,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// `turn`, about to be written, put in its agent conversation (once: sent again after a failed start, it is there):
-    /// a new one, what its hiding numbered kept for it, unless it goes on in the one now (`Request.continues`, and that
-    /// is still its conversation's); the one now when no question went into it yet. The web tools it may have: its own
-    /// (`Request.web`), or the conversation's.
+    /// a new one, what its hiding numbered kept for it alone, unless it goes on in the one now (`Request.continues`, and
+    /// that is still its conversation's); the one now when no question went into it yet, what was kept for it before
+    /// gone (`keepOnly`). The web tools it may have: its own (`Request.web`), or the conversation's.
     private func place(_ turn: Turn, _ state: inout State) -> SessionWeb {
         if !turn.placed {
             if !turn.continues || (turn.owner != nil && turn.owner != state.owner) {
                 if asked(&state) { rollOver(&state) }
                 state.owner = turn.owner
-                keep(turn.hidden)
+                keepOnly(turn.hidden)
             }
             if let web = turn.web { state.web = web }
             turn.conversation = try? store.sessionID()
@@ -912,6 +1044,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 return []
             }
             state.turns.removeFirst()
+            state.retiring[running.generation] = running
             state.running = nil  // its exit is of no session now
             state.idle?.cancel()
             state.idle = nil
@@ -923,25 +1056,32 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         return wait
     }
 
-    /// `turn`, waiting behind one being answered, fails with `.busy` (the provider answers) unless it is sent within
-    /// `firstAnswerTimeout` (`watch` replaces this watchdog).
-    private func waitAtMost(_ turn: Turn) {
+    /// `turn`, waiting behind one being answered, fails with `failure` (`.busy`: the provider answers) unless it is sent
+    /// within `firstAnswerTimeout` (`watch` replaces this watchdog).
+    private func waitAtMost(_ turn: Turn, failing failure: ClaudeSessionError = .busy) {
         guard turn.watchdog == nil, !turn.sent, !turn.done else { return }
         turn.attempt += 1
         let (id, attempt, clock, timeout) = (turn.id, turn.attempt, answerClock, firstAnswerTimeout)
         turn.watchdog = Task { [weak self] in
             do { try await clock.sleep(for: timeout) } catch { return }
-            self?.waitedTooLong(id, attempt: attempt)
+            self?.waitedTooLong(id, attempt: attempt, failure)
         }
     }
 
-    private func waitedTooLong(_ id: Int, attempt: Int) {
+    /// The questions asked (their message in) while a process of ours is still ending (`State.retiring`), waiting for
+    /// theirs to start: each fails with `.noResponse` (the provider answers) unless it is sent within
+    /// `firstAnswerTimeout`, so that one whose end is never told holds none of them for longer.
+    private func waitForStart(_ state: inout State) {
+        for turn in state.turns where turn.message != nil { waitAtMost(turn, failing: .noResponse) }
+    }
+
+    private func waitedTooLong(_ id: Int, attempt: Int, _ failure: ClaudeSessionError) {
         let actions = state.withLock { state -> [Action] in
             guard let index = state.turns.firstIndex(where: { $0.id == id }) else { return [] }
             let turn = state.turns[index]
             guard turn.attempt == attempt, !turn.sent, !turn.done else { return [] }
             state.turns.remove(at: index)
-            return finish(turn, ClaudeSessionError.busy)
+            return finish(turn, failure)
         }
         perform(actions)
     }
@@ -960,6 +1100,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private func idleElapsed(generation: Int) {
         let actions = state.withLock { state -> [Action] in
             guard let running = state.running, running.generation == generation, state.turns.isEmpty else { return [] }
+            state.retiring[running.generation] = running
             state.running = nil
             state.idle = nil
             return [.terminate(running.process, running.lock)]
@@ -1045,8 +1186,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             return []  // a permission request is answered by the driver
         case .compacting:
             // The conversation's context compacted first, before any of the answer: that may take minutes. The provider
-            // answers now (`fallsBack`), the turn is stopped as Esc stops it, and the process stays. Once the answer is
-            // coming in, it goes on.
+            // answers now, the turn is stopped as Esc stops it, and the process stays. Once the answer is coming in, it
+            // goes on.
             guard let turn, !turn.done, turn.text.isEmpty else { return [] }
             givenUp(turn)
             return finish(turn, ClaudeSessionError.compacting) + interruptAction(&state)
@@ -1073,6 +1214,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 turn.done = true
             }
             if endsProcess {
+                state.retiring[running.generation] = running
                 state.running = nil  // its exit is of no session now
                 state.idle?.cancel()
                 state.idle = nil
@@ -1125,6 +1267,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     /// The process ended (not by `stop` or the idle time: those let go of it first).
     private func exited(generation: Int, status: Int32, message: String) {
         let actions = state.withLock { state -> [Action] in
+            if state.retiring.removeValue(forKey: generation) != nil {
+                let pumped = pump(&state)
+                // The last one ended, nothing asked meanwhile: a prewarm that waited for it starts its process now.
+                guard state.prewarmWaiting, state.retiring.isEmpty, state.turns.isEmpty else { return pumped }
+                return pumped + startPrewarmed(&state)
+            }
             guard let running = state.running, running.generation == generation else { return [] }
             state.running = nil
             state.idle?.cancel()
@@ -1189,6 +1337,10 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 /// piped, the output read line by line on a thread of its own; its end told by its termination handler
 /// (`LaunchSpec.onExit`), never `waitUntilExit` on a dispatch thread, which sometimes never returns (a program that
 /// exited would count as running: a sign-in check found signed out, a question waiting for a process long gone).
+/// Its end (`exited`) is told once it has ended and its output has been read to its end; once it was killed (SIGKILL
+/// to its group, `ClaudeSessionProcess.kill`; one asked to end is, after `ClaudeSessionManager.handOffGrace`, unless its
+/// end was told by then), as soon as it has ended itself: something it started that left its group may hold its output
+/// open for as long as it runs, which the signal doesn't reach (`PipedEnd`).
 /// `executable`: where `claude` is (nil: not installed); `environment`: what it runs with (on the Mac the login shell's);
 /// `processes`: nil, the platform's as it starts. One found that won't launch (gone since, not executable) throws
 /// `ClaudeSessionError.cannotLaunch`, saying why (`launchFailure`).
@@ -1213,22 +1365,29 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         let processes = processes ?? Platform.current.processes
         guard processes.canLaunch, let executable = executable() else { throw ClaudeSessionError.notInstalled }
         let input = Pipe(), out = Pipe(), errors = Pipe()
-        let ended = DispatchSemaphore(value: 0)
+        let errorTail = Locked(initialState: Data())
+        let errorsRead = DispatchSemaphore(value: 0)
+        let end = PipedEnd { status, givenUp in
+            // Its output given up, standard error likely is too (held open by the same process): what it said by now.
+            _ = errorsRead.wait(timeout: .now() + (givenUp ? 0.1 : 2))
+            let message = String(decoding: errorTail.withLock { $0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+            exited(status, String(message.split(whereSeparator: \.isNewline).last ?? ""))
+        }
         let launched: any LaunchedProcess
         do {
             launched = try processes.launch(LaunchSpec(executable: executable, arguments: arguments, environment: environment(),
                                                        directory: directory, standardInput: .pipe(input),
                                                        standardOutput: .pipe(out), standardError: .pipe(errors),
-                                                       onExit: { _ in ended.signal() }))
+                                                       onExit: { end.processEnded(status: $0.terminationStatus) }))
         } catch {
             throw ClaudeSessionError.cannotLaunch(Self.launchFailure(executable, error))
         }
-        let errorTail = Locked(initialState: Data())
-        let errorsRead = DispatchSemaphore(value: 0)
-        // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes).
+        // Threads of their own: each blocks reading for as long as the process runs (a session's, many minutes). Once
+        // its output is given up (`PipedEnd`), what they still read is dropped and they stop at their next read's end;
+        // the pipes are left to them, never closed under a read (the descriptor could be another file's by then).
         Thread.detachNewThread {
             let handle = errors.fileHandleForReading
-            while case let chunk = handle.availableData, !chunk.isEmpty {
+            while !end.givenUp, case let chunk = handle.availableData, !chunk.isEmpty {
                 errorTail.withLock { $0 = ($0 + chunk).suffix(600) }
             }
             errorsRead.signal()
@@ -1236,20 +1395,17 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
         Thread.detachNewThread {
             let handle = out.fileHandleForReading
             var buffer = Data()
-            while case let chunk = handle.availableData, !chunk.isEmpty {
+            while !end.givenUp, case let chunk = handle.availableData, !chunk.isEmpty {
                 buffer.append(chunk)
                 while let newline = buffer.firstIndex(of: 0x0A) {
                     let line = buffer[buffer.startIndex..<newline]
                     buffer.removeSubrange(buffer.startIndex...newline)
-                    if !line.isEmpty { output(Data(line)) }
+                    if !line.isEmpty, !end.givenUp { output(Data(line)) }
                 }
             }
-            ended.wait()
-            _ = errorsRead.wait(timeout: .now() + 2)
-            let message = String(decoding: errorTail.withLock { $0 }, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            exited(launched.terminationStatus, String(message.split(whereSeparator: \.isNewline).last ?? ""))
+            end.outputEnded()
         }
-        return PipedClaudeProcess(process: launched, input: input.fileHandleForWriting)
+        return PipedClaudeProcess(process: launched, input: input.fileHandleForWriting, end: end)
     }
 
     /// Why `executable` didn't launch (`error`, the launcher's): not there, not executable, else what the launcher said
@@ -1262,15 +1418,64 @@ public struct ProcessClaudeSessionLauncher: ClaudeSessionLauncher {
     }
 }
 
+/// How a process `ProcessClaudeSessionLauncher` started has ended, told once (its `exited`): once the process has ended
+/// and its output was read to its end; once it was killed (`killed`), as soon as the process itself has ended (its
+/// termination handler ran: it was reaped), whatever still holds its output open: something it started that left its
+/// group, which the SIGKILL didn't reach and which may run for ever. Its output (and standard error) is given up then:
+/// not read any further.
+private final class PipedEnd: @unchecked Sendable {
+    private struct State {
+        var status: Int32?
+        var outputEnded = false
+        var killed = false
+        var told = false
+        var givenUp = false
+    }
+
+    private let state = Locked(initialState: State())
+    /// Tells it (on a thread of its own): its exit status, and whether its output was given up.
+    private let tell: @Sendable (_ status: Int32, _ givenUp: Bool) -> Void
+
+    init(tell: @escaping @Sendable (_ status: Int32, _ givenUp: Bool) -> Void) {
+        self.tell = tell
+    }
+
+    /// Its end is told already.
+    var told: Bool { state.withLock { $0.told } }
+    /// Its output (and standard error) isn't read any more: its end was told before they ended.
+    var givenUp: Bool { state.withLock { $0.givenUp } }
+
+    /// The process itself ended (its termination handler), with `status`.
+    func processEnded(status: Int32) { update { $0.status = status } }
+    /// Its output was read to its end.
+    func outputEnded() { update { $0.outputEnded = true } }
+    /// It was killed, with what it started (SIGKILL to its group).
+    func killed() { update { $0.killed = true } }
+
+    private func update(_ change: (inout State) -> Void) {
+        let told = state.withLock { state -> (status: Int32, givenUp: Bool)? in
+            change(&state)
+            guard !state.told, let status = state.status, state.outputEnded || state.killed else { return nil }
+            state.told = true
+            state.givenUp = !state.outputEnded
+            return (status, state.givenUp)
+        }
+        guard let told else { return }
+        Thread.detachNewThread { [tell] in tell(told.status, told.givenUp) }
+    }
+}
+
 private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendable {
     let process: any LaunchedProcess
     let input: FileHandle
+    private let end: PipedEnd
     private let lock = NSLock()
     private var closed = false
 
-    init(process: any LaunchedProcess, input: FileHandle) {
+    init(process: any LaunchedProcess, input: FileHandle, end: PipedEnd) {
         self.process = process
         self.input = input
+        self.end = end
     }
 
     func send(_ line: Data) throws {
@@ -1288,14 +1493,23 @@ private final class PipedClaudeProcess: ClaudeSessionProcess, @unchecked Sendabl
         try? input.close()
     }
 
+    /// Asked to end (SIGTERM to its group); killed after `ClaudeSessionManager.handOffGrace` unless its end was told by
+    /// then: it may have ended at once while something it started that left its group holds its output open, and its
+    /// end, which waits for that output's end until it is killed (`PipedEnd`), would never be told. The one timer that
+    /// kills it: the manager starts none.
     func terminate() {
         closeInput()
         process.terminate()
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + ClaudeSessionManager.handOffGrace) { [self] in
+            if !end.told { kill() }
+        }
     }
 
+    /// Killed with what is in its group (SIGKILL); its end is told as soon as it has ended itself (`PipedEnd`).
     func kill() {
         closeInput()
         process.kill()
+        end.killed()
     }
 
     var isRunning: Bool { process.treeIsRunning }
@@ -1365,7 +1579,7 @@ private final class SignInCheck: @unchecked Sendable {
         }
         guard let continuation = said.continuation else { return }
         said.timer?.cancel()
-        said.process?.terminate()
+        if let process = said.process { process.terminate() }
         continuation.resume(returning: availability)
     }
 }
