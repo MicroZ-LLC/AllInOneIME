@@ -2712,6 +2712,7 @@ enum SelfTest {
         controller.passPasteKey = {}
         controller.passCommandV = {}
         controller.pasteImage = { _, _ in }
+        controller.setCapsLock = { _ in }  // the user's Caps Lock (its light) left as it is
         controller.services.pointerUsedWithin = { _ in false }  // the user's own clicks meanwhile aren't Shift-clicks
         controller.services.buttonUsedWithin = { _ in false }  // …nor clicks in the fake field
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
