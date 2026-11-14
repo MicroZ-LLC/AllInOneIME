@@ -1634,6 +1634,8 @@ the signature, then the archive's size and SHA-256. To try a pack from a local s
 Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.json, signed with the releases' own key):
 
 1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree) and the changelogs.
+   On an unlocked Mac, `make test-screen`: the tests that need windows drawn on screen, which CI skips while the Mac
+   mini's screen is locked (its Quality run says so in a warning).
 2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
    `build/AllInOneIME-<version>-update.zip` (both apps, as the disk image's installer carries them). The apps and the
    image are signed with the Developer ID Application certificate in the keychain, and the image is notarized with

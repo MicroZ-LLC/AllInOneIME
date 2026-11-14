@@ -588,7 +588,9 @@ WORKFLOW_OF = {GATE: "quality.yml", REVIEW: "review.yml"}
 
 def agent_pr(number: int) -> dict | None:
     """The pipeline's PR for the issue (from its branch X.Y.Z/issue-N, or BASE-issue-N), with its checks."""
-    for pr in gh("api", f"repos/{REPO}/pulls?state=all&sort=updated&direction=desc&per_page=100") or []:
+    # Every page: a PR waiting for its checks may have dropped out of the most recently updated hundred.
+    pages = gh("api", "--paginate", "--slurp", f"repos/{REPO}/pulls?state=all&sort=updated&direction=desc&per_page=100")
+    for pr in (pr for page in pages or [] for pr in page):
         own = (pr["head"].get("repo") or {}).get("full_name") == REPO
         if own and re.search(rf"(?:/|-)issue-{number}$", pr["head"]["ref"]):
             return gh("api", "graphql", "-f", f"query={PULL}", "-f", f"owner={OWNER}", "-f", f"name={NAME}",
