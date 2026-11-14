@@ -62,13 +62,17 @@ public enum Doctor {
         /// What to do, or more about it (shown after the title).
         public var detail: String?
         public var fix: Fix?
+        /// One short sentence a settings page's banner shows instead of a long `detail` (Troubleshoot and the report keep
+        /// the detail); nil: the banner shows the detail.
+        public var summary: String?
 
-        public init(area: Area, status: Status, title: String, detail: String? = nil, fix: Fix? = nil) {
+        public init(area: Area, status: Status, title: String, detail: String? = nil, fix: Fix? = nil, summary: String? = nil) {
             self.area = area
             self.status = status
             self.title = title
             self.detail = detail
             self.fix = fix
+            self.summary = summary
         }
 
         public func text(chinese: Bool) -> String {
@@ -368,7 +372,9 @@ public enum Doctor {
                 + [t.tr("如果系统设置 → 隐私与安全性 → 辅助功能里 AllInOneIME 已经打开，先关掉再打开（macOS 可能还留着上一个版本的权限）",
                         "If AllInOneIME is already on in System Settings → Privacy & Security → Accessibility, turn it off and on again (macOS can keep the permission for the previous version)")]
             out.append(Finding(area: .permissions, status: .warning, title: t.tr("辅助功能权限没有允许", "Accessibility isn't allowed"),
-                               detail: detail.joined(separator: "\n"), fix: .openPrivacy(.accessibility)))
+                               detail: detail.joined(separator: "\n"), fix: .openPrivacy(.accessibility),
+                               summary: t.tr("没有它，一些功能不能完全正常；系统设置里已经打开的话，先关掉再打开。",
+                                             "Some features don't fully work without it; if it's already on in System Settings, turn it off and on again.")))
         case .unknown: break
         }
         if facts.config?.voiceInput != false {

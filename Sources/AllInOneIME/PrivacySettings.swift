@@ -2,8 +2,9 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Settings → Privacy: sensitive values hidden from the AI before a request is sent (`Redaction`: one switch, and the
-/// user's own words), the apps without AI, what `@agent` takes from Chrome, the recent questions kept, the English
-/// words learned, what else this Mac learned (Learned…), and the install ID the update check sends.
+/// user's own words), the apps without AI, what `@agent` takes from Chrome, the English words learned, what else this
+/// Mac learned (Learned…), and the install ID the update check sends. The recent questions kept are `@question`'s, on
+/// the AI page (owner, 0.7.5).
 struct PrivacySection: View {
     @ObservedObject var model: SettingsModel
     /// The words field, as typed (`SettingsModel.wordsField`): saved on Return, when it or the window loses the focus,
@@ -73,30 +74,14 @@ struct PrivacySection: View {
                 titled(.pageContext)
             }
             .settingsRow(.pageContext, shown: model.spot)
-            // The recent @questions (`QuestionHistory`); off forgets them too.
-            Toggle(isOn: Binding(get: { model.config.rememberQuestions }, set: { model.setRememberQuestions($0) })) {
-                titled(SettingsSpot.rememberQuestions.title,
-                       model.triggered(tr("@question 后面不打字就列出最近 \(QuestionHistory.limit) 个问题和答案；关掉会忘掉它们。",
-                                          "@question with nothing after it lists your last \(QuestionHistory.limit) questions and their answers; turning it off forgets them.")))
-            }
-            .settingsRow(.rememberQuestions, shown: model.spot)
-            HStack {
-                Text(model.recentQuestions == 0 ? tr("没有保存的问题。", "No questions saved.")
-                     : model.recentQuestions == 1 ? tr("保存了 1 个问题。", "1 saved question.")
-                     : tr("保存了 \(model.recentQuestions) 个问题。", "\(model.recentQuestions) saved questions."))
-                    .font(.caption).foregroundStyle(.secondary)
-                Spacer()
-                Button(tr("忘掉（\(model.recentQuestions)）", "Forget (\(model.recentQuestions))")) { model.clearRecentQuestions() }
-                    .disabled(model.recentQuestions == 0)
-            }
             // The words themselves are in the English chip (Chinese's without English), General → Input languages.
             Toggle(isOn: $model.config.learnsEnglishWords) {
                 titled(.learnEnglishWords)
             }
             .settingsRow(.learnEnglishWords, shown: model.spot)
             // What this Mac learned (Settings v2, 3.2: apps' starting inputs, where autocomplete stopped, where typos
-            // couldn't be fixed, the rows picked, the models that refuse a temperature), in a sheet: a row each with
-            // Forget, and Forget All.
+            // couldn't be fixed, where a result didn't take the selection's place, the rows picked, the models that refuse
+            // a temperature), in a sheet: a row each with Forget, and Forget All.
             LearnedRow(model: model)
         } header: {
             SectionTitle(tr("记住和学习", "Remembered and Learned"), icon: SettingsPage.privacy.icon)

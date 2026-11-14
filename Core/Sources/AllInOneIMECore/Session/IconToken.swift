@@ -12,16 +12,16 @@ public struct IconToken: Equatable, Sendable {
     /// The core's own icons, by what they stand for. A shell maps each to its icon set; on Apple platforms they are SF
     /// Symbols (`appleSymbol`). The names (`rawValue`) are the list a shell's mapping goes by:
     ///
-    /// - the built-in commands: `improve`, `translate`, `question`, `reply`, `agent`, `open`, `read`, `note`,
-    ///   `reminder`, `python`, `javascript`, `webSearch`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`,
-    ///   `stats`, and `command` for one without an icon of its own;
+    /// - the built-in commands: `improve`, `translate`, `question`, `reply`, `agent`, `open`, `note`, `reminder`,
+    ///   `python`, `javascript`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`, `stats`, and `command` for
+    ///   one without an icon of its own;
     /// - plugins and custom commands, by what they are: `plugin`, `link`, `prompt`, `run`, `terminal`, `snippet`;
     /// - script extensions, by what they do: `scriptInsert`, `scriptShow`, `scriptList`, `scriptSilent`,
     ///   `scriptBackground`, `scriptStatus` (one with a status line);
     /// - a background task's state (`@tasks`): `done`, `working`, `needsYou`;
     /// - an image (clipboard history): `image`.
     public enum Builtin: String, CaseIterable, Sendable {
-        case improve, translate, question, reply, agent, open, read, note, reminder, python, javascript, webSearch, tasks
+        case improve, translate, question, reply, agent, open, note, reminder, python, javascript, tasks
         case settings, message, reportIssue, stats, command
         case plugin, link, prompt, run, terminal, snippet
         case scriptInsert, scriptShow, scriptList, scriptSilent, scriptBackground, scriptStatus
@@ -38,12 +38,10 @@ public struct IconToken: Equatable, Sendable {
             case .reply: return "arrowshape.turn.up.left.fill"
             case .agent: return "sparkles"
             case .open: return "magnifyingglass"
-            case .read: return "doc.richtext.fill"
             case .note: return "note.text"
             case .reminder: return "bell.fill"
             case .python, .run: return "chevron.left.forwardslash.chevron.right"
             case .javascript: return "curlybraces"
-            case .webSearch: return "globe"
             case .tasks: return "checklist"
             case .settings: return "gearshape.fill"
             case .message: return "message.fill"
@@ -153,12 +151,10 @@ extension IconToken {
         case .reply: return IconToken(.reply, color: .green)
         case .agent: return IconToken(.agent, color: .orange)
         case .open: return IconToken(.open, color: .gray)
-        case .read: return IconToken(.read, color: .teal)
         case .note: return IconToken(.note, color: .yellow)
         case .reminder: return IconToken(.reminder, color: .red)
         case .py: return IconToken(.python, color: .blue)
         case .js: return IconToken(.javascript, color: .yellow)
-        case .webSearch: return IconToken(.webSearch, color: .cyan)
         case .tasks: return IconToken(.tasks, color: .green)
         case .settings: return IconToken(.settings, color: .gray)
         case .imessage: return IconToken(.message, color: .green)

@@ -317,6 +317,9 @@ enum SettingsPageImages {
         model.config.notifiesUpdates = false
         render(.general, "restore-default-general")
         render(.about, "restore-default-about")
+        // …and the one whose switch went in 0.7.5 (learned per app now): "Use the selected text".
+        model.config.useSelection = false
+        render(.advanced, "restore-default-advanced")
         // What is folded, folded: Suggestions' More… (no app with its own Insert) and Commands' Folders and sources… (no
         // source); Words to hide gone with hiding off.
         model.config = saved

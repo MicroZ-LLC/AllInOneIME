@@ -175,7 +175,6 @@ extension SessionServices {
         services.startScriptInBackground = { script, arguments, prepare, say in
             MainActor.assumeIsolated { ScriptTasks.shared.startInBackground(script, arguments: arguments, prepare: prepare, say: say) }
         }
-        services.loadSearchKey = { WebSearch.loadKey() }
         services.takeRenameNotice = { BuiltinRenames.takeNotice($0) }
         services.noteDestination = { settings in MainActor.assumeIsolated { NoteSaving.destination(settings) } }
         services.parseReminder = { ReminderParser().parse($0, now: Date()) }

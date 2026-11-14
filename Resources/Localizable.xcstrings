@@ -1800,7 +1800,7 @@
       }
     },
     "@question with nothing after it lists your last %@ questions and their answers; turning it off forgets them." : {
-      "comment" : "@question 后面不打字就列出最近 %@ 个问题和答案；关掉会忘掉它们。 — Sources/AllInOneIME/PrivacySettings.swift",
+      "comment" : "@question 后面不打字就列出最近 %@ 个问题和答案；关掉会忘掉它们。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -2932,7 +2932,7 @@
       }
     },
     "%@ saved questions." : {
-      "comment" : "保存了 %@ 个问题。 — Sources/AllInOneIME/PrivacySettings.swift",
+      "comment" : "保存了 %@ 个问题。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3495,6 +3495,53 @@
         }
       }
     },
+    "⌘⏎ in an @question conversation continues it in one of these; the first is the default." : {
+      "comment" : "@question 对话里按 ⌘⏎，到这些地方接着聊；第一个是默认。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘⏎ in einem @question-Gespräch führt es an einem dieser Orte weiter; der erste ist der Standard."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘⏎ en una conversación de @question la continúa en uno de estos; el primero es el predeterminado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘⏎ dans une conversation @question la poursuit dans l’un de ceux-ci ; le premier est celui par défaut."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question の会話で ⌘⏎ を押すと、これらのどれかで続けます。最初のものがデフォルトです。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question 대화에서 ⌘⏎를 누르면 이 중 한 곳에서 이어 갑니다. 첫 번째가 기본입니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "⌘⏎ numa conversa do @question a continua em um destes; o primeiro é o padrão."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "@question 對話裡按 ⌘⏎，到這些地方接著聊；第一個是預設。"
+          }
+        }
+      }
+    },
     "✓ Connection works: " : {
       "comment" : "✓ 连接正常： — Sources/AllInOneIME/AssistantPage.swift",
       "localizations" : {
@@ -3872,7 +3919,7 @@
       }
     },
     "1 saved question." : {
-      "comment" : "保存了 1 个问题。 — Sources/AllInOneIME/PrivacySettings.swift",
+      "comment" : "保存了 1 个问题。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4438,8 +4485,56 @@
         }
       }
     },
+    "A word you pick from one is learned like any other, and syncs with the learned words." : {
+      "comment" : "从词库里选过的词和别的词一样学进拼音，随学到的词同步。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein daraus gewähltes Wort wird wie jedes andere gelernt und mit den gelernten Wörtern synchronisiert."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Una palabra que eliges de uno se aprende como cualquier otra y se sincroniza con las palabras aprendidas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mot choisi dans l’un d’eux est appris comme les autres et se synchronise avec les mots appris."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辞書から選んだ単語もほかと同じように学習され、学習した単語と一緒に同期されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사전에서 고른 단어도 다른 단어처럼 학습되고, 학습한 단어와 함께 동기화됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma palavra escolhida de um deles é aprendida como qualquer outra e sincroniza com as palavras aprendidas."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從詞庫裡選過的詞和別的詞一樣學進拼音，隨學到的詞同步。"
+          }
+        }
+      }
+    },
     "A word you pick from one is learned like any other, into pinyin's learned words, which sync to your other Macs when Sync through iCloud has Learned words on." : {
       "comment" : "从词库里选过的词和别的词一样会学进拼音学到的词；开了「通过 iCloud 同步」的「学到的词」时，会同步到你的其他 Mac。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5292,6 +5387,7 @@
     },
     "After %@ rounds of @question (or ⌘⏎ any time), ⌘1, ⌘2 … take the conversation there, the first by default." : {
       "comment" : "@question 聊满 %@ 轮（或随时按 ⌘⏎）后，⌘1、⌘2… 把对话带到这些地方接着聊，第一个是默认。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -5526,49 +5622,49 @@
         }
       }
     },
-    "AI" : {
-      "comment" : "AI — Sources/AllInOneIME/SettingsWindow.swift",
+    "AI Commands" : {
+      "comment" : "AI 命令 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "KI"
+            "value" : "KI-Befehle"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "IA"
+            "value" : "Comandos de IA"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "IA"
+            "value" : "Commandes IA"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI"
+            "value" : "AIコマンド"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI"
+            "value" : "AI 명령"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "IA"
+            "value" : "Comandos de IA"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI"
+            "value" : "AI 指令"
           }
         }
       }
@@ -11650,6 +11746,53 @@
         }
       }
     },
+    "Commands typed with text selected work on it; an app that can't take the result back is learned." : {
+      "comment" : "选中文字后打的命令处理选中的文字；结果放不回去的 App 会被记住。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehle, die du bei ausgewähltem Text tippst, wirken auf ihn; eine App, die das Ergebnis nicht zurücknimmt, wird gemerkt."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los comandos que escribes con texto seleccionado actúan sobre él; se aprende qué apps no aceptan el resultado."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les commandes tapées avec du texte sélectionné s’appliquent à celui-ci ; une app qui ne reprend pas le résultat est retenue."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "テキストを選択した状態で入力したコマンドはそのテキストを処理します。結果を戻せないAppは記憶されます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "텍스트를 선택한 채 입력한 명령은 그 텍스트를 처리합니다. 결과를 되돌려 넣지 못하는 앱은 기억됩니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos digitados com texto selecionado atuam sobre ele; um app que não aceita o resultado de volta é aprendido."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取文字後打的指令處理選取的文字；結果放不回去的 App 會被記住。"
+          }
+        }
+      }
+    },
     "Commit" : {
       "comment" : "提交 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -12069,6 +12212,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在終端機裡接著聊"
+          }
+        }
+      }
+    },
+    "Copies stay on this Mac, never synced or sent to the AI; removing one keeps the words learned." : {
+      "comment" : "副本只留在这台 Mac 上，不同步也不发给 AI；移除词库后，学到的词保留。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Kopien bleiben auf diesem Mac, werden nie synchronisiert oder an die KI gesendet; beim Entfernen bleiben gelernte Wörter erhalten."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las copias se quedan en este Mac, sin sincronizarse ni enviarse a la IA; al quitar uno se conservan las palabras aprendidas."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les copies restent sur ce Mac, jamais synchronisées ni envoyées à l’IA ; en retirer un garde les mots appris."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コピーはこのMacにだけ残り、同期もAIへの送信もされません。辞書を削除しても学習した単語は残ります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사본은 이 Mac에만 남고 동기화되거나 AI에 보내지지 않습니다. 사전을 제거해도 학습한 단어는 남습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As cópias ficam neste Mac, nunca sincronizadas nem enviadas à IA; remover um mantém as palavras aprendidas."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "副本只留在這台 Mac 上，不同步也不傳給 AI；移除詞庫後，學到的詞保留。"
           }
         }
       }
@@ -14385,8 +14575,56 @@
         }
       }
     },
+    "Each change compiles pinyin's dictionary again, pausing Chinese input for a minute or so." : {
+      "comment" : "每次改动都会重新编译拼音词库，中文输入暂停一分钟左右。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jede Änderung kompiliert das Pinyin-Wörterbuch neu; die chinesische Eingabe pausiert etwa eine Minute."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada cambio vuelve a compilar el diccionario de pinyin y pausa la escritura en chino un minuto o así."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chaque changement recompile le dictionnaire du pinyin, ce qui suspend la saisie du chinois une minute environ."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更のたびにピンインの辞書を再コンパイルし、中国語入力が1分ほど止まります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꿀 때마다 병음 사전을 다시 컴파일하며, 중국어 입력이 1분쯤 멈춥니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cada mudança compila o dicionário do pinyin de novo, pausando a digitação em chinês por cerca de um minuto."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每次改動都會重新編譯拼音詞庫，中文輸入暫停一分鐘左右。"
+          }
+        }
+      }
+    },
     "Each import, update or removal compiles pinyin's dictionary again (all of rime-ice's words with yours), which can take a minute or so; Chinese input pauses until it's done." : {
       "comment" : "每次导入、更新或移除都会重新编译拼音词库（雾凇拼音的全部词条加上你的），可能要一分钟左右；这期间暂时打不了中文。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14758,6 +14996,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只有開啟「進階資料保護」時才是端對端加密；關閉後，已同步的內容仍會留在 iCloud 中，直到你移除。"
+          }
+        }
+      }
+    },
+    "End-to-end encrypted through iCloud Keychain, which needs Passwords & Keychain on in System Settings → Apple Account → iCloud." : {
+      "comment" : "经过 iCloud 钥匙串，端到端加密；需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ende-zu-Ende-verschlüsselt über den iCloud-Schlüsselbund; dafür muss „Passwörter & Schlüsselbund“ unter Systemeinstellungen → Apple Account → iCloud an sein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cifrado de extremo a extremo con el llavero de iCloud, que necesita Contraseñas y llavero activado en Ajustes del Sistema → Cuenta de Apple → iCloud."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chiffré de bout en bout via le trousseau iCloud, qui nécessite Mots de passe et trousseau activé dans Réglages Système → Compte Apple → iCloud."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloudキーチェーンを通してエンドツーエンドで暗号化されます。システム設定 → Appleアカウント → iCloud で「パスワードとキーチェーン」をオンにする必要があります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud 키체인을 통해 종단 간 암호화됩니다. 시스템 설정 → Apple 계정 → iCloud에서 ‘암호 및 키체인’을 켜야 합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Criptografado de ponta a ponta pelas Chaves do iCloud, que precisam de Senhas e Chaves ativado em Ajustes do Sistema → Conta Apple → iCloud."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "經過 iCloud 鑰匙圈，端對端加密；需要在 系統設定 → Apple 帳號 → iCloud 裡打開「密碼與鑰匙圈」。"
           }
         }
       }
@@ -15524,7 +15809,7 @@
       }
     },
     "Forget (%@)" : {
-      "comment" : "忘掉（%@） — Sources/AllInOneIME/PrivacySettings.swift",
+      "comment" : "忘掉（%@） — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -15951,6 +16236,7 @@
     },
     "Get an API Key…" : {
       "comment" : "获取 API key… — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -16617,6 +16903,7 @@
     },
     "In Chrome, @agent and @reply (with no message selected) also send the address, your field and what's visible on screen, never a password field; needs Accessibility." : {
       "comment" : "在 Chrome 里，@agent 和 @reply（没有选中消息时）也会带上网址、你所在的输入框和屏幕上看得到的内容，不读密码框；需要「辅助功能」权限。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -21207,7 +21494,7 @@
       }
     },
     "No questions saved." : {
-      "comment" : "没有保存的问题。 — Sources/AllInOneIME/PrivacySettings.swift",
+      "comment" : "没有保存的问题。 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22149,6 +22436,7 @@
     },
     "Not recording: macOS asks before each read of the clipboard. In Privacy & Security → Paste from Other Apps, set AllInOneIME to Allow; if it isn't listed yet, press %@ in a text field once and allow it when macOS asks." : {
       "comment" : "没在记录：macOS 每次读剪贴板都要问。在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」；还没列出它的话，先在输入框里按一次 %@，macOS 问的时候允许。 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -22190,6 +22478,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒在記錄：macOS 每次讀剪貼簿都要問。在「隱私權與安全性」→「從其他App貼上」裡把 AllInOneIME 設成「允許」；還沒列出它的話，先在輸入框裡按一次 %@，macOS 問的時候允許。"
+          }
+        }
+      }
+    },
+    "Not recording: set AllInOneIME to Allow in Privacy & Security → Paste from Other Apps (not listed yet? press %@ in a text field once)." : {
+      "comment" : "没在记录：在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」（没列出的话，先在输入框里按一次 %@）。 — Sources/AllInOneIME/ClipboardHistorySettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Aufzeichnung: Stelle AllInOneIME unter Datenschutz & Sicherheit → Aus anderen Apps einsetzen auf „Erlauben“ (noch nicht aufgeführt? Drücke einmal %@ in einem Textfeld)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se está registrando: pon AllInOneIME en Permitir en Privacidad y seguridad → Pegar desde otras apps (¿aún no aparece? pulsa %@ una vez en un campo de texto)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas d’enregistrement : réglez AllInOneIME sur Autoriser dans Confidentialité et sécurité → Coller depuis d’autres apps (pas encore dans la liste ? appuyez une fois sur %@ dans un champ de texte)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録していません：「プライバシーとセキュリティ」→「ほかのAppからペースト」で AllInOneIME を「許可」にしてください（まだ表示されないときは、テキスト欄で %@ を一度押してください）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기록하지 않는 중: ‘개인정보 보호 및 보안’ → ‘다른 앱에서 붙여넣기’에서 AllInOneIME를 ‘허용’으로 설정하세요(아직 목록에 없으면 텍스트 필드에서 %@를 한 번 누르세요)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem registrar: defina AllInOneIME como Permitir em Privacidade e Segurança → Colar de Outros Apps (ainda não aparece? pressione %@ uma vez num campo de texto)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒在記錄：在「隱私權與安全性」→「從其他 App 貼上」裡把 AllInOneIME 設成「允許」（沒列出的話，先在輸入框裡按一次 %@）。"
           }
         }
       }
@@ -22848,6 +23183,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有需要修正的項目"
+          }
+        }
+      }
+    },
+    "Nothing updates by itself: new commits show here once a day, and Update only fast-forwards, running no hooks." : {
+      "comment" : "不会自动更新：每天检查一次，新提交在这里提示；「更新」只做快进，不运行钩子。 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nichts aktualisiert sich von selbst: Neue Commits erscheinen hier einmal täglich, und „Aktualisieren“ spult nur vor, ohne Hooks auszuführen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada se actualiza solo: los commits nuevos aparecen aquí una vez al día, y Actualizar solo avanza (fast-forward), sin ejecutar hooks."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rien ne se met à jour tout seul : les nouveaux commits s’affichent ici une fois par jour, et Mettre à jour ne fait qu’avancer, sans exécuter de hooks."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動では更新しません。新しいコミットは1日1回ここに表示され、「アップデート」は早送りのみでフックは実行しません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "저절로 업데이트되지 않습니다. 새 커밋은 하루에 한 번 여기에 표시되고, ‘업데이트’는 빨리 감기만 하며 훅을 실행하지 않습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nada se atualiza sozinho: novos commits aparecem aqui uma vez por dia, e Atualizar só avança (fast-forward), sem executar hooks."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不會自動更新：每天檢查一次，新提交在這裡提示；「更新」只做快轉，不執行鉤子。"
           }
         }
       }
@@ -24704,6 +25086,7 @@
     },
     "Paste a Brave Search API key" : {
       "comment" : "粘贴 Brave Search 的 API key — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26266,6 +26649,7 @@
     },
     "Questions (@question)" : {
       "comment" : "提问（@question） — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27681,6 +28065,7 @@
     },
     "Remove Hidden Words from iCloud…" : {
       "comment" : "从 iCloud 移除隐藏的词… — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27775,6 +28160,7 @@
     },
     "Remove Recent Questions from iCloud…" : {
       "comment" : "从 iCloud 移除最近的问题… — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -27916,6 +28302,7 @@
     },
     "Remove the hidden words from iCloud?" : {
       "comment" : "从 iCloud 移除隐藏的词？ — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28247,6 +28634,7 @@
     },
     "Remove the recent questions from iCloud?" : {
       "comment" : "从 iCloud 移除最近的问题？ — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28294,6 +28682,7 @@
     },
     "Remove the search API key from all your Macs?" : {
       "comment" : "从你所有的 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28389,6 +28778,7 @@
     },
     "Remove the search API key from this Mac?" : {
       "comment" : "从这台 Mac 上删除搜索 API key？ — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -28813,6 +29203,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "刪掉的候選詞"
+          }
+        }
+      }
+    },
+    "Removed from iCloud Drive: your settings, custom commands and jargon, learned words, hidden words and recent questions (the AllInOneIME folder goes to the Trash), and this Mac stops syncing; everything on this Mac stays. Macs that still sync put theirs back: turn it off there first." : {
+      "comment" : "这些会从 iCloud 云盘移除：设置、自定义命令和黑话库、学到的词、隐藏的词和最近的问题（AllInOneIME 文件夹移到废纸篓），这台 Mac 也不再同步；这台 Mac 上的都保留。还在同步的 Mac 会把它们的再放回去：先在那些 Mac 上关掉。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aus iCloud Drive entfernt werden: deine Einstellungen, eigenen Befehle und dein Jargon, gelernte Wörter, verborgene Wörter und letzte Fragen (der Ordner AllInOneIME kommt in den Papierkorb), und dieser Mac synchronisiert nicht mehr; alles auf diesem Mac bleibt. Macs, die noch synchronisieren, stellen ihres wieder her: schalte es dort zuerst aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se eliminan de iCloud Drive: tus ajustes, comandos personalizados y jerga, palabras aprendidas, palabras ocultas y preguntas recientes (la carpeta AllInOneIME va a la Papelera), y este Mac deja de sincronizar; todo lo de este Mac se queda. Los Mac que aún sincronizan vuelven a subir lo suyo: desactívalo antes en ellos."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Supprimés d’iCloud Drive : vos réglages, commandes personnalisées et jargon, mots appris, mots masqués et questions récentes (le dossier AllInOneIME va à la Corbeille), et ce Mac arrête de synchroniser ; tout ce qui est sur ce Mac reste. Les Mac qui synchronisent encore remettent les leurs : désactivez-la d’abord sur ces Mac."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Driveから削除されるもの：設定、カスタムコマンドと用語集、学習した単語、隠す単語、最近の質問（AllInOneIME フォルダはゴミ箱へ）。このMacは同期をやめ、このMac上のものはすべて残ります。まだ同期しているMacは自分のものを戻すので、先にそちらでオフにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "iCloud Drive에서 제거되는 항목: 설정, 사용자 명령과 전문 용어, 학습한 단어, 숨긴 단어, 최근 질문(AllInOneIME 폴더는 휴지통으로 이동). 이 Mac은 동기화를 멈추며, 이 Mac에 있는 것은 모두 남습니다. 아직 동기화하는 Mac은 자기 것을 다시 올리므로 그쪽에서 먼저 끄세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Removidos do iCloud Drive: seus ajustes, comandos personalizados e jargão, palavras aprendidas, palavras ocultas e perguntas recentes (a pasta AllInOneIME vai para o Lixo), e este Mac para de sincronizar; tudo neste Mac fica. Macs que ainda sincronizam colocam os seus de volta: desative neles primeiro."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些會從 iCloud 雲碟移除：設定、自訂指令和黑話庫、學到的詞、隱藏的詞和最近的問題（AllInOneIME 檔案夾移到垃圾桶），這台 Mac 也不再同步；這台 Mac 上的都保留。還在同步的 Mac 會把它們的再放回去：先在那些 Mac 上關掉。"
           }
         }
       }
@@ -31605,6 +32042,7 @@
     },
     "ssh://, git@host:path, https:// and file:// addresses. Nothing updates by itself: sources are checked once a day and new commits are shown here. Update only fast-forwards and runs no hooks; a source pinned to a tag or commit isn't checked." : {
       "comment" : "支持 ssh://、git@主机:路径、https:// 和 file:// 地址。不会自动更新：每天检查一次，有新提交时在这里提示。更新只做快进，不运行任何钩子；固定（pin）到标签或提交的来源不检查。 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -32407,6 +32845,7 @@
     },
     "Supplements the built-in vocabulary. Files must contain their own text, pinyin codes and optional numeric weights, without other dictionary dependencies. Import the same name again to update its copy; editing the source alone doesn't update it. Copies stay on this Mac, outside iCloud sync and AI context. Learned words are kept when you remove a dictionary." : {
       "comment" : "补充自带词库；文件需直接包含文字、拼音编码和可选的数字权重，不支持依赖其他词库。再次导入相同 name 会更新副本；只修改原文件不会自动更新。副本只留在这台 Mac 上，不通过 iCloud 同步或发给 AI。移除后已学到的词会保留。 — Sources/AllInOneIME/PersonalDictionariesSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -33124,8 +33563,56 @@
         }
       }
     },
+    "The address and what's on screen go along, never a password field; needs Accessibility." : {
+      "comment" : "网址和屏幕上看得到的内容也一起带上，不读密码框；需要「辅助功能」权限。 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Adresse und was auf dem Bildschirm ist, kommen mit, nie ein Passwortfeld; erfordert Bedienungshilfen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "También van la dirección y lo que hay en pantalla, nunca un campo de contraseña; necesita Accesibilidad."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’adresse et ce qui est à l’écran sont joints, jamais un champ de mot de passe ; nécessite l’Accessibilité."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アドレスと画面に見えている内容も一緒に送ります。パスワード欄は読みません。アクセシビリティが必要です。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "주소와 화면에 보이는 내용도 함께 보내며, 암호 필드는 읽지 않습니다. 손쉬운 사용이 필요합니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O endereço e o que está na tela vão junto, nunca um campo de senha; requer Acessibilidade."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網址和螢幕上看得到的內容也一起帶上，不讀密碼框；需要「輔助使用」權限。"
+          }
+        }
+      }
+    },
     "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first." : {
       "comment" : "iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34065,6 +34552,53 @@
         }
       }
     },
+    "The model built into this Mac: free, and nothing leaves the Mac, but smaller than the cloud models (about %@ tokens of context)." : {
+      "comment" : "这台 Mac 自带的模型：免费，文字不离开这台 Mac，但比云端的模型小（上下文约 %@ tokens）。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das in diesen Mac eingebaute Modell: kostenlos, nichts verlässt den Mac, aber kleiner als die Cloud-Modelle (etwa %@ Tokens Kontext)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El modelo integrado en este Mac: gratis y nada sale del Mac, pero más pequeño que los modelos en la nube (unos %@ tokens de contexto)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le modèle intégré à ce Mac : gratuit, rien ne quitte le Mac, mais plus petit que les modèles du cloud (environ %@ tokens de contexte)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このMacに内蔵のモデル：無料で、何もMacの外に出ませんが、クラウドのモデルより小さいです（コンテキストは約 %@ トークン）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에 내장된 모델: 무료이고 아무것도 Mac 밖으로 나가지 않지만, 클라우드 모델보다 작습니다(컨텍스트 약 %@ 토큰)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O modelo embutido neste Mac: grátis e nada sai do Mac, mas menor que os modelos na nuvem (cerca de %@ tokens de contexto)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 內建的模型：免費，文字不離開這台 Mac，但比雲端的模型小（上下文約 %@ tokens）。"
+          }
+        }
+      }
+    },
     "The new input method doesn't start, so it wasn't installed (what was there before is as it was). Please download it again from Releases." : {
       "comment" : "新的输入法启动不了，所以没有装上（原来的保持不变）。请从 Releases 重新下载。 — Sources/AllInOneIMEInstaller/Installer.swift",
       "localizations" : {
@@ -34868,6 +35402,7 @@
     },
     "They're deleted from iCloud Drive and this Mac stops syncing them; the questions on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back." : {
       "comment" : "它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的问题保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -34915,6 +35450,7 @@
     },
     "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back." : {
       "comment" : "它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35527,6 +36063,7 @@
     },
     "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself." : {
       "comment" : "经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35763,6 +36300,7 @@
     },
     "Translate and Rewrite" : {
       "comment" : "翻译和改写 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36326,8 +36864,56 @@
         }
       }
     },
+    "Type a few letters and the English words they start (yours, your jargon list's and %@ common ones) come up among pinyin's candidates: bedr → Bedrock." : {
+      "comment" : "打几个字母，以它们开头的英文词（你的、黑话库里的和 %@ 个常用词）就出现在拼音的候选里：bedr → Bedrock。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe ein paar Buchstaben, und die englischen Wörter, die damit beginnen (deine, die aus deinem Jargon und %@ gängige), erscheinen unter den Pinyin-Kandidaten: bedr → Bedrock."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escribe unas letras y las palabras en inglés que empiezan así (las tuyas, las de tu jerga y %@ comunes) aparecen entre los candidatos de pinyin: bedr → Bedrock."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez quelques lettres et les mots anglais qui commencent ainsi (les vôtres, ceux de votre jargon et %@ courants) apparaissent parmi les candidats du pinyin : bedr → Bedrock."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "数文字入力すると、それで始まる英単語（あなたの単語、用語集の単語、よく使われる %@ 語）がピンインの候補に出てきます：bedr → Bedrock。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "글자 몇 개를 입력하면 그 글자로 시작하는 영어 단어(내 단어, 전문 용어 목록의 단어, 자주 쓰는 %@개)가 병음 후보에 나타납니다: bedr → Bedrock."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite algumas letras e as palavras em inglês que começam assim (as suas, as do seu jargão e %@ comuns) aparecem entre os candidatos do pinyin: bedr → Bedrock."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打幾個字母，以它們開頭的英文詞（你的、黑話庫裡的和 %@ 個常用詞）就出現在拼音的候選裡：bedr → Bedrock。"
+          }
+        }
+      }
+    },
     "Type a few letters and the English words they start come up among pinyin's candidates: bedr → Bedrock. Besides yours, the English terms of your jargon list and %@ common product and technical words (Bedrock, SageMaker…) come up too; rime-ice's own English words are as before." : {
       "comment" : "打几个字母，以它们开头的英文词就出现在拼音的候选里，比如 bedr → Bedrock。除了你的，黑话库里的英文词和 %@ 个常用的产品和技术词（Bedrock、SageMaker…）也会出现；rime-ice 自带的英文词照旧。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36373,8 +36959,56 @@
         }
       }
     },
+    "Type it as it sounds in Latin letters for Devanagari (namaste → नमस्ते): Space puts in the first spelling, a digit another." : {
+      "comment" : "用拉丁字母按发音打出天城文（namaste → नमस्ते）：空格上屏第一种写法，数字选别的。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippe es, wie es klingt, in lateinischen Buchstaben für Devanagari (namaste → नमस्ते): Leertaste setzt die erste Schreibweise ein, eine Ziffer eine andere."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escríbelo como suena en letras latinas para obtener devanagari (namaste → नमस्ते): Espacio pone la primera forma, un dígito otra."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tapez-le comme il se prononce en lettres latines pour obtenir du devanagari (namaste → नमस्ते) : Espace insère la première graphie, un chiffre une autre."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "発音どおりにラテン文字で入力するとデーヴァナーガリーになります（namaste → नमस्ते）。スペースで最初の綴りを、数字でほかの綴りを入れます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "소리 나는 대로 라틴 문자로 입력하면 데바나가리가 됩니다(namaste → नमस्ते). 스페이스는 첫 번째 표기를, 숫자는 다른 표기를 넣습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digite como soa em letras latinas para obter devanágari (namaste → नमस्ते): Espaço insere a primeira grafia, um dígito outra."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "用拉丁字母按發音打出天城文（namaste → नमस्ते）：空格上屏第一種寫法，數字選別的。"
+          }
+        }
+      }
+    },
     "Type it as it sounds in Latin letters, get Devanagari: namaste → नमस्ते. Common words are spelled from a list; for others pick a spelling: Space inserts the first, a digit another, ⏎ the letters as typed, . the danda (।)." : {
       "comment" : "用拉丁字母按发音打，出天城文：namaste → नमस्ते。常用词按词表拼写，其他词可以从几种写法里选：空格上屏第一个，数字选别的，⏎ 上屏原样的字母，. 打出 । — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37654,6 +38288,7 @@
     },
     "Uses the model built into this Mac (macOS 26 and later): no API key, no cost, and nothing leaves the Mac. It is a small model: about %@ tokens of context, fewer languages, and results below the cloud models'." : {
       "comment" : "用这台 Mac 自带的模型（macOS 26 起）：不用 API key，不花钱，文字不离开这台 Mac。模型较小：上下文约 %@ tokens，支持的语言少一些，效果不如云端的模型。 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -37890,6 +38525,7 @@
     },
     "Waiting for iCloud…: removed once settings.json is downloaded." : {
       "comment" : "正在等 iCloud…：settings.json 下载下来后就移除。 — Sources/AllInOneIME/ICloudSyncSettings.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

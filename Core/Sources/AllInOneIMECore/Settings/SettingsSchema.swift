@@ -84,12 +84,10 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "apps", title: tr("按 App 设置", "Apps"), fields: apps()),
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
             SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
-                                     footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
-                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
+                                     footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp），写法见 docs/extensions.md。",
+                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp); see docs/extensions.md.")
                                                 .replacingOccurrences(of: "@", with: config.commandTrigger),
                                      fields: scriptExtensions()),
-            SettingsDocument.Section(id: "search", title: tr("网页搜索（@search）", "Web Search (@search)")
-                                        .replacingOccurrences(of: "@", with: config.commandTrigger), fields: search()),
             SettingsDocument.Section(id: "notes", title: tr("笔记（@note）", "Notes (@note)")
                                         .replacingOccurrences(of: "@", with: config.commandTrigger), fields: notes()),
             SettingsDocument.Section(id: "commands", title: tr("自定义 @ 命令", "Custom @ Commands")
@@ -254,14 +252,13 @@ struct SettingsSchema {
                           "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result."),
                        config.typeOutMistakes), to: &fields) { store.config.typeOutMistakes = Self.bool($0) }
         }
+        // Windows' switch: the Mac has none (owner, 0.7.5), it learns the apps whose field doesn't take a result in place
+        // of the selection (`LearnedStore.selectionOff`); its `useSelection` off in the config still turns it off.
         add(toggle("useSelection", tr("使用选中的文字", "Use the selected text"),
-                   terms.device == .mac
-                       ? tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。",
-                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.")
-                       : tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。",
-                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.",
-                            key: "useSelection.help.windows"),
-                   config.useSelection), to: &fields) { store.config.useSelection = Self.bool($0) }
+                   tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。",
+                      "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.",
+                      key: "useSelection.help.windows"),
+                   config.useSelection, platforms: [.windows]), to: &fields) { store.config.useSelection = Self.bool($0) }
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
         add(suggestionsSwitch(), to: &fields) { store.config.suggestions = Self.bool($0) ? nil : false }
@@ -383,8 +380,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
                    terms.device == .mac
-                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
-                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
+                       ? tr("同一个英文词打两次，以后就出现在拼音的候选里；需要辅助功能权限，用来避开密码框。",
+                            "An English word you type twice comes up among pinyin's candidates; it needs Accessibility, to skip password fields.")
                        : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
                             "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
@@ -676,26 +673,6 @@ struct SettingsSchema {
             }
         }
         add(browse, to: &fields)
-        return fields
-    }
-
-    // MARK: Web search
-
-    mutating func search() -> [Field] {
-        var fields: [Field] = []
-        guard Command.webSearchOffered else { return fields }
-        let source = WebSearch.keySource()
-        let state = KeyState(source, ending: APIKeys.keyEnding(account: WebSearch.backend.keyAccount))
-        var key = secret("search.key", "API key",
-                         UIText.triggered(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
-                                + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
-                            "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
-                                + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell.")),
-                         state: state, missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain)
-        if state.isSet { key.actions?.append(SettingsAction.test) }
-        key.status = [key.status, outcome("search.key")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
-        add(key, to: &fields)
         return fields
     }
 

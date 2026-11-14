@@ -4,7 +4,7 @@ import Testing
 
 /// The characters Chinese is typed in (`ChineseCharacters`, `Config.chineseCharacters`): the setting and the system's
 /// languages when it isn't set, Rime's patch, and Chinese as the language typed everywhere else (the prompts, Translate as
-/// You Type, `@reply`, screen text, web search, `@remind`).
+/// You Type, `@reply`, screen text, `@remind`).
 @Suite(MemorySecrets())
 struct ChineseCharactersTests {
     struct Languages: UserLanguages { var preferred: [String] }
@@ -553,22 +553,6 @@ struct ChineseCharactersTests {
         #expect(ScreenText.languages(config(.hongkong)).first == "zh-Hant")
         #expect(ScreenText.languages(config(.simplified)).first == "zh-Hans")
         #expect(!ScreenText.languages(config(.taiwan)).contains("zh-Hant-TW"))
-    }
-
-    @Test func webSearchAsksForTraditionalPages() throws {
-        func items(_ backend: any SearchBackend, _ query: String) throws -> [String: String] {
-            let request = try backend.request(for: query, count: 5, detailed: false, key: "k")
-            let url = try #require(request.url)
-            return Dictionary(uniqueKeysWithValues: (URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems ?? [])
-                .map { ($0.name, $0.value ?? "") })
-        }
-        #expect(try items(WebSearch.backend(chinese: .taiwan), "蘋果發表會")["search_lang"] == "zh-hant")
-        #expect(try items(WebSearch.backend(chinese: .hongkong), "蘋果")["search_lang"] == "zh-hant")
-        #expect(try items(WebSearch.backend(chinese: .simplified), "苹果")["search_lang"] == "zh-hans")
-        #expect(try items(WebSearch.backend(chinese: .taiwan), "apple event")["search_lang"] == nil)
-        let place = SessionTasks.Place(app: nil, terminal: false, pastesInTerminal: false, improveTranslates: false,
-                                       pluginLanguage: .chinese, chinese: .taiwan)
-        #expect(place.chinese == .taiwan)
     }
 
     /// `@remind` reads Traditional characters as it reads Simplified ones; the title keeps them.

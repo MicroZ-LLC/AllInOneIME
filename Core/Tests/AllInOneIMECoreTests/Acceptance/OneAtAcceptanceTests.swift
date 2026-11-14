@@ -145,8 +145,7 @@ struct OneAtAcceptanceTests {
         let memory = Memory()
         /// The command usage as kept (`SessionServices.loadCommandUsage`, `saveCommandUsage`).
         let usage = Locked(initialState: CommandUsage())
-        /// What reached outside the fields but the AI: a page read, a script, an agent, a terminal, a search key, the
-        /// contacts.
+        /// What reached outside the fields but the AI: a page read, a script, an agent, a terminal, the contacts.
         let outside = Locked<[String]>(initialState: [])
         let reminders = Locked<[ReminderDraft]>(initialState: [])
         let notes = Locked<[String]>(initialState: [])
@@ -228,10 +227,6 @@ struct OneAtAcceptanceTests {
                 return "agent"
             }
             services.runInTerminal = { _, _ in world.outside.withLock { $0.append("terminal") } }
-            services.loadSearchKey = {
-                world.outside.withLock { $0.append("search key") }
-                return nil
-            }
             services.loadContacts = {
                 world.outside.withLock { $0.append("contacts") }
                 return nil

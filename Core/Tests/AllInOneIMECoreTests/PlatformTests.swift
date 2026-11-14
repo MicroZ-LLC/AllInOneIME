@@ -37,7 +37,6 @@ struct PlatformTests {
 
     @Test func withoutTheSystemsHelpers() throws {
         #expect(RulesOnlyDateDetector().dates(in: "明天下午3点开会").isEmpty)
-        #expect(UnsupportedPDFTextExtractor().text(ofPDF: Data("%PDF-1.4".utf8)) == nil)
         #expect(throws: InlineCodeError("JavaScript is not available")) {
             try InlineCode.runJavaScript("1 + 1", print: { _ in }, warn: { _ in }, engine: UnsupportedScriptEngine())
         }

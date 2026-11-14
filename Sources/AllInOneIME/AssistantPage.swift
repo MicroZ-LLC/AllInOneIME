@@ -622,7 +622,7 @@ struct ProblemBanners: View {
         if !shown.isEmpty {
             Section {
                 ForEach(shown, id: \.offset) { index, finding in
-                    FindingRow(assistant: assistant, finding: finding, index: index)
+                    FindingRow(assistant: assistant, finding: finding, index: index, brief: true)
                         .listRowBackground(TroubleshootSheet.color(finding.status).opacity(0.1))
                 }
             }
@@ -631,11 +631,13 @@ struct ProblemBanners: View {
 }
 
 /// A finding with its index among all of them (what its button and Copied go by): its status icon, the title with the
-/// detail under it, and its fix at the end.
+/// detail under it (on a page's banner, `brief`, its one-sentence summary where it has one: Troubleshoot shows the
+/// detail), and its fix at the end.
 struct FindingRow: View {
     @ObservedObject var assistant: AssistantModel
     let finding: Doctor.Finding
     let index: Int
+    var brief = false
 
     var body: some View {
         LabeledContent {
@@ -649,7 +651,7 @@ struct FindingRow: View {
                 }
             }
         } label: {
-            TroubleshootSheet.statusTitled(finding.status, finding.title, finding.detail)
+            TroubleshootSheet.statusTitled(finding.status, finding.title, brief ? finding.summary ?? finding.detail : finding.detail)
         }
     }
 

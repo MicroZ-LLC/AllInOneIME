@@ -609,7 +609,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
 
     /// A request, as the Mac's `startConversion`: `@improve` / `@translate` through the converter (`WritingMode`), a
     /// `.generate` command (`@question`, a prompt command, a plugin's prompt), a program (`run`: a custom command, a
-    /// script plugin, `@py`, `@js`), `@read`, `@search`, a link or a message; commands inside the text first (`plan`).
+    /// script plugin, `@py`, `@js`), a link or a message; commands inside the text first (`plan`).
     func startConversion(_ input: String, id: Int, command: Command?, plan: CommandPlan? = nil, fresh: Bool = false,
                          in session: ComposerSession) {
         let config = settings.current
@@ -624,9 +624,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         log("session \(session.sid): request \(id) (\(input.count) characters\(command.map { ", @\(logged($0))" } ?? "")"
             + (plan.map { ", \($0.inner.count) inside" } ?? "") + ")")
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            if command == .read { return WebReader.stream(input) }
             if let command, let code = InlineCode.definition(for: command, executable: executable) { return CommandRunner.run(code, input: input) }
-            if command == .webSearch { return WebSearch.stream(input, output: terminal ? .line : .list) }
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
             if command?.kind == .message { return CommandPipeline.unchanged(input) }
             if let command, command.kind == .run, let plugin = command.plugin {
@@ -645,10 +643,7 @@ public final class EngineHost: WireHost, @unchecked Sendable {
         let stream: AsyncThrowingStream<ConversionUpdate, Error>
         if let plan, !plan.isEmpty {
             let replyContext = command == .reply ? session.composer.replyContext : nil
-            let innerSearch = WebSearch.Output.inside(command)
-            stream = CommandPipeline.run(plan, inner: { inner, argument in
-                inner == .webSearch ? WebSearch.stream(argument, output: innerSearch) : streamFor(inner, argument)
-            }, outer: { text in
+            stream = CommandPipeline.run(plan, inner: { inner, argument in streamFor(inner, argument) }, outer: { text in
                 guard let context = replyContext else { return streamFor(command, text) }
                 return streamFor(command, Prompt.replyMessage(context.withIntent(text)))
             })

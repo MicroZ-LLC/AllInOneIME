@@ -447,6 +447,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
     /// what is selected. A result that starts with the selection (`@reply`'s, after the message selected) only has the
     /// rest inserted after it (`afterSelection`): the selection is never rewritten, its formatting, links and images kept.
+    /// A field that doesn't take the result in its place is remembered (`rememberIfNotReplaced`).
     @MainActor
     func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
         guard let client else { return }
@@ -458,6 +459,34 @@ final class AllInOneIMEInputController: IMKInputController {
         let range = selection.range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound
         client.insertText(text, replacementRange: range)
         log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
+        rememberIfNotReplaced(text, selection, in: client)
+    }
+
+    /// How long after a result went in place of the selection its field is read back, and again: a browser tells its text
+    /// late, so only what it says both times counts.
+    static let replacementChecks: [TimeInterval] = [0.3, 1]
+
+    /// Remembers the app (`LearnedShared`) when its field didn't take `text` in place of `selection`, read back at each of
+    /// `replacementChecks` (`SessionText.selectionNotReplaced`: the selection's text still where it was, not the result):
+    /// its selection isn't used again, as an app that can't take a typo back gets none (Privacy → Learned… lists it).
+    /// Nothing is learned where it can't be told (no range, the field doesn't say).
+    @MainActor
+    private func rememberIfNotReplaced(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput) {
+        let app = client.bundleIdentifier() ?? ""
+        guard !app.isEmpty, selection.range != nil else { return }
+        Task { @MainActor in
+            var waited: TimeInterval = 0
+            for check in Self.replacementChecks {
+                try? await Task.sleep(nanoseconds: UInt64((check - waited) * 1_000_000_000))
+                waited = check
+                let notReplaced = SessionText.selectionNotReplaced(selection, by: text) { range in
+                    client.attributedSubstring(from: NSRange(location: range.lowerBound, length: range.count))?.string
+                }
+                guard notReplaced == true else { return }
+            }
+            guard LearnedShared.store.turnSelectionOff(in: app) else { return }
+            log.error("\(app, privacy: .public) didn't take a result in place of the selection; its selection isn't used there again")
+        }
     }
 
     /// What of `text` goes in after `selection` and where (an empty range at its end): `SessionText.afterSelection`.
@@ -993,7 +1022,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 openAgent(id)  // in Terminal
             case let .openSettings(place):
                 switch place {
-                case .translationLanguages?: openSettings(.general, .outputLanguages)  // its Add… outlined
+                case .translationLanguages?: openSettings(SettingsSpot.outputLanguages.page, .outputLanguages)  // its Add… outlined
                 case .weekStats?: openSettings(.week, nil)  // `@stats`
                 case nil: SettingsWindow.shared.show()
                 }

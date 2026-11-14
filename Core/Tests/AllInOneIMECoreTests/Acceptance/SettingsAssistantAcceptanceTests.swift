@@ -7,7 +7,8 @@ import Testing
 //
 //   r1  `config` and `doctor` are no longer built-in commands: not in `Command.builtins` or the catalog, not found by
 //       name (`parse`, `matching`, `palette`), not offered when "@" is typed.
-//   r2  Nothing else is removed: the other built-ins are still there, in the same order, and still run.
+//   r2  Nothing else is removed: the other built-ins are still there, in the same order, and still run (but `read` and
+//       `search`, which the owner deleted in 0.7.5: `deletedLater`).
 //   r3  Typing `@config …` or `@doctor` (with no command of that name of the user's own) behaves like any other unknown
 //       name: compared with `@zzqx` through the same composer, and through `CommandPlan` inside a text.
 //   r4  The names are free: a custom command named `config` or `doctor` is valid (`CustomCommand.problem(among:)` is
@@ -26,6 +27,8 @@ struct SettingsAssistantAcceptanceTests {
     /// The built-ins before the change, in order (0.6.5/calculator's `Command.builtins`).
     static let before = ["improve", "translate", "question", "agent", "open", "read", "note", "reminder", "py", "js", "search",
                          "tasks", "settings", "config", "doctor", "imessage", "reportissue"]
+    /// The built-ins deleted since, by the owner (0.7.5 settings, items 6 and 7: `@read`, `@search`): no longer looked for.
+    static let deletedLater = ["read", "search"]
     static let refusal = "AI is off in this app"
 
     // MARK: Helpers
@@ -175,7 +178,7 @@ struct SettingsAssistantAcceptanceTests {
 
     @Test func r2_theOtherBuiltInsStayInOrder() {
         let names = Command.builtins.map(\.name)
-        let kept = Self.before.filter { !Self.removed.contains($0) }
+        let kept = Self.before.filter { !Self.removed.contains($0) && !Self.deletedLater.contains($0) }
         // Every other built-in is still there, in the order it had.
         #expect(names.filter { kept.contains($0) } == kept, "\(names)")
         for name in kept {
@@ -188,7 +191,7 @@ struct SettingsAssistantAcceptanceTests {
         #expect(Command.builtins.contains(.reportIssue))
         // The catalog offers what it did, less the two.
         let catalog = Command.catalog([]).map(\.name)
-        let offeredBefore = Self.before.filter { $0 != "read" && $0 != "search" }
+        let offeredBefore = Self.before.filter { !Self.deletedLater.contains($0) }
         #expect(catalog.filter { offeredBefore.contains($0) } == offeredBefore.filter { !Self.removed.contains($0) }, "\(catalog)")
         // Their names are still taken.
         for name in ["improve", "translate", "question", "py", "settings", "note"] {

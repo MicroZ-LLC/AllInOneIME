@@ -464,7 +464,7 @@ public final class SettingsService: @unchecked Sendable {
 
     // MARK: Actions
 
-    /// `setKey` and `removeKey` on a secret: a provider's API key, the web search key, the Notion token.
+    /// `setKey` and `removeKey` on a secret: a provider's API key, the Notion token.
     private func secret(_ action: SettingsAction) -> Result<SettingsActionOutcome, SettingsProblem> {
         let setting = action.name == SettingsAction.setKey
         let key = action.key ?? ""
@@ -473,13 +473,11 @@ public final class SettingsService: @unchecked Sendable {
         }
         let error: String?
         switch action.field {
-        case "search.key": error = setting ? store.saveSearchKey(key) : store.removeSearchKey()
         case "notes.notionToken": error = setting ? store.saveNotionToken(key) : store.removeNotionToken()
         default:
             guard let provider = Self.keyProvider(action.field) else { return .failure(Self.unknown(action.field)) }
             error = setting ? store.saveKey(key, for: provider) : store.removeKey(provider)
         }
-        if action.field == "search.key" { tests[action.field] = nil }
         if let error { return .failure(SettingsProblem(.failed, field: action.field, message: error)) }
         return .success(SettingsActionOutcome())
     }
@@ -491,7 +489,7 @@ public final class SettingsService: @unchecked Sendable {
         return provider
     }
 
-    /// Test Connection, the web search's Test, the Notion link's (its `value`: the link; none, the page kept), a custom
+    /// Test Connection, the Notion link's Test (its `value`: the link; none, the page kept), a custom
     /// command's Test run (`commandTest`); of the settings as they were when it started (`config`).
     private func test(_ action: SettingsAction, config: Config) async -> Result<SettingsActionOutcome, SettingsProblem> {
         let status: SettingsStore.TestStatus
@@ -500,8 +498,6 @@ public final class SettingsService: @unchecked Sendable {
             return await commandTest(action, config: config)
         case "provider.test":
             status = await SettingsStore.testConnection(config, loadCredentials: loadCredentials)
-        case "search.key":
-            status = await SettingsStore.testSearch()
         case "notes.notion":
             guard action.value == nil || action.value?.string != nil else {
                 return .failure(SettingsProblem(.badValue, field: action.field, message: Self.badValue))

@@ -43,11 +43,9 @@ public enum PanelIcons {
         case .reply: code = 0xE97A  // Reply
         case .agent, .scriptSilent: code = 0xE945  // LightningBolt
         case .open: code = 0xE721  // Search
-        case .read: code = 0xE8A5  // Document
         case .note: code = 0xE70B  // QuickNote
         case .reminder: code = 0xEA8F  // Ringer
         case .python, .javascript, .run: code = 0xE943  // Code
-        case .webSearch: code = 0xE774  // Globe
         case .tasks: code = 0xE9D5  // CheckList
         case .settings: code = 0xE713  // Settings
         case .message: code = 0xE8BD  // Message

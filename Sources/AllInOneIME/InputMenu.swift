@@ -42,7 +42,7 @@ extension AllInOneIMEInputController {
         let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addOutput.target = self
         // The page and the row it opens Settings at, as `SettingsPage` and `SettingsSpot` name them (`showPreferences`).
-        addOutput.representedObject = "general/outputLanguages"
+        addOutput.representedObject = "ai/outputLanguages"
         outputs.addItem(addOutput)
         outputItem.submenu = outputs
         menu.addItem(outputItem)

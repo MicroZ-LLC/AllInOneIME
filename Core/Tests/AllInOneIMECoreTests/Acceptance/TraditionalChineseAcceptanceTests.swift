@@ -45,7 +45,6 @@ import AllInOneIMETestSupport
 //   s5_replyIsInTheUsersVariant                  through a session: @reply's language is the user's variant for Chinese
 //   s5_autocompleteExamplesFollowTheVariant      the on-device model's examples in the characters typed
 //   s5_screenTextReadsTraditionalFirst           OCR languages: zh-Hant first (and through a session's ⌃V)
-//   s5_webSearchAsksForTraditionalPages          search_lang zh-hant (zh-hans for Simplified)
 //   s5_remindReadsTraditionalForms               下個禮拜五下午三點, 這個禮拜五, 兩個小時以後; the title as typed
 //   s5_theInputIsNamedWithItsVariant             「中文（繁體）」 in the menu's and Settings' name, 「中文」 otherwise
 //
@@ -798,17 +797,6 @@ struct TraditionalChineseAcceptanceTests {
                 #expect(recognizer.languages.first?.first == first, "\(characters): \(recognizer.languages)")
             }
         }
-    }
-
-    @Test func s5_webSearchAsksForTraditionalPages() throws {
-        func searchLanguage(_ backend: any SearchBackend) throws -> String? {
-            let request = try backend.request(for: "台北 天氣", count: 5, detailed: false, key: "test-key")
-            let items = URLComponents(url: try #require(request.url), resolvingAgainstBaseURL: false)?.queryItems ?? []
-            return items.first { $0.name == "search_lang" }?.value
-        }
-        #expect(try searchLanguage(WebSearch.backend(chinese: .taiwan)) == "zh-hant")
-        #expect(try searchLanguage(WebSearch.backend(chinese: .hongkong)) == "zh-hant")
-        #expect(try searchLanguage(WebSearch.backend(chinese: .simplified)) != "zh-hant")
     }
 
     @Test func s5_remindReadsTraditionalForms() throws {

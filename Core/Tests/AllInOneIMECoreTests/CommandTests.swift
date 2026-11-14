@@ -21,7 +21,7 @@ struct CommandTests {
         #expect(Command.matching("Q") == [.question])
         #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
-        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .generate, .run, .note, .reminder, .run, .run, .run,
+        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .generate, .note, .reminder, .run, .run,
                                                       .agents, .settings, .message, .report, .settings])
     }
 

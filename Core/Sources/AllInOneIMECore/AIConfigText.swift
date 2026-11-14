@@ -88,11 +88,11 @@ extension AIConfig {
         public func onOff(_ on: Bool) -> String { on ? tr("开", "on") : tr("关", "off") }
 
         /// After "Remember recent questions: on → off": turned off here, the saved questions stay (so undo is exact);
-        /// Settings' Forget (Windows' Clear) deletes them, as its switch does: on the Mac's Privacy (Settings v2), Windows'
-        /// General.
+        /// Settings' Forget (Windows' Clear) deletes them, as its switch does: on the Mac's AI page (with `@question`'s other
+        /// options, 0.7.5), Windows' General.
         var questionsKept: String {
             Platform.current.terms.device == .mac
-                ? tr("（已存的问题保留；要删除，在设置 → 隐私里点「忘掉」）", " (saved questions are kept; Settings → Privacy → “Forget” deletes them)")
+                ? tr("（已存的问题保留；要删除，在设置 → AI 里点「忘掉」）", " (saved questions are kept; Settings → AI → “Forget” deletes them)")
                 : tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
         }
 

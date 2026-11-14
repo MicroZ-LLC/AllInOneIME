@@ -60,8 +60,8 @@ struct EnglishWordsSection: View {
         } header: {
             SectionTitle(tr("英文词", "English Words"), icon: CandidateView.Icon(symbol: "textformat.abc", color: .systemTeal))
         } footer: {
-            Text(tr("打几个字母，以它们开头的英文词就出现在拼音的候选里，比如 bedr → Bedrock。除了你的，黑话库里的英文词和 \(EnglishWords.curated.count) 个常用的产品和技术词（Bedrock、SageMaker…）也会出现；rime-ice 自带的英文词照旧。",
-                    "Type a few letters and the English words they start come up among pinyin's candidates: bedr → Bedrock. Besides yours, the English terms of your jargon list and \(EnglishWords.curated.count) common product and technical words (Bedrock, SageMaker…) come up too; rime-ice's own English words are as before."))
+            Text(tr("打几个字母，以它们开头的英文词（你的、黑话库里的和 \(EnglishWords.curated.count) 个常用词）就出现在拼音的候选里：bedr → Bedrock。",
+                    "Type a few letters and the English words they start (yours, your jargon list's and \(EnglishWords.curated.count) common ones) come up among pinyin's candidates: bedr → Bedrock."))
                 .font(.caption).foregroundStyle(.secondary)
                 .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
