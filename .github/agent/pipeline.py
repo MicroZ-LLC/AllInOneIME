@@ -2,21 +2,26 @@
 # Works on one GitHub issue end to end, unattended, on the Mac mini's Actions runner (.github/workflows/agent.yml):
 #
 #   python3 .github/agent/pipeline.py ISSUE
+#   python3 .github/agent/pipeline.py --finish [ISSUE]    merge what passed its checks (every agent:merging issue)
 #
 # An issue labelled agent:build (a feature) or agent:fix (a bug) by a maintainer is built on a branch X.Y.Z/issue-N
 # off the open release branch (the newest release-X.Y.Z with no vX.Y.Z tag), by Claude Code agents that share no
 # session:
 #   build: implementer → independent acceptance-test author → checks → verifier
 #   fix:   reproducer (a failing test) → fixer → checks → verifier
-# The checks (`swift build`, `make test`) run here, not on the agents' word: no test that passed on the release branch
-# may fail. The test author's files and the acceptance tests are put back if anyone else touches them, and nothing
-# under .github/ changes.
+# The checks (`swift build`, `make lint`, `make test`) run here, not on the agents' word: no test that passed on the
+# release branch may fail, and `make lint` may not fail where it passed. The test author's files and the acceptance
+# tests are put back if anyone else touches them, and nothing under .github/ changes.
 # A failed check or a "fail" from the verifier goes back to the implementer, twice at most. When the verifier passes
-# the branch, it is merged into the release branch through a PR (or without one, where the organization doesn't let
-# Actions create PRs) and the issue is closed. Otherwise the work is left in a draft PR (or on its branch) and the
-# issue gets agent:stuck with a comment saying why. Out of usage (the Max plan's limit), or no open release branch:
-# agent:queued, and agent-queue.yml starts it again later. AGENT_BASE names another branch to build on, for trying
-# the pipeline out.
+# the branch, it goes into a PR to the release branch, which merges like everyone's: only once the required checks
+# pass (CI's quality gate and the independent review, .github/workflows/quality.yml and review.yml, which this script
+# starts, since a PR made with the job's token starts no workflow). The issue gets agent:merging, and this job ends
+# (the gates need this runner). Then `pipeline.py --finish`, run every hour by agent-queue.yml, merges the PR once its
+# required checks pass and closes the issue; a required check that fails gets the
+# issue agent:stuck with a comment saying which, and once it is run again and passes, the PR still merges. Otherwise
+# the work is left in a draft PR and the issue gets agent:stuck with a comment saying why. Out of usage (the Max plan's
+# limit), or no open release branch: agent:queued, and agent-queue.yml starts it again later. AGENT_BASE names another
+# branch to build on, for trying the pipeline out.
 #
 # The agents run on the Max plan through this Mac's Claude Code sign-in, never an API key, and without the GitHub
 # token. They don't commit or push: this script commits their work (author from AGENT_GIT_AUTHOR, dated when it
@@ -33,7 +38,6 @@ import signal
 import string
 import subprocess
 import sys
-import time
 import traceback
 from pathlib import Path
 
@@ -47,6 +51,11 @@ TRAILER = "Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 
 BUILD, FIX = "agent:build", "agent:fix"
 WORKING, QUEUED, STUCK, DONE = "agent:working", "agent:queued", "agent:stuck", "agent:done"
+MERGING = "agent:merging"
+# What a PR has to pass before it merges, whatever the branch protection says (it adds any other check it requires):
+# the quality gate's last job (a check run) and the independent review (a commit status), the workflows that run them.
+GATE, REVIEW = "Quality gate", "review"
+GATE_WORKFLOWS = ("quality.yml", "review.yml")
 TRUSTED = {"OWNER", "MEMBER", "COLLABORATOR"}
 ROUNDS = 3  # the first try, then two more after a failed check or verdict
 MINUTES = {"implement": 120, "fix": 90, "acceptance": 60, "reproduce": 60, "verify": 60}
@@ -297,8 +306,10 @@ def open_release() -> str | None:
 # MARK: checks
 
 class Checks:
-    def __init__(self, built: bool, passed: bool, failures: set[str], log: str):
+    def __init__(self, built: bool, passed: bool, failures: set[str], log: str, linted: bool = False,
+                 lint_log: str = ""):
         self.built, self.passed, self.failures, self.log = built, passed, failures, log
+        self.linted, self.lint_log = linted, lint_log
 
     def summary(self) -> str:
         # make test runs several packages (Core/, then the macOS shell): each prints its own total.
@@ -310,24 +321,40 @@ FAILURE = [re.compile(r"^✘ Test (?!run with )(.+?)(?: with \d+ test cases?)? f
            re.compile(r"^Test Case '-\[(\S+ \S+)\]' failed", re.M)]
 
 
-def checks() -> Checks:
-    build = run(["make", "deps"], cwd=WORK, timeout=1800)
+def checks(base: str) -> Checks:
+    """Builds, lints (its baselines compared with the base branch's, as CI does) and tests what the agents left, in an
+    environment without the job's GitHub token: their code runs here."""
+    env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+    build = run(["make", "deps"], cwd=WORK, env=env, timeout=1800)
     if build.returncode == 0:
-        build = run(["swift", "build"], cwd=WORK, timeout=1800)
+        build = run(["swift", "build"], cwd=WORK, env=env, timeout=1800)
     if build.returncode:
         return Checks(False, False, set(), build.stdout[-8000:])
-    test = run(["make", "test"], cwd=WORK, timeout=3600)
+    lint = run(["make", "-k", "lint", f"LINT_BASE=origin/{base}"], cwd=WORK, env=env, timeout=1800)
+    test = run(["make", "test"], cwd=WORK, env=env, timeout=3600)
     failures = {name for pattern in FAILURE for name in pattern.findall(test.stdout)}
-    return Checks(True, test.returncode == 0, failures, test.stdout)
+    return Checks(True, test.returncode == 0, failures, test.stdout, lint.returncode == 0, lint.stdout)
 
 
-def regressions(baseline: Checks, now: Checks) -> str | None:
-    """What fails now that didn't on the release branch; a test that fails only once is run again."""
+def regressions(baseline: Checks, now: Checks, base: str) -> str | None:
+    """What fails now that didn't on the release branch: `make lint`, and the tests (one that fails only once is run
+    again)."""
     if not now.built:
         return f"`swift build` fails:\n\n```\n{now.log[-6000:]}\n```"
+    lint = None
+    if baseline.linted and not now.linted:
+        noise = re.compile(r"^\[\d+/\d+\]|^(?:Building|Build complete|Compiling|Fetch|Comput|Creating|Working copy"
+                           r"|Planning)")
+        lines = "\n".join(line for line in now.lint_log.splitlines() if not noise.match(line))
+        lint = f"`make lint` fails:\n\n```\n{lines[-4000:]}\n```"
+    tests = test_regressions(baseline, now, base)
+    return "\n\n".join(problem for problem in (lint, tests) if problem) or None
+
+
+def test_regressions(baseline: Checks, now: Checks, base: str) -> str | None:
     if now.passed or (now.failures and not now.failures - baseline.failures):
         return None
-    again = checks()
+    again = checks(base)
     new = (again.failures - baseline.failures) & ((now.failures - baseline.failures) or again.failures)
     if again.passed or (again.failures and not new):
         return None
@@ -400,12 +427,12 @@ def main(number: int) -> int:
         version = base.removeprefix("release-")
         # 0.6.5/issue-N beside release-0.6.5; another base can't have branches under its own name.
         branch = f"{version}/issue-{number}" if base.startswith("release-") else f"{base}-issue-{number}"
-        labels(number, add=[WORKING], remove=[QUEUED, STUCK, DONE])
+        labels(number, add=[WORKING], remove=[QUEUED, STUCK, DONE, MERGING])
         log(f"#{number} ({kind}) on {branch} off {base}")
         base_sha = prepare(base, branch)
         values = dict(number=number, title=issue["title"], issue=issue_text(issue), base=base, branch=branch,
                       base_sha=base_sha, version=version, protected="(none yet)", reproduction="")
-        baseline = checks()
+        baseline = checks(base)
         if not baseline.built or (not baseline.passed and not baseline.failures):
             raise Stuck(f"`{base}` itself doesn't build or test here.", f"```\n{baseline.log[-4000:]}\n```")
         log(f"baseline: {baseline.summary()}, {len(baseline.failures)} failing")
@@ -439,7 +466,7 @@ def main(number: int) -> int:
                 test_notes, tests_written = tests["summary"], True
                 values["protected"] = "\n".join(f"- {p}" for p in protected) or "(none)"
 
-            problem = regressions(baseline, checks())
+            problem = regressions(baseline, checks(base), base)
             if problem is None:
                 verdict = agent("verify", "verdict", read_only=True, implementation=work["summary"],
                                 acceptance=test_notes or "(none)", put_back="\n".join(notes) or "(nothing)", **values)
@@ -494,6 +521,8 @@ def give_up(number: int, title: str, base: str | None, branch: str | None, reaso
 
 def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseline: Checks, work: dict,
           test_notes: str, verdict: dict) -> None:
+    """Puts the verified branch in a ready PR to `base` and starts its required checks. It never merges here: the change
+    goes in through the same gate as everyone's, by `finish`, once they pass."""
     git("fetch", "-q", "origin", base)
     if git("rev-parse", f"origin/{base}") != base_sha:
         log(f"{base} moved: merging it in")
@@ -501,7 +530,7 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
                cwd=WORK, env=commit_env()).returncode:
             git("merge", "--abort", check=False)
             raise Stuck(f"`{base}` changed while this ran, and merging it in conflicts.")
-        problem = regressions(baseline, checks())
+        problem = regressions(baseline, checks(base), base)
         if problem:
             raise Stuck(f"After merging the newer `{base}` in, the checks fail.", problem)
 
@@ -511,29 +540,169 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
         f"**Change** (implementer): {work['summary']}\n\n"
         f"**Tests** (a separate agent): {test_notes or '(none)'}\n\n"
         f"**Verifier:** pass. {verdict['summary']}\n\n"
-        f"Checked on the Mac mini: `swift build`, `make test`.\n\n"
+        f"Checked on the Mac mini: `swift build`, `make lint`, `make test`. It merges once its required checks pass.\n\n"
         f"🤖 Generated with [Claude Code](https://claude.com/claude-code)"))
-
-    head = git("rev-parse", "HEAD")
-    git("checkout", "-q", "--detach", f"origin/{base}")
-    message = f"Merge pull request #{pr['number']} from {OWNER}/{branch}\n\n{title}" if pr else \
-        f"Merge branch '{branch}' into {base}\n\n{title} (#{number})"
-    git("merge", "--no-ff", "-q", "-m", message, head, env=commit_env())
-    merged = git("rev-parse", "HEAD")
-    push(f"HEAD:refs/heads/{base}")
-    for _ in range(12 if pr else 0):  # GitHub marks the PR merged once it sees its head in the base
-        time.sleep(5)
-        if gh("api", f"repos/{REPO}/pulls/{pr['number']}").get("merged"):
-            break
-    push(f":refs/heads/{branch}")
-    where = f"in #{pr['number']}" if pr else f"in {merged[:7]} ([the change](https://github.com/{REPO}/compare/{base_sha}...{merged}))"
-    comment(number, f"Merged into `{base}` {where}; it ships with {base.removeprefix('release-')}.\n\n"
+    if pr is None:
+        raise Stuck("Actions may not create pull requests in this repository, and a change merges only through one, "
+                    "once its required checks pass. Allow it (Settings → Actions → General → Workflow permissions → "
+                    "Allow GitHub Actions to create and approve pull requests), then add the label again.")
+    start_checks(pr["number"], branch, base, git("rev-parse", "HEAD"))
+    # No GitHub auto-merge: it would merge on whatever the branch protection requires, which may not be both gates;
+    # `finish` merges only once both passed (gate_state).
+    comment(number, f"Ready in #{pr['number']}. It merges into `{base}` within the hour after its required checks pass "
+                    f"(the quality gate and the independent review), and this issue closes then.\n\n"
                     f"**Change:** {work['summary']}\n\n**Tests** (a separate agent): {test_notes or '(none)'}\n\n"
                     f"**Verifier:** pass. {verdict['summary']}")
-    labels(number, add=[DONE], remove=[WORKING, BUILD, FIX])
+    labels(number, add=[MERGING], remove=[WORKING])
+    log(f"#{pr['number']} is waiting for its required checks")
+
+
+def start_checks(pr: int, branch: str, base: str, sha: str) -> dict[str, str]:
+    """Starts each of the gate's workflows that hasn't run on the PR's head (a PR made, or a branch pushed, with the job's
+    token starts no workflow by itself). Returns each workflow's latest run's status on it ("started" if just now,
+    "unsuccessful" if it ended without success)."""
+    status = {}
+    for workflow in GATE_WORKFLOWS:
+        runs = gh("api", f"repos/{REPO}/actions/workflows/{workflow}/runs?head_sha={sha}&per_page=1") or {}
+        if runs.get("workflow_runs"):
+            run = runs["workflow_runs"][0]
+            # A run that ended without success (cancelled, or failed before it reported) is "unsuccessful": an older
+            # passing status from it on this head mustn't count.
+            done_ok = run["status"] != "completed" or run.get("conclusion") == "success"
+            status[workflow] = run["status"] if done_ok else "unsuccessful"
+            continue
+        inputs = {"base": base} if workflow == "quality.yml" else {"pr": str(pr)}
+        gh("api", "-X", "POST", f"repos/{REPO}/actions/workflows/{workflow}/dispatches", "--input", "-",
+           input=json.dumps({"ref": branch, "inputs": inputs}))
+        status[workflow] = "started"
+        log(f"started {workflow} on {branch}")
+    return status
+
+
+# MARK: merging what passed
+
+PULL = """query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) { pullRequest(number: $number) {
+    number title state merged mergeStateStatus headRefName headRefOid baseRefName
+    commits(last: 1) { nodes { commit { statusCheckRollup { contexts(first: 100) { nodes {
+      __typename
+      ... on CheckRun { name status conclusion startedAt isRequired(pullRequestNumber: $number) }
+      ... on StatusContext { context state isRequired(pullRequestNumber: $number) } } } } } } } } } }"""
+WORKFLOW_OF = {GATE: "quality.yml", REVIEW: "review.yml"}
+
+
+def agent_pr(number: int) -> dict | None:
+    """The pipeline's PR for the issue (from its branch X.Y.Z/issue-N, or BASE-issue-N), with its checks."""
+    # Every page: a PR waiting for its checks may have dropped out of the most recently updated hundred.
+    pages = gh("api", "--paginate", "--slurp", f"repos/{REPO}/pulls?state=all&sort=updated&direction=desc&per_page=100")
+    for pr in (pr for page in pages or [] for pr in page):
+        own = (pr["head"].get("repo") or {}).get("full_name") == REPO
+        if own and re.search(rf"(?:/|-)issue-{number}$", pr["head"]["ref"]):
+            return gh("api", "graphql", "-f", f"query={PULL}", "-f", f"owner={OWNER}", "-f", f"name={NAME}",
+                      "-F", f"number={pr['number']}")["data"]["repository"]["pullRequest"]
+    return None
+
+
+def gate_state(pr: dict, runs: dict[str, str]) -> tuple[list[str], list[str]]:
+    """The required checks on the PR's head that failed, and those still to pass: the gate's two, and every other the
+    branch protection requires. A check run again counts as its latest run."""
+    commit = (pr["commits"]["nodes"] or [{}])[0].get("commit") or {}
+    latest: dict[str, tuple[str, str]] = {}
+    for check in ((commit.get("statusCheckRollup") or {}).get("contexts") or {}).get("nodes") or []:
+        if check["__typename"] == "CheckRun":
+            name, when = check["name"], check.get("startedAt") or "~"  # not started yet: the newest
+            state = "pending" if check["status"] != "COMPLETED" else \
+                "pass" if check["conclusion"] in ("SUCCESS", "NEUTRAL", "SKIPPED") else "fail"
+        else:
+            name, when = check["context"], ""
+            state = {"SUCCESS": "pass", "PENDING": "pending", "EXPECTED": "pending"}.get(check["state"], "fail")
+        if (check["isRequired"] or name in WORKFLOW_OF) and when >= latest.get(name, ("", ""))[0]:
+            latest[name] = (when, state)
+    failed = [name for name, (_, state) in latest.items() if state == "fail"]
+    waiting = [name for name, (_, state) in latest.items() if state == "pending"]
+    for name, workflow in WORKFLOW_OF.items():
+        # Its workflow's latest run ended without success: failed, whatever an older status says.
+        if runs.get(workflow) == "unsuccessful":
+            waiting = [n for n in waiting if n != name]
+            if name not in failed:
+                failed.append(name)
+            continue
+        # A run of its workflow still queued or running (a rerun) answers anew: wait for it, whatever the old status says.
+        if runs.get(workflow) not in (None, "completed"):
+            failed = [n for n in failed if n != name]
+            if name not in waiting:
+                waiting.append(name)
+            continue
+        if name not in latest:  # not reported: fine while its workflow runs, a failure once it ended without it
+            (failed if runs.get(workflow) == "completed" else waiting).append(name)
+    return failed, waiting
+
+
+def finish(number: int) -> None:
+    """Merges an agent:merging issue's PR once its required checks pass, then closes the issue; says so on the issue
+    once when a check fails (the PR still merges if it's run again and passes) or the PR was closed."""
+    issue = gh("api", f"repos/{REPO}/issues/{number}")
+    names = {label["name"] for label in issue["labels"]}
+    if issue["state"] != "open" or MERGING not in names:
+        return
+    pr = agent_pr(number)
+    if pr is None or (pr["state"] != "OPEN" and not pr["merged"]):
+        what = "its PR is gone" if pr is None else f"#{pr['number']} was closed"
+        comment(number, f"**Not merged:** {what}. Add the label again to start over. ([run]({RUN_URL}))")
+        labels(number, add=[STUCK], remove=[MERGING])
+        return
+    if not pr["merged"]:
+        runs = start_checks(pr["number"], pr["headRefName"], pr["baseRefName"], pr["headRefOid"])
+        failed, waiting = gate_state(pr, runs)
+        if failed:
+            if STUCK not in names:
+                comment(number, f"**Not merged yet:** #{pr['number']}'s required checks failed: {', '.join(failed)}. "
+                                f"Fix it on the PR's branch, or run a check that failed for another reason again: the "
+                                f"PR merges once they pass. ([run]({RUN_URL}))")
+                labels(number, add=[STUCK])
+            return
+        if waiting or "started" in runs.values():
+            log(f"#{number}: #{pr['number']} is waiting for {', '.join(waiting) or 'its checks'}")
+            return
+        if pr["mergeStateStatus"] == "BEHIND":  # the branch protection wants the base merged in: then checked again
+            gh("api", "-X", "PUT", f"repos/{REPO}/pulls/{pr['number']}/update-branch", "-f",
+               f"expected_head_sha={pr['headRefOid']}")
+            log(f"#{number}: brought #{pr['number']} up to date with {pr['baseRefName']}")
+            return
+        result = run(["gh", "api", "-X", "PUT", f"repos/{REPO}/pulls/{pr['number']}/merge", "--input", "-"],
+                     stderr_apart=True, input=json.dumps({
+                         "merge_method": "merge", "sha": pr["headRefOid"], "commit_message": pr["title"],
+                         "commit_title": f"Merge pull request #{pr['number']} from {OWNER}/{pr['headRefName']}"}))
+        if result.returncode:
+            if STUCK not in names:
+                comment(number, f"**Not merged yet:** GitHub refused to merge #{pr['number']}:\n\n```\n"
+                                f"{(result.stdout + result.stderr).strip()[-1500:]}\n```\n\n([run]({RUN_URL}))")
+                labels(number, add=[STUCK])
+            return
+    run(["gh", "api", "-X", "DELETE", f"repos/{REPO}/git/refs/heads/{pr['headRefName']}"])  # gone already is fine
+    base = pr["baseRefName"]
+    comment(number, f"Merged into `{base}` in #{pr['number']}; it ships with {base.removeprefix('release-')}.")
+    labels(number, add=[DONE], remove=[MERGING, STUCK, WORKING, BUILD, FIX])
     gh("api", "-X", "PATCH", f"repos/{REPO}/issues/{number}", "-f", "state=closed", "-f", "state_reason=completed")
-    log(f"merged {merged[:7]} into {base}")
+    log(f"#{number}: #{pr['number']} merged into {base}")
+
+
+def finish_all(numbers: list[str]) -> int:
+    """`finish` for the issues given, or every open agent:merging one. Exit status 1 if any failed."""
+    if not numbers:
+        found = gh("api", f"repos/{REPO}/issues?labels={MERGING}&state=open&per_page=100") or []
+        numbers = [str(issue["number"]) for issue in found if "pull_request" not in issue]
+    status = 0
+    for number in numbers:
+        try:
+            finish(int(number))
+        except Exception:
+            log(f"#{number}: {traceback.format_exc()[-3000:]}")
+            status = 1
+    return status
 
 
 if __name__ == "__main__":
+    if sys.argv[1] == "--finish":
+        sys.exit(finish_all(sys.argv[2:]))
     sys.exit(main(int(sys.argv[1])))

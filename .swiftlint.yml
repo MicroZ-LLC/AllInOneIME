@@ -1,0 +1,66 @@
+# SwiftLint for the shipped Swift code (Sources/ and Core/Sources/), run by `make lint` through Scripts/swiftlint.sh
+# (which pins the version). A focused set: rules that catch crashes, swallowed errors, leaks and code that grows past
+# what one person can review. No style rules: the code's style is whatever the code around it does (AGENTS.md).
+# Today's violations are in .swiftlint.baseline.json, so only new ones fail; `make lint-baseline` lowers it after a fix.
+# File length is Scripts/check-ratchet.sh's (it also stops a long file from growing, which a baseline can't).
+# Tests aren't linted: a crash there is a failed test, and the acceptance tests' author must not be blocked by rules
+# the implementer can't fix.
+
+only_rules:
+  # Crashes and swallowed errors.
+  - force_try
+  - force_cast
+  - force_unwrapping
+  - no_empty_block              # an empty catch, if or else; a comment inside says why it's empty
+  - unhandled_throwing_task     # Task { try ... } drops the error
+  - unowned_variable_capture    # [unowned self] crashes when self is gone; use [weak self]
+  # Bugs that compile.
+  - identical_operands
+  - duplicate_conditions
+  - duplicated_key_in_dictionary_literal
+  - duplicate_enum_cases
+  - self_in_property_initialization
+  - unused_setter_value
+  - discarded_notification_center_observer
+  - weak_delegate
+  - overridden_super_call
+  - empty_count                 # count == 0 walks a whole String; isEmpty doesn't
+  # Size: what one reviewer can hold in their head.
+  - function_body_length
+  - cyclomatic_complexity
+  - type_body_length
+  - large_tuple
+  # This repository's own (custom_rules below).
+  - custom_rules
+
+included:
+  - Sources
+  - Core/Sources
+
+excluded:
+  - Core/Sources/AllInOneIMECore/RedactionWordList.swift   # generated (make redaction-words)
+
+no_empty_block:
+  # Empty functions, initializers and closures are often meant (a protocol's default, a no-op handler).
+  disabled_block_types: [function_bodies, initializer_bodies, closure_blocks]
+
+# Lines of code, not counting comments and blank lines (SwiftLint's own measure).
+function_body_length:
+  warning: 60
+cyclomatic_complexity:
+  warning: 15
+  ignores_case_statements: true   # a switch over a key or a state is one decision, not one per case
+type_body_length:
+  warning: 400
+large_tuple:
+  warning: 3                      # more than three values: give them a struct
+
+custom_rules:
+  blocking_call:
+    name: Blocking call
+    # Waits on a process, a semaphore, a sleep or the main queue. Never on the main thread (AGENTS.md); where it runs
+    # on another thread, say so: `// swiftlint:disable:next blocking_call` and the reason on the line above it.
+    regex: '\b(waitUntilExit\(\)|Thread\.sleep|usleep\(|DispatchQueue\.main\.sync)|\.wait\(\)'
+    match_kinds: [identifier, keyword]
+    message: "Blocks the calling thread. Never on the main thread: say which thread runs it, or make it async."
+    severity: error

@@ -1,0 +1,104 @@
+# The gate every change passes before it merges into mainline or a release branch (AGENTS.md): `make lint` (the static
+# checks, against their baselines) and the full `make test`, on GitHub's xcode-27 macOS runner (the tests need
+# Xcode 27), offline: no keys, no AWS files, no live tests. Require the check "Quality gate" (Scripts/protect-branches.sh):
+# it passes only when both jobs passed, so a PR from a fork, which never runs here (its code isn't trusted
+# there), fails it instead of skipping it; a maintainer who has read such a change pushes it to a branch here to have
+# it checked. The agent pipeline starts this workflow itself on its PRs' branches (workflow_dispatch): a PR made with
+# the job's token starts no workflow.
+name: Quality
+
+on:
+  pull_request:
+    branches: [mainline, "release-*"]
+  push:
+    branches: [mainline, "release-*"]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: The branch the change goes into, whose baselines it may only lower (empty for none)
+        required: false
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The base whose baselines a change may only lower: the PR's, or the pipeline's (none for a push).
+  BASE: ${{ github.base_ref || inputs.base }}
+
+jobs:
+  lint:
+    name: "Quality gate: lint"
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false            # keeps .build (below) for an incremental build
+          fetch-depth: 0          # every branch, the base's baselines among them
+          persist-credentials: false
+      - name: Only this change's files
+        run: git clean -ffdx -e .build/
+      - name: make lint
+        run: make -k lint ${BASE:+LINT_BASE=origin/$BASE}
+
+  test:
+    name: "Quality gate: test"
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    # On the Mac mini: GitHub's macOS machines are too slow for the Mac tests' timings (78 failures there on 2026-11-14).
+    runs-on: [self-hosted, macmini-agent]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Only this change's files
+        run: git clean -ffdx -e .build/
+      - name: Where the dependencies go (kept between runs, per their pinned versions)
+        run: |
+          pins=$(grep -E '^[A-Z_]+_(VERSION|TAG|TARBALL|ZIP|SHA256|COMMIT) +:=' Makefile | shasum | cut -c1-12)
+          echo "ALLINONEIME_THIRDPARTY=$RUNNER_TOOL_CACHE/allinoneime/thirdparty-$pins" >> "$GITHUB_ENV"
+      - name: make test, offline
+        run: |
+          # No key or account reaches the tests: every provider's key, AWS's (make test also points its files at
+          # nothing), the live tests' switches and GitHub's tokens are unset.
+          for name in ANTHROPIC_API_KEY ANTHROPIC_FOUNDRY_API_KEY OPENAI_API_KEY AZURE_OPENAI_API_KEY GEMINI_API_KEY \
+              GOOGLE_API_KEY CODEX_API_KEY KIRO_API_KEY BRAVE_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY \
+              AWS_SESSION_TOKEN AWS_PROFILE ALLINONEIME_CLAUDE_LIVE ALLINONEIME_CODEX_LIVE ALLINONEIME_AGY_LIVE \
+              ALLINONEIME_KIRO_LIVE ALLINONEIME_ELECTRON_HARNESS GH_TOKEN GITHUB_TOKEN; do
+            unset "$name"
+          done
+          export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+          # A few tests need windows really drawn on screen; with the Mac mini's screen locked (no one there) they
+          # can't pass. Skip only those then, and say so: `make test-screen` runs them on an unlocked Mac.
+          if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
+            echo "::warning::The Mac mini's screen is locked: the on-screen tests were skipped; run make test-screen on an unlocked Mac."
+            TEST_SKIP="$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+            export TEST_SKIP
+          fi
+          make test
+
+  gate:
+    # The one check to require. On GitHub's machine: it only reads the two jobs' results.
+    name: Quality gate
+    needs: [lint, test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          LINT: ${{ needs.lint.result }}
+          TEST: ${{ needs.test.result }}
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+        run: |
+          if [ "$FORK" = true ]; then
+            echo "::error::A PR from a fork doesn't run on the Mac mini. A maintainer who has read it pushes it to a branch here."
+            exit 1
+          fi
+          echo "make lint: $LINT, make test: $TEST"
+          [ "$LINT" = success ] && [ "$TEST" = success ]

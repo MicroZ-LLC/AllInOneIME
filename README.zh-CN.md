@@ -1208,6 +1208,8 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 
 ```sh
 make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和 make strings-check）
+make lint         # 每个改动都要过的静态检查：SwiftLint 和文件大小棘轮（只拦新问题）、核心的可移植性检查、make strings-check
+make check        # 先 make lint 再 make test：CI 对每个 pull request 的要求
 make strings      # 把新的界面文字加进 Resources/Localizable.xcstrings，不再用的标成 stale
 make pack         # 中文语言包：build/packs/zh-pinyin-<版本>.tar.xz、它的 sha256 和 packs.json 里的条目
 make packs        # 所有语言包：中文，以及 Core/LanguagePacks/ 里的韩语和印地语（ko-hangul、hi-phonetic）
@@ -1285,6 +1287,22 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 带打开「键盘」设置的按钮；`Sources/AllInOneIME/InputSourceStep.swift`），App 回到前台、文本框启用它时再看一次；刚换过来时输入法会马上
 打开「关于」页，先于其他任何页面。记录里之前的输入法已经不能用了，它那一项要等这个启用了才删。
 换过来以后，输入法会说一次哪些权限要重新允许（「关于」页，带「排查问题」）。
+
+### 参与开发
+
+每个改动，不管是谁写的（人、Claude Code、Codex、Kiro 或 agent 流水线），都遵守 [AGENTS.md](AGENTS.md) 里的仓库规则
+（Claude Code 通过 `CLAUDE.md` 读它），而且只能通过 pull request 进入 `mainline` 或 `release-*` 分支，并且通过同样的两项检查：
+
+- **Quality gate**（`.github/workflows/quality.yml`，在维护者的 Mac 上跑）：`make lint` 和 `make test`。推送之前先跑
+  `make check`。
+- **review**（`.github/workflows/review.yml`）：另一个模型（Codex CLI，没有时用 Claude Code）按 AGENTS.md 独立审查改动，
+  在 pull request 上留一条评论。只有高把握的正确性或隐私问题才会让它失败。
+
+`make lint` 用基线管住已有的代码：`.swiftlint.baseline.json`（当时的 SwiftLint 违规）和 `Scripts/oversized-files.txt`
+（超过 400 行代码的文件，它们不能再变大）。新代码要符合规则，旧代码在改到时修好。修掉一些之后，`make lint-baseline`
+把基线降下来；把基线调高的 pull request 在 CI 里不通过。来自 fork 的 pull request 不在维护者的 Mac 上跑：由读过它的
+维护者推到这个仓库的分支上再检查。每周一，Health report 工作流更新置顶的「Code health report」issue：超限的文件、
+基线、重复和没用到的代码，以及它们各自的变化。
 
 ## 许可证
 

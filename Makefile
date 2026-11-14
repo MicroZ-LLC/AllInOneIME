@@ -112,7 +112,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -424,7 +424,7 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-# The core's lint guards (platform-neutral, standalone), its products' release build and the String Catalog tool's
+# The core's lint guards (platform-neutral, standalone: `portable`, below), its products' release build and the String Catalog tool's
 # check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
 # method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
 # after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
@@ -437,18 +437,44 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
 # thread when one waits.
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
-test: deps strings-check check-ios
-	$(CORE)/Scripts/check-core-portable-test.sh
-	$(CORE)/Scripts/check-core-portable.sh
-	$(CORE)/Scripts/check-core-standalone.sh
+test: deps strings-check check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
-	Scripts/check-split-paths.sh
 	swift build --product $(APP_NAME)
 	@status=0; \
 	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
+
+# The tests that need windows really drawn on screen (Scripts/on-screen-tests.txt), alone: on an unlocked Mac, when CI
+# skipped them because the Mac mini's screen was locked (TEST_SKIP, a regular expression of test names).
+test-screen: deps
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test --filter "$$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+
+# The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
+# SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so
+# that only new problems fail; the core's portability and standalone guards and the split paths; the string tables.
+# LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it. `make lint-baseline` lowers the
+# baselines after a fix. `make check` is everything a PR has to pass: lint, then test.
+lint: swiftlint ratchet portable strings-check
+
+swiftlint:
+	Scripts/swiftlint.sh
+
+ratchet:
+	Scripts/check-ratchet.sh $(if $(LINT_BASE),--base $(LINT_BASE))
+
+portable:
+	$(CORE)/Scripts/check-core-portable-test.sh
+	$(CORE)/Scripts/check-core-portable.sh
+	$(CORE)/Scripts/check-core-standalone.sh
+	Scripts/check-split-paths.sh
+
+lint-baseline:
+	Scripts/swiftlint.sh --write-baseline
+	Scripts/check-ratchet.sh --update
+
+check: lint test
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
 # (Core/Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in Core/.build/ios.
