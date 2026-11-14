@@ -390,4 +390,43 @@ struct QuestionSessionStuckTests {
         }
     }
     #endif
+
+    #if canImport(Darwin)
+    /// Stopped, a session's process that ends at once (SIGTERM) while a child in its group ignores SIGTERM: its end is
+    /// told (its output ended with it, the child's going elsewhere), and the child is still killed with the group once
+    /// `handOffGrace` is over, never left running.
+    @Test func aChildInTheGroupThatIgnoresTheStopIsKilledOnceItsGraceIsOver() async throws {
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let children = folder.appendingPathComponent("children")
+        let program = folder.appendingPathComponent("claude")
+        // The child (in the program's group: no job control) ignores SIGTERM before it writes its pid.
+        let child = "trap \"\" TERM; echo $$ >> \"$0\"; exec /bin/sleep \(Timing.longSleep)"
+        try Data("""
+            #!/bin/sh
+            trap 'exit 0' TERM
+            /bin/sh -c '\(child)' '\(children.path)' </dev/null >/dev/null 2>&1 &
+            while :; do /bin/sleep 0.05; done
+
+            """.utf8).write(to: program)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: program.path)
+        func pids() -> [Int32] {
+            ((try? String(contentsOf: children, encoding: .utf8)) ?? "").split(whereSeparator: \.isNewline).compactMap { Int32($0) }
+        }
+        // Killed by the end if still there (never a pid seen gone: it may be another process's by then).
+        var gone = false
+        defer { if !gone { for pid in pids() { _ = kill(pid, SIGKILL) } } }
+        let launcher = ProcessClaudeSessionLauncher(processes: FoundationProcessLauncher(), executable: { program },
+                                                    environment: { [:] })
+        let ended = Locked<Int32?>(initialState: nil)
+        let process = try launcher.start([], in: folder, output: { _ in },
+                                         exited: { status, _ in ended.withLock { $0 = status } })
+        #expect(await Timing.eventually(within: 10) { !pids().isEmpty }, "the child never started")
+        let pid = try #require(pids().first)
+        process.terminate()
+        #expect(await Timing.eventually(within: 10) { ended.withLock { $0 } != nil }, "its end never told")
+        gone = await Timing.eventually(within: 15) { kill(pid, 0) != 0 }
+        #expect(gone, "the child that ignores SIGTERM still runs")
+        #expect(!process.isRunning)
+    }
+    #endif
 }
