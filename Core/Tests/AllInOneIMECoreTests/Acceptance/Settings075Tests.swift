@@ -5,35 +5,25 @@ import AllInOneIMETestSupport
 
 // 0.7.5 settings: lighter, one place for AI commands (owner-approved 2026-11-12/13). The acceptance tests, written from
 // the spec before the implementation by an author other than the implementation's (whose changes don't edit them). They
-// look at what Core can see: the Mac's settings document (`SettingsService(...).document()`, platform .mac, in "en" and
-// "zh-Hans"), the config file (`Config` load and save), the commands users can type (`Command`), and what is learned
-// per app (`LearnedStore`) as a text field's session uses it. The settings window's own drawing, its search
-// (`SettingsSpot`, the Mac app's), the iCloud section's Remove from iCloud… (the Mac app's), the help texts' length and the
-// docs are not Core's: not tested here.
+// look at what Core can see: the core's settings document (`SettingsService(...).document()`, the one Windows' window
+// draws, and the Mac's flavor of it, platform .mac, in "en" and "zh-Hans"), the config file (`Config` load and save), the
+// commands users can type (`Command`), and what is learned per app (`LearnedStore`) as a text field's session uses it.
+//
+// The pages the spec rearranges (Settings → AI with its AI commands section, the recent questions in one place, a removed
+// control's Restore Default row) are the Mac window's (SwiftUI): the core's document never had its pages (its sections
+// are Windows' window's; 0.7.4's Restore Default rows are the Mac window's alone too). They are tested through the Mac
+// window's search in Tests/AllInOneIMEMacTests/Acceptance/Settings075MacTests.swift. The iCloud section's Remove from
+// iCloud…, the help texts' length and the docs aren't tested.
 //
 // Where the spec is silent, these tests take it so:
-// - The "AI commands" section is a section of the document of its own (as every page part is: "provider" for the AI
-//   picker, "request" for the model parameters), titled "AI 命令" / "AI commands" (the English compared without case:
-//   "AI Commands" as the other titles are written is taken too). Its id isn't looked at: it is found as the section that
-//   holds `rewriteStyles`.
-// - "The options of @improve, @translate and @question" in the document are the fields of the old "Translate & Rewrite"
-//   section (`outputLanguages`, `rewriteStyles`, `improveTranslates`, `jargonFile`, all of General's writing section in
-//   the Mac's window) and `rememberQuestions`; `questionContinueIn` too where the document has it (the Mac's window has it
-//   under Commands → @question; the document doesn't today). Their order inside the section isn't looked at.
-// - On the AI page, "first the AI picker, then AI commands, then model parameters": the AI picker's section (the one with
-//   the `provider` field, first in it), then the AI commands section right after it, then the model parameters' section
-//   (`maxTokens`) right after that.
-// - A removed control whose value isn't the default shows, in the document, a field whose id has the config key in it
-//   (`useSelection`, or `useSelection.something`), that isn't the control (no toggle), with an action whose name has
-//   "restore" in it (the obvious one: `restoreDefault`); the words "恢复默认" / "Restore Default" are its label, help,
-//   status or the window's string for that action (`strings["action.<name>"]`), and the row names the setting ("使用选中
-//   的文字" / "selected text"). Performing that action puts the default back in the config file, and the row goes.
+// - "The toggle leaves the window" (`useSelection`): the Mac's document has no field of it, whatever its value; the
+//   document can't set it any more. (Windows' window keeps its switch: not looked at here.)
 // - `useSelection` learned per app is kept as `turnTyposOff` is: in the local store of what is learned (`LearnedStore`),
-//   by the API that mirrors typos': `turnSelectionOff(in:)` (true the first time), `selectionOff(in:)`, and a row of
-//   Privacy → Learned… of its own that names the app (found by that name: its `LearnedItem.Kind` isn't named here),
-//   forgotten with Forget or Forget All. What makes the input method learn it (an app that doesn't take the replacement of
-//   its selection) is the shell's to tell, as the Mac's `InputController` tells `turnTyposOff`: these tests call the store
-//   as that shell does, as the turnTyposOff tests do (SettingsV2LearningAcceptanceTests).
+//   by the API that mirrors typos': `turnSelectionOff(in:)` (true the first time), `selectionOff(in:)`; Privacy →
+//   Learned… lists each app so with a row of its own that names it (`selectionOffApps`, `selectionOffText`), forgotten
+//   with Forget (`forgetSelectionOff(in:)`) or Forget All. What makes the input method learn it (an app that doesn't take
+//   the replacement of its selection) is the shell's to tell, as the Mac's `InputController` tells `turnTyposOff`: these
+//   tests call the store as that shell does, as the turnTyposOff tests do (SettingsV2LearningAcceptanceTests).
 // - The session decides whether "@" works on the selection where it does today (`InputSession.selectionMayBeRead`, Core):
 //   an app that learned it off doesn't, whatever the config says; `useSelection: false` in the config still turns it off
 //   in every app.
@@ -45,44 +35,14 @@ import AllInOneIMETestSupport
 //   (written by hand: "webSearch", "braveSearch") is read as if it weren't there, and a change Settings saves leaves it in
 //   the file as it was (no migration).
 
-/* The API these tests use that doesn't exist yet (Core module, AllInOneIMECore):
-
-extension LearnedStore {
-    /// Remembers `app` as one where "@" no longer works on the selected text (it didn't take it: the selection learned
-    /// off, as `turnTyposOff`): true if it wasn't yet. Never an app without an id.
-    @discardableResult public func turnSelectionOff(in app: String, at date: Date = Date()) -> Bool
-    /// Whether `app` learned the selection off.
-    public func selectionOff(in app: String) -> Bool
-}
-
-Privacy → Learned… (`LearnedStore.items`) lists each app learned so with a row of its own naming the app ("Selected text
-not used in Mail"), which `forget` forgets, as `.typosOff(app:)`'s rows are (a new `LearnedItem.Kind` case, say
-`selectionOff(app:)`; SettingsV2LearningAcceptanceTests' `forgetForgetsEachWhereItIsKept` switches over every case).
-
-extension SettingsAction {
-    /// A removed control's "restore default" row: its setting back to the default. (The name is only looked for by
-    /// "restore" in it.)
-    public static let restoreDefault = "restoreDefault"
-}
-*/
-
 @Suite(.serialized, MemorySecrets())
 struct Settings075Tests {
     typealias Field = SettingsDocument.Field
-    typealias Section = SettingsDocument.Section
 
     // MARK: - The rig
 
     /// The interface languages the core writes its text in.
     static let languages = ["en", "zh-Hans"]
-
-    /// The fields of the AI commands section: @translate's languages, @improve's styles (and what goes with them), and
-    /// @question's option the document has.
-    static let aiCommandFields = ["outputLanguages", "rewriteStyles", "improveTranslates", "jargonFile", "rememberQuestions"]
-
-    /// The Commands page's items that aren't AI's: they stay out of the AI commands section.
-    static let nonAICommandFields = ["agent", "agentPageContext", "notes.destination", "plugins.installed", "plugins.library",
-                                     "extensions.folders", "extensions.installed"]
 
     /// A config in `language` (the interface's) on the AI `ai` says (Claude API by default), with `rest` (JSON members)
     /// added.
@@ -108,21 +68,6 @@ struct Settings075Tests {
         return await withInterfaceLanguage(language) { service.document() }
     }
 
-    /// The section holding the field `id` (among a section's own fields), and where it is among the sections.
-    static func section(of id: String, in document: SettingsDocument) -> (index: Int, section: Section)? {
-        for (index, section) in document.sections.enumerated() where section.fields.contains(where: { $0.id == id }) {
-            return (index, section)
-        }
-        return nil
-    }
-
-    /// `section(of:in:)`, which must be there: a missing one says the sections there are.
-    static func required(_ id: String, in document: SettingsDocument) throws -> (index: Int, section: Section) {
-        let found = section(of: id, in: document)
-        let sections = document.sections.map { $0.id + ": " + $0.fields.map(\.id).joined(separator: ", ") }
-        return try #require(found, "\(id) in none of \(sections)")
-    }
-
     /// Every field of the document, an item's own fields too.
     static func allFields(_ document: SettingsDocument) -> [Field] {
         func all(_ fields: [Field]) -> [Field] {
@@ -131,112 +76,14 @@ struct Settings075Tests {
         return document.sections.flatMap { all($0.fields) }
     }
 
-    /// The "restore default" row a removed control's value shows in its place: a field with the config key `key` in its id
-    /// that isn't the control (no toggle), and its action that restores the default.
-    static func restoreRow(_ key: String, in document: SettingsDocument) -> (field: Field, action: String)? {
-        for field in allFields(document) where field.id.localizedCaseInsensitiveContains(key) && field.kind != .toggle {
-            if let action = field.actions?.first(where: { $0.localizedCaseInsensitiveContains("restore") }) { return (field, action) }
-        }
-        return nil
-    }
-
-    /// What a field says, its window's words for `action` too.
-    static func words(of field: Field, action: String?, in document: SettingsDocument) -> String {
-        [field.label, field.help, field.status, field.value?.string, action.flatMap { document.strings?["action." + $0] }]
-            .compactMap { $0 }.joined(separator: "\n")
-    }
-
     /// The config file's keys, as written.
     static func fileKeys(_ url: URL) throws -> [String: Any] {
         try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
     }
 
-    // MARK: - 1. The AI page: who answers, then AI commands, then model parameters
-
-    /// "Settings → AI: first the AI picker (as 0.7.4), then a new section 'AI 命令' / 'AI commands' …, then the model
-    /// parameters": the picker's section (the `provider` field first in it), the AI commands section right after it, the
-    /// model parameters' (`maxTokens`, `timeoutSeconds`) right after that; in both languages.
-    @Test(arguments: languages)
-    func theAIPageIsThePickerThenAICommandsThenModelParameters(language: String) async throws {
-        let document = try await document(Self.config(language), language: language)
-        let picker = try Self.required("provider", in: document)
-        #expect(picker.section.fields.first?.id == "provider", "the AI picker first: \(picker.section.fields.map(\.id))")
-        let commands = try Self.required("rewriteStyles", in: document)
-        let model = try Self.required("maxTokens", in: document)
-        #expect(commands.index == picker.index + 1, "AI commands right after the AI picker: \(document.sections.map(\.id))")
-        #expect(model.index == commands.index + 1, "the model parameters right after AI commands: \(document.sections.map(\.id))")
-        #expect(Self.section(of: "timeoutSeconds", in: document)?.index == model.index)
-        if language == "en" {
-            #expect(commands.section.title.lowercased() == "ai commands", "\(commands.section.title)")
-        } else {
-            #expect(commands.section.title == "AI 命令", "\(commands.section.title)")
-        }
-    }
-
-    /// The order holds whatever the AI is: with a CLI chosen (its picker alone), and with another provider (its own fields).
-    @Test(arguments: [#""provider": "anthropic", "questionBackend": "claudeSession""#, #""provider": "openai""#])
-    func theAIPagesOrderHoldsForEveryAI(ai: String) async throws {
-        let document = try await document(Self.config("en", ai: ai), language: "en")
-        let picker = try Self.required("provider", in: document)
-        let commands = try Self.required("rewriteStyles", in: document)
-        let model = try Self.required("maxTokens", in: document)
-        #expect(picker.index + 1 == commands.index && commands.index + 1 == model.index, "\(document.sections.map(\.id))")
-    }
-
-    /// The options of @improve, @translate and @question are in the AI commands section, each once in the whole document:
-    /// none left in General (its writing part, its "Remember recent questions") nor in a Translate & Rewrite section.
-    @Test(arguments: languages)
-    func theAICommandsOptionsAreInTheAICommandsSection(language: String) async throws {
-        let document = try await document(Self.config(language), language: language)
-        let commands = try Self.required("rewriteStyles", in: document).section
-        let ids = Self.allFields(document).map(\.id)
-        for id in Self.aiCommandFields {
-            #expect(commands.fields.contains { $0.id == id }, "\(id) in AI commands: \(commands.fields.map(\.id))")
-            #expect(ids.filter { $0 == id }.count == 1, "\(id) once in the document")
-        }
-        // @question's other option, where the document has it: there too.
-        if ids.contains("questionContinueIn") {
-            #expect(commands.fields.contains { $0.id == "questionContinueIn" }, "\(commands.fields.map(\.id))")
-        }
-        let general = try Self.required("actionKey", in: document).section
-        #expect(general.fields.allSatisfy { !Self.aiCommandFields.contains($0.id) }, "General: \(general.fields.map(\.id))")
-        #expect(!document.sections.contains { $0.id == "writing" }, "the Translate & Rewrite section is gone: \(document.sections.map(\.id))")
-    }
-
-    /// "Commands keeps the non-AI items (@agent status, notes, plugins, extensions)": still in the document, none of them
-    /// in the AI commands section.
-    @Test func theNonAICommandItemsStayOutOfAICommands() async throws {
-        let document = try await document(Self.config("en", #""agent": "claude""#), language: "en")
-        let commands = try Self.required("rewriteStyles", in: document).section
-        for id in Self.nonAICommandFields {
-            #expect(document.field(id) != nil, "\(id) is still in the document")
-            #expect(!commands.fields.contains { $0.id == id }, "\(id) isn't an AI command: \(commands.fields.map(\.id))")
-        }
-        #expect(document.field("commands.custom") != nil)
-    }
-
-    // MARK: - 2. Recent questions in one place
-
-    /// "Recent questions in one place … keep one (on the AI page, in the AI commands section, with @question)": the one
-    /// field about them (`rememberQuestions`), in the AI commands section; no other field of the document is about them.
-    @Test(arguments: languages)
-    func recentQuestionsAreInOnePlace(language: String) async throws {
-        for remember in [true, false] {
-            let document = try await document(Self.config(language, #""rememberQuestions": \#(remember)"#), language: language)
-            let fields = Self.allFields(document)
-            #expect(fields.filter { $0.id == "rememberQuestions" }.count == 1, "\(fields.map(\.id))")
-            let about = fields.filter { $0.id.localizedCaseInsensitiveContains("question") }.map(\.id)
-            #expect(Set(about).isSubset(of: ["rememberQuestions", "questionContinueIn"]), "\(about)")
-            let commands = try Self.required("rewriteStyles", in: document)
-            #expect(Self.section(of: "rememberQuestions", in: document)?.index == commands.index)
-            #expect(document.field("rememberQuestions")?.value == .bool(remember))
-        }
-    }
-
     // MARK: - 4. "Use the selection": the toggle leaves the window
 
-    /// With the value the default (on, or no key at all), nothing of `useSelection` is in the document: no toggle, no
-    /// restore row.
+    /// With the value the default (on, or no key at all), nothing of `useSelection` is in the Mac's document.
     @Test(arguments: languages)
     func theUseSelectionToggleLeavesTheDocument(language: String) async throws {
         for rest in ["", #""useSelection": true"#] {
@@ -246,36 +93,17 @@ struct Settings075Tests {
         }
     }
 
-    /// Off in the config (set by hand, by an earlier version): no toggle, and a "restore default" (恢复默认) row in its
-    /// place, naming the setting; Restore Default turns it on again in the file, and the row goes. The toggle can't be set
-    /// from the document any more.
+    /// Off in the config (set by hand, by an earlier version): no toggle in the Mac's document either, and the document
+    /// can't set it any more; the file keeps it off. (Its Restore Default row is the Mac window's: Settings075MacTests.)
     @Test(arguments: languages)
-    func useSelectionOffShowsARestoreDefaultRow(language: String) async throws {
+    func useSelectionOffIsNoToggleEither(language: String) async throws {
         let (service, url) = try service(Self.config(language, #""useSelection": false"#))
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let document = await withInterfaceLanguage(language) { service.document() }
         #expect(!Self.allFields(document).contains { $0.id == "useSelection" && $0.kind == .toggle }, "no toggle")
-        let restore = Self.restoreRow("useSelection", in: document), ids = Self.allFields(document).map(\.id)
-        let (row, action) = try #require(restore, "no restore row among \(ids)")
-        let said = Self.words(of: row, action: action, in: document)
-        if language == "en" {
-            #expect(said.localizedCaseInsensitiveContains("Restore Default"), "\(said)")
-            #expect(said.localizedCaseInsensitiveContains("selected text"), "\(said)")
-        } else {
-            #expect(said.contains("恢复默认"), "\(said)")
-            #expect(said.contains("选中的文字"), "\(said)")
-        }
-
         let set = await withInterfaceLanguage(language) { service.set("useSelection", to: .bool(true)) }
         #expect((try? set.get()) == nil, "no control sets it any more")
         #expect(try Config.load(from: url).useSelection == false)
-
-        let restored = await service.perform(SettingsAction(field: row.id, name: action))
-        #expect((try? restored.get()) != nil, "\(restored)")
-        #expect(try Config.load(from: url).useSelection == true, "the default again")
-        let after = await withInterfaceLanguage(language) { service.document() }
-        #expect(Self.restoreRow("useSelection", in: after) == nil, "the row goes once it is the default")
-        #expect(!Self.allFields(after).contains { $0.id.localizedCaseInsensitiveContains("useSelection") })
     }
 
     // MARK: - Config keys keep being read and written as now
@@ -465,27 +293,30 @@ struct Settings075Tests {
         #expect(!learned.typosOff(in: Apps.mail), "nothing else learned with it")
     }
 
-    /// Privacy → Learned… has a row for it naming the app, as for typos; Forget forgets it alone, Forget All too.
+    /// Privacy → Learned… has a row for it naming the app, beside typos' (`selectionOffApps`, `selectionOffText`, in both
+    /// languages); Forget forgets it alone (its id in any case), Forget All too.
     @Test func theLearnedListHasARowForTheSelectionOff() async throws {
         let folder = try Self.temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let learned = Self.learnedStore(in: folder)
+        func row(_ app: String) -> String { LearnedStore.selectionOffText(app) { Apps.name($0) ?? $0 } }
         await withInterfaceLanguage("en") {
             learned.turnSelectionOff(in: Apps.mail)
             learned.turnTyposOff(in: Apps.slack)
-            let items = learned.items(appName: Apps.name)
-            #expect(items.count == 2, "a row of its own beside typos': \(items)")
-            // Its row names the app (the typos' row names Slack); its kind's name isn't looked at.
-            let row = items.first { $0.text.contains("Mail") }
-            #expect(row != nil && row?.kind != .typosOff(app: Apps.mail), "\(items)")
-            guard let row else { return }
-            learned.forget(row)
-            #expect(!learned.selectionOff(in: Apps.mail))
+            #expect(learned.selectionOffApps == [Apps.mail], "\(learned.selectionOffApps)")
+            // Its row names the app, and isn't typos' (which names Slack, and is listed as before).
+            let typos = learned.items(appName: Apps.name)
+            #expect(typos.map(\.kind) == [.typosOff(app: Apps.slack)], "\(typos)")
+            #expect(row(Apps.mail).contains("Mail") && !typos.map(\.text).contains(row(Apps.mail)), "\(row(Apps.mail))")
+            learned.forgetSelectionOff(in: Apps.mail.uppercased())
+            #expect(!learned.selectionOff(in: Apps.mail) && learned.selectionOffApps.isEmpty)
             #expect(learned.typosOff(in: Apps.slack), "forgotten alone")
-            #expect(learned.items(appName: Apps.name).count == 1)
             learned.turnSelectionOff(in: Apps.mail)
             learned.forgetAll()
-            #expect(!learned.selectionOff(in: Apps.mail) && learned.items(appName: Apps.name).isEmpty)
+            #expect(!learned.selectionOff(in: Apps.mail) && learned.selectionOffApps.isEmpty && learned.items(appName: Apps.name).isEmpty)
+        }
+        await withInterfaceLanguage("zh-Hans") {
+            #expect(row(Apps.mail).contains("Mail") && row(Apps.mail) != row(Apps.slack), "\(row(Apps.mail))")
         }
     }
 
@@ -553,7 +384,8 @@ struct Settings075Tests {
             #expect(!pickingImproveUsesTheSelection(mail), "learned off in Mail")
             #expect(mail.document == "hello world" && !mail.marked.isEmpty, "marked as without a selection: \(mail.document) | \(mail.marked)")
             #expect(pickingImproveUsesTheSelection(selectedField(in: Apps.slack, config: config, learned: learned)), "Slack as before")
-            for item in learned.items(appName: Apps.name) { learned.forget(item) }
+            // Forget on its row in Privacy → Learned….
+            for app in learned.selectionOffApps { learned.forgetSelectionOff(in: app) }
             #expect(pickingImproveUsesTheSelection(selectedField(in: Apps.mail, config: config, learned: learned)), "forgotten")
         }
     }
@@ -571,7 +403,8 @@ struct Settings075Tests {
                 #expect(!pickingImproveUsesTheSelection(field), "\(app)")
                 #expect(field.document == "hello world")
             }
-            #expect(learned.items(appName: Apps.name).isEmpty, "the setting isn't learned per app: \(learned.items(appName: Apps.name))")
+            #expect(learned.selectionOffApps.isEmpty && learned.items(appName: Apps.name).isEmpty,
+                    "the setting isn't learned per app: \(learned.selectionOffApps)")
         }
     }
 }
