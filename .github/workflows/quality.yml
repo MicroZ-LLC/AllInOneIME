@@ -49,7 +49,8 @@ jobs:
   test:
     name: "Quality gate: test"
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: xcode-27
+    # On the Mac mini: GitHub's macOS machines are too slow for the Mac tests' timings (78 failures there on 2026-11-14).
+    runs-on: [self-hosted, macmini-agent]
     timeout-minutes: 120
     steps:
       - uses: actions/checkout@v5
@@ -74,6 +75,13 @@ jobs:
             unset "$name"
           done
           export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+          # A few tests need windows really drawn on screen; with the Mac mini's screen locked (no one there) they
+          # can't pass. Skip only those then, and say so: `make test-screen` runs them on an unlocked Mac.
+          if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
+            echo "::warning::The Mac mini's screen is locked: the on-screen tests were skipped; run make test-screen on an unlocked Mac."
+            TEST_SKIP="$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+            export TEST_SKIP
+          fi
           make test
 
   gate:

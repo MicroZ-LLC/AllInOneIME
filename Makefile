@@ -112,7 +112,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -443,8 +443,13 @@ test: deps strings-check check-ios portable
 	swift build --product $(APP_NAME)
 	@status=0; \
 	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
+
+# The tests that need windows really drawn on screen (Scripts/on-screen-tests.txt), alone: on an unlocked Mac, when CI
+# skipped them because the Mac mini's screen was locked (TEST_SKIP, a regular expression of test names).
+test-screen: deps
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test --filter "$$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
 
 # The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
 # SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so

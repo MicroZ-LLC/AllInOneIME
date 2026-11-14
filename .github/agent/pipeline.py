@@ -17,7 +17,7 @@
 # pass (CI's quality gate and the independent review, .github/workflows/quality.yml and review.yml, which this script
 # starts, since a PR made with the job's token starts no workflow). The issue gets agent:merging, and this job ends
 # (the gates need this runner). Then `pipeline.py --finish`, run every hour by agent-queue.yml, merges the PR once its
-# required checks pass (GitHub's auto-merge may do it first) and closes the issue; a required check that fails gets the
+# required checks pass and closes the issue; a required check that fails gets the
 # issue agent:stuck with a comment saying which, and once it is run again and passes, the PR still merges. Otherwise
 # the work is left in a draft PR and the issue gets agent:stuck with a comment saying why. Out of usage (the Max plan's
 # limit), or no open release branch: agent:queued, and agent-queue.yml starts it again later. AGENT_BASE names another
@@ -522,7 +522,7 @@ def give_up(number: int, title: str, base: str | None, branch: str | None, reaso
 def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseline: Checks, work: dict,
           test_notes: str, verdict: dict) -> None:
     """Puts the verified branch in a ready PR to `base` and starts its required checks. It never merges here: the change
-    goes in through the same gate as everyone's, by GitHub's auto-merge or `finish`, once they pass."""
+    goes in through the same gate as everyone's, by `finish`, once they pass."""
     git("fetch", "-q", "origin", base)
     if git("rev-parse", f"origin/{base}") != base_sha:
         log(f"{base} moved: merging it in")
@@ -547,9 +547,10 @@ def merge(number: int, title: str, base: str, branch: str, base_sha: str, baseli
                     "once its required checks pass. Allow it (Settings → Actions → General → Workflow permissions → "
                     "Allow GitHub Actions to create and approve pull requests), then add the label again.")
     start_checks(pr["number"], branch, base, git("rev-parse", "HEAD"))
-    how = "by GitHub's auto-merge" if auto_merge(pr) else "within the hour after they do"
-    comment(number, f"Ready in #{pr['number']}. It merges into `{base}` once its required checks pass (the quality "
-                    f"gate and the independent review), {how}, and this issue closes then.\n\n"
+    # No GitHub auto-merge: it would merge on whatever the branch protection requires, which may not be both gates;
+    # `finish` merges only once both passed (gate_state).
+    comment(number, f"Ready in #{pr['number']}. It merges into `{base}` within the hour after its required checks pass "
+                    f"(the quality gate and the independent review), and this issue closes then.\n\n"
                     f"**Change:** {work['summary']}\n\n**Tests** (a separate agent): {test_notes or '(none)'}\n\n"
                     f"**Verifier:** pass. {verdict['summary']}")
     labels(number, add=[MERGING], remove=[WORKING])
@@ -571,16 +572,6 @@ def start_checks(pr: int, branch: str, base: str, sha: str) -> dict[str, str]:
         status[workflow] = "started"
         log(f"started {workflow} on {branch}")
     return status
-
-
-def auto_merge(pr: dict) -> bool:
-    """Turns on GitHub's auto-merge, where the repository allows it and the branch protection has checks to wait for."""
-    result = run(["gh", "api", "graphql", "-f", f"id={pr['node_id']}", "-f", "query=mutation($id: ID!) { "
-                  "enablePullRequestAutoMerge(input: {pullRequestId: $id, mergeMethod: MERGE}) { clientMutationId } }"],
-                 stderr_apart=True)
-    if result.returncode:
-        log(f"no auto-merge: {(result.stdout + result.stderr).strip()[-300:]}")
-    return result.returncode == 0
 
 
 # MARK: merging what passed
