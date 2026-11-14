@@ -81,14 +81,9 @@ enum ClaudeSessionMac {
     /// The copy a desktop app brings along, for someone who has the app but never installed the CLI: the ChatGPT app
     /// (bundle com.openai.codex) carries `codex` in Resources/codex-cli/bin; the Claude app keeps Claude Code in
     /// ~/Library/Application Support/Claude/claude-code/<version>/<hash>/claude.app (newest version taken). Both are
-    /// those apps' own layout and may move with an update: not found is just "not installed". Looked up through
-    /// `DesktopCLILookup`: a test can put its own lookup in the layout's place.
+    /// those apps' own layout and may move with an update: not found is just "not installed". Nothing in the
+    /// environment switches it off.
     static func desktopBundled(_ agent: SessionAgent) -> URL? {
-        DesktopCLILookup.bundled(agent, layout: appLayout)
-    }
-
-    /// `desktopBundled`'s look at the apps' own layout.
-    private static func appLayout(_ agent: SessionAgent) -> URL? {
         let fm = FileManager.default
         func executable(_ url: URL) -> URL? { fm.isExecutableFile(atPath: url.path) ? url : nil }
         switch agent {
