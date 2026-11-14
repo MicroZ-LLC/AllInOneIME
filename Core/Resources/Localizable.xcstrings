@@ -19092,8 +19092,56 @@
         }
       }
     },
+    "Couldn't open the conversation in Terminal (%@)" : {
+      "comment" : "没能在终端打开这个对话（%@） — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Gespräch konnte nicht im Terminal geöffnet werden (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudo abrir la conversación en Terminal (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible d'ouvrir la conversation dans Terminal (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会話をターミナルで開けませんでした（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "터미널에서 대화를 열지 못했습니다(%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível abrir a conversa no Terminal (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒能在終端機打開這個對話（%@）"
+          }
+        }
+      }
+    },
     "Couldn't open the conversation in Terminal (%@); it stays here" : {
       "comment" : "没能在终端打开这个对话（%@），对话还在这里 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19141,6 +19189,7 @@
     },
     "Couldn't open the conversation in Terminal (%@); questions here now go into a new conversation" : {
       "comment" : "没能在终端打开这个对话（%@），这里的问题会进入新的对话 — Sources/AllInOneIMECore/ClaudeSession.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

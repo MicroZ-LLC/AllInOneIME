@@ -1414,7 +1414,7 @@ public final class InputSession {
                 handOff(prompt, to: kind)
             case let .continueClaudeSession(followUp):
                 // Off the key's thread: it waits for our process to end (on the task, holding no thread). A failure says
-                // why, and where the conversation is (`SessionHandOffError`).
+                // why (`SessionHandOffError`).
                 let (handOff, log) = (SessionSendableBox(value: services.continueClaudeSession), log)
                 tasks.start(nil) { post in
                     do {
