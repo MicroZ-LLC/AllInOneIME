@@ -2,10 +2,12 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Settings → General → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
-/// and Code's rows alike; what a row inserts (decision 28; Settings v2, 4): everywhere, then in the apps with their own
-/// choice. The rows picked (picked before, they come first) are in Privacy → Learned….
+/// and Code's rows alike; under More… (owner, 0.7.4), what a row inserts (decision 28; Settings v2, 4): everywhere, then
+/// in the apps with their own choice. The rows picked (picked before, they come first) are in Privacy → Learned….
 struct SuggestionsSection: View {
     @ObservedObject var model: SettingsModel
+    /// More…: open when it opens by itself (`opensByItself`) until clicked, then as clicked.
+    @State private var more = SettingsDisclosure()
 
     var body: some View {
         Section {
@@ -14,13 +16,30 @@ struct SuggestionsSection: View {
             }
             .settingsRow(.suggestions, shown: model.spot)
             // What a suggestion row inserts, for every source: everywhere, then the apps with their own.
-            SuggestionsInsertPicker(model: model)
-                .settingsRow(.suggestionsInsert, shown: model.spot)
-            AppInsertsList(model: model)
+            DisclosureGroup(isExpanded: Binding(get: { more.isExpanded(opensByItself: Self.opensByItself(model.config, spot: model.spot)) },
+                                                set: { more.click($0) })) {
+                SuggestionsInsertPicker(model: model)
+                    .settingsRow(.suggestionsInsert, shown: model.spot)
+                AppInsertsList(model: model)
+            } label: {
+                Text(tr("更多…", "More…", key: "settings.more"))
+            }
+            .disclosureGroupStyle(RowDisclosureStyle())
         } header: {
             SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.general.icon)
         }
         .disabled(!model.canSave)
+        // Opened again, as a new window starts (`SettingsView`'s own state is reset the same way).
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in more.reset() }
+        // The search pointing into it opens it, even folded by a click before.
+        .onChange(of: model.spot, initial: true) { if model.spot == .suggestionsInsert || model.spot == .appInserts { more.reset() } }
+    }
+
+    /// More… shows open, whatever was clicked: with something set there (an app with its own choice, Insert set
+    /// otherwise than the default), or the search pointing at its rows.
+    static func opensByItself(_ config: Config, spot: SettingsSpot?) -> Bool {
+        config.suggestionsInsert != nil || config.appProfiles.values.contains { $0.insertChoice != nil }
+            || spot == .suggestionsInsert || spot == .appInserts
     }
 }
 

@@ -73,6 +73,7 @@ A new install writes English; to type Chinese, French, Korean or Hindi too, add 
 | Click a row | In the candidate panel: picks it, as its digit would (a word, a command in the list, a result, an `@open` file, a recipient, an extension's row); the row under the pointer is highlighted. The text field keeps the focus |
 | Right-click a candidate, ⌃⌦ | While you type pinyin: removes the candidate right-clicked (or Control-clicked), or the highlighted one with ⌃⌦ (⌃Fn⌫ on a laptop keyboard), for good: any candidate, the dictionary's words and emoji too, and the English words among the candidates (by their letters); it no longer comes up as a candidate, whatever you type (a longer phrase or a sentence with it in it still does), and what pinyin learned of it from your choices is forgotten (an emoji removed leaves the word it comes with as it was). An English word stays on your list of English words. Nothing is put in. Settings → Input → Chinese → Removed candidates brings one back (✕), and so does adding an English word again in English Words; they sync through iCloud with the learned words |
 | Tap Shift | With more than one input language: the next one, in their order (English → Chinese → French → …, then back to the first) |
+| Caps Lock | Caps Lock as usual, unless Settings → Input → Switch input language is set to Caps Lock (`switchKey`; Tap Shift is the default): then each press switches as a tap of Shift does, with what you're typing too, and the light goes off again at once. Caps Lock then no longer locks capitals (type them with Shift), and a tap of Shift switches nothing. In password fields Caps Lock is left to macOS. AllInOneIME stays under English in Input Sources |
 
 ## Commands
 
@@ -251,6 +252,88 @@ agent Settings → Commands → Agent picks, by its name; an agent that isn't in
 edit it. With Apple Intelligence on this Mac a long conversation doesn't fit its small context: the oldest answers are
 shortened, then the oldest rounds left out, and the panel says "earlier rounds shortened". A conversation is saved
 under its first question in the recent questions, and picking it shows the rounds to go on with.
+
+### @question in a session of its own (new)
+
+Settings → AI is one choice for every AI feature (Change ▾ opens the choices, by how they connect): Claude Code, Codex,
+Antigravity (Google Antigravity's CLI, `agy`) or Kiro CLI under "With your subscription" (`questionBackend` in the
+config) has `@question` answered in the input method's own session on that CLI. (Gemini CLI is no longer one of them: it
+stopped serving personal Google accounts, which Google moved to Antigravity; a config that chose it is on Antigravity
+when `agy` is installed, else on its provider. `@agent` still hands to Gemini CLI.) A session is one long-running Claude
+Code (`claude -p`, stream JSON), Codex (`codex app-server`), Antigravity (`agy acp --agent allinoneime`) or Kiro CLI
+(`kiro-cli acp`) process the input method keeps for every text field, in a folder of its own
+(`~/Library/Application Support/AllInOneIME/claude-session`, `codex-session`, `antigravity-session` or `kiro-session`,
+with its own instructions: CLAUDE.md, AGENTS.md, an Antigravity agent or Kiro steering), signed in with that CLI's own account: a
+Claude, ChatGPT, Google or Kiro subscription, a company sign-in, or Claude Code on Amazon Bedrock (the provider settings
+in `~/.claude/settings.json` are used), with your login shell's PATH and the variables the CLI reads there
+(`CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT` …). No API key. Antigravity's session
+uses its fast model (Gemini 3.8 Flash, low thinking: the first words in about 2 seconds, against 5–8 with its default). Each `@question`
+conversation in the panel is a new conversation in the session (a new Claude Code session id, a new Codex thread or ACP
+session), and its follow-ups go on in that one: the agent remembers the conversation's earlier rounds, not earlier
+conversations, and a question never carries every one before it. Whichever CLI it is, the session may read the web
+(search it, open pages) and nothing else: it can't read, list or change files on this Mac, run commands, use the CLI's
+MCP servers, extensions, plugins or apps, or start other agents, and it asks you for nothing (Claude Code:
+`--tools WebSearch,WebFetch`; Codex: no environment for commands and files, `CODEX_EXEC_SERVER_URL=none`, with its MCP
+servers, apps and agents turned off; Antigravity: an agent with its web search (`search_web`) alone and no MCP servers,
+and a hook in `antigravity-session/.agents` that denies every other tool before it runs, with each permission it asks
+for refused; Antigravity has no tool that opens a page, so it searches only; Kiro CLI: an agent with `web_search` and
+`web_fetch` only). A question with text you didn't type in it
+(selected text, a screenshot's text, a page or another command's output inside it) could carry instructions to send the
+conversation somewhere: in that conversation the session may fetch only the addresses you typed yourself (in the
+question and its follow-ups), and with none typed its web tools are off. Claude Code is kept to those addresses' sites
+(`WebFetch(domain:…)`, no search); Codex, Antigravity and Kiro CLI can't be kept to addresses, so they have no web tools
+then (Codex `web_search="disabled"`, Antigravity and Kiro CLI an agent without tools); the
+process starts again with them. Continued in Terminal (⌘⏎), it is not this session any more but the CLI as you set it
+up: a normal interactive session on that conversation, with your own rules (your CLAUDE.md, AGENTS.md, GEMINI.md or Kiro
+steering; Antigravity's hook says nothing there), settings and permission prompts, all the tools you allow it and your MCP servers, extensions and plugins:
+what the conversation asks of it is then up to the CLI and you, as in any session of yours (for one with text you didn't
+type in it too). Only the question asked now is sent, with values hidden as for the provider (see Privacy) and, for a
+question about AllInOneIME, the user guide's excerpts. It starts when an `@question` is about to be asked (`@question`
+typed or picked, or one @'s Ask AI row highlighted; not for the magic key alone, nor in an app without AI or during
+secure input), with a new conversation made ready then (Codex and the ACP agents open it in the process they have;
+Claude Code's process starts again on a new session id), so the answer doesn't wait; it ends after 15 idle minutes, and
+a follow-up after that resumes its conversation. In it a conversation has no round limit, and ⌘⏎ offers continuing the
+same conversation in Terminal first (`claude --resume`, `codex resume`, `agy --conversation`, `kiro-cli chat --resume-id`);
+Start Over under the choice begins a new one. Never two processes on one conversation: ⌘⏎ ends the session's own
+process first and waits for it (killed if it hasn't ended within half a second), Terminal's CLI holds the conversation's
+lock while it runs (`lockf` on `<session folder>/locks/<id>.lock`, waiting for ours to be let go), and the conversation
+is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes into a new conversation here, never the
+one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
+from before is resumed. Whether each CLI is installed
+and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Antigravity's sign-in in the
+keychain or its settings without starting it, `kiro-cli whoami`): the CLI chosen when it shows, every CLI when you open
+the choices (Change ▾) and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and
+anything else for a minute, so showing it again runs no CLI before then; never at launch nor for a question, and with a
+provider chosen and the choices closed it runs none of them. The one chosen is tried as a question comes; one found
+signed in after it wasn't has its session's process started again by the next question. A CLI takes a second or more to
+answer, so
+what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
+an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
+neither, autocomplete is off, and rewriting and translating go to the session too, more slowly, each request in a
+conversation of its own with no web tools (never an `@question` conversation, however long it waits behind a question
+being answered). Settings says which under the choice. When the session can't answer (not
+installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
+within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting the conversation before
+it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction, not waited for) the
+fast fallback answers at once and the panel says why (with none, the question fails, saying why); Settings → AI shows a
+CLI that couldn't start so until it is looked at again. The panel's footer says who answered: the CLI (Claude Code, Codex, Antigravity, Kiro CLI) or the AI provider, "new
+conversation" when the CLI's conversation is new with that answer (the first question, or one it couldn't resume after a
+restart, so it doesn't have the rounds before), and the tokens the turn used when the CLI reports them (`12k tokens`).
+An answer that says nothing for 3 minutes, or doesn't stop within 5 seconds of Esc, ends the session's process; the next
+question starts it again. A config from before (no `questionBackend`) stays on its provider.
+
+To open the session yourself and read its history, in Terminal (one line per agent):
+
+- Claude Code: `cd ~/Library/Application\ Support/AllInOneIME/claude-session && claude --resume AllInOneIME` (each
+  conversation is named AllInOneIME; Claude Code finds a name only in the session's own folder, and lists them all when
+  more than one has it).
+- Codex: `codex resume AllInOneIME` (each conversation's thread is named AllInOneIME); `codex resume` in `codex-session`
+  lists them too.
+- Antigravity: `cd ~/Library/Application\ Support/AllInOneIME/antigravity-session && agy --continue` (Antigravity can't
+  name a conversation from outside, it titles each one itself; the folder's are the input method's, and `/resume` there
+  lists them).
+- Kiro CLI: `cd ~/Library/Application\ Support/AllInOneIME/kiro-session && kiro-cli chat --resume` (Kiro CLI can't name
+  one either: the folder's latest is the input method's last conversation).
 
 ### Recent questions (new)
 
@@ -511,7 +594,7 @@ Plugins are JavaScript run in a separate process: they can reach only the websit
 from the [plugin library](https://github.com/MicroZ-LLC/AllInOneIME-plugins): it shows which websites a plugin
 contacts before installing; the library's index is signed and every file must match it. A newer version shows an
 "Update" button; nothing updates by itself. Your own plugins go in `~/.config/allinoneime/plugins/` ("Open Plugins
-Folder"): local plugins, never overwritten by the library.
+Folder", under Commands → "Folders and sources…"): local plugins, never overwritten by the library.
 "Link" plugins run no code: they put the text into a web address and open it in the browser, like `@x nice weather
 today`, which opens X's composer with the text filled in; posting is up to you on the page. The library has four
 (`@x`, `@threads`, `@bsky`, `@weibo`). `@xe` converts currencies: `@xe 100 USD CNY`, `@xe 1000 JPY EUR`, one line
@@ -574,7 +657,7 @@ An app has two settings of its own; everything else is the same in every app:
 
 | Setting | Where | In the config |
 | --- | --- | --- |
-| What a suggestion row inserts there: with title, or with title and link; or Off, no suggestions there | Settings → General → Suggestions → "In these apps" | `suggestionsInsert` (synced with the settings); Off is `"suggestions": false` (this Mac's own: not synced) |
+| What a suggestion row inserts there: with title, or with title and link; or Off, no suggestions there | Settings → General → Suggestions → More… → "In these apps" | `suggestionsInsert` (synced with the settings); Off is `"suggestions": false` (this Mac's own: not synced) |
 | No AI: `@improve`, `@translate`, `@question`, `@agent` and your prompt commands send nothing there and say so; typing and the other commands work | Settings → Privacy → "Apps without AI" | `noAI` |
 
 "Add App…" lists the apps you typed in lately, or picks one in /Applications; Remove takes an app off that list (its
@@ -594,7 +677,7 @@ something, never naming them.
 - **Previous per-app settings.** What an earlier version set for an app, and Settings doesn't set any more, still works
   while it's set: the input it starts in (`inputLanguage`; one the app learned comes first), Always Translate as You
   Type (`translateAlways`), autocomplete always or never (`autocomplete`), typing out or not (`typeOut`) and its rewrite
-  styles (`rewriteStyles`). Settings → General → "Previous per-app settings", there only while an app has one, lists
+  styles (`rewriteStyles`). Settings → Advanced → "Previous per-app settings", there only while an app has one, lists
   them, a row per app, and Remove clears them for that app (its Insert, Off too, and No AI stay). An app set to no
   suggestions in an earlier version (`"suggestions": false`) is under "In these apps", at Off.
   Nothing in `config.json` is renamed or removed by 0.6.7, and these values sync as they did.
@@ -612,29 +695,35 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
 
 - **General**, from the top: the magic key and the action key; Show in Menu Bar and the interface language; Translate
   to, the rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a list
-  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps"; Clipboard history, with Keep the last, whether
-  macOS lets it record and Clear History; Sync through iCloud; and Previous per-app settings, only while an app has one.
+  is set); Autocomplete (Beta); Suggestions, with Insert and "In these apps" under More… (open by itself once either is
+  set); Clipboard history, with Clear History (and why it isn't recording, only when macOS doesn't let it); and Sync
+  through iCloud.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
-  default, and Code comes after them ("Code · Python"). Under the chips, each input has its options in a section under
+  default, and Code comes after them ("Code · Python"); then Switch input language (Tap Shift or Caps Lock) and the candidate layout. Under them, each input has its options in a section under
   its name, always shown, with nothing to click. English has its words; Chinese its language pack, Typing (full
   pinyin, Shuangpin or Zhuyin), Characters and fuzzy pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
   library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this
   page.
 - **AI**: the provider, its model, its key or AWS profile, and Test Connection; the base URL is under More…, which opens
   by itself once one is set.
-- **Privacy**: hiding sensitive information before sending, the words to hide, Apps without AI, what `@agent` and
+- **Privacy**: hiding sensitive information before sending, the words to hide (while it's on), Apps without AI, what `@agent` and
   `@reply` take from Chrome, remembering recent questions (with Forget), and learning English words.
-- **Commands**: your commands, the agent `@agent` hands to, where an `@question` conversation continues, `@note` and
-  `@search`, plugins, script extensions (folders that bring no new commands fold into one row) and extension sources. A
-  plugin or script extension command with suggestions has their switch under it, and **Show in the @ list** next to it.
-- **Advanced**: typing results out (speed, typos), the candidate layout, "Use the selected text", the config file and
-  the Rime folder.
-- **About**: the version, updates, "Check for updates automatically" and "Notify me when a new version is out",
-  Troubleshoot…, Report an Issue… and links.
+- **Commands**: your commands, the agent `@agent` hands to (and "On this Mac" when it isn't installed, or is your own
+  command), where an `@question` conversation continues, `@note` and `@search`, plugins and script extensions; last,
+  "Folders and sources…", folded unless there is an extension source, an update or an error: the plugins folder, Find
+  Raycast scripts automatically, the extension folders (those that bring no new commands fold into one row), Add
+  Folder… and the extension sources. A plugin or script extension command with suggestions has their switch under it,
+  and **Show in the @ list** next to it.
+- **Advanced**: typing results out (speed, typos), "Use the selected text", Previous per-app settings (only while an app
+  has one), the config file and the Rime folder.
+- **About**: the version, updates and "Check for updates automatically", Troubleshoot…, the four links in a row, and
+  Report an Issue….
 
 A few settings have no row unless they're set to something other than their default (by hand in the config file, or by
 an earlier version): the output tokens, temperature, timeout and Thinking (AI), a kind of sensitive information left out
-(Privacy), the settings or the jargon list and custom commands not synced (Sync through iCloud), and Insert's "ID only".
+(Privacy), the settings, the jargon list and custom commands, or the learned words not synced (Sync through iCloud),
+Insert's "ID only", how many texts the clipboard history keeps (General), and a new version's notification turned off
+(About).
 Then their row shows, with Restore Default. Shown or not, they work as before.
 
 **Search.** Type in the field at the top of the sidebar and it lists the settings that match as you type (by name, by
@@ -704,8 +793,8 @@ our servers. It needs iCloud Drive (System Settings → Apple Account → iCloud
 so, with a button that opens that pane.
 
 Once it's on, Settings shows one status row with a ⋯ menu (Sync Now; API keys and passwords; Remove Hidden Words from
-iCloud…, Remove Recent Questions from iCloud… and Remove from iCloud…), and two switches under it: Learned words, and
-Hidden words and recent questions.
+iCloud…, Remove Recent Questions from iCloud… and Remove from iCloud…), and one switch under it: Hidden words and recent
+questions. Learned words sync with no switch of their own; turned off in the config, they show with Restore Default.
 
 | What | What syncs | Default |
 | --- | --- | --- |
@@ -853,7 +942,7 @@ In Settings → Input:
   - `@improve` keeps a Korean, Hindi or French sentence in its own language, and `@translate` translates it into your languages (French is told apart from English when it's one of your input languages).
 - **Code** (new): an input for writing code, after the languages and apart from them: added with Add… → Code, its chip after the languages ("Code · Python"), with its coding language (Python, Java, Go, TypeScript, JavaScript, C or C++). Tap Shift through the languages, then Code (Chinese → English → Code). You type letters, and the rows offer that language's keywords and snippets; see [Suggestions and Code](#suggestions-and-code-new).
 - **Language packs**: the app comes with English (and French, which needs only macOS's layout). Chinese, Korean and Hindi are packs you download when you add them: adding Chinese downloads its dictionaries (about 34 MB, 125 MB unpacked) with a progress bar, and pinyin works as soon as it's done, without a restart; Korean's pack (its key table and how jamo make syllables) and Hindi's (its letters and common words) are a few kilobytes. A pack is data only (dictionaries, tables and schemas, never code), listed in a signed index and checked against its SHA-256 before it's used, like plugins. Each language's section shows its pack (version, size, where it came from) with Remove…, and removing the language offers to remove its pack. Updating from 0.6.1 or earlier keeps Chinese without a download: the installer keeps the dictionaries the old version came with.
-- **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical in Settings → Advanced → Candidate layout for one under the other (↑↓ choose). The command list and the results are always vertical.
+- **Candidate layout**: for picking words, pinyin and Hindi candidates are side by side by default (Horizontal), like the system's own input methods: ← → choose and ↑↓ (or - =) turn the page. Choose Vertical in Settings → Input → Candidate layout for one under the other (↑↓ choose). The command list and the results are always vertical.
 - Candidates, notices and the Translate as You Type chip appear without window animations. Committing a word hides its candidates immediately; the window is reused during continuous typing and closes after 400 ms of idle time.
 - **English words in pinyin** (with Chinese input): type a few letters and the English words they start come up among the candidates: bedr → Bedrock, and bedrock → Bedrock first (Space puts it in). Besides rime-ice's own English words: yours (English Words, in English's section, or in Chinese's without English: you add and remove them there), the English terms of your jargon list, and about 220 product and technical words rime-ice lacks (Bedrock, SageMaker, DynamoDB, LangGraph…). A word whose letters are all you typed comes first, unless they're pinyin too (xiaomi: second); a longer one second, or after the page while what you type may still be pinyin. The same letters put in as typed twice (bedrock ⏎, or a tap of Shift) are learned, with no command, and so is a word you type twice in English mode (after a tap of Shift; English mode itself is as it was, nothing shows there); the first time they're only remembered, until the app quits. In English mode a word is the letters between a space or a mark and a space, ⏎, a mark or a tap of Shift back to Chinese; not one you edit with ⌫ (while typing it or right after), one with a digit or a mark inside (example.com, don't, abc123), or one with a capital first (a name, a sentence's first word). Never in password fields, terminals and SSH clients, remote desktops and virtual machines, password managers, or apps with No AI (a terminal inside an editor, VS Code's say, can't be told from the editor); a password field that doesn't turn on secure input (on some web pages and in some Electron apps) can only be told apart with Accessibility, so nothing typed in a field is learned without it (System Settings → Privacy & Security → Accessibility), nor until it has confirmed that the field isn't a password field; never pinyin (rime-ice's corrected spellings too: zhogn; and your fuzzy pinyin), nothing that looks like a key or a number or holds one of your hidden words (switch: Settings → Privacy → "Learn English words"). A word you add that looks like a key, a card or phone number or an IP address is refused; adding one it learned makes it yours. They sync through iCloud with the learned words, merged by their letters; past 2,000 the oldest learned go first, never one you added. Privacy: learning looks at every word you type in English mode, on this Mac only, and sends nothing anywhere for it (no AI either); a word typed once stays in memory until the app quits, a word learned goes into your config file (`englishWords`) and leaves this Mac only when Sync through iCloud is on with the learned words (Settings → General), as the other learned words do. What the guards can't tell from a word (a password in a field that isn't a password field, all small letters, typed twice) could be learned: the list in Settings shows every word, ✕ removes one, and the switch turns learning off.
 - **Typing** (with Chinese input, new): Full pinyin (each syllable spelled out: nihao) or Shuangpin, each syllable in two keys, in one of the schemes rime-ice ships: Xiaohe (nihc → 你好), Ziranma, Microsoft, Sogou, Zhineng ABC, Pinyin Jiajia or Ziguang. Pick it under Chinese → Typing (Settings search finds it as shuangpin, 双拼 or a scheme's name). Nothing is downloaded: the schemes come with the Chinese pack, and the one you pick is deployed beside full pinyin in a second or two; the next key types with it, no restart. Your learned words (both share them), removed candidates, personal dictionaries, Characters, fuzzy pinyin (its pairs apply before the scheme's keys), English words among the candidates and every AI feature work as with full pinyin. The marked text shows what Rime shows for the scheme (Xiaohe's nihc as ni hao). After the magic key, the letters are still matched as command and app names as you type them, and the candidates line under the commands is the scheme's. Each scheme gets the same patch as `rime_ice.custom.yaml`, in a file of its own (`double_pinyin_flypy.custom.yaml` for Xiaohe), and the schema list (`default.custom.yaml`) names it; neither is written over a file of your own (with a `default.custom.yaml` of your own, add the scheme's schema to its `schema_list` yourself: `- schema: double_pinyin_flypy` for Xiaohe).
@@ -1085,7 +1174,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   its own. In the config: `hiddenFromCommandList`, this Mac's own. A Suggestions command is never in the list.
 - **What a row inserts:** what its source says (a plugin's `insert`, per class of app: `@github` puts in `#1234 Fix
   login` in documents and the link too in chat apps; a custom command's Insert), unless you choose otherwise in Settings
-  → General → **Insert**, under the Suggestions switch, for every source: **Default** (each source's own), **With title**
+  → General → **Insert**, under the Suggestions switch's More…, for every source: **Default** (each source's own), **With title**
   (`#1234 Fix login`), **With title and link** (`#1234 Fix login https://github.com/…/issues/1234`) or **Markdown link**
   (`[Fix login](https://github.com/…/issues/1234)` in the place of the `#12` you typed; its `{arg}`, `#1234`, in a terminal), the
   same in every app, terminals and code editors too; an item without a title or a link goes in with what it has. An app can have its
@@ -1189,15 +1278,16 @@ suggestions use, and puts in the one you choose.
   AllInOneIME to **Allow**. AllInOneIME is listed there once macOS has asked about it: press ⌃V in a text field once and
   allow it. Until then nothing is recorded and macOS is never asked in the background; ⌃V still shows what's on the
   clipboard now (read then, so macOS may ask), with a row saying how to keep a history (⏎ on it opens that page), and in
-  a command ⌃V is as before. Settings → General → Clipboard history says whether it's recording, with a button to that
+  a command ⌃V is as before. Settings → General → Clipboard history says when it isn't recording, with a button to that
   page.
 - **Where it's kept:** on this Mac only, in `~/Library/Application Support/AllInOneIME/clipboard-history.json`, readable
   only by your user account and left out of backups. Never synced, never sent to an AI or anywhere. **Clear History** in
   Settings → General deletes it. The first time the panel shows, its footer says so.
 - **Turning it off:** Settings → General → **Clipboard history** (on by default; there's no input-menu item). Off, ⌃V is
   as before 0.6.8 (in a command it appends the clipboard, elsewhere it goes to the app) and the history is deleted.
-  **Keep the last** sets how many it keeps, 5 to 100; a lower number drops the oldest at once. In the config:
-  `clipboardHistory` and `clipboardHistoryLimit`, this Mac's own (never synced).
+  It keeps the last 20; `clipboardHistoryLimit` in the config sets another number, 5 to 100 (a lower one drops the
+  oldest at once), and Settings then shows it with Restore Default. In the config: `clipboardHistory` and
+  `clipboardHistoryLimit`, this Mac's own (never synced).
 
 ## Installation
 
@@ -1225,7 +1315,7 @@ release key, installs it and restarts the input method. Your settings, language 
 if anything goes wrong the version you had is put back. AllInOneIME looks once a day by itself, in the background (turn it off
 with "Check for updates automatically" under About); nothing is installed until you click. When it finds a new version, a macOS
 notification says so, once a version: **Update** installs it as About does, **Don't Show Again** turns these notifications off
-(back on with "Notify me when a new version is out" under About), and clicking it opens About. It's never a window, so a key you
+(back on with Restore Default on its row under About), and clicking it opens About. It's never a window, so a key you
 are typing never lands on it; macOS asks whether AllInOneIME may notify you only before the first one, and if you say no, the
 line in About and the menu bar panel is all. This works from 0.6.3 on; to update an older version, or if you prefer, install the
 new version's disk image over it, without uninstalling first.
@@ -1320,7 +1410,7 @@ in Settings wins over both.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-You don't need AWS: pick one under Provider in Settings → AI, paste an API key, click "Save", then "Test Connection".
+You don't need AWS: pick one in Settings → AI (Change ▾), paste an API key, click "Save", then "Test Connection".
 
 | Provider | Default model | API key |
 |---|---|---|
@@ -1337,7 +1427,7 @@ You don't need AWS: pick one under Provider in Settings → AI, paste an API key
 
 ### Apple Intelligence on this Mac (macOS 26)
 
-On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple Intelligence (on this Mac)" under Provider in Settings → AI: no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
+On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple on-device" in Settings → AI (Change ▾): no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
 
 - It's a small model: its context is about 4K tokens (8K on macOS 27), so a long paragraph may be too long for it, and it speaks fewer languages (English, Chinese, Japanese, Korean, French, German, Spanish and a few more; not Hindi). Either one says so. Its results are below the cloud models', and its `@question` answers on facts and code are often wrong.
 - Where it can't be used, it's listed greyed out with the reason (not supported on this Mac, turned off, model not ready), and the settings link to System Settings → Apple Intelligence & Siri. Before macOS 26 it isn't listed.
@@ -1369,7 +1459,7 @@ shows it with Restore Default:
   under Privacy.
 - In the config: `"redaction": {"enabled": true, "customWords": ["Project Atlas"]}`.
 
-All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings` and `jargon`, and `suggestionsInsert` `"id"`; then their row shows, with Restore Default. An app's settings other than `noAI`, `suggestionsInsert` and `suggestions` (Off in "In these apps") show under Previous per-app settings, with Remove. They work either way. The newer keys:
+All settings are stored in `~/.config/allinoneime/config.json`; after a change, the next translation uses the new settings, with no restart. 0.6.7 renamed and removed none of them. Settings no longer shows some unless they're set to something other than their default: `maxTokens`, `temperature`, `timeoutSeconds` and a provider's `effort` (Thinking), the `redaction` kinds, `iCloudSync`'s `settings`, `jargon` and `learnedWords`, `suggestionsInsert` `"id"`, `clipboardHistoryLimit` and `notifiesUpdates`; then their row shows, with Restore Default. An app's settings other than `noAI`, `suggestionsInsert` and `suggestions` (Off in "In these apps") show under Previous per-app settings, with Remove. They work either way. The newer keys:
 
 | Key | What it does | Default |
 |---|---|---|
@@ -1403,12 +1493,13 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `rememberQuestions` | Keep your last 5 `@question`s and their answers on this Mac, listed under `@question` (see Recent questions) | `true` |
 | `questionRounds` | Rounds of an `@question` conversation in the panel before it suggests continuing elsewhere, 2–10 | `5` |
 | `questionContinueIn` | Where an `@question` conversation can continue, in order, the first the default: `agent` (whatever `@agent` hands to, in place of that agent's own entry), `claudeCode`, `geminiCLI`, `kiroCLI`, `customAgent` (the agents, each only if installed), `claudeWeb`, `chatgpt`, `gemini`, `copy` | `agent`, the other agents installed, Claude, ChatGPT, copy |
+| `questionBackend` | The CLI chosen as the AI in Settings → AI: `claudeSession` (Claude Code), `codexSession`, `antigravitySession`, `kiroSession` (Codex, Antigravity, Kiro CLI; 0.7.4's earlier `geminiSession` reads as `antigravitySession`). `@question` goes to the input method's own session on it, what has to be fast to `provider` when that is set up (see @question in a session of its own); not set (or `provider`, as 0.7.4's builds wrote): the AI is `provider`. This Mac's own, never synced | not set |
 | `appProfiles` | Settings of one app, by bundle ID, each optional: `noAI`, `suggestionsInsert` (as below, or `"source"`; synced) and `suggestions` (`false`: no suggestion rows there, Off in "In these apps"; this Mac's own: not synced), which Settings shows; and from earlier versions, still used: `inputLanguage` (a language's code, or `"code"` for Code), `rewriteStyles`, `typeOut`, `translateAlways`, `autocomplete` (this Mac's own: not synced) (see Per-app settings) | `{}` |
 | `autocomplete` | Autocomplete: the rest of the sentence in gray after the caret, Tab puts it in; it asks your AI provider (see Autocomplete); never synced | `false` |
 | `suggestions` | Suggestions (Settings → General, the input menu): `false` turns off every suggestion row, plugins', Suggestions commands' and Code's; this Mac's own, never synced (see Suggestions and Code) | absent (on) |
-| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
+| `suggestionsInsert` | What a suggestion row inserts in every app without a choice of its own (Settings → General → Suggestions → More… → Insert): `"title"`, `"titleAndLink"` or `"markdownLink"`; `"id"` still works but is no longer offered; absent: what its source says; syncs with the settings | absent |
 | `clipboardHistory` | Clipboard history (Settings → General): `false` turns it off (⌃V as before 0.6.8) and deletes the history; this Mac's own, never synced (see Clipboard history) | absent (on) |
-| `clipboardHistoryLimit` | How many texts clipboard history keeps (Settings → General → Keep the last), 5–100; a lower number drops the oldest at once; this Mac's own, never synced | absent (20) |
+| `clipboardHistoryLimit` | How many texts clipboard history keeps (shown under Settings → General → Clipboard history, with Restore Default, when not 20), 5–100; a lower number drops the oldest at once; this Mac's own, never synced | absent (20) |
 | `completionSources` | The completion sources approved, each by `plugin` and `source` with what was approved: `hosts`, `query`, `scriptSHA256` (its script's) and `terms` (its `prefix`, `queryMinChars`, `compare`); a plugin's as it was installed (or first found by 0.6.7.2) or turned on in Settings → Commands → Plugins; `"lapsed": true` once an update changed one of them, off until turned on again. A script extension command's source too: `"plugin": "script-extensions"` and the command's id as `source`, approved as its extension source was added or turned on in Settings → Commands. One from an extension source is lapsed once a file of the source's repository (`scriptSHA256` is its digest), `query`, prefix, `queryMinChars` or `compare` changed; one of your own, or from a source marked Trust its updates, never lapses and nothing of it is read (`scriptSHA256` empty), and is on with no entry here. Written by Settings and as plugins and sources are added; this Mac's own, never synced | `[]` |
 | `completionSourcesOff` | The completion sources you turned off in Settings, each by `plugin` and `source` (as above): off whatever else, through updates and restarts, until you turn one on again; this Mac's own, never synced | `[]` |
 | `hiddenFromCommandList` | The plugins and script extension commands with suggestions you took out of the @ command list (**Show in the @ list** off under one in Settings → Commands): a plugin's name, a script extension command's id. Their suggestions are as before; one that no longer has a suggestion source is in the list again. This Mac's own, never synced (as `disabledExtensions`) | `[]` |
@@ -1427,6 +1518,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - Typing (English and pinyin) and the `@calculator` plugin's calculations are entirely local. Only when you press the action key on `@improve`, `@translate` or `@question` is that sentence sent to the AI provider you chose (your own Bedrock, or the service whose key you added). With "Jargon" checked and a jargon list set, the list is sent along with it. Refining the results (an instruction typed after them, then ⇧⏎) sends the same request again with the results shown and your instruction; a follow-up question (⏎) sends the conversation so far with it.
 - So that the request after a pause doesn't wait for a new connection (0.7.0): when what you write becomes an AI command for a cloud provider of your own (Claude API, Gemini API, OpenAI, Amazon Bedrock; after `@`, once you've typed or selected something and the highlighted row is an AI one, never for `@` alone), or at the first key in a text field where autocomplete uses one, and nothing went to that provider in the last 90 seconds, the input method sends one HEAD request to the provider's address, `https://host/` only (Bedrock: its region's address): no key, no credentials, no body, any request to log in refused. Nothing you typed is sent before ⏎. Only to the provider's own address (`api.anthropic.com`, `generativelanguage.googleapis.com`, `api.openai.com`, `bedrock-runtime.<region>.amazonaws.com`), never to a base URL you set yourself (another service, a relay, a model on this Mac or your network, even another of these providers' addresses), and only once a real request has succeeded there: this Mac remembers which address and when, nothing else (in the app's caches, never in config.json), and forgets an address after 30 days without a success. Your keys and AWS files are never looked at for it. Never to AllInOneIME Cloud, never during secure input, never in an app with No AI; that, and that the provider and its address are still the same, is checked again right before it goes.
 - Settings sends text to a model only when you pick the search's last row, Change: …, or ask Troubleshoot a question with Check: Apple Intelligence on this Mac whenever it's available (nothing leaves the Mac), else your provider. The search itself sends nothing. A request sends your sentence (a key typed into it is taken out first) with the current values of the settings it may change: never a key, nor the words you hide from the AI (only how many there are), and your AWS profiles' names only when the sentence is about AWS or Bedrock. A question sends itself with the check results, masked: no paths beyond `~`, no keys, log lines as fixed phrases. Hiding sensitive information applies to both, as to any request. The checks alone send nothing; Check sends only the Test Connection request, and that only when the provider has a key or credentials to test.
+- With Claude Code, Codex, Antigravity or Kiro CLI chosen in Settings → AI, `@question` goes to that CLI on this Mac, under its own account and service, instead of the provider: the question asked now, its values hidden as for the provider, and for a question about AllInOneIME a few excerpts of the user guide. Each conversation is a new one in the session, its history kept with that CLI (its own session history, named AllInOneIME where the CLI names sessions); nothing is carried from one conversation to the next. Whichever CLI it is, the session may only read the web (search it, open pages): it can't read, list or change files on this Mac, run commands, or use the CLI's MCP servers, extensions, plugins or other agents. With text you didn't type in the question (selected text, a screenshot's text, a page or another command's output inside it), which could tell the agent to send the conversation to an address of its own, the session may fetch only the addresses you typed yourself, and with none its web tools are off: Claude Code is kept to those addresses' sites; Codex, Antigravity and Kiro CLI have no web tools then, since they can't be kept to addresses. Continued in Terminal (⌘⏎), it is the CLI as you set it up, a normal interactive session with your own rules, settings, permission prompts, tools and MCP servers, not the web-only session. Whether each CLI is signed in is looked at only by Settings → AI, with a CLI chosen or its choices open. With no faster AI set up (see above), rewriting and translating go to it too.
 - Continuing an `@question` conversation elsewhere (⌘1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: a coding agent on this Mac (Claude Code, Gemini CLI, Kiro CLI or your own, each with its own account and service), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
 - An `@question` about AllInOneIME itself (naming the app, one of its settings, commands or keys) also sends two or three short sections of the app's own user guide, picked on the Mac (about 3,000 characters at most): the app's documentation, nothing of yours (no settings, no keys); a coding agent you continue such a conversation in is given the guide's path instead. Any other question is sent exactly as before.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.

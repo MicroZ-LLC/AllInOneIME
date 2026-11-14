@@ -8,9 +8,13 @@ import os
 
 let log = Logger(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
-/// One converter (one URLSession, one cache) shared by every input session in the process. @question reads the app's
-/// user guide for a question about AllInOneIME.
-let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url)
+/// One converter (one URLSession, one cache, the input method's question sessions) shared by every input session in the
+/// process. @question reads the app's user guide for a question about AllInOneIME. Bedrock is ready for what has to be
+/// fast only with credentials its requests can be signed with (`AWSCredentialResolver.canAuthenticate`), not just a
+/// profile of that name.
+let sharedConverter = Converter(loadUserGuide: { BundledUserGuide.text }, userGuideFile: BundledUserGuide.url,
+                                questionSessions: ClaudeSessionMac.managers,
+                                hasAWSProfile: { AWSCredentialResolver.shared.canAuthenticate(profile: $0) })
 
 /// AllInOneIME's user guide as the app ships it (Contents/Resources/user-guide.md, copied there by the Makefile), read
 /// once, when a question first needs it.
@@ -92,6 +96,9 @@ final class AllInOneIMEInputController: IMKInputController {
     var copyWeekStatsImage: (@escaping @MainActor (Bool) -> Void) -> Void = { done in
         MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
     }
+    /// Turns Caps Lock's lock on or off (`CapsLockKey`; the self-test touches none).
+    /// Off: kept off for a moment (`CapsLockKey.keepOff`).
+    var setCapsLock: @MainActor (Bool) -> Void = { $0 ? CapsLockKey.setLock(true) : CapsLockKey.keepOff() }
     /// The browser's process when `@agent`'s page is to be read in `app` (`PageContextReader.applies`; the self-test reads
     /// none), and reading it: off the main thread (`SessionServices.page`).
     var pageProcess: (String?) -> pid_t? = { app in
@@ -1047,6 +1054,8 @@ final class AllInOneIMEInputController: IMKInputController {
                     guard let self, self.fieldSession == asked else { return }
                     self.apply(self.session.weekStatsImageCopied(copied), client: nil)
                 }
+            case let .platform(.setCapsLock(on)):
+                setCapsLock(on)  // a press of Caps Lock, the switch key, switched the language: its lock off again
             }
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the

@@ -293,10 +293,12 @@ enum SettingsPageImages {
         let shownChecks = doctor?.split(separator: ",") ?? []
         let fine = SelfTest.sampleAssistant(rig, fine: true)
         fine.dismissPreview()
+        // The AI page's CLIs: as the owner's design shows them (Antigravity not signed in), never this Mac's.
+        model.sessionAvailability = [.claude: .ready, .codex: .ready, .antigravity: .signedOut, .kiro: .ready]
         func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "",
-                    troubleshoot: Bool = false) {
+                    troubleshoot: Bool = false, choosingAI: Bool = false) {
             SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot,
-                                 to: output.appendingPathComponent("settings-\(name).png"),
+                                 choosingAI: choosingAI, to: output.appendingPathComponent("settings-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         for page in SettingsPage.allCases { render(page, page.rawValue) }
@@ -308,10 +310,37 @@ enum SettingsPageImages {
         render(.ai, "restore-default")
         render(.privacy, "restore-default-privacy")
         render(.general, "restore-default-insert")
+        // …and those whose rows went in 0.7.4 (the owner's simplification): how many the clipboard history keeps, iCloud's
+        // learned words, a new version's notification.
+        model.config.clipboardHistoryLimit = 50
+        model.config.iCloudSync.learnedWords = false
+        model.config.notifiesUpdates = false
+        render(.general, "restore-default-general")
+        render(.about, "restore-default-about")
+        // What is folded, folded: Suggestions' More… (no app with its own Insert) and Commands' Folders and sources… (no
+        // source); Words to hide gone with hiding off.
+        model.config = saved
+        model.config.appProfiles = [:]
+        model.config.extensionSources = []
+        model.config.redaction.enabled = false
+        render(.general, "general-folded")
+        render(.commands, "commands-folded")
+        render(.privacy, "privacy-not-hiding")
         // Insert set to Markdown link, everywhere (0.6.7.1).
         model.config = saved
         model.config.suggestionsInsert = .markdownLink
         render(.general, "insert-markdown-link")
+        // Caps Lock switching the input language (0.7.4), with what it says under it.
+        model.config = saved
+        model.config.switchKey = .capsLock
+        render(.input, "input-caps-lock")
+        model.config = saved
+        // The AI page: its choices open (Change ▾), the one chosen outlined; and Claude Code chosen, with where what has to
+        // be fast goes.
+        render(.ai, "ai-choices", choosingAI: true)
+        model.config.ai = .cli(.claude)
+        render(.ai, "ai-claude-code")
+        render(.ai, "ai-choices-claude-code", choosingAI: true)
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")
@@ -332,14 +361,14 @@ enum SettingsPageImages {
         try? FileManager.default.removeItem(at: samples)
         // AI Provider's key row with a key saved (its last 4 shown) and without one, and the key sheet for another
         // provider: sample states, no keychain asked.
-        let provider = model.config.provider
+        let (provider, cli) = (model.config.provider, model.config.questionBackend)
         model.showKeys([.openai: .keychain, .anthropic: .none, .gemini: .none], endings: [.openai: "a1b2"])
         for (shown, sheet, name) in [(Provider.openai, nil, "key-saved"), (.gemini, nil, "key-missing"), (.bedrock, Provider.gemini, "key-sheet")] {
-            model.config.provider = shown
+            model.config.ai = .provider(shown)
             SettingsImage.render(model, page: .ai, keySheet: sheet, to: output.appendingPathComponent("settings-provider-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
-        model.config.provider = provider
+        (model.config.provider, model.config.questionBackend) = (provider, cli)
         // Bedrock with a role, an SSO profile, and an SSO sign-in that expired.
         AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
         // Input with its options under the chips (each input's options under its name).

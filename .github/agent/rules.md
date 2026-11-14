@@ -22,6 +22,10 @@ README.md describes every feature.
 - Subtract: add no `@` command, shortcut or setting the issue doesn't ask for. Reuse what exists: an existing command,
   key, per-app setting, or automatic behaviour. An issue that asks for a new command in so many words was approved by
   the maintainer who labelled it.
+- Fixed, never to change: AllInOneIME is listed under English (U.S.) in Input Sources, not Chinese. In
+  `Resources/Info.plist`, `TISIntendedLanguage` stays `en`, `tsInputMethodCharacterRepertoireKey` starts with `Latn`,
+  and the source and bundle IDs stay `com.allinoneime.inputmethod.AllInOneIME`. `InputSourceGroupTests` locks this; an
+  issue that needs it changed (Caps Lock switching, say) is "blocked" for the maintainer.
 
 ## Code
 

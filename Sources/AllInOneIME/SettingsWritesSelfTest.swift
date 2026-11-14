@@ -231,7 +231,7 @@ extension SelfTest {
         check(model.config.appProfiles[mail]?.noAI == true && !model.config.redaction.emails, "and the window then shows the Change's change")
     }
 
-    /// General → Previous per-app settings → Remove clears what an app's profile still sets of the settings no longer
+    /// Advanced → Previous per-app settings → Remove clears what an app's profile still sets of the settings no longer
     /// offered (where it starts, Translate as You Type always on, autocomplete always, typing out, rewrite styles), its
     /// Insert (its Off among it: suggestions off, never listed here) and No AI kept; another app's are as they were; an
     /// app left with nothing goes from the file. The section is there only while an app has one.
@@ -262,7 +262,7 @@ extension SelfTest {
               "Mail, left with nothing, goes from the file; the section is gone (\(file.appProfiles))")
     }
 
-    /// General → Suggestions → "In these apps" with Off (the owner's decision of 2026-10-24), as its picker and Remove
+    /// General → Suggestions → More… → "In these apps" with Off (the owner's decision of 2026-10-24), as its picker and Remove
     /// write it (`SettingsModel.setInsertChoice`): an app with only its suggestions off is listed, at Off; Off chosen for
     /// an app that inserts with title and link turns its suggestions off and keeps that; With title turns them back on
     /// with it; Remove clears both, its No AI kept; an app with neither isn't listed, its settings untouched. The page is

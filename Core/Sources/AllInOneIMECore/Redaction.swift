@@ -86,6 +86,12 @@ public struct Redaction: Sendable {
         /// As typed (not folded).
         public let value: String
         public var placeholder: String { "[\(kind.rawValue)_\(number)]" }
+
+        public init(kind: Kind, number: Int, value: String) {
+            self.kind = kind
+            self.number = number
+            self.value = value
+        }
     }
 
     /// A value found in a text: its kind and where it is in the text as given (UTF-16).
@@ -95,9 +101,13 @@ public struct Redaction: Sendable {
     }
 
     public let settings: RedactionSettings
-    /// The values hidden so far, in the order they appear.
+    /// The values hidden so far, in the order they appear (with those `known` from before first).
     public private(set) var hidden: [Hidden] = []
-    public var count: Int { hidden.count }
+    /// How many values the texts hidden here held (a value `known` from before counts once it is in one).
+    public var count: Int { used.count }
+    private var used = Set<String>()
+    /// The numbers given out before (`init(_:known:numbers:)`): a new value's number is above them.
+    private var floors: [Kind: Int] = [:]
     /// Every text hidden (the user's text, a custom command's prompt) with what was sent instead.
     public private(set) var texts: [(original: String, sent: String)] = []
     /// Kinds and numbers the user's own texts already hold in a placeholder's shape ("ip_1", "[Item 1]"): never
@@ -108,6 +118,20 @@ public struct Redaction: Sendable {
     public init?(_ settings: RedactionSettings) {
         guard settings.enabled else { return nil }
         self.settings = settings
+    }
+
+    /// Hiding that goes on from earlier requests (one long conversation, `ClaudeSessionManager`): a value in `known`
+    /// keeps its placeholder, a new one is numbered above `known` and `numbers` (the highest given out per kind), so
+    /// no placeholder stands for two values. `known`'s values are put back in answers too.
+    public init?(_ settings: RedactionSettings, known: [Hidden], numbers: [Kind: Int] = [:]) {
+        self.init(settings)
+        hidden = known
+        floors = numbers
+    }
+
+    /// The highest number given out per kind, `numbers` from before included.
+    public var numbers: [Kind: Int] {
+        hidden.reduce(into: floors) { $0[$1.kind] = max($0[$1.kind] ?? 0, $1.number) }
     }
 
     /// The system prompt's last lines when something was hidden (and only then: other requests stay as they were).
@@ -146,11 +170,15 @@ public struct Redaction: Sendable {
     }
 
     private mutating func placeholder(for value: String, kind: Kind) -> String {
-        if let known = hidden.first(where: { $0.value == value }) { return known.placeholder }
-        var number = (hidden.filter { $0.kind == kind }.map(\.number).max() ?? 0) + 1
+        if let known = hidden.first(where: { $0.value == value }) {
+            used.insert(known.placeholder)
+            return known.placeholder
+        }
+        var number = max(hidden.filter { $0.kind == kind }.map(\.number).max() ?? 0, floors[kind] ?? 0) + 1
         while reserved.contains("\(kind.rawValue)_\(number)") { number += 1 }
         let entry = Hidden(kind: kind, number: number, value: value)
         hidden.append(entry)
+        used.insert(entry.placeholder)
         return entry.placeholder
     }
 
@@ -160,7 +188,7 @@ public struct Redaction: Sendable {
     /// The request may still differ from one with hiding off: jargon entries holding a value to hide are left out of
     /// it (`allows`) even when the sentence hides nothing.
     public func protect(_ request: ConverseRequest, sent: String) -> ConverseRequest {
-        guard !hidden.isEmpty else { return request }
+        guard count > 0 else { return request }
         var out = request
         for i in out.system.indices { out.system[i].text = scrub(out.system[i].text) }
         // The last message is `sent` whatever it held: only the ones before it are scrubbed.
@@ -249,6 +277,8 @@ public struct Redaction: Sendable {
               let kind = Self.kind(named: text.substring(with: match.range(at: 1))),
               match.numberOfRanges == 3 || Self.looksPlaceholder(match, in: text),
               !texts.contains(where: { $0.original.contains(token) }) else { return nil }
+        // Its conversation's values only (`known` too: a follow-up's answer may repeat an earlier round's placeholder);
+        // a new conversation's hiding starts with none of another's (`ClaudeSessionManager.redacting(_:for:_:)`).
         return hidden.first { $0.kind == kind && $0.number == number }?.value
     }
 

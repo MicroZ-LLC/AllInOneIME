@@ -580,7 +580,8 @@ extension AIConfig {
         case let .forbidden(path, secret):
             // An app's field set here before: refused, saying where it is set now; never written.
             if !secret, let removed = RemovedAppField.of(path) {
-                return Row(key: path, label: text.appLabel(removed.app, removed.field), status: .refused(text.notPerApp(removed.field)))
+                return Row(key: path, label: text.appLabel(removed.app, removed.field),
+                           status: .refused(text.notPerApp(removed.field, switchKey: config.switchKey)))
             }
             // A secret's value is never shown, nor anything about it.
             return Row(key: path, label: secret ? text.keyLabel(nil) : path,

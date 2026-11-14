@@ -4,8 +4,8 @@ import AppKit
 
 extension SelfTest {
     /// The updater as the user sees it (nothing is checked, downloaded or installed, no notification is posted): the
-    /// About page's Updates card in each state, drawn offscreen (settings-about-update-*.png; under Check for updates
-    /// automatically, Notify me when a new version is out, gone with checking off: -not-checking), the input menu's item,
+    /// About page's Updates card in each state, drawn offscreen (settings-about-update-*.png; with checking off:
+    /// -not-checking), the input menu's item,
     /// and a new version's notification's text.
     static func testUpdates(_ controller: AllInOneIMEInputController, snapshotDirectory: URL) {
         section("updates (nothing checked, downloaded or installed)")
@@ -77,7 +77,7 @@ extension SelfTest {
         SettingsImage.render(model, page: .about, to: step) { _ = pump(timeout: $0) { false } }
         status.needsAdding = needed
         check(FileManager.default.fileExists(atPath: step.path), "the About page puts the step to add the input source first")
-        // Checking off: the notification's switch goes with it (the model saves nothing).
+        // Checking off (the model saves nothing).
         model.config.checkForUpdates = false
         updates.state = .available(sample)
         updates.lastResult = nil

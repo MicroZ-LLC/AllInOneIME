@@ -413,6 +413,29 @@ struct PanelPresenterTests {
         #expect(PanelPresenter(config: .default, language: "en", elapsed: 1).model(for: c).rows.allSatisfy { $0.comment.isEmpty })
     }
 
+    /// Who answered an `@question`, in its footer: the session's CLI, a new conversation, the tokens it used; the AI
+    /// provider (said by its note already when it answered for a session that couldn't); nothing on a saved answer.
+    @Test func theFooterSaysWhoAnswered() throws {
+        let c = conversation()
+        try #require(c.isQuestionChat && c.phase == .choosing)
+        let session = PanelPresenter.Answer(by: .claudeSession, newConversation: true, tokens: 12_345)
+        #expect(PanelPresenter(config: .default, language: "en", elapsed: 2, answer: session).model(for: c).detail
+                == "Claude Code · new conversation · 12k tokens · 2.0s")
+        #expect(PanelPresenter(config: .default, language: "zh-Hans", elapsed: 2, answer: session).model(for: c).detail
+                == "Claude Code · 新对话 · 12k tokens · 2.0s")
+        // A follow-up in the same conversation, from a CLI that says no tokens.
+        #expect(PanelPresenter(config: .default, language: "en", elapsed: 1, answer: .init(by: .kiroSession)).model(for: c).detail
+                == "Kiro CLI · 1.0s")
+        #expect(PanelPresenter(config: .default, language: "en", elapsed: 1, answer: .init(by: .provider)).model(for: c).detail
+                == "AI provider · 1.0s")
+        #expect(PanelPresenter(config: .default, language: "zh-Hans", elapsed: 1, answer: .init(by: .provider)).model(for: c).detail
+                == "AI 服务 · 1.0s")
+        let note = "The Codex session didn't respond; the AI provider answered this time"
+        #expect(PanelPresenter(config: .default, language: "en", elapsed: 1, note: note, answer: .init(by: .provider))
+                .model(for: c).detail == note + " · 1.0s")
+        #expect([850, 1234, 9999, 12_345].map(PanelPresenter.count) == ["850", "1.2k", "9.9k", "12k"])
+    }
+
     // MARK: - Notices and the chip
 
     @Test func aNoticeOnItsOwnIsAHint() {

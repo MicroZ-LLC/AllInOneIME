@@ -28,10 +28,14 @@ enum CodeInputSettings {
         return all
     }
 
-    /// What Code does, under its name: short, so its menu stays on its line.
-    static var summary: String {
-        tr("在输入语言后面，单按 Shift 切到它：列出这种编程语言的关键字和代码片段",
-           "After the languages, a tap of Shift away: rows of this language's keywords and snippets")
+    /// What Code does, under its name: short, so its menu stays on its line; `key` the one that switches to it
+    /// (`Config.switchKey`).
+    static func summary(_ key: SwitchKey) -> String {
+        key == .capsLock
+            ? tr("在输入语言后面，按大写锁定键切到它：列出这种编程语言的关键字和代码片段",
+                 "After the languages, a press of Caps Lock away: rows of this language's keywords and snippets")
+            : tr("在输入语言后面，单按 Shift 切到它：列出这种编程语言的关键字和代码片段",
+                 "After the languages, a tap of Shift away: rows of this language's keywords and snippets")
     }
 }
 
@@ -105,7 +109,7 @@ struct CodeOptions: View {
                 } label: {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(tr("编程语言", "Coding language"))
-                        Text(CodeInputSettings.summary).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        Text(CodeInputSettings.summary(model.config.switchKey)).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
                 .pickerStyle(.menu)

@@ -46,7 +46,7 @@ public enum ICloudSync {
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
         "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout",
-        "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
+        "switchKey", "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
     public static let appPrefix = "appProfiles."
@@ -77,14 +77,15 @@ public enum ICloudSync {
     /// are the custom commands from another Mac not confirmed here (`unconfirmedCommands`: what this Mac allows to run is
     /// its own, decision 26). Clipboard history's switch and how many it keeps (`clipboardHistory`,
     /// `clipboardHistoryLimit`) are this Mac's, as its history is, and so is whether the update check sends its install ID
-    /// (`sendsInstallID`), as the ID is. Apps without typos and the recent apps aren't config keys either: named so that no
-    /// later version adds them.
+    /// (`sendsInstallID`), as the ID is; so is the CLI chosen as the AI (`questionBackend`: whether Claude Code,
+    /// Codex, Antigravity or Kiro CLI is installed and signed in on this Mac). Apps without typos and the recent apps
+    /// aren't config keys either: named so that no later version adds them.
     public static let neverSynced: Set<String> = [
         "extensionSources", "extensionFolders", "hiddenExtensionFolders", "findRaycastScripts", "disabledExtensions",
         "hiddenFromCommandList", "extensionPreferences", "jargonFile", "iCloudSync", "typeOutSpeed", "outputLanguage",
         "defaultInput", "typeOutNoTyposApps", "recentApps", "notes", "agent", "agentCommand", "agentPageContext", "autocomplete",
         "suggestions", "completionSources", "completionSourcesOff", "pluginsSeen", "pluginPreferences", "unconfirmedCommands",
-        "clipboardHistory", "clipboardHistoryLimit", "sendsInstallID",
+        "clipboardHistory", "clipboardHistoryLimit", "sendsInstallID", "questionBackend",
     ]
 
     /// The category `key` (a key of `settings.json`) is synced under; nil for a key this version doesn't sync (one a newer
@@ -383,8 +384,10 @@ public enum ICloudSync {
         var out: [String: AIConfig.JSONValue] = [:]
         if categories.contains(.settings) {
             for key in settingsKeys { out[key] = encoded[key] }
-            // Written into the file only when off (the trigger: when it isn't @); synced either way.
+            // Written into the file only when off (the trigger: when it isn't @, the switch key: when it isn't Shift);
+            // synced either way.
             out["learnsEnglishWords"] = .bool(config.learnsEnglishWords)
+            out["switchKey"] = .string(config.switchKey.rawValue)
             out["notifiesUpdates"] = .bool(config.notifiesUpdates)
             out["commandTrigger"] = .string(config.commandTrigger)
             if case var .object(redaction)? = encoded["redaction"] {
@@ -1043,6 +1046,9 @@ public enum ICloudSync {
         case "candidateLayout":
             guard case let .string(name) = value else { return .wrongType }
             return CandidateArrangement(rawValue: name) == nil ? .unknownValue : nil
+        case "switchKey":
+            guard case let .string(name) = value else { return .wrongType }
+            return SwitchKey(rawValue: name) == nil ? .unknownValue : nil
         case "chineseCharacters":
             guard case let .string(name) = value else { return .wrongType }
             return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil

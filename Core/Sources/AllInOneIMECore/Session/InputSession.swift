@@ -1,5 +1,7 @@
 import Foundation
 
+private struct SessionSendableBox<Value>: @unchecked Sendable { let value: Value }
+
 /// One text field's input session, the same on every platform: the `Composer`, and what goes on around it. Before a key:
 /// secure input (nothing composed, keys go straight in), the app taking the marked text on its own, the settings and the
 /// commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
@@ -30,6 +32,13 @@ public final class InputSession {
     public private(set) var lastFromCache = false
     public private(set) var lastHidden = 0
     public private(set) var lastShortened = false
+    /// Why the Claude session didn't answer the last question and the provider did (`ConversionUpdate.note`).
+    public private(set) var lastNote: String?
+    /// Who answered the last `@question`, whether its session's conversation is new, the tokens it used
+    /// (`ConversionUpdate.answeredBy`, `newConversation`, `tokens`): the panel's footer.
+    public private(set) var lastAnswer: PanelPresenter.Answer?
+    /// The session `@question` goes to was asked to start for the question about to be asked (`prewarmQuestionSession`).
+    private var questionSessionWarmed = false
     /// The coding agent `@agent` hands the text to, and a custom one's command (`Config.agent`).
     public private(set) var agent = AgentKind.claude
     public private(set) var agentCommand: [String] = []
@@ -798,8 +807,12 @@ public final class InputSession {
     private func applyChatSettings(_ config: Config) {
         composer.questionRounds = config.questionRounds
         let installed = services.agentInstalled
-        composer.handoffChoices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent,
-                                                      installed: { installed($0, config.agentCommand) })
+        let choices = ChatHandoff.choices(config.questionContinueIn, picked: config.agent, installed: { installed($0, config.agentCommand) })
+        // The questions go to the input method's session: no round limit, going on in it offered first.
+        let sessionAgent = config.questionSessionAgent
+        composer.questionSession = sessionAgent.flatMap { services.converter.questionSessions[$0] } != nil
+        composer.questionSessionAgent = sessionAgent ?? .claude
+        composer.handoffChoices = composer.questionSession ? ChatHandoff.withSession(choices, agent: sessionAgent ?? .claude) : choices
         composer.pickedAgent = installed(config.agent, config.agentCommand) ? config.agent : nil
         composer.userGuidePath = services.converter.userGuideFile?.path
         let language = UIText.language
@@ -1094,12 +1107,16 @@ public final class InputSession {
     private func modifiers(_ change: ModifierChange, _ context: FieldContext) {
         if context.read.contains(.text) { fieldText = context.text }
         guard !(context.secure || field.secure) else {
-            // A password field took over: stop any recording (its release may never arrive here).
+            // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
+            // here: no switch, its lock left alone.
             if composer.voice != .off { perform(composer.commitAsTyped()) }
             suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
             return
         }
         ensureLevelOne()
+        // The key that switches the input language, as the settings say now: with Caps Lock, a tap of Shift is just Shift.
+        let switchKey = services.loadSettings().switchKey
+        composer.shiftTapSwitches = switchKey == .shift
         suggestionsModifiers(change)  // a long press of Shift turns Translate as You Type on or off
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
@@ -1108,8 +1125,25 @@ public final class InputSession {
         // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
         let before = composer.input
         perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
+        if switchKey == .capsLock, capsLockPressed(change) {
+            // A press of Caps Lock, the switch key, is a tap of Shift (0.7.4): the input language switched, and the lock the
+            // press turned on is turned off again at once (no capitals, its light off).
+            perform(composer.shiftTapped())
+            emit(.platform(.setCapsLock(false)))
+        }
         keyContext = nil
         learningSwitched(from: before)
+    }
+
+    /// Caps Lock pressed on its own: its lock turned on, with no Shift, Control, Option or Command held (fn doesn't count,
+    /// as with Shift's tap). macOS tells an input method only Caps Lock's lock changing (on at one press, off at the next),
+    /// never the key's release; with Caps Lock the switch key the session turns the lock off again after each press, so
+    /// each press turns it on. The lock turning off is never a press (that one, or one with the lock on before Caps Lock
+    /// was chosen). In a field where nothing may leave the device (a password field, secure input) Caps Lock is the
+    /// system's.
+    private func capsLockPressed(_ change: ModifierChange) -> Bool {
+        guard change.key == .capsLock, change.modifiers.contains(.capsLock) else { return false }
+        return change.modifiers.subtracting([.capsLock, .function]).subtracting(.sides).isEmpty && !nothingLeavesDevice()
     }
 
     /// Whether AI may run in the app typed in (`Config.allowsAI`), read once a turn (`turn`): one @ asks on each read of
@@ -1209,6 +1243,7 @@ public final class InputSession {
         defer {
             wakePageIfAgent()
             warmModelAhead()  // the draft an AI command: its model made ready by ⏎
+            prewarmQuestionSession()
             if !composer.isComposing { replyWithPage = nil }  // the draft is done: the page's text goes with it
         }
         for effect in effects {
@@ -1274,14 +1309,14 @@ public final class InputSession {
                     }
                     break
                 }
-                startConversion(input, id: id, command: command)
+                startConversion(input, id: id, command: command, conversation: conversation(of: command))
             case let .startRefine(refinement, id):
                 // Sent to the model like the request it refines: refused during secure input the same way.
                 if refusedForSecureInput(id: id) { break }
                 startRefine(refinement, id: id)
             case let .reask(command, input, id):
                 if refusedForSecureInput(id: id) { break }
-                startConversion(input, id: id, command: command, fresh: true)
+                startConversion(input, id: id, command: command, fresh: true, conversation: conversation(of: command))
             case let .startPlan(outer, plan, id):
                 // Inner commands run programs or reach the network: refused during secure input like any.
                 if refusedForSecureInput(id: id, running: true) { break }
@@ -1293,7 +1328,7 @@ public final class InputSession {
                     }
                     break
                 }
-                startConversion("", id: id, command: outer, plan: plan)
+                startConversion("", id: id, command: outer, plan: plan, conversation: outer.flatMap(conversation(of:)))
             case let .startRun(command, input, id):
                 if refusedForSecureInput(id: id, running: true) { break }
                 startConversion(input, id: id, command: command)
@@ -1366,6 +1401,18 @@ public final class InputSession {
                 handOff(prompt, to: .claude)
             case let .continueInAgent(kind, prompt):
                 handOff(prompt, to: kind)
+            case let .continueClaudeSession(followUp):
+                // Off the key's thread: it waits for our process to end (on the task, holding no thread). A failure says
+                // why (`SessionHandOffError`).
+                let (handOff, log) = (SessionSendableBox(value: services.continueClaudeSession), log)
+                tasks.start(nil) { post in
+                    do {
+                        try await handOff.value(followUp)
+                    } catch {
+                        log.error("@question: could not open the Claude session: \(String(describing: error))")
+                        post(.notice(UIText.describe(error)))
+                    }
+                }
             case let .commandUsed(name):
                 services.saveCommandUsage(composer.commandUsage)
                 countRun(name, in: effects)
@@ -1399,7 +1446,7 @@ public final class InputSession {
             case let .startTranslateMode(input, session, id):
                 if refusedForSecureInput(id: id) { break }
                 tasks.cancel(.request)
-                (lastElapsed, lastFromCache, lastHidden, lastShortened) = (nil, false, 0, false)
+                (lastElapsed, lastFromCache, lastHidden, lastShortened, lastNote, lastAnswer) = (nil, false, 0, false, nil, nil)
                 log.notice("conversion \(id) started (Translate as You Type, \(input.count) chars, into \(session.target.code))")
                 tasks.translate(input, session: session, id: id, in: place(generates: false), converter: services.converter)
             case let .addReminder(reminder, input):
@@ -1501,12 +1548,14 @@ public final class InputSession {
     /// what a `.run` command's program printed. `replyPage`: `@reply`'s web page (`Prompt.replyMessage(_:page:)` of
     /// nothing), added after its message once the commands inside it have run (`plan`).
     private func startConversion(_ input: String, id: Int, command: Command? = nil, plan: CommandPlan? = nil, fresh: Bool = false,
-                                 replyPage: String = "") {
+                                 replyPage: String = "", conversation: QuestionConversation? = nil) {
         tasks.cancel(.request)
         lastElapsed = nil
         lastFromCache = false
         lastHidden = 0
         lastShortened = false
+        lastNote = nil
+        lastAnswer = nil
         // Plugin names are public (from the library); custom command names are the user's own.
         func logged(_ command: Command) -> String { command.custom == nil || command.plugin != nil ? command.name : "custom" }
         let inner = plan.map { ", inside: " + $0.inner.map { "@" + logged($0.command) }.joined(separator: " ") } ?? ""
@@ -1522,7 +1571,7 @@ public final class InputSession {
             return
         }
         let request = SessionTasks.Request(input: input, command: command, plan: plan, fresh: fresh, replyPage: replyPage,
-                                           replyContext: command == .reply ? composer.replyContext : nil)
+                                           replyContext: command == .reply ? composer.replyContext : nil, conversation: conversation)
         tasks.convert(request, id: id, in: place(generates: command?.kind == .generate), services: services)
     }
 
@@ -1545,6 +1594,8 @@ public final class InputSession {
         lastElapsed = nil
         lastFromCache = false
         lastShortened = false
+        lastNote = nil
+        lastAnswer = nil
         let step = composer.isQuestionChat ? "@question round \(refinement.turns.count + 1)" : "refine, step \(refinement.turns.count)"
         log.notice("conversion \(id) started (\(step))")
         var sent: String?
@@ -1554,7 +1605,13 @@ public final class InputSession {
             sent = command == .reply && replyWithPage?.input == input ? replyWithPage?.full ?? input : input
             generates = true
         }
-        tasks.refine(refinement, id: id, sent: sent, in: place(generates: generates), converter: services.converter)
+        tasks.refine(refinement, id: id, sent: sent, in: place(generates: generates), converter: services.converter,
+                     conversation: composer.isQuestionChat ? composer.questionConversation : nil)
+    }
+
+    /// `@question`'s conversation in the panel (`Composer.questionConversation`) for a request of `command`.
+    private func conversation(of command: Command) -> QuestionConversation? {
+        command == .question ? composer.questionConversation : nil
     }
 
     /// What the session's work answered, while it still counts.
@@ -1564,6 +1621,10 @@ public final class InputSession {
             runAnswered(request, fromCache: update.fromCache)
             lastHidden = update.hidden
             lastShortened = update.shortened
+            lastNote = update.note
+            lastAnswer = update.answeredBy.map {
+                PanelPresenter.Answer(by: $0, newConversation: update.newConversation, tokens: update.tokens)
+            }
             if update.isFinal {
                 lastElapsed = update.elapsed
                 lastFromCache = update.fromCache
@@ -1802,6 +1863,31 @@ public final class InputSession {
         page.wake()
     }
 
+    /// An `@question` about to be asked (`modelAhead`: typed or picked, or one @'s Ask AI row highlighted) while the
+    /// questions go to a session (a CLI is the AI chosen, `Converter.questionSession`): the session's process starts now
+    /// (off this thread), so that the answer doesn't wait for the agent to start. Once while the question stays ahead;
+    /// never during secure input nor in an app with No AI, and not for the command trigger alone or any other row.
+    private func prewarmQuestionSession() {
+        guard modelAhead == Command.question.name else {
+            questionSessionWarmed = false
+            return
+        }
+        guard !questionSessionWarmed else { return }
+        questionSessionWarmed = true
+        // The settings are read here, on the session's thread, never in the task: the Mac's are the main thread's
+        // (`LiveConfig`).
+        let config = services.loadSettings()
+        let converter = services.converter
+        guard let session = converter.questionSession(config), !secureInputActive(), config.allowsAI(in: app) else { return }
+        let secureInput = SessionSendableBox(value: services.secureInputActive)
+        tasks.start(.questionPrewarm) { _ in
+            guard !Task.isCancelled, !secureInput.value() else { return }
+            converter.questionSessionsFollow(config)  // another CLI chosen since: the old one's process ends
+            guard !Task.isCancelled, !secureInput.value() else { return }
+            session.prewarm()
+        }
+    }
+
     /// The page given back, if `@agent` asked for it.
     private func releasePage() {
         wokenPage?.release()
@@ -1924,7 +2010,8 @@ public final class InputSession {
         let config = services.loadSettings()
         let jargon = services.jargon
         return PanelPresenter(config: config, language: UIText.language, app: field.app, notice: notice, elapsed: lastElapsed,
-                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, agent: agent,
+                              fromCache: lastFromCache, hidden: lastHidden, shortened: lastShortened, note: lastNote,
+                              answer: lastAnswer, agent: agent,
                               agentCommand: agentCommand, jargon: { jargon(config) }, scriptStatus: services.scriptStatus,
                               chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }

@@ -1309,7 +1309,11 @@ extension Converter {
     /// no AI. Hidden values as for any request (`Redaction`); the answer is read only as far as a suggestion goes
     /// (`Autocomplete.isEnough`).
     public func autocomplete(_ context: Autocomplete.Context, app: String?) async throws -> Autocomplete.Answer {
-        var config = try Self.settings(try loadConfig(), app: app)
+        // With a CLI chosen as the AI, its fast fallback (`FastRoute`); with none (nothing set up, Apple's model not
+        // available), autocomplete is off: never the CLI, a second or more an answer.
+        let fast = try fastSettings(app: app)
+        guard !fast.slow else { throw AppleModelError.unavailable(client.apple.availability) }
+        var config = fast.config
         let route = Autocomplete.route(config)
         if route == .onDevice {
             let availability = client.apple.availability

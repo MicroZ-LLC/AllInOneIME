@@ -19,13 +19,26 @@ public enum ShellEnvironment {
         return env
     }()
 
+    /// `current` with the login shell's values of `names` the input method's own environment doesn't set (or sets
+    /// empty): what a program that needs more of the user's setup than PATH starts with (a question session's agent,
+    /// `SessionAgent.environmentVariables`: its settings folder, its key, its provider). The values are passed on, never
+    /// logged.
+    public static func current(with names: [String]) -> [String: String] {
+        var env = current
+        for name in names where env[name]?.isEmpty != false {
+            if let value = login[name] { env[name] = value }
+        }
+        return env
+    }
+
     /// The variables the input method reads from the user's shell: PATH, the providers' API keys
     /// (`Provider.keyVariables`) and the web search key (`WebSearch.backend`), for a key that is set
-    /// there instead of in the keychain, the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`), and
-    /// the AWS variables Bedrock's credentials may come from (`AWSEnvironment`).
+    /// there instead of in the keychain, the SSH agent and ssh command git uses (`ExtensionSources.gitEnvironment`),
+    /// the AWS variables Bedrock's credentials may come from (`AWSEnvironment`), and what the questions' sessions need
+    /// (`SessionAgent.environmentVariables`).
     public static let login: [String: String] = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
                                                                 + WebSearch.backend.keyVariables + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
-                                                                + AWSEnvironment.variables)
+                                                                + AWSEnvironment.variables + SessionAgent.environmentVariables)
 
     /// `names` as the user's interactive login shell sets them up (unset ones are left out): those it printed in
     /// `loginTimeout` seconds, none if it printed nothing by then.

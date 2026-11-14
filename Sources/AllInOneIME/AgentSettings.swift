@@ -3,8 +3,9 @@ import AllInOneIMEMac
 import SwiftUI
 
 /// Settings → Commands → `@agent`: the coding agent it hands the text to (`Config.agent`, `AgentKind`), whether that one
-/// is on this Mac and how it starts in Terminal, and its own settings (Claude Code's background tasks, the custom agent's
-/// command). Another agent's own settings show too while one is set otherwise than its default.
+/// is on this Mac and how it starts in Terminal (only when it isn't installed, or is a custom one: owner, 0.7.4), and its
+/// own settings (Claude Code's background tasks, the custom agent's command). Another agent's own settings show too while
+/// one is set otherwise than its default.
 struct AgentSettingsPage: View {
     @ObservedObject var model: SettingsModel
     /// The custom agent's command as typed (`Config.agentCommand` follows it, split into words).
@@ -22,7 +23,7 @@ struct AgentSettingsPage: View {
                        tr("在终端打开它，你打的字是第一句话。", "It opens in Terminal with what you typed as its first message."))
             }
             .settingsRow(.agent, shown: model.spot)
-            status(model.config.agent)
+            if model.config.agent == .custom || !installed(model.config.agent) { status(model.config.agent) }
             if model.config.agent == .claude || !model.config.claudeInBackground { claudeSettings }
             if model.config.agent == .custom || !model.config.agentCommand.isEmpty { customSettings }
         } header: {
@@ -102,11 +103,11 @@ enum AgentAvailability {
         kind.program(custom: custom).map(installed(program:)) ?? false
     }
 
-    /// Whether `program` (`AgentKind.program`) is on this Mac: Claude Code also where Terminal finds it.
+    /// Whether `program` (`AgentKind.program`) is on this Mac, as the question sessions find it
+    /// (`ClaudeSessionMac.isInstalled`): an agent's CLI also where Terminal finds it or inside its desktop app.
     static func installed(program: String) -> Bool {
         if let known = found[program] { return known }
-        let installed = (program == "claude" && TerminalLauncher.claudePath != nil)
-            || CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+        let installed = ClaudeSessionMac.isInstalled(program)
         found[program] = installed
         return installed
     }

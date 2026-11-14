@@ -127,6 +127,9 @@ extension SettingsSchema {
         var code = choice("codingLanguage", tr("代码", "Code"),
                           platform == .windows
                               ? tr("Windows 上还不能切到代码输入：这里的设置先保存着。", "Windows doesn't type in Code yet: what you set here is kept for when it does.")
+                              : config.switchKey == .capsLock
+                              ? tr("排在输入语言后面，按大写锁定键切到它：打字母，光标下面列出这种编程语言的关键字、代码片段和输入框里已有的词，\(enter) 或 Tab 插入。",
+                                   "An input after the languages, a press of Caps Lock away: you type letters, and the rows under the caret offer this coding language's keywords and snippets and the words already in the field; \(enter) or Tab inserts.")
                               : tr("排在输入语言后面，单按 Shift 切到它：打字母，光标下面列出这种编程语言的关键字、代码片段和输入框里已有的词，\(enter) 或 Tab 插入。",
                                    "An input after the languages, a tap of Shift away: you type letters, and the rows under the caret offer this coding language's keywords and snippets and the words already in the field; \(enter) or Tab inserts."),
                           value: config.codingLanguage.map(JSON.string) ?? .null,

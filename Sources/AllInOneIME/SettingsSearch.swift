@@ -6,11 +6,13 @@ import SwiftUI
 /// until it is used or another page is shown. A setting inside an input's chip (fuzzy pinyin in Chinese's) points at the
 /// input languages' row and opens that chip.
 enum SettingsSpot: String, CaseIterable {
-    // General
+    // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
+    case switchKey, candidateLayout
+    // General
     case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
-    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync, previousAppSettings
+    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
     // AI
     case provider, model, apiKey, awsProfile, baseURL, testConnection
     // Privacy
@@ -18,7 +20,7 @@ enum SettingsSpot: String, CaseIterable {
     // Commands
     case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
     // Advanced
-    case typeOut, candidateLayout, useSelection, configFile, rimeFolder
+    case typeOut, useSelection, previousAppSettings, configFile, rimeFolder
     // About
     case updates, troubleshoot, reportIssue
 
@@ -26,17 +28,17 @@ enum SettingsSpot: String, CaseIterable {
     var page: SettingsPage {
         switch self {
         case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage: return .input
+             .codingLanguage, .switchKey, .candidateLayout: return .input
         case .outputLanguages, .rewriteStyles,
              .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
-             .menuBarIcon, .interfaceLanguage, .iCloudSync, .previousAppSettings:
+             .menuBarIcon, .interfaceLanguage, .iCloudSync:
             return .general
         case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
         case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
             return .privacy
         case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
             return .commands
-        case .typeOut, .candidateLayout, .useSelection, .configFile, .rimeFolder: return .advanced
+        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
         case .updates, .troubleshoot, .reportIssue: return .about
         }
     }
@@ -82,7 +84,7 @@ enum SettingsSpot: String, CaseIterable {
         case .interfaceLanguage: return tr("界面语言", "Interface language")
         case .iCloudSync: return tr("通过 iCloud 同步", "Sync through iCloud")
         case .previousAppSettings: return tr("以前的按 App 设置", "Previous per-app settings")
-        case .provider: return tr("服务", "Provider")
+        case .provider: return tr("选择 AI", "Choose the AI")
         case .model: return tr("模型", "Model")
         case .apiKey: return "API key"
         case .awsProfile: return "AWS profile"
@@ -106,6 +108,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return tr("扩展来源", "Extension Sources")
         case .typeOut: return tr("逐字上屏", "Type results out")
         case .candidateLayout: return tr("候选排列", "Candidate layout")
+        case .switchKey: return UIText.switchKeyLabel
         case .useSelection: return tr("使用选中的文字", "Use the selected text")
         case .configFile: return tr("配置文件", "Config file")
         case .rimeFolder: return tr("Rime 用户目录", "Rime user folder")
@@ -134,6 +137,7 @@ enum SettingsSpot: String, CaseIterable {
         case .menuBarIcon: return tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away")
         case .iCloudSync: return Self.iCloudNote
         case .previousAppSettings: return Self.previousNote
+        case .provider: return tr("选一家，所有 AI 功能都用它", "Pick one, and every AI feature uses it")
         case .hideSensitive:
             return tr("邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。",
                       "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results.")
@@ -191,7 +195,7 @@ enum SettingsSpot: String, CaseIterable {
         case .interfaceLanguage: return "interface language 界面语言 english chinese"
         case .iCloudSync: return "icloud drive sync macs learned words hidden words recent questions sync now remove 同步 云盘 多台 学到的词 隐藏的词 最近的问题 立即同步 移除"
         case .previousAppSettings: return "per-app app profiles starts in translate as you type autocomplete type out rewrite styles 按 App 开始 边打边译 续写 逐字上屏 改写 移除"
-        case .provider: return "ai provider bedrock claude gemini openai deepseek ollama apple intelligence on-device local cloud 服务 本机 苹果 云"
+        case .provider: return "ai provider change claude code codex antigravity agy google kiro cli subscription session sign in login @question api key anthropic claude api openai compatible deepseek ollama gemini api amazon bedrock aws allinoneime cloud apple intelligence on-device local 更换 订阅 会话 登录 提问 服务 本机 苹果 云"
         case .model: return "model id 模型"
         case .apiKey: return "api key keychain 密钥 钥匙串"
         case .awsProfile: return "aws profile region sso role assume credential_process sts mfa 区域 角色 登录"
@@ -215,6 +219,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .switchKey: return "switch key shift caps lock capslock capitals chinese english input language 切换 中英文 大写锁定 大写 输入语言"
         case .useSelection: return "selection selected text 选中 文字"
         case .configFile: return "config file json 配置文件"
         case .rimeFolder: return "rime folder 目录"
@@ -260,14 +265,15 @@ enum SettingsSpot: String, CaseIterable {
         return found.sorted { a, b in a.rank != b.rank ? a.rank < b.rank : a.offset < b.offset }.map(\.spot)
     }
 
-    /// Whether its row is there with `config`: a provider's own rows only with that provider, the jargon list with its
-    /// style or file, the English words under an input that shows them, the previous per-app settings only while an app
-    /// has one.
+    /// Whether its row is there with `config`: a provider's own rows only with that provider chosen as the AI, the jargon
+    /// list with its style or file, the English words under an input that shows them, the previous per-app settings only
+    /// while an app has one.
     func isShown(_ config: Config) -> Bool {
         switch self {
-        case .apiKey, .baseURL: return config.provider.needsKey && config.provider != .bedrock
-        case .awsProfile: return config.provider == .bedrock
-        case .model: return config.provider != .hosted && config.provider != .apple
+        case .apiKey, .baseURL: return config.ai.provider?.needsKey == true
+        case .awsProfile: return config.ai == .provider(.bedrock)
+        case .model: return config.ai.provider.map { $0 != .hosted && $0 != .apple } ?? false
+        case .testConnection: return config.ai.provider != nil
         case .jargonList: return SettingsView.showsJargon(config)
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
         case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates:
@@ -321,5 +327,11 @@ extension View {
                     .allowsHitTesting(false)
             }
         }
+    }
+
+    /// `settingsRow(spot, shown:)` that also stands in for `others`, rows not shown now (Words to hide with hiding off):
+    /// pointed at one of them, this row is scrolled to and outlined in its place.
+    func settingsRow(_ spot: SettingsSpot, standingIn others: [SettingsSpot], shown: SettingsSpot?) -> some View {
+        settingsRow(shown.map(\.row).flatMap { others.contains($0) ? $0 : nil } ?? spot, shown: shown)
     }
 }

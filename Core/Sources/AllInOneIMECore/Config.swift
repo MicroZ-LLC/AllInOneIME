@@ -5,7 +5,8 @@ import Foundation
 /// versions that are gone are ignored, and not written back.
 public struct Config: Codable, Equatable, Sendable {
     /// Where requests go: Amazon Bedrock (the settings below), or an API-key provider with its own
-    /// settings (`anthropic`, `gemini`, `openai`).
+    /// settings (`anthropic`, `gemini`, `openai`). With a CLI chosen as the AI (`ai`, `questionBackend`), what has to be
+    /// fast goes here when it is set up (`fastProvider`).
     public var provider: Provider
     /// Profile name in ~/.aws/credentials (static access keys).
     public var awsProfile: String
@@ -211,6 +212,11 @@ public struct Config: Codable, Equatable, Sendable {
     /// Where an `@question` conversation can go on (`ChatHandoff`), in this order, the first the default; nil: the
     /// default list (`ChatHandoff.defaultList`). `agent` (`.atAgent`) in it is whatever `@agent` hands to.
     public var questionContinueIn: [ChatHandoff.Destination]?
+    /// The CLI chosen as the AI (`ai`, `QuestionBackend`): the input method's own session on Claude Code, Codex,
+    /// Antigravity or Kiro CLI (`SessionAgent`) answers `@question`, and what has to be fast goes to `fastProvider`; nil: the AI is
+    /// `provider` (also for "provider", the choice of the provider for questions in 0.7.4's builds). This Mac's own (never
+    /// synced): whether a CLI is installed and signed in is this Mac's.
+    public var questionBackend: QuestionBackend?
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -253,6 +259,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// default, also for a file from before the setting), or in a column. The other lists (commands, results) are
     /// always a column.
     public var candidateLayout: CandidateArrangement
+    /// The key that switches the input language (`SwitchKey`): a tap of Shift (the default, also for a file from before
+    /// the setting), or a press of Caps Lock, whose lock is turned off again at once (Settings → Input). Written into the
+    /// file only when it isn't Shift.
+    public var switchKey: SwitchKey
     /// Looks for a new version of AllInOneIME once a day, in the background (`UpdateSchedule`); one is only ever
     /// installed when the user clicks Update. On by default.
     public var checkForUpdates: Bool
@@ -399,6 +409,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.rememberQuestions = true
         self.questionRounds = QuestionChat.defaultRounds
         self.questionContinueIn = nil
+        self.questionBackend = nil
         self.menuBarIcon = true
         self.fuzzyPinyin = []
         self.pinyinScheme = nil
@@ -412,6 +423,7 @@ public struct Config: Codable, Equatable, Sendable {
         self.typeOutVaries = false
         self.typeOutMistakes = false
         self.candidateLayout = .horizontal
+        self.switchKey = .shift
         self.checkForUpdates = true
         self.notifiesUpdates = true
         self.sendsInstallID = true
@@ -443,9 +455,10 @@ public struct Config: Codable, Equatable, Sendable {
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
         case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
+        case switchKey
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
-        case rememberQuestions, questionRounds, questionContinueIn
+        case rememberQuestions, questionRounds, questionContinueIn, questionBackend
         case redaction
         case autocomplete
         case iCloudSync
@@ -530,6 +543,10 @@ public struct Config: Codable, Equatable, Sendable {
         // Names this version doesn't know (a service a later one added) are left out, not an error.
         questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
             .compactMap(ChatHandoff.Destination.init(rawValue:))
+        // One this version doesn't know (a later one's), and 0.7.4's "provider", are none: the AI is the provider.
+        // Gemini CLI's session (0.7.4's earlier builds) is Antigravity's (`QuestionBackend.init(file:)`).
+        questionBackend = (try? c.decodeIfPresent(String.self, forKey: .questionBackend)).flatMap { $0 }
+            .flatMap(QuestionBackend.init(file:)).flatMap { $0 == .provider ? nil : $0 }
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         // One this version doesn't know (a later one's) follows the system, not an error.
@@ -554,6 +571,8 @@ public struct Config: Codable, Equatable, Sendable {
         typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
         // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
         candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
+        // The same: Shift.
+        switchKey = (try? c.decodeIfPresent(SwitchKey.self, forKey: .switchKey)).flatMap { $0 } ?? d.switchKey
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
         notifiesUpdates = try c.decodeIfPresent(Bool.self, forKey: .notifiesUpdates) ?? d.notifiesUpdates
         sendsInstallID = try c.decodeIfPresent(Bool.self, forKey: .sendsInstallID) ?? d.sendsInstallID
@@ -731,6 +750,7 @@ public struct Config: Codable, Equatable, Sendable {
         // Only when set: a file that never had them doesn't gain them.
         if questionRounds != QuestionChat.defaultRounds { try c.encode(questionRounds, forKey: .questionRounds) }
         try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
+        try c.encodeIfPresent(questionBackend, forKey: .questionBackend)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
@@ -749,6 +769,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
         try c.encode(candidateLayout, forKey: .candidateLayout)
+        // Only Caps Lock: a file from before the setting doesn't gain the key, nor one back on Shift.
+        if switchKey != .shift { try c.encode(switchKey, forKey: .switchKey) }
         try c.encode(checkForUpdates, forKey: .checkForUpdates)
         // Only once turned off: a file from before the switch doesn't gain the key.
         if !notifiesUpdates { try c.encode(notifiesUpdates, forKey: .notifiesUpdates) }
@@ -871,6 +893,15 @@ public enum CandidateArrangement: String, Codable, CaseIterable, Sendable {
     case vertical
     /// Side by side, as macOS's own panel (← → move, ↑↓ or -/= turn the page): the default.
     case horizontal
+}
+
+/// The key that switches the input language (`Config.switchKey`).
+public enum SwitchKey: String, Codable, CaseIterable, Sendable {
+    /// A tap of Shift: the default.
+    case shift
+    /// A press of Caps Lock on its own: the input method turns its lock off again at once, so it no longer locks capitals
+    /// (Shift types them), and a tap of Shift switches nothing.
+    case capsLock
 }
 
 public enum ConfigError: Error, LocalizedError, Equatable {

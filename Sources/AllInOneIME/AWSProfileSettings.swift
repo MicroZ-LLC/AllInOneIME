@@ -9,6 +9,8 @@ import SwiftUI
 final class AWSProfileModel: ObservableObject {
     @Published private(set) var summaries: [AWSProfileSummary] = []
     @Published private(set) var status: AWSProfileStatus?
+    /// The profiles a request may name, with their kinds, for the AI's status (`AIFacts.awsProfiles`); nil: not read yet.
+    @Published private(set) var requestProfiles: [AWSProfileSummary]?
     /// The input method's; the README images give a sample one.
     var resolver = AWSCredentialResolver.shared
     private var generation = 0
@@ -18,11 +20,12 @@ final class AWSProfileModel: ObservableObject {
         generation += 1
         let resolver = resolver, current = generation
         Task.detached(priority: .userInitiated) {
-            let summaries = resolver.profiles(), status = resolver.status(profile: profile)
+            let summaries = resolver.profiles(), status = resolver.status(profile: profile), requestProfiles = resolver.requestProfiles()
             await MainActor.run { [weak self] in
                 guard let self, self.generation == current else { return }
                 self.summaries = summaries
                 self.status = status
+                self.requestProfiles = requestProfiles
             }
         }
     }
@@ -31,10 +34,13 @@ final class AWSProfileModel: ObservableObject {
     func reread(profile: String) async {
         generation += 1
         let resolver = resolver, current = generation
-        let (summaries, status) = await Task.detached(priority: .utility) { (resolver.profiles(), resolver.status(profile: profile)) }.value
+        let (summaries, status, requestProfiles) = await Task.detached(priority: .utility) {
+            (resolver.profiles(), resolver.status(profile: profile), resolver.requestProfiles())
+        }.value
         guard generation == current else { return }
         self.summaries = summaries
         self.status = status
+        self.requestProfiles = requestProfiles
     }
 
     /// Reads them now (the self-test, the README images).
@@ -42,6 +48,7 @@ final class AWSProfileModel: ObservableObject {
         generation += 1
         summaries = resolver.profiles()
         status = resolver.status(profile: profile)
+        requestProfiles = resolver.requestProfiles()
     }
 
     /// The status read for `profile` (nil: not read yet, or for another).
@@ -247,8 +254,8 @@ enum AWSProfileSamples {
     /// Settings → AI Provider with a role, an SSO profile and an SSO sign-in that expired (with its command):
     /// `settings-provider-aws-<role|sso|sso-expired>.png`.
     static func render(_ model: SettingsModel, to output: URL, appearance: NSAppearance.Name) {
-        let (provider, profile, shownAs) = (model.config.provider, model.config.awsProfile, model.profileShownAs)
-        model.config.provider = .bedrock
+        let (ai, provider, profile, shownAs) = (model.config.ai, model.config.provider, model.config.awsProfile, model.profileShownAs)
+        model.config.ai = .provider(.bedrock)
         model.profileShownAs = nil  // sample names
         for (name, file) in [("dev", "aws-role"), ("sso-dev", "aws-sso"), ("sso-old", "aws-sso-expired")] {
             model.config.awsProfile = name
@@ -257,6 +264,7 @@ enum AWSProfileSamples {
                                  appearance: appearance) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         (model.config.provider, model.config.awsProfile, model.profileShownAs) = (provider, profile, shownAs)
+        model.config.ai = ai
         model.aws.load(profile: profile)
         if let folder { try? FileManager.default.removeItem(at: folder) }
     }

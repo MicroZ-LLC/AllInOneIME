@@ -24,6 +24,15 @@ Compiled into the app (`Core/Sources/AllInOneIMECore/RedactionWordList.swift`, g
 |---|---|---|---|
 | web2, Webster's Second International word list (the English words that tell a key from text when hiding sensitive information) | 1934 edition, as in macOS (SHA-256 be41ad97…) | Public domain | macOS's /usr/share/dict, from BSD (its README: the 1934 copyright has lapsed) |
 
+Drawn in Settings → AI (`Resources/AILogos/*.svg`, made into the PDFs the app carries by
+`Scripts/make-ai-logos.swift`), one color: the marks are their owners' trademarks, shown only to name their products:
+
+| Component | Version | License | Source |
+|---|---|---|---|
+| Simple Icons: Claude, Anthropic, OpenAI, Google Gemini, Amazon Web Services and Apple logos | as published in November 2026 | CC0-1.0 | https://simpleicons.org |
+| Kiro's mark, made one color with its eyes cut out | from kiro.dev, November 2026 | Kiro's (Amazon's) trademark | https://kiro.dev |
+| Google Antigravity's mark, its outline alone in one color | from antigravity.google, November 2026 | Google's trademark | https://antigravity.google |
+
 The librime release build has these compiled into `librime.1.dylib` and its plugins (Lua into
 librime-lua); versions as pinned by librime 1.16.1:
 

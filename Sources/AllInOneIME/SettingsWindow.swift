@@ -104,7 +104,7 @@ final class SettingsModel: ObservableObject {
     /// used or another page is shown.
     @Published var spot: SettingsSpot?
     /// False for previews/screenshots: nothing is ever written.
-    private var persists: Bool { store.persists }
+    var persists: Bool { store.persists }
     private var testTask: Task<Void, Never>?
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
@@ -118,6 +118,9 @@ final class SettingsModel: ObservableObject {
         if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
         observation = store.observe { [weak self] _ in self?.objectWillChange.send() }
         store.questionsForgotten = { [weak self] in self?.forgetQuestions() }
+        // Another CLI chosen as the AI in the settings document: the sessions' processes end, the next question starts
+        // the one chosen (as Settings → AI's choice does, `SettingsModel.cli`).
+        store.questionBackendChanged = { [weak self] in if self?.persists == true { ClaudeSessionMac.backendChanged() } }
     }
 
     var canSave: Bool { store.canSave }
@@ -157,6 +160,7 @@ final class SettingsModel: ObservableObject {
         refreshAccount()
         refreshVoice()
         refreshJargonInBackground()
+        aws.refresh(profile: config.awsProfile)  // Bedrock's card and the fast fallback go by the profiles read (`aiFacts`)
     }
 
     /// The window opened again with these settings, kept since it was closed: the file read again if something else
@@ -381,18 +385,14 @@ final class SettingsModel: ObservableObject {
         return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
     }
 
-    /// The key sheet's Save and Use: the key saved, then the provider switched to and Test Connection run.
+    /// The key sheet's Save and Use: the key saved, then the provider chosen as the AI and Test Connection run.
     func saveKeyAndUse(_ key: String, for provider: Provider) {
         guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
         saveKey(key, for: provider)
         guard keyError == nil else { return }
-        config.provider = provider
-        save()
-        if let testRunner { testRunner() } else { runTest() }
+        choose(.provider(provider))
+        runTest()
     }
-
-    /// The self-test's stand-in for Test Connection after Save and Use (nil: the real one).
-    var testRunner: (() -> Void)?
 
     /// Stores the provider's API key in the keychain. An empty or blank one does nothing: it never removes the key
     /// saved (that's `removeKey`, after the user confirmed).
@@ -419,6 +419,34 @@ final class SettingsModel: ObservableObject {
 
     func setProviderSettings(_ settings: ProviderSettings, for provider: Provider) {
         store.setProviderSettings(settings, for: provider)
+    }
+
+    // MARK: The AI (Settings → AI)
+
+    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: the CLI chosen as the AI page shows,
+    /// every CLI as its choices open, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
+    @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
+
+    /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,
+    /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions and kinds, Apple's model.
+    var aiFacts: AIFacts {
+        let keyed: [Provider] = [.anthropic, .gemini, .openai]
+        return AIFacts(sessions: sessionAvailability,
+                       keys: Dictionary(uniqueKeysWithValues: keyed.map { ($0, keyState($0)) }),
+                       hostedSignedIn: account != nil || keyState(.hosted).isSet,
+                       // As read in the background (`AWSProfileModel.refresh`); until then Bedrock's card says "Checking…".
+                       awsProfiles: aws.requestProfiles,
+                       apple: AppleModel.system.availability)
+    }
+
+    /// The settings as what has to be fast goes with them (autocomplete's row): with a CLI chosen, its fast fallback by
+    /// `aiFacts` as the provider (`Config.fastProvider`); nil: there is none.
+    var fastConfig: Config? {
+        guard config.ai.agent != nil else { return config }
+        guard let fast = config.fastProvider(aiFacts) else { return nil }
+        var shown = config
+        shown.provider = fast
+        return shown
     }
 
     // MARK: Web search (@search)
@@ -645,8 +673,7 @@ final class SettingsModel: ObservableObject {
                 do {
                     let idToken = try await signIn.idToken(for: code)
                     self.account = try await HostedAccount.signIn(idToken: idToken)
-                    self.config.provider = .hosted
-                    self.save()
+                    self.choose(.provider(.hosted))
                 } catch {
                     self.accountError = UIText.describe(error)
                 }
@@ -953,7 +980,7 @@ final class SettingsModel: ObservableObject {
 
     /// Region shown when the field is empty: the profile's own region.
     var profileRegion: String {
-        aws.status(for: config.awsProfile)?.region ?? AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
+        aws.status(for: config.awsProfile)?.region ?? aws.summaries.first { $0.name == config.awsProfile }?.region ?? "us-east-1"
     }
 
     /// The profile's kind and when its credentials expire, or what's wrong ("Role via base: credentials expire at 15:30").
@@ -1067,6 +1094,9 @@ final class SettingsModel: ObservableObject {
 
     // MARK: Test
 
+    /// What Test Connection runs (`SettingsStore.testConnection`); the self-test's counts its runs instead.
+    static var connectionTest: @MainActor (Config, @escaping Converter.CredentialLoader) async -> TestStatus = SettingsStore.testConnection
+
     func runTest() {
         testTask?.cancel()
         testStatus = .running
@@ -1075,7 +1105,7 @@ final class SettingsModel: ObservableObject {
         let resolver = aws.resolver
         testTask = Task { [weak self] in
             defer { self?.aws.refresh(profile: snapshot.awsProfile) }
-            let status = await SettingsStore.testConnection(snapshot) { try await resolver.resolve(profile: $0, forceRefresh: true) }
+            let status = await Self.connectionTest(snapshot) { try await resolver.resolve(profile: $0, forceRefresh: true) }
             self?.testStatus = status
         }
     }
@@ -1111,10 +1141,15 @@ struct SettingsView: View {
     @State private var openChip: Input?
     /// The README images: the options of this input drawn under the chips (a popover isn't in a page's image).
     private let chipShown: Input?
-    /// The AI page's More… opened.
-    @State private var showsMore = false
+    /// The AI page's More… (the base URL): open with one set until clicked, then as clicked.
+    @State private var aiMore = SettingsDisclosure()
+    /// The AI page's choices shown (Change ▾), not only the one chosen.
+    @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
+    /// Commands → "Folders and sources…": open when it opens by itself (`ExtensionSourcesSection.opensByItself`) until
+    /// clicked, then as clicked.
+    @State private var foldersAndSources = SettingsDisclosure()
     /// Script Extensions' folders with no new commands, opened.
     @State private var showsOtherFolders = false
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -1142,8 +1177,10 @@ struct SettingsView: View {
     /// `page`: the one shown first; nil: General (the last one isn't remembered). `query`: the search typed (images).
     @MainActor
     init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Input? = nil, keySheetShown: Provider? = nil,
-         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false) {
+         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false,
+         choosingAI: Bool = false) {
         self.model = model
+        _choosingAI = State(initialValue: choosingAI)
         self.keySheetShown = keySheetShown
         self.troubleshootShown = troubleshootShown
         self.learnedShown = learnedShown
@@ -1259,20 +1296,42 @@ struct SettingsView: View {
            "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result.")
     }
 
-    /// Advanced → how the candidates of a word are laid out, and commands on the selected text.
+    /// Input → the key that switches the input language (`Config.switchKey`, owner 0.7.4): a tap of Shift, or a press of
+    /// Caps Lock, which then no longer locks capitals (the input method turns its lock off again at once).
+    private var switchKeyRow: some View {
+        LabeledContent {
+            Picker("", selection: $model.config.switchKey) {
+                ForEach(SwitchKey.allCases, id: \.self) { Text(UIText.name($0)).tag($0) }
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } label: {
+            if let note = UIText.switchKeyHelp(model.config.switchKey) {
+                titled(SettingsSpot.switchKey.title, note)
+            } else {
+                Text(SettingsSpot.switchKey.title)
+            }
+        }
+        .settingsRow(.switchKey, shown: model.spot)
+    }
+
+    /// Input → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
+    /// macOS's own panel (owner, 0.7.4: with the input languages, no longer in Advanced).
+    private var candidateLayoutRow: some View {
+        LabeledContent {
+            Picker("", selection: $model.config.candidateLayout) {
+                Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
+                Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
+            }
+            .pickerStyle(.segmented).labelsHidden().fixedSize()
+        } label: {
+            titled(SettingsSpot.candidateLayout.title, Self.layoutNote(model.config.candidateLayout))
+        }
+        .settingsRow(.candidateLayout, shown: model.spot)
+    }
+
+    /// Advanced → commands on the selected text.
     @ViewBuilder private var typingSection: some View {
         Section {
-            // The candidates of a word being typed (pinyin, Hindi) in a column, or in a row like macOS's own panel.
-            LabeledContent {
-                Picker("", selection: $model.config.candidateLayout) {
-                    Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
-                    Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
-                }
-                .pickerStyle(.segmented).labelsHidden().fixedSize()
-            } label: {
-                titled(SettingsSpot.candidateLayout.title, Self.layoutNote(model.config.candidateLayout))
-            }
-            .settingsRow(.candidateLayout, shown: model.spot)
             // Commands on the selected text (`Composer.selection`): on by default, off for an app where it misbehaves.
             Toggle(isOn: $model.config.useSelection) {
                 titled(.useSelection)
@@ -1358,16 +1417,15 @@ struct SettingsView: View {
     }
 
     /// The input languages as chips, in their order (the first is the default: new text fields start in it; with two,
-    /// Shift switches), Code after them with its coding language; ⊗ removes one, dragging reorders the languages, and
-    /// "Add…" adds one. The packs on their way under them; each input's options follow in sections of their own.
+    /// the switch key switches), Code after them with its coding language; ⊗ removes one, dragging reorders the
+    /// languages, and "Add…" adds one. The packs on their way under them, then the key that switches and how the
+    /// candidates are laid out; each input's options follow in sections of their own.
     @ViewBuilder private var inputSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     titled(SettingsSpot.inputLanguages.title,
-                           model.config.inputs.count > 1
-                           ? tr("单按 Shift 切换；新的输入框从第一个开始。", "Tap Shift to switch; new text fields start in the first.")
-                           : tr("只有一种时 Shift 不切换", "With one, Shift doesn't switch"))
+                           UIText.inputLanguagesHelp(model.config.switchKey, switches: model.config.inputs.count > 1))
                     Spacer()
                 }
                 HStack(spacing: 6) {
@@ -1385,6 +1443,8 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
+            switchKeyRow
+            candidateLayoutRow
 
         } header: {
             SectionTitle(tr("输入语言", "Input Languages"), icon: CommandIcons.input)
@@ -1576,9 +1636,15 @@ struct SettingsView: View {
                     Text(SettingsSpot.autocomplete.title)
                     Text(SettingsSpot.autocomplete.note ?? "").font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
-                    // Where the text goes, whether it's on or not: turning it on is the choice to send it there.
-                    if let destination = AutocompleteSwitch.destination(model.config) {
-                        Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                    // Where the text goes, whether it's on or not: turning it on is the choice to send it there. With a CLI
+                    // chosen as the AI, its fast fallback's (`Config.fastProvider`), or that it doesn't run.
+                    if let fast = model.fastConfig {
+                        if let destination = AutocompleteSwitch.destination(fast) {
+                            Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+                        }
+                    } else {
+                        Text(tr("选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」）", "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)"))
+                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
@@ -1655,30 +1721,10 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// Script extensions (docs/extensions.md): where they're looked for, the bundles and their preferences, the
-    /// commands (each turned on or off), and what was left out, with why.
+    /// Script extensions (docs/extensions.md): the bundles and their preferences, the commands (each turned on or off),
+    /// and what was left out, with why. Where they're looked for is under "Folders and sources…" (`extensionFolderRows`).
     @ViewBuilder private var extensionsSection: some View {
         Section {
-            Toggle(isOn: $model.config.findRaycastScripts) {
-                titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
-                       tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
-                          "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
-            }
-            // The folders that bring commands, each on its row; the others (empty, hidden, only copies of what loads from
-            // elsewhere) folded into one.
-            let (bringing, others) = foldedFolders
-            ForEach(bringing, id: \.path) { folder in folderRow(folder) }
-            if !others.isEmpty {
-                DisclosureGroup(isExpanded: $showsOtherFolders) {
-                    ForEach(others, id: \.path) { folder in folderRow(folder) }
-                } label: {
-                    Label(others.count == 1 ? tr("另外 1 个文件夹没有新命令", "1 more folder with no new commands")
-                              : tr("另外 \(others.count) 个文件夹没有新命令", "\(others.count) more folders with no new commands"),
-                          systemImage: "folder").foregroundStyle(.secondary)
-                }
-                .disclosureGroupStyle(RowDisclosureStyle())
-            }
-            Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
             ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
             ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
             ForEach(model.skippedExtensions, id: \.self) { skipped in
@@ -1690,18 +1736,9 @@ struct SettingsView: View {
                       systemImage: "exclamationmark.triangle")
                     .font(.caption).foregroundStyle(.orange)
             }
-            // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
-            if !model.extensionIndex.identical.isEmpty {
-                let identical = model.extensionIndex.identical
-                Label(identical.count == 1 ? tr("跳过了 1 个完全相同的副本", "Skipped 1 identical copy")
-                          : tr("跳过了 \(identical.count) 个完全相同的副本", "Skipped \(identical.count) identical copies"),
-                      systemImage: "doc.on.doc")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
-            }
             if model.extensionIndex.commands.isEmpty, model.skippedExtensions.isEmpty {
-                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进上面的文件夹就行。",
-                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder above."))
+                Text(tr("还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进「文件夹和来源…」里的文件夹就行。",
+                        "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder under Folders and sources…."))
                     .font(.caption).foregroundStyle(.secondary)
             }
             if let error = model.extensionError { Text(error).foregroundStyle(.red) }
@@ -1716,6 +1753,44 @@ struct SettingsView: View {
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)  // under the card, from its left
         }
         .disabled(!model.canSave)
+    }
+
+    /// Under "Folders and sources…" (`ExtensionSourcesSection`): the plugins' folder, Raycast's switch, the extension
+    /// folders (those that bring commands, each on its row; the others folded into one), Add Folder… and the copies
+    /// skipped.
+    @ViewBuilder private var extensionFolderRows: some View {
+        HStack {
+            Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
+            Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
+        }
+        Toggle(isOn: $model.config.findRaycastScripts) {
+            titled(tr("自动查找 Raycast 脚本", "Find Raycast scripts automatically"),
+                   tr("用聚焦（Spotlight）找带 @raycast 元数据的脚本，它们所在的文件夹会列在下面，用不着的可以隐藏。",
+                      "Spotlight finds scripts with @raycast metadata; their folders are listed below, and you can hide the ones you don't want."))
+        }
+        // The others: empty, hidden, only copies of what loads from elsewhere.
+        let (bringing, others) = foldedFolders
+        ForEach(bringing, id: \.path) { folder in folderRow(folder) }
+        if !others.isEmpty {
+            DisclosureGroup(isExpanded: $showsOtherFolders) {
+                ForEach(others, id: \.path) { folder in folderRow(folder) }
+            } label: {
+                Label(others.count == 1 ? tr("另外 1 个文件夹没有新命令", "1 more folder with no new commands")
+                          : tr("另外 \(others.count) 个文件夹没有新命令", "\(others.count) more folders with no new commands"),
+                      systemImage: "folder").foregroundStyle(.secondary)
+            }
+            .disclosureGroupStyle(RowDisclosureStyle())
+        }
+        Button(tr("添加文件夹…", "Add Folder…")) { model.addExtensionFolder() }
+        // Copies of what is loaded (another checkout of a repository, a copied folder): one quiet line.
+        if !model.extensionIndex.identical.isEmpty {
+            let identical = model.extensionIndex.identical
+            Label(identical.count == 1 ? tr("跳过了 1 个完全相同的副本", "Skipped 1 identical copy")
+                      : tr("跳过了 \(identical.count) 个完全相同的副本", "Skipped \(identical.count) identical copies"),
+                  systemImage: "doc.on.doc")
+                .font(.caption).foregroundStyle(.secondary)
+                .help(identical.map { ExtensionStore.abbreviated($0.path) }.joined(separator: "\n"))
+        }
     }
 
     /// The extension folders that bring commands (one of theirs loads), and the others.
@@ -1848,10 +1923,6 @@ struct SettingsView: View {
                         .replacingOccurrences(of: "@", with: model.config.commandTrigger))
                     .font(.caption).foregroundStyle(.secondary)
             }
-            HStack {
-                Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
-                Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
-            }
             if let error = model.pluginError { Text(error).foregroundStyle(.red) }
             pluginLibrary
         } header: {
@@ -1861,36 +1932,47 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
+    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. Collapsed, the one chosen (its
+    /// logo, name and status) with Change ▾, and its own settings under it; open, every choice as a card by how it
+    /// connects (`AIChoicesGrid`), the chosen one outlined. The settings search's AI row opens the cards.
     @ViewBuilder private var providerSection: some View {
+        let facts = model.aiFacts
+        let chosen = model.config.ai
         Section {
-            Picker(SettingsSpot.provider.title, selection: $model.config.provider) {
-                ForEach(Provider.offered, id: \.self) { provider in
-                    providerItem(provider)
+            AIChoiceSettings(model: model, choosing: $choosingAI)
+            if !choosingAI {
+                switch chosen {
+                case let .cli(agent):
+                    AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
+                case .provider(.bedrock): bedrockSettings
+                case .provider(.hosted): hostedSettings
+                case .provider(.apple): appleSettings
+                case let .provider(provider): apiKeySettings(provider)
+                }
+                if chosen.provider != nil {
+                    HStack {
+                        Button(SettingsSpot.testConnection.title) { model.runTest() }
+                            .disabled(model.testStatus == .running)
+                        switch model.testStatus {
+                        case .idle: EmptyView()
+                        case .running: ProgressView().controlSize(.small)
+                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                        }
+                    }
+                    .settingsRow(.testConnection, shown: model.spot)
                 }
             }
-            .settingsRow(.provider, shown: model.spot)
-            if model.config.provider == .bedrock {
-                bedrockSettings
-            } else if model.config.provider == .hosted {
-                hostedSettings
-            } else if model.config.provider == .apple {
-                appleSettings
-            } else {
-                apiKeySettings(model.config.provider)
+        } header: {
+            HStack(alignment: .firstTextBaseline) {
+                SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+                Spacer()
+                Text(SettingsSpot.provider.note ?? "").font(.callout).foregroundStyle(.secondary)
             }
-            HStack {
-                Button(SettingsSpot.testConnection.title) { model.runTest() }
-                    .disabled(model.testStatus == .running)
-                switch model.testStatus {
-                case .idle: EmptyView()
-                case .running: ProgressView().controlSize(.small)
-                case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                }
-            }
-            .settingsRow(.testConnection, shown: model.spot)
         }
         .disabled(!model.canSave)
+        .onAppear { if model.spot == .provider { choosingAI = true } }
+        .onChange(of: model.spot) { if model.spot == .provider { choosingAI = true } }
     }
 
     @ViewBuilder private var webSearchSection: some View {
@@ -2384,13 +2466,13 @@ struct SettingsView: View {
                 }
             }
             .settingsRow(.troubleshoot, shown: model.spot)
-            LabeledContent(tr("网站", "Website")) { Link("allinoneime.com", destination: URL(string: "https://allinoneime.com")!) }
-            LabeledContent(tr("使用说明", "Documentation")) { Link("Wiki", destination: URL(string: "https://allinoneime.com/docs")!) }
-            LabeledContent(tr("更新日志", "What's new")) {
+            // Where to read more, in one row (owner, 0.7.4).
+            HStack(spacing: 18) {
+                Link(tr("网站", "Website"), destination: URL(string: "https://allinoneime.com")!)
+                Link(tr("使用说明", "Documentation"), destination: URL(string: "https://allinoneime.com/docs")!)
                 Link(tr("更新日志", "Changelog"), destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME/releases")!)
-            }
-            LabeledContent(tr("源代码", "Source code")) {
-                Link("GitHub", destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+                Link(tr("源代码", "Source code"), destination: URL(string: "https://github.com/MicroZ-LLC/AllInOneIME")!)
+                Spacer()
             }
             // GitHub's page for a new issue, with the versions and settings that help; `@reportissue` does the same.
             LabeledContent {
@@ -2492,7 +2574,6 @@ struct SettingsView: View {
                         SuggestionsSection(model: model)
                         ClipboardHistorySection(model: model)
                         ICloudSyncSection(model: model)
-                        PreviousAppSettingsSection(model: model)
                     case .input:
                         // The input languages, then each one's options under its name (owner, 0.6.7: a page of its own,
                         // as before, not a popover on General).
@@ -2511,10 +2592,13 @@ struct SettingsView: View {
                         webSearchSection
                         pluginsSection
                         extensionsSection
-                        ExtensionSourcesSection(model: model)
+                        // The plugins' folder, the extensions' folders and the extension sources, folded (owner, 0.7.4).
+                        ExtensionSourcesSection(model: model, disclosure: $foldersAndSources, folders: AnyView(extensionFolderRows))
                     case .advanced:
                         typeOutSection
                         typingSection
+                        // Only while an app has one; migration from before Settings v2 (owner, 0.7.4: from General).
+                        PreviousAppSettingsSection(model: model)
                         filesSection
                     case .about: aboutSection
                     }
@@ -2606,6 +2690,7 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.typeOutMistakes) { model.save() }
         .onChange(of: model.config.candidateLayout) { model.save() }
+        .onChange(of: model.config.switchKey) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
             model.refreshExtensions(discover: model.config.findRaycastScripts)
@@ -2624,7 +2709,8 @@ struct SettingsView: View {
             (query, chosen, openChip) = ("", 0, nil)
             (editingKey, keySheet, editingSearchKey, editingNotionToken) = (nil, nil, false, false)
             (pluginToRemove, pluginToInstall, commandEdit, commandToDelete, refusedToDelete) = (nil, nil, nil, nil, nil)
-            (customModel, customProviderModel, showsMore, troubleshooting, showsOtherFolders) = (false, false, false, false, false)
+            (customModel, customProviderModel, troubleshooting, showsOtherFolders) = (false, false, false, false)
+            (aiMore, foldersAndSources) = (SettingsDisclosure(), SettingsDisclosure())
             (packToRemove, packToDelete) = (nil, nil)
             shown()
         }
@@ -2890,15 +2976,6 @@ struct SettingsView: View {
         if let error = model.accountError { Text(error).foregroundStyle(.red) }
     }
 
-    /// A provider in the picker: Apple Intelligence greyed out, with the reason, on a Mac where it can't be used.
-    @ViewBuilder
-    private func providerItem(_ provider: Provider) -> some View {
-        let apple = provider == .apple ? AppleModel.system.availability : .available
-        Text(UIText.name(provider) + (apple == .available ? "" : tr("（", " (") + UIText.reason(apple) + tr("）", ")")))
-            .tag(provider)
-            .disabled(apple != .available)
-    }
-
     /// Apple Intelligence on this Mac: whether it can be used, and where to turn it on.
     @ViewBuilder
     private var appleSettings: some View {
@@ -2959,7 +3036,9 @@ struct SettingsView: View {
         if let error = model.keyError { Text(error).foregroundStyle(.red) }
         // More…: the base URL (and, for OpenAI's, the services that take its API); open whenever one is set.
         let baseURLSet = model.providerSettings(provider).baseURL != nil
-        DisclosureGroup(isExpanded: Binding(get: { showsMore || baseURLSet }, set: { showsMore = $0 })) {
+        // The search pointing at the base URL opens it too, even folded by a click before, as the other folds do.
+        DisclosureGroup(isExpanded: Binding(get: { aiMore.isExpanded(opensByItself: baseURLSet || model.spot == .baseURL) },
+                                            set: { aiMore.click($0) })) {
             TextField(SettingsSpot.baseURL.title, text: providerBinding(provider, \.baseURL),
                       prompt: Text(ProviderSettings.defaults(for: provider).baseURL ?? ""))
                 .onSubmit { model.save() }
@@ -3714,10 +3793,11 @@ enum SettingsImage {
     @MainActor
     static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Input? = nil, keySheet: Provider? = nil,
                        assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, learned: Bool = false,
-                       to url: URL, appearance: NSAppearance.Name = .aqua, settle: (TimeInterval) -> Void) {
+                       choosingAI: Bool = false, to url: URL, appearance: NSAppearance.Name = .aqua,
+                       settle: (TimeInterval) -> Void) {
         let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
                                                         assistant: assistant, query: query, troubleshootShown: troubleshoot,
-                                                        learnedShown: learned))
+                                                        learnedShown: learned, choosingAI: choosingAI))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)

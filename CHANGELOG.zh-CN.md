@@ -2,6 +2,22 @@
 
 [English](CHANGELOG.md) | 中文
 
+## 0.7.4（2026-11-14）
+
+### 新增
+
+- 切换输入语言可以用大写锁定键代替 Shift：设置 →「输入」→「切换输入语言」选「单按 Shift」（默认，和以前一样）或「按大写锁定键」（配置里的 `switchKey`，和其他设置一起通过 iCloud 同步）。选了大写锁定键，单独按一下它就和单按 Shift 一样，同样切换、同样提示、同样按输入框记住，正在打的字也照 Shift 的规则处理；输入法马上把大写锁定关掉，所以不会一直是大写，灯也会灭。这时大写锁定键不再锁大写：打大写用 Shift。单按 Shift 这时什么都不切换，长按 Shift 照样开关边打边译。按住别的修饰键时、密码框里和安全输入时大写锁定键归 macOS。设置、输入菜单和「代码」的说明里写的都是选的那个键。AllInOneIME 仍在输入法的「英语」下。
+- `@question` 可以用输入法自己的会话回答：在设置 →「AI」里选 Claude Code、Codex、Antigravity（Google Antigravity 的 CLI，`agy`）或 Kiro CLI（`questionBackend`，只属于这台 Mac，不同步；见「变更」）。会话是输入法留着的一个长期运行的 Claude Code、Codex（`codex app-server`）、Antigravity（`agy acp`，用它的快速模型：大约 2 秒出第一个字）或 Kiro CLI，在 `~/Library/Application Support/AllInOneIME` 下它自己的文件夹里，用那个 CLI 自己的账号登录（ChatGPT 等订阅、公司账号，或 Amazon Bedrock 上的 Claude Code），不用 API key。候选框里的每个 `@question` 对话在会话里都是一个新对话，追问留在里面：一个问题不会带上以前的所有问题（发出去的内容短，也不会错过 CLI 的提示缓存），不同对话之间什么都不记。不管是哪个 CLI，会话都只能读网页（搜索、打开网页），别的都不能：不碰这台 Mac 上的文件，不运行命令，不用那个 CLI 的 MCP 服务器、扩展、插件或别的 agent，什么都不请求批准；在终端里接着聊（⌘⏎）时就是你自己设置的那个 CLI：一个普通的交互式会话，用你自己的规则、设置、权限提示、工具和 MCP 服务器，不再是只读网页的会话。问题里有不是你打的文字（选中的文字、截图里的文字、问题里别的命令输出的网页或内容）时，那些文字可能让 agent 把对话发到别处：这个对话里会话只能打开你自己打的网址（问题和追问里的），一个都没打就关掉网页工具；Claude Code 只能打开那些网址所在的网站，Codex、Antigravity 和 Kiro CLI 没法只开指定网址，这时就没有网页工具；继续一个保存的对话，或用 ⌘R 重新问保存的问题或对话时也一样：不搜索网页，只打开你自己打的网址。Antigravity 靠输入法自己的一个只有网页搜索的 agent，加上它文件夹里的一个 hook（别的工具运行前就拒绝）只能搜索网页（它没有打开网页的工具）；在终端里这个 hook 不起作用。CLI 能给会话起名的（Claude Code、Codex）对话名叫 AllInOneIME，你可以自己打开看记录；README 里写了每个怎么打开。只发现在问的这个问题，像发给 AI 服务时一样隐藏敏感信息，问 AllInOneIME 本身的问题时带上使用指南的几段。要问 `@question` 时才启动（打了或选了 `@question`，或单个 @ 里高亮的是「问 AI」；不用 AI 的 App 里和安全输入时不启动），那时就准备好一个新对话，回答不用等 CLI 启动；闲置 15 分钟后结束，之后的追问接着它的对话。在会话里聊没有轮数限制，⌘⏎ 最先列出在终端里接着同一个对话聊，「重新开始」开一个新对话。一个对话从不同时有两个进程：⌘⏎ 先结束会话自己的进程并等它结束，终端里的 CLI 运行时拿着这个对话的锁（`lockf`），下一个 `@question`（交接时打的 @ 也一样）开新对话，不会接着交出去的那个；重新启动后（回答时更新也一样）不会接着以前的对话。各个 CLI 装没装、登没登录只由设置 →「AI」检查：显示时只查选中的 CLI，打开选项时和在那里选 CLI 时查所有的；查到的结果会留着（已登录的留到退出 AllInOneIME，别的留一分钟），所以再显示一次不会再运行 CLI；启动时和问问题时都不查，选了 AI 服务、选项也没打开时从不查。原来没登录的 CLI 查到已登录后，下一个问题会重新启动它的会话进程。选中的 CLI 有问题来时直接用。会话用登录 shell 的 PATH 和那个 CLI 要读的变量（`CLAUDE_CONFIG_DIR`、`CODEX_HOME`、`GEMINI_API_KEY` 等）。会话回答不了时（没装、没登录、启动不了、没法只读网页、用量到上限、AWS 登录过期、30 秒内没反应、30 秒后还在回答之前的问题，或 CLI 回答之前先压缩对话，不等它）由那个更快的 AI 回答（见「变更」），候选框里写着原因；启动不了的 CLI，在重新检查之前设置 →「AI」都这样显示。候选框底部写着是谁回答的（Claude Code、Codex、Antigravity、Kiro CLI 或 AI 服务），CLI 的对话从这个回答开始是新的（第一个问题，或没能接上原来的对话，它不知道前面几轮）时写「新对话」，CLI 报告了用量时写这一轮用的 token 数。回答 3 分钟没有动静，或按 Esc 后 5 秒还没停，会话的进程就结束；退出（或更新）AllInOneIME 时所有会话的进程都会结束。要快的（改写、翻译、续写）用更快的 AI（见「变更」）。
+
+### 变更
+
+- 设置 →「AI」是所有 AI 功能共用的一个选择。收起时显示选中的那个：图标、名字和现在的状态（已登录、没装、没填 Key、Bedrock 的 profile · 区域、可用……）、「更换 ▾」，下面是它自己的设置（key、模型、AWS Profile、区域、Base URL、「测试连接」；CLI 的是它的会话、「重新开始」和在终端里接着聊的 ⌘⏎）。「更换 ▾」把各家按连接方式列成卡片：用你的订阅（Claude Code、Codex、Antigravity、Kiro CLI）、用 API Key（Claude API、OpenAI 兼容、Gemini API）、云服务（Amazon Bedrock、AllInOneIME 云）和本机（Apple 本机）；选中的那个有框，点一个就选它，「取消」什么都不改。图标都是单色的，跟着浅色、深色模式用文字的颜色。选了 CLI，`@question` 就在输入法自己的这个 CLI 会话里回答（见「新增」）；CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、自定义的 AI 命令、续写）用之前设置好的 AI 服务（填了 key、有带凭证的 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；两个都没有时续写关闭，其余的交给会话，会慢一些，每个请求都是单独的一个对话，没有网页工具（排在正在回答的问题后面等多久都不会进 `@question` 的对话）。CLI 下面有一行写着用的是哪个。会话回答不了的问题交给这个更快的 AI（没有的话问题失败，写着原因）。配置文件照样能用：`questionBackend` 是选的 CLI（只属于这台 Mac，不同步），`provider` 是 AI 服务，不管选哪个，各家的设置和 key 都保留；没有 `questionBackend` 的配置还是用它的 AI 服务，和以前发布的版本一样。这个版本早先的测试版里的 Gemini CLI 换成了 Antigravity：Gemini CLI 不再支持个人 Google 账号（Google 让个人用户改用 Antigravity）；选了 Gemini CLI 会话的配置，装了 `agy` 时改用 Antigravity 的会话，没装时用它的 AI 服务，别的都不变。`@agent` 照样可以交给 Gemini CLI。设置的搜索用每家的名字都能找到这个选择（「kiro」「bedrock」「订阅」），并打开卡片。选了 CLI 时，`@doctor` 写出它和那个更快的 AI，不把没设置好的 AI 服务算作问题。
+
+### 修复
+
+- 只随桌面 App 带来的 CLI（Claude App 里的 Claude Code、ChatGPT App 里的 `codex`），`@agent` 也当作已安装，和 `@question` 的会话一样，并从那里运行：设置 →「命令」→ `@agent` 不再说没装，`@agent`（Claude Code，或运行 `codex` 的自定义 agent）在终端里启动它，`@tasks` 和菜单栏面板列出 Claude Code 的任务。两边用同一种方法找它。
+- `@tasks` 和菜单栏面板里的 Claude 任务不会再偶尔一直等一个其实已经结束的 `claude agents`（或 `claude --bg`）：输入法从进程本身得知它结束了，和 `@question` 的会话一样，不再用那种大约十次漏掉一次的等待。
+
 ## 0.7.3（2026-11-12）
 
 ### 新增

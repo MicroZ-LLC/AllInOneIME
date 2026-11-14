@@ -236,6 +236,16 @@ public enum Doctor {
     static func provider(_ facts: Facts, _ t: Words) -> [Finding] {
         guard let config = facts.config else { return [] }
         var out: [Finding] = []
+        // A CLI chosen as the AI (`Config.ai`): its session answers questions (its sign-in is shown in Settings → AI). The
+        // provider is only what has to be fast then (`Config.fastProvider`): one not set up is no problem.
+        if let agent = config.ai.agent {
+            let fast = config.fastProvider(ready: { canTestConnection(facts, provider: $0) }, apple: facts.apple)
+            let text = AIConfig.Text(language: t.language)
+            out.append(Finding(area: .provider, status: .ok, title: t.tr("AI：", "AI: ") + agent.displayName,
+                               detail: fast.map { t.tr("要快的用 \(text.provider($0))", "what has to be fast uses \(text.provider($0))") }
+                                   ?? t.tr("没有更快的 AI：续写关闭", "no faster AI: autocomplete is off")))
+            return out
+        }
         let name = AIConfig.Text(language: t.language).provider(config.provider)
         let label = t.tr("AI 服务：", "AI provider: ") + name
         switch config.provider {
@@ -458,10 +468,15 @@ public enum Doctor {
     /// it the provider's own row says what is missing, and no second ✗ row is added.
     public static func canTestConnection(_ facts: Facts) -> Bool {
         guard let config = facts.config else { return false }
-        switch config.provider {
+        return canTestConnection(facts, provider: config.provider)
+    }
+
+    /// Whether `provider` has what it needs, by `facts` (`canTestConnection`).
+    static func canTestConnection(_ facts: Facts, provider: Provider) -> Bool {
+        switch provider {
         case .apple: return facts.apple == .available
         case .bedrock: if case .success? = facts.awsProfile { return true } else { return false }
-        case .anthropic, .gemini, .openai, .hosted: return facts.keySaved[config.provider] == true
+        case .anthropic, .gemini, .openai, .hosted: return facts.keySaved[provider] == true
         }
     }
 

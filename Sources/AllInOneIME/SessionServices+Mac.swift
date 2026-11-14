@@ -137,13 +137,13 @@ extension SessionServices {
         }
         services.runInTerminal = { try TerminalLauncher.agent($0, prompt: $1) }
         services.continueInAgent = { try TerminalLauncher.agent($0, prompt: $1) }
+        services.continueClaudeSession = { try await ClaudeSessionMac.handOff(followUp: $0) }
         services.agentInstalled = { AgentAvailability.installed($0, custom: $1) }
         services.launchInTerminal = { try TerminalLauncher.launch($0) }
         services.programInstalled = { program in
             if program.isEmpty { return false }  // a custom agent without a command
-            if program == "claude", TerminalLauncher.claudePath != nil { return true }
             if program.hasSuffix(".app") { return FileManager.default.fileExists(atPath: program) }  // a send command's app
-            return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+            return ClaudeSessionMac.isInstalled(program)  // an agent's CLI where its session finds it, a desktop app's too
         }
         services.startAgent = { try await AgentMonitor.shared.start($0) }
         services.listAgents = { try await AgentMonitor.shared.list() }

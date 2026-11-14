@@ -187,6 +187,9 @@ public enum PlatformAction: Equatable, Sendable {
     /// This week's stats as a picture on the clipboard (`@stats`'s ⌘C): the card the settings page copies, as it is set
     /// there (the user's own command names hidden or not).
     case copyWeekStatsImage
+    /// Caps Lock's lock (its light, capitals) turned on or off: a press of Caps Lock, the switch key (`Config.switchKey`),
+    /// switched the input language instead, so the lock its press turned on is turned off again. On the Mac through IOKit.
+    case setCapsLock(Bool)
 }
 
 /// Dictation `id`, as the platform hears it.

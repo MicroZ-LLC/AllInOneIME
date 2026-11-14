@@ -12,7 +12,8 @@ import UserNotifications
 //    activated, in the background (`UpdateSchedule`; never on a keystroke); turned off in About. A newer version
 //    is a quiet line on the About page and in the menu bar panel, never a dialog; one this Mac can install, found by
 //    a check in the background, is told once in a macOS notification too (0.7.0: `UpdateNotifier`), with Update (step
-//    2 on) and Don't Show Again (`notifiesUpdates`, under the switch in About).
+//    2 on) and Don't Show Again (`notifiesUpdates`: no switch of its own since 0.7.4; turned off, About shows it with
+//    Restore Default).
 // 2. Update (`UpdateController.install`): the archive is downloaded and checked against the manifest's size and
 //    sha256, unpacked into a folder of its own (`UpdateLocations.work`), and both apps are checked (bundle IDs,
 //    version and build, code signatures, and the new input method has to start: `--version`) — all before
@@ -859,7 +860,9 @@ enum UpdateText {
 
 // MARK: - About page
 
-/// The About page's Updates card: what's known, the button that fits, and the switch for checking by itself.
+/// The About page's Updates card: what's known, the button that fits, and the switch for checking by itself. A new
+/// version's notification has no switch of its own (owner, 0.7.4): turned off (its Don't Show Again, by hand), it shows
+/// with Restore Default while checking is on.
 struct UpdateSection: View {
     @ObservedObject var updates: UpdateController
     @ObservedObject var model: SettingsModel
@@ -874,12 +877,12 @@ struct UpdateSection: View {
                           "Once a day, in the background; a new version is mentioned here and in the menu bar panel, and only installed when you click Update."))
             }
             .disabled(!model.canSave)
-            // A new version's notification (`UpdateNotifier`), while checking is on.
-            if model.config.checkForUpdates {
-                Toggle(isOn: Binding(get: { model.config.notifiesUpdates }, set: { model.config.notifiesUpdates = $0; model.save() })) {
-                    titled(tr("有新版本时通知我", "Notify me when a new version is out"),
-                           tr("每个新版本只发一次系统通知，带「更新」和「不再提示」；不会弹出窗口。",
-                              "One notification per new version, with Update and Don't Show Again; never a window."))
+            // A new version's notification (`UpdateNotifier`), while checking is on: on by default.
+            if model.config.checkForUpdates, !model.config.notifiesUpdates {
+                RestoreDefaultRow(title: tr("有新版本时通知我", "Notify me when a new version is out") + tr("：", ": ") + tr("关", "Off"),
+                                  note: RestoreDefaultRow.defaultIs(tr("开", "On"))) {
+                    model.config.notifiesUpdates = true
+                    model.save()
                 }
                 .disabled(!model.canSave)
             }

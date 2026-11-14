@@ -90,6 +90,9 @@ public final class Composer {
         case continueInClaudeCode(prompt: String)
         /// The same in another agent (Gemini CLI, Kiro CLI, the custom one), started as `@agent` starts it.
         case continueInAgent(AgentKind, prompt: String)
+        /// Go on in the input method's own Claude session in Terminal (`claude --resume`, `ChatHandoff.Destination
+        /// .claudeSession`): our process ends first; `followUp` (the next question typed, maybe empty) is its first message.
+        case continueClaudeSession(followUp: String)
         /// Run `argv` in a new terminal window (a custom `terminal` command).
         case launchInTerminal(argv: [String])
         /// Start `prompt` as a Claude Code background session (`@agent` with `claudeInBackground`).
@@ -408,6 +411,10 @@ public final class Composer {
     /// What the results shown came from, when they can be refined (an AI request: `@improve`, `@translate`,
     /// `@question`, a prompt command, `Command.edit` on a selection). Nil for every other command.
     var refineRequest: Refinement.Request?
+    /// The `@question` conversation in the panel as a question session sees it (`QuestionConversation`): a new one each
+    /// time one starts (a question asked or asked again, a saved one picked: `loadThread`), its follow-ups in it; with
+    /// text the user didn't type in its first question, its web kept to the addresses typed (`SessionWeb`).
+    public internal(set) var questionConversation: QuestionConversation?
     /// The request in flight is a refine (its id): a failure goes back to the results before it.
     private var refineID: Int?
     /// Why the last refine failed (secure input, the network …): shown over the results it left as they were, its
@@ -418,6 +425,11 @@ public final class Composer {
 
     /// Rounds in the panel before it offers to go on elsewhere (`Config.questionRounds`, set by the controller).
     public var questionRounds = QuestionChat.defaultRounds
+    /// The questions go to the input method's Claude session (`ClaudeSessionManager`, set by the controller): no round
+    /// limit, and the hand-off offers going on in that session first (`ChatHandoff.withSession`).
+    public var questionSession = false
+    /// Whose session that is (`Config.questionSessionAgent`): Claude Code's, Codex's, Antigravity's or Kiro CLI's.
+    public var questionSessionAgent = SessionAgent.claude
     /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
     public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
     /// The agent "@agent's agent" (`ChatHandoff.Destination.atAgent`) stands for: the one `@agent` hands to, when it's
@@ -840,6 +852,9 @@ public final class Composer {
     private var voiceKeySided = false
     /// When Shift went down with no other key since (nil once any key is pressed).
     private var shiftPressedAt: TimeInterval?
+    /// Whether a tap of Shift switches the input language: with Shift the switch key (`Config.switchKey`, the default).
+    /// With Caps Lock it is just Shift, and the session switches on a press of Caps Lock instead (`shiftTapped`).
+    public var shiftTapSwitches = true
     /// Whether a mouse button, a drag or the scroll wheel was used in the last `seconds`: a Shift-click
     /// or ⌥-click is no tap of the key (the mouse never reaches the input method). Set by the app.
     public var pointerUsedWithin: (_ seconds: TimeInterval) -> Bool = { _ in false }
@@ -1845,11 +1860,11 @@ public final class Composer {
         let toggle = isShift && !modifiers.contains(.shift)
             && held.map { $0 <= Self.shiftTapWindow && !pointerUsedWithin(max($0, 0)) } == true
         shiftPressedAt = nil
-        return toggle ? shiftTap() : []
+        return toggle && shiftTapSwitches ? shiftTap() : []
     }
 
     /// A tap of Shift, as `handleFlagsChanged` tells one: the next input language. Translate as You Type's chip, its
-    /// source part clicked, does the same.
+    /// source part clicked, does the same, and so does a press of Caps Lock with it the switch key (`Config.switchKey`).
     public func shiftTapped() -> [Effect] {
         forField(shiftTap())
     }
@@ -3205,7 +3220,14 @@ public final class Composer {
         refineText = ""
         refineError = nil
         // A saved conversation goes on: its next answer is a new one (kept again: `rememberAnswer`).
-        if isQuestionChat { recalled = nil }
+        if isQuestionChat {
+            recalled = nil
+            // An address typed in the follow-up may be read too; not one in a saved question asked again (`fresh`,
+            // `reaskSaved`), which the user may not have typed (`loadThread`).
+            var conversation = questionConversation ?? QuestionConversation()
+            if !fresh { conversation.web = conversation.web.allowing(instruction) }
+            questionConversation = conversation
+        }
         requestCounter += 1
         refineID = requestCounter
         phase = .translating(id: requestCounter)
@@ -3260,7 +3282,9 @@ public final class Composer {
         handoffRequested = false
     }
 
-    func startAction() -> Response {
+    /// The action key on the draft: its command starts. `saved`: the draft is a saved question asked again
+    /// (`reaskQuestion`), read from a file, not typed now.
+    func startAction(saved: Bool = false) -> Response {
         // A Hangul syllable still being typed belongs to the text (the action key was an Option tap).
         if !hangul.isEmpty { insertIntoDraft(hangul.flush()) }
         // Only an @ command is ever sent: without one the input method just types.
@@ -3371,6 +3395,13 @@ public final class Composer {
         case let .startCommand(command, input, _) where command.kind == .generate: refineRequest = .command(command, input: input)
         default: refineRequest = nil
         }
+        // Text the user didn't type in the question (the selection, a screenshot's text, the output of a command inside
+        // it, a page `@read` read): the session's web tools may reach only the addresses typed (`SessionWeb`). A saved
+        // question asked again (`saved`) may hold text the user didn't type, and doesn't say which: it reaches no
+        // address, and has no web search, as a saved conversation (`loadThread`).
+        let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false
+        let web = saved ? SessionWeb.only([]) : SessionWeb(untrusted: untrusted, typed: typed)
+        questionConversation = command == .question ? QuestionConversation(web: web) : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
@@ -4093,7 +4124,8 @@ extension Composer {
     }
 
     /// ⌘R on a saved answer: its question is asked again, past any answer kept (`Effect.reask`), and the new answer
-    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`).
+    /// takes the old one's place in the list (a saved conversation's: `reaskSaved`). Its conversation reaches no web
+    /// address, and has no web search (`startAction(saved:)`), as a saved conversation's (`loadThread`).
     func reaskQuestion() -> [Effect] {
         guard recalled != nil else { return [] }
         // In an app with no AI the saved answers may still be shown (nothing is sent), but not asked again: the answer
@@ -4103,10 +4135,10 @@ extension Composer {
         questionPick = nil
         result = .empty
         activeCommand = nil
-        // Read from a file, not typed now: a command in it that runs code stays text.
+        // Read from a file, not typed now: a command in it that runs code stays text, and no address in it is reached.
         draftHasOutsideText = true
         setLevelOnePhase()
-        return startAction().effects.map {
+        return startAction(saved: true).effects.map {
             if case let .startCommand(command, input, id) = $0, command == .question { return .reask(command, input: input, id: id) }
             return $0
         }
