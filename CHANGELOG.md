@@ -4,13 +4,13 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.5 (unreleased)
 
-### Fixed
-
-- The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.
-
 ### Changed
 
 - AllInOneIME Cloud gives 200 free requests a day (was 20); the installer and Settings → AI say so.
+
+### Fixed
+
+- The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.
 
 ## 0.7.4 (2026-11-14)
 
