@@ -1577,6 +1577,8 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 
 ```sh
 make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
+make lint         # the static checks every change passes: SwiftLint and the file size ratchet (new problems only), the core's portability guards, make strings-check
+make check        # make lint, then make test: what CI requires of a pull request
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
 make pack         # the Chinese language pack: build/packs/zh-pinyin-<version>.tar.xz, its sha256, its packs.json entry
 make packs        # all the language packs: Chinese, and Korean and Hindi from Core/LanguagePacks/ (ko-hangul, hi-phonetic)
@@ -1691,6 +1693,25 @@ Keyboard → Input Sources → + → English → AllInOneIME, with a button to K
 it; right after the move the input method opens About on it at once, before any other page. The earlier input source in
 the record can't be used any more: its entry is taken out only once this one is enabled.
 After the move, the input method says once which permissions to allow again (About, with Troubleshoot).
+
+### Contributing
+
+Every change, whoever writes it (a person, Claude Code, Codex, Kiro or the agent pipeline), follows
+[AGENTS.md](AGENTS.md), the repository's rules (Claude Code reads it through `CLAUDE.md`), and goes into `mainline` or a
+`release-*` branch only through a pull request that passed the same two checks:
+
+- **Quality gate** (`.github/workflows/quality.yml`, on the maintainer's Mac): `make lint` and `make test`. Run
+  `make check` before you push.
+- **review** (`.github/workflows/review.yml`): an independent review of the diff against AGENTS.md by another model
+  (Codex CLI, else Claude Code), as one comment on the pull request. It fails only for a high-confidence correctness
+  or privacy problem.
+
+`make lint` holds the code that predates it to baselines: `.swiftlint.baseline.json` (the SwiftLint violations then)
+and `Scripts/oversized-files.txt` (the files over 400 lines of code, which may not grow). New code meets the rules, and
+old code is fixed as it is touched. After fixing some, `make lint-baseline` lowers the baselines; CI fails a pull
+request that raises them. A pull request from a fork doesn't run on the maintainer's Mac: a maintainer who has read it
+pushes it to a branch here. Every Monday the Health report workflow updates the pinned "Code health report" issue: the
+files over the limit, the baseline, duplicated and unused code, and how each changed.
 
 ## License
 

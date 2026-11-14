@@ -1,0 +1,59 @@
+# Every Monday, on the Mac mini: the code health report (Scripts/health-report.py) of the newest release branch (else
+# mainline), in one issue labelled health-report that it keeps up to date (made and pinned the first time): files over
+# the size limit and their trend, SwiftLint's baseline and its trend, duplicated code, unused code (Periphery). The
+# quality gate stops the debt from growing; this shows whether it shrinks. Changes nothing in the repository.
+name: Health report
+
+on:
+  schedule:
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: health-report
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: xcode-27
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false            # keeps the quality gate's .build
+          fetch-depth: 0          # the history the trend reads, and every branch
+          persist-credentials: false
+      - run: git clean -ffdx -e .build/
+      - name: The newest release branch
+        run: |
+          branch=$(git branch -r --list 'origin/release-*' --format='%(refname:lstrip=3)' | sort -V | tail -1)
+          branch=${branch:-$(git rev-parse --abbrev-ref origin/HEAD | sed 's|^origin/||')}
+          git checkout -q --detach "origin/$branch"
+          echo "REPORT_BRANCH=$branch" >> "$GITHUB_ENV"
+          pins=$(grep -E '^[A-Z_]+_(VERSION|TAG|TARBALL|ZIP|SHA256|COMMIT) +:=' Makefile | shasum | cut -c1-12)
+          echo "ALLINONEIME_THIRDPARTY=$RUNNER_TOOL_CACHE/allinoneime/thirdparty-$pins" >> "$GITHUB_ENV"
+      - name: Write the report
+        run: |
+          make deps   # Periphery builds the app's package, which links librime
+          python3 Scripts/health-report.py --periphery > "$RUNNER_TEMP/report.md"
+          cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
+      - name: Put it in the issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="Code health report"
+          number=$(gh issue list -R "$GITHUB_REPOSITORY" --label health-report --state open --json number \
+            --jq '.[0].number // empty')
+          if [ -n "$number" ]; then
+            gh issue edit "$number" -R "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/report.md"
+          else
+            gh label create health-report -R "$GITHUB_REPOSITORY" --color C5DEF5 \
+              --description "The weekly code health report" 2>/dev/null || true
+            url=$(gh issue create -R "$GITHUB_REPOSITORY" --title "$title" --label health-report \
+              --body-file "$RUNNER_TEMP/report.md")
+            gh issue pin "$url" -R "$GITHUB_REPOSITORY" || echo "::notice::couldn't pin $url: pin it by hand"
+          fi

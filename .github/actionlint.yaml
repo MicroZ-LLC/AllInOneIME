@@ -1,0 +1,3 @@
+# For actionlint (https://github.com/rhysd/actionlint), which checks the workflows: the Mac mini's own runner labels.
+self-hosted-runner:
+  labels: [macmini-agent, xcode-27]
