@@ -57,14 +57,17 @@ extension AllInOneIMEInputController {
     nonisolated(unsafe) static var warmedFor = -1
 
     /// The text around the caret (`Composer.readFieldText`), without the draft: up to 1,500 characters before it and after
-    /// it as the field tells them (IMK), past the selection or the marked text. None during secure input, nor in a
-    /// terminal (its text isn't being edited).
+    /// it as the field tells them (IMK), past the selection or the marked text. None during secure input, nor where the
+    /// field's text stays here (`FieldInfo.textStaysHere`): a terminal (its text isn't being edited), a password manager.
     @MainActor
     func readFieldText(from target: IMKTextInput?) -> FieldText? {
-        readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter, purpose: "@reply")
+        guard !Self.fieldInfo(target).textStaysHere else { return nil }
+        return readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter, purpose: "@reply")
     }
 
     /// The text around the caret, up to `before` characters before it and `after` after it, for `purpose` (the log's).
+    /// In a password manager it is read only for what stays on this Mac (Code's words, a snippet's indentation): the
+    /// session never asks for it for `@reply` there (`InputSession.fieldWants`, `FieldInfo.textStaysHere`).
     @MainActor
     func readFieldText(from target: IMKTextInput?, before beforeLimit: Int, after afterLimit: Int, purpose: String) -> FieldText? {
         guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }

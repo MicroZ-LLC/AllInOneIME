@@ -2,7 +2,8 @@ import Foundation
 
 /// Password managers, by app: what is typed in one is a password, a name to sign in with or a note kept secret, whatever
 /// its field says of itself (a password shown in a plain field, one typed before secure input comes on). Nothing typed
-/// there is learned as an English word (`EnglishWords.learns`), and autocomplete never runs there (`Autocomplete.blocker`).
+/// there is learned as an English word (`EnglishWords.learns`), autocomplete never runs there (`Autocomplete.blocker`),
+/// and a command reads none of the field's text, as in a terminal (`FieldInfo.textStaysHere`).
 public enum PasswordManagers {
     /// By the beginning of their bundle ids (in small letters): 1Password (7 and 8), Apple's Passwords and Keychain
     /// Access, Bitwarden, KeePassXC, Strongbox, Enpass, Secrets, NordPass, Keeper, Proton Pass, RoboForm, Dashlane,
