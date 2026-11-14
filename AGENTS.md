@@ -77,3 +77,12 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
 18. **Commit messages** read like the repository's: `Area: what changed, as the user sees it`, plain English, no
     `feat:` prefix. Code, comments and commits are in English.
 19. **Leave `Windows/` alone**: it moves to its own repository in 0.7.5.
+
+## Bugs
+
+20. **Every bug is reproduced first**, before any fix: a failing test (written by a separate agent where the rules
+    above ask for one), or, for what a test can't reach (the window server, focus, keys, other apps), a scripted run
+    on a real Mac that shows it, with the exact steps and what was seen. The fix is verified by the same reproduction
+    now passing. A bug that can't be reproduced is reported as such, with what was tried; a fix is then only a
+    defensive change plus the logging that would catch it next time, said so plainly. *Why: the owner, 2026-11-14:
+    fixes made from a guess came back; a reproduction proves the cause and the fix.*
