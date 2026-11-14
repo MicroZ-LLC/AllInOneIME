@@ -27,6 +27,38 @@ struct InputSessionTests {
         #expect(await Timing.eventually(within: 2) { entered.withLock { $0 } })
         released.withLock { $0 = true }
     }
+
+    /// `@question` picked while a CLI is the AI: its process starts ahead, off the key's thread, and nothing there reads
+    /// the settings (the Mac's are the main thread's, `LiveConfig`): they're read on the key's thread before.
+    @Test func theQuestionPrewarmReadsNoSettingsOffTheKeyThread() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("prewarm-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let fake = FakeClaude()
+        let claude = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })
+        defer { claude.stop() }
+        let settings = Settings()
+        settings.config.provider = .apple
+        settings.config.questionBackend = QuestionBackend(.claude)
+        let converter = Converter(loadConfig: { settings.config }, appleModel: StubAppleModel(answer: ["P"]),
+                                  questionSessions: [.claude: claude])
+        // The key's thread: this one, until the key is handled (synchronous code stays on its thread).
+        let keyThread = Locked<mach_port_t?>(initialState: pthread_mach_thread_np(pthread_self()))
+        let elsewhere = Locked(initialState: 0)
+        let host = host(settings) { services in
+            let load = services.loadSettings
+            services.loadSettings = {
+                if keyThread.withLock({ $0 }) != pthread_mach_thread_np(pthread_self()) { elsewhere.withLock { $0 += 1 } }
+                return load()
+            }
+            services.converter = converter
+        }
+        host.composer.setInputMode(.english)
+        pick("que", in: host)
+        keyThread.withLock { $0 = nil }
+        #expect(await Timing.eventually(within: 10) { fake.processes.count == 1 }, "its process started ahead")
+        #expect(elsewhere.withLock { $0 } == 0, "the settings read off the key's thread")
+    }
+
     /// The settings the session reads: pinyin first, Shift to English; English then Chinese to translate into; English
     /// interface; `@agent` in a terminal, not in the background.
     final class Settings: @unchecked Sendable {

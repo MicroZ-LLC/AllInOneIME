@@ -1883,19 +1883,16 @@ public final class InputSession {
         }
         guard !questionSessionWarmed else { return }
         questionSessionWarmed = true
+        // The settings are read here, on the session's thread, never in the task: the Mac's are the main thread's
+        // (`LiveConfig`).
         let config = services.loadSettings()
         let converter = services.converter
         guard let session = converter.questionSession(config), !secureInputActive(), config.allowsAI(in: app) else { return }
-        let secureNow = field.secure || secureKey
         let secureInput = SessionSendableBox(value: services.secureInputActive)
-        let loadSettings = SessionSendableBox(value: services.loadSettings)
-        let targetApp = app
         tasks.start(.questionPrewarm) { _ in
-            guard !Task.isCancelled, !secureNow, !secureInput.value(),
-                  loadSettings.value().allowsAI(in: targetApp) else { return }
+            guard !Task.isCancelled, !secureInput.value() else { return }
             converter.questionSessionsFollow(config)  // another CLI chosen since: the old one's process ends
-            guard !Task.isCancelled, !secureInput.value(),
-                  loadSettings.value().allowsAI(in: targetApp) else { return }
+            guard !Task.isCancelled, !secureInput.value() else { return }
             session.prewarm()
         }
     }
