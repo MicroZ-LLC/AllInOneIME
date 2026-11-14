@@ -392,7 +392,7 @@ struct ClaudeSessionTests {
         answer(process, "1")
         _ = await collect(stream)
         let id = try store.sessionID()
-        let (arguments, directory, lock) = try session.handOff(program: "/u/claude")
+        let (arguments, directory, lock) = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.terminated && !session.isRunning)
         #expect(arguments == ["/u/claude", "--resume", id] && directory == folder && lock == store.lockFile(id))
         // Terminal has that conversation now: an @question typed meanwhile, and the next question, start a new one here.

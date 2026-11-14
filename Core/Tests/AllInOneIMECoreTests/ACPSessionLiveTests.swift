@@ -63,6 +63,7 @@ struct ACPSessionLiveTests {
         print("LIVE KIRO Q4 (shell asked): \(shell.answer)")
         session.stop()
         print("LIVE KIRO session id: \(id)  folder: \(Self.folder.path)")
-        print("LIVE KIRO hand-off: \(try session.handOff(program: "kiro-cli").arguments.joined(separator: " "))")
+        let handed = try await session.handOffOnceEnded(program: "kiro-cli")
+        print("LIVE KIRO hand-off: \(handed.arguments.joined(separator: " "))")
     }
 }

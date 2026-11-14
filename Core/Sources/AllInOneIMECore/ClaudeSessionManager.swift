@@ -498,22 +498,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// Hands the conversation now to Terminal (⌘⏎), never two processes writing it: our process is asked to end (a
-    /// question being answered stops; killed after `handOffGrace`) and holds the conversation's lock until it has; from
-    /// then on the conversation is Terminal's, and questions here go into a new one (a prewarm meanwhile too: one step
-    /// under the lock), never that one again. Returns at once what Terminal is to run (`SessionBackend.terminalArguments`,
-    /// `program` being where the agent is; `followUp`: a follow-up goes after them as the last argument) in the session's
-    /// folder, and the conversation's lock file, for Terminal to hold while it runs (`terminalCommand`), which waits for
-    /// ours. `handOffOnceEnded` returns once our process has ended.
-    public func handOff(program: String, followUp: Bool = false) throws -> (arguments: [String], directory: URL, lock: URL) {
-        let (handed, running, _) = try handOver(program: program, followUp: followUp)
-        if let running { perform([.terminate(running.process, running.lock)]) }
-        return handed
-    }
-
-    /// `handOff`, once our process has ended: asked to end, given `handOffGrace`, then killed with what it started.
-    /// Whether it has is the process's own state (`ClaudeSessionProcess.isRunning`), not its exit told, which may come
-    /// later; its conversation's lock is let go then, and `open` (Terminal opened on what is returned) runs. Waited for on
-    /// the task (`Task.sleep`), never holding a thread: the hand-off runs off the key's thread, on Swift's shared pool.
+    /// question being answered stops) and holds the conversation's lock until it has; from then on the conversation is
+    /// Terminal's, and questions here go into a new one (a prewarm meanwhile too: one step under the lock), never that one
+    /// again. Once our process has ended (asked to, given `handOffGrace`, then killed with what it started; whether it
+    /// has is the process's own state, `ClaudeSessionProcess.isRunning`, not its exit told, which may come later), its
+    /// lock is let go and `open` runs: Terminal opened on what Terminal is to run (`SessionBackend.terminalArguments`,
+    /// `program` being where the agent is; `followUp`: a follow-up goes after them as the last argument) in the
+    /// session's folder, holding the conversation's lock file while it runs (`terminalCommand`), which waits for ours.
+    /// Returns those. Waited for on the task (`Task.sleep`), never holding a thread: the hand-off runs off the key's
+    /// thread, on Swift's shared pool.
     /// Throws `SessionHandOffError` when it doesn't reach Terminal: our process still running a moment after it was
     /// killed (Terminal not opened), or `open` threw. The conversation is put back then (`putBack`): questions here go on
     /// in it, and a retry hands off the same; unless a request was made meanwhile (it went into the new one).
@@ -533,6 +526,15 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         } catch {
             throw SessionHandOffError(reason: .terminal(UIText.describe(error)), kept: putBack(before))
         }
+        return handed
+    }
+
+    /// `handOffOnceEnded` returning at once: our process asked to end (its lock let go once it has), Terminal not
+    /// opened. Kept only for the acceptance test that hands off so
+    /// (`QuestionSessionAcceptanceTests.theHandOffWithAFollowUpStaysInteractive`); the input method never does.
+    func handOff(program: String, followUp: Bool) throws -> (arguments: [String], directory: URL, lock: URL) {
+        let (handed, running, _) = try handOver(program: program, followUp: followUp)
+        if let running { perform([.terminate(running.process, running.lock)]) }
         return handed
     }
 
@@ -623,7 +625,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     }
 
     /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,
-    /// `handOff`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
+    /// `handOffOnceEnded`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
     /// `/usr/bin/lockf`. A shell's `exec` keeps the window's process the CLI's (or lockf's, which waits for it).
     public static func terminalCommand(_ arguments: [String], lock: URL) -> [String] {
         let script = #"lock="$1"; shift; if [ -x /usr/bin/lockf ]; then exec /usr/bin/lockf -k -t 10 "$lock" "$@"; fi; exec "$@""#

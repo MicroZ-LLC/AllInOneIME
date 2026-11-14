@@ -99,19 +99,20 @@ struct QuestionSessionHandOffTests {
         terminal.release()
     }
 
-    /// `handOff` itself asks our process to end and returns at once, the conversation Terminal's already.
-    @Test func theHandOffItselfReturnsAtOnce() async throws {
+    /// The hand-off asks our process to end and moves on to a new conversation at once, in one step, while it waits
+    /// for the process to end: the conversation is Terminal's already.
+    @Test func theHandOffMovesOnAtOnceWhileItWaits() async throws {
         let launcher = Dying(dying: 0.3)
         let session = claude(launcher)
         defer { session.stop() }
         session.prewarm()
         let process = try #require(launcher.processes.last)
         let id = try store.sessionID()
-        let before = Date()
-        let (arguments, _, _) = try session.handOff(program: "/u/claude")
-        #expect(Date().timeIntervalSince(before) < 0.2 && process.inner.terminated && process.isRunning)
-        let next = try store.sessionID()
-        #expect(arguments == ["/u/claude", "--session-id", id] && next != id)
+        let handing = Task { try await session.handOffOnceEnded(program: "/u/claude") }
+        #expect(await Timing.eventually(within: 0.2) { (try? store.sessionID()) != id }, "not moved on at once")
+        #expect(process.inner.terminated && process.isRunning)
+        let (arguments, _, _) = try await handing.value
+        #expect(arguments == ["/u/claude", "--session-id", id] && !process.isRunning)
     }
 
     @Test func oneThatDoesNotEndIsKilledBeforeTerminalStarts() async throws {
@@ -236,7 +237,7 @@ struct QuestionSessionHandOffTests {
         process.started()
         process.text("Part")
         let id = try store.sessionID()
-        let (arguments, _, _) = try session.handOff(program: "/u/claude", followUp: true)
+        let (arguments, _, _) = try await session.handOffOnceEnded(program: "/u/claude", followUp: true)
         #expect(arguments == ["/u/claude", "--resume", id, "--"])
         #expect(await collect(answering).error is CancellationError && process.terminated)
         // What our process still says is of no conversation now.
@@ -281,7 +282,7 @@ struct QuestionSessionHandOffTests {
         try respond(process, "initialize", ["userAgent": "test"])
         try respond(process, "config/read", ["config": ["model": "gpt"]])
         try respond(process, "thread/start", ["thread": ["id": "t1", "name": NSNull()]])
-        let (arguments, directory, _) = try session.handOff(program: "/u/codex")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/codex")
         #expect(arguments == ["/u/codex", "resume", "t1"] && directory == backend.directory && process.terminated)
         #expect(ClaudeSessionStore(backend).agentSessionID() == nil)
         session.prewarm()

@@ -206,14 +206,15 @@ struct QuestionSessionStuckTests {
             == ["/u/agy", "--conversation", "4f1c", "-i"])
     }
 
-    @Test func theHandOffHasTheFollowUpsArgumentsOnlyWithOne() throws {
+    @Test func theHandOffHasTheFollowUpsArgumentsOnlyWithOne() async throws {
         let session = manager(FakeClaude())
         let id = try store.sessionID()
-        #expect(try session.handOff(program: "/u/claude").arguments == ["/u/claude", "--session-id", id])
+        #expect(try await session.handOffOnceEnded(program: "/u/claude").arguments == ["/u/claude", "--session-id", id])
         // Handed off, the conversation is Terminal's: the next hand-off is of the new one.
         let next = try store.sessionID()
         #expect(next != id)
-        #expect(try session.handOff(program: "/u/claude", followUp: true).arguments == ["/u/claude", "--session-id", next, "--"])
+        #expect(try await session.handOffOnceEnded(program: "/u/claude", followUp: true).arguments
+                == ["/u/claude", "--session-id", next, "--"])
     }
 
     // MARK: - Ended

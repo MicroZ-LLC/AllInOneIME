@@ -365,13 +365,13 @@ struct ACPSessionTests {
         let fake = FakeClaude()
         let session = manager(fake)
         // No session yet: a new chat in the folder.
-        #expect(try session.handOff(program: "/u/kiro-cli").arguments == ["/u/kiro-cli", "chat"])
+        #expect(try await session.handOffOnceEnded(program: "/u/kiro-cli").arguments == ["/u/kiro-cli", "chat"])
         let stream = session.ask("one", in: nil)
         let process = try #require(fake.last)
         try open(process, newID: "sess_abc")
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
         _ = await collect(stream)
-        let (arguments, directory, _) = try session.handOff(program: "/u/kiro-cli")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/kiro-cli")
         #expect(arguments == ["/u/kiro-cli", "chat", "--resume-id", "sess_abc"] && directory == folder)
         #expect(process.terminated && !session.isRunning)
         // Start over: a new session (the agent's id forgotten).

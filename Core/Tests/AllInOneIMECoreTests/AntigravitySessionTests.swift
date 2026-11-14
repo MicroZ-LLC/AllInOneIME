@@ -452,7 +452,7 @@ struct AntigravitySessionTests {
         try respond(process, "session/prompt", result: ["stopReason": "end_turn"])
         _ = await collect(stream)
         // `agy --conversation <the ACP session's id>` in the folder (checked: it resumes it); a follow-up as -i's value.
-        let (arguments, directory, _) = try session.handOff(program: "/u/agy")
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: "/u/agy")
         #expect(arguments == ["/u/agy", "--conversation", "d50c263c-uuid"] && directory == folder && process.terminated)
         #expect(backend.terminalArguments(program: "/u/agy", sessionID: "x", agentSessionID: "c1", resume: true, followUp: true)
             == ["/u/agy", "--conversation", "c1", "-i"])

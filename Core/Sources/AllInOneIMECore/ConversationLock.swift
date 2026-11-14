@@ -64,7 +64,7 @@ public final class ConversationLock: @unchecked Sendable {
 /// conversation, taken by the first and let go once the last has ended, so that a process started again on the same
 /// conversation before the one before it has ended shares its lock. One held by another process (the hand-off's Terminal,
 /// another input method's) isn't had: ours starts without it (the hand-off moved this input method to a new conversation
-/// already, `ClaudeSessionManager.handOff`).
+/// already, `ClaudeSessionManager.handOffOnceEnded`).
 final class ConversationLocks: @unchecked Sendable {
     private struct Entry {
         var lock: ConversationLock?

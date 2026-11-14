@@ -37,7 +37,7 @@ struct SessionBackendsLiveTests {
         print("LIVE CODEX answer: \(answer) (\(ContinuousClock.now - asked))")
         #expect(answer.lowercased().contains("ok"))
         let thread = try #require(session.store.agentSessionID())
-        let (arguments, directory, _) = try session.handOff(program: codex.path)
+        let (arguments, directory, _) = try await session.handOffOnceEnded(program: codex.path)
         print("LIVE CODEX thread: \(thread)  hand-off: \(arguments.joined(separator: " "))  in \(directory.path)")
         #expect(arguments == [codex.path, "resume", thread])
     }
