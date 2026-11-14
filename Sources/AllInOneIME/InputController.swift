@@ -92,11 +92,6 @@ final class AllInOneIMEInputController: IMKInputController {
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }
     /// Opens the settings window on `page`, pointing at `spot` there if given (the self-test records it instead).
     var openSettings: @MainActor (SettingsPage, SettingsSpot?) -> Void = { SettingsWindow.shared.show(page: $0, spot: $1) }
-    /// Whether Caps Lock is down now, and turning its lock on or off (`CapsLockKey`; the self-test touches neither).
-    var capsLockIsDown: () -> Bool = CapsLockKey.isDown
-    var setCapsLock: (Bool) -> Void = CapsLockKey.setLock
-    /// Watches Caps Lock down until its release, which IMK doesn't hand over (`watchCapsLock`).
-    private var capsLockWatch: Timer?
     /// Puts this week's picture on the clipboard (`@stats`'s ⌘C), then tells whether it is there.
     var copyWeekStatsImage: (@escaping @MainActor (Bool) -> Void) -> Void = { done in
         MainActor.assumeIsolated { WeekStatsShared.copyImageSoon(then: done) }
@@ -586,7 +581,6 @@ final class AllInOneIMEInputController: IMKInputController {
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
             commitRow()  // still this field's session
-            stopCapsLockWatch()  // its release is no tap in another field
             stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
             apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
             fieldSession += 1
@@ -774,63 +768,11 @@ final class AllInOneIMEInputController: IMKInputController {
         // is no long press of it (only the session's long press minds fn).
         var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
         if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
-        let now = ProcessInfo.processInfo.systemUptime
-        var change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
-                                    timestamp: event.timestamp, late: max(now - event.timestamp, 0))
-        // Caps Lock's change tells its lock, not whether the key went down or up (a tap of it switches the language as
-        // Shift's does): that is asked of the HID system, and a press watched until its release (`watchCapsLock`).
-        if event.keyCode == CapsLockKey.keyCode {
-            let down = capsLockIsDown()
-            change.pressed = down
-            if down {
-                watchCapsLock()
-            } else if capsLockWatch != nil {
-                stopCapsLockWatch()  // released: this change is the release
-                change.timestamp = now
-            } else if modifiers.contains(.capsLock) {
-                // Released before its change came: the press at the change's time, the release now.
-                var press = change
-                press.pressed = true
-                modifierChanged(press, in: target, client: client)
-                change.timestamp = now
-            }
-        }
-        modifierChanged(change, in: target, client: client)
-    }
-
-    /// Hands `change` to the session, with what it wants of the field.
-    @MainActor
-    private func modifierChanged(_ change: ModifierChange, in target: IMKTextInput?, client: IMKTextInput?) {
+        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
+                                    timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
         let context = fieldContext(in: target) { session.fieldWants(forModifiers: change, given: $0) }
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
-    }
-
-    /// Caps Lock is down: its release is told to the session as one (IMK hands none over), asked of the HID system every
-    /// 15 ms, for a second at most (no tap by then; capitals as always).
-    @MainActor
-    private func watchCapsLock() {
-        stopCapsLockWatch()
-        let box = WeakBox(self), started = ProcessInfo.processInfo.systemUptime
-        let timer = Timer(timeInterval: 0.015, repeats: true) { _ in
-            MainActor.assumeIsolated {
-                guard let self = box.value else { return }
-                let now = ProcessInfo.processInfo.systemUptime
-                guard !self.capsLockIsDown() || now - started > 1 else { return }
-                self.stopCapsLockWatch()
-                let change = ModifierChange(key: .capsLock, modifiers: Self.flagsChangedModifiers(NSEvent.modifierFlags),
-                                            timestamp: now, pressed: false)
-                self.modifierChanged(change, in: self.clientOverride ?? self.client(), client: nil)
-            }
-        }
-        RunLoop.main.add(timer, forMode: .common)
-        capsLockWatch = timer
-    }
-
-    @MainActor
-    private func stopCapsLockWatch() {
-        capsLockWatch?.invalidate()
-        capsLockWatch = nil
     }
 
     /// What the field says around the caret as a key goes down or a modifier changes: what the session wants of it
@@ -1101,8 +1043,6 @@ final class AllInOneIMEInputController: IMKInputController {
                 DispatchQueue.main.async { pass() }
             case let .platform(.pasteImage(id)):
                 pasteKeptImage(id, into: target)
-            case let .platform(.setCapsLock(on)):
-                setCapsLock(on)  // a tap of Caps Lock switched the language: its lock off again
             case .platform(.copyWeekStatsImage):
                 // `@stats`'s ⌘C: the week's picture, as Settings → This Week copies it; the session says it's copied once
                 // it is on the clipboard, or that it couldn't be: in this field only, nowhere once it was left.

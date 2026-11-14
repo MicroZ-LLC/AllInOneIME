@@ -187,9 +187,6 @@ public enum PlatformAction: Equatable, Sendable {
     /// This week's stats as a picture on the clipboard (`@stats`'s ⌘C): the card the settings page copies, as it is set
     /// there (the user's own command names hidden or not).
     case copyWeekStatsImage
-    /// Caps Lock's lock (its light, capitals) turned on or off: a tap of Caps Lock switched the input language instead
-    /// (`ModifierChange.pressed`), so the lock its press turned on is turned off again. On the Mac through IOKit.
-    case setCapsLock(Bool)
 }
 
 /// Dictation `id`, as the platform hears it.
@@ -231,26 +228,12 @@ public struct ModifierChange: Equatable, Sendable {
     public var modifiers: Modifiers
     public var timestamp: TimeInterval
     public var late: TimeInterval
-    /// Whether `key` went down (else up). Caps Lock's own: its lock in `modifiers` doesn't tell its press from its
-    /// release. By default the other keys' are told by `modifiers` (theirs down or not).
-    public var pressed: Bool
 
-    public init(key: Key, modifiers: Modifiers, timestamp: TimeInterval, late: TimeInterval = 0, pressed: Bool? = nil) {
+    public init(key: Key, modifiers: Modifiers, timestamp: TimeInterval, late: TimeInterval = 0) {
         self.key = key
         self.modifiers = modifiers
         self.timestamp = timestamp
         self.late = late
-        self.pressed = pressed ?? Self.isDown(key, in: modifiers)
-    }
-
-    /// Whether `key` is down by `modifiers` (Caps Lock: its lock on).
-    static func isDown(_ key: Key, in modifiers: Modifiers) -> Bool {
-        switch key {
-        case let .modifier(kind, _): modifiers.contains(Modifiers.kind(kind))
-        case .capsLock: modifiers.contains(.capsLock)
-        case .function: modifiers.contains(.function)
-        default: false
-        }
     }
 }
 
