@@ -3213,6 +3213,53 @@
         }
       }
     },
+    "%@ timed out after %@ seconds and was stopped" : {
+      "comment" : "%@ 超时（%@ 秒），已停止 — Sources/AllInOneIMEMac/ProcessOutput.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ hat das Zeitlimit von %2$@ Sekunden überschritten und wurde gestoppt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ superó el tiempo límite de %2$@ segundos y se detuvo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ a dépassé le délai de %2$@ secondes et a été arrêté"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ が %2$@ 秒でタイムアウトしたため停止しました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@이(가) %2$@초 후 시간 초과되어 중지되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ excedeu o tempo limite de %2$@ segundos e foi interrompido"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 逾時（%2$@ 秒），已停止"
+          }
+        }
+      }
+    },
     "%@ updates" : {
       "comment" : "有 %@ 个更新 — Sources/AllInOneIME/ExtensionSourceController.swift",
       "localizations" : {
