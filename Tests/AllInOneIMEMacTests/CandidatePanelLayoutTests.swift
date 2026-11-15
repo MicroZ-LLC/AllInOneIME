@@ -45,6 +45,10 @@ struct CandidatePanelLayoutTests {
     @Test func whereAConversationGoesOnIsKeysToClickAboveTheRows() throws {
         try LayoutChild.run("handoff")
     }
+
+    @Test func aListTallerThanTheScreenScrollsItsRowsToTheHighlightedOne() throws {
+        try LayoutChild.run("tall")
+    }
 }
 
 private enum LayoutChild {
@@ -654,6 +658,59 @@ private enum LayoutChild {
         }
     }
 
+    extension Layout {
+        /// A list of `count` rows, each a few lines long, under a title, with a footer, `highlighted` chosen.
+        static func long(_ count: Int, highlighted: Int) -> PanelModel {
+            let text = String(repeating: "A long line that wraps onto a few lines of the panel, as an @improve result does. ", count: 4)
+            return PanelModel(rows: (0..<count).map { Row(label: "\($0 % 10)", text: "\($0) " + text, kind: .translation) },
+                              highlighted: highlighted, header: ["The title"], footer: "⏎ do it · ↑↓ choose · Esc as typed")
+        }
+
+        /// A vertical list taller than the screen: the panel no taller than the screen less its margins, on it on either
+        /// side of the caret, the title and the footer in it; the highlighted row wholly in view as ↑↓ move it down to
+        /// the last and up to the first, the rows moving by as little as that takes. One that fits is laid out as before.
+        static func tall() {
+            let margin = CandidateView.Metrics.screenMargin
+            for anchor in [high, low] {
+                let panel = CandidatePanel()
+                let view = panel.view
+                panel.show(long(40, highlighted: 0), anchor: anchor)
+                let frame = panel.frame
+                expect(frame.height <= screen.height - 2 * margin + 1 && screen.contains(frame),
+                       "the panel on the screen: \(frame) on \(screen)")
+                expect(view.footerY > 0 && view.footerY < view.bounds.height, "the footer in the panel: \(view.footerY), \(view.bounds)")
+                guard let title = view.headerFrame else { expect(false, "the title is drawn"); continue }
+                var shifts: [CGFloat] = []
+                for index in Array(0..<40) + Array((0..<40).reversed()) {
+                    panel.show(long(40, highlighted: index), anchor: anchor)
+                    shifts.append(view.rowsShift)
+                    let row = view.rowFrame(index) ?? .zero
+                    expect(row.minY >= title.maxY && row.maxY <= view.footerY, "row \(index) in view: \(row), title \(title), footer \(view.footerY)")
+                    expect(panel.frame == frame, "the panel stays put with row \(index): \(panel.frame) / \(frame)")
+                }
+                expect(shifts.first == 0 && shifts[39] > 0 && shifts.last == 0, "down to the last and back up to the first: \(shifts)")
+                // ↓ from the first row moves nothing until a row is past the bottom; the rows then move by about a row.
+                let steps = zip(shifts, shifts.dropFirst()).map { $1 - $0 }
+                expect(steps.allSatisfy { abs($0) <= 120 }, "the rows move a row at a time: \(steps)")
+                expect(shifts[1] == 0, "the second row was in view already: \(shifts)")
+                panel.hide()
+            }
+            // One that fits: the screen's height changes nothing.
+            let view = CandidateView()
+            view.model = long(3, highlighted: 2)
+            let free = (view.contentSize, view.rowFrame(2), view.footerY)
+            view.screenHeight = screen.height
+            expect(view.contentSize == free.0 && view.rowFrame(2) == free.1 && view.footerY == free.2 && view.rowsShift == 0,
+                   "a list that fits as before: \(view.contentSize) / \(free.0)")
+            // A short screen: no taller than it, the highlighted row in view.
+            view.screenHeight = 300
+            expect(view.contentSize.height <= 300 - 2 * margin && view.contentSize.height < free.0.height,
+                   "no taller than a short screen: \(view.contentSize)")
+            let last = view.rowFrame(2) ?? .zero
+            expect(last.maxY <= view.footerY && last.minY >= (view.headerFrame?.maxY ?? 0), "the highlighted row in view: \(last)")
+        }
+    }
+
     extension PanelModel {
         func with(header: [String]) -> PanelModel {
             var model = self
@@ -676,6 +733,7 @@ private enum LayoutChild {
             case "row": Layout.row()
             case "conversation": Layout.conversation()
             case "handoff": Layout.handoff()
+            case "tall": Layout.tall()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)
