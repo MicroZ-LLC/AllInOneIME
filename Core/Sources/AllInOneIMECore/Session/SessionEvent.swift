@@ -307,7 +307,8 @@ public struct FieldContext: Equatable, Sendable {
     /// The selected text, and where (`Composer.Selection`); nil: none.
     public var selection: Composer.Selection?
     public var beforeCaret: BeforeCaret
-    /// The text around the caret, without the draft (`@reply`'s context).
+    /// The text around the caret, without the draft (`@reply`'s context). Empty: the field was read and has nothing
+    /// around the caret; nil: its text can't be read (where autocomplete goes by what was typed into it).
     public var text: FieldText?
     /// Asked whether the field is a password field (`Parts.passwordField`), the shell couldn't tell (the Mac: no
     /// Accessibility, nothing focused, no answer in time, the read failed): unknown, never none.
