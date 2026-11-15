@@ -1,3 +1,0 @@
-LIBRARY E2EHOOK
-EXPORTS
-    GetMsgProc

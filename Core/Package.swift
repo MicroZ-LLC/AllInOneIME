@@ -1,8 +1,8 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
-// AllInOneIME's core: what every platform's shell shares (the macOS input method in the repository's root, Windows/
-// beside it, later iOS and Android). Platform-neutral: what it needs of the system goes through `Platform`
+// AllInOneIME's core: what every platform's shell shares (the macOS input method in the repository's root, Windows
+// in MicroZ-LLC/AllInOneIME-Windows, later iOS and Android). Platform-neutral: what it needs of the system goes through `Platform`
 // (Sources/AllInOneIMECore/Platform/), with Apple's frameworks in Platform/Apple/ (each file under `#if canImport`);
 // Scripts/check-core-portable.sh keeps it so. No unsafe flags, so that a shell can depend on it by URL: the shell links
 // what its system needs (librime's folder; on macOS, FoundationModels weak), and Scripts/check-core-standalone.sh keeps
@@ -73,7 +73,7 @@ let package = Package(
         ),
 
         // librime's C API (its headers, from the official release, in include/); the library is the shell's to link
-        // (`-L`): on macOS, ThirdParty/librime from `make deps`; on Windows, rime.lib from Windows/Scripts/fetch-librime.sh.
+        // (`-L`): on macOS, ThirdParty/librime from `make deps`; on Windows, rime.lib from AllInOneIME-Windows' Scripts/fetch-librime.sh.
         .systemLibrary(name: "CRime"),
 
         // Swift wrapper around librime: level one (local pinyin).
