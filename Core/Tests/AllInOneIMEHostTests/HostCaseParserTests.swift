@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 import AllInOneIMECore
+import AllInOneIMETestSupport
 
 /// The host scenario format as the runner reads it (`HostCaseParser`, `FieldMarkup`): the contract's steps, its markup,
 /// and the lines it refuses, with their line numbers.
@@ -136,5 +137,39 @@ struct HostCaseParserTests {
             .expect(.calls(.total, HostCallBudget(comparison: .more, limit: 3))),
             .expect(.calls(.total, HostCallBudget(comparison: .exactly, limit: 0))),
         ])
+    }
+
+    /// v1.1: `SET`, `EXPECT context after`, `EXPECT fallback none`; `shift+a` is a chord.
+    @Test func version1Point1() throws {
+        let scenario = try HostCaseParser.parse("""
+            TEXT "|"
+            SET switchKey capsLock
+            SET autocomplete false
+            KEY shift+a
+            EXPECT context after "x"
+            EXPECT fallback none
+            """, fallbackName: "file")
+        #expect(scenario.settings.map(\.key) == ["switchKey", "autocomplete"] && scenario.settings.map(\.value) == ["capsLock", "false"])
+        #expect(scenario.steps.map(\.action) == [
+            .text(FieldMarkup(text: "", caret: 0)), .keys([.key(.character("a"), modifiers: [.shift])]),
+            .expect(.contextAfter("x")), .expect(.fallbackNone),
+        ])
+        let config = try HostScenarioSettings.config(startingIn: .chinese, set: scenario.settings)
+        #expect(config.switchKey == .capsLock && !config.autocomplete && config.provider == .apple)
+        #expect(try HostScenarioSettings.config(startingIn: .english, set: [("switchKey", "shift")]).switchKey == .shift)
+        #expect(try HostScenarioSettings.config(startingIn: .english, set: [("inputLanguages", #"["en"]"#)]).inputLanguages == [.english])
+        let wrong: [(String, Int)] = [
+            ("SET switchKey none", 1),  // the config has no such choice
+            ("SET switchKey", 1),
+            ("SET noSuchKey 1", 1),
+            ("SET autocomplete maybe", 1),
+            ("TYPE a\nSET switchKey capsLock", 2),
+            ("EXPECT context around \"x\"", 1),
+            ("EXPECT fallback \"x\"", 1),
+        ]
+        for (source, line) in wrong {
+            let error = #expect(throws: HostCaseError.self, "\(source)") { try HostCaseParser.parse(source, fallbackName: "file") }
+            #expect(error?.line == line, "\(source): \(error.map(String.init(describing:)) ?? "")")
+        }
     }
 }

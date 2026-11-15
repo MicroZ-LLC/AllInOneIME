@@ -27,10 +27,13 @@ enum HostKeys {
         var modifiers = Modifiers(held.map { Modifiers.kind($0) })
         switch named {
         case let .character(character):
-            let base = event(typing: character)
+            // Shift held types the key's shifted character (`shift+a` is "A", `shift+1` "!"); AppKit tells it in
+            // `charactersIgnoringModifiers` too, which ignores every modifier but Shift.
+            let typed = held.contains(.shift) ? shifted(character) : character
+            let base = event(typing: typed)
             modifiers.formUnion(base.modifiers)
-            let characters = characters(for: character, modifiers: modifiers)
-            return KeyEvent(keyCode: base.keyCode, characters: characters, charactersIgnoringModifiers: String(character),
+            let characters = characters(for: typed, modifiers: modifiers)
+            return KeyEvent(keyCode: base.keyCode, characters: characters, charactersIgnoringModifiers: String(typed),
                             modifiers: modifiers)
         case let .function(number):
             let code = VirtualKey.functionKeys[min(max(number, 1), 12) - 1]
@@ -40,6 +43,12 @@ enum HostKeys {
             let (code, text) = named.keyCodeAndText
             return KeyEvent(keyCode: code, characters: text, modifiers: modifiers)
         }
+    }
+
+    /// What `character`'s key types with Shift held: a capital, the symbol over a digit or punctuation key.
+    private static func shifted(_ character: Character) -> Character {
+        if character.isLetter { return Character(character.uppercased()) }
+        return shifted.first { $0.value == character }?.key ?? character
     }
 
     private static func characters(for character: Character, modifiers: Modifiers) -> String {

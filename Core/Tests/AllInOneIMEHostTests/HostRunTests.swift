@@ -157,4 +157,43 @@ struct HostRunTests {
         #expect(failures.isEmpty, "\(failures)")
         #expect(run.focused && !run.inABC)
     }
+
+    // MARK: v1.1
+
+    /// `KEY shift+a`: Shift down and up told as modifier changes around the key (their copies dropped where the host sends
+    /// them twice), the capital typed, no switch.
+    @Test func aShiftChordHasRealModifierEvents() throws {
+        for profile in HostProfile.allCases {
+            let (run, failures) = try run("LANG english\nTEXT \"|\"\nKEY shift+a\nEXPECT doc \"A\"\nEXPECT switches 0", on: profile)
+            #expect(failures.isEmpty, "\(profile): \(failures)")
+            let changes = run.modifierChanges
+            #expect(changes.map { $0.modifiers.contains(.shift) } == [true, false], "\(profile): \(changes)")
+        }
+        #expect(HostKeys.event(.character("1"), modifiers: [.shift]).characters == "!")
+    }
+
+    /// `SET switchKey capsLock`: Caps Lock switches, a tap of Shift doesn't.
+    @Test func theSwitchKeyIsSet() throws {
+        let source = "SET switchKey capsLock\nLANG chinese\nKEY capslock\nEXPECT lang english\nKEY shift\nEXPECT switches 1"
+        for profile in HostProfile.allCases {
+            #expect(try run(source, on: profile).failures.isEmpty, "\(profile)")
+        }
+    }
+
+    /// `APP clears` drops the marked text with the rest; an input method still holding the draft then is reported.
+    @Test func anAppThatClearsTheFieldLeavesNoDraft() throws {
+        let (cleared, failures) = try run("LANG english\nTEXT \"old|\"\nAPP clears\nEXPECT doc \"\"\nEXPECT marked none", on: .chromium)
+        #expect(failures.isEmpty && cleared.host.marked.isEmpty, "\(failures)")
+        let (_, kept) = try run("LANG chinese\nTEXT \"old|\"\nTYPE ni\nAPP clears", on: .nstextview)
+        #expect(kept.map(\.line) == [4] && kept.first?.message.contains("still holds the draft") == true, "\(kept)")
+    }
+
+    /// `EXPECT context after` reads past the caret; `EXPECT fallback none` holds once a click forgot what was typed.
+    @Test func contextAfterAndTheFallback() throws {
+        #expect(try run("TEXT \"Hi |Bob\"\nEXPECT context after \"Bob\"", on: .chromium).failures.isEmpty)
+        #expect(try run("TEXT \"Hi |\"\nEXPECT context after \"\"", on: .tellsnothing).failures.isEmpty)
+        let typed = "LANG english\nTEXT \"|\"\nTYPE there"
+        #expect(try run(typed + "\nEXPECT fallback none", on: .tellsnothing).failures.count == 1)
+        #expect(try run(typed + "\nCLICK inside 0\nEXPECT fallback none", on: .tellsnothing).failures.isEmpty)
+    }
 }

@@ -18,8 +18,11 @@ extension HostRun {
         undo = []
     }
 
-    /// `APP clears`: the app empties the field on its own (a chat app's send), the session not told.
+    /// `APP clears`: the app empties the field on its own (a chat app's send) and drops its marked text (Chromium cancels
+    /// the composition), the session not told: the core has no event for it; the shell learns of it at the next key, the
+    /// marked text gone (`FieldContext.markedTextTaken`). Checked right after (`checkInvariants`).
     func appClears() {
+        appCleared = true
         host.document = ""
         host.selection = nil
         host.caretOffset = 0

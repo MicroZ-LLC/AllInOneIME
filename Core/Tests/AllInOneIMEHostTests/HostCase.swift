@@ -12,6 +12,8 @@ struct HostCase: Sendable {
     var profiles: [HostProfile]
     /// The field's starting language (`LANG`; Chinese where it names none).
     var language: HostLanguage
+    /// The config keys set before it starts (`SET <configKey> <value>`, in order: `HostScenarioSettings.applying`).
+    var settings: [(key: String, value: String)] = []
     var steps: [HostStep]
 }
 
@@ -79,6 +81,11 @@ enum HostExpectation: Sendable, Equatable {
     case language(HostLanguage)
     /// What autocomplete or a command would read before the caret; nil: nothing (`EXPECT context unreadable`).
     case contextBefore(String?)
+    /// What autocomplete or a command would read after the caret (`EXPECT context after`).
+    case contextAfter(String)
+    /// What autocomplete would use in place of the field's text where the field tells none (what was typed since the
+    /// focus) is nothing (`EXPECT fallback none`): forgotten, as after a click.
+    case fallbackNone
     /// The input language changed this many times since the last `EXPECT switches` (or the start).
     case switches(Int)
     /// Each key since the last `EXPECT calls` (or the start) made at most / exactly … calls of the host's `call`.

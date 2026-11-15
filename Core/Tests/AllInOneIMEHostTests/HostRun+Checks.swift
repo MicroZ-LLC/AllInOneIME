@@ -18,6 +18,9 @@ extension HostRun {
                 fail("the input language \(Self.name(language)), expected \(expected.rawValue)\(state)")
             }
         case let .contextBefore(expected): checkContext(expected)
+        case let .contextAfter(expected): checkContextAfter(expected)
+        case .fallbackNone:
+            if !typedFallback.isEmpty { fail("autocomplete's fallback is \(Self.quote(typedFallback)), expected none\(state)") }
         case let .switches(count):
             if switches != count { fail("\(switches) language switches, expected \(count)\(state)") }
             switches = 0
@@ -44,15 +47,30 @@ extension HostRun {
     private func checkContext(_ expected: String?) {
         let read = reader.text(before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit)
         _ = field.takeCalls()
-        let session: InputSession = host.session
-        let typedAt = session.autocomplete.typedAt
-        let typed = session.caretMayHaveMoved(within: now - typedAt) ? "" : session.autocomplete.typed.text
+        let typed = typedFallback
         let before = read?.before ?? (typed.isEmpty ? nil : typed)
         let met = expected == "" ? (before ?? "") == "" : before == expected
         if !met {
             fail("context before the caret \(before.map { Self.quote($0) } ?? "unreadable"), expected "
                  + "\(expected.map { Self.quote($0) } ?? "unreadable")\(state)")
         }
+    }
+
+    /// What autocomplete would read after the caret: the field's text as the shell reads it (nothing where it tells none;
+    /// an expected empty text is met by that too).
+    private func checkContextAfter(_ expected: String) {
+        let after = reader.text(before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit)?.after
+        _ = field.takeCalls()
+        if expected == "" ? (after ?? "") != "" : after != expected {
+            fail("context after the caret \(after.map { Self.quote($0) } ?? "unreadable"), expected \(Self.quote(expected))\(state)")
+        }
+    }
+
+    /// What autocomplete uses where the field tells nothing: what was typed since the focus, unless the caret may have
+    /// moved since (a click), as the session decides it (`InputSession+Autocomplete`).
+    var typedFallback: String {
+        let session: InputSession = host.session
+        return session.caretMayHaveMoved(within: now - session.autocomplete.typedAt) ? "" : session.autocomplete.typed.text
     }
 
     private func checkCalls(_ call: HostCall, _ budget: HostCallBudget) {
@@ -84,6 +102,13 @@ extension HostRun {
         }
         if markedBySession, !host.marked.isEmpty, !host.composer.isComposing {
             fail("marked text \(Self.quote(host.marked)) left in the field with nothing composed\(state)")
+        }
+        // `APP clears` (v1.1): the app dropped the marked text with the rest; the input method holds no draft from then on.
+        if appCleared {
+            appCleared = false
+            if host.composer.isComposing {
+                fail("the app emptied the field and the input method still holds the draft \(Self.quote(host.composer.markedText))\(state)")
+            }
         }
     }
 
