@@ -2332,7 +2332,7 @@ public final class Composer {
         }
         if composing, let response = endForSuggestionPrefix(event, engine) { return response }
         // One @: the magic key and a text (Composer+OneAt.swift).
-        if let response = handleOneAtKey(event, composing: composing) { return response }
+        if let response = handleDigitPunctuation(event, composing: composing) ?? handleOneAtKey(event, composing: composing) { return response }
         if let response = typeOneAtInZhuyin(event, composing: composing, afterVoice: afterVoice) { return response }
         if !composing, let response = handlePaletteKey(event) { return response }
         // Return runs a command draft ("@question …"), like the action key; text keeps Return = as typed.

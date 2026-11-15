@@ -56,6 +56,8 @@ For more detail (every command and setting, installation troubleshooting, privac
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
 A new install writes English; to type Chinese, French, Korean or Hindi too, add it in the settings (see [Input and translation](#input-and-translation)).
 
+In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII digit, so `3.14`, `10:30` and `1,000` type as shown. Other punctuation and punctuation after other characters keep their usual behavior.
+
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |

@@ -17,6 +17,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
+
 - Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
 
 - Clipboard history no longer loses everything when one entry in its file can't be read: the history was emptied, and the next copy deleted every image kept. Entries that can't be read are skipped and the rest kept; the file as it was is kept aside beside it (`clipboard-history-unreadable-….json`) instead of written over, with every image it had, until Clear History.
