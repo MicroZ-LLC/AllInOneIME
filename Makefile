@@ -112,7 +112,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -424,10 +424,10 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-# The core's lint guards (platform-neutral, standalone: `portable`, below), its products' release build and the String Catalog tool's
-# check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
-# method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
-# after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
+# The tests, in two halves: `make test-core`, the core's (Core/, a package of its own), and `make test-mac`, the macOS
+# shell's. CI runs them side by side, the core's on GitHub's Linux and macOS machines and the shell's on the Mac mini,
+# each only when the change can affect it (quality.yml, Scripts/test-scope.sh). `make test` runs both, the second even
+# when the first fails.
 # The tests never read this Mac's AWS files: a test whose settings pick Bedrock (the default provider, which autocomplete
 # now asks) without stubbing the credentials would otherwise send a real, billed request.
 TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
@@ -435,14 +435,27 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # adds none when one waits, and many tests wait on theirs: for a session's work (`FakeHost.settle`), for a child process,
 # for the input method compiled into one (this package's issue suites, eight of them, each for the whole compile), so the
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
-# thread when one waits.
+# thread when one waits. (Core/Scripts/test.sh, which runs the core's tests, sets both too.)
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
-test: deps strings-check check-ios portable
+test:
+	@status=0; $(MAKE) test-core || status=$$?; $(MAKE) test-mac || exit; exit $$status
+
+# The core's half, nothing of `make deps` needed: its lint guards (platform-neutral, standalone: `portable`, below), its
+# build for iOS and in release, the String Catalog tool's check, Core/.split-paths' paths free in the root; then its
+# tests, offline (Core/Scripts/test.sh), but for those that run the input method's debug build as their child process
+# (Scripts/core-tests-with-app.sh), which `make test-mac` runs. CI runs it on an export of Core/ alone (CORE=../core).
+test-core: check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
+	with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) && $(CORE)/Scripts/test.sh --skip "$$with_app"
+
+# The macOS shell's half: the input method's debug build, the core's tests that run it as their child process, then this
+# package's tests (rime-ice's data is there after `make deps`: a Rime test without it fails, not skips). This package's
+# tests run even when the core's fail.
+test-mac: deps strings-check
 	swift build --product $(APP_NAME)
-	@status=0; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
+	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; status=0; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
 	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
 
