@@ -9,10 +9,15 @@ public enum SessionEvent: Sendable {
     case modifiers(ModifierChange, FieldContext)
     /// The field took the focus.
     case focus(FieldInfo)
-    /// The field lost the focus: what's pending goes in, running requests stop.
+    /// The field lost the focus: pinyin not yet confirmed goes (#116), the rest of what's pending goes in, running
+    /// requests stop.
     case blur
-    /// The app wants what's pending in now (a click elsewhere in it).
+    /// The app wants what's pending in now (a click elsewhere in it): what is composed and not yet confirmed (pinyin)
+    /// goes, not in (#116).
     case commit
+    /// The app cancelled the composition (IMK's `cancelComposition`): nothing pending goes in, the draft goes, the panel
+    /// with it.
+    case cancel
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
     /// scrolled by `steps` rows (down positive; 0: the wheel or trackpad moved over it short of a row, or scrolled a
     /// conversation in it). Each wheel event over the panel is told: the wheel used there moved no caret in the field

@@ -40,6 +40,47 @@ struct HostScenarioTests {
         }
     }
 
+    /// Leaving a field mid-composition, and the app emptying it (#115, #116), on each of their profiles. Chromium's and
+    /// Electron's are known issues where the page ends the marked text before the input method is told anything (a
+    /// real Brave, 2026-11-15): a click (the page commits it on the mouse down, unless the mouse tap is on), the tab
+    /// closed or the focus lost otherwise (the page commits it on blur), the page emptying the field (it says nothing);
+    /// so is a click in the marked text on every host without the tap (none tells it: a real NSTextField and NSTextView).
+    @Test(arguments: LeavingCases.all)
+    func leavingCase(_ leaving: HostSmokeCases.Case) throws {
+        let scenario = try HostCase.parse(leaving.text, source: leaving.name)
+        for profile in scenario.profiles {
+            // Without the tap no host tells the input method of a click in the marked text: it stays marked (#116).
+            if profile.isChromium || leaving.name == LeavingCases.clickInside.name {
+                withKnownIssue("the host ends or keeps the marked text before the input method is told (#115, #116)") {
+                    Self.replay(scenario, on: profile)
+                }
+            } else {
+                Self.replay(scenario, on: profile)
+            }
+        }
+    }
+
+    /// With the mouse tap on (Accessibility allowed), the input method drops what is marked on a mouse down before any
+    /// host has the click: a click leaves nothing in every host, Chromium's too.
+    @Test(arguments: [LeavingCases.clickElsewhere, LeavingCases.clickInside])
+    func withTheMouseTapAClickLeavesNothing(_ leaving: HostSmokeCases.Case) throws {
+        let scenario = try HostCase.parse(leaving.text, source: leaving.name)
+        for profile in scenario.profiles {
+            let replayer = HostReplayer(scenario, profile: profile)
+            replayer.tapAllowed = true
+            replayer.run()
+            for failure in replayer.failures {
+                Issue.record("[\(profile)] \(failure)\n\(replayer.trace.suffix(30).joined(separator: "\n"))")
+            }
+        }
+    }
+
+    /// Without the tap, a Chromium page commits the pinyin as shown on a click: the input method puts nothing more in.
+    @Test func withoutTheTapChromiumKeepsWhatItCommitsAndNothingMore() throws {
+        Self.replay(try HostCase.parse(LeavingCases.chromiumClickWithoutTheTap, source: "no tap, chromium"), on: .chromium)
+        Self.replay(try HostCase.parse(LeavingCases.chromiumClickWithoutTheTap, source: "no tap, electron"), on: .electron)
+    }
+
     /// Replays `scenario` on `profile`: an issue for each expectation that didn't hold.
     @discardableResult
     static func replay(_ scenario: HostCase, on profile: HostProfile, sourceLocation: SourceLocation = #_sourceLocation) -> HostReplayer {
@@ -112,4 +153,102 @@ enum HostSmokeCases {
         CLICK  inside 5
         EXPECT context before "Hello"       @profile nstextview
         """#)
+}
+
+/// Leaving a field while pinyin is typed and not yet confirmed leaves nothing of it there, and hides the panel, in every
+/// app (the owner, 2026-11-15; #116); a field the app empties mid-composition starts afresh on the next key, as AppKit's
+/// fields do (#115). Real-Mac runs in Brave and an AppKit harness are in the PR; the AppKit profile's hold there (but a
+/// click, which NSTextField and NSTextView don't tell the input method of without the mouse tap).
+enum LeavingCases {
+    static let all = [clickElsewhere, clickInside, closeWindow, appClears]
+
+    /// A click in another field (or anywhere else) mid-composition: nothing goes in, the panel goes; the next key in the
+    /// field starts afresh.
+    static let clickElsewhere = HostSmokeCases.Case(name: "a click elsewhere leaves nothing", text: #"""
+        NAME   a click elsewhere mid-composition leaves nothing of it
+        PROFILES all
+        LANG   chinese
+        TEXT   "Hi |"
+        TYPE   nihao
+        EXPECT marked "nihao"
+        EXPECT panel shown
+        CLICK  outside
+        EXPECT doc "Hi "
+        EXPECT marked none
+        EXPECT panel hidden
+        FOCUS  back
+        TYPE   wo
+        EXPECT marked "wo"
+        KEY    space
+        EXPECT doc "Hi 我"
+        EXPECT nolost
+        """#)
+
+    /// A click inside the same field, in the pinyin or after it: the same, the next key composes afresh at the caret.
+    static let clickInside = HostSmokeCases.Case(name: "a click inside the field leaves nothing", text: #"""
+        NAME   a click in the same field mid-composition leaves nothing of it
+        PROFILES all
+        LANG   chinese
+        TEXT   "Hi |"
+        TYPE   nihao
+        CLICK  inside 5
+        EXPECT doc "Hi "
+        EXPECT marked none
+        EXPECT panel hidden
+        TYPE   wo
+        EXPECT marked "wo"
+        KEY    space
+        EXPECT doc "Hi 我"
+        EXPECT nolost
+        """#)
+
+    /// The window (a tab) closes mid-composition: nothing goes in.
+    static let closeWindow = HostSmokeCases.Case(name: "closing the window leaves nothing", text: #"""
+        NAME   closing the window mid-composition leaves nothing of it
+        PROFILES all
+        LANG   chinese
+        TEXT   "Hi |"
+        TYPE   nihao
+        FOCUS  closewindow
+        EXPECT doc "Hi "
+        EXPECT marked none
+        EXPECT panel hidden
+        """#)
+
+    /// The page empties the field mid-composition (a chat app's send) and tells nothing: the next key drops what was
+    /// composed and starts afresh, as AppKit's fields do; what was typed before doesn't come back. (A field that tells no
+    /// marked range, a terminal or WeChat, gives nothing to see it by.)
+    static let appClears = HostSmokeCases.Case(name: "the app empties the field", text: #"""
+        NAME   a field emptied mid-composition starts afresh on the next key
+        PROFILES nstextview chromium electron
+        LANG   chinese
+        TEXT   "|"
+        TYPE   nihao
+        APP    clears
+        TYPE   wo
+        EXPECT marked "wo"
+        KEY    space
+        EXPECT doc "我"
+        EXPECT marked none
+        EXPECT panel hidden
+        EXPECT nolost
+        """#)
+
+    /// Without the tap, a Chromium page commits the pinyin as shown on the mouse down, before the input method is told
+    /// anything (the fallback, #116): the input method puts nothing more in, and its next key starts afresh.
+    static let chromiumClickWithoutTheTap = #"""
+        NAME   without the tap, Chromium keeps what it committed itself and nothing more
+        PROFILES chromium electron
+        LANG   chinese
+        TEXT   "Hi |"
+        TYPE   nihao
+        CLICK  outside
+        EXPECT doc "Hi nihao"
+        EXPECT marked none
+        EXPECT panel hidden
+        EXPECT nolost
+        FOCUS  back
+        TYPE   wo
+        EXPECT marked "wo"
+        """#
 }

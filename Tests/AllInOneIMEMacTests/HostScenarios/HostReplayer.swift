@@ -15,8 +15,10 @@ import InputMethodKit
 /// The host: a click, the field losing the focus, the input source switched and the app emptying the field do to the
 /// field what its profile says (`ProfiledTextClient`), and reach the input method as IMK hands them over:
 /// `commitComposition` on a click outside the marked text (NSTextView, a terminal, WeChat; Chromium finishes the
-/// composition itself and tells it nothing), `deactivateServer` when the field or the window loses the focus or the input
-/// source changes, `activateServer` when it comes back. A key the input method leaves the app is typed by the app.
+/// composition itself first, then tells it), and when an AppKit field is emptied (a Chromium page tells it nothing),
+/// `deactivateServer` when the field or the window loses the focus or the input source changes, `activateServer` when it
+/// comes back; with the mouse tap on (`tapAllowed`), each click before any of that. A key the input method leaves the
+/// app is typed by the app.
 @MainActor
 final class HostReplayer {
     let scenario: HostCase
@@ -46,6 +48,9 @@ final class HostReplayer {
     /// AllInOneIME is the input source (`SWITCH abc`: ABC is, and the keys go to the app as they are).
     private var active = true
     private var capsLockOn = false
+    /// The input method's mouse tap is on (`MouseDownTap`): it is told of each mouse down before any app has it.
+    /// Off by default: macOS makes it only with Accessibility allowed, which a real-Mac run couldn't check (#116).
+    var tapAllowed = false
 
     // What was seen.
     private(set) var panel: PanelModel?
@@ -131,7 +136,11 @@ final class HostReplayer {
         case .appClears:
             advance(by: 0.05)
             note("the app empties the field")
+            let marked = client.markedText != nil
             client.clear()
+            // An AppKit text view tells the input method (a real NSTextField and NSTextView, 2026-11-15); a Chromium page
+            // tells it nothing (#115).
+            if marked, profile == .nstextview, active { commitComposition() }
             (committed, expectedCounts, pageFinished) = ("", [:], nil)
         case let .wait(seconds):
             advance(by: seconds)
@@ -296,10 +305,14 @@ final class HostReplayer {
     // MARK: The host
 
     private func click(_ offset: Int?) {
+        mouseDown()
         if let offset {
             note("a click at \(offset)")
             if profile.isChromium {
-                pageFinishes { client.finishComposingText() }  // the page commits the marked text; the input method isn't told
+                // The page commits the marked text, then tells the input method (IMK's commitComposition: a real Brave).
+                let marked = client.markedText != nil
+                pageFinishes { client.finishComposingText() }
+                if marked { commitComposition() }
             } else if !client.isInsideMarkedText(offset), client.markedText != nil {
                 commitComposition()
             }
@@ -334,6 +347,14 @@ final class HostReplayer {
             active = true
             activate()
         }
+    }
+
+    /// A mouse down, told to the input method by its tap before the host acts on it (`CompositionLeave`).
+    private func mouseDown() {
+        guard tapAllowed, CompositionLeave.mouseDownEnds(at: .zero, marked: hasMarkedText, ownWindows: []) else { return }
+        note("the mouse down reaches the input method first")
+        apply(session.handle(.commit).outputs)
+        settle()
     }
 
     /// The field loses the focus (`HostProfile`: Chromium's page commits the marked text, and drops what comes after);

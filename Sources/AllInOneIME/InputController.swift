@@ -142,7 +142,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Whether marked text this controller set may be in the document. Empty marked text is only sent
     /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
     /// deleting the selected text (a Shift tap, a focus change).
-    private var hasMarkedText = false
+    var hasMarkedText = false
     /// What a key the rows took put in as marked text in a Chromium or Electron app (a row, or the token's last character
     /// again), to commit once the key is done (`markRow`).
     private var markedRow: MarkedRow?
@@ -344,11 +344,8 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     override func commitComposition(_ sender: Any!) {
-        MainActor.assumeIsolated {
-            commitRow()
-            stopTyping(insertingRest: true)  // the app wants everything in now (a click elsewhere in it)
-            apply(session.handle(.commit).outputs, client: sender as? IMKTextInput)
-        }
+        // The app wants everything in now (a click elsewhere in it): what is typed out goes in, the pinyin doesn't.
+        MainActor.assumeIsolated { leaveField(.commit, client: sender as? IMKTextInput, insertingRest: true) }
     }
 
     // MARK: - Typing a result out
@@ -612,9 +609,8 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
-            commitRow()  // still this field's session
-            stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
-            apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
+            // Still this field's session; another field has the focus now: the rest of a result isn't typed anywhere.
+            leaveField(.blur, client: sender as? IMKTextInput, insertingRest: false)
             fieldSession += 1
             panelAnchor.forget()  // the last rect to trust was this field's
             (anchorToken, anchorSaid) = (anchorToken + 1, nil)
@@ -727,7 +723,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// without one (the input method started again while its field had the focus: no activation comes then).
     @MainActor
     private func attachKeyGuard() {
-        KeyGuard.shared.attach(self) { [weak self] event in self?.keyAtTap(event) ?? nil }
+        KeyGuard.shared.attach(self, handler: { [weak self] event in self?.keyAtTap(event) ?? nil },
+                               mouseDown: { [weak self] event in self?.mouseDownAtTap(event) })
     }
 
     /// The key being answered came from the key tap (`keyAtTap`): no app will have it, so nothing is marked to keep it
@@ -1080,7 +1077,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// session's work, the app wanting everything in, another field). Only in the field session it went into, as
     /// `commitAfterKey`; each way out of it commits the row first, so nothing of it is left marked there.
     @MainActor
-    private func commitRow() {
+    func commitRow() {
         guard let row = markedRow else { return }
         markedRow = nil
         guard row.fieldSession == fieldSession else { return }

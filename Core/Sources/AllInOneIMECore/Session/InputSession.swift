@@ -238,7 +238,7 @@ public final class InputSession {
                 autocompleteLeft(.ignored)
                 clipboardLeft()
                 suggestionsLeft()
-                perform(composer.commitAll())
+                perform(composer.leaveField())
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
                 let unwritten = services.unwrittenRemovals?()
@@ -246,11 +246,11 @@ public final class InputSession {
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
-            case .commit:
+            case .commit, .cancel:
                 autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
                 clipboardLeft()
-                perform(composer.commitAll())
-                suggestionsClicked()
+                // Cancelled: nothing pending goes in, as when the app took it (`appTookMarkedText`).
+                if case .cancel = event { perform(composer.appTookMarkedText() + [.updateMarkedText]) } else { perform(composer.leaveField()); suggestionsClicked() }
             case let .pick(row):
                 // Clipboard history's rows and suggestions' put in what a click picks.
                 if clipboardPick(row) || suggestionsPick(row) { return }
