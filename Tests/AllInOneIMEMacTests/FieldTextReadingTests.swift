@@ -74,6 +74,8 @@ struct FieldTextReadingTests {
               reads: false),
         Field(name: "a field of its own drawing that tells a caret and no text", text: "hello w", length: 0, selected: caret(7),
               reads: false),
+        Field(name: "a field that tells its length and reads nothing back", text: "hello w", length: 7, selected: caret(7),
+              reads: false),
         Field(name: "an app with no text field focused", length: 2_147_483_647,
               selected: NSRange(location: NSNotFound, length: NSNotFound), reads: false),
     ])

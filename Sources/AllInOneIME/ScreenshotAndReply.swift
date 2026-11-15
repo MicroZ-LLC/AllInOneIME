@@ -74,7 +74,12 @@ extension AllInOneIMEInputController {
         guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
         let signals = FieldTextReading.Signals(length: target.length(), selected: target.selectedRange(), marked: target.markedRange())
         guard let text = FieldTextReading.read(signals, before: beforeLimit, after: afterLimit,
-                                               substring: { target.attributedSubstring(from: $0)?.string }) else { return nil }
+                                               substring: { target.attributedSubstring(from: $0)?.string }) else {
+            // Lengths only: what it told, for a field that turns out unreadable where it shouldn't.
+            let caret = signals.selected.location == NSNotFound ? "none" : String(signals.selected.location)
+            log.notice("field text can't be read for \(purpose, privacy: .public) (length \(signals.length), caret \(caret, privacy: .public))")
+            return nil
+        }
         let (before, after) = (text.before, text.after)
         log.notice("field text read for \(purpose, privacy: .public) (\(before.count) + \(after.count) characters)")
         return FieldText(before: before, after: after)

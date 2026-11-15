@@ -17,6 +17,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- Autocomplete no longer suggests from text that's gone: in a field its app cleared (a chat app's, once your message was sent), what you typed before stood in for the field's text, so the next suggestion went on from the message already sent. An empty field now reads as empty. In Chrome, Brave, Slack and other Chromium apps, autocomplete now reads the text before the caret instead of going by what was typed since the field took the focus.
+
 - Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
 
 - Clipboard history no longer loses everything when one entry in its file can't be read: the history was emptied, and the next copy deleted every image kept. Entries that can't be read are skipped and the rest kept; the file as it was is kept aside beside it (`clipboard-history-unreadable-….json`) instead of written over, with every image it had, until Clear History.
