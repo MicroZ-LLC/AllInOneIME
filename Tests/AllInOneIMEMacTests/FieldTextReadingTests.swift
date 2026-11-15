@@ -110,4 +110,18 @@ struct FieldTextReadingTests {
         #expect(read?.before == (field.text as NSString).substring(to: field.selected.location), "\(field.name)")
         #expect(read?.after.isEmpty == false && after.hasPrefix(read?.after ?? "\u{0}"), "\(field.name)")
     }
+
+    /// Marked text or a selection in a field that tells no length: what is after it is read from its end, never the
+    /// marked text or the selection itself (an `@reply` draft is not the field's text).
+    @Test func noLengthToldReadsAfterTheMarkedTextOrTheSelection() {
+        let draft = Field(name: "only a marked @reply draft in Brave", text: "@reply", length: 0, selected: Self.caret(6),
+                          marked: NSRange(location: 0, length: 6))
+        #expect(draft.read() == FieldText(before: "", after: ""))
+        let selection = Field(name: "a selection inside \"hello world\" in Brave", text: "hello world", length: 0,
+                              selected: NSRange(location: 6, length: 5))
+        #expect(selection.read() == FieldText(before: "hello ", after: ""))
+        let middle = Field(name: "\"wor\" selected in \"hello world\" in Brave", text: "hello world", length: 0,
+                           selected: NSRange(location: 6, length: 3))
+        #expect(middle.read()?.before == "hello " && middle.read()?.after.hasPrefix("l") == true)
+    }
 }

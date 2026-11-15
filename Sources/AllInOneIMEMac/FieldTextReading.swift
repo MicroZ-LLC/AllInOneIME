@@ -41,7 +41,8 @@ public enum FieldTextReading {
         // UTF-16 units, twice the characters kept: an emoji or a rare character takes two.
         let (span, afterSpan) = (beforeLimit * 2, afterLimit * 2)
         guard let length = signals.toldLength else {
-            return readToTheCaret(around.location, span: span, afterSpan: afterSpan, substring: substring)
+            return readToTheCaret(around.location, end: NSMaxRange(around), span: span, afterSpan: afterSpan,
+                                  substring: substring)
         }
         let start = min(around.location, length)
         let end = min(NSMaxRange(around), length)
@@ -56,11 +57,13 @@ public enum FieldTextReading {
         return FieldText(before: before ?? "", after: after ?? "")
     }
 
-    /// A field that tells no length: what is before the caret, read up to it, and what is after it, as far as it reads
+    /// A field that tells no length: what is before the caret (or the marked text, or the selection), read up to it, and
+    /// what is after its `end`, as far as it reads
     /// back (where its text ends isn't told: Chromium reads nil for a range past its end). The caret at the start and
     /// nothing after it: empty. Nothing read back before a caret past the start: it can't be read.
-    static func readToTheCaret(_ caret: Int, span: Int, afterSpan: Int, substring: (NSRange) -> String?) -> FieldText? {
-        let after = readAfter(caret, span: afterSpan, substring: substring)
+    static func readToTheCaret(_ caret: Int, end: Int, span: Int, afterSpan: Int,
+                               substring: (NSRange) -> String?) -> FieldText? {
+        let after = readAfter(end, span: afterSpan, substring: substring)
         guard caret > 0 else { return FieldText(before: "", after: after) }
         let from = max(0, caret - span)
         guard let before = substring(NSRange(location: from, length: caret - from)), !before.isEmpty else { return nil }
