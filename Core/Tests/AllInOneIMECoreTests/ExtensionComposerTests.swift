@@ -341,6 +341,59 @@ struct ExtensionComposerTests {
         #expect(commits(c.handleKeyDown(k("2"))) == ["2"])
     }
 
+    @Test func aSecondStepsListSkipsRowsOfInformationEverywhere() async throws {
+        // Rows of information (`valid: false`) in a second step's list: ↑↓, Tab, Page Up/Down and a page turned never
+        // rest on them, as the list being typed doesn't, so ⏎ always picks something.
+        let folder = ScriptFolder()
+        folder.add("steps.sh", script(["output list", "input optional"], #"""
+            if [ "$ALLINONEIME_ACTION" = run ]; then
+              echo '{"items": [{"title": "Sub one", "arg": "1"}, {"title": "Header", "valid": false}, {"title": "Sub two", "arg": "2"},
+                {"title": "Sub three", "arg": "3"}, {"title": "Sub four", "arg": "4"}, {"title": "Header two", "valid": false},
+                {"title": "Sub five", "arg": "5"}]}'
+            else
+              echo '{"items": [{"title": "Go deeper", "arg": "deeper", "action": "run"}]}'
+            fi
+            """#))
+        func secondStep() async throws -> Composer {
+            let c = composer(folder)
+            typeKeys("@steps ", c)
+            _ = try await runList(c)
+            await finish(c.handleKeyDown(enterKey).effects, in: c)
+            #expect(c.choices.count == 7 && c.choices[c.highlighted].text == "Sub one")
+            return c
+        }
+        let pageDown = KeyEvent(keyCode: VirtualKey.pageDown, characters: "\u{F72D}")
+        let pageUp = KeyEvent(keyCode: VirtualKey.pageUp, characters: "\u{F72C}")
+        let right = KeyEvent(keyCode: VirtualKey.right, characters: "\u{F703}")
+        let shiftTab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t", modifiers: .shift)
+        for down in [downKey, tab, pageDown] {
+            let c = try await secondStep()
+            _ = c.handleKeyDown(down)
+            #expect(c.choices[c.highlighted].text == "Sub two")
+            #expect(commits(c.handleKeyDown(enterKey)) == ["2"])
+        }
+        for up in [upKey, shiftTab, pageUp] {
+            let c = try await secondStep()
+            for _ in 0..<2 { _ = c.handleKeyDown(downKey) }  // Sub three
+            _ = c.handleKeyDown(up)
+            _ = c.handleKeyDown(up)
+            #expect(c.choices[c.highlighted].text == "Sub one")
+        }
+        // Round the end: ↑ from the first goes to the last that can be picked; ↓ from Sub four past Header two.
+        let c = try await secondStep()
+        _ = c.handleKeyDown(upKey)
+        #expect(c.choices[c.highlighted].text == "Sub five")
+        for _ in 0..<3 { _ = c.handleKeyDown(downKey) }  // Sub one, Sub two, Sub three
+        _ = c.handleKeyDown(downKey)
+        _ = c.handleKeyDown(downKey)
+        #expect(c.choices[c.highlighted].text == "Sub five")
+        // → turns to the page that starts with a row of information: the first row after it that can be picked.
+        let turned = try await secondStep()
+        _ = turned.handleKeyDown(right)
+        #expect(turned.choices[turned.highlighted].text == "Sub five")
+        #expect(commits(turned.handleKeyDown(enterKey)) == ["5"])
+    }
+
     // MARK: - the command list
 
     @Test func namesWithDigitsAndTitlesInTheList() {

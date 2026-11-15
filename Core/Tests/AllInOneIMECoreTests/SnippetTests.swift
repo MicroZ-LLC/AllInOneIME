@@ -39,6 +39,15 @@ private func rendered(_ template: String, input: String = "") -> String {
 }
 
 @Suite struct SnippetEscapeTests {
+    @Test func fullWidthMarksWorkAsTheirAsciiForms() {
+        // Typed with Chinese punctuation on: ？ ends a blank and ： starts a date or time format, as ? and : do.
+        #expect(SnippetTemplate.parse("Dear {名字？}").fieldLabels == ["名字"])
+        #expect(SnippetTemplate.parse("{名字?} and {名字？}").fieldLabels == ["名字"])
+        let values = SnippetValues(now: Date(timeIntervalSince1970: 0))
+        let dated = SnippetTemplate.parse("{date：MM月dd日} {time：HH:mm}").render(values).text
+        #expect(dated == SnippetTemplate.parse("{date:MM月dd日} {time:HH:mm}").render(values).text && !dated.contains("{"))
+    }
+
     @Test func jsonAndCodeKeepTheirBraces() {
         // No `{{` before them: every `}}` stays as written.
         #expect(rendered(#"{"a":{"b":1}}"#) == #"{"a":{"b":1}}"#)

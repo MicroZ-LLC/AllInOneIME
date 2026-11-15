@@ -201,7 +201,10 @@ public enum CandidateParser {
         for _ in 0..<2 {
             for (open, close) in [("\"", "\""), ("“", "”"), ("'", "'"), ("「", "」"), ("**", "**"), ("`", "`")]
             where s.count >= open.count + close.count && s.hasPrefix(open) && s.hasSuffix(close) {
-                s = String(s.dropFirst(open.count).dropLast(close.count)).trimmingCharacters(in: .whitespaces)
+                // Only marks around all of it: `“我不去，”他说，“你自己去吧。”` closes and opens again inside, and keeps them.
+                let inner = s.dropFirst(open.count).dropLast(close.count)
+                guard !inner.contains(open), !inner.contains(close) else { continue }
+                s = String(inner).trimmingCharacters(in: .whitespaces)
             }
         }
         return s
