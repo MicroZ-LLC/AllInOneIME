@@ -211,5 +211,8 @@ jobs:
           passed() {  # RESULT NEEDED
             [ "$1" = success ] || { [ "$1" = skipped ] && [ "$2" = false ]; }
           }
-          [ "$CHANGES" = success ] && [ "$LINT" = success ] && passed "$CORE_LINUX" "$NEEDS_CORE" &&
+          # Linux is advisory for now: the core is kept portable, but the IME ships on macOS only (owner, 2026-11-14), and
+          # its Linux job was dropped once for flakiness. A Linux failure warns; it doesn't block the merge.
+          passed "$CORE_LINUX" "$NEEDS_CORE" || echo "::warning::core-test (Linux): $CORE_LINUX. It doesn't block; look at it."
+          [ "$CHANGES" = success ] && [ "$LINT" = success ] &&
             passed "$CORE_MACOS" "$NEEDS_CORE" && passed "$MAC" "$NEEDS_MAC"
