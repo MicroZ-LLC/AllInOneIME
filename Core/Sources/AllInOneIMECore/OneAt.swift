@@ -273,17 +273,32 @@ public enum OneAt {
 
     /// The Chinese that makes a sentence a question.
     static let chineseQuestionWords = ["吗", "呢", "什么", "怎么", "为什么", "哪", "几", "多少"]
+    /// The same words where they ask nothing: 几乎 (almost), 过几天 (in a few days), 没什么 (it's nothing), 怎么都 (any way
+    /// will do), 哪怕 (even if), 多少有点 (somewhat) …: taken out before the words above are looked for.
+    static let chineseNonQuestions = ["几乎", "好几", "过几", "这几", "那几", "前几", "后几", "十几", "几十", "几百", "几千", "几万",
+                                      "没什么", "没有什么", "不算什么", "什么都", "什么也", "不怎么", "怎么都", "怎么也",
+                                      "哪怕", "哪里哪里", "哪儿都", "哪里都", "哪都", "多少有", "或多或少"]
     /// The English words a question starts with.
-    static let englishQuestionWords: Set<String> = ["how", "what", "why", "when", "where", "who", "which", "can", "could",
-                                                     "should", "is", "are", "do", "does"]
+    static let englishQuestionWords: Set<String> = ["how", "what", "why", "when", "where", "who", "whose", "whom", "which",
+                                                     "can", "could", "should", "would", "will", "is", "are", "was", "were",
+                                                     "do", "does", "did"]
 
-    /// Whether `text` is a question: it ends with "?" or "？", has 吗 呢 什么 怎么 为什么 哪 几 多少 in it, or starts with
-    /// how, what, why, when, where, who, which, can, could, should, is, are, do or does.
+    /// Whether `text` is a question: it ends with "?" or "？"; has 吗 呢 什么 怎么 为什么 哪 几 多少 in it where they ask
+    /// (not 几乎, 没什么, 哪怕 …: `chineseNonQuestions`); or starts with how, what, why, … is, are, do, did (`what's`,
+    /// `isn't`, `don't` too), but not "what a …".
     public static func isQuestion(_ text: String) -> Bool {
         let text = text.trimmingCharacters(in: .whitespaces)
         if text.hasSuffix("?") || text.hasSuffix("？") { return true }
-        if chineseQuestionWords.contains(where: { text.contains($0) }) { return true }
-        let first = text.prefix { $0.isLetter || $0 == "'" }.lowercased()
+        // 为什么 always asks, also before 都 or 也 (为什么都不来).
+        let asking = chineseNonQuestions.reduce(text.replacingOccurrences(of: "为什么", with: "吗")) {
+            $0.replacingOccurrences(of: $1, with: "，")
+        }
+        if chineseQuestionWords.contains(where: { asking.contains($0) }) { return true }
+        let words = text.lowercased().replacingOccurrences(of: "’", with: "'").split(whereSeparator: \.isWhitespace)
+        guard var first = words.first.map(String.init) else { return false }
+        if first.hasSuffix("n't") { first = first == "can't" ? "can" : first == "won't" ? "will" : String(first.dropLast(3)) }
+        first = String(first.prefix { $0.isLetter })  // what's → what
+        if first == "what", words.count > 1, ["a", "an"].contains(words[1]) { return false }  // what a lovely day
         return englishQuestionWords.contains(first)
     }
 
@@ -308,9 +323,10 @@ public enum OneAt {
     }
 
     /// Whether `text` is mostly in another language than `main` (letters only: a sum or an address has none).
+    /// Japanese (`Language.isJapanese`) is never an input language: always another.
     static func isOtherLanguage(_ text: String, main: Language) -> Bool {
         guard text.contains(where: \.isLetter) else { return false }
-        return mostly(text) != main
+        return Language.isJapanese(text) || mostly(text) != main
     }
 }
 

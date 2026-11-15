@@ -316,7 +316,9 @@ extension OutputLanguage {
     /// For text the user didn't just type, which may be in either (a selection, the clipboard, a page from the mainland):
     /// a Taiwan user's Simplified text is translated into Traditional Chinese, a Simplified user's Traditional text into
     /// Simplified Chinese.
+    /// Japanese (`Language.isJapanese`: kana in it) is "ja", whatever `language` says.
     public static func of(_ text: String, language: Language, chinese: ChineseCharacters) -> OutputLanguage {
+        if Language.isJapanese(text) { return .japanese }
         guard language == .chinese, let traditional = ChineseCharacters.writtenTraditional(text, chinese: chinese) else {
             return OutputLanguage(language, chinese: chinese)
         }
