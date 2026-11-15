@@ -120,7 +120,9 @@ extension HostRun {
 
     // MARK: The user
 
-    /// `CLICK`: at `offset` in the field's text (UTF-16), or outside the field (nil). Marked text in it is committed:
+    /// `CLICK`: at `offset` in the field's text (UTF-16), or outside the field (nil). First the shell's mouse-down watch
+    /// tells the session (`pointerDown`, contract v1.4: what isn't committed is dropped, the panel hidden), while the
+    /// input method is the field's. Then the host does what it does: marked text in it (the app's own) is committed:
     /// by the host itself (Chromium's), or by the input method asked to (`commitComposition`) for a click outside the
     /// marked text (one inside it is the input method's: nothing moves). The caret goes to the offset after that.
     func click(at offset: Int?) {
@@ -133,6 +135,7 @@ extension HostRun {
             followOutputs(from: start)
             _ = field.takeCalls()
         }
+        if !inABC { host.send(.pointerDown) }
         if let marked = field.markedNow {
             if profile.clickCommitsMarkedText {
                 hostCommitsMarkedText()
