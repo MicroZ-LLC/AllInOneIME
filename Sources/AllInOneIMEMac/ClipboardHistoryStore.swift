@@ -280,6 +280,9 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// The images a list's file moved aside has (`keptAside`): never deleted but by `clear` (read and changed on `writes`
     /// only, after `init`).
     private var keptAsideIDs: Set<String> = []
+    /// Whether the list's file is one it couldn't read in full, not moved aside yet (`archive`): never written over, and
+    /// no image deleted, meanwhile (on `writes` only, after `init`).
+    private var unarchived = false
 
     private struct File: Codable {
         struct Item: Codable {
@@ -308,37 +311,61 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         var items: [Entry]
     }
 
-    public init(url: URL = ClipboardHistoryStore.defaultURL) {
+    /// Moves a file (`FileManager.moveItem`; a test's may fail).
+    private let moveFile: (URL, URL) throws -> Void
+
+    public init(url: URL = ClipboardHistoryStore.defaultURL,
+                moveFile: @escaping (URL, URL) throws -> Void = { try FileManager.default.moveItem(at: $0, to: $1) }) {
         self.url = url
+        self.moveFile = moveFile
         items = []
-        items = read().compactMap { item in
+        let (read, clean) = read()
+        items = read.compactMap { item in
             guard let image = item.image else { return ClipboardHistoryItem(text: item.text, copiedAt: item.copiedAt) }
             // An image whose file is gone (deleted by hand) is gone from the list too.
             guard FileManager.default.fileExists(atPath: imageURL(image.id).path) else { return nil }
             return ClipboardHistoryItem(image: kept(image.id, width: image.width, height: image.height, bytes: image.bytes),
                                         copiedAt: item.copiedAt)
         }
-        keptAsideIDs = keptAside()
+        // Off the main thread, before any later write: a file it couldn't read in full moved aside and the items it could
+        // written in its place; the images files moved aside have, found.
+        let recovered = items
+        writes.async { [self] in
+            unarchived = !clean
+            if !clean, archive() { save(recovered) }
+            keptAsideIDs = keptAside()
+        }
     }
 
-    /// The items of the list's file it can read. Where one can't be (or the file can't be read at all), the file is first
-    /// moved aside as it was (`asideURLs`), never written over: the history is what it can read, and the images it kept
-    /// stay until Clear History (`keptAside`).
-    private func read() -> [File.Item] {
-        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+    /// The items of the list's file it can read, and whether it read them all (no file: all). Where it didn't, the file is
+    /// moved aside as it was (`archive`) before anything is written, never written over: the history is what it can read,
+    /// and the images it kept stay until Clear History (`keptAside`).
+    private func read() -> (items: [File.Item], clean: Bool) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return ([], true) }
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .secondsSince1970
         let file = (try? Data(contentsOf: url)).flatMap { try? decoder.decode(ReadFile.self, from: $0) }
-        if let file, file.items.allSatisfy({ $0.item != nil }) { return file.items.compactMap(\.item) }
+        let items = file?.items.compactMap(\.item) ?? []
+        guard items.count != file?.items.count else { return (items, true) }
+        CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+            .error("clipboard history: \(file.map { "\($0.items.count - items.count) items" } ?? "the file") unreadable")
+        return (items, false)
+    }
+
+    /// The list's file it couldn't read in full moved aside (`asidePrefix`), if it wasn't yet (on `writes`): false while it
+    /// can't be, and then nothing may write the list's file nor delete an image. Tried again at each write.
+    private func archive() -> Bool {
+        guard unarchived else { return true }
         let aside = url.deletingLastPathComponent()
             .appendingPathComponent("\(Self.asidePrefix(url))\(Int(Date().timeIntervalSince1970 * 1000)).json")
-        do { try FileManager.default.moveItem(at: url, to: aside) } catch {
+        do { try moveFile(url, aside) } catch {
             CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
                 .error("clipboard history: could not move an unreadable file aside: \(String(describing: type(of: error)))")
+            return false
         }
-        CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
-            .error("clipboard history: \(file.map { "\($0.items.filter { $0.item == nil }.count) items" } ?? "the file") unreadable, set aside")
-        return file?.items.compactMap(\.item) ?? []
+        unarchived = false
+        keptAsideIDs = keptAside()
+        return true
     }
 
     /// The beginning of a list's file moved aside's name (clipboard-history-unreadable-<ms>.json for the user's).
@@ -474,7 +501,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         generation += 1
         items = []
         writes.sync {
-            keptAsideIDs = []
+            (keptAsideIDs, unarchived) = ([], false)
             for file in [url, imagesURL] + asideURLs { try? FileManager.default.removeItem(at: file) }
         }
     }
@@ -517,6 +544,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// Image files whose image isn't among `items`, nor being made ready, deleted.
     private func removeUnlisted(listing items: [ClipboardHistoryItem]) {
+        guard archive() else { return }
         let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids).union(keptAsideIDs)
         for (name, id) in Self.files(in: imagesURL) where !listed.contains(id) {
             try? FileManager.default.removeItem(at: imagesURL.appendingPathComponent(name))
@@ -542,6 +570,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// `items` written as the list's file (on `writes`).
     private func save(_ items: [ClipboardHistoryItem]) {
+        guard archive() else { return }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .secondsSince1970
         let file = File(items: items.map { item in
