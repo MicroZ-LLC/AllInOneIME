@@ -4,6 +4,14 @@ LANG chinese
 TEXT "old|"
 TYPE nihao
 APP clears
-# QUESTION: Does APP clears also cancel active marked text, or only replace the field document?
+# Contract v1.2: right after APP clears the field is empty; the input method must have dropped the draft by the next
+# key (Chromium tells it nothing then), so the next key is where that is checked: a fresh composition, no "nihao" in it.
 EXPECT doc ""
 EXPECT context before ""
+TYPE wo
+EXPECT marked "wo"
+KEY space
+EXPECT doc "我|"
+EXPECT marked none
+EXPECT panel hidden
+EXPECT nolost

@@ -1,8 +1,8 @@
 NAME Caps Lock as the chosen switch key switches once
 PROFILES nstextview
 LANG chinese
+SET switchKey capsLock
 TEXT "|"
-# QUESTION: The contract has no switchKey setup step; this case requires switchKey=capsLock.
 KEY capslock
 EXPECT lang english
 EXPECT switches 1
