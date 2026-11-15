@@ -76,7 +76,9 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
     fixing some, `make lint-baseline` lowers them. A PR that raises them fails CI **(checked)**. *Why: a ratchet.*
 18. **Commit messages** read like the repository's: `Area: what changed, as the user sees it`, plain English, no
     `feat:` prefix. Code, comments and commits are in English.
-19. **Leave `Windows/` alone**: it moves to its own repository in 0.7.5.
+19. **Windows lives elsewhere**: the Windows shell moved, with its history, to MicroZ-LLC/AllInOneIME-Windows in
+    0.7.5 (on hold); it builds on the core mirrored to MicroZ-LLC/AllInOneIME-Core at each release
+    (`Scripts/mirror-core.sh`). Keep `Core/` standalone for it (rule 5).
 
 ## Bugs
 
