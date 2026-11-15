@@ -2,7 +2,7 @@ import Foundation
 
 /// Going on with an `@question` conversation elsewhere (`QuestionChat`): after the last round the panel allows
 /// (`Config.questionRounds`), or at any round with ⌘⏎, it offers the coding agents installed here (the one `@agent` hands
-/// to first, then the others), Claude, ChatGPT or Gemini on the web, or copying the conversation, picked with ⌘1–⌘9
+/// to first, then the others), Claude, ChatGPT or Gemini on the web, or copying the conversation, picked with ⌥1–⌥9
 /// (`Config.questionContinueIn` says which, in which order). The text goes to the service the user picks, as it was
 /// shown: values hidden from our own requests (`Redaction`) are in it as they are, since the user chooses to send it
 /// there.
@@ -53,7 +53,7 @@ public enum ChatHandoff {
     public static let defaultList: [Destination] = [.atAgent, .claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb, .chatgpt, .copy]
 
     /// What the choices are when the config doesn't say (`defaultList`): the agent `@agent` hands to (`picked`) first, so
-    /// ⌘1 is it, then the other agents (Claude Code, Gemini CLI, Kiro CLI, the custom one), each only when `installed`;
+    /// ⌥1 is it, then the other agents (Claude Code, Gemini CLI, Kiro CLI, the custom one), each only when `installed`;
     /// then Claude on the web, ChatGPT and copying.
     public static func defaultChoices(picked: AgentKind, installed: (AgentKind) -> Bool) -> [Destination] {
         choices(nil, picked: picked, installed: installed)
@@ -88,7 +88,7 @@ public enum ChatHandoff {
     /// what they are now, reordered, one taken out or one added (at the end). The entries not offered (an agent not
     /// installed right now, the agent `.atAgent` stands for) keep their places; only one taken out goes (and any other
     /// copy of it). `.atAgent` taken out takes the entry it stands for now, `picked`'s own, with it, as a copy of it:
-    /// otherwise that agent would be back in its place and ⌘1 wouldn't change.
+    /// otherwise that agent would be back in its place and ⌥1 wouldn't change.
     public static func edited(_ list: [Destination], shown: [Int], to edited: [Destination], picked: AgentKind? = nil) -> [Destination] {
         let before = shown.map { list[$0] }
         var removed = Set(before).subtracting(edited)

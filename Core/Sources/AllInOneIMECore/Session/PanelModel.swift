@@ -125,7 +125,7 @@ public struct PanelModel: Equatable, Sendable {
     }
 
     /// Where an `@question` conversation can go on (after its last round, or ⌘⏎): a title, and the destinations, each
-    /// with the shortcut that picks it ("⌘1", "Ctrl+1").
+    /// with the shortcut that picks it ("⌥1", "Alt+1").
     public struct Handoff: Equatable, Sendable {
         public struct Choice: Equatable, Sendable {
             public var shortcut: String
@@ -302,7 +302,7 @@ extension PanelModel {
         return model
     }
 
-    /// `rows` each labelled with the key that picks it by its place (`key(1)`: "⌘1" …), up to the 9th; those after, none.
+    /// `rows` each labelled with the key that picks it by its place (`key(1)`: "⌥1" …), up to the 9th; those after, none.
     static func numbered(_ rows: [Row], by key: (Int) -> String) -> [Row] {
         rows.enumerated().map { place, row in
             var row = row

@@ -9,7 +9,7 @@ import Foundation
 /// be picked (digits 1–5, ↑↓ then ⇧⏎, a click; the latest is selected), ⇧⏎ dropping a question half typed. Esc with
 /// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in the
 /// coding agents installed (the one `@agent` hands to first), Claude, ChatGPT or Gemini, or to copy the conversation
-/// (`handoffChoices`, ⌘1–⌘9; `ChatHandoff`).
+/// (`handoffChoices`, ⌥1–⌥9; `ChatHandoff`).
 extension Composer {
     /// What a hand-off says near the caret, in the interface language.
     public struct ChatMessages: Equatable, Sendable {
@@ -129,8 +129,8 @@ extension Composer {
         typesRefine ? runRefine() : []
     }
 
-    /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌘1, ⌘2 … pick
-    /// one. ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
+    /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌥1, ⌥2 … pick
+    /// one (`handleNumberedPick`). ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
     func handleHandoffKey(_ event: KeyEvent) -> Response? {
         let modifiers = event.modifiers.subtracting(.capsLock), primary = Modifiers.kind(modifierRoles.primary)
         // ⌘R (⌘⇧R too) on a saved answer: asked again.
@@ -144,18 +144,13 @@ extension Composer {
         if isReturn, modifiers == primary, isLevelTwo, activeCommand == .question, !(isQuestionChat && phase == .choosing) {
             return .consumed()
         }
-        guard isQuestionChat, phase == .choosing, modifiers == primary else { return nil }
-        if isReturn {
-            // At the last round they're up anyway: nothing to hide later with Esc.
-            if !chatAtLimit { handoffRequested = true }
-            return .consumed([.showPanel])
-        }
-        guard showsHandoff, let digit = event.charactersIgnoringModifiers.first?.wholeNumberValue,
-              event.charactersIgnoringModifiers.count == 1, digit >= 1 else { return nil }
-        return .consumed(handOff(digit: digit))
+        guard isQuestionChat, phase == .choosing, modifiers == primary, isReturn else { return nil }
+        // At the last round they're up anyway: nothing to hide later with Esc.
+        if !chatAtLimit { handoffRequested = true }
+        return .consumed([.showPanel])
     }
 
-    /// Goes on where the choice `digit` (one-based: ⌘1, ⌘2 …) of those shown is: what its ⌘digit does, and a click on it
+    /// Goes on where the choice `digit` (one-based: ⌥1, ⌥2 …) of those shown is: what its ⌥digit does, and a click on it
     /// in the panel (`SessionEvent.handoff`). Nothing while they aren't shown, or past them.
     public func handOff(digit: Int) -> [Effect] {
         guard showsHandoff, handoffChoices.indices.contains(digit - 1) else { return [] }

@@ -112,18 +112,6 @@ final class KeyGuard {
     }
 }
 
-extension KeyGuard {
-    /// ⌘ and a digit, nothing else held (⌘1 …): what picks one @'s rows (`Composer.handleOneAtNumberKey`), which an app
-    /// hands to its own menus before the input method while the list's text is marked, so the tap takes it then.
-    static func isPrimaryDigit(_ event: CGEvent) -> Bool {
-        event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]) == .maskCommand
-            && digitKeys.contains(event.getIntegerValueField(.keyboardEventKeycode))
-    }
-
-    /// The digit row's keys, 1 to 9 and 0 (kVK_ANSI_1 … kVK_ANSI_0).
-    private static let digitKeys: Set<Int64> = [18, 19, 20, 21, 23, 22, 26, 28, 25, 29]
-}
-
 /// The tap's callback (a C function: no captures). It runs on the main run loop, where the tap's source is.
 private let keyGuardCallback: CGEventTapCallBack = { _, type, event, _ in
     if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {

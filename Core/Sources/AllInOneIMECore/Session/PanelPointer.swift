@@ -14,7 +14,7 @@ public final class PanelPointer<ChipPart> {
     /// What the pointer does over the panel, nil where it does nothing: `select` a click on a row, `delete` a right-click
     /// (or a Control-click) on one, each with the row's index in the panel's rows; `scroll` the wheel or the trackpad over
     /// the panel, rows to move (down positive; 0 short of a row); `chip` a click on a part of the chip; `handoff` a click
-    /// on one of where a conversation can go on (`PanelModel.handoff`), by its place (one-based, the digit of its ⌘digit).
+    /// on one of where a conversation can go on (`PanelModel.handoff`), by its place (one-based, the digit of its ⌥digit).
     public struct Handlers {
         public var select: ((Int) -> Void)?
         public var delete: ((Int) -> Void)?

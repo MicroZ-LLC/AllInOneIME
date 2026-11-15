@@ -126,10 +126,11 @@ public struct PlatformTerms: Hashable, Sendable {
         }
     }
 
-    /// What picks the `number`th of a list of shortcuts (where a conversation can go on): "⌘2", "Ctrl+2".
-    public func pick(_ number: Int) -> String { command(String(number)) }
+    /// What picks the `number`th of a numbered list (one @'s rows, where a conversation can go on): "⌥2", "Alt+2"
+    /// (`ModifierRoles.pick`).
+    public func pick(_ number: Int) -> String { shortcut(roles.pick, String(number)) }
 
-    /// What picks one of the first `count`: "⌘1", "⌘1–⌘3"; "Ctrl+1", "Ctrl+1–3".
+    /// What picks one of the first `count`: "⌥1", "⌥1–⌥3"; "Alt+1", "Alt+1–3".
     public func picks(_ count: Int) -> String {
         guard count > 1 else { return pick(1) }
         return pick(1) + "–" + (keyStyle == .symbols ? pick(count) : String(count))

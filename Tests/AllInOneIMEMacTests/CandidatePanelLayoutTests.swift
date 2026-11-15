@@ -621,11 +621,11 @@ private enum LayoutChild {
             let view = panel.view
             var model = chat(rounds: 2)
             model.handoff = PanelModel.Handoff(title: "2 rounds in: continue in Claude or another AI", choices: [
-                .init(shortcut: "⌘1", name: "Claude Code"), .init(shortcut: "⌘2", name: "Gemini CLI"), .init(shortcut: "⌘3", name: "Claude"),
-                .init(shortcut: "⌘4", name: "ChatGPT"), .init(shortcut: "⌘5", name: "Copy")])
+                .init(shortcut: "⌥1", name: "Claude Code"), .init(shortcut: "⌥2", name: "Gemini CLI"), .init(shortcut: "⌥3", name: "Claude"),
+                .init(shortcut: "⌥4", name: "ChatGPT"), .init(shortcut: "⌥5", name: "Copy")])
             panel.show(model, anchor: high)
             let targets = view.handoffTargets, rows = spans(panel)
-            expect(targets.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"], "every choice, in order: \(targets.map(\.shortcut))")
+            expect(targets.map(\.shortcut) == ["⌥1", "⌥2", "⌥3", "⌥4", "⌥5"], "every choice, in order: \(targets.map(\.shortcut))")
             expect(rows.keys.sorted() == [1, 3], "the answers under the pointer: \(rows.keys.sorted())")
             guard targets.count == 5, let first = rows[1] else { return }
             let lines = targets.map(\.targetFrame.minY)
@@ -634,11 +634,11 @@ private enum LayoutChild {
             for (index, target) in targets.enumerated() {
                 let digit = index + 1
                 expect(target.keycapFrame.height == CandidateView.Metrics.smallKeycapHeight && target.targetFrame.contains(target.keycapFrame),
-                       "⌘\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
+                       "⌥\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
                 expect(view.bounds.contains(target.targetFrame) && target.targetFrame.maxY < first.lowerBound,
-                       "⌘\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
+                       "⌥\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
                 if index % 3 != 0 {
-                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌘\(digit) apart from the one before it")
+                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌥\(digit) apart from the one before it")
                 }
                 let point = NSPoint(x: target.targetFrame.midX, y: target.targetFrame.midY)
                 expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌘\(digit) highlights it, no row")

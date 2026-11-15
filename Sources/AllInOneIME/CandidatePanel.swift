@@ -795,7 +795,7 @@ final class CandidateView: NSView {
     struct HandoffTarget {
         var shortcut: String
         var name: String
-        /// Its shortcut ("⌘1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
+        /// Its shortcut ("⌥1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
         /// after it and the room around them.
         var keycapFrame: NSRect
         var targetFrame: NSRect
@@ -1870,7 +1870,7 @@ final class CandidateView: NSView {
     override func mouseExited(with event: NSEvent) { (hovered, hoveredChip, hoveredHandoff) = (nil, nil, nil) }
 
     /// A click picks the row as its digit would (`Composer.choose`), a part of the chip, or where a conversation goes on as
-    /// its ⌘digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
+    /// its ⌥digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {

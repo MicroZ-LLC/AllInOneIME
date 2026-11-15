@@ -517,7 +517,7 @@ public struct PanelPresenter {
     // MARK: - One @
 
     /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
-    /// found by name: the name, and what it does), each its ⌘digit (`Composer.handleOneAtNumberKey`: digits alone are text
+    /// found by name: the name, and what it does), each its ⌥digit (`Composer.handleNumberedPick`: digits alone are text
     /// there); the first highlighted, ↑↓ move.
     private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
         let all = composer.oneAtRows, first = composer.oneAtFirstVisible
