@@ -35,85 +35,6 @@ public protocol ClipboardSource: AnyObject {
     func image() -> ClipboardImage?
 }
 
-/// An image read off the clipboard as it was there (PNG, TIFF, JPEG…) and its size in pixels, told without decoding it
-/// (`ClipboardImage.from`); its PNG and thumbnail are made off the main thread (`ClipboardHistoryStore.prepare`).
-public struct ClipboardImage: Equatable, Sendable {
-    public var data: Data
-    public var width: Int
-    public var height: Int
-
-    public init(data: Data, width: Int, height: Int) {
-        (self.data, self.width, self.height) = (data, width, height)
-    }
-
-    /// The image types a copy of an image puts first.
-    public static let types: Set<String> = ["public.png", "public.tiff", "public.jpeg", "public.heic", "com.compuserve.gif"]
-    /// The most pixels an image kept may have (a photo's 48 MP is past it: its PNG would be over the limit anyway), and the
-    /// most bytes it may come as: larger ones are never decoded.
-    public static let maxPixels = 40_000_000
-    public static let maxDataBytes = 60 * 1024 * 1024
-
-    /// `data` with its size in pixels, as the image's header tells it (nothing decoded); nil where it isn't an image, or
-    /// it is too large to keep (`maxPixels`, `maxDataBytes`).
-    public static func from(_ data: Data) -> ClipboardImage? {
-        guard data.count <= maxDataBytes, let source = CGImageSourceCreateWithData(data as CFData, nil),
-              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
-              let width = properties[kCGImagePropertyPixelWidth] as? Int, let height = properties[kCGImagePropertyPixelHeight] as? Int,
-              width > 0, height > 0, width * height <= maxPixels
-        else { return nil }
-        return ClipboardImage(data: data, width: width, height: height)
-    }
-
-    /// As PNG (kept as it is when it is one).
-    func pngData() -> Data? {
-        if data.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return data }
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil)
-        else { return nil }
-        return NSBitmapImageRep(cgImage: image).representation(using: .png, properties: [:])
-    }
-}
-
-/// The general pasteboard, as clipboard history reads it.
-public final class SystemClipboard: ClipboardSource {
-    public init() {}
-
-    public var changeCount: Int { NSPasteboard.general.changeCount }
-
-    public var access: ClipboardAccess {
-        guard #available(macOS 15.4, *) else { return .allowed }
-        switch NSPasteboard.general.accessBehavior {
-        case .alwaysAllow: return .allowed
-        case .alwaysDeny: return .denied
-        case .default: return .notListed
-        case .ask: return .asks
-        @unknown default: return .asks
-        }
-    }
-
-    public var types: [String] { NSPasteboard.general.types?.map(\.rawValue) ?? [] }
-
-    public func text() -> String? {
-        let pasteboard = NSPasteboard.general
-        guard !(pasteboard.types ?? []).contains(where: { $0.rawValue == Self.remoteType }) else { return nil }
-        if let text = pasteboard.string(forType: .string) { return text }
-        // Rich text without its plain text alongside: its plain text.
-        if let rtf = pasteboard.data(forType: .rtf) { return NSAttributedString(rtf: rtf, documentAttributes: nil)?.string }
-        return nil
-    }
-
-    /// Universal Clipboard's marker: a copy made on an iPhone or another Mac, its data fetched from there when read (the
-    /// main thread would wait on the network): never read for the history, its text nor its image.
-    public static let remoteType = "com.apple.is-remote-clipboard"
-
-    public func image() -> ClipboardImage? {
-        let pasteboard = NSPasteboard.general
-        guard let types = pasteboard.types, let first = types.first, ClipboardImage.types.contains(first.rawValue),
-              !types.contains(where: { $0.rawValue == Self.remoteType }), let data = pasteboard.data(forType: first)
-        else { return nil }
-        return ClipboardImage.from(data)
-    }
-}
-
 /// The ids of images being made ready, read and changed from any thread.
 private final class PreparingIDs: @unchecked Sendable {
     private let lock = NSLock()
@@ -168,7 +89,8 @@ private struct MainThreadOnly<Value>: @unchecked Sendable {
 /// `ClipboardHistoryImage.maxBytes` isn't), else the text copied, as `ClipboardSource.text` reads it, unless
 /// reading it would ask the user (`access` not `.allowed`: nothing is read then, only the change count and the access,
 /// which never ask), it was copied during secure input (a password field had the keys when it changed, or at the look
-/// before), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
+/// before), it was copied in a password manager (`PasswordManagers`: its app frontmost when it changed, or at the look
+/// before: Keychain Access's Copy Password marks nothing), it is marked never to be kept (`neverRecorded`: password managers and clipboard tools mark theirs, as
 /// TerminalPaste marks its own writes), it is neither an image nor text (a file, a colour) or was copied on an iPhone or
 /// another Mac (Universal Clipboard: never read, `SystemClipboard.remoteType`), it is blank, or it is longer than
 /// `ClipboardHistoryItem.maxLength`; nor the clipboard TerminalPaste puts back after its paste (`putBack`). Used on one
@@ -178,6 +100,8 @@ public final class ClipboardRecorder {
     public enum Outcome: Equatable, Sendable {
         case unchanged, recorded
         case notAllowed, secureInput, marked, notText, blank, tooLong
+        /// Copied in a password manager (`PasswordManagers`): its app was the frontmost when it changed, or at the look before.
+        case passwordManager
         /// An image being made ready off the main thread (`imageWork`): recorded once it is.
         case imageQueued
         /// It couldn't be written (a full disk): nothing kept.
@@ -217,11 +141,15 @@ public final class ClipboardRecorder {
     /// The images being made ready, in the order copied, until each is added on the main thread.
     private var preparing: [PreparingImage] = []
     let secureInput: () -> Bool
+    /// The frontmost app's bundle id (nil: none known).
+    let frontmostApp: () -> String?
     let now: () -> Date
     /// The change count last looked at (nil: none yet: what's on the clipboard is recorded at the first look, at launch),
     /// and whether secure input was on then.
     private var seen: Int?
     private var wasSecure = false
+    /// Whether a password manager was the frontmost app at the last look.
+    private var wasInPasswordManager = false
     /// The access as told at the last change.
     public private(set) var access: ClipboardAccess
     /// The change count of the copy the store has as its newest (recorded, or the newest already); nil: none since launch.
@@ -230,10 +158,12 @@ public final class ClipboardRecorder {
     /// Whether what's on the clipboard now is the store's newest copy, unchanged since (the change count only: never asks).
     public var clipboardIsNewest: Bool { newestSeen != nil && newestSeen == source.changeCount }
 
-    public init(source: ClipboardSource, store: ClipboardHistoryStore, secureInput: @escaping () -> Bool, now: @escaping () -> Date = Date.init) {
+    public init(source: ClipboardSource, store: ClipboardHistoryStore, secureInput: @escaping () -> Bool,
+                frontmostApp: @escaping () -> String?, now: @escaping () -> Date = Date.init) {
         self.source = source
         self.store = store
         self.secureInput = secureInput
+        self.frontmostApp = frontmostApp
         self.now = now
         access = source.access
     }
@@ -247,7 +177,8 @@ public final class ClipboardRecorder {
     @discardableResult
     public func poll(limit: Int, quick: Bool = false) -> Outcome {
         let secure = secureInput()
-        defer { wasSecure = secure }
+        let inPasswordManager = PasswordManagers.contains(frontmostApp())
+        defer { (wasSecure, wasInPasswordManager) = (secure, inPasswordManager) }
         let count = source.changeCount
         guard count != seen else {
             if quick { waitForImages() }
@@ -257,6 +188,7 @@ public final class ClipboardRecorder {
         access = source.access
         guard access == .allowed else { return .notAllowed }
         guard !secure, !wasSecure else { return .secureInput }
+        guard !inPasswordManager, !wasInPasswordManager else { return .passwordManager }
         guard Set(source.types).isDisjoint(with: Self.neverRecorded) else { return .marked }
         if let image = source.image() {
             let (store, date, generation) = (store, now(), store.generation)
@@ -345,6 +277,9 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         url.deletingLastPathComponent().appendingPathComponent(url.deletingPathExtension().lastPathComponent + "-images", isDirectory: true)
     }
     public private(set) var items: [ClipboardHistoryItem]
+    /// The images a list's file moved aside has (`keptAside`): never deleted but by `clear` (read and changed on `writes`
+    /// only, after `init`).
+    private var keptAsideIDs: Set<String> = []
 
     private struct File: Codable {
         struct Item: Codable {
@@ -363,19 +298,70 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         var items: [Item]
     }
 
+    /// The list's file as read: each item on its own (nil: one that can't be read, skipped).
+    private struct ReadFile: Decodable {
+        struct Entry: Decodable {
+            var item: File.Item?
+            init(from decoder: Decoder) throws { item = try? File.Item(from: decoder) }
+        }
+
+        var items: [Entry]
+    }
+
     public init(url: URL = ClipboardHistoryStore.defaultURL) {
         self.url = url
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-        let file = (try? Data(contentsOf: url)).flatMap { try? decoder.decode(File.self, from: $0) }
         items = []
-        items = file?.items.compactMap { item in
+        items = read().compactMap { item in
             guard let image = item.image else { return ClipboardHistoryItem(text: item.text, copiedAt: item.copiedAt) }
             // An image whose file is gone (deleted by hand) is gone from the list too.
             guard FileManager.default.fileExists(atPath: imageURL(image.id).path) else { return nil }
             return ClipboardHistoryItem(image: kept(image.id, width: image.width, height: image.height, bytes: image.bytes),
                                         copiedAt: item.copiedAt)
-        } ?? []
+        }
+        keptAsideIDs = keptAside()
+    }
+
+    /// The items of the list's file it can read. Where one can't be (or the file can't be read at all), the file is first
+    /// moved aside as it was (`asideURLs`), never written over: the history is what it can read, and the images it kept
+    /// stay until Clear History (`keptAside`).
+    private func read() -> [File.Item] {
+        guard FileManager.default.fileExists(atPath: url.path) else { return [] }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .secondsSince1970
+        let file = (try? Data(contentsOf: url)).flatMap { try? decoder.decode(ReadFile.self, from: $0) }
+        if let file, file.items.allSatisfy({ $0.item != nil }) { return file.items.compactMap(\.item) }
+        let aside = url.deletingLastPathComponent()
+            .appendingPathComponent("\(Self.asidePrefix(url))\(Int(Date().timeIntervalSince1970 * 1000)).json")
+        do { try FileManager.default.moveItem(at: url, to: aside) } catch {
+            CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+                .error("clipboard history: could not move an unreadable file aside: \(String(describing: type(of: error)))")
+        }
+        CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+            .error("clipboard history: \(file.map { "\($0.items.filter { $0.item == nil }.count) items" } ?? "the file") unreadable, set aside")
+        return file?.items.compactMap(\.item) ?? []
+    }
+
+    /// The beginning of a list's file moved aside's name (clipboard-history-unreadable-<ms>.json for the user's).
+    private static func asidePrefix(_ url: URL) -> String { url.deletingPathExtension().lastPathComponent + "-unreadable-" }
+
+    /// The list's files moved aside, unreadable (`read`).
+    private var asideURLs: [URL] {
+        let folder = url.deletingLastPathComponent()
+        let names = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
+        return names.filter { $0.hasPrefix(Self.asidePrefix(url)) }.map { folder.appendingPathComponent($0) }
+    }
+
+    /// The images a list's file moved aside has (every image id in it, read as text), never deleted but by Clear History;
+    /// every image in the folder where one of them can't be read, or isn't JSON at all (cut short: it may have had any).
+    private func keptAside() -> Set<String> {
+        var ids: Set<String> = []
+        for file in asideURLs {
+            guard let data = try? Data(contentsOf: file), (try? JSONSerialization.jsonObject(with: data)) != nil else {
+                return Set(Self.ids(in: imagesURL))
+            }
+            ids.formUnion(String(decoding: data, as: UTF8.self).matches(of: /[0-9a-f]{64}/).map { String($0.output) })
+        }
+        return ids
     }
 
     /// `text` copied at `date`: first, once (the same text further down moves up), `limit` kept at most. False: it was
@@ -488,8 +474,8 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         generation += 1
         items = []
         writes.sync {
-            try? FileManager.default.removeItem(at: url)
-            try? FileManager.default.removeItem(at: imagesURL)
+            keptAsideIDs = []
+            for file in [url, imagesURL] + asideURLs { try? FileManager.default.removeItem(at: file) }
         }
     }
 
@@ -531,14 +517,21 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// Image files whose image isn't among `items`, nor being made ready, deleted.
     private func removeUnlisted(listing items: [ClipboardHistoryItem]) {
-        let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids)
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: imagesURL.path) else { return }
-        for name in files {
-            let id = name.replacingOccurrences(of: "-thumb.png", with: "").replacingOccurrences(of: ".png", with: "")
-            if !listed.contains(id) { try? FileManager.default.removeItem(at: imagesURL.appendingPathComponent(name)) }
+        let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids).union(keptAsideIDs)
+        for (name, id) in Self.files(in: imagesURL) where !listed.contains(id) {
+            try? FileManager.default.removeItem(at: imagesURL.appendingPathComponent(name))
         }
         if listed.isEmpty { try? FileManager.default.removeItem(at: imagesURL) }
     }
+
+    /// The files in an images folder, each with its image's id.
+    private static func files(in folder: URL) -> [(name: String, id: String)] {
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).map { name in
+            (name, name.replacingOccurrences(of: "-thumb.png", with: "").replacingOccurrences(of: ".png", with: ""))
+        }
+    }
+
+    private static func ids(in folder: URL) -> [String] { files(in: folder).map(\.id) }
 
     private func excludeFromBackup(_ url: URL) {
         var target = url

@@ -53,12 +53,14 @@ struct ClipboardHistoryRecordingTests {
         return folder
     }
 
-    /// A recorder over a fake pasteboard, keeping its file in `folder`; secure input as `secure` says.
-    static func recorder(in folder: URL, secure: @escaping () -> Bool = { false }) -> (ClipboardRecorder, FakePasteboard) {
+    /// A recorder over a fake pasteboard, keeping its file in `folder`; secure input as `secure` says, the frontmost app
+    /// as `frontmost` does.
+    static func recorder(in folder: URL, secure: @escaping () -> Bool = { false },
+                         frontmost: @escaping () -> String? = { "com.apple.TextEdit" }) -> (ClipboardRecorder, FakePasteboard) {
         let pasteboard = FakePasteboard()
         let store = ClipboardHistoryStore(url: folder.appendingPathComponent("clipboard-history.json"))
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
-        let recorder = ClipboardRecorder(source: pasteboard, store: store, secureInput: secure, now: {
+        let recorder = ClipboardRecorder(source: pasteboard, store: store, secureInput: secure, frontmostApp: frontmost, now: {
             clock += 1
             return clock
         })
@@ -138,6 +140,30 @@ struct ClipboardHistoryRecordingTests {
         pasteboard.copy("fine")
         #expect(recorder.poll(limit: 20) == .recorded)
         #expect(Self.texts(recorder) == ["fine"])
+    }
+
+    /// Copied in a password manager (Keychain Access's Copy Password, Bitwarden's, which mark nothing): not recorded, its
+    /// app frontmost when the copy is found or at the look before, as with secure input; a text nor an image.
+    @Test func notCopiedInAPasswordManager() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        var app: String? = "com.apple.Safari"
+        let (recorder, pasteboard) = Self.recorder(in: folder, frontmost: { app })
+        recorder.poll(limit: 20)
+        app = "com.apple.keychainaccess"
+        pasteboard.copy("hunter2")
+        #expect(recorder.poll(limit: 20) == .passwordManager)
+        app = "com.bitwarden.desktop"
+        pasteboard.copy(image: Self.png(4, 4))
+        #expect(recorder.poll(limit: 20) == .passwordManager, "an image too")
+        recorder.poll(limit: 20)
+        pasteboard.copy("hunter3")
+        app = "com.apple.Safari"
+        #expect(recorder.poll(limit: 20) == .passwordManager, "a password manager frontmost at the look before the change")
+        pasteboard.copy("fine")
+        #expect(recorder.poll(limit: 20) == .recorded)
+        #expect(Self.texts(recorder) == ["fine"])
+        #expect(!(try String(contentsOf: recorder.store.url, encoding: .utf8)).contains("hunter"))
     }
 
     /// What password managers and clipboard tools mark (concealed, transient, auto-generated), TerminalPaste's own writes
@@ -265,6 +291,66 @@ struct ClipboardHistoryRecordingTests {
         #expect(store.items.isEmpty)
         store.record("new", at: Date(), limit: 20)
         #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["new"])
+    }
+
+    /// One item the store can't read (a damaged file, one written by a later version) is skipped, the rest kept; the next
+    /// copy deletes no kept image, nor one only the skipped item had; the file as it was is kept aside.
+    @Test func anItemThatCantBeReadIsSkippedAndTheRestKept() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("clipboard-history.json")
+        let first = ClipboardHistoryStore(url: url)
+        let date = Date(timeIntervalSince1970: 1_800_000_000)
+        first.recordImage(Self.png(10, 10, shade: 0.2), at: date, limit: 20)
+        first.record("a text", at: date + 1, limit: 20)
+        first.recordImage(Self.png(10, 10, shade: 0.8), at: date + 2, limit: 20)
+        first.recordImage(Self.png(10, 10, shade: 0.5), at: date + 3, limit: 20)
+        let ids = first.items.compactMap { $0.image?.id }
+        #expect(ids.count == 3)
+        // The newest image's item damaged (its size gone), and an item that is no item at all.
+        var json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        var items = try #require(json["items"] as? [[String: Any]])
+        var damaged = try #require(items[0]["image"] as? [String: Any])
+        damaged["width"] = nil
+        items[0]["image"] = damaged
+        items.insert(["text": 5], at: 2)
+        json["items"] = items
+        let written = try JSONSerialization.data(withJSONObject: json)
+        try written.write(to: url)
+        let store = ClipboardHistoryStore(url: url)
+        #expect(store.items.map(\.text) == ["", "a text", ""], "the items it can read")
+        #expect(store.items.compactMap { $0.image?.id } == [ids[1], ids[2]])
+        store.record("new", at: date + 4, limit: 20)
+        #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["new", "", "a text", ""])
+        for id in ids {
+            #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path), "\(id)")
+        }
+        let aside = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("clipboard-history-unreadable-") }
+        #expect(aside.count == 1, "\(aside)")
+        #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == written, "kept aside as it was")
+        // Kept on the next launch too, and Clear History deletes it all.
+        ClipboardHistoryStore(url: url).record("newer", at: date + 5, limit: 20)
+        #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(ids[0]).png").path))
+        store.clear()
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
+    }
+
+    /// A file that can't be read at all: kept aside, and the next copy deletes none of the images.
+    @Test func anUnreadableFileDeletesNoImage() throws {
+        let folder = try Self.folder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let url = folder.appendingPathComponent("clipboard-history.json")
+        let first = ClipboardHistoryStore(url: url)
+        first.recordImage(Self.png(10, 10), at: Date(), limit: 20)
+        let id = try #require(first.items.first?.image?.id)
+        let damaged = Data(try Data(contentsOf: url).prefix(30))
+        try damaged.write(to: url)
+        let store = ClipboardHistoryStore(url: url)
+        #expect(store.items.isEmpty)
+        store.record("new", at: Date(), limit: 20)
+        #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path))
+        let aside = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("clipboard-history-unreadable-") }
+        #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == damaged)
     }
 
     // MARK: - Images (0.6.8.2)
