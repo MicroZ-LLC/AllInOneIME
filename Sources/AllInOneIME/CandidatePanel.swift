@@ -985,7 +985,8 @@ final class CandidateView: NSView {
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
         var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
             : max(compact ? 0 : Metrics.minWidth, inset + widest + Metrics.rowInsetX + p)
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil {
+        // A detail alone (key hints off: `PanelModel.withoutKeyHints`) has its footer too.
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil {
             let footer = footerWidth()
             width = max(width, ceil(footer) + 2 * (p + Metrics.rowInsetX))
             footerY = y + Metrics.footerGap
@@ -1449,7 +1450,7 @@ final class CandidateView: NSView {
         }
         if let candidatesFrame { drawPills(in: candidatesFrame, dark: dark) }
 
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil { drawFooter(dark: dark) }
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil { drawFooter(dark: dark) }
 
         // Its edge: a hairline, over the glass's own.
         (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.1)).setStroke()

@@ -28,11 +28,17 @@ extension Composer {
     /// candidate. Read before a dead key would wait (⌥ and a digit is one on some layouts). Nil: no numbered choices
     /// shown, or not such a key: it acts as usual (⌥ and a digit types its character).
     func handleNumberedPick(_ event: KeyEvent) -> Response? {
-        guard event.modifiers.subtracting([.capsLock]).subtracting(Modifiers.sides) == Modifiers.kind(modifierRoles.pick),
-              let digit = event.placeDigit else { return nil }
+        guard placesPick(event), let digit = event.placeDigit else { return nil }
         if isQuestionChat, phase == .choosing, showsHandoff { return .consumed(digit >= 1 ? handOff(digit: digit) : []) }
         guard oneAt != nil else { return nil }
         guard digit >= 1, digit <= oneAtVisible.count else { return .consumed() }
         return .consumed(choose(index: digit - 1))
+    }
+
+    /// Whether `event` is ⌥ (Alt) and a digit by its key, nothing else held but Caps Lock: a numbered pick's key. While
+    /// the selection after the magic key is read it is taken as a click on its row is, parked for the read
+    /// (`whileSelectionIsRead`), never settling it as nothing selected.
+    func placesPick(_ event: KeyEvent) -> Bool {
+        event.placeDigit != nil && event.modifiers.subtracting([.capsLock]).subtracting(Modifiers.sides) == Modifiers.kind(modifierRoles.pick)
     }
 }
