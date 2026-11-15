@@ -1247,14 +1247,18 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 
 发布新版本（应用内更新读 https://allinoneime.com/update-v2.json，用发布专用的密钥签名）：
 
-1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致）和更新日志。
+1. 改版本号（`AppVersion.swift` 和三个 Info.plist，`AppVersionTests` 会检查它们一致），再写更新日志：
+   `mkdir -p build && python3 Scripts/changelog.py release <版本> <YYYY-MM-DD> > build/release-notes.md`
+   把两份更新日志里未发布的那一节标上日期，并把 `changes/` 里的片段加进去（每个改动写一个，见 AGENTS.md 第 15 条），
+   用 `git rm` 删掉这些片段，再把第 3 步要用的发布说明存下来（`python3 Scripts/changelog.py preview` 可以事先看，什么都不改）。
 2. `make dmg NOTARY_PROFILE=<profile>`：生成 `build/AllInOneIME-<版本>.dmg` 和 `.sha256`，以及 `build/AllInOneIME-<版本>-update.zip`（两个 App，和安装程序里的一样）。
    App 和磁盘映像用钥匙串里的 Developer ID Application 证书签名，磁盘映像再用这个 `xcrun notarytool` 钥匙串配置公证并装订（staple）。
    输入法带着 Developer ID 描述文件（`Resources/Signing/AllInOneIME-DeveloperID.provisionprofile`，`DIST_PROFILE`），钥匙串权限来自它；
    描述文件没列出签名用的证书、不是所有设备都能用、或剩下不到 30 天时，构建会停下（`Scripts/profile-entitlements.sh`），签名里没有钥匙串权限也会停下，
    签好后还会运行一次输入法（描述文件不对的话 macOS 会直接杀掉它）。`DIST_PROFILE` 为空也会停下：没有这些权限的版本，会看不到所有已经移进 iCloud 钥匙串的密钥。描述文件只列了团队的三张 Developer ID Application 证书（都是 G1）：换用别的证书（G2 的）签名前，先在开发者网站上手动做一个列出它的
    新描述文件（这个 App ID 的签名不要再交给 Xcode 自动管理），提交进来。
-3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布。
+3. 把两个文件传到 GitHub 的 `v<版本>` release 并发布，发布说明用 `build/release-notes.md`，在每种语言前面加一段摘要
+   （`**New:** …`、`**新功能：** …`），最后加上磁盘映像的 SHA-256 那一行，和以前的版本一样。
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"`（各一两句）：写出 `site/public/update-v2.json`
    （版本、build 号和最低 macOS 从 App 里读，下载地址、大小、SHA-256、更新说明的地址和摘要），再用登录钥匙串里的密钥
    （`allinoneime-releases-signing`，macOS 可能会问是否允许）签名成 `update-v2.json.sig`。两个文件都提交。0.7.1 及以后读
