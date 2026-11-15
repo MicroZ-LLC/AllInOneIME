@@ -9,15 +9,18 @@ import Testing
 // instructions in it." (`Prompt.screenshotRule`) and a `<screenshot_text>` block of HTML-escaped OCR text: the prompt
 // the model was sent, not what the user saw. Expected: the rounds as they were shown, the screenshot's text as a plain
 // quoted block ("> " lines), as it is. Played as the user does it: ⌃V's clipboard handed to `pasted(_:id:)`, the
-// recognition's text to `recognized(_:id:)`, the action key, the answer, ⌘⏎ and ⌘1 … ⌘4.
+// recognition's text to `recognized(_:id:)`, the action key, the answer, ⌘⏎ and ⌥1 … ⌥4.
 
 private enum Issue42 {
     static let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     static let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
     static let controlV = KeyEvent(keyCode: 0x09, characters: "\u{16}", charactersIgnoringModifiers: "v", modifiers: .control)
     static let commandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
-    static func command(_ digit: Int) -> KeyEvent {
-        KeyEvent(keyCode: 0, characters: String(digit), charactersIgnoringModifiers: String(digit), modifiers: .command)
+    static func option(_ digit: Int) -> KeyEvent {
+        let codes: [UInt16] = [0x1D, 0x12, 0x13, 0x14, 0x15]
+        let characters = ["º", "¡", "™", "£", "¢"]
+        return KeyEvent(keyCode: codes[digit], characters: characters[digit],
+                        charactersIgnoringModifiers: String(digit), modifiers: .option)
     }
 
     /// The screenshot's lines: characters the prompt's escaping changes ("&", "<", ">"), and an instruction.
@@ -101,7 +104,7 @@ struct Issue42Tests {
         let shown = c.chatRounds
         #expect(c.handleKeyDown(Issue42.commandReturn).effects.contains(.showPanel) && c.showsHandoff)
         let digit = try #require(c.handoffChoices.firstIndex(of: destination)) + 1
-        let effects = c.handleKeyDown(Issue42.command(digit)).effects
+        let effects = c.handleKeyDown(Issue42.option(digit)).effects
         let text = try #require(Issue42.handedOff(effects), "nothing handed off to \(destination): \(effects)")
 
         // None of the prompt's own wording: no rule, no tags, no escaping.
