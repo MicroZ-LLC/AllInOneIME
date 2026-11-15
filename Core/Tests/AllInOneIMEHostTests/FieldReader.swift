@@ -7,10 +7,6 @@ import AllInOneIMECore
 /// caret (Chromium's 100 UTF-16 units) is read near it.
 struct FieldReader {
     let field: HostField
-    /// What the shell keeps of the app's marked text (whether the app took it on its own: Slack's mention).
-    let markedWatch: MarkedTextWatch
-    /// The session's marked text, as the shell last set it.
-    let expectedMarked: String
 
     /// How far around the caret a host that reads only near it does (`HostProfile.substringReach`): a shell that got
     /// nothing reading further tries this near.
@@ -39,9 +35,6 @@ struct FieldReader {
         if parts.contains(.passwordField) {
             context.field?.secure = false
             context.passwordFieldUnknown = !field.profile.tellsPasswordField
-        }
-        if parts.contains(.markedText) {
-            context.markedTextTaken = markedWatch.appTookText(expected: expectedMarked, reportedLength: field.markedRange()?.count)
         }
         if parts.contains(.selectedRange) { context.selectedRange = field.selectedRange() }
         if parts.contains(.selection) { context.selection = selection() }

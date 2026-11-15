@@ -1,10 +1,11 @@
 import Foundation
 import AllInOneIMECore
 
-/// A shell for an `InputSession`, for the core's tests and a shell's: a text field it types into (the document, the marked
-/// text, a selection), what the session's outputs did there and on the screen, its work's answers handed back on the
-/// test's thread (`settle`), its timers fired when the test says (`fireTimers`). Everything the field says goes with each
-/// key (`FieldContext.Parts.all`), as a shell where reading the field is cheap gives it.
+/// A shell for an `InputSession`, for the core's tests and a shell's: a text field it types into (the document, a
+/// selection; nothing is ever marked in it: what is being typed shows in the panel's input line, `preedit`), what the
+/// session's outputs did there and on the screen, its work's answers handed back on the test's thread (`settle`), its
+/// timers fired when the test says (`fireTimers`). Everything the field says goes with each key
+/// (`FieldContext.Parts.all`), as a shell where reading the field is cheap gives it.
 public final class FakeHost: @unchecked Sendable {
     public private(set) var session: InputSession!
 
@@ -15,13 +16,15 @@ public final class FakeHost: @unchecked Sendable {
     public var terminal = false
     /// Secure input is on in the field's app: keys go straight in.
     public var secure = false
-    /// The field's text, without the marked text; the caret is at the end, or where the selection was.
+    /// The field's text; the caret is at the end, or where the selection was.
     public var document = ""
+    /// The field's marked text: the app's own (a test's), never the session's, which marks nothing there
+    /// (`InputSession+Preedit.swift`).
     public var marked = ""
+    /// What is being typed, as the panel's input line shows it (its prompt, then its text); empty: none.
+    public var preedit: String { panel?.input.map { $0.prompt + $0.text } ?? "" }
     /// The selected part of `document` (UTF-16).
     public var selection: Range<Int>?
-    /// The app took the marked text on its own (`FieldContext.markedTextTaken`), once.
-    public var appTakesMarkedText = false
     /// What ⌘V or ⌃V finds on the clipboard (clipboard history's read of it with ⌃V too).
     public var clipboard = ClipboardContent.none
     /// Clipboard history as a shell keeps it (`ClipboardHistoryServices`), asked by the session once `keepClipboardHistory()`
@@ -184,7 +187,7 @@ public final class FakeHost: @unchecked Sendable {
         let before: FieldContext.BeforeCaret = selection != nil || caret == 0
             ? .nothing : .text(text.substring(with: NSRange(location: caret - 1, length: 1)))
         let end = selection?.upperBound ?? caret
-        return FieldContext(read: .all, secure: secure, markedTextTaken: appTakesMarkedText,
+        return FieldContext(read: .all, secure: secure,
                             selectedRange: selection ?? caret..<caret,
                             selection: selected.map { Composer.Selection(text: $0, range: selection) },
                             beforeCaret: before,
@@ -202,7 +205,6 @@ public final class FakeHost: @unchecked Sendable {
             if missing.isEmpty { return told }
             told.read.formUnion(missing)
             if missing.contains(.secure) { told.secure = full.secure }
-            if missing.contains(.markedText) { told.markedTextTaken = full.markedTextTaken }
             if missing.contains(.selectedRange) { told.selectedRange = full.selectedRange }
             if missing.contains(.selection) { told.selection = full.selection }
             if missing.contains(.beforeCaret) { told.beforeCaret = full.beforeCaret }
@@ -233,7 +235,6 @@ public final class FakeHost: @unchecked Sendable {
     @discardableResult
     public func press(_ key: KeyEvent, with context: FieldContext) -> Bool {
         let response = session.handle(.key(key, context))
-        appTakesMarkedText = false
         apply(response.outputs)
         if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
         let after = afterKey
@@ -356,8 +357,6 @@ public final class FakeHost: @unchecked Sendable {
                     insert(text, replacing: range ?? selection)
                 }
                 check = nil
-            case let .marked(text, _, _):
-                if acceptsText { marked = text }
             case let .typeOut(text):
                 typedOut.append(text)
                 insert(text, replacing: nil)
@@ -426,7 +425,7 @@ public final class FakeHost: @unchecked Sendable {
         return text.substring(with: NSRange(location: range.lowerBound, length: range.count))
     }
 
-    /// `text` in place of the marked text, or of `range` (UTF-16).
+    /// `text` at the caret, or in place of `range` (UTF-16).
     /// A range past the document's end (a field that told it stale) is cut to the document, as an app's text view does.
     private func insert(_ text: String, replacing range: Range<Int>?) {
         let current = document as NSString
@@ -439,7 +438,6 @@ public final class FakeHost: @unchecked Sendable {
         }
         document = current.replacingCharacters(in: NSRange(location: start, length: end - start), with: text)
         selection = nil
-        marked = ""
         if caretOffset != nil { caretOffset = start + (text as NSString).length }
         inserted?(Insertion(text: text, replaced: replaced, dropped: false))
     }

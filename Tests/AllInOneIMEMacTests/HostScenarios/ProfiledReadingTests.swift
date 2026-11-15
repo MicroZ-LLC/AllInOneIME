@@ -49,10 +49,9 @@ struct ProfiledReadingTests {
     @Test(arguments: HostProfile.allCases)
     func whatAKeyReads(_ profile: HostProfile) throws {
         let client = try field(profile, "Hi [Bob]")
-        let context = reading(client).context(in: client) { _ in [.selectedRange, .beforeCaret, .selection, .markedText] }
+        let context = reading(client).context(in: client) { _ in [.selectedRange, .beforeCaret, .selection] }
         #expect(context.field == FieldInfo(app: profile.app))
-        #expect(context.read == [.selectedRange, .beforeCaret, .selection, .markedText])
-        #expect(!context.markedTextTaken)
+        #expect(context.read == [.selectedRange, .beforeCaret, .selection])
         if profile == .tellsnothing {
             #expect(context.selectedRange == nil && context.selection == nil && context.beforeCaret == .unknown)
         } else {
@@ -141,7 +140,7 @@ struct ProfiledReadingTests {
             // The page's corner isn't trusted; nothing better known: as told, and asked again.
             #expect(placed.placement.source == .told && placed.placement.reasks && asked == 1)
             let reasked = FieldAnchor.reasked(in: client, selection: nil, memory: &memory, screens: screens)
-            let marked = try #require(FieldAnchor.markedAnchor(client))
+            let marked = try #require(FieldAnchor.caretAnchor(client))
             #expect(reasked.rect == marked && PanelAnchor.trusted(marked, screens: screens, window: ProfiledTextClient.window))
         }
     }

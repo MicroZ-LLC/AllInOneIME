@@ -2,11 +2,11 @@ import AppKit
 import InputMethodKit
 
 /// Where a panel of ours goes in a field (`PanelAnchor`), from what the field tells through IMK: the rect for its
-/// marked text's line, the selection's last character for a command on it, its marked text's own rect. What only the
+/// caret's line, the selection's last character for a command on it, the caret's own rect. What only the
 /// input method's process can tell (Accessibility, the pointer, the screens) comes from it; the log and asking the field
 /// again later (`PanelAnchor.reaskDelays`) are its too.
 public enum FieldAnchor {
-    /// Where `place` put the panel, and the rect it went by: the one the field tells (its marked text's own where the
+    /// Where `place` put the panel, and the rect it went by: the one the field tells (the caret's own where the
     /// line's isn't one to trust and that is).
     public struct Placed: Equatable, Sendable {
         public var told: CGRect
@@ -29,13 +29,13 @@ public enum FieldAnchor {
                              lastByApp: inout [String: CGRect], screens: [CGRect], pointer: () -> CGPoint,
                              accessibility: (_ page: Bool) -> PanelAnchor.Accessibility?) -> Placed {
         var told = Self.told(client, selection: selection)
-        // The left edges distrust a rect only where the field tells nothing of its marked text (`PanelAnchor.trusted`).
-        let marked = markedAnchor(client)
-        let edges = marked == nil
+        // The left edges distrust a rect only where the field tells nothing of its caret (`PanelAnchor.trusted`).
+        let caret = caretAnchor(client)
+        let edges = caret == nil
         if !PanelAnchor.trusted(told, screens: screens, window: memory.window, page: memory.page, edges: edges),
-           let marked,
-           PanelAnchor.trusted(marked, screens: screens, window: memory.window, page: memory.page, edges: false) {
-            told = marked  // the line's rect not one to trust, the marked text's own is
+           let caret,
+           PanelAnchor.trusted(caret, screens: screens, window: memory.window, page: memory.page, edges: false) {
+            told = caret  // the line's rect not one to trust, the caret's own is
         }
         // Read before `place`, which has `memory` borrowed while it asks Accessibility (reading it in there crashed).
         let needsPage = memory.page == nil
@@ -52,18 +52,18 @@ public enum FieldAnchor {
     }
 
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the rect the
-    /// panel moves to (nil: it stays), and the rect it went by. The marked text's rect, which the field is really asked
+    /// panel moves to (nil: it stays), and the rect it went by. The caret's rect, which the field is really asked
     /// for each time: InputMethodKit keeps the first `attributes(forCharacterIndex: 0, …)` answer for the whole
     /// composition (caretresearch, 0.6.7), so asking that again would only ever get the page's corner back.
     @MainActor
     public static func reasked(in client: IMKTextInput, selection: Range<Int>?, memory: inout PanelAnchor.Memory,
                                screens: [CGRect]) -> (rect: CGRect?, told: CGRect) {
-        let marked = markedAnchor(client)
-        let told = marked ?? Self.told(client, selection: selection)
-        return (memory.reasked(told, screens: screens, edges: marked == nil), told)
+        let caret = caretAnchor(client)
+        let told = caret ?? Self.told(client, selection: selection)
+        return (memory.reasked(told, screens: screens, edges: caret == nil), told)
     }
 
-    /// The rect `client` tells for a panel: its marked text's line; for a command on the selection (`selection`), the
+    /// The rect `client` tells for a panel: the caret's line; for a command on the selection (`selection`), the
     /// selection's last character (nothing is marked to go by).
     @MainActor
     public static func told(_ client: IMKTextInput, selection: Range<Int>?) -> CGRect {
@@ -76,22 +76,25 @@ public enum FieldAnchor {
         return lineRect
     }
 
-    /// Where the panel goes by the marked text's own rect (`markedRect`): a line under it, as the line's rect
+    /// Where the panel goes by the caret's own rect (`caretRect`): a line under it, as the line's rect
     /// (`attributes(forCharacterIndex:lineHeightRectangle:)`) is placed, the owner's log showing it one character's height
     /// under the character's rect. Asked of the field every time (`firstRect` isn't kept by InputMethodKit).
     @MainActor
-    public static func markedAnchor(_ client: IMKTextInput) -> CGRect? {
-        guard let marked = markedRect(client), marked.height > 1 else { return nil }
-        return CGRect(x: marked.minX, y: marked.minY - marked.height, width: 1, height: marked.height)
+    public static func caretAnchor(_ client: IMKTextInput) -> CGRect? {
+        guard let caret = caretRect(client), caret.height > 1 else { return nil }
+        return CGRect(x: caret.minX, y: caret.minY - caret.height, width: 1, height: caret.height)
     }
 
-    /// The rect `client` tells for its marked text's first character: where its line's rect isn't one to trust, the field
-    /// may still tell this one right (and the log says it, to see what else Chromium tells).
+    /// The rect `client` tells for the caret (`firstRect` of the empty range there): where its line's rect isn't one to
+    /// trust, the field may still tell this one right (and the log says it, to see what else Chromium tells). Nothing is
+    /// marked in the field (`InputSession+Preedit.swift`), so the caret is what the panel goes by; a row marked during its
+    /// key (`markRow`) is at the caret too.
     @MainActor
-    public static func markedRect(_ client: IMKTextInput) -> CGRect? {
+    public static func caretRect(_ client: IMKTextInput) -> CGRect? {
         let marked = client.markedRange()
-        guard marked.location != NSNotFound, marked.length > 0 else { return nil }
-        let rect = client.firstRect(forCharacterRange: NSRange(location: marked.location, length: 1), actualRange: nil)
+        let caret = marked.location != NSNotFound && marked.length > 0 ? NSMaxRange(marked) : client.selectedRange().location
+        guard caret != NSNotFound else { return nil }
+        let rect = client.firstRect(forCharacterRange: NSRange(location: caret, length: 0), actualRange: nil)
         return rect == .zero ? nil : rect
     }
 

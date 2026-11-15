@@ -111,10 +111,9 @@ struct HostRunTests {
     }
 
     @Test func callsAreCountedPerKey() throws {
-        let (run, failures) = try run("LANG chinese\nTYPE ni\nEXPECT calls markedRange<=1", on: .nstextview)
-        // The first letter: the marked text watched once it was set; the second: read before (whether the app took it)
-        // as well.
-        #expect(failures.count == 1 && failures.first?.message.contains("markedRange") == true, "\(failures)")
+        let (run, failures) = try run("LANG chinese\nTYPE ni\nEXPECT calls markedRange==1", on: .nstextview)
+        // Nothing is marked in the field any more: no key asks for the marked range at all.
+        #expect(failures.count == 2 && failures.allSatisfy { $0.message.contains("made 0 markedRange calls") }, "\(failures)")
         #expect(run.keyCalls.isEmpty, "the budget checked and the count started again")
     }
 

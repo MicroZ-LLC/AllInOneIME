@@ -25,7 +25,6 @@ final class HostRun {
     var keyEchoes = KeyEchoes()
     var modifierEchoes = ModifierEchoes()
     var capsLockCopies = CapsLockCopies()
-    var markedWatch = MarkedTextWatch()
     var ledger = CommitLedger()
     /// The marked text in the field is the session's (else the app's own, set by `TEXT`).
     var markedBySession = false
@@ -78,7 +77,7 @@ final class HostRun {
     }
 
     /// The shell's reading of the field now.
-    var reader: FieldReader { FieldReader(field: field, markedWatch: markedWatch, expectedMarked: host.composer.markedText) }
+    var reader: FieldReader { FieldReader(field: field) }
 
     /// Runs the scenario's steps for this profile; what failed.
     func run() -> [HostFailure] {
@@ -295,9 +294,6 @@ final class HostRun {
             switch output {
             case let .startTimer(id, seconds):
                 agenda.add(.timer(id), at: now + seconds)
-            case let .marked(text, _, _) where host.acceptsText:
-                markedBySession = !text.isEmpty
-                markedWatch.didSet(expected: text, reportedLength: field.markedRange()?.count)
             case .platform(.setCapsLock(false)) where lockOn:
                 agenda.add(.lockOff, at: now + 0.01)
             default:

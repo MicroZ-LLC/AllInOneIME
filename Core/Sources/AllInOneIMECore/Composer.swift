@@ -59,9 +59,10 @@ public final class Composer {
     }
 
     public enum Effect: Equatable, Sendable {
-        /// Re-render the inline marked text from `markedText` / `markedCursor`.
+        /// What is being typed (`markedText` / `markedCursor`) changed: the panel's input line shows it again. It is never
+        /// marked in the field (`InputSession+Preedit.swift`).
         case updateMarkedText
-        /// Insert text into the document, replacing the marked text.
+        /// Insert text into the document.
         case commit(String)
         /// Insert text once the key being answered is done (`appTakesKeysAfterInsert`): a terminal would send what is
         /// inserted during the key in the key's place.
@@ -69,7 +70,7 @@ public final class Composer {
         /// Insert text in place of the text selected when the draft started (`selection`), which is still selected: by
         /// its range where the field told it, else in place of what is selected.
         case replaceSelection(String, Selection)
-        /// Type a result into the document character by character (`typesResults`); the marked text is gone.
+        /// Type a result into the document character by character (`typesResults`).
         case typeOut(String)
         case startConversion(input: String, id: Int)
         /// Run a `.generate` command (`@question`, `@agent`) on `input`; results arrive via `receive`.
@@ -685,7 +686,7 @@ public final class Composer {
     /// nor a draft with text the user didn't type in it (`draftHasOutsideText`). Set by the session; a composer on its
     /// own tells no one.
     public var typedIntoField: (String) -> Void = { _ in }
-    /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
+    /// Whether Code holds the word being typed here, in the panel (`codeWord`, decision 33): where Code's rows may show
     /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
     /// and Code's letters go straight in.
     public var holdsCodeWord: () -> Bool = { false }
@@ -766,7 +767,7 @@ public final class Composer {
     }
     /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
     /// autocomplete and no Translate as You Type; the session offers the Code pack's rows, and where they may show the word
-    /// being typed is held as marked text (`codeWord`).
+    /// being typed is held in the panel (`codeWord`).
     public private(set) var coding = false
     /// Holding the right Option key records speech. Off, as voice input is for now (`Features.voiceInput`), unless
     /// made so directly.
@@ -1670,7 +1671,7 @@ public final class Composer {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
-        // Code's word being typed, held as marked text (Composer+CodeWord.swift).
+        // Code's word being typed, held in the panel (Composer+CodeWord.swift).
         if let response = handleCodeWordKey(event) { return response }
         // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
         // also insert the result, or send the message it shows to confirm.
@@ -3775,8 +3776,8 @@ public final class Composer {
         return (filled.plan, filled.used, codeLeft)
     }
 
-    /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over
-    /// with nothing pending, without inserting anything or sending a request.
+    /// The app ended what is being typed with nothing to go in (IMK's `cancelComposition`, a key the client gave up on,
+    /// the session closed): start over with nothing pending, without inserting anything or sending a request.
     public func appTookMarkedText() -> [Effect] {
         let wasRequesting = isLevelTwo
         let recording = voice.id

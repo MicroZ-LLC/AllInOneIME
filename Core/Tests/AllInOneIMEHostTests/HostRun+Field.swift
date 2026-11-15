@@ -183,7 +183,6 @@ extension HostRun {
     func focusAgain() {
         let start = host.outputs.count
         host.acceptsText = true
-        markedWatch.reset()
         focused = true
         field.beginTurn()
         host.focus()

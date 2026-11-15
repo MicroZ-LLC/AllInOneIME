@@ -17,8 +17,8 @@ import InputMethodKit
 /// `commitComposition` on a click outside the marked text (NSTextView, a terminal, WeChat; Chromium finishes the
 /// composition itself first, then tells it), and when an AppKit field is emptied (a Chromium page tells it nothing),
 /// `deactivateServer` when the field or the window loses the focus or the input source changes, `activateServer` when it
-/// comes back; with the mouse tap on (`tapAllowed`), each click before any of that. A key the input method leaves the
-/// app is typed by the app.
+/// comes back; each click first of all as `SessionEvent.pointerDown` (the controller's global mouse-down monitor, which
+/// needs no Accessibility: contract v1.4). A key the input method leaves the app is typed by the app.
 @MainActor
 final class HostReplayer {
     let scenario: HostCase
@@ -34,8 +34,6 @@ final class HostReplayer {
     private var keyEchoes = KeyEchoes()
     private var modifierEchoes = ModifierEchoes()
     private var capsLockCopies = CapsLockCopies()
-    private var markedWatch = MarkedTextWatch()
-    private var hasMarkedText = false
     private var anchorMemory = PanelAnchor.Memory()
     private var lastAnchorByApp: [String: CGRect] = [:]
     private var fieldSession = 0
@@ -48,9 +46,6 @@ final class HostReplayer {
     /// AllInOneIME is the input source (`SWITCH abc`: ABC is, and the keys go to the app as they are).
     private var active = true
     private var capsLockOn = false
-    /// The input method's mouse tap is on (`MouseDownTap`): it is told of each mouse down before any app has it.
-    /// Off by default: macOS makes it only with Accessibility allowed, which a real-Mac run couldn't check (#116).
-    var tapAllowed = false
 
     // What was seen.
     private(set) var panel: PanelModel?
@@ -79,6 +74,9 @@ final class HostReplayer {
         self.clock = clock
         // Chinese and English both (the default has English alone), the scenario's first: a tap of Shift goes between them.
         var config = Config.default
+        for (key, value) in scenario.settings {
+            config = (try? HostScenarioSettings.applying(key, value, to: config)) ?? config  // the core's parser refuses a wrong one
+        }
         config.uiLanguage = "en"
         config.setOrder(scenario.language == .chinese ? [Language.chinese, .english] : [Language.english, .chinese])
         let settings = config
@@ -96,8 +94,7 @@ final class HostReplayer {
     /// answered as nothing here does: no secure input, no password field, no Accessibility, no terminal.
     var reading: FieldReading {
         FieldReading(isTerminal: { _ in false }, secureInputActive: { false }, blocksComposing: { _ in false },
-                     passwordField: { false }, selectionMayBeUntold: nil, chromiumApp: { [profile] _ in profile.isChromium },
-                     markedWatch: markedWatch, markedText: { [session] in session.composer.markedText })
+                     passwordField: { false }, selectionMayBeUntold: nil, chromiumApp: { [profile] _ in profile.isChromium })
     }
 
     // MARK: Running
@@ -349,11 +346,10 @@ final class HostReplayer {
         }
     }
 
-    /// A mouse down, told to the input method by its tap before the host acts on it (`CompositionLeave`).
+    /// A mouse down outside the input method's windows, told by its global monitor (`watchPointerDowns`).
     private func mouseDown() {
-        guard tapAllowed, CompositionLeave.mouseDownEnds(at: .zero, marked: hasMarkedText, ownWindows: []) else { return }
-        note("the mouse down reaches the input method first")
-        apply(session.handle(.commit).outputs)
+        guard active else { return }
+        apply(session.handle(.pointerDown).outputs)
         settle()
     }
 
@@ -367,8 +363,6 @@ final class HostReplayer {
 
     /// `activateServer`: a field of its own (marked text, field session), the session told.
     private func activate() {
-        markedWatch.reset()
-        hasMarkedText = false
         fieldSession += 1
         apply(session.handle(.focus(FieldInfo(app: client.bundleIdentifier(), terminal: false))).outputs)
         apply(session.tellBuiltinRenames())
@@ -494,8 +488,6 @@ extension HostReplayer {
                     insert(text, replacing: range.map { NSRange(location: $0.lowerBound, length: $0.count) })
                 }
                 check = nil
-            case let .marked(text, cursor, _):
-                setMarkedText(text, cursor: cursor)
             case let .typeOut(text):
                 typeOut(text)
             case let .panel(model):
@@ -530,23 +522,9 @@ extension HostReplayer {
             for character in text { expectedCounts[character, default: 0] += 1 }
         }
         client.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
-        hasMarkedText = false
         note("committed \(text.debugDescription)")
     }
 
-    /// The controller's `setMarkedText`.
-    private func setMarkedText(_ text: String, cursor: Int) {
-        guard !text.isEmpty else {
-            guard hasMarkedText || (FieldReading.markedLength(client) ?? 0) > 0 else { return }
-            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
-            hasMarkedText = false
-            return
-        }
-        client.setMarkedText(NSAttributedString(string: text), selectionRange: NSRange(location: cursor, length: 0),
-                             replacementRange: NSRange(location: NSNotFound, length: NSNotFound))
-        hasMarkedText = true
-        markedWatch.didSet(expected: text, reportedLength: FieldReading.markedLength(client))
-    }
 
     /// The controller's `showPanel` and `anchor`: shown under the rect the field tells (`FieldAnchor.place`), its window
     /// learned once, no Accessibility; asked again on the next turn where that wasn't one to trust.
@@ -623,6 +601,13 @@ extension HostReplayer {
         case let .marked(expected):
             if client.markedText != expected {
                 fail("marked is \(client.markedText?.debugDescription ?? "none"), expected \(expected?.debugDescription ?? "none")")
+            }
+        case let .preedit(expected, caret):
+            let input = panel?.input
+            let line = input.map { $0.prompt + $0.text }.flatMap { $0.isEmpty ? nil : $0 }
+            if line != expected { fail("preedit is \(line?.debugDescription ?? "none"), expected \(expected?.debugDescription ?? "none")") }
+            if let caret, let input, input.caret.map({ input.prompt.count + $0 }) != caret {
+                fail("the preedit's caret is at \(input.caret.map { String(input.prompt.count + $0) } ?? "none"), expected \(caret)")
             }
         case let .panel(shown):
             checkPanel(shown: shown, fail: fail)
