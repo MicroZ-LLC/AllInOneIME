@@ -16,6 +16,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- The candidate box, when it stops showing, is now put back on every desktop (Space), not only ordered in again; its log line says whether it was on the current desktop, for GitHub #61, which we couldn't reproduce.
+
 - With Caps Lock as the switch key, a press of it switches the input language again in Brave's web page fields: the page handed the press over a second time, which switched straight back, so a field that started in English stayed in English (the address bar was fine).
 
 - The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.

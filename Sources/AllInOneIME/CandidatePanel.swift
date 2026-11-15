@@ -86,7 +86,7 @@ final class CandidatePanel: NSPanel {
         animationBehavior = .none
         // Just below the cursor level: stays above full-screen apps and popup menus.
         level = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.cursorWindow)) - 100)
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+        collectionBehavior = Self.behavior
         // The pointer over a row highlights it (`CandidateView.hovered`), the panel never being key.
         acceptsMouseMovedEvents = true
         view.drawsBackground = false
@@ -111,11 +111,14 @@ final class CandidatePanel: NSPanel {
         effect.blendingMode = .behindWindow
         effect.state = .active  // the panel is never key: keep it frosted
         let radius = CandidateView.Metrics.cornerRadius
-        effect.maskImage = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
+        let mask = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
             NSColor.black.setFill()
             NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
             return true
-        }.with { $0.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius); $0.resizingMode = .stretch }
+        }
+        mask.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        mask.resizingMode = .stretch
+        effect.maskImage = mask
         effect.addSubview(view)
         return effect
     }
@@ -258,9 +261,17 @@ final class CandidatePanel: NSPanel {
 
     /// Back on screen as it shows: the app shown again (never activated), an alpha lost with no reason given back, and
     /// ordered in (`reorder`: out and in again, the window server's record of it made anew).
+    /// Where it shows: on every Space, beside full-screen windows, not moved by Mission Control, not in the window cycle.
+    static let behavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary, .ignoresCycle]
+
     private func putBack(reorder: Bool) {
         Self.unhideAppIfHidden()
         restoreLostAlpha()
+        // On every Space again: AppKit tells the window server only when the behavior changes, so setting the same one is
+        // skipped; through none it is told again (a window that lost it shows on one Space only, GitHub #61: not seen
+        // here, made by hand with the window server's tags cleared, put back by this at once).
+        collectionBehavior = []
+        collectionBehavior = Self.behavior
         if reorder { orderOut(nil) }
         orderFrontRegardless()
     }
@@ -309,7 +320,7 @@ final class CandidatePanel: NSPanel {
         case .first:
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.recheckDelay) { [weak self] in self?.presence(.again) }
         case .again:
-            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public); ordered in again")
+            Self.log.fault("candidate box not on screen: \(absence.rawValue, privacy: .public), on the active Space: \(self.isOnActiveSpace, privacy: .public), on all Spaces: \(self.collectionBehavior.contains(.canJoinAllSpaces), privacy: .public); ordered in again")
             putBack(reorder: true)
             DispatchQueue.main.async { [weak self] in self?.presence(.reordered) }
         case .reordered:
@@ -1971,12 +1982,5 @@ extension PanelModel {
         case let .loading(text), let .hint(text), let .error(text): return text
         case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
         }
-    }
-}
-
-private extension NSImage {
-    func with(_ change: (NSImage) -> Void) -> NSImage {
-        change(self)
-        return self
     }
 }
