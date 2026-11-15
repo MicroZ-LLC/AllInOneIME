@@ -1075,7 +1075,8 @@ struct OneAtAcceptanceTests {
             field.type("@hello world")
             #expect(!field.rows.isEmpty, "\(field.host.composer.draft)")
             field.press(FakeHost.escape)
-            #expect(field.host.document + field.host.marked == "@hello world", "\(field.host.document)|\(field.host.marked)")
+            // The field gets the text only on commit (owner decision 2026-11-15): put in as typed, nothing marked.
+            #expect(field.host.document == "@hello world" && field.host.marked.isEmpty, "\(field.host.document)|\(field.host.marked)")
             #expect(field.rows.isEmpty && field.model.requests.isEmpty, "\(field.texts)")
         }
     }

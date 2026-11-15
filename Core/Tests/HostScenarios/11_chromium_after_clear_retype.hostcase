@@ -1,0 +1,8 @@
+NAME a cleared Chromium field reads only newly typed text
+PROFILES chromium electron
+LANG english
+TEXT "previous|"
+APP clears
+TYPE l
+EXPECT doc "l"
+EXPECT context before "l"

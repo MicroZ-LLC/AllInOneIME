@@ -62,6 +62,38 @@ public final class FakeHost: @unchecked Sendable {
     /// The same for the selection read after the "@" key (`SessionOutput.readSelection`): a slow Accessibility read, landed
     /// when the test says (`answerFieldReads`, or `selectionReadsGiveUp`). No key ever waits for it.
     public var selectionReadsWait = false
+    /// Where the caret is while nothing is selected (UTF-16), for a field whose caret stays where text went in: set, what
+    /// goes in moves it to the end of what went in, and the field tells the text after it. Nil: the end of the document
+    /// (the caret goes back there after anything goes in).
+    public var caretOffset: Int?
+    /// How the field is read outside a key (`readField`, `readSelection`, and a replacement's read back), where the test
+    /// models a host's own reading (the host scenarios' profiles). Nil: the field as it is, all of it (`context`, `read`).
+    public var reading: FieldReads?
+    /// The field takes what the session puts in (false: it dropped it, as a field that lost the focus does; the marked
+    /// text it shows stays as it is).
+    public var acceptsText = true
+    /// Told of each change the session or the app (`appTypesKeys`) made to the document, and of what it dropped
+    /// (`acceptsText`), as it is made.
+    public var inserted: ((Insertion) -> Void)?
+
+    /// How a test's host reads the field outside a key (`FakeHost.reading`).
+    public struct FieldReads {
+        /// What the field says when it is read (`SessionOutput.readField`, `readSelection`).
+        public var context: () -> FieldContext
+        /// The document's text in a range (UTF-16), as a replacement reads it back (`ReplacementCheck`); nil: none told.
+        public var text: (Range<Int>) -> String?
+
+        public init(context: @escaping () -> FieldContext, text: @escaping (Range<Int>) -> String?) {
+            (self.context, self.text) = (context, text)
+        }
+    }
+
+    /// A change to the document (`FakeHost.inserted`): `text` in place of `replaced`, or dropped (the field took nothing).
+    public struct Insertion: Equatable, Sendable {
+        public var text: String
+        public var replaced: String
+        public var dropped: Bool
+    }
 
     // MARK: What the session did
 
@@ -139,8 +171,11 @@ public final class FakeHost: @unchecked Sendable {
     /// Times `PlatformAction.passPasteKey` was asked for: the app's own paste key (clipboard history's image row, ⌃V again).
     public var pasteKeysPassed: Int { platformActions.filter { $0 == .passPasteKey }.count }
 
-    /// The caret: where the selection starts, else the end of the document.
-    public var caret: Int { selection?.lowerBound ?? (document as NSString).length }
+    /// The caret: where the selection starts, else `caretOffset` (within the document), else the end of the document.
+    public var caret: Int {
+        let length = (document as NSString).length
+        return selection?.lowerBound ?? caretOffset.map { min(max($0, 0), length) } ?? length
+    }
 
     /// What the field says around the caret, all of it.
     public var context: FieldContext {
@@ -148,7 +183,7 @@ public final class FakeHost: @unchecked Sendable {
         let selected = selection.map { text.substring(with: NSRange(location: $0.lowerBound, length: $0.count)) }
         let before: FieldContext.BeforeCaret = selection != nil || caret == 0
             ? .nothing : .text(text.substring(with: NSRange(location: caret - 1, length: 1)))
-        let end = selection?.upperBound ?? text.length
+        let end = selection?.upperBound ?? caret
         return FieldContext(read: .all, secure: secure, markedTextTaken: appTakesMarkedText,
                             selectedRange: selection ?? caret..<caret,
                             selection: selected.map { Composer.Selection(text: $0, range: selection) },
@@ -316,13 +351,13 @@ public final class FakeHost: @unchecked Sendable {
             case let .replace(text, range):
                 if let next = check, let range {
                     replacementsChecked += 1
-                    next.apply(text, range: range, read: { self.read($0) }, replace: { insert($0, replacing: $1) }, insert: { insert($0, replacing: selection) })
+                    next.apply(text, range: range, read: { self.reading?.text($0) ?? self.read($0) }, replace: { insert($0, replacing: $1) }, insert: { insert($0, replacing: selection) })
                 } else {
                     insert(text, replacing: range ?? selection)
                 }
                 check = nil
             case let .marked(text, _, _):
-                marked = text
+                if acceptsText { marked = text }
             case let .typeOut(text):
                 typedOut.append(text)
                 insert(text, replacing: nil)
@@ -359,7 +394,7 @@ public final class FakeHost: @unchecked Sendable {
             case let .readField(id):
                 // At once, as the Mac reads it (the field as it is now; nothing of its text where it tells none).
                 fieldReads += 1
-                var read = context
+                var read = reading?.context() ?? context
                 if tellsNoText { read.text = nil }
                 if passwordField, !cannotTellPasswordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
                 if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
@@ -374,7 +409,7 @@ public final class FakeHost: @unchecked Sendable {
                 }
             case let .readSelection(id):
                 // Once the key is answered, as the Mac reads it with Accessibility: the field's selection.
-                let told = SessionEvent.selection(context.selection, id: id)
+                let told = SessionEvent.selection((reading?.context() ?? context).selection, id: id)
                 if selectionReadsWait { waitingReads.append(told) } else { afterKey.append { [weak self] in self?.send(told) } }
             case let .ghost(text):
                 ghost = text
@@ -392,15 +427,21 @@ public final class FakeHost: @unchecked Sendable {
     }
 
     /// `text` in place of the marked text, or of `range` (UTF-16).
+    /// A range past the document's end (a field that told it stale) is cut to the document, as an app's text view does.
     private func insert(_ text: String, replacing range: Range<Int>?) {
         let current = document as NSString
-        if let range {
-            document = current.replacingCharacters(in: NSRange(location: range.lowerBound, length: range.count), with: text)
-        } else {
-            document = current.replacingCharacters(in: NSRange(location: caret, length: 0), with: text)
+        let start = min(max(range?.lowerBound ?? caret, 0), current.length)
+        let end = min(max(range?.upperBound ?? caret, start), current.length)
+        let replaced = current.substring(with: NSRange(location: start, length: end - start))
+        guard acceptsText else {
+            inserted?(Insertion(text: text, replaced: replaced, dropped: true))
+            return
         }
+        document = current.replacingCharacters(in: NSRange(location: start, length: end - start), with: text)
         selection = nil
         marked = ""
+        if caretOffset != nil { caretOffset = start + (text as NSString).length }
+        inserted?(Insertion(text: text, replaced: replaced, dropped: false))
     }
 
     // MARK: Keys

@@ -1,0 +1,8 @@
+NAME a zero-length Chromium field inserts before its existing text
+PROFILES chromium electron
+LANG english
+TEXT "|hello world"
+TYPE say
+EXPECT doc "sayhello world"
+EXPECT context before "say"
+EXPECT nolost

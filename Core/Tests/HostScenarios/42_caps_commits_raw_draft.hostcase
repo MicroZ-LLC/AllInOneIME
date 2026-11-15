@@ -1,0 +1,18 @@
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
+NAME switching language with Caps Lock commits unfinished pinyin as typed
+PROFILES all
+LANG chinese
+SET switchKey capsLock
+TEXT "Hi |"
+TYPE ni
+EXPECT marked none
+EXPECT preedit "ni"
+KEY capslock
+EXPECT doc "Hi ni"
+EXPECT marked none
+EXPECT preedit none
+EXPECT panel hidden
+EXPECT lang english
+EXPECT switches 1
+EXPECT nolost
