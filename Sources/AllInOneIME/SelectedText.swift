@@ -1,44 +1,19 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import ApplicationServices
 import InputMethodKit
 
 /// The text selected in the field when an @ command starts on it (`Composer.selection`), and where it is.
 ///
-/// Read with the text input protocol: the client's `selectedRange()` and the text in it (`attributedSubstring`), which
-/// Cocoa (NSTextView), WebKit and most fields answer. Chromium and Electron apps often report no selection there: then
-/// the Accessibility API's selected text of the focused element, only if this app may use it already (`AXIsProcessTrusted`;
-/// never asked from here). Never during secure input, never a secure text field. Only how it was read and how long it
-/// is go to the log, never the text.
+/// Read with the text input protocol (`FieldReading.selection`, the Mac library's): the client's `selectedRange()` and the
+/// text in it (`attributedSubstring`), which Cocoa (NSTextView), WebKit and most fields answer. Chromium and Electron apps
+/// often report no selection there: then the Accessibility API's selected text of the focused element, after the key,
+/// only if this app may use it already (`AXIsProcessTrusted`; never asked from here). Never during secure input, never a
+/// secure text field. Only how it was read and how long it is go to the log, never the text.
 enum SelectedText {
-    /// The longest selection read, in UTF-16 units: a longer one isn't read (the command is then marked in the field as
-    /// without one, and replaces it, as typing over a selection does). Up to `Composer.maxSelectionLength` characters a
-    /// command takes it; longer, it's left as it is.
-    static let maxRead = 50_000
-
-    enum Source: String { case imk = "IMK", accessibility = "AX" }
-
-    /// The selected text in `client`'s field, how it was read, and its range as the field told it (nil with
-    /// Accessibility); nil when there is none (or it can't be read). `accessibility`: whether to ask Accessibility when
-    /// the field doesn't say (false in the self-test: it would read the user's own frontmost app).
-    @MainActor
-    static func read(from client: IMKTextInput?, accessibility: Bool = true) -> (text: String, source: Source, range: NSRange?)? {
-        if let client {
-            let range = client.selectedRange()
-            // Our own marked text isn't a selection (a draft is never pending here, but a field may still report one).
-            let marked = client.markedRange()
-            let markedNow = marked.location != NSNotFound && marked.length > 0
-            if range.location != NSNotFound, range.length != NSNotFound, range.length > 0, !markedNow {
-                guard range.length <= maxRead else {
-                    log.notice("selection not read: \(range.length) UTF-16 units, more than \(maxRead)")
-                    return nil
-                }
-                if let text = client.attributedSubstring(from: range)?.string, !text.isEmpty { return (text, .imk, range) }
-            }
-        }
-        guard accessibility else { return nil }
-        return readWithAccessibility().map { ($0, .accessibility, nil) }
-    }
+    /// The longest selection read, in UTF-16 units (`FieldReading.maxSelection`): a longer one isn't read.
+    static let maxRead = FieldReading.maxSelection
 
     /// Whether a selection the text input protocol didn't tell may be there all the same, for Accessibility to read
     /// (`readWithAccessibility`, after the key: `FieldContext.selectionFollows`): this app may use Accessibility, and the
