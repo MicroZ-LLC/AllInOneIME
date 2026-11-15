@@ -49,6 +49,21 @@ struct CapsLockCopiesTests {
         }
     }
 
+    /// A press handled late (here 50 ms after its time, the main thread busy): its copy, stamped 34 ms after the press,
+    /// is still one. The lock was on from the press's own time, not from when it was handled.
+    @Test func aPressHandledLateStillHasItsCopyKnown() {
+        var copies = CapsLockCopies()
+        #expect(!copy(&copies, saysOn: true, lockOn: true, at: 100.000, now: 100.050))
+        #expect(copy(&copies, saysOn: true, lockOn: false, at: 100.034, now: 100.060))
+    }
+
+    /// Two presses 60 ms apart, each handled late: both are presses.
+    @Test func latePressesInARowEachArePresses() {
+        var copies = CapsLockCopies()
+        #expect(!copy(&copies, saysOn: true, lockOn: true, at: 200.000, now: 200.050))
+        #expect(!copy(&copies, saysOn: true, lockOn: true, at: 200.060, now: 200.110))
+    }
+
     /// A press while the input method keeps the lock off after the last one (`keepOff`, every 15 ms for a second): the
     /// lock may be off again before its change is handed over, but it was seen on after the press's time.
     @Test func aPressThatKeepingTheLockOffCaughtFirstIsNoCopy() {
