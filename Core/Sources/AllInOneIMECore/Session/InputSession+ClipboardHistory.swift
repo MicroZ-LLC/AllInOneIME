@@ -580,7 +580,7 @@ extension InputSession {
         let highlighted = window.contains(clipboard.chosen) ? clipboard.chosen - window.lowerBound : nil
         // The filter on top, as a line typed into, its caret at its end.
         let input = filtered ? PanelModel.Input(prompt: t.tr("筛选 › ", "filter › "), text: clipboard.filter, caret: clipboard.filter.count) : nil
-        return PanelModel(rows: rows, highlighted: highlighted, input: input, footer: footer, detail: notice ?? detail)
+        return keyHinted(PanelModel(rows: rows, highlighted: highlighted, input: input, footer: footer, detail: notice ?? detail))
     }
 
     /// How large a kept image is: "820 KB", "2.4 MB".
