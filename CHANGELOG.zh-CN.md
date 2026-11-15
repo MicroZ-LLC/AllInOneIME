@@ -13,6 +13,7 @@
 - 设置里最长的说明文字都缩短成一句：拼音的输入方式、字形、剪贴板历史（以及没在记录的原因）、建议的「插入」、选了 CLI 当 AI 时下面的说明、个人词库、英文词和学习英文词、`@agent` 和 `@reply` 从 Chrome 带上的内容、`@question` 的「对话接着在哪里聊」、印地语、Apple 本机模型、脚本扩展、扩展来源、经过 iCloud 钥匙串的 API 密钥，以及「隐私」页上的辅助功能提醒（「排查问题…」仍然列出没有辅助功能时哪些不能完全正常）。
 - 已经关了好几个版本的 `@search` 和 `@read` 删掉了，设置里的网页搜索 key 也一起删掉：在魔法键后面打网址，仍然用 `@open` 打开。给 `@search` 存的 Brave Search key 原样留在钥匙串里，也不再读 `BRAVE_API_KEY`。你自己的命令现在可以叫 `search` 或 `read`。
 - AllInOneIME 云每天免费 200 次（原来 20 次），安装程序和设置 →「AI」里也这么写。
+- 网站的隐私政策和 README 一样写明：「续写」（默认关）在停顿时发出光标前后的文字，设置会发出你在搜索的「修改：…」或「排查问题」的问题里打的字；网站首页写的是每天免费 200 次。
 
 ### 修复
 
@@ -31,7 +32,7 @@
 
 ### 变更
 
-- 设置 →「AI」是所有 AI 功能共用的一个选择。收起时显示选中的那个：图标、名字和现在的状态（已登录、没装、没填 Key、Bedrock 的 profile · 区域、可用……）、「更换 ▾」，下面是它自己的设置（key、模型、AWS Profile、区域、Base URL、「测试连接」；CLI 的是它的会话、「重新开始」和在终端里接着聊的 ⌘⏎）。「更换 ▾」把各家按连接方式列成卡片：用你的订阅（Claude Code、Codex、Antigravity、Kiro CLI）、用 API Key（Claude API、OpenAI 兼容、Gemini API）、云服务（Amazon Bedrock、AllInOneIME 云）和本机（Apple 本机）；选中的那个有框，点一个就选它，「取消」什么都不改。图标都是单色的，跟着浅色、深色模式用文字的颜色。选了 CLI，`@question` 就在输入法自己的这个 CLI 会话里回答（见「新增」）；CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、自定义的 AI 命令、续写）用之前设置好的 AI 服务（填了 key、有带凭证的 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；两个都没有时续写关闭，其余的交给会话，会慢一些，每个请求都是单独的一个对话，没有网页工具（排在正在回答的问题后面等多久都不会进 `@question` 的对话）。CLI 下面有一行写着用的是哪个。会话回答不了的问题交给这个更快的 AI（没有的话问题失败，写着原因）。配置文件照样能用：`questionBackend` 是选的 CLI（只属于这台 Mac，不同步），`provider` 是 AI 服务，不管选哪个，各家的设置和 key 都保留；没有 `questionBackend` 的配置还是用它的 AI 服务，和以前发布的版本一样。这个版本早先的测试版里的 Gemini CLI 换成了 Antigravity：Gemini CLI 不再支持个人 Google 账号（Google 让个人用户改用 Antigravity）；选了 Gemini CLI 会话的配置，装了 `agy` 时改用 Antigravity 的会话，没装时用它的 AI 服务，别的都不变。`@agent` 照样可以交给 Gemini CLI。设置的搜索用每家的名字都能找到这个选择（「kiro」「bedrock」「订阅」），并打开卡片。选了 CLI 时，`@doctor` 写出它和那个更快的 AI，不把没设置好的 AI 服务算作问题。
+- 设置 →「AI」是所有 AI 功能共用的一个选择。收起时显示选中的那个：图标、名字和现在的状态（已登录、没装、没填 Key、Bedrock 的 profile · 区域、可用……）、「更换 ▾」，下面是它自己的设置（key、模型、AWS Profile、区域、Base URL、「测试连接」；CLI 的是它的会话、「重新开始」和在终端里接着聊的 ⌘⏎）。「更换 ▾」把各家按连接方式列成卡片：用你的订阅（Claude Code、Codex、Antigravity、Kiro CLI）、用 API Key（Claude API、OpenAI 兼容、Gemini API）、云服务（Amazon Bedrock、AllInOneIME 云）和本机（Apple 本机）；选中的那个有框，点一个就选它，「取消」什么都不改。图标都是单色的，跟着浅色、深色模式用文字的颜色。选了 CLI，`@question` 就在输入法自己的这个 CLI 会话里回答（见「新增」）；CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、自定义的 AI 命令、续写）用之前设置好的 AI 服务（填了 key、有带凭证的 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；两个都没有时续写关闭，其余的交给会话，会慢一些，每个请求都是单独的一个对话，没有网页工具（排在正在回答的问题后面等多久都不会进 `@question` 的对话）。CLI 下面有一行写着用的是哪个。会话回答不了的问题交给这个更快的 AI（没有的话问题失败，写着原因）。配置文件照样能用：`questionBackend` 是选的 CLI（只属于这台 Mac，不同步），`provider` 是 AI 服务，不管选哪个，各家的设置和 key 都保留；没有 `questionBackend` 的配置还是用它的 AI 服务，和以前发布的版本一样。这个版本早先的测试版里的 Gemini CLI 换成了 Antigravity：Gemini CLI 不再支持个人 Google 账号（Google 让个人用户改用 Antigravity）；选了 Gemini CLI 会话的配置，装了 `agy` 时改用 Antigravity 的会话，没装时用它的 AI 服务，别的都不变。`@agent` 照样可以交给 Gemini CLI。设置的搜索用每家的名字都能找到这个选择（「kiro」「bedrock」「订阅」），并打开卡片。选了 CLI 时，「排查问题…」写出它和那个更快的 AI，不把没设置好的 AI 服务算作问题。
 
 ### 修复
 
