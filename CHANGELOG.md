@@ -17,6 +17,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
+
+- Clipboard history no longer loses everything when one entry in its file can't be read: the history was emptied, and the next copy deleted every image kept. Entries that can't be read are skipped and the rest kept; the file as it was is kept aside beside it (`clipboard-history-unreadable-….json`) instead of written over, with every image it had, until Clear History.
+
 - The candidate box, when it stops showing, is now put back on every desktop (Space), not only ordered in again; its log line says whether it was on the current desktop, for GitHub #61, which we couldn't reproduce.
 
 - With Caps Lock as the switch key, a press of it switches the input language again in Brave's web page fields: the page handed the press over a second time, which switched straight back, so a field that started in English stayed in English (the address bar was fine).
