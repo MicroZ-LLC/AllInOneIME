@@ -103,10 +103,11 @@ extension HostRun {
         if markedBySession, !host.marked.isEmpty, !host.composer.isComposing {
             fail("marked text \(Self.quote(host.marked)) left in the field with nothing composed\(state)")
         }
-        // `APP clears` (v1.1): the app dropped the marked text with the rest; the input method holds no draft from then on.
+        // `APP clears` (v1.2): on a native field (IMK calls cancelComposition) the input method holds no draft from then
+        // on. Chromium-based hosts tell it nothing, so there the scenario checks the next key instead (no old pinyin).
         if appCleared {
             appCleared = false
-            if host.composer.isComposing {
+            if profile == .nstextview, host.composer.isComposing {
                 fail("the app emptied the field and the input method still holds the draft \(Self.quote(host.composer.markedText))\(state)")
             }
         }
