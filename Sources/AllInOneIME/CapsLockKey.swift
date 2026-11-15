@@ -23,6 +23,8 @@ enum CapsLockKey {
         let timer = Timer(timeInterval: checkEvery, repeats: true) { timer in
             MainActor.assumeIsolated {
                 if isOn() {
+                    // A press, maybe (its change handed over after this): seen on now, so it's no copy (`CapsLockCopies`).
+                    AllInOneIMEInputController.capsLockCopies.lockSeenOn(at: ProcessInfo.processInfo.systemUptime)
                     log.notice("Caps Lock: on again after it was turned off, turned off again")
                     setLock(false)
                 }

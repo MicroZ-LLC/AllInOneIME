@@ -1233,7 +1233,7 @@ key，用点分隔、写明用在哪里或怎么用：`tr("删除", "Remove", ke
 `Scripts/import-translations.py <文件夹>` 合进去；它从不改英文，占位符和 key 对不上的译文不收。核心里的文字也用界面语言的代码，用同一个查找表（`InterfaceText.lookup`，由各个 App 设置：macOS 上是它的
 `.lproj`；别的平台用 `StringCatalog` 读 catalog 里的表）。
 
-代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试）；`Windows/` 是 Windows App 的开头。
+代码结构：根目录是 macOS App；`Core/` 是各平台共用的核心，是一个独立的 Swift 包（能单独在 macOS、Linux 和 Windows 上编译和测试），每次发布时连同历史同步到 [AllInOneIME-Core](https://github.com/MicroZ-LLC/AllInOneIME-Core)。Windows App 目前暂停开发，在单独的仓库 MicroZ-LLC/AllInOneIME-Windows 里，基于这个镜像。
 
 - `Core/Sources/AllInOneIMECore`：Bedrock 客户端、SigV4、提示词、两级输入状态机（含命令），不依赖 AppKit
 - `Core/Sources/AllInOneIMEText`：界面文字及其语言（`UIString`、`InterfaceText`、`InterfaceLanguage`，以及在没有 `.lproj` 的平台上直接读 catalog 的 `StringCatalog`）；设置启动器只链接它（`AllInOneIMECore` 重新导出它）

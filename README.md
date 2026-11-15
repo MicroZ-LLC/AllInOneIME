@@ -1610,7 +1610,9 @@ interface language's code and look it up the same way (`InterfaceText.lookup`, w
 on macOS; elsewhere `StringCatalog` reads the catalog's tables).
 
 Code layout: the root is the macOS app; `Core/` is the core every platform shares, a Swift package of its own (it
-builds and tests on its own, on macOS, Linux and Windows); `Windows/` is the start of the Windows app.
+builds and tests on its own, on macOS, Linux and Windows), mirrored with its history to
+[AllInOneIME-Core](https://github.com/MicroZ-LLC/AllInOneIME-Core) at each release. The Windows app, on hold, is in
+its own repository, MicroZ-LLC/AllInOneIME-Windows, on that mirror.
 
 - `Core/Sources/AllInOneIMECore`: Bedrock client, SigV4, prompts, the two-level input state machine (including commands); no AppKit dependency
 - `Core/Sources/AllInOneIMEText`: the interface text and its language (`UIString`, `InterfaceText`, `InterfaceLanguage`, and `StringCatalog`, which reads the catalog where there are no `.lproj` bundles); all the settings launcher links (`AllInOneIMECore` re-exports it)
@@ -1652,7 +1654,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
    the release notes' address and the summary) and signs it into `update-v2.json.sig` with the key from the login keychain
-   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both. 0.7.1 and later read update-v2.json;
+   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both on a branch and merge it into `mainline`
+   through a pull request: `mainline` and `release-*` take no direct push (`Scripts/protect-branches.sh`), only a PR whose
+   "Quality gate" and "review" checks passed. 0.7.1 and later read update-v2.json;
    `update.json` (and its `.sig`), which 0.7.0 and earlier read, is written as well only for a release whose apps still
    have the old system identity, 0.7.1 (the last version those can install), and is left as it is from 0.7.2 on: it names
    0.7.1 for good, which moves AllInOneIME to the new identity.
@@ -1663,6 +1667,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    带过来，macOS 会再问一次你给过它的权限（辅助功能、从其他 App 粘贴、自动化、通讯录、提醒事项、通知），「关于」页会说是哪些。"`.
 5. Deploy the site (`cd site && npx wrangler@4 deploy`), only once the release's assets download: the apps check once a day,
    and `AllInOneIME --check-update` shows what they see.
+6. `Scripts/mirror-core.sh <version>`: mirrors `Core/`, with its history, to
+   [AllInOneIME-Core](https://github.com/MicroZ-LLC/AllInOneIME-Core) and tags it `v<version>` there, the tag the
+   Windows shell (MicroZ-LLC/AllInOneIME-Windows) depends on. Run again, it does nothing.
 
 The app checks the manifest's signature with the public key built into it before reading it, never installs a version that
 isn't newer, downloads only over https from allinoneime.com or the repository's GitHub release assets, and installs the
