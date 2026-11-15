@@ -277,10 +277,12 @@ public enum OneAt {
     /// (it's nothing), 怎么都 (any way will do), 哪怕 (even if), 多少有点 (somewhat) …: taken out before the words above are
     /// looked for.
     static let chineseNonQuestions = ["几乎", "好几", "这几", "那几", "前几", "后几", "十几", "几十", "几百", "几千", "几万",
-                                      "过几天", "过几日", "过几分", "过几秒", "过几小时", "过几个小时", "过几周", "过几个星期",
-                                      "过几个月", "过几年",
                                       "没什么", "没有什么", "不算什么", "什么都", "什么也", "不怎么", "怎么都", "怎么也",
                                       "哪怕", "哪里哪里", "哪儿都", "哪里都", "哪都", "多少有", "或多或少"]
+    /// 过几天, 过几个月 …: "in a few days" where 过 starts the clause or follows 再, 等, 就, 要, 会, 才 or someone (过几天再说,
+    /// 等过几天, 我们过几天见); after another verb 过 says it happened and 几 asks how many (你学过几年中文, 你在北京住过几个月).
+    static let inAFewTimes = try? NSRegularExpression(pattern: "(^|[\\s\\p{P}再等就要会才我你他她它们咱])过几(个?(小时|星期|月)|[天日分秒周年])")
+
     /// The English words a question starts with.
     static let englishQuestionWords: Set<String> = ["how", "what", "why", "when", "where", "who", "whose", "whom", "which",
                                                      "can", "could", "should", "would", "will", "is", "are", "was", "were",
@@ -293,15 +295,19 @@ public enum OneAt {
         let text = text.trimmingCharacters(in: .whitespaces)
         if text.hasSuffix("?") || text.hasSuffix("？") { return true }
         // 为什么 always asks, also before 都 or 也 (为什么都不来).
-        let asking = chineseNonQuestions.reduce(text.replacingOccurrences(of: "为什么", with: "吗")) {
+        var asking = chineseNonQuestions.reduce(text.replacingOccurrences(of: "为什么", with: "吗")) {
             $0.replacingOccurrences(of: $1, with: "，")
+        }
+        if let inAFewTimes {
+            asking = inAFewTimes.stringByReplacingMatches(in: asking, range: NSRange(asking.startIndex..., in: asking), withTemplate: "$1，")
         }
         if chineseQuestionWords.contains(where: { asking.contains($0) }) { return true }
         let words = text.lowercased().replacingOccurrences(of: "’", with: "'").split(whereSeparator: \.isWhitespace)
         guard var first = words.first.map(String.init) else { return false }
+        // "what a lovely day" exclaims; "what's a good way …" asks: only the uncontracted "what".
+        if first == "what", words.count > 1, ["a", "an"].contains(words[1]) { return false }
         if first.hasSuffix("n't") { first = first == "can't" ? "can" : first == "won't" ? "will" : String(first.dropLast(3)) }
         first = String(first.prefix { $0.isLetter })  // what's → what
-        if first == "what", words.count > 1, ["a", "an"].contains(words[1]) { return false }  // what a lovely day
         return englishQuestionWords.contains(first)
     }
 
