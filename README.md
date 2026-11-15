@@ -1654,7 +1654,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
    the release notes' address and the summary) and signs it into `update-v2.json.sig` with the key from the login keychain
-   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both. 0.7.1 and later read update-v2.json;
+   (`allinoneime-releases-signing`; macOS may ask to allow access). Commit both on a branch and merge it into `mainline`
+   through a pull request: `mainline` and `release-*` take no direct push (`Scripts/protect-branches.sh`), only a PR whose
+   "Quality gate" and "review" checks passed. 0.7.1 and later read update-v2.json;
    `update.json` (and its `.sig`), which 0.7.0 and earlier read, is written as well only for a release whose apps still
    have the old system identity, 0.7.1 (the last version those can install), and is left as it is from 0.7.2 on: it names
    0.7.1 for good, which moves AllInOneIME to the new identity.
