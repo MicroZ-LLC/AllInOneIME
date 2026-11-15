@@ -1831,7 +1831,8 @@ final class CandidateView: NSView {
             pointer.scrolled(0)  // the pointer on the panel all the same, not in the field (`SessionEvent.scroll`)
             return
         }
-        // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points). Every event is told,
+        // A row per notch of a wheel (the session turns a page instead in a list shown a page at a time:
+        // `Composer.wheel`); a trackpad adds up its small steps (about a row per 24 points). Every event is told,
         // one short of a row as 0 (a trackpad's small steps, its momentum after the last row): none of them is the pointer
         // used in the field.
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 24 : event.scrollingDeltaY
