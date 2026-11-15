@@ -713,7 +713,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// history's). The tap's event is made an NSEvent only then: the tap has every key of every app.
     @MainActor
     func keyAtTap(_ event: CGEvent) -> Bool? {
-        guard !hasMarkedText, let client = client() else { return nil }
+        // With text marked a field acts on its keys itself (it hands them over), but a ⌘ key goes to the app's menus first:
+        // ⌘1 … on one @'s rows (marked: "@…") is taken here, before an app's own ⌘1 (a tab, a bookmark) fires.
+        guard !hasMarkedText || composer.oneAt != nil && KeyGuard.isPrimaryDigit(event), let client = client() else { return nil }
         // ⌃ alone of the four (a key posted by another program carries other bits besides).
         let controlV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
             && event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]) == .maskControl
