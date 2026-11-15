@@ -12,9 +12,10 @@ struct ICloudSyncQuestionsRaceTests {
         init(_ value: T) { self.value = value }
     }
 
-    /// A question recorded as `@question` records it (the shell's `QuestionHistoryStore.record`).
-    static func record(_ entry: QuestionHistory.Entry, at url: URL) throws {
-        try QuestionHistory.update(at: url) { $0.record(entry) }
+    /// A question recorded as `@question` records it (the shell's `QuestionHistoryStore.record`): handed to the file's
+    /// queue, not waited for.
+    static func record(_ entry: QuestionHistory.Entry, at url: URL) {
+        QuestionHistory.updateLater(at: url) { $0.record(entry) }
     }
 
     @Test func aQuestionAskedWhileTheSyncMergesIsKept() throws {
@@ -48,9 +49,10 @@ struct ICloudSyncQuestionsRaceTests {
             // Four questions asked meanwhile, newer than any of iCloud's: all four are among the five kept.
             let asked = (0..<4).map { "asked \(round) \($0)" }
             for (index, question) in asked.enumerated() {
-                try Self.record(.init(question: question, answer: "an answer", date: t0.addingTimeInterval(3_600 + Double(index))), at: url)
+                Self.record(.init(question: question, answer: "an answer", date: t0.addingTimeInterval(3_600 + Double(index))), at: url)
                 usleep(300)
             }
+            QuestionHistory.fileQueue.sync {}  // every question written
             usleep(2_000)
             stop.value = true
             // swiftlint:disable:next blocking_call
@@ -59,5 +61,22 @@ struct ICloudSyncQuestionsRaceTests {
             lost += asked.filter { !kept.contains($0) }
         }
         #expect(lost.isEmpty, "lost: \(lost)")
+    }
+
+    /// Recording a question never waits for a merge going on (it holds the file's lock): it returns at once, and the
+    /// question is written once the merge is done. The main thread, where `@question` records it, never waits.
+    @Test func recordingDoesNotWaitForAMergeInProgress() throws {
+        let rig = try SyncRig()
+        let url = rig.root.appendingPathComponent("questions.json")
+        QuestionHistory.fileLock.lock()  // a merge in progress
+        let start = Date()
+        Self.record(.init(question: "asked during a merge", answer: "an answer", date: SyncRig.t0), at: url)
+        let took = Date().timeIntervalSince(start)
+        usleep(200_000)
+        #expect(!FileManager.default.fileExists(atPath: url.path), "not written while the merge holds the file")
+        QuestionHistory.fileLock.unlock()
+        QuestionHistory.fileQueue.sync {}
+        #expect(took < 0.05, "returned after \(took) s")
+        #expect(QuestionHistory.load(from: url).entries.map(\.question) == ["asked during a merge"])
     }
 }

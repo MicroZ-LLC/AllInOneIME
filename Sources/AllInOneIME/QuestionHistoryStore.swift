@@ -10,8 +10,11 @@ enum QuestionHistoryStore {
         didSet { loaded = nil }
     }
     private static var loaded: (date: Date?, history: QuestionHistory)?
+    /// Changes handed to the file's queue and not written yet (`save`): the list as changed here stands meanwhile.
+    private static var pending = 0
 
     static var history: QuestionHistory {
+        if pending > 0, let loaded { return loaded.history }
         let date = modificationDate()
         if let loaded, loaded.date == date { return loaded.history }
         let history = date == nil ? QuestionHistory() : QuestionHistory.load(from: url)
@@ -29,18 +32,28 @@ enum QuestionHistoryStore {
         save { $0 = QuestionHistory() }
     }
 
-    /// `change` made to the file as it is now, under the lock the iCloud sync's merge takes too (`QuestionHistory.update`):
-    /// a merge going on meanwhile never writes over the question, nor this over the merge.
-    private static func save(_ change: (inout QuestionHistory) -> Void) {
-        do {
-            let (history, aside) = try QuestionHistory.update(at: url, change)
-            if let aside { log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)") }
-            loaded = (modificationDate(), history)
-        } catch {
-            log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
-            var history = history
-            change(&history)
-            loaded = (modificationDate(), history)
+    /// `change` made at once to the list shown, and to the file as it is then off the main thread, under the lock the iCloud
+    /// sync's merge takes too (`QuestionHistory.updateLater`): a merge going on meanwhile never writes over the question,
+    /// nor this over the merge, and typing never waits for it. Once all are written, the file is read again (with what a
+    /// merge brought).
+    private static func save(_ change: @escaping @Sendable (inout QuestionHistory) -> Void) {
+        var shown = history
+        change(&shown)
+        loaded = (modificationDate(), shown)
+        pending += 1
+        QuestionHistory.updateLater(at: url, change) { outcome in
+            DispatchQueue.main.async {
+                pending -= 1
+                if pending == 0 { loaded = nil }
+            }
+            switch outcome {
+            case let .success((_, aside?)):
+                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
+            case .success:
+                break  // written
+            case let .failure(error):
+                log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 
