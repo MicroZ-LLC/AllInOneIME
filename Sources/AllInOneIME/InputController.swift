@@ -773,28 +773,10 @@ final class AllInOneIMEInputController: IMKInputController {
         return response.handled
     }
 
-    /// The latest time of each modifier change handed over, whatever the text field (a copy may reach another one).
-    @MainActor private static var modifierEchoes = ModifierEchoes()
-
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
         commitRow()  // a row the key before put in, if this change came first
-        // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
-        // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
-        // of Shift or ⌥) and its long press of Shift (Translate as You Type) alike.
-        guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
-                                          timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
-            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
-            // 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "modifier copy"'`): what
-            // shows a real app hands the copy over with the event's own time.
-            let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
-            log.debug("""
-                modifier copy dropped: key \(event.keyCode, privacy: .public), flags \
-                \(event.modifierFlags.rawValue, format: .hex(includePrefix: true), privacy: .public), \
-                \(late, format: .fixed(precision: 1), privacy: .public) ms after its time
-                """)
-            return
-        }
+        guard !Self.isModifierCopy(event) else { return }  // Chromium's and Electron's second copy
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
         // is no long press of it (only the session's long press minds fn).
