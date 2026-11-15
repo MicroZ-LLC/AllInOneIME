@@ -1,9 +1,14 @@
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
 NAME Esc discards uncommitted pinyin without altering the document
 PROFILES all
 LANG chinese
 TEXT "Hi |"
 TYPE nihao
+EXPECT marked none
+EXPECT preedit "ni hao"
 KEY esc
 EXPECT doc "Hi "
 EXPECT marked none
+EXPECT preedit none
 EXPECT panel hidden

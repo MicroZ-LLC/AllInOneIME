@@ -1,9 +1,14 @@
-NAME Backspace removes the only marked letter
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
+NAME Backspace removes the only letter typed
 PROFILES all
 LANG chinese
 TEXT "Hi |"
 TYPE n
+EXPECT marked none
+EXPECT preedit "n"
 KEY backspace
 EXPECT doc "Hi "
 EXPECT marked none
+EXPECT preedit none
 EXPECT panel hidden

@@ -10,6 +10,7 @@ extension HostRun {
         case let .marked(text):
             let shown = host.marked.isEmpty ? nil : host.marked
             if shown != text { fail("marked text \(Self.quote(shown)), expected \(Self.quote(text))\(state)") }
+        case let .preedit(text, caret): checkPreedit(text, caret: caret)
         case let .panel(shown):
             if (host.panel != nil) != shown { fail("the panel \(host.panel == nil ? "hidden" : "shown"), expected \(shown ? "shown" : "hidden")\(state)") }
         case let .language(expected):
@@ -27,6 +28,38 @@ extension HostRun {
         case let .calls(call, budget): checkCalls(call, budget)
         case .nolost: checkNothingLost()
         }
+    }
+
+    /// The candidate panel's input line (v1.3): what is being typed shows there and only there. Its prompt and text as
+    /// one line; none where the panel is hidden or has no input line, or nothing typed in it (a prompt alone, "question
+    /// 2 › ", is no composition). A space between two Latin letters is a syllable split and isn't compared: librime
+    /// shows "ni hao", the core's fake engine the letters as typed, and the scenario is replayed with both. A caret, where
+    /// the scenario gives one, is compared the same way, by what is before it.
+    private func checkPreedit(_ expected: String?, caret: Int?) {
+        let input = host.panel?.input
+        let shown = input.flatMap { $0.text.isEmpty ? nil : $0.prompt + $0.text }
+        guard shown.map(Self.unsplit) == expected.map(Self.unsplit) else {
+            return fail("the panel's input line \(Self.quote(shown)), expected \(Self.quote(expected))\(state)")
+        }
+        guard let caret, let expected, let shown, let input else { return }
+        let before = input.caret.map { String(shown.prefix(input.prompt.count + $0)) }
+        if before.map(Self.unsplit) != Self.unsplit(String(expected.prefix(caret))) {
+            fail("the panel's input line's caret after \(Self.quote(before)), expected after "
+                 + "\(Self.quote(String(expected.prefix(caret))))\(state)")
+        }
+    }
+
+    /// `text` without its syllable splits: the spaces between two Latin letters.
+    static func unsplit(_ text: String) -> String {
+        let characters = Array(text)
+        var kept = ""
+        for (index, character) in characters.enumerated() {
+            if character == " ", index > 0, index + 1 < characters.count,
+               characters[index - 1].isASCII && characters[index - 1].isLetter,
+               characters[index + 1].isASCII && characters[index + 1].isLetter { continue }
+            kept.append(character)
+        }
+        return kept
     }
 
     private func checkDocument(_ markup: FieldMarkup) {
@@ -103,21 +136,15 @@ extension HostRun {
         if markedBySession, !host.marked.isEmpty, !host.composer.isComposing {
             fail("marked text \(Self.quote(host.marked)) left in the field with nothing composed\(state)")
         }
-        // `APP clears` (v1.2): on a native field (IMK calls cancelComposition) the input method holds no draft from then
-        // on. Chromium-based hosts tell it nothing, so there the scenario checks the next key instead (no old pinyin).
-        if appCleared {
-            appCleared = false
-            if profile == .nstextview, host.composer.isComposing {
-                fail("the app emptied the field and the input method still holds the draft \(Self.quote(host.composer.markedText))\(state)")
-            }
-        }
+        // `APP clears` (v1.3): with nothing marked in the field, the app emptying it doesn't touch the composition, and
+        // the input method may keep it; the scenario checks the user's next step instead.
     }
 
     /// The field and the session as they are now, for a failure's message.
     var state: String {
         let panel = host.panel == nil ? "hidden" : "shown"
         return " [\(profile.rawValue): field \(Self.quote(host.document)), caret \(host.caret), marked \(Self.quote(host.marked)), "
-            + "panel \(panel), \(Self.name(host.composer.inputLanguage))\(focused ? "" : ", not focused")]"
+            + "panel \(panel), preedit \(Self.quote(host.panel?.input.map { $0.prompt + $0.text })), \(Self.name(host.composer.inputLanguage))\(focused ? "" : ", not focused")]"
     }
 
     static func name(_ language: Language) -> String {

@@ -64,6 +64,24 @@ struct HostCaseParserTests {
         }
     }
 
+    /// `EXPECT preedit` (contract v1.3): the panel's input line, a `|` in it for its caret (in characters), or none.
+    @Test func preedit() throws {
+        let scenario = try HostCaseParser.parse("""
+            EXPECT preedit "ni hao"
+            EXPECT preedit "ni| hao"
+            EXPECT preedit "improve › 好|"
+            EXPECT preedit none
+            """, fallbackName: "file")
+        #expect(scenario.steps.map(\.action) == [.expect(.preedit("ni hao", caret: nil)), .expect(.preedit("ni hao", caret: 2)),
+                                                 .expect(.preedit("improve › 好", caret: 11)), .expect(.preedit(nil, caret: nil))])
+        for wrong in ["EXPECT preedit nihao", "EXPECT preedit \"[ni]\"", "EXPECT preedit \"{ni}\""] {
+            #expect(throws: HostCaseError.self, "\(wrong)") { try HostCaseParser.parse(wrong, fallbackName: "file") }
+        }
+        // A syllable split isn't compared: librime shows "ni hao", the fake engine "nihao".
+        #expect(HostRun.unsplit("ni hao") == "nihao" && HostRun.unsplit("improve › ok") == "improve › ok")
+        #expect(HostRun.unsplit("question › hi there") == "question › hithere" && HostRun.unsplit(" a ") == " a ")
+    }
+
     @Test func keys() throws {
         #expect(try HostCaseParser.keySpec("shift") == .tap(.shift))
         #expect(try HostCaseParser.keySpec("opt") == .tap(.option))

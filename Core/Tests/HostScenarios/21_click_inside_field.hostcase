@@ -1,13 +1,16 @@
 # Owner decision 2026-11-15: pinyin typed and not confirmed is dropped when the user leaves the composition (a click
 # outside or inside the same field, Tab moving the focus, another app, the window closing): nothing of it stays in the
-# field, no marked text is left, the panel is hidden.
+# field, no marked text is left, the panel is hidden. Contract v1.3: the pinyin was only ever in the panel's input
+# line, so on every profile (Chromium's click commits marked text) there is nothing in the field to commit.
 NAME clicking elsewhere inside a field drops its unconfirmed pinyin
 PROFILES all
 LANG chinese
 TEXT "Hi |"
 TYPE nihao
-EXPECT marked "nihao"
+EXPECT marked none
+EXPECT preedit "ni hao"
 CLICK inside 0
 EXPECT doc "|Hi "
 EXPECT marked none
+EXPECT preedit none
 EXPECT panel hidden

@@ -29,8 +29,6 @@ final class HostRun {
     var ledger = CommitLedger()
     /// The marked text in the field is the session's (else the app's own, set by `TEXT`).
     var markedBySession = false
-    /// The app emptied the field (`APP clears`) since the last invariants checked.
-    var appCleared = false
     /// The field has the focus; the session was given it at all; the input source is ABC (keys go to the app).
     var focused = false
     var started = false

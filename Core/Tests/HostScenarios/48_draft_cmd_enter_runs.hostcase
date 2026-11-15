@@ -1,3 +1,5 @@
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
 # Owner decision 2026-11-15, an unrun command draft ("@question …", "@improve …"): ⌘⏎ runs it as ⏎ does; the focus
 # leaving discards it; any other ⌘ shortcut discards it and goes on to the app.
 # QUESTION: the format has no "the command ran" check. Nothing of the draft reaching the field and the panel staying up
@@ -7,8 +9,10 @@ PROFILES all
 LANG english
 TEXT "Hi |"
 TYPE "@question hi"
-EXPECT marked "question › hi"   # a command draft shows as its name › its text
+EXPECT marked none
+EXPECT preedit "question › hi"   # a command draft shows as its name › its text
 EXPECT panel shown
 KEY cmd+enter
 EXPECT doc "Hi |"
+EXPECT marked none
 EXPECT panel shown

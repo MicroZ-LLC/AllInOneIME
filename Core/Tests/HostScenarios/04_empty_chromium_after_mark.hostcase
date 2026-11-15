@@ -1,17 +1,28 @@
-NAME a Chromium field cleared after a marked draft has empty context
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
+NAME a Chromium field cleared during a pinyin composition has empty context
 PROFILES chromium electron
 LANG chinese
 TEXT "old|"
 TYPE nihao
+EXPECT marked none
+EXPECT preedit "ni hao"
 APP clears
-# Contract v1.2: right after APP clears the field is empty; the input method must have dropped the draft by the next
-# key (Chromium tells it nothing then), so the next key is where that is checked: a fresh composition, no "nihao" in it.
+# Contract v1.3: nothing of "nihao" was in the field, so the app emptying it leaves it empty: no pinyin for the page to
+# commit, nothing read before the caret. The input method may keep the composition in its panel (acceptable) or drop
+# it; the user's next step either way is Esc, which leaves no composition, and then a fresh one with no "nihao" in it.
 EXPECT doc ""
+EXPECT marked none
 EXPECT context before ""
+KEY esc
+EXPECT doc ""
+EXPECT preedit none
 TYPE wo
-EXPECT marked "wo"
+EXPECT marked none
+EXPECT preedit "wo"
 KEY space
 EXPECT doc "我|"
 EXPECT marked none
+EXPECT preedit none
 EXPECT panel hidden
 EXPECT nolost

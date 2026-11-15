@@ -16,7 +16,8 @@ import AllInOneIMETestSupport
 ///     SWITCH   abc | back
 ///     APP      clears
 ///     WAIT     300ms | 1.5s
-///     EXPECT   doc "…" | marked "…" | marked none | panel shown|hidden | lang chinese|english
+///     EXPECT   doc "…" | marked "…" | marked none | preedit "…" | preedit none | panel shown|hidden
+///              | lang chinese|english
 ///              | context before "…" | context after "…" | context unreadable | fallback none | switches 1
 ///              | calls length<=1 | nolost
 ///
@@ -92,6 +93,15 @@ enum HostCaseParser {
             return .doc(markup)
         case "marked":
             return .marked(rest.lowercased() == "none" ? nil : try text(rest))
+        case "preedit":
+            // v1.3: the panel's input line; a `|` in it (optional) says where its caret is.
+            guard rest.lowercased() != "none" else { return .preedit(nil, caret: nil) }
+            let markup = try FieldMarkup(parsing: try quoted(rest))
+            guard markup.selection == nil, markup.marked == nil else {
+                throw HostCaseError("EXPECT preedit is the panel's input line: a | for its caret at most, no [..] or {..}")
+            }
+            let caret = markup.caret.map { (markup.text as NSString).substring(to: $0).count }
+            return .preedit(markup.text, caret: caret)
         case "panel":
             return .panel(shown: try oneOf(rest, ["shown": true, "hidden": false], "shown or hidden"))
         case "lang":

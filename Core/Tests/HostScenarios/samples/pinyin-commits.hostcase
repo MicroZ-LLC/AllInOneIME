@@ -1,14 +1,17 @@
-# Smoke test of the runner (not a spec): pinyin typed after some text is marked, Space puts the first candidate in.
-NAME     pinyin is marked, then Space puts the first candidate in after the text
+# Smoke test of the runner (not a spec): pinyin typed after some text shows in the panel's input line
+# (contract v1.3: never marked in the field), Space puts the first candidate in.
+NAME     pinyin shows in the panel, then Space puts the first candidate in after the text
 PROFILES all
 LANG     chinese
 TEXT     "Hi Bob|"
 TYPE     nihao
-EXPECT   marked "nihao"
+EXPECT   marked none
+EXPECT   preedit "ni hao"
 EXPECT   panel shown
 KEY      space
 EXPECT   doc "Hi Bob你好|"
 EXPECT   marked none
+EXPECT   preedit none
 EXPECT   panel hidden
 EXPECT   lang chinese
 EXPECT   nolost

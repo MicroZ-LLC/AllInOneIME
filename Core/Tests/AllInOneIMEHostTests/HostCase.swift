@@ -77,6 +77,10 @@ enum HostExpectation: Sendable, Equatable {
     case doc(FieldMarkup)
     /// The marked text the field shows; nil: none.
     case marked(String?)
+    /// The candidate panel's input line, the composition as the panel shows it (contract v1.3: pinyin, a command draft
+    /// "improve › ok"); its prompt and text together. nil: none (`EXPECT preedit none`). `caret` (in characters), where
+    /// the scenario wrote a `|`: where the line's caret must be.
+    case preedit(String?, caret: Int?)
     case panel(shown: Bool)
     case language(HostLanguage)
     /// What autocomplete or a command would read before the caret; nil: nothing (`EXPECT context unreadable`).

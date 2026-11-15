@@ -79,26 +79,18 @@ struct HostRunTests {
         #expect(run.failures.contains { $0.message.contains("reached the session") })
     }
 
-    /// A click in a field with marked text: Chromium commits it as it shows it, itself; NSTextView has the input method
-    /// commit it (its candidate).
+    /// A click in a field with marked text (the app's own: since contract v1.3 the input method marks none): Chromium
+    /// commits it as it shows it, itself; one inside it on NSTextView is the input method's, and nothing moves.
     @Test func aClickCommitsTheMarkedText() throws {
-        let source = "LANG chinese\nTEXT \"Hi |\"\nTYPE nihao\nCLICK inside 0"
-        #expect(try run(source, on: .chromium).run.host.document == "Hi nihao")
-        #expect(try run(source, on: .nstextview).run.host.document == "Hi 你好")
-        // A click inside the marked text is the input method's: nothing moves.
-        let inside = try run("LANG chinese\nTEXT \"Hi |\"\nTYPE nihao\nCLICK inside 4", on: .nstextview).run
+        #expect(try run("TEXT \"Hi {nihao}\"\nCLICK inside 0", on: .chromium).run.host.document == "Hi nihao")
+        let inside = try run("TEXT \"Hi {nihao}\"\nCLICK inside 4", on: .nstextview).run
         #expect(inside.host.marked == "nihao" && inside.host.document == "Hi ")
     }
 
-    /// Losing the focus, Chromium commits the marked text as it shows it and drops what the input method puts in then:
-    /// `nolost` says the candidate was lost.
-    @Test func chromiumDropsWhatGoesInAsTheFieldLosesTheFocus() throws {
-        let source = "LANG chinese\nTEXT \"Hi |\"\nTYPE nihao\nFOCUS away\nEXPECT nolost"
-        let (chromium, lost) = try run(source, on: .chromium)
-        #expect(chromium.host.document == "Hi nihao")
-        #expect(lost.map(\.line) == [5] && lost.first?.message.contains("lost or doubled") == true, "\(lost)")
-        let (textView, none) = try run(source, on: .nstextview)
-        #expect(textView.host.document == "Hi 你好" && none.isEmpty, "\(none)")
+    /// Losing the focus, Chromium commits the marked text as it shows it (the app's own here).
+    @Test func chromiumCommitsTheMarkedTextAsTheFieldLosesTheFocus() throws {
+        let (chromium, _) = try run("TEXT \"Hi {nihao}\"\nFOCUS away", on: .chromium)
+        #expect(chromium.host.document == "Hi nihao" && chromium.host.marked.isEmpty)
     }
 
     // MARK: Checks
@@ -107,7 +99,7 @@ struct HostRunTests {
         let (_, failures) = try run("""
             LANG chinese
             TYPE nihao
-            EXPECT marked "nihao"
+            EXPECT panel shown
             KEY space
             EXPECT doc "你好"
             EXPECT doc "wrong"
@@ -180,12 +172,20 @@ struct HostRunTests {
         }
     }
 
-    /// `APP clears` drops the marked text with the rest; an input method still holding the draft then is reported.
-    @Test func anAppThatClearsTheFieldLeavesNoDraft() throws {
+    /// `APP clears` empties the field and drops its marked text; the input method may keep its composition (contract
+    /// v1.3: it is only in the panel).
+    @Test func anAppThatClearsTheField() throws {
         let (cleared, failures) = try run("LANG english\nTEXT \"old|\"\nAPP clears\nEXPECT doc \"\"\nEXPECT marked none", on: .chromium)
         #expect(failures.isEmpty && cleared.host.marked.isEmpty, "\(failures)")
-        let (_, kept) = try run("LANG chinese\nTEXT \"old|\"\nTYPE ni\nAPP clears", on: .nstextview)
-        #expect(kept.map(\.line) == [4] && kept.first?.message.contains("still holds the draft") == true, "\(kept)")
+        let (_, kept) = try run("LANG chinese\nTEXT \"old|\"\nTYPE ni\nAPP clears\nEXPECT doc \"\"", on: .nstextview)
+        #expect(kept.isEmpty, "\(kept)")
+    }
+
+    /// `EXPECT preedit` reads the panel's input line: none where the panel is hidden; a wrong one is reported.
+    @Test func thePreeditIsThePanelsInputLine() throws {
+        #expect(try run("TEXT \"Hi |\"\nEXPECT preedit none", on: .nstextview).failures.isEmpty)
+        let (_, wrong) = try run("TEXT \"Hi |\"\nEXPECT preedit \"ni hao\"", on: .nstextview)
+        #expect(wrong.map(\.line) == [2] && wrong.first?.message.contains("input line") == true, "\(wrong)")
     }
 
     /// `EXPECT context after` reads past the caret; `EXPECT fallback none` holds once a click forgot what was typed.
