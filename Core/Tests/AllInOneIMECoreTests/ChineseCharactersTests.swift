@@ -415,15 +415,15 @@ struct ChineseCharactersTests {
         #expect(TranslateMode.plan(for: "这个", target: hant, config: taiwan).input == .chinese)
     }
 
-    /// Japanese has kanji that read as either (学 Simplified, 語 Traditional): with any kana it can't tell, and Chinese
-    /// for it is the characters typed, as before.
-    @Test func japaneseTextGoesByTheSetting() {
+    /// Japanese has kanji that read as either (学 Simplified, 語 Traditional): with any kana it can't tell; the text is
+    /// Japanese ("ja"), whatever the characters typed (owner, 2026-11-14).
+    @Test func japaneseTextIsJapaneseWhateverTheSetting() {
         let japanese = ["日本の学校に来た", "会社に行きます", "日本語の勉強", "東京駅で待っています", "ﾃｽﾄの結果"]
         for text in japanese { #expect(ChineseCharacters.writtenTraditional(text) == nil, "\(text)") }
         let taiwan = config(.taiwan, outputs: [.english]), simplified = config(.simplified, outputs: [.english])
         for text in japanese {
-            #expect(taiwan.writtenLanguage(of: text) == .traditionalTaiwan, "\(text)")
-            #expect(simplified.writtenLanguage(of: text) == .chinese, "\(text)")
+            #expect(taiwan.writtenLanguage(of: text) == .japanese, "\(text)")
+            #expect(simplified.writtenLanguage(of: text) == .japanese, "\(text)")
         }
         // Chinese without kana still tells.
         #expect(ChineseCharacters.writtenTraditional("会社") == false && ChineseCharacters.writtenTraditional("東京駅") == true)
