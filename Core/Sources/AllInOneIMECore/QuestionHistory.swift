@@ -116,6 +116,31 @@ public struct QuestionHistory: Codable, Equatable, Sendable {
         return aside
     }
 
+    /// The one lock every change to a questions file goes under (`update`).
+    private static let fileLock = NSLock()
+
+    /// Changes the questions in the file at `url` by `change` and writes them (`write`), read and written under one
+    /// lock: a question recorded (`@question`, on the main thread) and the iCloud sync's merge (on its own queue) never
+    /// write over each other, so neither loses what the other wrote. Held only for reading and writing this small file.
+    /// What was written.
+    @discardableResult
+    public static func update(at url: URL = defaultURL, _ change: (inout QuestionHistory) -> Void) throws
+        -> (history: QuestionHistory, setAside: String?) {
+        try fileLock.withLock {
+            var history = load(from: url)
+            change(&history)
+            let aside = try history.write(to: url)
+            return (history, aside)
+        }
+    }
+
+    /// This merge, made from the file as it was read (`read`), with what the file has now (`now`) that it didn't then: a
+    /// question recorded or a conversation answered on meanwhile goes in too, by its time, never written over.
+    func keeping(_ now: QuestionHistory, readAs read: QuestionHistory) -> QuestionHistory {
+        let added = now.entries.filter { !read.entries.contains($0) }
+        return QuestionHistory(entries: (added + entries).sorted { $0.date > $1.date })
+    }
+
     /// Moves the file at `url` aside if it is there and can't be read, marked first (`setAsideMark`) so that a sync
     /// running meanwhile never takes the questions it held for a Clear; its new name. A mark that can't be written (a
     /// full disk) throws with the file left where it is, never moved unmarked: the sync then sets it aside itself.

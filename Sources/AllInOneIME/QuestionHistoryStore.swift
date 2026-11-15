@@ -21,25 +21,27 @@ enum QuestionHistoryStore {
 
     /// `entry` was answered just now.
     static func record(_ entry: QuestionHistory.Entry) {
-        var history = history
-        history.record(entry)
-        save(history)
+        save { $0.record(entry) }
     }
 
     /// Forgets them all: the file goes.
     static func clear() {
-        save(QuestionHistory())
+        save { $0 = QuestionHistory() }
     }
 
-    private static func save(_ history: QuestionHistory) {
+    /// `change` made to the file as it is now, under the lock the iCloud sync's merge takes too (`QuestionHistory.update`):
+    /// a merge going on meanwhile never writes over the question, nor this over the merge.
+    private static func save(_ change: (inout QuestionHistory) -> Void) {
         do {
-            if let aside = try history.write(to: url) {
-                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
-            }
+            let (history, aside) = try QuestionHistory.update(at: url, change)
+            if let aside { log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)") }
+            loaded = (modificationDate(), history)
         } catch {
             log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
+            var history = history
+            change(&history)
+            loaded = (modificationDate(), history)
         }
-        loaded = (modificationDate(), history)
     }
 
     /// By `lstat` (a microsecond; the file manager's attributes take some forty): the history is asked for with each key.
