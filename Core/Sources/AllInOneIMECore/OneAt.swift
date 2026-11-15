@@ -273,9 +273,12 @@ public enum OneAt {
 
     /// The Chinese that makes a sentence a question.
     static let chineseQuestionWords = ["吗", "呢", "什么", "怎么", "为什么", "哪", "几", "多少"]
-    /// The same words where they ask nothing: 几乎 (almost), 过几天 (in a few days), 没什么 (it's nothing), 怎么都 (any way
-    /// will do), 哪怕 (even if), 多少有点 (somewhat) …: taken out before the words above are looked for.
-    static let chineseNonQuestions = ["几乎", "好几", "过几", "这几", "那几", "前几", "后几", "十几", "几十", "几百", "几千", "几万",
+    /// The same words where they ask nothing: 几乎 (almost), 过几天 (in a few days: 过几 with a time, not 去过几次), 没什么
+    /// (it's nothing), 怎么都 (any way will do), 哪怕 (even if), 多少有点 (somewhat) …: taken out before the words above are
+    /// looked for.
+    static let chineseNonQuestions = ["几乎", "好几", "这几", "那几", "前几", "后几", "十几", "几十", "几百", "几千", "几万",
+                                      "过几天", "过几日", "过几分", "过几秒", "过几小时", "过几个小时", "过几周", "过几个星期",
+                                      "过几个月", "过几年",
                                       "没什么", "没有什么", "不算什么", "什么都", "什么也", "不怎么", "怎么都", "怎么也",
                                       "哪怕", "哪里哪里", "哪儿都", "哪里都", "哪都", "多少有", "或多或少"]
     /// The English words a question starts with.
