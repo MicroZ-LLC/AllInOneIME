@@ -9,10 +9,20 @@ public enum SessionEvent: Sendable {
     case modifiers(ModifierChange, FieldContext)
     /// The field took the focus.
     case focus(FieldInfo)
-    /// The field lost the focus: what's pending goes in, running requests stop.
+    /// The field lost the focus: pinyin not yet confirmed goes (#116), the rest of what's pending goes in, running
+    /// requests stop.
     case blur
-    /// The app wants what's pending in now (a click elsewhere in it).
+    /// The app wants what's pending in now (a click elsewhere in it): what is composed and not yet confirmed (pinyin)
+    /// goes, not in (#116).
     case commit
+    /// The app cancelled the composition (IMK's `cancelComposition`): nothing pending goes in, the draft goes, the panel
+    /// with it.
+    case cancel
+    /// A mouse button went down outside the input method's own windows (anywhere: in this field, another one, another
+    /// app): with nothing marked in the field, no app tells the input method of a click. The user is leaving what is
+    /// being typed: as `cancel`, nothing of it goes in (the pinyin, a draft), and the panel goes (the owner,
+    /// 2026-11-15; contract v1.4). A click on the panel is `pick`, never this.
+    case pointerDown
     /// A row of the candidate panel clicked (its index in `PanelModel.rows`: the session picks its `choice`); its list
     /// scrolled by `steps` rows (down positive; 0: the wheel or trackpad moved over it short of a row, or scrolled a
     /// conversation in it). Each wheel event over the panel is told: the wheel used there moved no caret in the field
@@ -70,7 +80,7 @@ public struct SessionResponse: Equatable, Sendable {
 
 /// What the shell does for the session, to the field and on the screen.
 public enum SessionOutput: Equatable, Sendable {
-    /// Text in at the caret, in place of the marked text (in a terminal, text with line breaks as a paste where the shell
+    /// Text in at the caret (in a terminal, text with line breaks as a paste where the shell
     /// can paste).
     case commit(String)
     /// Text in once the key being answered is done, in the field of the key (`Composer.Effect.commitAfterKey`).
@@ -91,10 +101,7 @@ public enum SessionOutput: Equatable, Sendable {
     /// well (Chromium's, where nothing goes in during it: Slack's composer moved its caret, or the focus, on ↑) keeps it
     /// from doing so, the field's text and its caret as they are (0.6.7.3).
     case rowsTookKey
-    /// The marked text: `text`, the caret `cursor` UTF-16 units into it, `converted` at level two. Empty: none of ours
-    /// (leave the document alone if the shell set none).
-    case marked(String, cursor: Int, converted: Bool)
-    /// `text` typed out like a person typing (`Config.typeOut`); the marked text is gone.
+    /// `text` typed out like a person typing (`Config.typeOut`).
     case typeOut(String)
     /// The caret `back` UTF-16 units into `inserted`, the text just put in (a snippet's `{cursor}`); once typed out, if it is.
     case moveCaret(back: Int, after: String?)
@@ -272,7 +279,6 @@ public struct FieldContext: Equatable, Sendable {
         public let rawValue: Int
         public init(rawValue: Int) { self.rawValue = rawValue }
         public static let secure = Parts(rawValue: 1 << 0)
-        public static let markedText = Parts(rawValue: 1 << 1)
         public static let selectedRange = Parts(rawValue: 1 << 2)
         public static let selection = Parts(rawValue: 1 << 3)
         public static let beforeCaret = Parts(rawValue: 1 << 4)
@@ -281,7 +287,7 @@ public struct FieldContext: Equatable, Sendable {
         /// `AXSecureTextField`), told in `field`'s `secure` (one the shell couldn't tell, `passwordFieldUnknown`): asked
         /// once a field, where suggestions may show.
         public static let passwordField = Parts(rawValue: 1 << 6)
-        public static let all: Parts = [.secure, .markedText, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
+        public static let all: Parts = [.secure, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }
 
     /// What is right before the caret, as the field tells it.
@@ -300,8 +306,6 @@ public struct FieldContext: Equatable, Sendable {
     public var field: FieldInfo?
     /// Secure input is on for this field's app (a password field or prompt): nothing is composed, keys go straight in.
     public var secure: Bool
-    /// The app took the marked text on its own (it reports none where it had it: Slack's mention).
-    public var markedTextTaken: Bool
     /// Where the selection is (UTF-16), as the field reports it; nil: it tells none.
     public var selectedRange: Range<Int>?
     /// The selected text, and where (`Composer.Selection`); nil: none.
@@ -316,13 +320,12 @@ public struct FieldContext: Equatable, Sendable {
     /// instead (the Mac: with Accessibility, which may take a while): the draft waits for it (`Composer.selectionPending`).
     public var selectionFollows: Bool
 
-    public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false, markedTextTaken: Bool = false,
+    public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false,
                 selectedRange: Range<Int>? = nil, selection: Composer.Selection? = nil, beforeCaret: BeforeCaret = .unknown,
                 text: FieldText? = nil, passwordFieldUnknown: Bool = false) {
         self.read = read
         self.field = field
         self.secure = secure
-        self.markedTextTaken = markedTextTaken
         self.selectedRange = selectedRange
         self.selection = selection
         self.beforeCaret = beforeCaret

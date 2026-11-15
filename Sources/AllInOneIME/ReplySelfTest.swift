@@ -183,8 +183,8 @@ extension SelfTest {
         var clipboardReads = 0
         controller.readClipboard = { clipboardReads += 1; return .image(image) }
         startReply()
-        check(client.marked == "reply › " && controller.panelModel().status == .hint("回复对方：⌃V 粘贴消息或截图"),
-              "@reply says what it takes (\(client.marked) | \(controller.panelModel().status))")
+        check(controller.preedit == "reply › " && controller.panelModel().status == .hint("回复对方：⌃V 粘贴消息或截图"),
+              "@reply says what it takes (\(controller.preedit) | \(controller.panelModel().status))")
         ReplySelfTestEndpoint.reset()
         controlV()
         let ready = pump(timeout: 15) { if case .screenshot(.ready)? = controller.composer.attachment { return true } else { return false } }

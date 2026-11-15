@@ -107,8 +107,8 @@ public struct PanelModel: Equatable, Sendable {
         case error(String)
     }
 
-    /// The line of input on top, with its caret: a command written on the selected text (it isn't marked in the field),
-    /// a refine instruction or an `@question` conversation's next question being typed.
+    /// The line of input on top, with its caret: what is being typed (nothing is marked in the field: pinyin, a command's
+    /// draft), a refine instruction or an `@question` conversation's next question being typed.
     public struct Input: Equatable, Sendable {
         /// What it is, before the text: "refine › ", "question 2/5 › " (empty: the text says it, "improve › …").
         public var prompt: String

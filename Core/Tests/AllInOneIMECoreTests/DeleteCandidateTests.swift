@@ -278,20 +278,20 @@ struct DeleteCandidateSessionTests {
             #expect(texts(host) == ["你好", "拟好"] && host.panel?.rows.map(\.choice) == [0, 1], "\(texts(host))")
             host.send(.delete(1))
             #expect(engine.deleted == [1], "\(engine.deleted)")
-            #expect(host.document.isEmpty && host.marked == "nihao", "nothing committed (\(host.document)), the letters marked (\(host.marked))")
+            #expect(host.document.isEmpty && host.preedit == "nihao", "nothing committed (\(host.document)), the letters marked (\(host.preedit))")
             #expect(texts(host) == ["你好"] && host.panel?.rows.map(\.choice) == [0], "the panel laid out again without it: \(texts(host))")
             // Past the rows: nothing.
             host.send(.delete(1))
             host.send(.delete(5))
-            #expect(engine.deleted == [1] && host.document.isEmpty && host.marked == "nihao")
+            #expect(engine.deleted == [1] && host.document.isEmpty && host.preedit == "nihao")
             // A click still picks.
             host.send(.pick(0))
-            #expect(host.document == "你好" && host.marked.isEmpty, "\(host.document)")
+            #expect(host.document == "你好" && host.preedit.isEmpty, "\(host.document)")
             // Never again.
             host.type("nihao")
             #expect(texts(host) == ["你好"], "\(texts(host))")
             host.send(.delete(0))
-            #expect(engine.deleted == [1, 0] && host.document == "你好" && host.marked == "nihao", "\(engine.deleted)")
+            #expect(engine.deleted == [1, 0] && host.document == "你好" && host.preedit == "nihao", "\(engine.deleted)")
         }
     }
 
@@ -305,7 +305,7 @@ struct DeleteCandidateSessionTests {
             host.press(host.composer.horizontalCandidates ? FakeHost.right : FakeHost.down)
             #expect(host.composer.engineState.highlighted == 1 && host.panel?.highlighted == 1)
             #expect(host.press(DeleteKeys.controlForwardDelete), "taken: the app never has it")
-            #expect(engine.deleted == [1] && host.document.isEmpty && host.marked == "nihao", "\(engine.deleted) \(host.document)")
+            #expect(engine.deleted == [1] && host.document.isEmpty && host.preedit == "nihao", "\(engine.deleted) \(host.document)")
             #expect(texts(host) == ["你好"] && host.panel?.highlighted == 0, "\(texts(host))")
             // Plain ⌦ is no delete.
             host.press(DeleteKeys.forwardDelete)
@@ -320,7 +320,7 @@ struct DeleteCandidateSessionTests {
             host.send(.delete(0))
             host.type("nihao")
             host.press(FakeHost.space)
-            #expect(host.document == "你好" && host.marked.isEmpty)
+            #expect(host.document == "你好" && host.preedit.isEmpty)
             host.send(.delete(0))
             #expect(!host.press(DeleteKeys.controlForwardDelete))
             #expect(engine.deleted.isEmpty && host.document == "你好", "\(engine.deleted)")

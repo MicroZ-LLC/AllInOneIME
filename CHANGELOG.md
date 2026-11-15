@@ -6,6 +6,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- What you're typing (pinyin, a command such as `@improve …` or `@question …`, an `@note`, Code's word) shows only on the top line of the candidate box, with its cursor, in every app, as Squirrel's `inline_preedit: false` does; nothing is shown in the text field until you pick, insert or run it. The candidate box sits at the cursor.
 - Settings is lighter, and the options of the AI commands are in one place. Settings → AI shows the AI first (as in 0.7.4), then **AI Commands**: `@improve`'s rewrite styles, "@improve also translates" and the jargon list, `@translate`'s languages (Translate to), and `@question`'s: where a conversation continues, and "Remember recent questions" with Forget; then Model Settings. They moved there from General and Commands, and the recent questions from Privacy: they're in that one place now, and the settings search finds each of them there. Commands keeps your commands, `@agent`, `@note`, plugins and script extensions. The config keys are as before.
 - Sync through iCloud's ⋯ menu has one **Remove from iCloud…**, which takes everything synced out of iCloud (your settings, custom commands and jargon list, learned words, hidden words and recent questions) after a confirmation that lists it; Remove Hidden Words from iCloud… and Remove Recent Questions from iCloud… are gone.
 - "Use the selected text" has no switch any more: the input method learns it per app, as it learns the apps that can't take a typo back. An app whose field doesn't take a command's result in place of the selection (the selected text still there afterwards, the result not) is remembered on this Mac, and the selection isn't used there again; Settings → Privacy → Learned… lists it ("Selection not used in …"), with Forget. `"useSelection": false` in the config still turns it off everywhere, and Settings → Advanced then shows it with Restore Default.
@@ -16,6 +17,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 - The website's privacy policy now says, as the README does, that Autocomplete (off by default) sends the text around the caret at a pause, and that Settings sends what you type into the search's Change: … or Troubleshoot's question; the site's home page says 200 free requests a day.
 
 ### Fixed
+
+- Leaving a text field while pinyin is still being typed leaves nothing of it there, in every app: clicking anywhere (into another field, elsewhere in the same field, another app), switching apps, or closing the window or tab drops the pinyin not yet picked, and the candidate box goes. Before, the first candidate went in, and Brave, Chrome, Slack and other Chromium apps, and single-line fields, put the pinyin in as shown ("ni hao") themselves (GitHub #116, #115). A click also drops a command being written (`@improve …`), nothing of it put in.
 
 - Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
 

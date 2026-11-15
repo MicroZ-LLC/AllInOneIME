@@ -242,7 +242,7 @@ struct OneAtTests {
             told.selection = nil
             told.selectionFollows = true
             host.press(FakeHost.at, with: told)
-            #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.marked)")
+            #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.preedit)")
             #expect(host.composer.selection?.text == "The report looks good", "read after the key")
             #expect(host.panel?.rows.first?.comment == "@improve", "the selection's: \(host.panel?.rows.map(\.text) ?? [])")
             #expect(host.composer.parkedForSelection == nil && host.platformActions.isEmpty)
@@ -427,8 +427,8 @@ struct OneAtTests {
 
             let space = reading(selected: true, typing: "hello")
             #expect(space.press(FakeHost.space))
-            #expect(!space.composer.selectionPending && space.composer.draft == "@hello " && space.marked.hasSuffix("hello "),
-                    "marked in the field now: \(space.marked)")
+            #expect(!space.composer.selectionPending && space.composer.draft == "@hello " && space.preedit.hasSuffix("hello "),
+                    "in the input line now: \(space.preedit)")
             let panel = space.panel
             space.answerFieldReads()
             #expect(space.composer.selection == nil && space.panel == panel && space.composer.draft == "@hello ", "dropped")
@@ -494,7 +494,7 @@ struct OneAtTests {
             #expect(host.composer.parkedForSelection == .row(.command(.improve)) && host.composer.draftCommand == nil)
             host.answerFieldReads()
             #expect(host.composer.draftCommand == .improve && host.composer.selection?.text == "hello there", "\(host.composer.draft)")
-            #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.marked)")
+            #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.preedit)")
             host.press(FakeHost.enter)
             #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve)
             #expect(host.platformActions.isEmpty)
@@ -807,7 +807,7 @@ struct OneAtTests {
                     host.composer.setInputMode(.english)
                     host.type(text)
                     let place = "\(trigger) \(text)\(terminal ? " in a terminal" : "")"
-                    #expect(host.document == text && host.marked.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.marked)")
+                    #expect(host.document == text && host.preedit.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.preedit)")
                     #expect(host.composer.oneAt == nil && host.panel?.rows.isEmpty != false, "\(place)")
                     #expect(!host.settle(timeout: 0.1) { !asked.withLock { $0 }.isEmpty }, "\(place): \(asked.withLock { $0 })")
                 }

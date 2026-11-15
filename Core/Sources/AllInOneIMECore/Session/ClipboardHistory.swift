@@ -16,7 +16,7 @@ import Foundation
 // - The trigger is the paste-anywhere key: `ModifierRoles.pasteAnywhere` with V, ⌃V on the Mac (`FakeHost.controlV`);
 //   none on Windows, where nothing here applies. The panel opens on it when the history is on (`clipboardHistory` not
 //   false), the shell keeps one (`state` not `.unavailable`), there's no secure input, and either nothing is composed (Code's
-//   word held as marked text goes in as typed first; suggestion rows showing go: a paste ends the token) or a command's
+//   word held in the panel goes in as typed first; suggestion rows showing go: a paste ends the token) or a command's
 //   text takes ⌃V (`Composer.takesPasteAnywhere`: a draft, not level two, no voice, no "@" alone). In a command with
 //   `state` `.notAllowed`, and anywhere with the history off or `.unavailable`, ⌃V is as before 0.6.8 (the composer's);
 //   so it is in a field where the shell couldn't keep the panel's keys from the app (`InputSession.clipboardPanelAllowed`

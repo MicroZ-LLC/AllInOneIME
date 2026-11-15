@@ -177,11 +177,12 @@ public enum SessionText {
                     "On the selection: “\(selectionPreview(selection))” (\(count) characters)")
     }
 
-    /// The command being written on the selection, for the panel's input line: as it would be marked, with its caret
-    /// (`Composer.markedCursor`) while it's written, none once it's sent.
+    /// What is being typed, for the panel's input line (nothing is marked in the field: `InputSession+Preedit.swift`):
+    /// the composer's composition (`Composer.markedText`: pinyin with its syllables apart, "improve › ok" for a
+    /// command's draft), with its caret (`Composer.markedCursor`) while it's written, none once it's sent. Nil: nothing.
     public static func panelInput(_ composer: Composer) -> PanelModel.Input? {
-        guard composer.draftInPanel else { return nil }
         let text = composer.markedText
+        guard !text.isEmpty else { return nil }
         guard !composer.isLevelTwo else { return PanelModel.Input(text: text, caret: nil) }
         return PanelModel.Input(text: text, caret: min(max(composer.markedCursor, 0), text.count))
     }
