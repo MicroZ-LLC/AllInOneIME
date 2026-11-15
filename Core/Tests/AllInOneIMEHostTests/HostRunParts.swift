@@ -108,15 +108,3 @@ final class HostClock: @unchecked Sendable {
     /// A click came since the last event the session had: the caret may have moved (`SessionServices.pointerUsedWithin`).
     var clicked = false
 }
-
-/// The on-device model as a scenario has it: there, and with nothing to suggest (autocomplete runs, shows nothing, says
-/// nothing); nothing leaves the process.
-struct SilentModel: AppleModelBackend {
-    var availability: AppleModelAvailability { .available }
-    var contextSize: Int { 4096 }
-    var supportedLanguages: Set<String> { ["en", "zh"] }
-
-    func respond(to request: AppleModelRequest) -> AsyncThrowingStream<AppleModelSnapshot, Error> {
-        AsyncThrowingStream { $0.finish() }
-    }
-}

@@ -1,11 +1,13 @@
 import Foundation
 import AllInOneIMECore
+import AllInOneIMETestSupport
 
 /// Reads a host scenario (`HostCase`), one step a line (the host scenario contract, v1):
 ///
 ///     NAME     what it checks
 ///     PROFILES all | nstextview chromium electron tellsnothing
 ///     LANG     chinese | english            the field's starting language, before the first step that does something
+///     SET      switchKey capsLock           a config key set before the first step that does something (v1.1)
 ///     TEXT     "Hi Bob|"                    the field's text: | caret, [..] selection, {..} marked
 ///     TYPE     nihao                        plain keys, one a character (quoted for spaces or #)
 ///     KEY      space enter shift cmd+z …    keys by name, modifiers joined with +; one or more
@@ -15,7 +17,8 @@ import AllInOneIMECore
 ///     APP      clears
 ///     WAIT     300ms | 1.5s
 ///     EXPECT   doc "…" | marked "…" | marked none | panel shown|hidden | lang chinese|english
-///              | context before "…" | context unreadable | switches 1 | calls length<=1 | nolost
+///              | context before "…" | context after "…" | context unreadable | fallback none | switches 1
+///              | calls length<=1 | nolost
 ///
 /// `#` starts a comment (not inside quotes). In quotes `\` makes the next character itself (`\"`, `\\`, `\|`, `\[` …);
 /// `\n` is a line break, `\t` a tab. A step for some profiles only ends with `@profile name …`, and a comment on its line
@@ -54,6 +57,9 @@ enum HostCaseParser {
         case "LANG":
             guard !started else { throw HostCaseError("LANG is the field's starting language: before the steps") }
             scenario.language = try language(arguments)
+        case "SET":
+            guard !started else { throw HostCaseError("SET is a setting the field starts with: before the steps") }
+            scenario.settings.append(try setting(arguments, after: scenario.settings))
         default:
             let action = try action(word.uppercased(), arguments)
             scenario.steps.append(HostStep(line: number, action: action, only: only))
@@ -92,9 +98,15 @@ enum HostCaseParser {
             return .language(try language(rest))
         case "context":
             let (kind, quote) = firstWord(rest)
-            if kind.lowercased() == "unreadable", quote.isEmpty { return .contextBefore(nil) }
-            guard kind.lowercased() == "before" else { throw HostCaseError("EXPECT context before \"…\", or unreadable") }
-            return .contextBefore(try text(quote))
+            switch kind.lowercased() {
+            case "unreadable" where quote.isEmpty: return .contextBefore(nil)
+            case "before": return .contextBefore(try text(quote))
+            case "after": return .contextAfter(try text(quote))
+            default: throw HostCaseError("EXPECT context before \"…\", after \"…\", or unreadable")
+            }
+        case "fallback":
+            guard rest.lowercased() == "none" else { throw HostCaseError("EXPECT fallback none") }
+            return .fallbackNone
         case "switches":
             guard let count = Int(rest), count >= 0 else { throw HostCaseError("EXPECT switches takes a count") }
             return .switches(count)
@@ -106,6 +118,19 @@ enum HostCaseParser {
         default:
             throw HostCaseError("no EXPECT \(what)")
         }
+    }
+
+    /// `switchKey capsLock`: a key of the config and its value (quoted for spaces), checked against the settings before it.
+    private static func setting(_ written: String, after earlier: [(key: String, value: String)]) throws -> (key: String, value: String) {
+        let (key, rest) = firstWord(written)
+        guard !key.isEmpty, !rest.isEmpty else { throw HostCaseError("SET <configKey> <value>") }
+        let value = rest.first == "\"" ? try quoted(rest) : rest
+        do {
+            _ = try HostScenarioSettings.config(startingIn: .english, set: earlier + [(key, value)])
+        } catch let error as HostSettingError {
+            throw HostCaseError("SET \(key): \(error.description)")
+        }
+        return (key, value)
     }
 
     /// `length<=1`, `substring <= 4`, `total==3`.

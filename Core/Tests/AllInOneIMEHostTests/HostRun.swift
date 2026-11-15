@@ -29,6 +29,8 @@ final class HostRun {
     var ledger = CommitLedger()
     /// The marked text in the field is the session's (else the app's own, set by `TEXT`).
     var markedBySession = false
+    /// The app emptied the field (`APP clears`) since the last invariants checked.
+    var appCleared = false
     /// The field has the focus; the session was given it at all; the input source is ABC (keys go to the app).
     var focused = false
     var started = false
@@ -44,24 +46,23 @@ final class HostRun {
     /// The app's undo: the field before each change, with what the ledger held then.
     var undo: [(document: String, caret: Int, ledger: CommitLedger)] = []
     var failures: [HostFailure] = []
+    /// The modifier changes the session was told (their copies dropped), in order.
+    var modifierChanges: [ModifierChange] = []
     var line = 0
 
     init(_ scenario: HostCase, profile: HostProfile) {
         self.scenario = scenario
         self.profile = profile
-        var config = Config.default
-        config.uiLanguage = "en"
-        config.inputLanguages = [.chinese, .english]
-        config.defaultInput = scenario.language == .chinese ? .chinese : .english
-        // Autocomplete on with the on-device model, which suggests nothing: the session keeps what was typed where the
-        // field tells nothing (`EXPECT context`), and nothing is sent anywhere.
-        config.autocomplete = true
-        config.provider = .apple
+        // The scenarios' settings, the Mac's replayer's too (`HostScenarioSettings`), with the scenario's `SET` lines (read
+        // and checked as it was parsed: one the config doesn't take never gets here).
+        let language: Language = scenario.language == .chinese ? .chinese : .english
+        let config = (try? HostScenarioSettings.config(startingIn: language, set: scenario.settings))
+            ?? Config.default
         let settings = HostSettings(config)
         self.settings = settings
         let clock = HostClock()
         self.clock = clock
-        var services = SessionServices(converter: Converter(loadConfig: { settings.config }, appleModel: SilentModel()),
+        var services = SessionServices(converter: Converter(loadConfig: { settings.config }, appleModel: HostScenarioSettings.SilentModel()),
                                        loadSettings: { settings.config })
         let engine = FakeEngine()
         services.levelOne = { .engine(engine) }
@@ -278,6 +279,7 @@ final class HostRun {
         if copy { fail("the copy of a modifier change (\(change.key.name)) reached the session as a change of its own") }
         var change = change
         change.late = max(now - change.timestamp, 0)
+        modifierChanges.append(change)
         let start = host.outputs.count
         let context = reader.context { [change] in host.session.fieldWants(forModifiers: change, given: $0) }
         host.send(.modifiers(change, context))
