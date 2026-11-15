@@ -8634,6 +8634,53 @@
       "comment" : "自动（现在：Kiro 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
       "extractionState" : "stale"
     },
+    "AWS Profile" : {
+      "comment" : "AWS profile — Sources/AllInOneIME/AWSProfileSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AWS profile"
+          }
+        }
+      }
+    },
     "Available" : {
       "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
