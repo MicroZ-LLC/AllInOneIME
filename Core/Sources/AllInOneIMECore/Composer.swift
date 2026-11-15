@@ -843,7 +843,7 @@ public final class Composer {
         didSet { if highlightOverride == nil { choicesTop = 0 } }
     }
     /// Where level two's rows shown start, when they are a list a page at a time (`choicesArePaged`), as it was left.
-    private var choicesTop = 0
+    var choicesTop = 0
     var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
@@ -942,14 +942,14 @@ public final class Composer {
     public var markedText: String {
         if isLevelTwo { return shownDraft }
         // What is being typed or said goes in at the cursor; what follows it (`tail`, shown the same) after.
-        let shown = shownDraft, after = tail.count
+        let shown = shownDraft, after = Self.shownLength(tail)
         return String(shown.dropLast(after)) + (engineState.isComposing ? engineState.preedit : "") + (pendingAccent ?? "") + hangul.preedit
             + appendix(voice.text) + String(shown.suffix(after))
     }
 
     /// Caret position in `markedText`, in Characters.
     public var markedCursor: Int {
-        let before = shownDraft.count - tail.count + (pendingAccent?.count ?? 0) + hangul.preedit.count
+        let before = shownDraft.count - Self.shownLength(tail) + (pendingAccent?.count ?? 0) + hangul.preedit.count
         if voice != .off { return before + appendix(voice.text).count }
         guard !isLevelTwo, engineState.isComposing else { return before }
         return before + min(max(engineState.cursor, 0), engineState.preedit.count)
@@ -1177,17 +1177,8 @@ public final class Composer {
         return ListPage.first(top: choicesTop, chosen: highlighted(in: all), count: all.count)
     }
 
-    /// ← (-1) or → (1) on a list in level two on more than a page: the page before or after, its first row highlighted;
-    /// nothing at the first or the last.
-    private func turnChoicesPage(by step: Int) -> [Effect] {
-        guard let next = ListPage.turned(step, first: choicesFirstShown, count: choices.count) else { return [] }
-        highlightOverride = next
-        choicesTop = next
-        return [.showPanel]
-    }
-
     /// `highlighted`, with `all` the `choices` already worked out (each time they are, every row's wording is read).
-    private func highlighted(in all: [Choice]) -> Int {
+    func highlighted(in all: [Choice]) -> Int {
         if let highlightOverride { return all.isEmpty ? 0 : min(highlightOverride, all.count - 1) }
         // A script's: the first row that can be picked (none for what a `show` prints).
         if activeCommand?.script != nil {
@@ -2569,6 +2560,9 @@ public final class Composer {
 
     /// How a line break of a note shows in the one-line draft.
     static let lineBreak = " ↵ "
+
+    /// How many Characters `text`, a part of the draft, takes in `shownDraft`: each line break `lineBreak`'s.
+    static func shownLength(_ text: String) -> Int { text.reduce(0) { $0 + ($1.isNewline ? lineBreak.count : 1) } }
 
     /// Clipboard text for a note: as it is, its lines too, without the blank space at its ends and without
     /// control characters other than tabs and line breaks (they would only garble the draft and the note).
@@ -3958,15 +3952,6 @@ public final class Composer {
         if let effects = commitReply(all[index]) { return effects }
         if typesResults { return finish(committing: "", selection: .replaced) + [.typeOut(all[index].text)] }
         return finish(committing: all[index].text)
-    }
-
-    private func moveHighlight(by delta: Int) -> [Effect] {
-        let all = choices, count = all.count
-        guard count > 0 else { return [] }
-        let current = min(highlighted(in: all), count - 1)
-        highlightOverride = (current + delta + count) % count
-        choicesTop = choicesFirstShown  // a list a page at a time scrolls with it
-        return [.showPanel]
     }
 
     /// How the field's selection (`selection`) ends with the composition (`finish`).

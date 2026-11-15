@@ -164,4 +164,20 @@ struct CandidateParserTests {
         let untagged = CandidateParser.parse("plain\u{1B}text", isFinal: true)
         #expect(untagged.versions.map(\.text) == ["plain text"])
     }
+
+    @Test func quotesInsideTheTextStay() {
+        // Marks that open and close only part of the text (a quote, then words, then another quote) aren't a pair
+        // around all of it: they stay.
+        let zh = CandidateParser.parse("ZH: “我不去，”他说，“你自己去吧。”", isFinal: true, output: .chinese)
+        #expect(zh.versions.first?.text == "“我不去，”他说，“你自己去吧。”")
+        let en = CandidateParser.parse(#"EN: "Yes," he said, "I will.""#, isFinal: true)
+        #expect(en.versions.first?.text == #""Yes," he said, "I will.""#)
+        // Around all of it, as before: they go.
+        #expect(CandidateParser.clean("“你自己去吧。”") == "你自己去吧。" && CandidateParser.clean(#""I will.""#) == "I will.")
+        #expect(CandidateParser.clean("「好的」") == "好的" && CandidateParser.clean("**Done**") == "Done")
+        // An apostrophe between letters isn't a quote: the marks around the text still go.
+        #expect(CandidateParser.parse("EN: 'I'm ready.'", isFinal: true).versions.first?.text == "I'm ready.")
+        #expect(CandidateParser.clean("‘Don’t go.’") == "Don’t go." && CandidateParser.clean("\"John's car\"") == "John's car")
+        #expect(CandidateParser.clean("'Yes,' I said, 'I'm in.'") == "'Yes,' I said, 'I'm in.'")
+    }
 }

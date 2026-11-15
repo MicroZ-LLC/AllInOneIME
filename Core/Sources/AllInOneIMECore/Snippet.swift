@@ -10,6 +10,7 @@ import Foundation
 /// - `{date}`, `{time}`: `yyyy-MM-dd` and `HH:mm`; `{date:FMT}` and `{time:FMT}` with a Unicode date pattern, in the
 ///   interface language's locale.
 /// - `{cursor}`: where the caret goes once it's in (at most one).
+/// - Full-width `？` and `：` (typed with Chinese punctuation on) are `?` and `:` there: `{名字？}`, `{date：MM月dd日}`.
 ///
 /// `{{` writes "{", and the `}}` that closes it writes "}" (`{{input}}` is "{input}"); any other `}}` and `{…}` stay as
 /// they are, so JSON or code in a snippet doesn't break (`{"a":{"b":1}}`). Line breaks are kept (`\r\n` as `\n`); the
@@ -120,13 +121,15 @@ public struct SnippetTemplate: Hashable, Sendable {
         case "cursor": return .cursor
         default: break
         }
-        for (prefix, make) in [("date:", Part.date), ("time:", Part.time)] where token.hasPrefix(prefix) {
+        // Typed with Chinese punctuation on, `：` and `？` are `:` and `?`.
+        for (prefix, make) in [("date:", Part.date), ("time:", Part.time), ("date：", Part.date), ("time：", Part.time)]
+        where token.hasPrefix(prefix) {
             let pattern = String(token.dropFirst(prefix.count))
             return pattern.trimmingCharacters(in: .whitespaces).isEmpty ? nil : make(pattern)
         }
-        guard token.hasSuffix("?") else { return nil }
+        guard token.hasSuffix("?") || token.hasSuffix("？") else { return nil }
         let label = token.dropLast().trimmingCharacters(in: .whitespaces)
-        guard !label.isEmpty, !label.contains("?") else { return nil }
+        guard !label.isEmpty, !label.contains("?"), !label.contains("？") else { return nil }
         if let index = labels.firstIndex(of: label) { return .field(index) }
         labels.append(label)
         return .field(labels.count - 1)
