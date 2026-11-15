@@ -1706,8 +1706,8 @@ public final class InputSession {
         case .statusEnded:
             guard composer.paletteQuery != nil else { return }
             perform([.showPanel])
-        case let .suggested(result, request):
-            autocompleteAnswered(result, request: request)
+        case let .suggested(update):
+            autocompleteUpdate(update)
         case .completionsAnswered:
             suggestionsAnswered()
         case let .warmDue(head, target, focus):

@@ -25,10 +25,12 @@ public struct CapsLockCopies: Equatable, Sendable {
 
     /// A Caps Lock change: `saysOn` whether its flags have the lock on, `lockOn` whether the lock is on now, `timestamp`
     /// its time, `now` the time it is handed over. True when it is a copy: it says the lock is on, the lock is off, and
-    /// it was last seen on before the change's time. Never one where the lock was never seen on (none to copy).
+    /// it was last seen on before the change's time. Never one where the lock was never seen on (none to copy). A press
+    /// finding the lock on was on from its own time, not from when it was handed over: one handed over late (the main
+    /// thread busy for 34 ms or more) would otherwise be seen on after its copy's time, and the copy taken for a press.
     public mutating func isCopy(saysOn: Bool, lockOn: Bool, timestamp: TimeInterval, now: TimeInterval) -> Bool {
         if lockOn {
-            lockSeenOn(at: now)
+            lockSeenOn(at: min(now, timestamp))
             return false
         }
         guard saysOn, let seenOnAt else { return false }

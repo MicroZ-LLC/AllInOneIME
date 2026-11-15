@@ -19,6 +19,11 @@ English | [中文](CHANGELOG.zh-CN.md)
 - The candidate box, when it stops showing, is now put back on every desktop (Space), not only ordered in again; its log line says whether it was on the current desktop, for GitHub #61, which we couldn't reproduce.
 
 - With Caps Lock as the switch key, a press of it switches the input language again in Brave's web page fields: the page handed the press over a second time, which switched straight back, so a field that started in English stayed in English (the address bar was fine).
+  It also holds when the Mac is busy and the press reaches the input method late (50 ms or more): the page's second copy of it no longer switches back.
+
+- With a CLI chosen as the AI (Claude Code, Codex, Antigravity, Kiro CLI), autocomplete goes by the faster AI the note under the CLI names: with no faster AI it's off, as that note says, and no longer reads the text field at each pause and asks; with Apple Intelligence as the faster AI it waits Apple Intelligence's shorter pause.
+
+- An `@question` asked while iCloud sync merged the recent questions could be missing from them afterwards: the merge wrote the list it had read over the one with the new question. The two now take turns, and the merge keeps what was asked meanwhile.
 
 - The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.
 
