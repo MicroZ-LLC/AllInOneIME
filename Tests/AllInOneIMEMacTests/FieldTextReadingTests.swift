@@ -97,4 +97,17 @@ struct FieldTextReadingTests {
         let field = Field(name: "Brave", text: text, length: 0, selected: Self.caret(100))
         #expect(field.read(before: 10, after: 10) == FieldText(before: String(repeating: "b", count: 20), after: ""))
     }
+
+    /// Editing inside a field that tells no length (Brave): the text after the caret is read too, so the caret isn't taken
+    /// for the end of the line (autocomplete asks only there).
+    @Test(arguments: [
+        Field(name: "\"hellox world\" in Brave, the caret after the x", text: "hellox world", length: 0, selected: caret(6)),
+        Field(name: "\"hello\" in Brave, the caret at the start", text: "hello", length: 0, selected: caret(0)),
+    ])
+    func noLengthToldReadsTheTextAfterTheCaret(_ field: Field) {
+        let after = (field.text as NSString).substring(from: field.selected.location)
+        let read = field.read()
+        #expect(read?.before == (field.text as NSString).substring(to: field.selected.location), "\(field.name)")
+        #expect(read?.after.isEmpty == false && after.hasPrefix(read?.after ?? "\u{0}"), "\(field.name)")
+    }
 }

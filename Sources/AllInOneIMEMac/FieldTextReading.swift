@@ -40,7 +40,9 @@ public enum FieldTextReading {
         }
         // UTF-16 units, twice the characters kept: an emoji or a rare character takes two.
         let (span, afterSpan) = (beforeLimit * 2, afterLimit * 2)
-        guard let length = signals.toldLength else { return readToTheCaret(around.location, span: span, substring: substring) }
+        guard let length = signals.toldLength else {
+            return readToTheCaret(around.location, span: span, afterSpan: afterSpan, substring: substring)
+        }
         let start = min(around.location, length)
         let end = min(NSMaxRange(around), length)
         let beforeRange = NSRange(location: max(0, start - span), length: start - max(0, start - span))
@@ -54,13 +56,27 @@ public enum FieldTextReading {
         return FieldText(before: before ?? "", after: after ?? "")
     }
 
-    /// A field that tells no length: what is before the caret, read up to it; nothing after it (where its text ends isn't
-    /// known). The caret at the start: empty (an empty field, or nothing before the caret). Nothing read back before it: it
-    /// can't be read.
-    static func readToTheCaret(_ caret: Int, span: Int, substring: (NSRange) -> String?) -> FieldText? {
-        guard caret > 0 else { return FieldText(before: "", after: "") }
+    /// A field that tells no length: what is before the caret, read up to it, and what is after it, as far as it reads
+    /// back (where its text ends isn't told: Chromium reads nil for a range past its end). The caret at the start and
+    /// nothing after it: empty. Nothing read back before a caret past the start: it can't be read.
+    static func readToTheCaret(_ caret: Int, span: Int, afterSpan: Int, substring: (NSRange) -> String?) -> FieldText? {
+        let after = readAfter(caret, span: afterSpan, substring: substring)
+        guard caret > 0 else { return FieldText(before: "", after: after) }
         let from = max(0, caret - span)
         guard let before = substring(NSRange(location: from, length: caret - from)), !before.isEmpty else { return nil }
-        return FieldText(before: before, after: "")
+        return FieldText(before: before, after: after)
+    }
+
+    /// The text after the caret in a field that tells no length: the longest range up to `span` that reads back, halving
+    /// it until one does (a range past the end reads nil). Editing inside a line keeps its rest, so autocomplete, which
+    /// asks only at the end of a line, doesn't take it for the end.
+    static func readAfter(_ caret: Int, span: Int, substring: (NSRange) -> String?) -> String {
+        guard span > 0, let first = substring(NSRange(location: caret, length: 1)), !first.isEmpty else { return "" }
+        var length = span
+        while length > 1 {
+            if let text = substring(NSRange(location: caret, length: length)), !text.isEmpty { return text }
+            length /= 2
+        }
+        return first
     }
 }
