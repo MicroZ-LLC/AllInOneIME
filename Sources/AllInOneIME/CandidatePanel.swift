@@ -111,11 +111,14 @@ final class CandidatePanel: NSPanel {
         effect.blendingMode = .behindWindow
         effect.state = .active  // the panel is never key: keep it frosted
         let radius = CandidateView.Metrics.cornerRadius
-        effect.maskImage = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
+        let mask = NSImage(size: NSSize(width: radius * 2 + 1, height: radius * 2 + 1), flipped: false) { rect in
             NSColor.black.setFill()
             NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
             return true
-        }.with { $0.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius); $0.resizingMode = .stretch }
+        }
+        mask.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        mask.resizingMode = .stretch
+        effect.maskImage = mask
         effect.addSubview(view)
         return effect
     }
@@ -469,6 +472,30 @@ final class CandidatePanel: NSPanel {
     static func screen(for anchor: NSRect) -> NSScreen? {
         let anchor = usable(anchor)
         return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
+    }
+}
+
+/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
+/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
+/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
+/// while it shows: `handler`, on the main thread, as long as this is kept.
+final class ScreenEvents {
+    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
+
+    init(_ handler: @escaping @MainActor () -> Void) {
+        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
+        let events: [(NotificationCenter, Notification.Name)] = [
+            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
+            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
+            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
+        ]
+        observers = events.map { center, name in
+            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
+        }
+    }
+
+    deinit {
+        for (center, observer) in observers { center.removeObserver(observer) }
     }
 }
 
@@ -1955,12 +1982,5 @@ extension PanelModel {
         case let .loading(text), let .hint(text), let .error(text): return text
         case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
         }
-    }
-}
-
-private extension NSImage {
-    func with(_ change: (NSImage) -> Void) -> NSImage {
-        change(self)
-        return self
     }
 }
