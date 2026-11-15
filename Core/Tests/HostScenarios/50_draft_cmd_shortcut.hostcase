@@ -1,0 +1,12 @@
+# Owner decision 2026-11-15, an unrun command draft ("@question …", "@improve …"): ⌘⏎ runs it as ⏎ does; the focus
+# leaving discards it; any other ⌘ shortcut discards it and goes on to the app.
+NAME another cmd shortcut discards an unrun command draft and reaches the app
+PROFILES all
+LANG english
+TEXT "Hi |"
+TYPE "@improve ok"
+EXPECT marked "improve › ok"   # a command draft shows as its name › its text
+KEY cmd+a
+EXPECT doc "[Hi ]"
+EXPECT marked none
+EXPECT panel hidden

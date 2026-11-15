@@ -1,10 +1,12 @@
-NAME losing field focus commits pinyin once
+# Owner decision 2026-11-15: pinyin typed and not confirmed is dropped when the user leaves the composition (a click
+# outside or inside the same field, Tab moving the focus, another app, the window closing): nothing of it stays in the
+# field, no marked text is left, the panel is hidden.
+NAME losing field focus drops unconfirmed pinyin
 PROFILES all
 LANG chinese
 TEXT "Hi |"
 TYPE nihao
 FOCUS away
-EXPECT doc "Hi 你好"
+EXPECT doc "Hi "
 EXPECT marked none
 EXPECT panel hidden
-EXPECT nolost

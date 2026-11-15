@@ -1,0 +1,11 @@
+# Owner decision 2026-11-15: punctuation typed right after an ASCII digit stays ASCII in Chinese mode (. , :), so
+# numbers, times and amounts come out as written (rime-ice's punctuator/digit_separators, Config.typingSymbols).
+NAME a comma right after a digit stays ASCII in Chinese mode
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE 1,000
+EXPECT doc "Hi 1,000|"
+EXPECT marked none
+EXPECT lang chinese
+EXPECT nolost

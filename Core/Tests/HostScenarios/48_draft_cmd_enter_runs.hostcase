@@ -1,0 +1,14 @@
+# Owner decision 2026-11-15, an unrun command draft ("@question …", "@improve …"): ⌘⏎ runs it as ⏎ does; the focus
+# leaving discards it; any other ⌘ shortcut discards it and goes on to the app.
+# QUESTION: the format has no "the command ran" check. Nothing of the draft reaching the field and the panel staying up
+# (with the request or its answer) is the closest; the Mac adapter or a later EXPECT could check the request itself.
+NAME cmd+Return runs an unrun command draft as Return does, nothing of it reaching the field
+PROFILES all
+LANG english
+TEXT "Hi |"
+TYPE "@question hi"
+EXPECT marked "question › hi"   # a command draft shows as its name › its text
+EXPECT panel shown
+KEY cmd+enter
+EXPECT doc "Hi |"
+EXPECT panel shown

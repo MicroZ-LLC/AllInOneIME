@@ -1,0 +1,17 @@
+# Tab while pinyin is typed belongs to the input method: rime-ice's key_binder sends it on as Shift+Right (the cursor
+# to the next syllable; rime-ice's default.yaml, fetched into ThirdParty/rime-data: "Tab / Shift+Tab 切换光标至下/上一个拼音"), and the Rime
+# wrapper lists Tab among the keys that edit the composition and never commit it (RimeSession.editingKeys). Nothing goes
+# in, the focus stays, the pinyin stays marked and its candidates stay up. (Tab inserting a row is the other panels':
+# the command list, suggestions, clipboard history, the user guide's "Every panel works the same way".) Seen on a real
+# Mac 2026-11-15: the marked text stayed "nihao".
+# QUESTION: the format can't check where the cursor inside the marked text is (after "ni"), only the marked string.
+NAME Tab during pinyin stays with the input method: nothing goes in and the pinyin stays marked
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE nihao
+EXPECT panel shown
+KEY tab
+EXPECT doc "Hi "
+EXPECT marked "nihao"
+EXPECT panel shown
