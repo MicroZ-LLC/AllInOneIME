@@ -124,4 +124,13 @@ struct FieldTextReadingTests {
                            selected: NSRange(location: 6, length: 3))
         #expect(middle.read()?.before == "hello " && middle.read()?.after.hasPrefix("l") == true)
     }
+
+    /// The whole rest of the line is read, not just what a shorter probe happened to reach: a space then a word after the
+    /// caret is text after it, not the end of the line.
+    @Test(arguments: [1, 2, 3, 7, 50, 399, 400])
+    func noLengthToldReadsTheWholeSuffix(_ restLength: Int) {
+        let rest = " " + String(repeating: "x", count: restLength)
+        let field = Field(name: "Brave", text: "hello" + rest, length: 0, selected: Self.caret(5))
+        #expect(field.read(before: 300, after: 300)?.after == String(rest.prefix(600)))
+    }
 }
