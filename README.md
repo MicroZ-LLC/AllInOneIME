@@ -485,10 +485,10 @@ link: `@sig` ⏎ puts it in at once (Tab or Space only complete the name). Its `
 | Placeholder | Becomes |
 |---|---|
 | `{input}` | everything you wrote after the name: `@tag foo bar` with `#{input}` inserts `#foo bar` |
-| `{name?}` | a blank, filled from what you wrote, separated by commas (`,` or `，`), in order: `Dear {name?}, see you {day?}.` with `@meet Bob, Friday`. One left empty is named in a notice, and nothing goes in |
+| `{name?}` | a blank, filled from what you wrote, separated by commas (`,` or `，`), in order: `Dear {name?}, see you {day?}.` with `@meet Bob, Friday`. One left empty is named in a notice, and nothing goes in. A full-width `？` works too (`{名字？}`) |
 | `{clipboard}` | the clipboard's text (macOS may ask first) |
 | `{selection}` | the text selected when you typed `@` (it's replaced, as by any command on the selection) |
-| `{date}`, `{time}` | today as `2026-10-17`, the time as `14:05`; `{date:EEEE, MMM d}` with a [date pattern](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table), in the interface language |
+| `{date}`, `{time}` | today as `2026-10-17`, the time as `14:05`; `{date:EEEE, MMM d}` with a [date pattern](https://unicode.org/reports/tr35/tr35-dates.html#Date_Field_Symbol_Table), in the interface language; a full-width `：` works too (`{date：M月d日}`) |
 | `{cursor}` | where the caret goes after it's in (once at most; not in a terminal) |
 
 - `{{` writes `{`, and the `}}` that closes it writes `}` (`{{input}}` inserts `{input}`); any other `}}` or `{…}` stays
@@ -1230,8 +1230,9 @@ suggestions use, and puts in the one you choose.
   Tab puts the chosen one in, ← → turn the page (the first row of the new one chosen), Esc hides the panel, and so does
   → when the rows fit on one page. Digits never pick: they filter, as letters do. A click puts in the row clicked.
 - **Filter (0.7.3):** outside a command, what you type filters the rows, however many there are (one or two too):
-  letters, digits and punctuation, in any case, anywhere in the text. A text with Chinese in it is found by its pinyin
-  too, in full or by initials (`nihao` or `nh` finds 你好, `fabu v2` or `fb v2` finds 发布 v2), and with Chinese input on
+  letters, digits and punctuation, in any case and width (`12345` finds １２３４５), anywhere in the text. A text with
+  Chinese in it is found by its pinyin too, in full or by initials (`nihao` or `nh` finds 你好, `fabu v2` or `fb v2` finds
+  发布 v2; ü as `v` or `u`: `lvse` or `luse` finds 绿色), and with Chinese input on
   what you type goes into the filter as letters, no pinyin composed; an image by `image`, `图片` or its size (`1280`). The
   filter shows on the panel's top line and the footer's right says how many match (`Clipboard · 3 matches`, or
   `no match`). Space goes into it once something is typed, ⌫ takes a character back (with nothing typed, Space and ⌫ are

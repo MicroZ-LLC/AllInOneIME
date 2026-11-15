@@ -199,14 +199,24 @@ public enum CandidateParser {
     static func clean(_ text: String) -> String {
         var s = stripControls(text).trimmingCharacters(in: .whitespaces)
         for _ in 0..<2 {
-            for (open, close) in [("\"", "\""), ("“", "”"), ("'", "'"), ("「", "」"), ("**", "**"), ("`", "`")]
+            for (open, close) in [("\"", "\""), ("“", "”"), ("'", "'"), ("‘", "’"), ("「", "」"), ("**", "**"), ("`", "`")]
             where s.count >= open.count + close.count && s.hasPrefix(open) && s.hasSuffix(close) {
                 // Only marks around all of it: `“我不去，”他说，“你自己去吧。”` closes and opens again inside, and keeps them.
-                let inner = s.dropFirst(open.count).dropLast(close.count)
+                // An apostrophe between letters (I'm, don’t, John's) is no quote mark.
+                let inner = withoutApostrophes(s.dropFirst(open.count).dropLast(close.count))
                 guard !inner.contains(open), !inner.contains(close) else { continue }
-                s = String(inner).trimmingCharacters(in: .whitespaces)
+                s = String(s.dropFirst(open.count).dropLast(close.count)).trimmingCharacters(in: .whitespaces)
             }
         }
         return s
+    }
+
+    /// `text` without the apostrophes (' and ’) that stand between two letters: a contraction's or a possessive's.
+    private static func withoutApostrophes(_ text: Substring) -> String {
+        let chars = Array(text)
+        return String(chars.indices.compactMap { i -> Character? in
+            let between = i > 0 && i < chars.count - 1 && chars[i - 1].isLetter && chars[i + 1].isLetter
+            return (chars[i] == "'" || chars[i] == "’") && between ? nil : chars[i]
+        })
     }
 }

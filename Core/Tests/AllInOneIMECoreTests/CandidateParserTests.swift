@@ -175,5 +175,9 @@ struct CandidateParserTests {
         // Around all of it, as before: they go.
         #expect(CandidateParser.clean("“你自己去吧。”") == "你自己去吧。" && CandidateParser.clean(#""I will.""#) == "I will.")
         #expect(CandidateParser.clean("「好的」") == "好的" && CandidateParser.clean("**Done**") == "Done")
+        // An apostrophe between letters isn't a quote: the marks around the text still go.
+        #expect(CandidateParser.parse("EN: 'I'm ready.'", isFinal: true).versions.first?.text == "I'm ready.")
+        #expect(CandidateParser.clean("‘Don’t go.’") == "Don’t go." && CandidateParser.clean("\"John's car\"") == "John's car")
+        #expect(CandidateParser.clean("'Yes,' I said, 'I'm in.'") == "'Yes,' I said, 'I'm in.'")
     }
 }
