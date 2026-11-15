@@ -35,7 +35,7 @@
 597 Core/Sources/AllInOneIMECore/TypeOut.swift
 447 Core/Sources/AllInOneIMECore/WeekStats.swift
 486 Core/Sources/AllInOneIMECore/WeekStatsText.swift
-562 Core/Sources/AllInOneIMERime/Rime.swift
+546 Core/Sources/AllInOneIMERime/Rime.swift
 650 Core/Sources/AllInOneIMEWire/WireMessages.swift
 633 Core/Sources/AllInOneIMEWire/WireServer.swift
 655 Sources/AllInOneIME/AssistantPage.swift

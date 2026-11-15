@@ -22,6 +22,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.
 
+- An update no longer leaves a crash report behind when it quits AllInOneIME while Rime is still compiling its dictionaries (after a language pack, a personal dictionary change, or right after a start): the input method now waits for Rime to finish before it quits, and logs how long it waited.
+
 ## 0.7.4 (2026-11-14)
 
 ### Added
