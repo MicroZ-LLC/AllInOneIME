@@ -153,7 +153,8 @@ public final class ComposerSession: @unchecked Sendable {
         return outputs
     }
 
-    /// `blur` (§4): the Composer's policy, `commitAll`: pending text goes in, running requests stop.
+    /// `blur` (§4): the Composer's policy, `commitAll`: pending text goes in (a command not run yet goes), running requests
+    /// stop.
     func blur() -> [Output] {
         guard isFocused else { return [] }
         let outputs = map(composer.commitAll(), from: .async) + hidePanel()
@@ -176,10 +177,11 @@ public final class ComposerSession: @unchecked Sendable {
         host.sessionClosed(self)
     }
 
-    /// `endComposition` (§5.5): the app ended our composition ("terminated": what is pending goes in, as `commitAll`
-    /// has it), or the client gave up on a key ("timeout"). After a timeout the client has ended the composition itself,
-    /// leaving the draft as typed in the document (`composition.typed`), and the app has had the key since: the draft
-    /// starts over and the panel goes, with no composition sent, since an empty one would remove that text.
+    /// `endComposition` (§5.5): the app ended our composition ("terminated": what is pending goes in, or a command not run
+    /// yet goes, as `commitAll` has it), or the client gave up on a key ("timeout"). After a timeout the client has ended
+    /// the composition itself, leaving the draft as typed in the document (`composition.typed`), and the app has had the
+    /// key since: the draft starts over and the panel goes, with no composition sent, since an empty one would remove that
+    /// text.
     func endComposition(reason: String) -> [Output] {
         guard reason == "timeout" else { return map(composer.commitAll(), from: .async) + hidePanel() }
         documentComposition = Self.noComposition

@@ -926,11 +926,6 @@ public final class Composer {
         }
     }
 
-    /// A draft still free of Chinese text, e.g. "@improve this is …" typed in English mode: a shortcut
-    /// (⌘A, ⌘⏎ …) inserts it as typed and then reaches the application; ⌘V instead takes the
-    /// clipboard's text into the draft (`pasted`).
-    public var isLatinDraft: Bool { !draft.isEmpty && !draft.containsHan }
-
     /// Whether Space on the draft starts level two now. Only with the `space` action key (in English
     /// mode the first Space after a word is a space; right after dictation one Space is enough);
     /// otherwise Space in a draft is a space.
@@ -1572,7 +1567,8 @@ public final class Composer {
     // MARK: - Keys
 
     public func handleKeyDown(_ event: KeyEvent) -> Response {
-        var response = keyDown(event)
+        // ⌘⏎ on a command not run yet is ⏎: it runs (Composer+CommandDraft.swift).
+        var response = keyDown(returnForCommandDraft(event))
         response.effects = forField(response.effects)
         return response
     }
@@ -1769,10 +1765,10 @@ public final class Composer {
            let response = pasteIntoDraft(evenWhereTheAppPastes: true) {
             return response
         }
-        // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
-        if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight,
-           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
-            return .consumed(moveCursor(event))
+        // ⌘← ⌘→ in a command's text: to its start or end, as in any text field (its pinyin into it first).
+        if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight, !draft.isEmpty, !isLevelTwo,
+           !engineState.isComposing || dropsCommandDraft, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
+            return .consumed(convertBeforeCursorMove() + moveCursor(event))
         }
         // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
         if let response = handleHandoffKey(event) { return response }
@@ -1781,10 +1777,11 @@ public final class Composer {
         // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
         let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
         if modifiers.contains(primary), !byWord {
-            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
+            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘S …); a command not run yet,
+            // whatever its text, goes as when the field is left (`commitAll`), typing nothing. A note with line
             // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
             // the clipboard as it was, not the note put there by `commitAll`).
-            return isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
+            return dropsCommandDraft || isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
         }
         if event.key == .space, modifiers == [.shift] {
             // ⇧Space is Space in every state (Shift is often still down after a capital: "I am").
@@ -2228,10 +2225,11 @@ public final class Composer {
 
     /// The application ends the composition (focus change, click elsewhere, input source switch):
     /// everything pending is committed as converted text, including speech recognized so far (but not a
-    /// note with line breaks: `finishAsTyped`).
+    /// note with line breaks: `finishAsTyped`). A command not run yet goes instead, nothing typed in (`dropsCommandDraft`).
     public func commitAll() -> [Effect] {
         // A key parked for the selection read after the "@" key is done first: the read gives up with the field.
         var effects = parkedForSelection != nil ? selectionRead(nil) : []
+        if dropsCommandDraft { return effects + dropCommandDraft() }
         typePendingAccent()
         var spoken = ""
         if let id = voice.id {

@@ -60,7 +60,7 @@ A new install writes English; to type Chinese, French, Korean or Hindi too, add 
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Digits are text there; while pinyin is typed they pick its words |
-| ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
+| ⏎, ⌘⏎ | Runs the command (⌘⏎ too, which chat apps use to send: the command is never sent as typed). Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed it does nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
@@ -101,6 +101,12 @@ commands below start with it (`~improve`), and so does the app's own text that n
 Example: `@q` ⏎, type `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
 `@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it.
 In Chinese mode, `@open` switches to English letters for the moment and goes back to Chinese when you're done.
+
+A command you haven't run is never typed into the app, whether its text is Chinese or English: ⌘⏎ runs it, as ⏎ does.
+Leaving the text field (another field or app clicked, or a click elsewhere in it) or any other ⌘ shortcut (⌘A, ⌘S …)
+drops it, nothing typed in, and the shortcut goes on to the app. ⌘← ⌘→ move to the start or end of its text, pinyin
+you're typing picked first, as with Space. ⇧⏎ still inserts it as typed, and `@note` keeps what you wrote (see
+[Notes and reminders](#notes-and-reminders)).
 
 The code for `@py` and `@js` is typed in English letters, and full-width punctuation (from Chinese mode) becomes ASCII; write it on one line, with `;` between statements.
 It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
@@ -362,7 +368,7 @@ Where it goes is Settings → Commands → Notes (@note) → Save to:
 - **Notion**: Create Integration… (New integration → Internal → copy the token), paste the token (kept in the keychain), then in Notion open the page or database → ··· → Connections → add your integration, and paste its link; Test shows "✓ “Inbox” (database)". A page gets a new child page, a database a new row (the first line as its title); the rest of the note is its body, in one request. Offline or refused, nothing is kept to send later: the note comes back. During secure input `@note` doesn't send to Notion.
 
 The notice says where the note went ("Saved to Notion", "Saved to “Inbox”").
-If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
+If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed (any other command not run yet is dropped instead).
 
 `@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year` (Chinese times too).
 The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday.

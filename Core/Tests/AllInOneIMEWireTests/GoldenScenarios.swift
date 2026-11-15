@@ -138,8 +138,8 @@ enum GoldenScenarios {
 
     static func terminated(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
-            "The app ends our composition (§5.5, OnCompositionTerminated): what is pending goes in (commitAll), the",
-            "commit replacing the range the composition covered.",
+            "The app ends our composition (§5.5, OnCompositionTerminated) over a command not run yet: commitAll drops it,",
+            "an empty composition, nothing committed (pending text that isn't a command would go in, as at blur-mid-stream).",
         ])
         w.hello()
         w.open(1)
@@ -160,8 +160,8 @@ enum GoldenScenarios {
     static func focusMoves(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
             "The focus moves to another field mid-draft (§4, §5.5). TSF ends the composition before it moves the focus,",
-            "so the client sends endComposition terminated first (the draft goes in as typed), then blur, which finds",
-            "nothing left to commit.",
+            "so the client sends endComposition terminated first (the command not run yet is dropped), then blur, which",
+            "finds nothing left.",
         ])
         w.hello()
         w.open(1)

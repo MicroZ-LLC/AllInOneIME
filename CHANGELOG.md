@@ -17,6 +17,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- A command you haven't run is no longer typed into the app as it is: in Slack, Teams, Discord or Messages, ⌘⏎ (send) on `@question what is rust` typed `@question what is rust` into the field and sent it. ⌘⏎ now runs the command, as ⏎ does. Leaving the text field, the app ending what you're typing (a click elsewhere in it) or another ⌘ shortcut (⌘A, ⌘S …) drops the command, nothing typed in, and the shortcut goes on to the app; ⌘← ⌘→ move in its text, pinyin you're typing picked first. It's the same with Chinese text (where ⌘⏎ went on to the app and the command stayed). ⇧⏎ still inserts a command as typed, and `@note` keeps what you wrote, as before.
+
 - Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
 
 - Clipboard history no longer loses everything when one entry in its file can't be read: the history was emptied, and the next copy deleted every image kept. Entries that can't be read are skipped and the rest kept; the file as it was is kept aside beside it (`clipboard-history-unreadable-….json`) instead of written over, with every image it had, until Clear History.
