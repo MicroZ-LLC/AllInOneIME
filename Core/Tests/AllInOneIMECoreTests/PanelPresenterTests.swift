@@ -59,7 +59,8 @@ struct PanelPresenterTests {
         try #require(!model.rows.isEmpty)
         #expect(model.rows.count <= Composer.oneAtRowsShown)
         #expect(model.rows.allSatisfy { !$0.text.hasPrefix("@") && $0.icon != nil })  // the name alone
-        #expect(model.rows.allSatisfy { $0.label.isEmpty })  // one @: no numbers, digits are text there
+        // One @: each row its ⌘digit (digits alone are text there).
+        #expect(model.rows.map(\.label) == model.rows.indices.map { "⌘\($0 + 1)" })
         let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
@@ -88,7 +89,7 @@ struct PanelPresenterTests {
             // clicked by its own index.
             try #require(!model.rows.isEmpty)
             #expect(!model.rows.contains { ["你好", "拟好"].contains($0.text) }, "\(model.rows.map(\.text))")
-            #expect(model.rows.allSatisfy { $0.label.isEmpty && $0.pickable })
+            #expect(model.rows.allSatisfy(\.pickable) && model.rows.map(\.label) == model.rows.indices.map { "⌘\($0 + 1)" })
             #expect(model.highlighted == 0 && model.rows.map(\.choice) == model.rows.indices.map { Optional($0) })
         }
         #expect(en.model(for: c).footer == "Space picks a word · ⏎ do the highlighted row · ↑↓ choose")

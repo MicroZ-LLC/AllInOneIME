@@ -4,6 +4,11 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.5 (unreleased)
 
+### Added
+
+- Each row of the list after the magic key has its number key: ⌘1 does the first row shown, ⌘2 the second, and so on (as a click on the row, or ⏎ on it), with the key on the row. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌘1 is the top row shown.
+- Settings → Input → **Show key hints**: turn it off and the candidate box leaves out the keys explained at its bottom (⏎ inserts, Esc cancels…) and "Space picks a word" after the pinyin line, a smaller box once you know them. What is going on ("… is writing"), the page and the time a result took still show, and so do the rows' own keys. On by default; `"keyHints": false` in the config, synced through iCloud with the other settings.
+
 ### Changed
 
 - Settings is lighter, and the options of the AI commands are in one place. Settings → AI shows the AI first (as in 0.7.4), then **AI Commands**: `@improve`'s rewrite styles, "@improve also translates" and the jargon list, `@translate`'s languages (Translate to), and `@question`'s: where a conversation continues, and "Remember recent questions" with Forget; then Model Settings. They moved there from General and Commands, and the recent questions from Privacy: they're in that one place now, and the settings search finds each of them there. Commands keeps your commands, `@agent`, `@note`, plugins and script extensions. The config keys are as before.

@@ -137,7 +137,7 @@ public struct PanelPresenter {
     public func model(for composer: Composer) -> PanelModel {
         var presenter = self
         presenter.terms.roles = composer.modifierRoles
-        return presenter.panel(for: composer)
+        return config.keyHints ? presenter.panel(for: composer) : presenter.panel(for: composer).withoutKeyHints
     }
 
     /// `model(for:)`, with `terms`' roles the composer's.
@@ -517,10 +517,11 @@ public struct PanelPresenter {
     // MARK: - One @
 
     /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
-    /// found by name: the name, and what it does), no numbers (digits are text there); the first highlighted, ↑↓ move.
+    /// found by name: the name, and what it does), each its ⌘digit (`Composer.handleOneAtNumberKey`: digits alone are text
+    /// there); the first highlighted, ↑↓ move.
     private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
         let all = composer.oneAtRows, first = composer.oneAtFirstVisible
-        model.rows = composer.oneAtVisible.map { oneAtRow($0, composer) }
+        model.rows = PanelModel.numbered(composer.oneAtVisible.map { oneAtRow($0, composer) }, by: terms.pick)
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter, lone = composer.draft == composer.commandTrigger && !composer.engineState.isComposing

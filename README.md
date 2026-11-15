@@ -59,7 +59,7 @@ A new install writes English; to type Chinese, French, Korean or Hindi too, add 
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
-| The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Digits are text there; while pinyin is typed they pick its words |
+| The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Each row shown has its number key: ⌘1 does the first row shown, ⌘2 the second … (as a click on it). Digits alone are text there; while pinyin is typed they pick its words |
 | ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed it does nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
@@ -700,7 +700,7 @@ Settings has eight pages, in this order in the sidebar, and opens on General:
   set); Clipboard history, with Clear History (and why it isn't recording, only when macOS doesn't let it); and Sync
   through iCloud.
 - **Input**: the input languages as chips at the top: drag to reorder, ⊗ removes one, Add… adds one; the first is the
-  default, and Code comes after them ("Code · Python"); then Switch input language (Tap Shift or Caps Lock) and the candidate layout. Under them, each input has its options in a section under
+  default, and Code comes after them ("Code · Python"); then Switch input language (Tap Shift or Caps Lock), the candidate layout and Show key hints (the keys explained at the bottom of the candidate box; off for a smaller box once you know them). Under them, each input has its options in a section under
   its name, always shown, with nothing to click. English has its words; Chinese its language pack, Typing (full
   pinyin, Shuangpin or Zhuyin), Characters and fuzzy pinyin, then Personal Dictionaries; Code its coding language, the coding languages installed and the coding language
   library. A chip's context menu has Move Left and Move Right too. A language pack's problem shows its banner on this
@@ -1480,6 +1480,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `jargonFile` | Your own jargon list file | `null` (i.e. `~/.config/allinoneime/jargon.txt`) |
 | `menuBarIcon` | The menu bar icon and its drop-down panel | `true` |
 | `candidateLayout` | Pinyin and Hindi candidates: `"vertical"` (one under the other) or `"horizontal"` (side by side; ← → choose, ↑↓ turn the page) | `"horizontal"` |
+| `keyHints` | The keys explained at the bottom of the candidate box (⏎ inserts, Esc cancels…); `false` leaves them out (what is going on, the page and the time a result took still show) | `true` |
 | `chineseCharacters` | The characters pinyin types and the AI writes your Chinese in: `"simplified"`, `"taiwan"` (Traditional, Taiwan's characters and words) or `"hongkong"` (Traditional, Hong Kong's characters) | absent (follows the Mac's preferred languages) |
 | `pinyinScheme` | How pinyin is typed: absent or `"full"` for full pinyin, or a Shuangpin scheme (rime-ice's schema): `"double_pinyin_flypy"` (Xiaohe), `"double_pinyin"` (Ziranma), `"double_pinyin_mspy"` (Microsoft), `"double_pinyin_sogou"` (Sogou), `"double_pinyin_abc"` (Zhineng ABC), `"double_pinyin_jiajia"` (Pinyin Jiajia) or `"double_pinyin_ziguang"` (Ziguang); or `"bopomofo"` for Zhuyin (rime-bopomofo's schema) | absent (full pinyin) |
 | `fuzzyPinyin` | Fuzzy pinyin pairs: `["z-zh", "n-l", "in-ing"]` (z-zh, c-ch, s-sh, n-l, f-h, r-l, an-ang, en-eng, in-ing, ian-iang, uan-uang) | `[]` |

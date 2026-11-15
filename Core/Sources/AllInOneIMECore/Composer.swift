@@ -1783,10 +1783,9 @@ public final class Composer {
            !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
             return .consumed(moveCursor(event))
         }
-        // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
-        if let response = handleHandoffKey(event) { return response }
-        // ⌘R on @reply's replies: three more (Composer+Reply.swift).
-        if let response = handleReplyKey(event) { return response }
+        // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`); ⌘R on @reply's replies: three more
+        // (Composer+Reply.swift); ⌘1 … on one @'s rows (Composer+OneAtNumbers.swift).
+        if let response = handleHandoffKey(event) ?? handleReplyKey(event) ?? handleOneAtNumberKey(event) { return response }
         // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
         let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
         if modifiers.contains(primary), !byWord {
