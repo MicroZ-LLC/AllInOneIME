@@ -34,20 +34,32 @@
 
 <main class="wrap policy">
   <h1>Privacy Policy</h1>
-  <p class="updated">Last updated: November 9, 2026</p>
+  <p class="updated">Last updated: November 14, 2026</p>
 
   <p>AllInOneIME is a macOS input method made by MicroZ LLC (“we”). This policy covers the app, AllInOneIME Cloud (the
   optional AI service you can sign in to from the app) and this website, allinoneime.com.</p>
 
-  <p><strong>In short: what you type stays on your Mac unless you send it to an AI with a command. We don’t sell data,
-  show ads or track you.</strong></p>
+  <p><strong>In short: what you type stays on your Mac unless you send it to an AI with a command, or turn on
+  Autocomplete. We don’t sell data, show ads or track you.</strong></p>
 
   <h2>The app</h2>
   <ul>
-    <li>Typing is processed on your Mac. Text is sent only when you press the action key on an AI command (such as
+    <li>Typing is processed on your Mac. Apart from Autocomplete and Settings (below), text is sent
+      only when you press the action key on an AI command (such as
       <code>@improve</code>, <code>@translate</code> or <code>@question</code>), and then only that text, to the AI
       provider you picked in Settings: Apple Intelligence on your Mac, your own account with a provider (such as Amazon
       Bedrock, OpenAI, Anthropic or Google), or AllInOneIME Cloud. Your provider’s own terms apply to what you send it.</li>
+    <li>Autocomplete (off by default) sends text without a key press: after each pause in typing, the caret’s line, up
+      to 200 characters before it in the same language and up to 200 after it go to the AI provider you
+      picked. Sensitive information is hidden first only if you turn on Hide sensitive information before sending (Settings →
+      Privacy, off by default), as for any request. With Apple Intelligence or AllInOneIME Cloud picked,
+      Autocomplete uses Apple Intelligence on your Mac, so the text stays on your Mac: it never goes to AllInOneIME Cloud. Where it’s turned on, the switch says where the text goes.</li>
+    <li>Settings sends text to a model only when you pick the search’s last row, Change: …, or ask Troubleshoot a
+      question (“What’s wrong?”) with Check, and then what you typed there, with the current values of the settings it may
+      change (never a key) or, for a question, the check results with keys and paths masked: to Apple Intelligence on
+      your Mac whenever it’s available, else your provider. A Change: … request too long for Apple Intelligence goes to
+      your provider instead (unless you picked Apple Intelligence as your provider), and Settings says so before it
+      goes. The search itself sends nothing.</li>
     <li>The app has no analytics or tracking of what you do in it: the only thing counted is installs, by the install ID
       below. Its logs on your Mac don’t record what you type.</li>
     <li>API keys you enter are kept in your Mac’s keychain.</li>

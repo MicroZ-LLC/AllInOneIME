@@ -72,8 +72,8 @@ public enum TaskUpdate: Sendable {
     case noteFolderNamed(String, settings: NoteSettings)
     /// A command's status line ended (`SessionServices.refreshStatuses`): the list shows it.
     case statusEnded
-    /// Autocomplete's request `request` answered (`Converter.autocomplete`), or failed.
-    case suggested(Result<Autocomplete.Answer, any Error>, request: Int)
+    /// Autocomplete's request answered or failed, or the model it asks looked up (`AutocompleteUpdate`).
+    case suggested(AutocompleteUpdate)
     /// A completion source's load or query came back: its result is in the store (`SuggestionsStore`), to be taken in.
     case completionsAnswered
     /// The plugins were looked for again (`SessionServices.rescanPlugins`): what was found is to be taken in.
@@ -397,10 +397,10 @@ public final class SessionTasks {
         start(.autocomplete) { post in
             do {
                 let answer = try await converter.autocomplete(context, app: app)
-                post(.suggested(.success(answer), request: id))
+                post(.suggested(.answered(.success(answer), request: id)))
             } catch {
                 guard !Task.isCancelled, !(error is CancellationError) else { return }
-                post(.suggested(.failure(error), request: id))
+                post(.suggested(.answered(.failure(error), request: id)))
             }
         }
     }

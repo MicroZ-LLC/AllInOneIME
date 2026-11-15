@@ -87,7 +87,7 @@ struct AWSProfilePicker: View {
     }
 
     var body: some View {
-        Picker("AWS Profile", selection: $selection) {
+        Picker(tr("AWS profile", "AWS Profile"), selection: $selection) {
             ForEach(shownNames, id: \.self) { name in
                 Text(aws.label(name, shownAs: name == selection ? shownAs : nil)).tag(name)
             }

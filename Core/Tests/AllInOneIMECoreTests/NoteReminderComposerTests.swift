@@ -100,6 +100,22 @@ extension ComposerTests {
         #expect(question.draft == "@question 牛奶鸡蛋")
     }
 
+    @Test func theCaretBeforeAPastedLineBreakShowsWhereItIs() {
+        // Each line break shows as 「 ↵ 」: the caret, and pinyin typed there, show before it, not after.
+        let c = command("n")
+        _ = paste("a\nb\nc", into: c)
+        _ = c.handleKeyDown(arrow(VirtualKey.left))
+        _ = c.handleKeyDown(arrow(VirtualKey.left))
+        #expect(c.markedCursor == "note › a ↵ b".count)
+        for _ in 0..<2 { _ = c.handleKeyDown(arrow(VirtualKey.left)) }
+        #expect(c.markedCursor == "note › a".count)
+        type("nihao", c)
+        #expect(c.markedText.hasPrefix("note › a") && c.markedText.hasSuffix(" ↵ b ↵ c"))
+        #expect(c.markedCursor == c.markedText.count - " ↵ b ↵ c".count)
+        _ = c.handleKeyDown(spaceKey)
+        #expect(c.draft == "@note a你好\nb\nc" && c.markedText == "note › a你好 ↵ b ↵ c" && c.markedCursor == "note › a你好".count)
+    }
+
     @Test func aNoteThatCouldNotBeSavedComesBack() {
         // ⏎ clears the draft before the note is saved; if that fails, the controller hands the text back.
         let c = command("n")
