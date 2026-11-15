@@ -32,6 +32,16 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - The first text field after AllInOneIME starts (after a login or an update) no longer freezes while your login shell starts: with a `.zshrc` that takes seconds, focusing the field and every key typed then waited for it (up to 10 seconds for a shell that hangs). Until the shell has answered, the input method looks for programs on the standard PATH, then looks again on your shell's: the `@question` hand-off's agents and Settings → Commands → `@agent` show what is installed a moment later, and `@agent` or a `terminal` command started meanwhile still runs with your shell's PATH.
 
+- An AI result that starts and ends with a quotation mark but has more than one quotation in it keeps its marks: `“我不去，”他说，“你自己去吧。”` and `"Yes," he said, "I will."` from `@improve` or `@translate` lost their first and last marks. A result wrapped in one pair of quotes still has them taken off (‘…’ too now), whatever apostrophes it has (`'I'm ready.'`).
+
+- In a script extension's second step, ↑↓, Tab, Page Up/Down and ← → no longer stop on a list's rows of information (`"valid": false`), where ⏎ did nothing; they skip them, as the list does while you type.
+
+- The clipboard history filter finds ü typed as `v` (`lvse` finds 绿色, `lu` still does) and full-width letters and digits by their usual forms (`12345` finds 订单１２３４５).
+
+- In `@note` with pasted lines, the caret and the pinyin being typed show where they are when you move back before a line break; they showed two characters later for each line break after the caret.
+
+- Snippet placeholders written with Chinese punctuation work: `{名字？}` is a blank and `{date：MM月dd日}` a date, like `{名字?}` and `{date:MM月dd日}`; before, they were inserted as written.
+
 ## 0.7.4 (2026-11-14)
 
 ### Added

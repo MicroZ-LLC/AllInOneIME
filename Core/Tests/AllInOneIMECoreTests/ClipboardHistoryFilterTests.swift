@@ -49,6 +49,15 @@ struct ClipboardHistoryFilterTests {
         #expect(ClipboardFilter.key(.permission, language: "en") == nil)
     }
 
+    @Test func üIsTypedVAndFullWidthIsFolded() {
+        // ü as rime users type it (lv, nv), and as before (lu); full-width letters and digits as their ASCII forms.
+        #expect(ClipboardFilter.matches(key("绿色"), "lvse") && ClipboardFilter.matches(key("绿色"), "luse"))
+        #expect(ClipboardFilter.matches(key("女儿"), "nver") && ClipboardFilter.matches(key("女儿"), "nv"))
+        #expect(ClipboardFilter.matches(key("订单１２３４５"), "12345") && ClipboardFilter.matches(key("订单１２３４５"), "dingdan12345"))
+        #expect(ClipboardFilter.matches(key("ＡＢＣ　ｄｅｆ"), "abc def") && ClipboardFilter.matches(key("abc"), "ＡＢＣ"))
+        #expect(!ClipboardFilter.matches(key("绿色"), "lvx") && !ClipboardFilter.matches(key("vue 文档"), "uuewendang"))
+    }
+
     @Test func aLongTextIsFoundByItsPinyinInItsStartAndByItsTextAnywhere() {
         let long = String(repeating: "a", count: ClipboardFilter.pinyinLength) + "你好"
         #expect(!ClipboardFilter.matches(key(long), "nihao"))

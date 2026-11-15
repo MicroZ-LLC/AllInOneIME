@@ -1,9 +1,10 @@
 import Foundation
 
 /// Clipboard history's filter (0.7.3, owner feedback #1): what is typed while the panel shows keeps the rows that have
-/// it. Each row is searched as the history keeps it, nothing read anew: a text anywhere in it, in any case; one with
-/// Chinese in it by its pinyin too, each character's syllable spelled in full ("nihao" finds 你好) or its initial ("nh"),
-/// whatever else is in it as it is, without spaces (发布 v2 by "fabuv2" or "fbv2"); an image by "image", "图片", its row's
+/// it. Each row is searched as the history keeps it, nothing read anew: a text anywhere in it, in any case and width
+/// ("１２３" by "123"); one with Chinese in it by its pinyin too, each character's syllable spelled in full ("nihao" finds
+/// 你好; ü as "v" or "u": 绿 by "lv" or "lu") or its initial ("nh"), whatever else is in it as it is, without spaces (发布
+/// v2 by "fabuv2" or "fbv2"); an image by "image", "图片", its row's
 /// words in the interface language and its size ("1280", "1280×720"). The row saying how to keep a history is never
 /// found.
 ///
@@ -17,6 +18,8 @@ enum ClipboardFilter {
         /// A text with Chinese in it, in pinyin (`pinyin`); nil without.
         var spelled: String?
         var initials: String?
+        /// `spelled` with ü as "u" ("lu" for 绿, as ICU spells it), where it has a ü; nil where it's the same.
+        var spelledU: String?
     }
 
     /// The most of a text read for its pinyin, in characters (Unicode scalars): a longer one is found by its pinyin in
@@ -97,8 +100,9 @@ enum ClipboardFilter {
     static func key(_ row: ClipboardHistoryField.Row, language: String) -> Key? {
         switch row {
         case let .text(text, _):
-            let pinyin = pinyin(text)
-            return Key(text: text.lowercased(), spelled: pinyin?.spelled, initials: pinyin?.initials)
+            let text = folded(text), pinyin = pinyin(text)
+            return Key(text: text, spelled: pinyin?.spelled, initials: pinyin?.initials,
+                       spelledU: pinyin.flatMap { $0.spelledU == $0.spelled ? nil : $0.spelledU })
         case let .keptImage(image, _):
             let words = InputSession.clipboardRowText(row, now: .distantPast, passesPasteKey: true, in: InterfaceWords(language: language)).text
             return Key(text: ["image", "图片", words, "\(image.width)×\(image.height)", "\(image.width)x\(image.height)"]
@@ -111,42 +115,53 @@ enum ClipboardFilter {
         }
     }
 
-    /// Whether a row with `key` has `filter`: in its text, any case; with Chinese in it, the filter's letters without
-    /// its spaces in its pinyin, spelled or by initials.
+    /// Whether a row with `key` has `filter`: in its text, any case or width; with Chinese in it, the filter's letters
+    /// without its spaces in its pinyin, spelled or by initials.
     static func matches(_ key: Key, _ filter: String) -> Bool {
-        let filter = filter.lowercased()
+        let filter = folded(filter)
         if key.text.contains(filter) { return true }
         guard let spelled = key.spelled, let initials = key.initials else { return false }
         let letters = filter.filter { !$0.isWhitespace }
-        return !letters.isEmpty && (spelled.contains(letters) || initials.contains(letters))
+        return !letters.isEmpty && (spelled.contains(letters) || initials.contains(letters) || key.spelledU?.contains(letters) == true)
+    }
+
+    /// `text` lowercased and full-width as half-width ("ＡＢＣ　１２３" → "abc 123"), as `QuestionHistory.matches` reads it.
+    static func folded(_ text: String) -> String {
+        text.folding(options: [.caseInsensitive, .widthInsensitive], locale: nil).lowercased()
+            .replacingOccurrences(of: "\u{3000}", with: " ")  // the ideographic space, which width doesn't fold
     }
 
     /// `text` in pinyin, lowercased and without whitespace: each Chinese character as its syllable in full (`spelled`,
-    /// "你好 v2" → "nihaov2") or its initial (`initials`, "nhv2"), anything else as it is in both. Nil without Chinese,
-    /// or once the task it is worked out in is stopped (`Index.stop`: a long text's isn't read to its end).
-    static func pinyin(_ text: String) -> (spelled: String, initials: String)? {
+    /// "你好 v2" → "nihaov2", ü as "v": "绿" → "lv"; `spelledU` with it as "u") or its initial (`initials`, "nhv2"),
+    /// anything else as it is in all three. Nil without Chinese, or once the task it is worked out in is stopped
+    /// (`Index.stop`: a long text's isn't read to its end).
+    static func pinyin(_ text: String) -> (spelled: String, initials: String, spelledU: String)? {
         guard text.containsHan else { return nil }
-        var spelled = "", initials = ""
+        var spelled = "", initials = "", spelledU = ""
         for (read, scalar) in text.unicodeScalars.prefix(pinyinLength).enumerated() {
             if read % 64 == 0, Task.isCancelled { return nil }
             guard !scalar.properties.isWhitespace else { continue }
             if scalar.properties.isIdeographic, let syllable = syllable(scalar), let initial = syllable.first {
                 spelled += syllable
+                spelledU += syllable.replacingOccurrences(of: "v", with: "u")  // pinyin has a "v" only for ü
                 initials.append(initial)
             } else {
                 let lower = String(scalar).lowercased()
                 spelled += lower
                 initials += lower
+                spelledU += lower
             }
         }
-        return (spelled, initials)
+        return (spelled, initials, spelledU)
     }
 
-    /// A Chinese character's syllable without tone marks ("好" → "hao"), as ICU reads it (Mandarin, its most common
-    /// reading), looked up once a process; nil where it has none.
+    /// A Chinese character's syllable without tone marks ("好" → "hao"), ü as "v" ("绿" → "lv", as it's typed), as ICU
+    /// reads it (Mandarin, its most common reading: a character with several has only that one, 行 "xing" and not
+    /// "hang"), looked up once a process; nil where it has none.
     private static func syllable(_ scalar: Unicode.Scalar) -> String? {
         if let known = syllables.withLock({ $0[scalar] }) { return known.isEmpty ? nil : known }
-        let latin = String(scalar).applyingTransform(.mandarinToLatin, reverse: false)?
+        let latin = String(scalar).applyingTransform(.mandarinToLatin, reverse: false)?.decomposedStringWithCanonicalMapping
+            .replacingOccurrences(of: "u\u{308}", with: "v", options: .literal)
             .applyingTransform(.stripDiacritics, reverse: false)?.lowercased().filter { $0.isASCII && $0.isLetter } ?? ""
         syllables.withLock { $0[scalar] = latin }
         return latin.isEmpty ? nil : latin
