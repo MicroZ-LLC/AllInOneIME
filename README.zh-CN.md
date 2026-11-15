@@ -1020,6 +1020,7 @@ make install
 ### Amazon Bedrock
 
 1. 在 AWS 控制台开通 Bedrock，确认能用所选的模型。默认是 Claude Haiku 4.5，第一次用 Anthropic 模型要填一次用途说明。
+   带地理前缀的模型 ID（`us.…`）发送时换成你所在区域的前缀（欧洲是 `eu.…`，东京是 `jp.…`；从不换成 `global.`），设置 → AI 会写出实际发送的 ID。
 2. 用一个有 `bedrock:InvokeModelWithResponseStream` 权限的 AWS profile：`~/.aws/credentials` 里的固定密钥，或者能拿到临时凭证的
    profile（`credential_process`、角色、SSO；见下面的「AWS profile」）。
 3. 打开「AllInOneIME 设置」，在聚焦搜索或「应用程序」里都能找到，也可以从菜单栏的输入法图标 → 设置… 打开。
