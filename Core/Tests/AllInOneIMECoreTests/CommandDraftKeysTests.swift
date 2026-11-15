@@ -155,15 +155,149 @@ struct CommandDraftKeysTests {
         #expect(commits(left.commitAll()) == ["@note buy milk"])
     }
 
-    /// At level two (the command has run) nothing changes: ⌘⏎ is the conversation's (`handleHandoffKey`).
-    @Test func aCommandThatRanIsNoDraftToDrop() {
+    /// At level two (the command has run) ⌘⏎ is the conversation's (`handleHandoffKey`), not a draft's.
+    @Test func aCommandThatRanIsNoDraftToRun() {
         let c = improve(english: true)
         _ = c.handleKeyDown(enterKey)
-        #expect(c.isLevelTwo && !c.dropsCommandDraft)
+        #expect(c.isLevelTwo && !c.isCommandDraft && !c.dropsCommandDraft)
     }
 
-    /// A text field's session, in Chinese (pinyin) as it starts.
-    static func host() -> FakeHost {
+    // MARK: - @note and ⌘⏎
+
+    /// A one-line `@note`: ⌘⏎ saves it, exactly as ⏎ does, and never reaches the app; leaving still types it in.
+    @Test(arguments: [true, false])
+    func commandReturnSavesAOneLineNoteAsReturnDoes(english: Bool) {
+        func note() -> Composer {
+            let c = draft("note", english: english)
+            type(english ? "buy milk" : "nihao ", c)
+            #expect(c.draft == (english ? "@note buy milk" : "@note 你好") && c.isCommandDraft)
+            return c
+        }
+        let byReturn = note(), byCommandReturn = note()
+        let expected = byReturn.handleKeyDown(enterKey)
+        let response = byCommandReturn.handleKeyDown(commandReturn)
+        #expect(response == expected && response.handled, "the key never reaches the app")
+        #expect(commits(response).isEmpty && byCommandReturn.draft.isEmpty)
+        #expect(commits(note().commitAll()) == [english ? "@note buy milk" : "@note 你好"])
+    }
+
+    // MARK: - A command that ran, the field left
+
+    /// Results streaming in (`translating`) or all shown (`choosing`): the field left or the composition ended puts nothing
+    /// in; the run is cancelled and the panel hidden.
+    @Test func leavingTheFieldAfterTheCommandRanPutsNothingIn() {
+        let streaming = improve(english: true)
+        _ = streaming.handleKeyDown(enterKey)
+        _ = streaming.receive(ConversionResult(versions: [CandidateLine("Hello", isComplete: false)]), isFinal: false, id: 1)
+        #expect(streaming.phase == .translating(id: 1))
+        let left = streaming.commitAll()
+        #expect(commits(left).isEmpty && left.contains(.cancelConversion) && left.contains(.hidePanel))
+        #expect(streaming.draft.isEmpty && streaming.phase == .idle)
+
+        let shown = improve(english: false)
+        _ = shown.handleKeyDown(enterKey)
+        _ = shown.receive(ConversionResult(versions: [CandidateLine("Hello world.")]), isFinal: true, id: 1)
+        #expect(shown.phase == .choosing)
+        let ended = shown.commitAll()
+        #expect(commits(ended).isEmpty && ended.contains(.hidePanel) && shown.phase == .idle)
+    }
+
+    /// The session's blur and the app's commit while the command runs: nothing in the field.
+    @Test func theSessionPutsNothingInWhenACommandThatRanIsLeft() {
+        for event in [SessionEvent.blur, .commit] {
+            let host = Self.host()
+            host.composer.setInputMode(.english)
+            host.press(FakeHost.at)
+            host.type("improve")
+            host.press(FakeHost.tab)
+            host.type("hello")
+            host.press(enterKey)
+            #expect(host.composer.isLevelTwo, "\(event)")
+            host.send(event)
+            #expect(host.document.isEmpty && host.composer.draft.isEmpty && host.panel == nil, "\(event): \"\(host.document)\"")
+        }
+    }
+
+    // MARK: - A password field
+
+    /// A password field takes over (`passwordFieldTakesOver`) with a command not run yet, or one that ran: dropped, never
+    /// typed into it. A one-line `@note` and plain text still go in as typed, as everywhere else.
+    @Test(arguments: [true, false])
+    func aPasswordFieldNeverGetsTheCommand(english: Bool) {
+        let c = improve(english: english)
+        let ended = c.passwordFieldTakesOver()
+        #expect(commits(ended).isEmpty && ended.contains(.hidePanel) && c.draft.isEmpty && c.phase == .idle)
+        let pinyin = draft("question", english: false)
+        type("nihao", pinyin)
+        #expect(commits(pinyin.passwordFieldTakesOver()).isEmpty && !pinyin.engineState.isComposing)
+        let ran = improve(english: english)
+        _ = ran.handleKeyDown(enterKey)
+        #expect(commits(ran.passwordFieldTakesOver()).isEmpty && ran.phase == .idle)
+        let note = draft("note", english: true)
+        type("buy milk", note)
+        #expect(commits(note.passwordFieldTakesOver()) == ["@note buy milk"])
+        let plain = Composer(engine: FakeEngine(), actionKey: .enter)
+        type("nihao", plain)
+        #expect(commits(plain.passwordFieldTakesOver()) == ["nihao"])
+    }
+
+    /// The session: secure input comes on in the field with "@question 你好" pending; the next key finds it gone.
+    @Test func secureInputDropsTheCommandInTheSession() {
+        let host = Self.host()
+        host.press(FakeHost.at)
+        host.type("question")
+        host.press(FakeHost.tab)
+        host.type("nihao")
+        host.press(FakeHost.space)
+        #expect(host.composer.draft == "@question 你好")
+        host.secure = true
+        host.press(k("a"))
+        #expect(!host.document.contains("@question") && host.composer.draft.isEmpty, "\"\(host.document)\"")
+    }
+
+    // MARK: - ⌘V
+
+    let commandV = KeyEvent(keyCode: 0x09, characters: "v", charactersIgnoringModifiers: "v", modifiers: .command)
+
+    func readsClipboard(_ effects: [Composer.Effect]) -> Bool {
+        effects.contains { if case .readClipboard = $0 { true } else { false } }
+    }
+
+    /// ⌘V in a command not run yet takes the clipboard into it in every app: also where the app pastes on ⌘V itself
+    /// (terminals, Notes: `pastesIntoDraft` off). `@note` too; never the draft dropped.
+    @Test(arguments: [true, false])
+    func commandVPastesIntoTheCommandInEveryApp(appPastes: Bool) {
+        for name in ["improve", "note"] {
+            for english in [true, false] {
+                let c = draft(name, english: english)
+                c.pastesIntoDraft = !appPastes
+                type(english ? "fix " : "nihao", c)
+                #expect(c.pastesIntoCommand, "\(name)")
+                let response = c.handleKeyDown(commandV)
+                #expect(response.handled && readsClipboard(response.effects) && commits(response).isEmpty, "\(name)")
+                #expect(c.draft == (english ? "@\(name) fix " : "@\(name) 你好"), "\(name): pinyin picked first")
+                _ = c.pasted(.text("this"), id: 1)
+                #expect(c.draft.hasSuffix("this") && c.phase == .drafting, "\(name)")
+            }
+        }
+    }
+
+    /// The session in a terminal: ⌘V pastes into "@improve " as in any other app.
+    @Test func commandVPastesIntoTheCommandInATerminal() {
+        for terminal in [false, true] {
+            let host = Self.host(terminal: terminal)
+            host.clipboard = .text("hello")
+            host.composer.setInputMode(.english)
+            host.press(FakeHost.at)
+            host.type("improve")
+            host.press(FakeHost.tab)
+            #expect(host.press(commandV), "terminal: \(terminal)")
+            #expect(host.composer.draft == "@improve hello" && host.document.isEmpty, "terminal: \(terminal)")
+        }
+    }
+
+    /// A text field's session (a terminal's), in Chinese (pinyin) as it starts.
+    static func host(terminal: Bool = false) -> FakeHost {
         var config = Config.default
         config.setOrder([Language.chinese, .english])
         config.uiLanguage = "en"
@@ -174,6 +308,7 @@ struct CommandDraftKeysTests {
         var services = SessionServices(loadSettings: { fixed })
         services.levelOne = { .engine(engine) }
         let host = FakeHost(services: services)
+        host.terminal = terminal
         host.focus()
         return host
     }

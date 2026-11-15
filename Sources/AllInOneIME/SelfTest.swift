@@ -350,7 +350,7 @@ enum SelfTest {
         check(untouched() && client.inserted.count == insertedBefore, "the field left: nothing goes in")
         select()
         command("i")
-        controller.perform(controller.composer.commitAsTyped(), client: client)
+        controller.perform(controller.composer.passwordFieldTakesOver(), client: client)
         check(untouched() && client.inserted.count == insertedBefore, "secure input turning on: nothing goes in")
 
         // The selection moved meanwhile (a click): the command is given up, and the key acts as usual (pinyin).

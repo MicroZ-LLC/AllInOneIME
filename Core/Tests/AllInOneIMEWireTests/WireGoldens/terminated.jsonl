@@ -1,5 +1,5 @@
 # The app ends our composition (§5.5, OnCompositionTerminated) over a command not run yet: commitAll drops it,
-# an empty composition, nothing committed (pending text that isn't a command would go in, as at blur-mid-stream).
+# an empty composition, nothing committed (pending text that isn't a command would go in).
 #! provider fixtures/improve-hello.json
 #! inputLanguage english
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}

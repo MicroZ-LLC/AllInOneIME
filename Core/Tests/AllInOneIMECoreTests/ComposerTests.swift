@@ -429,11 +429,12 @@ struct ComposerTests {
         type("wo", d)
         _ = d.handleKeyDown(spaceKey)
         type("ni", d)
-        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])
+        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])  // a request refused in a known password field
         #expect(d.markedText.isEmpty)
 
+        // A command that ran stops, nothing typed in (the integrator, 2026-11-15).
         let (t, _) = translating()
-        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .commit("@improve 你好")])
+        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .updateMarkedText])
         let (p, _) = composer()  // pinyin alone: converted
         type("nihao", p)
         #expect(commits(p.commitAll()) == ["你好"])

@@ -121,7 +121,8 @@ enum GoldenScenarios {
     static func blurMidStream(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
             "Focus moves away while the versions stream in (§4, §7): blur's result carries the outputs (commitAll: the",
-            "draft as typed goes in, the request stops), and nothing is pushed for that focus afterwards.",
+            "command that ran leaves nothing, an empty composition; the request stops), and nothing is pushed for that",
+            "focus afterwards.",
         ])
         improveHello(w)
         w.directive("advance 150")
@@ -139,7 +140,7 @@ enum GoldenScenarios {
     static func terminated(_ directory: URL) throws -> String {
         let w = try GoldenWriter(fixture: fixture, directory: directory, header: [
             "The app ends our composition (§5.5, OnCompositionTerminated) over a command not run yet: commitAll drops it,",
-            "an empty composition, nothing committed (pending text that isn't a command would go in, as at blur-mid-stream).",
+            "an empty composition, nothing committed (pending text that isn't a command would go in).",
         ])
         w.hello()
         w.open(1)

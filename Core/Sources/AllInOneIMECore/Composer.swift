@@ -1756,7 +1756,7 @@ public final class Composer {
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", oneAtStatsHighlighted {
             return .consumed(copyWeekStats())
         }
-        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft(evenWhereTheAppPastes: pastesIntoCommand) {
             return response
         }
         // ⌃V does the same in every app: none pastes on it by itself (terminals and Notes do on ⌘V,
@@ -2225,11 +2225,12 @@ public final class Composer {
 
     /// The application ends the composition (focus change, click elsewhere, input source switch):
     /// everything pending is committed as converted text, including speech recognized so far (but not a
-    /// note with line breaks: `finishAsTyped`). A command not run yet goes instead, nothing typed in (`dropsCommandDraft`).
+    /// note with line breaks: `finishAsTyped`). A command not run yet goes instead, and one that ran stops: nothing typed
+    /// in (`leavesNothing`).
     public func commitAll() -> [Effect] {
         // A key parked for the selection read after the "@" key is done first: the read gives up with the field.
         var effects = parkedForSelection != nil ? selectionRead(nil) : []
-        if dropsCommandDraft { return effects + dropCommandDraft() }
+        if leavesNothing { return effects + dropCommandDraft() }
         typePendingAccent()
         var spoken = ""
         if let id = voice.id {
@@ -2246,15 +2247,14 @@ public final class Composer {
     }
 
     /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
-    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over).
+    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over:
+    /// `passwordFieldTakesOver`, or refuses a request).
     public func commitAsTyped() -> [Effect] {
         typePendingAccent()
         var effects: [Effect] = []
         if let id = voice.id { effects = cancelVoice(id, refresh: false) }
         var text = draft
-        if !isLevelTwo, let engine, engine.snapshot().isComposing {
-            text += engine.rawInput
-        }
+        if !isLevelTwo, let engine, engine.snapshot().isComposing { text += engine.rawInput }
         return effects + finishAsTyped(text)
     }
 

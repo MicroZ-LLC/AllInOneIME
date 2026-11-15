@@ -1,5 +1,6 @@
 # Focus moves away while the versions stream in (§4, §7): blur's result carries the outputs (commitAll: the
-# draft as typed goes in, the request stops), and nothing is pushed for that focus afterwards.
+# command that ran leaves nothing, an empty composition; the request stops), and nothing is pushed for that
+# focus afterwards.
 #! provider fixtures/improve-hello.json
 #! inputLanguage english
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
@@ -52,13 +53,13 @@
 < {"id":20,"re":23,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › helo","caret":14,"segments":[{"from":0,"to":14,"style":"converted"}],"typed":"@improve helo"}]}
 #! advance 150
 > {"id":24,"type":"blur","sid":1}
-< {"id":21,"re":24,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@improve helo"}]}
+< {"id":21,"re":24,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"composition","text":""}]}
 #! run tasks
 # Focused again: a fresh start
 > {"id":25,"type":"focus","sid":1,"focus":2}
-> {"id":26,"type":"keyDown","sid":1,"t":4050,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[16,16],"before":"hi @improve helo"}}
+> {"id":26,"type":"keyDown","sid":1,"t":4050,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[3,3],"before":"hi "}}
 < {"id":22,"re":26,"type":"result"}
 > {"id":27,"type":"blur","sid":1}
 < {"id":23,"re":27,"type":"result"}
 > {"id":28,"type":"close","sid":1}
-#! expect-document "hi @improve helox"
+#! expect-document "hi x"

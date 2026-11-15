@@ -8,7 +8,7 @@
 441 Core/Sources/AllInOneIMECore/ClaudeSession.swift
 1143 Core/Sources/AllInOneIMECore/ClaudeSessionManager.swift
 589 Core/Sources/AllInOneIMECore/Command.swift
-2825 Core/Sources/AllInOneIMECore/Composer.swift
+2823 Core/Sources/AllInOneIMECore/Composer.swift
 667 Core/Sources/AllInOneIMECore/Config.swift
 729 Core/Sources/AllInOneIMECore/Doctor.swift
 483 Core/Sources/AllInOneIMECore/EnglishWords.swift

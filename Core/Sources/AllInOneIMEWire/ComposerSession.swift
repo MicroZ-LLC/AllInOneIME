@@ -137,8 +137,8 @@ public final class ComposerSession: @unchecked Sendable {
             let wasSecure = field.secure
             field = newField
             applyIdentity()
-            // A field that turned into a password field: what is pending goes in as typed, as the Mac does.
-            if newField.secure, !wasSecure, isFocused, composer.isComposing { outputs = map(composer.commitAsTyped(), from: .async) }
+            // A field that turned into a password field: what is pending goes in as typed (a command goes), as the Mac does.
+            if newField.secure, !wasSecure, isFocused, composer.isComposing { outputs = map(composer.passwordFieldTakesOver(), from: .async) }
             if isFocused { host.fieldChanged(in: self) }
         }
         focusSerial = serial
@@ -215,9 +215,9 @@ public final class ComposerSession: @unchecked Sendable {
             return (false, flagsChanged(key, t: frame.t))
         }
         var gate: [Output] = []
-        // Password fields: never compose; anything typed already goes in as typed. (The DLL sends no keys from them.)
+        // Password fields: never compose; anything typed already goes in as typed, a command never. (The DLL sends no keys from them.)
         if field.secure {
-            if composer.isComposing { gate = map(composer.commitAsTyped(), from: .key) }
+            if composer.isComposing { gate = map(composer.passwordFieldTakesOver(), from: .key) }
             if !secureNoticeShown, !key.text.isEmpty {
                 secureNoticeShown = true
                 host.perform(.notice(Self.secureNotice), in: self)
