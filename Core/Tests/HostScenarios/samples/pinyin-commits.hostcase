@@ -1,0 +1,14 @@
+# Smoke test of the runner (not a spec): pinyin typed after some text is marked, Space puts the first candidate in.
+NAME     pinyin is marked, then Space puts the first candidate in after the text
+PROFILES all
+LANG     chinese
+TEXT     "Hi Bob|"
+TYPE     nihao
+EXPECT   marked "nihao"
+EXPECT   panel shown
+KEY      space
+EXPECT   doc "Hi Bob你好|"
+EXPECT   marked none
+EXPECT   panel hidden
+EXPECT   lang chinese
+EXPECT   nolost
