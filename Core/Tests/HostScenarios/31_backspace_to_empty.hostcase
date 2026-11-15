@@ -1,0 +1,10 @@
+NAME repeated Backspace empties a pinyin draft
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE ni
+KEY backspace
+KEY backspace
+EXPECT doc "Hi "
+EXPECT marked none
+EXPECT panel hidden

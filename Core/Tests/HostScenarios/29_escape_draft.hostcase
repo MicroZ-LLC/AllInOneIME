@@ -1,0 +1,9 @@
+NAME Esc discards uncommitted pinyin without altering the document
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE nihao
+KEY esc
+EXPECT doc "Hi "
+EXPECT marked none
+EXPECT panel hidden

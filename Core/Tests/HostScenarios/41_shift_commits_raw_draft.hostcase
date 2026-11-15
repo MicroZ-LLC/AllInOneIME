@@ -1,0 +1,12 @@
+NAME switching language with Shift commits unfinished pinyin as typed
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE ni
+KEY shift
+EXPECT doc "Hi ni"
+EXPECT marked none
+EXPECT panel hidden
+EXPECT lang english
+EXPECT switches 1
+EXPECT nolost

@@ -1,0 +1,9 @@
+NAME Backspace removes the only marked letter
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE n
+KEY backspace
+EXPECT doc "Hi "
+EXPECT marked none
+EXPECT panel hidden

@@ -1,0 +1,9 @@
+NAME a field cleared after a marked draft has empty context
+PROFILES nstextview
+LANG chinese
+TEXT "old|"
+TYPE nihao
+APP clears
+# QUESTION: Does APP clears also cancel active marked text, or only replace the field document?
+EXPECT doc ""
+EXPECT context before ""

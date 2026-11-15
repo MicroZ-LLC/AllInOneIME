@@ -1,0 +1,13 @@
+NAME switching language with Caps Lock commits unfinished pinyin as typed
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE ni
+# QUESTION: The contract has no switchKey setup step; this case requires switchKey=capsLock.
+KEY capslock
+EXPECT doc "Hi ni"
+EXPECT marked none
+EXPECT panel hidden
+EXPECT lang english
+EXPECT switches 1
+EXPECT nolost

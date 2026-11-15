@@ -1,0 +1,9 @@
+NAME Shift with a letter types a capital without switching
+PROFILES all
+LANG english
+TEXT "|"
+KEY shift+a
+EXPECT doc "A"
+EXPECT lang english
+EXPECT switches 0
+# QUESTION: Does KEY shift+a denote a held Shift chord to the runner, including both flagsChanged events?

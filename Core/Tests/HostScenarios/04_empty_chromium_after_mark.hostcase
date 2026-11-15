@@ -1,0 +1,9 @@
+NAME a Chromium field cleared after a marked draft has empty context
+PROFILES chromium electron
+LANG chinese
+TEXT "old|"
+TYPE nihao
+APP clears
+# QUESTION: Does APP clears also cancel active marked text, or only replace the field document?
+EXPECT doc ""
+EXPECT context before ""

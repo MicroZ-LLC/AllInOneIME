@@ -1,0 +1,8 @@
+NAME a cleared native field reads only newly typed text
+PROFILES nstextview
+LANG english
+TEXT "previous|"
+APP clears
+TYPE l
+EXPECT doc "l"
+EXPECT context before "l"

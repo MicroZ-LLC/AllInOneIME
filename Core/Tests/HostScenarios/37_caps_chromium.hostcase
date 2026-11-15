@@ -1,0 +1,8 @@
+NAME duplicate Chromium Caps Lock events switch only once
+PROFILES chromium
+LANG chinese
+TEXT "|"
+# QUESTION: The contract has no switchKey setup step; this case requires switchKey=capsLock.
+KEY capslock
+EXPECT lang english
+EXPECT switches 1

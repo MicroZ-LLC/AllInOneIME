@@ -1,0 +1,8 @@
+NAME Shift does not switch when Caps Lock is the chosen switch key
+PROFILES all
+LANG chinese
+TEXT "|"
+# QUESTION: The contract has no switchKey setup step; this case requires switchKey=capsLock.
+KEY shift
+EXPECT lang chinese
+EXPECT switches 0

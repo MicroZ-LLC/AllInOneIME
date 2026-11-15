@@ -1,0 +1,11 @@
+NAME clicking elsewhere inside a field commits its pinyin once
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE nihao
+EXPECT marked "nihao"
+CLICK inside 0
+EXPECT doc "Hi 你好"
+EXPECT marked none
+EXPECT panel hidden
+EXPECT nolost

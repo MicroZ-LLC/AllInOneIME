@@ -1,0 +1,10 @@
+NAME switching to ABC commits pinyin once and hides its panel
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE nihao
+SWITCH abc
+EXPECT doc "Hi 你好"
+EXPECT marked none
+EXPECT panel hidden
+EXPECT nolost

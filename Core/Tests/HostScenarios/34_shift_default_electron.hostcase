@@ -1,0 +1,8 @@
+NAME delayed duplicate Electron Shift events switch only once
+PROFILES electron
+LANG chinese
+TEXT "|"
+KEY shift
+WAIT 300ms
+EXPECT lang english
+EXPECT switches 1
