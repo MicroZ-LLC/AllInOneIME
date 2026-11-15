@@ -86,5 +86,8 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
     above ask for one), or, for what a test can't reach (the window server, focus, keys, other apps), a scripted run
     on a real Mac that shows it, with the exact steps and what was seen. The fix is verified by the same reproduction
     now passing. A bug that can't be reproduced is reported as such, with what was tried; a fix is then only a
-    defensive change plus the logging that would catch it next time, said so plainly. *Why: the owner, 2026-11-14:
-    fixes made from a guess came back; a reproduction proves the cause and the fix.*
+    defensive change plus the logging that would catch it next time, said so plainly. A GitHub issue for a bug that
+    we (a person or an agent: a review, a bug hunt, the pipeline) found is opened only once it's verified real this
+    way, with the reproduction in it; an unverified suspicion stays in the notes, not in the issue list.
+    *Why: the owner, 2026-11-14: fixes made from a guess came back; a reproduction proves the cause and the fix; the
+    issue list holds only real bugs.*
