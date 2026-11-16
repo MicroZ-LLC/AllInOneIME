@@ -215,7 +215,7 @@ struct ReplyTests {
         _ = c.handleKeyDown(k("1"))
         #expect(c.showsSavedAnswer)
         _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
-        let effects = c.handleKeyDown(KeyEvent(keyCode: 0, characters: "1", charactersIgnoringModifiers: "1", modifiers: .command)).effects
+        let effects = c.handleKeyDown(KeyEvent(keyCode: 0x12, characters: "¡", charactersIgnoringModifiers: "1", modifiers: .option)).effects
         // The saved question wasn't about the screenshot: it isn't taken along.
         #expect(effects.contains(.copy("**Q:** what is rust\n\n**A:** A language.")), "\(effects)")
     }

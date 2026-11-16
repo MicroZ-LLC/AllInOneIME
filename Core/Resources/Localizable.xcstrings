@@ -4664,7 +4664,7 @@
       }
     },
     "%@ is needed for typing (pinyin or Chinese punctuation), so it can't open commands. These work: %@" : {
-      "comment" : "%@ 打字时要用（拼音或中文标点），不能用来打开命令。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
+      "comment" : "%@ 打字时要用（拼音或中文标点），不能用来打开命令。可以用：%@ — Sources/AllInOneIMECore/Config+CommandTrigger.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46175,6 +46175,53 @@
         }
       }
     },
+    "Show key hints" : {
+      "comment" : "显示按键提示 — Sources/AllInOneIMECore/Settings/SettingsSchema+Panel.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tastenhinweise anzeigen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar las teclas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Afficher l’aide des touches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーのヒントを表示"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키 안내 표시"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mostrar dicas de teclas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示按鍵提示"
+          }
+        }
+      }
+    },
     "show the background tasks" : {
       "comment" : "查看后台任务 — Sources/AllInOneIMECore/UIText+Names.swift",
       "localizations" : {
@@ -53293,6 +53340,53 @@
         }
       }
     },
+    "The keys explained at the bottom of the candidate box (%@ inserts, Esc cancels…). Turn them off once you know them for a smaller box." : {
+      "comment" : "候选框底部的按键说明（%@ 上屏、Esc 取消……）。熟悉以后可以关掉，候选框更小。 — Sources/AllInOneIMECore/Settings/SettingsText.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Tasten, unten im Kandidatenfenster erklärt (%@ fügt ein, Esc bricht ab …). Schalte sie aus, sobald du sie kennst, für ein kleineres Fenster."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las teclas explicadas en la parte inferior del panel de candidatos (%@ inserta, Esc cancela…). Desactívalas cuando las conozcas para un panel más pequeño."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les touches expliquées en bas du panneau des candidats (%@ insère, Esc annule…). Désactivez-les une fois que vous les connaissez, pour un panneau plus petit."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補ウインドウの下部にキーの説明を表示します（%@ で挿入、Esc でキャンセル…）。覚えたらオフにすると候補ウインドウが小さくなります。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "후보 창 아래쪽에 키 설명을 표시합니다(%@ 삽입, Esc 취소…). 익숙해지면 끄면 후보 창이 작아집니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As teclas explicadas na parte inferior do painel de candidatos (%@ insere, Esc cancela…). Desative-as quando já as conhecer, para um painel menor."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候選框底部的按鍵說明（%@ 上屏、Esc 取消……）。熟悉以後可以關掉，候選框更小。"
+          }
+        }
+      }
+    },
     "The Kiro session didn't respond" : {
       "comment" : "Kiro 会话没有回应 — Sources/AllInOneIMECore/ClaudeSession.swift",
       "extractionState" : "stale",
@@ -53533,7 +53627,7 @@
       }
     },
     "The magic key must be one symbol, not a letter, digit or space. These work: %@" : {
-      "comment" : "魔法键只能是一个符号，不能是字母、数字或空格。可以用：%@ — Sources/AllInOneIMECore/Config.swift",
+      "comment" : "魔法键只能是一个符号，不能是字母、数字或空格。可以用：%@ — Sources/AllInOneIMECore/Config+CommandTrigger.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -60809,7 +60903,7 @@
       }
     },
     "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page." : {
-      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Panel.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -60856,7 +60950,7 @@
       }
     },
     "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page." : {
-      "comment" : "选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema.swift",
+      "comment" : "选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。 — Sources/AllInOneIMECore/Settings/SettingsSchema+Panel.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

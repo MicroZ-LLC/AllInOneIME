@@ -45,7 +45,7 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout", "keyHints",
         "switchKey", "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
@@ -976,7 +976,7 @@ public enum ICloudSync {
         }
         switch key {
         case "improveTranslates", "voiceInput", "claudeInBackground", "rememberQuestions", "menuBarIcon", "typeOut",
-             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "notifiesUpdates", "useSelection", "learnsEnglishWords":
+             "typeOutVaries", "typeOutMistakes", "checkForUpdates", "notifiesUpdates", "useSelection", "learnsEnglishWords", "keyHints":
             if case .bool = value { return nil }
             return .wrongType
         case "provider":

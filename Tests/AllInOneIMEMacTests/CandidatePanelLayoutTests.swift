@@ -46,6 +46,11 @@ struct CandidatePanelLayoutTests {
         try LayoutChild.run("handoff")
     }
 
+    /// Key hints off (`PanelModel.withoutKeyHints`): a footer of only its detail (a page, a time) still shows (review of #99).
+    @Test func aFooterOfOnlyItsDetailStillShows() throws {
+        try LayoutChild.run("detail")
+    }
+
     @Test func aListTallerThanTheScreenScrollsItsRowsToTheHighlightedOne() throws {
         try LayoutChild.run("tall")
     }
@@ -611,11 +616,11 @@ private enum LayoutChild {
             let view = panel.view
             var model = chat(rounds: 2)
             model.handoff = PanelModel.Handoff(title: "2 rounds in: continue in Claude or another AI", choices: [
-                .init(shortcut: "⌘1", name: "Claude Code"), .init(shortcut: "⌘2", name: "Gemini CLI"), .init(shortcut: "⌘3", name: "Claude"),
-                .init(shortcut: "⌘4", name: "ChatGPT"), .init(shortcut: "⌘5", name: "Copy")])
+                .init(shortcut: "⌥1", name: "Claude Code"), .init(shortcut: "⌥2", name: "Gemini CLI"), .init(shortcut: "⌥3", name: "Claude"),
+                .init(shortcut: "⌥4", name: "ChatGPT"), .init(shortcut: "⌥5", name: "Copy")])
             panel.show(model, anchor: high)
             let targets = view.handoffTargets, rows = spans(panel)
-            expect(targets.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"], "every choice, in order: \(targets.map(\.shortcut))")
+            expect(targets.map(\.shortcut) == ["⌥1", "⌥2", "⌥3", "⌥4", "⌥5"], "every choice, in order: \(targets.map(\.shortcut))")
             expect(rows.keys.sorted() == [1, 3], "the answers under the pointer: \(rows.keys.sorted())")
             guard targets.count == 5, let first = rows[1] else { return }
             let lines = targets.map(\.targetFrame.minY)
@@ -624,23 +629,41 @@ private enum LayoutChild {
             for (index, target) in targets.enumerated() {
                 let digit = index + 1
                 expect(target.keycapFrame.height == CandidateView.Metrics.smallKeycapHeight && target.targetFrame.contains(target.keycapFrame),
-                       "⌘\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
+                       "⌥\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
                 expect(view.bounds.contains(target.targetFrame) && target.targetFrame.maxY < first.lowerBound,
-                       "⌘\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
+                       "⌥\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
                 if index % 3 != 0 {
-                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌘\(digit) apart from the one before it")
+                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌥\(digit) apart from the one before it")
                 }
                 let point = NSPoint(x: target.targetFrame.midX, y: target.targetFrame.midY)
-                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌘\(digit) highlights it, no row")
+                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌥\(digit) highlights it, no row")
                 var digits: [Int] = [], picked: [Int] = []
                 panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: { digits.append($0) }))
                 view.mouseDown(with: event(.leftMouseDown, panel, at: point))
-                expect(digits == [digit] && picked.isEmpty, "a click on ⌘\(digit) goes on there, no row picked: \(digits) \(picked)")
+                expect(digits == [digit] && picked.isEmpty, "a click on ⌥\(digit) goes on there, no row picked: \(digits) \(picked)")
             }
             // Gone again (Esc): nothing of them left to click, the answers still are.
             panel.show(chat(rounds: 2), anchor: high)
             expect(view.handoffTargets.isEmpty && spans(panel).keys.sorted() == [1, 3], "without them, the answers as before")
             panel.hide()
+        }
+    }
+
+    extension Layout {
+        /// The key hints off: a footer of only its detail ("1–7 / 9") laid out and drawn, as tall as with its keys.
+        static func detail() {
+            var paged = column(["one", "two", "three"])
+            paged.detail = "1–7 / 9"
+            let bare = paged.withoutKeyHints
+            expect(bare.footer.isEmpty && bare.hints.isEmpty && bare.note == nil && bare.detail == "1–7 / 9", "only the detail left")
+            var none = bare
+            none.detail = nil
+            let view = CandidateView()
+            view.model = bare
+            let size = view.contentSize
+            expect(view.footerY > 0, "a footer laid out for the detail alone: \(view.footerY)")
+            expect(size.height > natural(none).height, "taller than with no detail: \(size) \(natural(none))")
+            expect(size.height == natural(paged).height, "as tall as with its keys: \(size) \(natural(paged))")
         }
     }
 
@@ -719,6 +742,7 @@ private enum LayoutChild {
             case "row": Layout.row()
             case "conversation": Layout.conversation()
             case "handoff": Layout.handoff()
+            case "detail": Layout.detail()
             case "tall": Layout.tall()
             default:
                 print("unknown scenario \(scenario)")
