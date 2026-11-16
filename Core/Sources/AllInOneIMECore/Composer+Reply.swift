@@ -77,11 +77,20 @@ extension Composer {
     /// commands keep it to use at the action key (`@translate` on a selection doesn't: the selection wins, as a notice
     /// says); the others get its text pasted into the draft. If the action key was pressed meanwhile, the command runs
     /// now. Nil text, or none in it: a notice. Another recognition's answer does nothing.
-    public func recognized(_ text: ScreenText?, id: Int) -> [Effect] { forField(screenshotRead(text, id: id)) }
+    public func recognized(_ text: ScreenText?, id: Int) -> [Effect] { recognized(text, image: nil, id: id) }
+
+    /// `recognized`, with the screenshot made smaller to send (`PromptImage`; nil: none could be made): a question sends
+    /// it to an AI that can see it (`aiSeesImages`), its text with it; a screenshot with no text is kept for such an AI.
+    /// A follow-up's screenshot (`followUpAttachment`) is read the same way.
+    public func recognized(_ text: ScreenText?, image: PromptImage?, id: Int) -> [Effect] {
+        if replyState.followUpRecognition == id { return forField(followUpScreenshotRead(text, image: image)) }
+        return forField(screenshotRead(text, image: image, id: id))
+    }
 
     /// The screenshot of recognition `id` couldn't be read (`message` says why): the attachment goes, and a request
     /// waiting for it isn't sent. Another recognition's failure does nothing.
     public func recognitionFailed(_ message: String, id: Int) -> [Effect] {
+        if replyState.followUpRecognition == id { return forField(followUpRecognitionFailed(message)) }
         guard replyState.recognitionID == id, case .screenshot(.recognizing)? = attachment else { return [] }
         replyState.recognitionID = nil
         replyState.startWhenRead = false
@@ -103,17 +112,20 @@ extension Composer {
         return false
     }
 
-    private func screenshotRead(_ text: ScreenText?, id: Int) -> [Effect] {
+    private func screenshotRead(_ text: ScreenText?, image: PromptImage?, id: Int) -> [Effect] {
         guard replyState.recognitionID == id, readingScreenshot else { return [] }
         replyState.recognitionID = nil
         let start = replyState.startWhenRead
         replyState.startWhenRead = false
-        guard let text, !text.text.isEmpty else {
-            attachment = nil
+        replyState.image = asksWithScreenshot ? image : nil
+        // No text in it: kept, as an image alone, only for a question to an AI that can see it.
+        let text = text ?? (replyState.image != nil && aiSeesImages() ? ScreenText(lines: []) : nil)
+        guard let text, !text.text.isEmpty || (replyState.image != nil && aiSeesImages()) else {
+            (attachment, replyState.image) = (nil, nil)
             return [.notice(messages.reply.noText), .updateMarkedText, .showPanel]
         }
         var effects: [Effect]
-        if !isLevelTwo, draftCommand.map(Self.pastesScreenshot) ?? true {
+        if !isLevelTwo, draftCommand.map(Self.pastesScreenshot) ?? (oneAt == nil) {
             // A command without AI, `@agent`, or none (a Translate as You Type draft): the text goes in as clipboard text
             // would.
             attachment = nil
@@ -168,6 +180,7 @@ extension Composer {
         attachment = nil
         replyState.recognitionID = nil
         replyState.startWhenRead = false
+        replyState.image = nil
         return true
     }
 
@@ -351,6 +364,14 @@ struct ReplyState {
     var readFieldText: () -> FieldText? = { nil }
     var pageContextApplies: () -> Bool = { false }
     var provider = Provider.bedrock
+    /// The screenshot attached, made smaller to send to an AI that can see it (`PromptImage`), for a question only.
+    var image: PromptImage?
+    /// A screenshot pasted while a follow-up is typed (`Composer.followUpAttachment`), its image, and the recognition
+    /// it waits for.
+    var followUp: Composer.Attachment?
+    var followUpImage: PromptImage?
+    var followUpRecognition: Int?
+    var seesImages: () -> Bool = { false }
 
     /// The draft is done: what it had attached goes (the hooks stay).
     mutating func draftEnded() {
@@ -358,5 +379,14 @@ struct ReplyState {
         recognitionID = nil
         startWhenRead = false
         context = nil
+        image = nil
+        followUpEnded()
+    }
+
+    /// The follow-up's screenshot goes (sent with it, or the conversation ended).
+    mutating func followUpEnded() {
+        followUp = nil
+        followUpImage = nil
+        followUpRecognition = nil
     }
 }

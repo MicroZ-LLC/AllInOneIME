@@ -707,7 +707,7 @@ public struct PanelPresenter {
                                                         "question \(next)/\(QuestionChat.rounds(composer.questionRounds)) › "),
                                            text: typed, caret: typed.count)
         }
-        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
+        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 } + SessionText.followUpHeader(composer, language: language)
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(t.tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count

@@ -149,7 +149,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// It goes on in the agent conversation now (`Request.continues`); else into a new one.
         let continues: Bool
         /// What is written: none until its request has its message (`Request.answer`); nothing behind it goes first.
-        var message: String?
+        /// And the screenshots it is asked with (`PromptImage`), written with it.
+        var message: String?, images: [PromptImage] = []
         var continuation: AsyncThrowingStream<SessionReply, Error>.Continuation?
         /// How it ended before it had its message (the session stopped, it waited too long): its stream ends so.
         var ended: Error?
@@ -398,9 +399,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// Asks it, once, with `message` (one user message: the text as the provider would get it, already redacted).
         /// The stream gives the answer so far each time more of it comes, with what the panel tells of it
         /// (`SessionReply`), and ends with the turn; given up (cancelled), it interrupts the turn.
-        public func answer(_ message: String) -> AsyncThrowingStream<SessionReply, Error> {
+        public func answer(_ message: String, images: [PromptImage] = []) -> AsyncThrowingStream<SessionReply, Error> {
             guard let manager else { return AsyncThrowingStream { $0.finish(throwing: CancellationError()) } }
-            return manager.answer(turn, message)
+            return manager.answer(turn, message, images)
         }
 
         /// `answer`, its text alone.
@@ -456,7 +457,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
 
     /// `turn`'s request asked with `message` (`Request.answer`): written once the turns before it are answered. One that
     /// ended before (the session stopped, it waited too long) ends so at once.
-    fileprivate func answer(_ turn: Turn, _ message: String) -> AsyncThrowingStream<SessionReply, Error> {
+    fileprivate func answer(_ turn: Turn, _ message: String, _ images: [PromptImage]) -> AsyncThrowingStream<SessionReply, Error> {
         AsyncThrowingStream { continuation in
             let id = turn.id
             continuation.onTermination = { [weak self] termination in
@@ -464,7 +465,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             }
             let actions = state.withLock { state -> [Action] in
                 guard turn.message == nil else { return [.finish(continuation, CancellationError())] }  // asked once only
-                (turn.message, turn.continuation) = (message, continuation)
+                (turn.message, turn.images, turn.continuation) = (message, images, continuation)
                 if turn.done { return [.finish(continuation, turn.ended ?? CancellationError())] }
                 let actions = pump(&state)
                 // Behind one being answered: it waits so long at most.
@@ -951,7 +952,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
-        return moved + opening + running.driver.message(message).map { .send(running.process, $0) }
+        return moved + opening + running.driver.message(message, images: turn.images).map { .send(running.process, $0) }
     }
 
     /// `turn`, about to be written, put in its agent conversation (once: sent again after a failed start, it is there):

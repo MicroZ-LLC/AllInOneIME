@@ -2493,7 +2493,7 @@ public final class Composer {
     }
 
     /// Asks for the clipboard's text (`pasted`); only the latest request counts.
-    private func requestClipboard() -> Effect {
+    func requestClipboard() -> Effect {
         pasteCounter += 1
         pendingPaste = pasteCounter
         return .readClipboard(id: pasteCounter)
@@ -2518,7 +2518,7 @@ public final class Composer {
             guard case let .text(text) = content else { return snippetPasted(nil, for: pending.draft) }
             return snippetPasted(text, for: pending.draft)
         }
-        guard !isLevelTwo, voice == .off, !draft.isEmpty else { return [] }
+        guard !isLevelTwo, voice == .off, !draft.isEmpty else { return followUpPasted(content) }
         switch content {
         case let .text(text): return pasteReplyMessage(text) ?? insertPasted(text)
         case let .image(image): return pasteScreenshot(image)
@@ -3200,7 +3200,7 @@ public final class Composer {
             recalled = nil
             // An address typed in the follow-up may be read too; not one in a saved question asked again (`fresh`,
             // `reaskSaved`), which the user may not have typed (`loadThread`).
-            var conversation = questionConversation ?? QuestionConversation()
+            var conversation = withFollowUpAttachment(questionConversation ?? QuestionConversation())
             if !fresh { conversation.web = conversation.web.allowing(instruction) }
             questionConversation = conversation
         }
@@ -3377,7 +3377,7 @@ public final class Composer {
         // address, and has no web search, as a saved conversation (`loadThread`).
         let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false
         let web = saved ? SessionWeb.only([]) : SessionWeb(untrusted: untrusted, typed: typed)
-        questionConversation = command == .question ? QuestionConversation(web: web) : nil
+        questionConversation = command == .question ? QuestionConversation(web: web, attachments: questionAttachments(command)) : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
@@ -4116,7 +4116,7 @@ extension Composer {
     /// someone else's, isn't kept, nor synced; asked again later, it wouldn't be there), or it's a saved answer shown again.
     func rememberAnswer() -> [Effect] {
         guard remembersQuestions, phase == .choosing, recalled == nil, activeCommand == .question, selection == nil,
-              attachment == nil, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
+              attachment == nil, !hasQuestionScreenshot, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         let question = sentText
         guard !question.isEmpty else { return [] }
