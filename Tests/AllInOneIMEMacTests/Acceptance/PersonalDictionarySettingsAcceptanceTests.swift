@@ -53,27 +53,10 @@ private enum DictionarySettingsChild {
         let library = scratch.appendingPathComponent("ReadGate.dylib")
         let c = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), ["clang", "-dynamiclib", observer.path, "-o", library.path])
         guard c.status == 0 else { throw Failure(description: c.output) }
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for name in ["AllInOneIMECore", "AllInOneIMEText", "AllInOneIMEScriptEngine", "Crypto"] {
-            let aggregate = products.appendingPathComponent(name + ".o")
-            if fm.fileExists(atPath: aggregate.path) { objects.append(aggregate.path) }
-            else {
-                objects += try fm.contentsOfDirectory(at: products.appendingPathComponent(name + ".build"), includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
         let executable = scratch.appendingPathComponent("acceptance")
-        let args = ["swiftc", "-swift-version", "5", "-parse-as-library", "-I", modules.path,
-                    "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                    "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                    "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                    "-framework", "AppKit", "-framework", "SwiftUI", model.path, harness.path, library.path]
-            + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), args)
+        let swift = try SourceCompiler.compile(repository: repository, sources: [model.path, harness.path],
+            extraObjects: [library.path], executable: executable,
+            parseAsLibrary: true, timeout: 60)
         guard swift.status == 0 else { throw Failure(description: swift.output) }
         return executable
     }

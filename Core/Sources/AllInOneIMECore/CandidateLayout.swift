@@ -30,4 +30,18 @@ public enum CandidateLayout {
         guard let index = frames.firstIndex(where: { $0.contains(point) }) else { return nil }
         return pickable.indices.contains(index) && pickable[index] ? index : nil
     }
+
+    /// How far rows that don't all fit are moved up, between 0 and `overflow` (how much taller they are than the room
+    /// they're shown in, `visible` high from `top`): from `current`, as little as brings `row` (the highlighted one, in
+    /// the rows' place unmoved; nil: none) wholly into view, its top when it is taller than the room. ↑↓ past the edge
+    /// of what shows moves the rows by a row, not back to the top.
+    public static func scrollOffset(from current: CGFloat, showing row: CGRect?, top: CGFloat, visible: CGFloat,
+                                    overflow: CGFloat) -> CGFloat {
+        var shift = current
+        if let row {
+            if row.maxY - shift > top + visible { shift = row.maxY - top - visible }
+            if row.minY - shift < top { shift = row.minY - top }
+        }
+        return min(max(shift, 0), max(overflow, 0))
+    }
 }
