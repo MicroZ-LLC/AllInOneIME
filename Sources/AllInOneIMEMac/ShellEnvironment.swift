@@ -15,10 +15,15 @@ public enum ShellEnvironment {
     static let loginTimeout: TimeInterval = 10
 
     /// The time `login` gives the shell: `loginTimeout`, unless ALLINONEIME_LOGIN_SHELL_TIMEOUT says otherwise. `make test`
-    /// sets it: `login` is read once per process, so in a test run on a loaded Mac (a CI runner beside another) a shell
+    /// sets it for `swift test`: `login` is read once per process, so in a test run on a loaded Mac (a CI runner beside another) a shell
     /// past 10 s left every test that reads it with nothing (MacPlatformTests). The input method never has it set.
-    static let loginReadTimeout: TimeInterval = ProcessInfo.processInfo.environment["ALLINONEIME_LOGIN_SHELL_TIMEOUT"]
-        .flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil } ?? loginTimeout
+    static let loginReadTimeout = loginReadTimeout(ProcessInfo.processInfo.environment)
+
+    /// `loginReadTimeout` for an environment: ALLINONEIME_LOGIN_SHELL_TIMEOUT if it is a number of seconds above 0, else
+    /// `loginTimeout`.
+    static func loginReadTimeout(_ environment: [String: String]) -> TimeInterval {
+        environment["ALLINONEIME_LOGIN_SHELL_TIMEOUT"].flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil } ?? loginTimeout
+    }
 
     public static let current: [String: String] = {
         var env = ProcessInfo.processInfo.environment

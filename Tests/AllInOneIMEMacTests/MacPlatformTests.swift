@@ -52,10 +52,13 @@ struct MacPlatformTests {
 /// How long the login shell has: the input method's 10 s; a test run, what ALLINONEIME_LOGIN_SHELL_TIMEOUT says (`make test`:
 /// 60 s, so a loaded runner's slow shell doesn't leave `ShellEnvironment.login` empty for the whole run).
 struct LoginShellTimeoutTests {
-    @Test func theTestRunsTimeoutIsTheEnvironmentsElseTheInputMethods() {
+    @Test(arguments: [
+        (nil, 10.0), ("60", 60), ("2.5", 2.5), ("0", 10), ("-1", 10), ("abc", 10), ("", 10),
+    ] as [(String?, TimeInterval)])
+    func theTimeoutIsTheEnvironmentsElseTheInputMethods(_ given: String?, _ expected: TimeInterval) {
         #expect(ShellEnvironment.loginTimeout == 10)
-        let given = ProcessInfo.processInfo.environment["ALLINONEIME_LOGIN_SHELL_TIMEOUT"].flatMap(TimeInterval.init)
-        #expect(ShellEnvironment.loginReadTimeout == given.flatMap { $0 > 0 ? $0 : nil } ?? 10)
+        let environment = given.map { ["ALLINONEIME_LOGIN_SHELL_TIMEOUT": $0] } ?? ["PATH": "/bin"]
+        #expect(ShellEnvironment.loginReadTimeout(environment) == expected)
     }
 }
 
