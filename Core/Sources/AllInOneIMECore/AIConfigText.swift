@@ -93,7 +93,7 @@ extension AIConfig {
         var questionsKept: String {
             Platform.current.terms.device == .mac
                 ? tr("（已存的问题保留；要删除，在设置 → AI 里点「忘掉」）", " (saved questions are kept; Settings → AI → “Forget” deletes them)")
-                : tr("（已存的问题保留；要删除，在设置 → 通用里点「清除」）", " (saved questions are kept; Settings → General → “Clear” deletes them)")
+                : tr("（已存的问题保留；要删除，在设置 → AI 里点「忘掉」）", " (saved questions are kept; Settings → AI → “Forget” deletes them)")
         }
 
         public func outputs(_ languages: [OutputLanguage]) -> String {
@@ -189,10 +189,10 @@ extension AIConfig {
         /// Where the packs are downloaded: the Mac's General (its input language chips, Settings v2), Windows' Input.
         func needsPack(_ language: Language) -> String {
             Platform.current.terms.device == .mac
-                ? tr("需要\(language.displayName)语言包（在设置 → 通用里下载）",
-                     "needs the \(language.englishName) language pack (download it in Settings → General)")
-                : tr("需要\(language.displayName)语言包（在设置 → 输入里下载）",
-                     "needs the \(language.englishName) language pack (download it in Settings → Input)")
+                ? tr("需要\(language.displayName)语言包（在设置 →「常用」里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → Common)")
+                : tr("需要\(language.displayName)语言包（在设置 →「常用」里下载）",
+                     "needs the \(language.englishName) language pack (download it in Settings → Common)")
         }
         func notAnInputLanguage(_ language: Language) -> String {
             tr("\(language.displayName)还不是输入语言", "\(language.englishName) isn't one of your input languages")

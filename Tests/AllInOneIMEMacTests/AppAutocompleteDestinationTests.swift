@@ -19,11 +19,11 @@ struct AppAutocompleteDestinationTests {
         return source[from.lowerBound..<to.lowerBound]
     }
 
-    /// Settings → General: Autocomplete's switch says where the text goes, whether it's on or not: with a CLI chosen as the
+    /// Settings → Common: Autocomplete's switch says where the text goes, whether it's on or not: with a CLI chosen as the
     /// AI, its fast fallback (`SettingsModel.fastConfig`, the config itself with a provider chosen).
-    @Test func settingsGeneralSaysWhereTheTextGoes() throws {
+    @Test func settingsCommonSaysWhereTheTextGoes() throws {
         let text = try Self.source("SettingsWindow.swift")
-        let row = try #require(Self.part(text, from: "private var autocompleteSection: some View {", to: ".settingsRow(.autocomplete"))
+        let row = try #require(Self.part(text, from: "var autocompleteSection: some View {", to: ".settingsRow(.autocomplete"))
         #expect(row.contains("let fast = model.fastConfig") && row.contains("AutocompleteSwitch.destination(fast)"), "\(row)")
     }
 
