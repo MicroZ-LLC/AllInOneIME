@@ -1,0 +1,5 @@
+NAME a selection starts autocomplete context before the selected text
+PROFILES nstextview chromium electron
+LANG english
+TEXT "hello [world]"
+EXPECT context before "hello "

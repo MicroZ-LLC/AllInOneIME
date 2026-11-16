@@ -35,6 +35,7 @@ needs to: [docs/input-session.md](docs/input-session.md).
 ```
 swift build --build-tests     # macOS, Linux, Windows
 swift test                    # the core's tests (the end-to-end ones run the input method: ALLINONEIME_TEST_BINARY)
+Scripts/test.sh               # the same, offline, as CI runs them on Linux and macOS (off macOS it skips the few of what only Apple's Foundation does)
 Scripts/check-core-portable.sh       # the core stays platform-neutral (imports, Platform/Apple/, no processes started)
 Scripts/check-core-portable-test.sh  # the check's own tests
 Scripts/check-core-standalone.sh     # nothing here reaches outside this folder

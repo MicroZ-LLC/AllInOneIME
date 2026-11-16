@@ -1269,21 +1269,6 @@ struct SettingsView: View {
         .settingsRow(.switchKey, shown: model.spot)
     }
 
-    /// Input → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
-    /// macOS's own panel (owner, 0.7.4: with the input languages, no longer in Advanced).
-    private var candidateLayoutRow: some View {
-        LabeledContent {
-            Picker("", selection: $model.config.candidateLayout) {
-                Text(tr("竖排", "Vertical")).tag(CandidateArrangement.vertical)
-                Text(tr("横排", "Horizontal")).tag(CandidateArrangement.horizontal)
-            }
-            .pickerStyle(.segmented).labelsHidden().fixedSize()
-        } label: {
-            titled(SettingsSpot.candidateLayout.title, Self.layoutNote(model.config.candidateLayout))
-        }
-        .settingsRow(.candidateLayout, shown: model.spot)
-    }
-
     /// Advanced → commands on the selected text (`Composer.selection`, `useSelection`): no switch (owner, 0.7.5), the input
     /// method learns it per app (an app whose field doesn't take a result in place of its selection, `LearnedStore`:
     /// Privacy → Learned…). Turned off in the config (by hand, an earlier version, the search's Change), it shows with
@@ -1301,14 +1286,6 @@ struct SettingsView: View {
         }
     }
 
-    /// What the candidate layout's row says for `layout`, as the core's settings document says it too.
-    static func layoutNote(_ layout: CandidateArrangement) -> String {
-        layout == .horizontal
-            ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",
-                 "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
-            : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。",
-                 "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page.")
-    }
 
     /// The menu bar icon and the interface language.
     @ViewBuilder private var appearanceSection: some View {
@@ -1362,7 +1339,7 @@ struct SettingsView: View {
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
             switchKeyRow
-            candidateLayoutRow
+            CandidatePanelRows(model: model)
 
         } header: {
             SectionTitle(tr("输入语言", "Input Languages"), icon: CommandIcons.input)
@@ -2618,7 +2595,6 @@ struct SettingsView: View {
         .onChange(of: model.config.typeOutRate) { model.save() }
         .onChange(of: model.config.typeOutVaries) { model.save() }
         .onChange(of: model.config.typeOutMistakes) { model.save() }
-        .onChange(of: model.config.candidateLayout) { model.save() }
         .onChange(of: model.config.switchKey) { model.save() }
         .onChange(of: model.config.findRaycastScripts) {
             model.save()
@@ -2859,7 +2835,7 @@ struct SettingsView: View {
                   prompt: Text(tr("留空用 profile 的区域（\(model.profileRegion)）",
                                   "Empty: the profile's region (\(model.profileRegion))")))
             .onSubmit { model.save() }
-        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs)
+        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs, modelSent: model.bedrockModelSent)
     }
 
     /// AllInOneIME Cloud: the Google account, today's free requests, the subscription.

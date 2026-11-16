@@ -41,7 +41,7 @@ struct PanelPresenterTests {
         #expect(zh.highlighted == 0)
         #expect(zh.footer == "空格 选词 · 开头打 @ 用命令")
         #expect(en.footer == "Space picks · type @ first for commands")
-        #expect(zh.status == .none && zh.input == nil && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
+        #expect(zh.status == .none && zh.input?.text == c.markedText && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
         // The candidates are the rows: no line of them besides (`candidates`, one @'s).
         #expect(zh.candidates == nil)
         // A click on a row picks what its number would.
@@ -59,7 +59,8 @@ struct PanelPresenterTests {
         try #require(!model.rows.isEmpty)
         #expect(model.rows.count <= Composer.oneAtRowsShown)
         #expect(model.rows.allSatisfy { !$0.text.hasPrefix("@") && $0.icon != nil })  // the name alone
-        #expect(model.rows.allSatisfy { $0.label.isEmpty })  // one @: no numbers, digits are text there
+        // One @: each row its ⌘digit (digits alone are text there).
+        #expect(model.rows.map(\.label) == model.rows.indices.map { "⌥\($0 + 1)" })
         let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
@@ -83,12 +84,12 @@ struct PanelPresenterTests {
         for presenter in [zh, en] {
             let model = presenter.model(for: c)
             #expect(model.candidates == "1 你好   2 拟好")
-            #expect(model.header.isEmpty && model.input == nil && model.status == .none)
+            #expect(model.header.isEmpty && model.input?.text == c.markedText && model.status == .none)
             // The rows are one @'s (what can be done with 你好), none of them a candidate; the first highlighted, each
             // clicked by its own index.
             try #require(!model.rows.isEmpty)
             #expect(!model.rows.contains { ["你好", "拟好"].contains($0.text) }, "\(model.rows.map(\.text))")
-            #expect(model.rows.allSatisfy { $0.label.isEmpty && $0.pickable })
+            #expect(model.rows.allSatisfy(\.pickable) && model.rows.map(\.label) == model.rows.indices.map { "⌥\($0 + 1)" })
             #expect(model.highlighted == 0 && model.rows.map(\.choice) == model.rows.indices.map { Optional($0) })
         }
         #expect(en.model(for: c).footer == "Space picks a word · ⏎ do the highlighted row · ↑↓ choose")
@@ -366,8 +367,8 @@ struct PanelPresenterTests {
         #expect(en.model(for: c).highlighted == 1, "↑: the first answer")
         #expect(model.input == PanelModel.Input(prompt: "question 3/5 › ", text: "", caret: 0))
         #expect(model.handoff == nil && model.header.isEmpty)
-        #expect(model.footer == "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc back")
-        #expect(zh.model(for: c).footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 返回")
+        #expect(model.footer == "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc close")
+        #expect(zh.model(for: c).footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–5 选 · ⌘C 复制 · Esc 关闭")
         for ch in "when" { _ = c.handleKeyDown(k(String(ch))) }
         #expect(en.model(for: c).input == PanelModel.Input(prompt: "question 3/5 › ", text: "when", caret: 4))
         #expect(zh.model(for: c).input?.prompt == "追问 3/5 › ")
@@ -381,26 +382,26 @@ struct PanelPresenterTests {
         let model = en.model(for: c)
         let handoff = try #require(model.handoff)
         #expect(handoff.title == "2 rounds in: continue in Claude or another AI")
-        #expect(handoff.choices.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"])
+        #expect(handoff.choices.map(\.shortcut) == ["⌥1", "⌥2", "⌥3", "⌥4", "⌥5"])
         #expect(handoff.choices.map(\.name) == ["Claude Code", "Claude", "ChatGPT", "Gemini", "Copy"])
         #expect(model.input == nil, "nothing typed to take along")
-        #expect(model.footer == "⌘1–⌘5 continue · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        #expect(model.footer == "⌥1–⌥5 continue · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
         // What is typed goes along: its line under the choices.
         for ch in "and" { _ = c.handleKeyDown(k(String(ch))) }
         let typed = en.model(for: c)
         #expect(typed.input == PanelModel.Input(prompt: "then › ", text: "and", caret: 3))
-        #expect(typed.footer == "⌘1–⌘5 continue, with what you typed · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc back")
+        #expect(typed.footer == "⌥1–⌥5 continue, with what you typed · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
         // On Windows, picked with Ctrl.
         let onWindows = windows(c)
-        #expect(onWindows.handoff?.choices.map(\.shortcut) == ["Ctrl+1", "Ctrl+2", "Ctrl+3", "Ctrl+4", "Ctrl+5"])
-        #expect(onWindows.footer == "Ctrl+1–5 continue, with what you typed · Shift+Enter insert · 1–2 pick · Ctrl+C copy · Esc back")
+        #expect(onWindows.handoff?.choices.map(\.shortcut) == ["Alt+1", "Alt+2", "Alt+3", "Alt+4", "Alt+5"])
+        #expect(onWindows.footer == "Alt+1–5 continue, with what you typed · Shift+Enter insert · 1–2 pick · Ctrl+C copy · Esc close")
         // Before the last round, ⌘⏎ shows them.
         let early = conversation(handoff: [.copy])
         #expect(en.model(for: early).handoff == nil)
         _ = early.handleKeyDown(commandReturn)
         #expect(en.model(for: early).handoff == PanelModel.Handoff(title: "Continue in Claude or another AI",
-                                                                   choices: [.init(shortcut: "⌘1", name: "Copy")]))
-        #expect(en.model(for: early).footer.hasPrefix("⌘1 continue · "))
+                                                                   choices: [.init(shortcut: "⌥1", name: "Copy")]))
+        #expect(en.model(for: early).footer.hasPrefix("⌥1 continue · "))
     }
 
     /// An answer whose placeholder the model changed past telling is marked on its row; the detail says what was hidden.

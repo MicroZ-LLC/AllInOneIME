@@ -1,0 +1,7 @@
+NAME an app-cleared native field has empty context
+PROFILES nstextview
+LANG english
+TEXT "old message|"
+APP clears
+EXPECT doc ""
+EXPECT context before ""

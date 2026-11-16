@@ -1,0 +1,5 @@
+NAME a surrogate pair at the start remains whole before the caret
+PROFILES nstextview chromium electron
+LANG english
+TEXT "😀|hello"
+EXPECT context before "😀"

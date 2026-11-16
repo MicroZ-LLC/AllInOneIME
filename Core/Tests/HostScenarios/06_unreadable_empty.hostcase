@@ -1,0 +1,5 @@
+NAME an unreadable empty field remains unreadable
+PROFILES tellsnothing
+LANG english
+TEXT "|"
+EXPECT context unreadable

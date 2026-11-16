@@ -106,7 +106,7 @@ struct PlatformSeamTests {
 struct PlatformTermsTests {
     @Test func theMacsSymbols() {
         let mac = PlatformTerms.mac
-        #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌘2", "⌘1", "⌘1–⌘3"])
+        #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌥2", "⌥1", "⌥1–⌥3"])
         #expect(mac.voiceKey == "⌥" && mac.actionTap == "⌥" && mac.shortcut(.option, "Space") == "⌥Space")
         #expect([mac.enter, mac.shiftEnter, mac.backspace] == ["⏎", "⇧⏎", "⌫"])
         #expect(mac.isApp("/Applications/Calculator.app") && !mac.isApp("/Users/a/Calculator.app.zip") && !mac.isApp("C:/x/Word.lnk"))
@@ -115,7 +115,7 @@ struct PlatformTermsTests {
     @Test func windowsNames() {
         let windows = PlatformTerms.windows
         #expect([windows.copy, windows.paste, windows.again, windows.pick(2), windows.picks(1), windows.picks(3)]
-                == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Ctrl+2", "Ctrl+1", "Ctrl+1–3"])
+                == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Alt+2", "Alt+1", "Alt+1–3"])
         // The keys follow the roles: the right Ctrl dictates, a tap of Ctrl is the action key.
         #expect(windows.voiceKey == "Ctrl" && windows.actionTap == "Ctrl" && windows.shortcut(.command, "D") == "Win+D")
         // Return, ⇧Return and Delete by the names Windows' keyboards print.
@@ -145,16 +145,17 @@ struct PlatformTermsTests {
         #expect(en.name(.shortcut(j), terms: .windows) == "Ctrl+J" && en.name(.shortcut(j), terms: .mac) == "⌘J")
     }
 
-    /// The panel's text takes ⏎, ⇧⏎ and ⌫ from the terms in every language: no catalog key first used in Session/ (the
+    /// The panel's text takes ⏎, ⇧⏎ and ⌫ from the terms in every language: no catalog key used in Session/ (the
     /// presenter's, the session's lines) writes them, nor any of its translations; each translation has the keys where
     /// its English does (a German footer on Windows).
     @Test func theCatalogTakesTheKeysFromTheTerms() throws {
         let data = try Data(contentsOf: InterfaceTextTests.root.appendingPathComponent("Resources/Localizable.xcstrings"))
         let catalog = try #require(try JSONSerialization.jsonObject(with: data) as? [String: Any])
         let entries = try #require(catalog["strings"] as? [String: [String: Any]])
+        let session = try Self.sessionSources()
         var panel = 0
         for (key, entry) in entries where entry["extractionState"] as? String != "stale"
-            && (entry["comment"] as? String ?? "").contains("Sources/AllInOneIMECore/Session/") {
+            && Self.isUsed(chinese: entry["comment"] as? String ?? "", in: session) {
             panel += 1
             let localizations = entry["localizations"] as? [String: Any] ?? [:]
             let values = localizations.values.compactMap { (($0 as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String }
@@ -207,5 +208,23 @@ struct PlatformTermsTests {
         config.claudeInBackground = false
         #expect(en.action(.agent, input: .english, config: config, terms: .windows) == "open Claude Code in a terminal")
         #expect(en.action(.agent, input: .english, config: config, terms: .mac) == "open Claude Code in Terminal")
+    }
+}
+
+extension PlatformTermsTests {
+    /// The session's sources (Core/Sources/AllInOneIMECore/Session/), all in one text.
+    static func sessionSources() throws -> String {
+        let folder = InterfaceTextTests.root.appendingPathComponent("Sources/AllInOneIMECore/Session")
+        let files = try FileManager.default.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
+        return try files.filter { $0.pathExtension == "swift" }.map { try String(contentsOf: $0, encoding: .utf8) }.joined()
+    }
+
+    /// Whether a catalog entry's Chinese text (its comment, the strings tool's translator context) is written in `sources`:
+    /// each piece of it between its placeholders (`%@`, `%lld` …, interpolations in the code) is there. The catalog no
+    /// longer records where a key is used.
+    static func isUsed(chinese: String, in sources: String) -> Bool {
+        let pieces = chinese.replacingOccurrences(of: #"%(\d+\$)?(@|lld|ld|d|f|\.\d+f)"#, with: "\u{0}", options: .regularExpression)
+            .split(separator: "\u{0}").map(String.init).filter { !$0.isEmpty }
+        return pieces.contains { $0.contains(where: UserGuide.isCJK) } && pieces.allSatisfy { sources.contains($0) }
     }
 }

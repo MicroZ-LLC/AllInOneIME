@@ -1,0 +1,8 @@
+NAME a zero-length Chromium field inserts at the interior caret
+PROFILES chromium electron
+LANG english
+TEXT "hello| world"
+TYPE brave
+EXPECT doc "hellobrave world"
+EXPECT context before "hellobrave"
+EXPECT nolost

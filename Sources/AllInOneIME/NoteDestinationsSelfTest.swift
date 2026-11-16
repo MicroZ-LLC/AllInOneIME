@@ -286,7 +286,7 @@ extension SelfTest {
         note("nihao")
         _ = enter(controller, client)
         let gone = NoteError.folderMissing(path: "").message(language: UIText.language)
-        check(pump(timeout: 3) { client.marked == "note › 你好" && notice()?.hasSuffix(gone) == true } && copied.last == "你好"
+        check(pump(timeout: 3) { controller.preedit == "note › 你好" && notice()?.hasSuffix(gone) == true } && copied.last == "你好"
               && !fm.fileExists(atPath: root.appendingPathComponent("Moved away").path),
               "a folder that's gone isn't made; the note comes back into the draft, and onto the clipboard (\(notice() ?? "no notice"))")
         _ = escape(controller, client)
@@ -315,7 +315,7 @@ extension SelfTest {
         settle()
         note("nihao")
         _ = enter(controller, client)
-        check(notice() == controller.composer.messages.secureInputNote && client.marked.hasPrefix("note › ")
+        check(notice() == controller.composer.messages.secureInputNote && controller.preedit.hasPrefix("note › ")
               && NotionSelfTestStub.seen.count == sentBefore,
               "during secure input nothing is sent to Notion: \(notice() ?? "no notice")")
         controller.services.secureInputActive = secureBefore

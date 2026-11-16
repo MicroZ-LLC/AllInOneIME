@@ -1,0 +1,16 @@
+# Smoke test of the runner (not a spec): with the caret inside the text, what goes in goes in there, ⌫ the app has takes
+# the character before the caret, and the text before the caret reads the same where the field tells it (a field that
+# tells nothing of its text has nothing to read, so it isn't among the profiles).
+NAME     text goes in at a caret inside the text, and the text before it reads the same
+PROFILES nstextview chromium electron
+LANG     chinese
+TEXT     "Hi |Bob"
+TYPE     nihao
+KEY      space
+EXPECT   doc "Hi 你好|Bob"
+EXPECT   context before "Hi 你好"
+KEY      backspace
+EXPECT   doc "Hi 你|Bob"
+EXPECT   context before "Hi 你"
+EXPECT   nolost
+EXPECT   calls length<=1

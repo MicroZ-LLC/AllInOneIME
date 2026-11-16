@@ -1,0 +1,8 @@
+NAME Shift does not switch when Caps Lock is the chosen switch key
+PROFILES all
+LANG chinese
+SET switchKey capsLock
+TEXT "|"
+KEY shift
+EXPECT lang chinese
+EXPECT switches 0

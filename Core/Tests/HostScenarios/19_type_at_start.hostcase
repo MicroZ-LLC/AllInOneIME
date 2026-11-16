@@ -1,0 +1,7 @@
+NAME typing at caret zero preserves the following text
+PROFILES all
+LANG english
+TEXT "|hello world"
+TYPE say
+EXPECT doc "sayhello world"
+EXPECT nolost

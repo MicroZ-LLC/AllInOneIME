@@ -811,7 +811,7 @@ final class CandidateView: NSView {
     struct HandoffTarget {
         var shortcut: String
         var name: String
-        /// Its shortcut ("⌘1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
+        /// Its shortcut ("⌥1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
         /// after it and the room around them.
         var keycapFrame: NSRect
         var targetFrame: NSRect
@@ -990,7 +990,8 @@ final class CandidateView: NSView {
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
         var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
             : max(compact ? 0 : Metrics.minWidth, inset + widest + Metrics.rowInsetX + p)
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil {
+        // A detail alone (key hints off: `PanelModel.withoutKeyHints`) has its footer too.
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil {
             let footer = footerWidth()
             width = max(width, ceil(footer) + 2 * (p + Metrics.rowInsetX))
             footerY = y + Metrics.footerGap
@@ -1419,7 +1420,7 @@ final class CandidateView: NSView {
         }
         if let candidatesFrame { drawPills(in: candidatesFrame, dark: dark) }
 
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil { drawFooter(dark: dark) }
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil { drawFooter(dark: dark) }
 
         // Its edge: a hairline, over the glass's own.
         (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.1)).setStroke()
@@ -1853,7 +1854,7 @@ final class CandidateView: NSView {
     override func mouseExited(with event: NSEvent) { (hovered, hoveredChip, hoveredHandoff) = (nil, nil, nil) }
 
     /// A click picks the row as its digit would (`Composer.choose`), a part of the chip, or where a conversation goes on as
-    /// its ⌘digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
+    /// its ⌥digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {

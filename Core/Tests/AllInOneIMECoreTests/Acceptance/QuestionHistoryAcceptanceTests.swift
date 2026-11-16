@@ -532,7 +532,8 @@ struct QuestionHistoryAcceptanceTests {
         #expect(h.requests.isEmpty && !h.askedSomething(since: 0))
     }
 
-    /// Spec 3: insert and copy work as on any answer: ⌘C copies it (and it stays), the digit of its row inserts it.
+    /// Spec 3: insert and copy work as on any answer: ⌘C copies it (and it stays), the digit of its row inserts it, ⇧⏎
+    /// inserts it; Space with nothing typed does nothing, as on any answer (owner 2026-11-15).
     @Test func insertAndCopyOnTheSavedAnswer() async throws {
         let h = try QHHarness(history: QHHarness.history(["What is Rust?"]))
         await h.startQuestion()
@@ -542,10 +543,14 @@ struct QuestionHistoryAcceptanceTests {
         let answerRow = try #require(h.composer.choices.first { $0.kind == .answer })
         await h.press(k(answerRow.label))
         #expect(h.committed == ["saved answer to What is Rust?"] && !h.composer.isComposing)
-        // Space inserts as on any answer too.
+        // Space with nothing typed does nothing, as on any answer (owner 2026-11-15); ⇧⏎ inserts it.
         await h.startQuestion()
         await h.press(k("1"))
+        let mark = h.log.count
         await h.press(spaceKey)
+        #expect(h.committed.count == 1 && h.composer.showsSavedAnswer && h.composer.isLevelTwo)
+        #expect(h.answerShown == "saved answer to What is Rust?" && !h.askedSomething(since: mark))
+        await h.press(acceptanceShiftReturn)
         #expect(h.committed.count == 2 && h.committed.last == "saved answer to What is Rust?")
         #expect(h.requests.isEmpty)
         // A fresh answer is copied and inserted the same way.

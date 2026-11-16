@@ -486,7 +486,8 @@ extension SelfTest {
         // text, what earlier sections put in, put aside.)
         let caretBefore = client.caretRect
         let fieldBefore = (client.document, client.selection, client.insertionPoint, client.inserted)
-        (client.document, client.selection, client.insertionPoint) = ("", nil, nil)
+        // A field that tells no caret and reads nothing back (an empty one that tells its caret at 0 reads as empty).
+        (client.document, client.selection, client.insertionPoint, client.knowsRanges) = ("", nil, nil, false)
         client.caretRect = .zero
         client.bundleIDOverride = "com.example.no-caret"
         controller.clientOverride = client
@@ -498,7 +499,7 @@ extension SelfTest {
               "no caret rect: a line of the candidate panel (\(CandidatePanel.shared.view.model.rows.map(\.text)))")
         now += 0.5
         check(press(controller, client, "\t", code: VirtualKey.tab) && client.inserted.last == "ld, how are you?", "Tab puts it in there too")
-        (client.caretRect, client.bundleIDOverride, controller.clientOverride) = (caretBefore, nil, harness)
+        (client.caretRect, client.bundleIDOverride, controller.clientOverride, client.knowsRanges) = (caretBefore, nil, harness, true)
         (client.document, client.selection, client.insertionPoint, client.inserted) = fieldBefore
         controller.activateServer(harness)
 

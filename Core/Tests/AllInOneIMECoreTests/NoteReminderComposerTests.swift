@@ -175,13 +175,14 @@ extension ComposerTests {
         let back = composer().0
         _ = back.restoreDraft(.note, text: "牛奶\n鸡蛋")
         #expect(back.commitAll() == [.hidePanel, .updateMarkedText, .copy("牛奶\n鸡蛋"), .notice("笔记还没存，原文已复制到剪贴板")])
-        // A shortcut on it (⌘A; ⌘V in a terminal, which pastes on its own) doesn't insert it as typed: the note
-        // stays, the key is the app's (the clipboard isn't replaced right before a terminal pastes it).
+        // A shortcut on it (⌘A) doesn't insert it as typed: the note stays, the key is the app's. ⌘V pastes into it, in a
+        // terminal too (which pastes on its own: the Mac's key tap keeps the key from it).
         let shortcut = noteWithLines()
         shortcut.pastesIntoDraft = false
-        for key in [k("a", mods: .command), KeyEvent(keyCode: 0x09, characters: "v", modifiers: .command)] {
-            #expect(shortcut.handleKeyDown(key) == .passThrough && shortcut.draft == "@note " + lines, "\(key.characters)")
-        }
+        #expect(shortcut.handleKeyDown(k("a", mods: .command)) == .passThrough && shortcut.draft == "@note " + lines)
+        let paste = shortcut.handleKeyDown(KeyEvent(keyCode: 0x09, characters: "v", modifiers: .command))
+        let readsClipboard = paste.effects.contains { if case .readClipboard = $0 { true } else { false } }
+        #expect(paste.handled && readsClipboard && shortcut.draft == "@note " + lines)
         // A note on one line goes in as typed, like any draft (also on a shortcut, in English).
         let one = command("n")
         type("nihao", one)
