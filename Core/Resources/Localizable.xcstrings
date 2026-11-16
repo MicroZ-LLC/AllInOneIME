@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     " · %@ insert · %@ pick · %@ copy · Esc back" : {
-      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -49,7 +49,7 @@
       }
     },
     " · %@ insert · %@ pick · %@ copy · Esc close" : {
-      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3205,7 +3205,7 @@
       }
     },
     "%@ ask · %@ insert · %@ pick · %@ copy · Esc back" : {
-      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3252,7 +3252,7 @@
       }
     },
     "%@ ask · %@ insert · %@ pick · %@ copy · Esc close" : {
-      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47825,7 +47825,7 @@
       }
     },
     "Space picks · %@ ask · %@ insert the answer · Esc back" : {
-      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47920,7 +47920,7 @@
       }
     },
     "Space picks · %@ ask · %@ insert the answer · Esc close" : {
-      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter+ChatFooters.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

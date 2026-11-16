@@ -96,7 +96,7 @@ public struct PanelPresenter {
     public static let latestLimit = 4000
 
     /// The interface text in `language`.
-    private var t: InterfaceWords { InterfaceWords(language: language) }
+    var t: InterfaceWords { InterfaceWords(language: language) }
 
     /// The action key, as `terms` call it.
     private func name(_ key: ActionKey) -> String { t.name(key, terms: terms) }
@@ -713,25 +713,18 @@ public struct PanelPresenter {
         let copy = terms.copy, again = terms.again, enter = terms.enter, shiftEnter = terms.shiftEnter
         // The digits that pick an answer: up to the round limit (none with a question session), 9 at most (no digit after it).
         let pick = "1–\(composer.questionSession ? 9 : min(QuestionChat.rounds(composer.questionRounds), 9))"
+        let footers = chatFooters(savedAnswer: composer.showsSavedAnswer, pick: pick)
         if composer.refineIsComposing, !composer.showsHandoff {
             // The next question's pinyin: the conversation stays, its candidates on a line of their own (⏎ converts it and
             // asks, ⇧⏎ inserts the answer selected: `Composer.handleChatReturn`).
-            // Esc closes the conversation; on a saved answer it goes back to the list (`Composer.handleChatKey`).
-            followUpComposing(footer: composer.showsSavedAnswer
-                              ? t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 返回",
-                                     "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc back")
-                              : t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 关闭",
-                                     "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc close"),
-                              into: &model)
+            followUpComposing(footer: footers.composing, into: &model)
         } else if answering {
             model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 关闭", "Answering… · Esc close")
                 : t.tr("回答中… · 可以接着打下一个问题 · Esc 关闭", "Answering… · type the next question meanwhile · Esc close")
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + (composer.showsSavedAnswer
-                    ? t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
-                    : t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close"))
+                + footers.handoff
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
@@ -741,11 +734,7 @@ public struct PanelPresenter {
                        "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
             // ⏎ asks the question typed (with nothing typed it does nothing), ⇧⏎ inserts the answer selected.
-            model.footer = composer.showsSavedAnswer
-                ? t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
-                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
-                : t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭",
-                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close")
+            model.footer = footers.idle
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []
