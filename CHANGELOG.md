@@ -21,6 +21,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
+
 - The candidate box is never taller than the screen: a long list (`@improve` on a pasted paragraph, seven rows of a few lines each) went off the bottom of a small screen, its last rows and its footer with it. Its rows now scroll between the title and the footer, which stay in view, and ↑↓ (or the wheel) brings the highlighted row into view; a list that fits looks as before.
 
 - Clipboard history no longer keeps what you copy in a password manager: Keychain Access's Copy Password, and Bitwarden's, Enpass's and others' that don't mark the copy as concealed, were kept as plain text in the history's file and shown by ⌃V. A copy found while a password manager (1Password, Bitwarden, Apple's Passwords, Keychain Access …) is the app in front, or was at the check a second before, isn't kept.
