@@ -112,7 +112,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios lint lint-baseline swiftlint ratchet portable changelog-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -438,6 +438,7 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # thread when one waits.
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
 test: deps strings-check check-ios portable
+	python3 -B -m unittest Scripts/test_changelog.py
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
 	swift build --product $(APP_NAME)
@@ -453,10 +454,12 @@ test-screen: deps
 
 # The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
 # SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so
-# that only new problems fail; the core's portability and standalone guards and the split paths; the string tables.
-# LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it. `make lint-baseline` lowers the
-# baselines after a fix. `make check` is everything a PR has to pass: lint, then test.
-lint: swiftlint ratchet portable strings-check
+# that only new problems fail; the core's portability and standalone guards and the split paths; the string tables;
+# the changelog's fragments (changes/, Scripts/changelog.py).
+# LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it, or a changelog's unreleased
+# section was edited by hand. `make lint-baseline` lowers the baselines after a fix. `make check` is everything a PR
+# has to pass: lint, then test.
+lint: swiftlint ratchet portable strings-check changelog-check
 
 swiftlint:
 	Scripts/swiftlint.sh
@@ -469,6 +472,9 @@ portable:
 	$(CORE)/Scripts/check-core-portable.sh
 	$(CORE)/Scripts/check-core-standalone.sh
 	Scripts/check-split-paths.sh
+
+changelog-check:
+	python3 Scripts/changelog.py check $(if $(LINT_BASE),--base $(LINT_BASE))
 
 lint-baseline:
 	Scripts/swiftlint.sh --write-baseline

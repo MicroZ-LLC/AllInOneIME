@@ -61,11 +61,15 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
 
 14. **Interface text in every language**: write `tr("中文", "English")`, then `make strings` for the other languages'
     catalogs **(checked: `make strings-check`)**. *Why: the interface ships in every language the catalogs list.*
-15. **Every user-visible change gets a CHANGELOG line** in English (`CHANGELOG.md`) and Chinese (`CHANGELOG.zh-CN.md`),
-    in the top `## X.Y.Z (unreleased)` section (added if missing) under Added/Changed/Fixed (新增/变更/修复), written like
-    the entries around it: what the user sees and does, keys, commands and config names in backticks.
+15. **Every user-visible change gets a changelog fragment**: one file of its own, `changes/<slug>.md` (the slug
+    unique to the branch: the pipeline's `issue-N`, or the branch's name after its version), with `section: Added`,
+    `Changed` or `Fixed` in its front matter and the entry in English under `## en` and in Chinese under `## zh-CN`
+    (`changes/README.md` shows one), written like the entries in `CHANGELOG.md`: what the user sees and does, keys,
+    commands and config names in backticks. `CHANGELOG.md` and `CHANGELOG.zh-CN.md` aren't edited by hand: the release
+    writes the fragments into them (`Scripts/changelog.py release`) **(checked: `make lint`)**.
     README.md and README.zh-CN.md change where they describe it; English docs are English only. Leave `docs/readme/`
-    (other languages) and the wiki: they're updated at release time. *Why: the changelog is the release notes.*
+    (other languages) and the wiki: they're updated at release time. *Why: the changelog is the release notes, and one
+    file per change keeps parallel PRs from colliding in it.*
 
 ## Process
 
