@@ -137,25 +137,12 @@ enum Issue35Child {
         let clang = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), ["clang", "-c", stubs.path, "-o", stubsObject.path], timeout: 60)
         guard clang.status == 0 else { throw Failure(description: clang.output) }
         // The Mac library and the core, as `swift test` built them for this target.
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMEMac", "AllInOneIMECore", "AllInOneIMEText", "AllInOneIMEScriptEngine", "CQuickJS", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else if let files = try? fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil) {
-                objects += files.filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let sources = ["TerminalPaste.swift", "ClipboardHistory.swift"].map { repository.appendingPathComponent("Sources/AllInOneIME/" + $0).path }
+        let sources = ["TerminalPaste.swift", "ClipboardHistory.swift"]
+            .map { repository.appendingPathComponent("Sources/AllInOneIME/" + $0).path }
         let executable = scratch.appendingPathComponent("issue35")
-        let arguments = ["swiftc", "-swift-version", "5", "-parse-as-library", "-I", modules.path,
-                         "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-framework", "AppKit", "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"]
-            + sources + [harness.path, stubsObject.path] + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 240)
+        let swift = try SourceCompiler.compile(repository: repository, sources: sources + [harness.path],
+            extraObjects: [stubsObject.path], executable: executable,
+            parseAsLibrary: true, timeout: 240)
         guard swift.status == 0 else {
             throw Failure(description: "compiling TerminalPaste.swift and ClipboardHistory.swift with the harness:\n\(swift.output)")
         }
