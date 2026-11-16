@@ -253,7 +253,7 @@ struct ExtensionCompletionsTests {
             @discardableResult
             func press(_ key: KeyEvent) -> Bool {
                 var context = field.host.context
-                let caret = (field.host.document as NSString).length + (field.host.marked as NSString).length
+                let caret = (field.host.document as NSString).length + (field.host.preedit as NSString).length
                 context.selectedRange = caret..<caret
                 let handled = field.host.press(key, with: context)
                 if !handled, key.key == .character, let text = key.printableText { field.host.document += text }

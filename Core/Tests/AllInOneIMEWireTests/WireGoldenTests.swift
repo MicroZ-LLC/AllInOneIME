@@ -68,7 +68,7 @@ struct WireGoldenTests {
     }
 
     /// The spec's own golden (§10), as far as the Composer agrees with it: the handshake, plain typing, the draft's
-    /// start, the panel, and the commit of the version picked.
+    /// start (the panel only: no composition in the document since 0.7.5), and the commit of the version picked.
     @Test func notepadImproveFollowsTheSpec() throws {
         let transcript = try WireTranscript(contentsOf: Self.goldens.appendingPathComponent("notepad-improve.jsonl"))
         let expected = transcript.steps.compactMap { if case let .expect(v, _) = $0 { v } else { nil } }
@@ -77,7 +77,7 @@ struct WireGoldenTests {
             """)))
         #expect(expected[1] == (try JSONValue(parsing: #"{"id":2,"re":4,"type":"result"}"#)))
         #expect(expected.contains(try JSONValue(parsing: #"""
-            {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"composition","text":"@","caret":1,"segments":[{"from":0,"to":1,"style":"draft"}]},{"op":"panel","shown":true}]}
+            {"id":6,"re":8,"type":"result","handled":true,"outputs":[{"op":"panel","shown":true}]}
             """#)))
         let commit = try #require(expected.first { $0.compact.contains(#""op":"commit""#) })
         #expect(commit.compact.contains(#"{"op":"commit","text":"Hello."}"#))

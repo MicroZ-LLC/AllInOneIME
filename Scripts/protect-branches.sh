@@ -1,9 +1,10 @@
 #!/bin/sh
 # Protects mainline and every release-* branch with a repository ruleset named "Quality gate": a change goes in only
 # through a pull request whose required checks passed, "Quality gate" (.github/workflows/quality.yml: `make lint` and
-# `make test` on the Mac mini) and "review" (.github/workflows/review.yml's status), and nobody force-pushes to those
-# branches or deletes them, admins included. No approval is required: the agent pipeline merges its own PRs once the
-# checks pass, and the review is the independent one. It also turns on what the pipeline relies on: auto-merge, and
+# `make test`, the core's tests on GitHub's machines and the Mac's on the Mac mini) and "review"
+# (.github/workflows/review.yml's status), and nobody force-pushes to those branches or deletes them, admins included.
+# No approval is required: the agent pipeline merges its own PRs once the checks pass, and the review is the
+# independent one. It also turns on what the pipeline relies on: auto-merge, and
 # Actions creating PRs. For the owner's integrator to run (not CI, not the pipeline), with a `gh` signed in as an admin
 # of the repository; running it again updates the ruleset in place. --dry-run prints the requests instead.
 #

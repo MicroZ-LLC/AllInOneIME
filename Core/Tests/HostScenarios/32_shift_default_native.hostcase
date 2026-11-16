@@ -1,0 +1,7 @@
+NAME a tap of the default Shift switch key changes language once
+PROFILES nstextview
+LANG chinese
+TEXT "|"
+KEY shift
+EXPECT lang english
+EXPECT switches 1

@@ -136,8 +136,9 @@ struct SuggestionsCodingAcceptanceTests {
                     #expect(Self.said(field, since: before).contains { $0.contains("Code") }, "\(Self.said(field, since: before))")
                     let start = field.document
                     field.type("pr")
-                    // Held as marked text, as after the magic key, until it ends (decision 33).
-                    #expect(field.host.marked == "pr" && field.document == start, "held: \(field.host.marked)")
+                    // Held, as after the magic key, until it ends (decision 33): in the panel's input line, nothing marked
+                    // in the field (owner decision 2026-11-15).
+                    #expect(field.host.composes("pr") && field.document == start, "held: \(field.host.composing)")
                     #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
                     field.press(SuggestionKeys.space)
                 }
@@ -145,7 +146,7 @@ struct SuggestionsCodingAcceptanceTests {
             #expect(seen == [.language(.english), .code, .language(.chinese)], "\(seen)")
             #expect(!world.translateAsYouType, "a tap toggles nothing")
             field.type("nihao")
-            #expect(field.host.marked == "nihao", "pinyin again: \(field.host.marked)")
+            #expect(field.host.composes("nihao"), "pinyin again: \(field.host.composing)")
         }
     }
 
@@ -206,13 +207,13 @@ struct SuggestionsCodingAcceptanceTests {
             field.holdShift()
             #expect(field.host.composer.input == .language(.chinese), "still pinyin")
             field.type("nihao")
-            #expect(field.host.marked == "nihao", "\(field.host.marked)")
+            #expect(field.host.composes("nihao"), "\(field.host.composing)")
 
             let code = world.codeField(app: "com.apple.TextEdit")
             code.holdShift()
             #expect(code.host.composer.input == .code, "still Code")
             code.type("pr")
-            #expect(code.host.marked == "pr" && code.document.isEmpty, "Code holds its word (decision 33): \(code.host.marked)")
+            #expect(code.host.composes("pr") && code.document.isEmpty, "Code holds its word (decision 33): \(code.host.composing)")
         }
     }
 
@@ -266,7 +267,7 @@ struct SuggestionsCodingAcceptanceTests {
             #expect(code.host.composer.input == .code && code.host.composer.translateModeChip() == nil)
             code.type("print")
             // Code's own held word (decision 33), never a draft to translate.
-            #expect(code.host.marked == "print" && code.document.isEmpty, "nothing to translate: \(code.host.marked)")
+            #expect(code.host.composes("print") && code.document.isEmpty, "nothing to translate: \(code.host.composing)")
         }
     }
 
@@ -286,11 +287,11 @@ struct SuggestionsCodingAcceptanceTests {
                 let field = world.field(app: app)
                 #expect(field.host.composer.input == .language(.chinese), "\(app): \(field.host.composer.input)")
                 field.type("nihao")
-                #expect(field.host.marked == "nihao", "\(app): pinyin (\(field.host.marked))")
+                #expect(field.host.composes("nihao"), "\(app): pinyin (\(field.host.composing))")
             }
             first.tapShift()
             first.type("nihao")
-            #expect(first.host.marked == "nihao", "pinyin after a tap of Shift (\(first.host.marked))")
+            #expect(first.host.composes("nihao"), "pinyin after a tap of Shift (\(first.host.composing))")
         }
     }
 
@@ -341,13 +342,13 @@ struct SuggestionsCodingAcceptanceTests {
             let field = world.field(app: mail)
             #expect(field.host.composer.input == .code, "\(field.host.composer.input)")
             field.type("pr")
-            #expect(field.host.marked == "pr" && field.document.isEmpty, "Code holds its word (decision 33): \(field.host.marked)")
+            #expect(field.host.composes("pr") && field.document.isEmpty, "Code holds its word (decision 33): \(field.host.composing)")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "Code's rows: \(Self.texts(field))")
             field.press(SuggestionKeys.space)
             let notes = world.field(app: "com.apple.Notes")
             #expect(notes.host.composer.input == .language(.chinese))
             notes.type("nihao")
-            #expect(notes.host.marked == "nihao", "\(notes.host.marked)")
+            #expect(notes.host.composes("nihao"), "\(notes.host.composing)")
             field.tapShift()
             #expect(field.host.composer.input == .language(.chinese), "Code → 中: \(field.host.composer.input)")
 
@@ -706,7 +707,7 @@ struct SuggestionsCodingAcceptanceTests {
             field.type("pr")
             #expect(field.settle { field.shown(["print"]) == ["print"] }, "\(Self.texts(field))")
             field.press(SuggestionKeys.digit(1))
-            #expect(field.host.marked == "pr1" && field.document.isEmpty, "\(field.host.marked) \(field.document)")
+            #expect(field.host.composes("pr1") && field.document.isEmpty, "\(field.host.composing) \(field.document)")
         }
     }
 

@@ -1,0 +1,7 @@
+NAME a click leaves an unreadable field without readable context
+PROFILES tellsnothing
+LANG english
+TEXT "hello| world"
+CLICK inside 0
+EXPECT context unreadable
+# QUESTION: How should the contract assert that autocomplete forgets its typed fallback after a click?

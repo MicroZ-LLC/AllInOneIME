@@ -1,7 +1,7 @@
 import Foundation
 
 /// Suggestions in one text field's session (spec Suggestions v1, Suggestions/): the token typed into the field since a
-/// boundary (in Code, its end the word held as marked text: decision 33), the rows its sources have for it (plugin lists
+/// boundary (in Code, its end the word held in the panel: decision 33), the rows its sources have for it (plugin lists
 /// and queries; in Code, its coding language's pack and the field's own words), the keys they take (one set in every app
 /// and input: decision 31), the long press of Shift that turns Translate as You Type on and off (decision 22), and the
 /// timers they wait on.
@@ -279,7 +279,7 @@ extension InputSession {
             && SuggestionsAppClass(app: app, terminal: terminal) != .none && suggestionsOn(services.suggestions.settings())
     }
 
-    /// Whether Code holds the word being typed here as marked text (`Composer.holdsCodeWord`, decision 33): where it reads
+    /// Whether Code holds the word being typed here, in the panel (`Composer.holdsCodeWord`, decision 33): where it reads
     /// the field (`codeReadsTheField`), where its rows may show. Elsewhere (a terminal, secure input, a password field, an
     /// app with no rows, the switches off) its letters go straight in, as the language inputs' do.
     func codeHoldsTheWord() -> Bool { codeReadsTheField() }

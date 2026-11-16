@@ -31,9 +31,9 @@ struct SuggestionsPinyinPrefixTests {
         try await inEnglish {
             let field = try Self.world().field()
             field.type("proj")
-            #expect(field.host.marked == "proj", "pinyin holds the letters (\(field.host.marked))")
+            #expect(field.host.preedit == "proj", "pinyin holds the letters (\(field.host.preedit))")
             field.type("-")
-            #expect(field.document == "proj-" && field.host.marked.isEmpty, "\(field.document.debugDescription), marked \(field.host.marked)")
+            #expect(field.document == "proj-" && field.host.preedit.isEmpty, "\(field.document.debugDescription), marked \(field.host.preedit)")
             field.type("12")
             #expect(field.document == "proj-12", "the digits are typed, not picks: \(field.document.debugDescription)")
             #expect(field.settle { field.shown(Self.tickets.map(\.match)) == ["PROJ-1201", "PROJ-1234"] }, "\(field.rows.map(\.text))")
@@ -60,17 +60,17 @@ struct SuggestionsPinyinPrefixTests {
         try await inEnglish {
             let off = try Self.world(enable: false).field()
             off.type("proj-")
-            #expect(off.host.marked == "proj" && off.document.isEmpty, "no source: \(off.document.debugDescription), \(off.host.marked)")
+            #expect(off.host.preedit == "proj" && off.document.isEmpty, "no source: \(off.document.debugDescription), \(off.host.preedit)")
 
             let world = try Self.world()
             let longer = world.field()
             longer.type("woproj-")
-            #expect(longer.host.marked == "woproj" && longer.document.isEmpty, "\(longer.document.debugDescription), \(longer.host.marked)")
+            #expect(longer.host.preedit == "woproj" && longer.document.isEmpty, "\(longer.document.debugDescription), \(longer.host.preedit)")
 
             let other = world.field()
             other.type("pro")
             other.type("-")
-            #expect(other.host.marked == "pro" && other.document.isEmpty, "\"pro-\" starts no prefix: \(other.host.marked)")
+            #expect(other.host.preedit == "pro" && other.document.isEmpty, "\"pro-\" starts no prefix: \(other.host.preedit)")
         }
     }
 }

@@ -42,7 +42,7 @@ public struct LastTyped: Equatable, Sendable {
         return last
     }
 
-    /// What the user typed went in at `time` without the key that typed it: Code's word held as marked text, put in as
+    /// What the user typed went in at `time` without the key that typed it: Code's word held in the panel, put in as
     /// typed (→ or Esc on its rows, decision 33). Its last character is the last one typed.
     public mutating func typedIn(_ text: String, at time: TimeInterval) {
         guard let last = text.last else { return }

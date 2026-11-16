@@ -33,8 +33,8 @@ enum ClaudeSessionMac {
     static var managers: [SessionAgent: ClaudeSessionManager] { [.claude: manager, .codex: codex, .antigravity: antigravity, .kiro: kiro] }
 
     private static func session(_ backend: any SessionBackend) -> ClaudeSessionManager {
-        let agent = backend.agent
-        return ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(agent) }), mcp: { mcp(agent) })
+        ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }),
+                             mcp: { mcp(backend.agent) })
     }
 
     /// The MCP servers checked for `agent` in Settings → AI (`Config.sessionMCP`), as its own config has them now
