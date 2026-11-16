@@ -1,6 +1,6 @@
 # The focus moves to another field mid-draft (§4, §5.5). TSF ends the composition before it moves the focus,
-# so the client sends endComposition terminated first (the draft goes in as typed), then blur, which finds
-# nothing left to commit.
+# so the client sends endComposition terminated first (the command not run yet is dropped), then blur, which
+# finds nothing left.
 #! provider fixtures/improve-hello.json
 #! inputLanguage english
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
@@ -36,7 +36,7 @@
 > {"id":17,"type":"keyDown","sid":1,"t":2150,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[12,12],"comp":12}}
 < {"id":15,"re":17,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › hel","caret":13,"segments":[{"from":0,"to":13,"style":"draft"}],"typed":"@improve hel"}]}
 > {"id":18,"type":"endComposition","sid":1,"reason":"terminated"}
-< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@improve hel"}]}
+< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"composition","text":""}]}
 > {"id":19,"type":"blur","sid":1}
 < {"id":17,"re":19,"type":"result"}
 # The other field: plain typing
@@ -48,4 +48,4 @@
 < {"id":19,"re":23,"type":"result"}
 > {"id":24,"type":"close","sid":1}
 > {"id":25,"type":"close","sid":2}
-#! expect-document "@improve hel"
+#! expect-document ""

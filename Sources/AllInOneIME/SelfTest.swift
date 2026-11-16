@@ -350,7 +350,7 @@ enum SelfTest {
         check(untouched() && client.inserted.count == insertedBefore, "the field left: nothing goes in")
         select()
         command("i")
-        controller.perform(controller.composer.commitAsTyped(), client: client)
+        controller.perform(controller.composer.passwordFieldTakesOver(), client: client)
         check(untouched() && client.inserted.count == insertedBefore, "secure input turning on: nothing goes in")
 
         // The selection moved meanwhile (a click): the command is given up, and the key acts as usual (pinyin).
@@ -2979,8 +2979,8 @@ enum SelfTest {
         check(clipboardReads == 0 && client.marked == "improve › " && !controller.composer.isLevelTwo
               && controller.panelModel().detail == "在命令后面写上内容",
               "⏎ on the empty command only hints; the clipboard isn't read (\(client.marked))")
-        check(!press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last == "@improve ",
-              "in a terminal ⌘V reaches the terminal (no second copy in the command)")
+        check(!press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last != "@improve " && client.marked.isEmpty,
+              "in a terminal ⌘V reaches the terminal (no second copy in the command), the command not run yet dropped")
         controller.commitComposition(client)
         // ⌃V works in a terminal too (it doesn't paste on ⌃V itself), also after text already typed.
         press(controller, client, "@", code: 0x13, flags: .shift)
@@ -3078,8 +3078,8 @@ enum SelfTest {
               "⇧⏎ inserts the English command as typed")
         improve(controller, client)
         type("hi", controller, client)
-        check(!press(controller, client, "a", code: 0x00, flags: .command) && client.inserted.last == "@improve hi",
-              "⌘A inserts the English command first, then reaches the app")
+        check(!press(controller, client, "a", code: 0x00, flags: .command) && client.inserted.last == "@improve ok" && client.marked.isEmpty,
+              "⌘A drops the English command not run yet (nothing typed in), then reaches the app")
         tapShift(controller, client)
         check(!controller.composer.engineState.isAsciiMode, "Shift alone switches back to Chinese")
 

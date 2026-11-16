@@ -171,7 +171,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 - **`blur`:**
   - Sent before focusing the next context.
   - It is a request: the DLL waits for the answer (within the budget) and applies the result's outputs to the *old* context.
-  - Today the core's policy there is `Composer.commitAll`: pending text goes in and running requests are cancelled.
+  - Today the core's policy there is `Composer.commitAll`: pending text goes in and running requests are cancelled; a command not run yet (`@improve helo` before ⏎), or one that ran, leaves nothing instead, nothing committed.
 - **`close`:** on `OnPopContext`, `OnUninitDocumentMgr` or `Deactivate`.
 
 ### Disconnects
@@ -852,10 +852,10 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
 - **`open` again** for a known `sid` replaces its `field` and is not an error.
 - **`focus` re-sent while focused** (§4: a new keyboard layout or input scope, noticed at the next key) keeps the same serial — the DLL increments the serial only for a real new focus or a reconnect — so an `apply` the engine already pushed for that focus still matches and applies. It doesn't blur or commit the draft. The DLL and engine agree on this (`focus-resent`).
 - **`focus` without a `blur`** of the previously focused session: the engine blurs that session itself, and its outputs are dropped. The DLL must always send `blur` first (§4).
-- **Order on a focus move.** TSF terminates a live composition before it moves the focus, so the DLL sends `endComposition {terminated}` (the draft committed as typed) and *then* `blur`, which finds nothing left to commit (`focus-moves`).
+- **Order on a focus move.** TSF terminates a live composition before it moves the focus, so the DLL sends `endComposition {terminated}` (the draft committed as typed, or a command not run yet dropped) and *then* `blur`, which finds nothing left to commit (`focus-moves`).
 - **Caret reports** are sent only while the panel is shown (§6). The engine forgets the last caret when the panel hides, so a panel shown again waits for a fresh report rather than anchoring at the stale rectangle.
-- **A field that turns secure** (`focus` re-sent with `secure:true`) while a draft is pending gets the draft committed as typed, pushed as `apply` (`focus` has no result), with `panel shown:false`. A key from a secure field, if one comes anyway, is `handled:false`, with a notice in the engine and no composition.
-- **`blur` and `endComposition terminated`** commit the draft *as typed*, with its "@" (`@improve helo`), not as shown, and hide the panel.
+- **A field that turns secure** (`focus` re-sent with `secure:true`) while a draft is pending gets the draft committed as typed (a command not run yet, `@note` aside, or one that ran is dropped instead: nothing committed), pushed as `apply` (`focus` has no result), with `panel shown:false`. A key from a secure field, if one comes anyway, is `handled:false`, with a notice in the engine and no composition.
+- **`blur` and `endComposition terminated`** commit the draft *as typed*, with its "@" (`@john`), not as shown, and hide the panel. A command not run yet (`@improve helo` before ⏎) is dropped instead: an empty `composition`, nothing committed (`terminated`, `focus-moves`); one that ran (its versions shown or still streaming) leaves nothing either, its request cancelled (`blur-mid-stream`).
 - **`endComposition timeout`** returns `panel shown:false` and **no** `composition` (reconciled with the DLL; the earlier draft said `composition ""`). The DLL ended the composition itself before passing the key, keeping the draft *as typed* (`composition.typed`), so the text is not lost: in `timeout-resync`, "@im" + "p" (the engine shows "im") leaves "@imp" plus the passed-through key. An empty `composition` from the engine would wrongly delete that kept text.
 - **A lost engine** (§2.5): the client keeps its composition's text *as typed* (`composition.typed`), not as shown. After a broken pipe during "@imp" the document keeps "@im" (the engine showed "im"), with the "@" (`reconnect`). (The earlier draft kept the shown text, "imp"; the DLL and engine now agree the user's typed text is what survives.)
 - **Esc during a stream:** the first Esc cancels and returns the draft (style `draft`) with the panel still shown. A second Esc gives the draft up (`composition ""`, `panel shown:false`).

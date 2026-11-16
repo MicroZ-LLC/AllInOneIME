@@ -709,15 +709,18 @@ final class AllInOneIMEInputController: IMKInputController {
     /// is the field being typed in, nothing of ours is marked in it (marked text keeps keys from any app already), and a
     /// panel shows (suggestion rows, clipboard history's), this field's autocomplete suggestion shows after the caret
     /// (`GhostOverlay`: its Esc and Tab, which a Chromium page acted on too), or the key is ⌃V (which opens clipboard
-    /// history's). The tap's event is made an NSEvent only then: the tap has every key of every app.
+    /// history's); and ⌘V into a command not run yet, with its text marked. The tap's event is made an NSEvent only then:
+    /// the tap has every key of every app.
     @MainActor
     func keyAtTap(_ event: CGEvent) -> Bool? {
-        guard !hasMarkedText, let client = client() else { return nil }
-        // ⌃ alone of the four (a key posted by another program carries other bits besides).
-        let controlV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
-            && event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]) == .maskControl
-        let ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
-        guard CandidatePanel.shared.isShowing || ghost || controlV, let key = NSEvent(cgEvent: event) else { return nil }
+        // ⌃ (or ⌘) alone of the four (a key posted by another program carries other bits besides).
+        let flags = event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]), isV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
+        // ⌘V in a command not run yet pastes into it in every app (`Composer.pastesIntoCommand`): taken here, marked text
+        // or not, before a terminal or Notes, which paste on ⌘V whatever the input method says, have it.
+        let commandV = isV && flags == .maskCommand && composer.pastesIntoCommand
+        guard !hasMarkedText || commandV, let client = client() else { return nil }
+        let controlV = isV && flags == .maskControl, ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
+        guard CandidatePanel.shared.isShowing || ghost || controlV || commandV, let key = NSEvent(cgEvent: event) else { return nil }
         atTap = true
         defer { atTap = false }
         return handleKeyDown(key, client: client)

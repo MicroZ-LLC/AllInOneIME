@@ -996,7 +996,7 @@ public final class InputSession {
             perform(composer.selectionRead(nil))
             autocompleteLeft(.unseen)
             if composer.isComposing {
-                let ended = composer.commitAsTyped()
+                let ended = composer.passwordFieldTakesOver()
                 perform(ended)
                 // A note that couldn't go in as typed says its text is on the clipboard: that notice stays up.
                 if ended.contains(where: { if case .notice = $0 { return true } else { return false } }) { secureNoticeShown = true }
@@ -1125,7 +1125,7 @@ public final class InputSession {
         guard !(context.secure || field.secure) else {
             // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
             // here: no switch, its lock left alone.
-            if composer.voice != .off { perform(composer.commitAsTyped()) }
+            if composer.voice != .off { perform(composer.passwordFieldTakesOver()) }
             suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
             return
         }

@@ -1,5 +1,5 @@
-# The app ends our composition (§5.5, OnCompositionTerminated): what is pending goes in (commitAll), the
-# commit replacing the range the composition covered.
+# The app ends our composition (§5.5, OnCompositionTerminated) over a command not run yet: commitAll drops it,
+# an empty composition, nothing committed (pending text that isn't a command would go in).
 #! provider fixtures/improve-hello.json
 #! inputLanguage english
 > {"v":1,"id":1,"type":"hello","versions":[1],"client":"$any","platform":"win","arch":"x64","pid":"$any","tid":"$any","capabilities":["allowForeground"]}
@@ -35,11 +35,11 @@
 > {"id":17,"type":"keyDown","sid":1,"t":2150,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[12,12],"comp":12}}
 < {"id":15,"re":17,"type":"result","handled":true,"outputs":[{"op":"composition","text":"improve › hel","caret":13,"segments":[{"from":0,"to":13,"style":"draft"}],"typed":"@improve hel"}]}
 > {"id":18,"type":"endComposition","sid":1,"reason":"terminated"}
-< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"commit","text":"@improve hel"}]}
+< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"composition","text":""}]}
 # Typing goes on as plain text
-> {"id":19,"type":"keyDown","sid":1,"t":2250,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[12,12],"before":"@improve hel"}}
+> {"id":19,"type":"keyDown","sid":1,"t":2250,"key":{"vk":88,"scan":45,"text":"x","textIgnoringModifiers":"x"},"ctx":{"sel":[0,0]}}
 < {"id":17,"re":19,"type":"result"}
 > {"id":20,"type":"blur","sid":1}
 < {"id":18,"re":20,"type":"result"}
 > {"id":21,"type":"close","sid":1}
-#! expect-document "@improve helx"
+#! expect-document "x"

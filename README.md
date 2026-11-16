@@ -62,13 +62,13 @@ In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII d
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Each row shown has its number key: ⌥1 does the first row shown, ⌥2 the second … (as a click on it). Digits alone are text there; while pinyin is typed they pick its words |
-| ⏎ | Runs the command. Works even if the pinyin isn't picked yet: it's picked first, as with Space |
+| ⏎, ⌘⏎ | Runs the command (⌘⏎ too, which chat apps use to send: the command is never sent as typed; on `@note` it saves the note). Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed it does nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); typing filters them (a Chinese text by its pinyin too). ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
 | ← → | In a command's list once the command is picked (a script extension's or a plugin's rows, `@open`'s results, `@tasks`, `@imessage`'s recipients) and in clipboard history, with more rows than the 5 shown: the previous / next page, its first row chosen (← stays on the first page, → on the last); the footer says `← → page` and which rows show (`6–10 / 12`), and ↑↓ still move a row at a time. On one page they're as before: they move the cursor in the text after the command, and → at its end hides the list, as Esc. The command list, suggestion rows, pinyin candidates and AI results keep their own ← →. The wheel or the trackpad over the panel turns these pages too (down: the next), as it does pinyin's candidates; in the command list, one @, clipboard history and suggestions it moves a row |
-| ⌘V | The app's Paste. In a command it appends the clipboard text at once, no history, except where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes) and pastes into the app as usual; use ⌃V there |
+| ⌘V | The app's Paste. In a command not run yet it appends the clipboard text at once, no history, in every app: also where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes), whose own paste then doesn't happen (with Accessibility allowed; without it they paste as well) |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
 | Letters, once AI results are up | A follow-up: after `@question` the next question, which ⏎ asks (see [Conversations](#conversations-with-question-new)); after `@improve` or a prompt command an instruction such as `shorter`, which ⇧⏎ sends (see [Refining the results](#refining-the-results-new)). After `@translate` letters continue the sentence, and ⏎ translates it again |
 | ⌘⏎, ⌥1–⌥9 | In an `@question` conversation: shows where to continue it (the coding agents installed, the one `@agent` hands to first; Claude, ChatGPT, Gemini; or copy it); ⌥1, ⌥2 … pick one |
@@ -103,6 +103,14 @@ commands below start with it (`~improve`), and so does the app's own text that n
 Example: `@q` ⏎, type `what is quantum computing`, ⏎. `@note books to read: The Three-Body Problem` ⏎ saves a note.
 `@reminder call Bob tomorrow at 3pm` ⏎, check the time it read, then ⏎ again to add it.
 In Chinese mode, `@open` switches to English letters for the moment and goes back to Chinese when you're done.
+
+A command you haven't run is never typed into the app, whether its text is Chinese or English: ⌘⏎ runs it, as ⏎ does
+(`@note` saves). Leaving the text field (another field or app clicked, or a click elsewhere in it), a password field
+taking over, or any other ⌘ shortcut (⌘A, ⌘S …) drops it, nothing typed in, and the shortcut goes on to the app. ⌘V
+pastes into it in every app, terminals and Notes too. ⌘← ⌘→ move to the start or end of its text, pinyin you're typing
+picked first, as with Space. ⇧⏎ still inserts it as typed, and `@note` keeps what you wrote (see
+[Notes and reminders](#notes-and-reminders)). A command that has run (its results up, or still coming in) leaves
+nothing either when you leave the field: it stops and the panel goes.
 
 The code for `@py` and `@js` is typed in English letters, and full-width punctuation (from Chinese mode) becomes ASCII; write it on one line, with `;` between statements.
 It runs in a separate process, stopped after 10 seconds or with Esc at any time; on an error, the error's first line is shown, e.g. `ZeroDivisionError: division by zero`.
@@ -356,7 +364,7 @@ that goes on, replaces the saved one.
 
 ### Notes and reminders
 
-`@note` makes a new note; its first line is the title. After copying some text, ⌃V ⏎ after `@note ` (or ⌘V, outside terminals) saves it with its line breaks, shown as ↵ in the command.
+`@note` makes a new note; its first line is the title. After copying some text, ⌃V ⏎ after `@note ` (or ⌘V ⏎) saves it with its line breaks, shown as ↵ in the command.
 Where it goes is Settings → Commands → Notes (@note) → Save to:
 
 - **Notes** (as before): a new note in the AllInOneIME folder.
@@ -364,7 +372,7 @@ Where it goes is Settings → Commands → Notes (@note) → Save to:
 - **Notion**: Create Integration… (New integration → Internal → copy the token), paste the token (kept in the keychain), then in Notion open the page or database → ··· → Connections → add your integration, and paste its link; Test shows "✓ “Inbox” (database)". A page gets a new child page, a database a new row (the first line as its title); the rest of the note is its body, in one request. Offline or refused, nothing is kept to send later: the note comes back. During secure input `@note` doesn't send to Notion.
 
 The notice says where the note went ("Saved to Notion", "Saved to “Inbox”").
-If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed.
+If you leave the text field (click elsewhere, switch apps) or press ⇧⏎ (insert as typed) before a note with line breaks is saved, it isn't typed into the app (in a terminal, each line would run as a command): it goes on the clipboard instead ("The note wasn't saved; its text is on the clipboard"). A note of one line is inserted as typed (any other command not run yet is dropped instead).
 
 `@reminder` reads times like `tomorrow at 3pm`, `in 2 hours`, `in 3 days at 3pm`, `on the 15th`, `this weekend`, `in 1 month`, `next month` (its 1st), `end of the year` (Chinese times too).
 The day and the time can be apart (`tomorrow call Bob at 5`); weeks start on Monday.
@@ -1260,7 +1268,7 @@ suggestions use, and puts in the one you choose.
   Suggestion rows are the same.
 - **In a command:** ⌃V after `@improve ` (or any command) shows the history too, and the row you choose is appended to
   the command, as ⌃V appended the clipboard before: lines made one, up to 2000 characters; `@note` keeps them, up to
-  20000. `@reply` takes it as the message to answer. ⌘V in a command is still a direct paste of the clipboard.
+  20000. `@reply` takes it as the message to answer. ⌘V in a command is still a direct paste of the clipboard, in every app.
 - **Images (0.6.8.2):** an image you copy (a screenshot, Copy Image) is kept too, a row of its own with a thumbnail, its
   size and how large it is ("Image 1280 × 720 · 2.4 MB · 2 min ago"). ⏎ pastes it: it goes on the clipboard, the app's
   own paste key is pressed for you (⌘V in an app, ⌃V in a terminal or a code editor, where Claude Code takes an image),
