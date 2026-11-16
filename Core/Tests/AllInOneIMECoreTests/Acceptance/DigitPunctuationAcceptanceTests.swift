@@ -162,7 +162,7 @@ struct DigitPunctuationAcceptanceTests {
         /// What the field tells with a key: all of it where it can be read, else nothing of its text.
         var context: FieldContext {
             if field.readable { return host.context }
-            return FieldContext(read: [.secure, .markedText], secure: false, beforeCaret: .unknown, text: nil)
+            return FieldContext(read: [.secure], secure: false, beforeCaret: .unknown, text: nil)
         }
 
         var document: String { host.document }
@@ -343,7 +343,7 @@ struct DigitPunctuationAcceptanceTests {
         let rig = Rig(.unreadable)
         rig.type("3")
         rig.host.selection = 0..<1
-        let told = FieldContext(read: [.secure, .markedText, .selectedRange, .selection], secure: false,
+        let told = FieldContext(read: [.secure, .selectedRange, .selection], secure: false,
                                 selectedRange: 0..<1, selection: Composer.Selection(text: "3", range: 0..<1),
                                 beforeCaret: .unknown, text: nil)
         rig.host.press(KeyEvent(keyCode: 0, characters: "."), with: told)

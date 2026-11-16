@@ -378,8 +378,7 @@ extension InputSession {
         // What was typed stands in only where the field tells nothing, and not past a click.
         let typed = caretMayHaveMoved(within: services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
-        // Which it went by, for a request seen with a field that looked empty (a read with no text: an empty field, or
-        // one that tells none, as WeChat's, which the shell can't tell apart yet).
+        // Which it went by: a field whose text can't be read (an empty one is read as empty, and asks nothing).
         if text == nil { log.notice("autocomplete \(id): the field told no text; what was typed since the focus stands in") }
         if let kept = services.autocomplete.kept(for: request, in: app) {
             autocompleteShow(kept.rest, kept: kept.entry, fromCache: true)

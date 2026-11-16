@@ -102,6 +102,8 @@ struct AWSProfileStatusRow: View {
     @ObservedObject var aws: AWSProfileModel
     /// Screenshots: the name shown in place of the profile's own.
     var shownAs: String?
+    /// Bedrock's model ID as it is sent, where it isn't the one set (`SettingsModel.bedrockModelSent`).
+    var modelSent: String?
 
     var body: some View {
         let status = aws.status(for: profile)
@@ -123,6 +125,7 @@ struct AWSProfileStatusRow: View {
                         .controlSize(.small)
                 }
             }
+            if let modelSent { Text(modelSent).font(.caption).foregroundStyle(.secondary).textSelection(.enabled) }
         }
         // Read when shown and again at each boundary (credentials expiring, a sign-in ending, at least every minute), so the
         // line never goes stale while the window stays open; coming back to the window reads it too (`didBecomeKey`).
@@ -150,6 +153,12 @@ struct AWSProfileStatusRow: View {
             log.error("couldn't open Terminal for the SSO sign-in: \(error.localizedDescription, privacy: .public)")
         }
     }
+}
+
+extension SettingsModel {
+    /// Under Bedrock's settings, the model ID sent to the region (the field's, else the profile's) where it isn't the one
+    /// set: "Sent as eu.anthropic.… in eu-west-1" (`UIText.bedrockModelSent`). Nil where it is.
+    var bedrockModelSent: String? { UIText.bedrockModelSent(config, profileRegion: profileRegion) }
 }
 
 /// Sample AWS profiles for the settings' images (`--settings-image`): made-up names, keys and sign-ins in a folder of

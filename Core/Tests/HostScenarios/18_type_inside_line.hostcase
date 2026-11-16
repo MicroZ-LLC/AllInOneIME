@@ -1,0 +1,7 @@
+NAME typing at an interior caret preserves text on both sides
+PROFILES all
+LANG english
+TEXT "hello| world"
+TYPE brave
+EXPECT doc "hellobrave world"
+EXPECT nolost

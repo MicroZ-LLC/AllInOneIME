@@ -57,16 +57,18 @@ extension ComposerTests {
         let (w, _) = improveDraft(key: .enter)
         w.modifierRoles = .windows
         #expect(asksForTheClipboard(w, ctrlV))
-        // Where the app pastes on its own (`pastesIntoDraft` off): the Mac still pastes ⌃V into the draft, Windows has
-        // no second paste key.
+        // Where the app pastes on its own (`pastesIntoDraft` off): a command not run yet still takes the paste key, ⌘V
+        // (and ⌃V) on the Mac, Ctrl+V on Windows, as in every app.
         let (m, _) = improveDraft(key: .enter)
         m.pastesIntoDraft = false
         #expect(asksForTheClipboard(m, KeyEvent(keyCode: 0x09, characters: "v", modifiers: .control)))
-        #expect(!asksForTheClipboard(m, pasteKey))
+        let (m2, _) = improveDraft(key: .enter)
+        m2.pastesIntoDraft = false
+        #expect(asksForTheClipboard(m2, pasteKey))
         let (n, _) = improveDraft(key: .enter)
         n.pastesIntoDraft = false
         n.modifierRoles = .windows
-        #expect(!asksForTheClipboard(n, ctrlV))
+        #expect(asksForTheClipboard(n, ctrlV))
     }
 
     @Test func theActionKeysModifierIsTheRoles() {

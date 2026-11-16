@@ -120,6 +120,10 @@ let package = Package(
         // The wire protocol's goldens (WireGoldens/*.jsonl), replayed against the server with a scripted provider.
         .testTarget(name: "AllInOneIMEWireTests", dependencies: ["AllInOneIMEWire", "AllInOneIMECore"],
                     resources: [.copy("WireGoldens")]),
+        // The host scenarios (Tests/HostScenarios/*.hostcase), replayed through the core against each host profile they
+        // name (NSTextView's, Chromium's, Electron's, a field that tells nothing); the Mac's tests replay the same files
+        // through its own reading code.
+        .testTarget(name: "AllInOneIMEHostTests", dependencies: ["AllInOneIMECore", "AllInOneIMETestSupport"]),
     ]
 )
 

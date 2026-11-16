@@ -1,0 +1,9 @@
+NAME Shift with a letter never switches when Caps Lock is chosen
+PROFILES all
+LANG english
+SET switchKey capsLock
+TEXT "|"
+KEY shift+a
+EXPECT doc "A"
+EXPECT lang english
+EXPECT switches 0

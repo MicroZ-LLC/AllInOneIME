@@ -280,8 +280,8 @@ struct ClipboardHistoryFilterTests {
             chinese.type("ni")
             #expect(chinese.document.isEmpty && !chinese.composer.engineState.isComposing)
             #expect(chinese.settle { !chinese.document.isEmpty })
-            #expect(chinese.document == "memo 1" && chinese.composer.engineState.isComposing && chinese.marked == "ni",
-                    "\(chinese.document) \(chinese.marked)")
+            #expect(chinese.document == "memo 1" && chinese.composer.engineState.isComposing && chinese.preedit == "ni",
+                    "\(chinese.document) \(chinese.preedit)")
 
             // No row for the filter: nothing goes in, the panel stays, and what was typed after ⏎ filters.
             let none = host(texts)

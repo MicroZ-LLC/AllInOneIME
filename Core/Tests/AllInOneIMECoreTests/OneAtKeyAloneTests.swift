@@ -269,7 +269,7 @@ struct OneAtKeyAloneTests {
                 let escape = field(trigger, english: english)
                 escape.host.type(trigger)
                 #expect(escape.host.press(FakeHost.escape))
-                #expect(escape.host.document.isEmpty && escape.host.marked.isEmpty && !escape.composer.isComposing, "\(place)")
+                #expect(escape.host.document.isEmpty && escape.host.preedit.isEmpty && !escape.composer.isComposing, "\(place)")
             }
         }
     }

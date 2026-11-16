@@ -1,0 +1,5 @@
+NAME a native field at caret zero has empty before context
+PROFILES nstextview
+LANG english
+TEXT "|hello world"
+EXPECT context before ""

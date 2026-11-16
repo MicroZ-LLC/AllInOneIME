@@ -66,6 +66,8 @@ public enum BedrockError: Error, LocalizedError, Equatable {
     case http(status: Int, type: String?, message: String)
     case stream(type: String, message: String)
     case invalidResponse(String)
+    /// Bedrock doesn't serve `model` in `region` (`isInvalidModel`): the model ID and the region as they were sent.
+    case modelNotInRegion(model: String, region: String)
 
     public var errorDescription: String? {
         switch self {
@@ -77,6 +79,8 @@ public enum BedrockError: Error, LocalizedError, Equatable {
             return "Bedrock \(type)：\(message)"
         case let .invalidResponse(detail):
             return "Bedrock 响应无法解析：\(detail)"
+        case let .modelNotInRegion(model, region):
+            return "Bedrock 在 \(region) 不提供 \(model)"
         }
     }
 }

@@ -2816,7 +2816,7 @@ struct SettingsView: View {
                   prompt: Text(tr("留空用 profile 的区域（\(model.profileRegion)）",
                                   "Empty: the profile's region (\(model.profileRegion))")))
             .onSubmit { model.save() }
-        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs)
+        AWSProfileStatusRow(profile: model.config.awsProfile, aws: model.aws, shownAs: model.profileShownAs, modelSent: model.bedrockModelSent)
     }
 
     /// AllInOneIME Cloud: the Google account, today's free requests, the subscription.

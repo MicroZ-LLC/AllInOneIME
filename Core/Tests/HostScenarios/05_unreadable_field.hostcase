@@ -1,0 +1,5 @@
+NAME an unreadable field is not mistaken for an empty field
+PROFILES tellsnothing
+LANG english
+TEXT "existing text|"
+EXPECT context unreadable

@@ -1,0 +1,14 @@
+# Smoke test of the runner (not a spec): a tap of Shift switches the input language once, though Chromium and Electron
+# hand every modifier change over twice; the letters typed in English go in once each, though their keys come twice.
+NAME     a tap of Shift switches the language once, and English goes in as typed
+PROFILES all
+LANG     chinese
+KEY      shift
+EXPECT   lang english
+EXPECT   switches 1
+TYPE     Hi
+EXPECT   doc "Hi"
+KEY      shift
+EXPECT   lang chinese
+EXPECT   switches 1
+EXPECT   nolost

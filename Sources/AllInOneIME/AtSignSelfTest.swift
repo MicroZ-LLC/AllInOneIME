@@ -18,14 +18,14 @@ final class GhosttyLine {
     }
 
     func press(_ characters: String, code: UInt16, flags: NSEvent.ModifierFlags = []) {
-        let markedBefore = !client.marked.isEmpty
+        let markedBefore = !controller.preedit.isEmpty
         let before = client.inserted.count
         _ = SelfTest.press(controller, client, characters, code: code, flags: flags)
         let during = client.inserted[before...].joined()
         let arrow = [VirtualKey.left: "←", VirtualKey.right: "→"][code]
         if !during.isEmpty {
             shell += arrow ?? during
-        } else if !markedBefore, client.marked.isEmpty {
+        } else if !markedBefore, controller.preedit.isEmpty {
             shell += arrow ?? characters
         }
         let after = client.inserted.count
@@ -95,33 +95,33 @@ extension SelfTest {
         fresh()
         magicKey(controller, field)
         let rows = controller.panelModel().rows, model = controller.panelModel()
-        check(field.marked == t && rows.count == Composer.oneAtRowsShown && model.highlighted == 0
+        check(controller.preedit == t && rows.count == Composer.oneAtRowsShown && model.highlighted == 0
               && rows.allSatisfy { !$0.text.hasPrefix(t) && $0.icon != nil && $0.label.isEmpty },
               "\(t) alone lists the commands by name, \(Composer.oneAtRowsShown) shown, the first highlighted (\(rows.map(\.text)))")
         _ = escape(controller, field)
-        check(field.marked.isEmpty && field.inserted.isEmpty && controller.composer.draft.isEmpty, "…Esc gives the key up: nothing goes in")
+        check(controller.preedit.isEmpty && field.inserted.isEmpty && controller.composer.draft.isEmpty, "…Esc gives the key up: nothing goes in")
 
         // Commands that ask no AI: picking one runs nothing.
         fresh()
         magicKey(controller, field)
         type("n", controller, field)
         _ = enter(controller, field)
-        check(controller.composer.draft == t + "note " && field.marked == "note › " && field.inserted.isEmpty,
-              "\(t)n ⏎ picks @note (\(field.marked))")
+        check(controller.composer.draft == t + "note " && controller.preedit == "note › " && field.inserted.isEmpty,
+              "\(t)n ⏎ picks @note (\(controller.preedit))")
         _ = escape(controller, field)
 
         fresh()
         magicKey(controller, field)
         type("rem", controller, field)
         tab()
-        check(controller.composer.draft == t + "reminder " && field.marked == "reminder › ", "\(t)rem Tab picks @reminder (\(field.marked))")
+        check(controller.composer.draft == t + "reminder " && controller.preedit == "reminder › ", "\(t)rem Tab picks @reminder (\(controller.preedit))")
         _ = escape(controller, field)
 
         fresh()
         magicKey(controller, field)
         type("note", controller, field)
         _ = space(controller, field)
-        check(controller.composer.draft == t + "note " && field.marked == "note › ", "\(t)note Space writes it, as always (\(field.marked))")
+        check(controller.composer.draft == t + "note " && controller.preedit == "note › ", "\(t)note Space writes it, as always (\(controller.preedit))")
         _ = escape(controller, field)
 
         // A name no command has (a mention): composed after the key, put in as typed with Esc.
@@ -131,7 +131,7 @@ extension SelfTest {
         check(controller.composer.draft == t && controller.composer.engineState.isComposing && field.inserted.isEmpty,
               "\(t)z: z is pinyin after the \(t), nothing goes in yet")
         _ = escape(controller, field)
-        check(field.inserted == [t + "z"] && field.marked.isEmpty && !controller.composer.isComposing,
+        check(field.inserted == [t + "z"] && controller.preedit.isEmpty && !controller.composer.isComposing,
               "…Esc puts \(t)z in as typed (\(field.inserted))")
 
         // A sum: its value first, ⏎ puts it in.
@@ -142,7 +142,7 @@ extension SelfTest {
         type("7", controller, field)
         let sum = controller.panelModel().rows.first?.text
         _ = enter(controller, field)
-        check(sum == "= 21" && field.inserted == ["21"] && field.marked.isEmpty, "\(t)3*7: = 21 first, ⏎ puts 21 in (\(sum ?? "-"), \(field.inserted))")
+        check(sum == "= 21" && field.inserted == ["21"] && controller.preedit.isEmpty, "\(t)3*7: = 21 first, ⏎ puts 21 in (\(sum ?? "-"), \(field.inserted))")
 
         // The key then Space: the key itself, and the space goes on to the app.
         fresh()
@@ -154,7 +154,7 @@ extension SelfTest {
         if t != "@" {
             fresh(english: true)
             let handled = press(controller, field, "@", code: 0x13, flags: .shift)
-            check(!handled && controller.composer.draft.isEmpty && field.marked.isEmpty && controller.panelModel().rows.isEmpty,
+            check(!handled && controller.composer.draft.isEmpty && controller.preedit.isEmpty && controller.panelModel().rows.isEmpty,
                   "with \(t) the magic key, @ is text: no list")
         }
     }
@@ -182,7 +182,7 @@ extension SelfTest {
         var composed = false
         for ch in "ssh xyz\(t)123.1769" {
             line.type(String(ch))
-            composed = composed || controller.composer.isComposing || !terminal.marked.isEmpty
+            composed = composed || controller.composer.isComposing || !controller.preedit.isEmpty
         }
         check(line.shell == "ssh xyz\(t)123.1769" && !composed,
               "in a terminal, ssh xyz\(t)123.1769 goes in as typed: no command list after xyz (\(line.shell))")
@@ -192,9 +192,9 @@ extension SelfTest {
         // the arrow alone for text inserted during it).
         for (arrow, code) in [("\u{F703}", VirtualKey.right), ("\u{F702}", VirtualKey.left)] {
             line.type(t)
-            check(controller.composer.draft == t && terminal.marked == t, "a lone \(t) opens the list (\(terminal.marked))")
+            check(controller.composer.draft == t && controller.preedit == t, "a lone \(t) opens the list (\(controller.preedit))")
             line.press(arrow, code: code)
-            check(line.shell == t && terminal.marked.isEmpty && !controller.composer.isComposing && controller.panelModel().rows.isEmpty,
+            check(line.shell == t && controller.preedit.isEmpty && !controller.composer.isComposing && controller.panelModel().rows.isEmpty,
                   "\(code == VirtualKey.right ? "→" : "←") on it in a terminal leaves the \(t) and ends the list (\(line.shell))")
             line.type("123")
             check(line.shell == t + "123", "what's typed next follows it (\(line.shell))")
@@ -218,7 +218,7 @@ extension SelfTest {
             line.press("\r", code: VirtualKey.returnKey)
             line.shell = ""
             line.type("echo @")
-            check(line.shell == "echo @" && controller.composer.draft.isEmpty && terminal.marked.isEmpty,
+            check(line.shell == "echo @" && controller.composer.draft.isEmpty && controller.preedit.isEmpty,
                   "with \(t) the magic key, @ is text (\(line.shell))")
             line.press("\r", code: VirtualKey.returnKey)
             line.shell = ""
@@ -236,14 +236,14 @@ extension SelfTest {
             }
         }
         typeIntoField("bob\(t)example.com")
-        check(field.document == "bob\(t)example.com" && field.marked.isEmpty && !controller.composer.isComposing,
+        check(field.document == "bob\(t)example.com" && controller.preedit.isEmpty && !controller.composer.isComposing,
               "in a text view an email address goes in as typed (\(field.document))")
         // The app emptied the field (no key of ours): the field says nothing is before the caret, and the key opens the list.
         field.document = ""
         typeIntoField(t)
-        check(controller.composer.draft == t && field.marked == t, "in a field emptied by the app, \(t) opens the list (\(field.marked))")
+        check(controller.composer.draft == t && controller.preedit == t, "in a field emptied by the app, \(t) opens the list (\(controller.preedit))")
         // → there: the key goes in and the arrow goes on to the app (the caret moves), as before.
-        check(!press(controller, field, "\u{F703}", code: VirtualKey.right) && field.inserted.last == t && field.marked.isEmpty
+        check(!press(controller, field, "\u{F703}", code: VirtualKey.right) && field.inserted.last == t && controller.preedit.isEmpty
               && !controller.composer.isComposing, "→ on a lone \(t) in a text view inserts it and the app moves the caret (\(field.inserted))")
     }
 
@@ -309,7 +309,7 @@ extension SelfTest {
             panel.hide()  // as wide as its own rows
             panel.show(controller.panelModel(), anchor: field.caretRect)
             snapshot(name, in: directory)
-            try? Data(field.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
+            try? Data(controller.preedit.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
             _ = escape(controller, field)
             _ = escape(controller, field)
         }

@@ -309,7 +309,7 @@ struct OneAtNumbersAndKeyHintsTests {
         host.app = "com.example.editor"
         host.focus()
         host.type("@")
-        try #require(!host.marked.isEmpty && host.panel != nil)
+        try #require(!host.preedit.isEmpty && host.panel != nil)  // in the panel's input line, not marked (#128)
         let first = try #require(host.composer.oneAtVisible.first?.command)
         let appReceivedKey = !host.press(shortcut(1))
         #expect(!appReceivedKey)
