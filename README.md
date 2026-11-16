@@ -228,7 +228,7 @@ the cache. `@translate` has no refine: typing after its results continues the se
 
 ### Conversations with @question (new)
 
-Once `@question` has answered, what you type is the next question: ⏎ asks it, with the questions and answers so far,
+Once `@question` starts answering, what you type is the next question (the answer goes on): ⏎ asks it once the answer is in, with the questions and answers so far,
 and the panel grows into the conversation, the earlier rounds dimmed as Q / A rows, the latest answer below them. With
 nothing typed, ⏎ and Space do nothing: the conversation stays up. The line on top says which round comes next ("question 2/5 ›
 …"). Every answer can be inserted: its digit (1–5), ↑↓ then ⇧⏎, or a click; the latest is

@@ -30,6 +30,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - In an `@question` conversation, Space with nothing typed no longer inserts the answer and ends the conversation: with the line empty, Space and ⏎ do nothing, and only ⇧⏎ (or the answer's digit, or a click) inserts. Esc closes the panel at any round and leaves nothing in the field, even with a question half typed, instead of going back a round; the conversation stays in the recent questions.
 
+- In an `@question` conversation, typing while the first answer is still coming in starts the next question, as from the second answer on: the answer goes on, the pinyin is typed on the "question 2" line, and ⏎ asks it once the answer is in. It used to cancel the answer and add what you typed to the first question.
+
 - In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
 
 - The candidate box is never taller than the screen: a long list (`@improve` on a pasted paragraph, seven rows of a few lines each) went off the bottom of a small screen, its last rows and its footer with it. Its rows now scroll between the title and the footer, which stay in view, and ↑↓ (or the wheel) brings the highlighted row into view; a list that fits looks as before.

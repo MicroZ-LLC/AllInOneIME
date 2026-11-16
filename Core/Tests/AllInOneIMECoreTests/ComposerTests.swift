@@ -1577,7 +1577,8 @@ struct ComposerTests {
         // An @question conversation (0.6.4): one row per round's answer, the latest selected; no row 0.
         #expect(c.choices.map(\.kind) == [.answer] && c.highlighted == 0)
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好的意思", isComplete: false)]), isFinal: false, id: 1)
-        #expect(c.handleKeyDown(enterKey) == .consumed())  // still streaming
+        // Still streaming: nothing inserted, the answer goes on (as at any round).
+        #expect(commits(c.handleKeyDown(enterKey)).isEmpty && c.phase == .translating(id: 1))
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
         #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
         #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"

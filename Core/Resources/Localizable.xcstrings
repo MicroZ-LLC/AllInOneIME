@@ -12416,6 +12416,7 @@
     },
     "Answering… · Esc close" : {
       "comment" : "回答中… · Esc 关闭 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

@@ -51,6 +51,13 @@ extension Composer {
         }
     }
 
+    /// An @question conversation's answer is coming in, the first one too: the next question can be typed meanwhile
+    /// (`typesRefine`), and the answer goes on.
+    var chatIsAnswering: Bool {
+        guard isQuestionChat, case .translating = phase else { return false }
+        return true
+    }
+
     /// The conversation's rounds, oldest first, as the panel shows them: the first question as typed (the selection,
     /// when nothing was), the latest answer as far as it has come (empty while asked). None outside one.
     public var chatRounds: [QuestionChat.Round] {

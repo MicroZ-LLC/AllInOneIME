@@ -720,8 +720,7 @@ public struct PanelPresenter {
             // asks, ⇧⏎ inserts the answer selected: `Composer.handleChatReturn`).
             followUpComposing(footer: footers.composing, into: &model)
         } else if answering {
-            model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 关闭", "Answering… · Esc close")
-                : t.tr("回答中… · 可以接着打下一个问题 · Esc 关闭", "Answering… · type the next question meanwhile · Esc close")
+            model.footer = t.tr("回答中… · 可以接着打下一个问题 · Esc 关闭", "Answering… · type the next question meanwhile · Esc close")
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))

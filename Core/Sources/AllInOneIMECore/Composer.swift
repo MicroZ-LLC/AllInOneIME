@@ -446,9 +446,9 @@ public final class Composer {
     /// Whether the results shown can be refined now: they are an AI request's, and all in.
     public var canRefine: Bool { phase == .choosing && refineRequest != nil }
 
-    /// Whether keys go into the refine line: while results can be refined, and while a refine runs (what is typed
-    /// then is the next step, run with ⏎ once its results are in; the running one goes on).
-    public var typesRefine: Bool { canRefine || isRefining }
+    /// Whether keys go into the refine line: while results can be refined, a refine runs or an @question answer comes in,
+    /// the first too (what is typed is the next step, run with ⏎ once its results are in; the running one goes on).
+    public var typesRefine: Bool { canRefine || isRefining || chatIsAnswering }
 
     /// A refine is running (`refinements.last` is its instruction).
     public var isRefining: Bool {
@@ -3086,8 +3086,8 @@ public final class Composer {
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
             guard activeCommand?.kind == .reminder else { return .consumed() }
         }
-        // While a refine runs, a key that doesn't start the next step's line does nothing (Esc goes back, above).
-        if isRefining { return .consumed() }
+        // While a refine runs or an answer comes in, a key that doesn't start the next step's line does nothing.
+        if isRefining || chatIsAnswering { return .consumed() }
         // Typing more: back to the draft and continue the sentence with this key.
         let back = backToDraft()
         let next = handleLevelOne(event)
