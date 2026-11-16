@@ -28,6 +28,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
+- Leaving a text field while pinyin is still being typed no longer puts the first candidate in: switching to another app, clicking into another app, closing the window, or clicking into another field from a multi-line text view leaves nothing of the pinyin there, and the candidate box goes. Brave, Chrome and other Chromium apps still keep the pinyin as shown ("ni hao") when you click elsewhere or switch apps, and so does a single-line field when you click into another one: they put it in themselves before the input method is told, and the input method now adds nothing after it. With Accessibility allowed, it also tries to drop the pinyin on the mouse down, before the app has the click.
+
 - In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
 
 - Autocomplete no longer suggests from text that's gone: in a field its app cleared (a chat app's, once your message was sent), what you typed before stood in for the field's text, so the next suggestion went on from the message already sent. An empty field now reads as empty. In Chrome, Brave, Slack and other Chromium apps, autocomplete now reads the text before the caret instead of going by what was typed since the field took the focus.

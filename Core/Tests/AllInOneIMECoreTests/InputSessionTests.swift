@@ -215,7 +215,8 @@ struct InputSessionTests {
             host.type("nihao")
             #expect(host.panel?.detail == notice, "on the panel while composing (\(host.panel?.detail ?? "-"))")
             host.send(.commit)
-            #expect(host.session.notice == notice && host.document == "ni你好", "committing leaves it (\(host.document))")
+            // The app ends the composition (a click): the pinyin goes, nothing of it in (#116).
+            #expect(host.session.notice == notice && host.document == "ni", "committing leaves it (\(host.document))")
             host.type("nihao")
             host.fireTimers()
             #expect(host.session.notice == nil && host.panel != nil && host.panel?.detail != notice,
@@ -232,6 +233,40 @@ struct InputSessionTests {
             #expect(!host.composer.isComposing, "nothing pending: no draft shown again, doubled")
             host.type("wo")
             #expect(host.marked == "wo")
+        }
+    }
+
+    /// Leaving the field while pinyin is typed (the app's commit on a click, or the field losing the focus) puts nothing
+    /// of it in and hides the panel, the same in every app (the owner, 2026-11-15; #116); a draft before it still goes
+    /// in as typed.
+    @Test(arguments: [SessionEvent.commit, .blur]) func leavingMidCompositionPutsNothingIn(_ leaving: SessionEvent) async {
+        await inEnglish {
+            let host = host()
+            host.document = "Hi "
+            host.type("nihao")
+            #expect(host.marked == "nihao" && host.panel != nil)
+            host.send(leaving)
+            #expect(host.document == "Hi " && host.marked.isEmpty && host.panel == nil, "\(host.document)")
+            #expect(!host.composer.isComposing)
+            host.focus()
+            host.type("wo")
+            #expect(host.marked == "wo", "the next key starts afresh")
+        }
+    }
+
+    /// The app cancelled the composition (IMK's `cancelComposition`): nothing goes in, neither the pinyin nor the draft
+    /// before it, and the panel goes.
+    @Test func aCancelledCompositionPutsNothingIn() async {
+        await inEnglish {
+            let host = host()
+            host.composer.setInputMode(.english)
+            host.type("@question why ")
+            host.composer.setInputMode(.chinese)
+            host.type("nihao")
+            #expect(host.composer.isComposing && host.panel != nil)
+            host.send(.cancel)
+            #expect(host.document.isEmpty && host.marked.isEmpty && host.panel == nil, "\(host.document)")
+            #expect(!host.composer.isComposing)
         }
     }
 

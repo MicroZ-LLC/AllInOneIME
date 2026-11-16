@@ -54,6 +54,9 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
     /// The field has the focus: what the input method inserts or marks goes in (a resigned page drops it; a closed window
     /// has nothing to put it in).
     var focused = true
+    /// Chromium's view after its page emptied the field mid-composition: the marked range it last had, told still (the
+    /// page tells it nothing; a real Brave, 2026-11-15), until the input method marks or inserts again.
+    private var leftoverMarked: NSRange?
     /// The calls through IMK since `resetCalls`, by name.
     private(set) var calls: [String: Int] = [:]
 
@@ -105,6 +108,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         count("insertText")
+        leftoverMarked = nil
         guard focused else { return }
         let text = Self.plain(string)
         let range: NSRange
@@ -124,6 +128,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func setMarkedText(_ string: Any!, selectionRange: NSRange, replacementRange: NSRange) {
         count("setMarkedText")
+        leftoverMarked = nil
         guard focused else { return }
         let text = Self.plain(string)
         let range: NSRange
@@ -154,7 +159,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func markedRange() -> NSRange {
         count("markedRange")
-        guard profile != .tellsnothing, let marked = told.marked else { return NSRange(location: NSNotFound, length: 0) }
+        guard profile != .tellsnothing, let marked = told.marked ?? leftoverMarked else { return NSRange(location: NSNotFound, length: 0) }
         return marked
     }
 
@@ -282,6 +287,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     /// The app empties the field (a chat app's send): its text, the marked text and all; the input method isn't told.
     func clear() {
+        if profile.isChromium { leftoverMarked = state.marked }
         change { state in state = State() }
     }
 

@@ -32,6 +32,8 @@ final class KeyGuard {
     /// Asked for each key down: nil, not one for the input method now (it goes on untouched); true, the input method took
     /// it (it goes no further); false, the input method had it and left it to the app.
     private var handler: ((CGEvent) -> Bool?)?
+    /// A second tap, for mouse downs only (`MouseDownTap`): what is marked is dropped before an app has the click.
+    private let mouseTap = MouseDownTap()
     private var saidUntrusted = false
     private weak var owner: AnyObject?
 
@@ -39,10 +41,11 @@ final class KeyGuard {
     var disabled = false
 
     /// `owner`'s handler, from its field's activation: the tap made first if it isn't yet and Accessibility allows it.
-    func attach(_ owner: AnyObject, handler: @escaping (CGEvent) -> Bool?) {
+    func attach(_ owner: AnyObject, handler: @escaping (CGEvent) -> Bool?, mouseDown: @escaping (CGEvent) -> Void) {
         guard !disabled else { return }
         self.owner = owner
         self.handler = handler
+        mouseTap.attach(mouseDown)
         if let tap { CGEvent.tapEnable(tap: tap, enable: true) } else { makeTap() }
     }
 
@@ -55,6 +58,7 @@ final class KeyGuard {
         guard self.owner === owner else { return }
         self.owner = nil
         handler = nil
+        mouseTap.detach()
         takenKeys.removeAll()
         // Off while another input method (or none) is in use: no key of any app waits on this process then.
         if let tap { CGEvent.tapEnable(tap: tap, enable: false) }

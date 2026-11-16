@@ -2211,11 +2211,11 @@ public final class Composer {
 
     // MARK: - Ending the composition from outside
 
-    /// The application ends the composition (focus change, click elsewhere, input source switch):
-    /// everything pending is committed as converted text, including speech recognized so far (but not a
-    /// note with line breaks: `finishAsTyped`). A command not run yet goes instead, and one that ran stops: nothing typed
-    /// in (`leavesNothing`).
-    public func commitAll() -> [Effect] {
+    /// The application ends the composition (the menu's commit, a window of ours taking the focus): everything pending is
+    /// committed as converted text, including speech recognized so far (but not a note with line breaks:
+    /// `finishAsTyped`); without `convertingComposition`, what the engine composes is dropped instead (`leaveField`).
+    /// A command not run yet goes instead, and one that ran stops: nothing typed in (`leavesNothing`).
+    public func commitAll(convertingComposition: Bool = true) -> [Effect] {
         // A key parked for the selection read after the "@" key is done first: the read gives up with the field.
         var effects = parkedForSelection != nil ? selectionRead(nil) : []
         if leavesNothing { return effects + dropCommandDraft() }
@@ -2226,7 +2226,7 @@ public final class Composer {
             effects += cancelVoice(id, refresh: false)
         }
         var text = draft
-        if !isLevelTwo, let engine, engine.snapshot().isComposing {
+        if !isLevelTwo, convertingComposition, let engine, engine.snapshot().isComposing {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
