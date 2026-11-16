@@ -43,8 +43,8 @@ extension SelfTest {
         improve(controller, client)
         type("hello there", controller, client)
         act(controller, client)
-        check(!controller.composer.isLevelTwo && client.marked == "improve › hello there" && client.inserted.isEmpty,
-              "@improve in the chat app sends nothing, the draft stays (\(client.marked), \(controller.composer.phase))")
+        check(!controller.composer.isLevelTwo && controller.preedit == "improve › hello there" && client.inserted.isEmpty,
+              "@improve in the chat app sends nothing, the draft stays (\(controller.preedit), \(controller.composer.phase))")
         check(controller.composer.aiRefusal() == AppProfileText.refusal, "…with the notice: \(controller.composer.aiRefusal() ?? "none")")
         _ = escape(controller, client)
         _ = escape(controller, client)

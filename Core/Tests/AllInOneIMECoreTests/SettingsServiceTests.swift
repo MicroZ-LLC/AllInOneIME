@@ -106,7 +106,8 @@ struct SettingsServiceTests {
     func theEnginesConfiguration() async throws {
         let (service, _) = try service(#"{"provider": "gemini"}"#)
         var key = try #require(service.document().field("gemini.key"))
-        #expect(key.isSet == true && key.status == KeyState.shell("GEMINI_API_KEY").text(missing: "") && key.actions == ["setKey"])
+        #expect(key.isSet == true && key.status == inItsLanguage(service) { KeyState.shell("GEMINI_API_KEY").text(missing: "") }
+                && key.actions == ["setKey"])
         let saved = await service.perform(SettingsAction(field: "gemini.key", name: "setKey", key: "gemini-saved-key-0000-a1b2"))
         #expect((try? saved.get()) != nil && APIKeys.keyEnding(account: "gemini") == "a1b2")
         key = try #require(service.document().field("gemini.key"))
@@ -122,13 +123,16 @@ struct SettingsServiceTests {
         func key(_ openai: String) throws -> SettingsDocument.Field {
             try #require(try service(#"{"provider": "openai", "openai": \#(openai)}"#).0.document().field("openai.key"))
         }
-        let shell = KeyState.shell("OPENAI_API_KEY").text(missing: "")
+        let said = try inItsLanguage(service().0) {
+            (shell: KeyState.shell("OPENAI_API_KEY").text(missing: ""), missing: KeyState.missing.text(missing: tr("还没有 API key", "No API key yet")))
+        }
+        let shell = said.shell
         for sent in [#"{}"#, #"{"baseURL": "http://localhost:11434/v1", "model": "llama3"}"#] {
             let field = try key(sent)
             #expect(field.isSet == true && field.status == shell, "\(sent)")
         }
         let other = try key(#"{"baseURL": "https://api.deepseek.com/v1", "model": "deepseek-chat"}"#)
-        #expect(other.isSet == false && other.status == KeyState.missing.text(missing: tr("还没有 API key", "No API key yet")))
+        #expect(other.isSet == false && other.status == said.missing)
         #expect(other.actions == ["setKey"])
     }
 
@@ -385,7 +389,7 @@ struct SettingsServiceTests {
         func strings(_ values: String...) -> AIConfig.JSONValue { .array(values.map(AIConfig.JSONValue.string)) }
         let document = service.document()
         let nl = try #require(document.field("outputLanguages")?.choices?.first { $0.value == .string("nl") })
-        #expect(nl.disabled == true && nl.label == UIText.name(OutputLanguage("nl")))
+        #expect(nl.disabled == true && nl.label == inItsLanguage(service) { UIText.name(OutputLanguage("nl")) })
         // Reordered with it: taken. Left out: kept where it was. One nobody has: refused.
         #expect(problem("outputLanguages", strings("zh", "nl", "en")) == nil)
         #expect(try Config.load(from: url).outputLanguages.map(\.code) == ["zh", "nl", "en"])
@@ -485,13 +489,13 @@ struct SettingsServiceTests {
             }
             return nil
         }
+        let said = inItsLanguage(service) {
+            (taken: UIText.describe(.nameTaken), empty: UIText.describe(.emptyPrompt), notLetters: UIText.describe(.nameNotLetters))
+        }
         #expect(await save(["name": .string("polite"), "type": .string("prompt"), "prompt": .string("Make it polite")]) == nil)
-        #expect(await save(["name": .string("improve"), "type": .string("prompt"), "prompt": .string("x")])?.message
-                == UIText.describe(.nameTaken))
-        #expect(await save(["name": .string("terse"), "type": .string("prompt"), "prompt": .string(" ")])?.message
-                == UIText.describe(.emptyPrompt))
-        #expect(await save(["name": .string("polite2"), "type": .string("prompt"), "prompt": .string("y")])?.message
-                == UIText.describe(.nameNotLetters))
+        #expect(await save(["name": .string("improve"), "type": .string("prompt"), "prompt": .string("x")])?.message == said.taken)
+        #expect(await save(["name": .string("terse"), "type": .string("prompt"), "prompt": .string(" ")])?.message == said.empty)
+        #expect(await save(["name": .string("polite2"), "type": .string("prompt"), "prompt": .string("y")])?.message == said.notLetters)
         #expect(await save(["nonsense": .bool(true)])?.code == .badValue)
         // Renamed in place.
         #expect(await save(["name": .string("courteous"), "type": .string("prompt"), "prompt": .string("Make it polite")], as: "polite") == nil)
@@ -593,4 +597,12 @@ struct LoginEnvironment: ProcessLauncher {
     var loginEnvironment: [String: String] { variables }
     func isRunnable(_ program: URL) -> Bool { FoundationProcessLauncher().isRunnable(program) }
     func launch(_ spec: LaunchSpec) throws -> any LaunchedProcess { try FoundationProcessLauncher().launch(spec) }
+}
+
+/// What `text` says in the language `service`'s document, problems and outcomes are in (`SettingsService.interfaceLanguage`:
+/// the settings' `uiLanguage`, else the system's), whatever the process's own is meanwhile: tests running alongside
+/// switch that one as their sessions read their settings, so a string made in it can be in another language than the
+/// service's.
+func inItsLanguage<T>(_ service: SettingsService, _ text: () throws -> T) rethrows -> T {
+    try UIText.$scopedLanguage.withValue(service.document().language, operation: text)
 }

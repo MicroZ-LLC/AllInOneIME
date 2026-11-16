@@ -806,10 +806,10 @@ struct RemovedCandidatesSessionTests {
             #expect(rows(host) == ["你好", "拟好"])
             host.send(.delete(1))
             #expect(settings.removed == ["拟好"] && engine.deleted == [1], "\(settings.removed) \(engine.deleted)")
-            #expect(rows(host) == ["你好"] && host.document.isEmpty && host.marked == "nihao", "\(rows(host)) \(host.document)")
+            #expect(rows(host) == ["你好"] && host.document.isEmpty && host.preedit == "nihao", "\(rows(host)) \(host.document)")
             #expect(host.press(DeleteKeys.controlForwardDelete))
             #expect(settings.removed == ["拟好", "你好"] && engine.deleted == [1, 0], "\(settings.removed)")
-            #expect(candidates(host).isEmpty && host.document.isEmpty && host.marked == "nihao")
+            #expect(candidates(host).isEmpty && host.document.isEmpty && host.preedit == "nihao")
             // Nothing shown: Space puts the letters in as typed.
             host.press(FakeHost.space)
             #expect(host.document == "nihao", "\(host.document)")
@@ -855,7 +855,7 @@ struct RemovedCandidatesSessionTests {
             #expect(rows(field) == ["你好", "拟好", "泥好"], "\(rows(field))")
             field.send(.delete(2))
             #expect(other.removed == ["泥好"] && plain.deleted == [2], "\(other.removed) \(plain.deleted)")
-            #expect(rows(field) == ["你好", "拟好"] && field.document.isEmpty && field.marked == "nihao", "\(rows(field))")
+            #expect(rows(field) == ["你好", "拟好"] && field.document.isEmpty && field.preedit == "nihao", "\(rows(field))")
         }
     }
 

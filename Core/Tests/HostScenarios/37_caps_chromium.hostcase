@@ -1,0 +1,8 @@
+NAME duplicate Chromium Caps Lock events switch only once
+PROFILES chromium
+LANG chinese
+SET switchKey capsLock
+TEXT "|"
+KEY capslock
+EXPECT lang english
+EXPECT switches 1

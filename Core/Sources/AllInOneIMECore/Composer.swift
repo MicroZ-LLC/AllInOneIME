@@ -59,9 +59,10 @@ public final class Composer {
     }
 
     public enum Effect: Equatable, Sendable {
-        /// Re-render the inline marked text from `markedText` / `markedCursor`.
+        /// What is being typed (`markedText` / `markedCursor`) changed: the panel's input line shows it again. It is never
+        /// marked in the field (`InputSession+Preedit.swift`).
         case updateMarkedText
-        /// Insert text into the document, replacing the marked text.
+        /// Insert text into the document.
         case commit(String)
         /// Insert text once the key being answered is done (`appTakesKeysAfterInsert`): a terminal would send what is
         /// inserted during the key in the key's place.
@@ -69,7 +70,7 @@ public final class Composer {
         /// Insert text in place of the text selected when the draft started (`selection`), which is still selected: by
         /// its range where the field told it, else in place of what is selected.
         case replaceSelection(String, Selection)
-        /// Type a result into the document character by character (`typesResults`); the marked text is gone.
+        /// Type a result into the document character by character (`typesResults`).
         case typeOut(String)
         case startConversion(input: String, id: Int)
         /// Run a `.generate` command (`@question`, `@agent`) on `input`; results arrive via `receive`.
@@ -446,9 +447,9 @@ public final class Composer {
     /// Whether the results shown can be refined now: they are an AI request's, and all in.
     public var canRefine: Bool { phase == .choosing && refineRequest != nil }
 
-    /// Whether keys go into the refine line: while results can be refined, and while a refine runs (what is typed
-    /// then is the next step, run with ⏎ once its results are in; the running one goes on).
-    public var typesRefine: Bool { canRefine || isRefining }
+    /// Whether keys go into the refine line: while results can be refined, a refine runs or an @question answer comes in,
+    /// the first too (what is typed is the next step, run with ⏎ once its results are in; the running one goes on).
+    public var typesRefine: Bool { canRefine || isRefining || chatIsAnswering }
 
     /// A refine is running (`refinements.last` is its instruction).
     public var isRefining: Bool {
@@ -685,7 +686,7 @@ public final class Composer {
     /// nor a draft with text the user didn't type in it (`draftHasOutsideText`). Set by the session; a composer on its
     /// own tells no one.
     public var typedIntoField: (String) -> Void = { _ in }
-    /// Whether Code holds the word being typed here as marked text (`codeWord`, decision 33): where Code's rows may show
+    /// Whether Code holds the word being typed here, in the panel (`codeWord`, decision 33): where Code's rows may show
     /// (not in a terminal, in secure input or a password field). Set by the session; a composer on its own holds none,
     /// and Code's letters go straight in.
     public var holdsCodeWord: () -> Bool = { false }
@@ -766,7 +767,7 @@ public final class Composer {
     }
     /// Code is the input now: Latin letters as English (`inputLanguage` is English), with no English words learned, no
     /// autocomplete and no Translate as You Type; the session offers the Code pack's rows, and where they may show the word
-    /// being typed is held as marked text (`codeWord`).
+    /// being typed is held in the panel (`codeWord`).
     public private(set) var coding = false
     /// Holding the right Option key records speech. Off, as voice input is for now (`Features.voiceInput`), unless
     /// made so directly.
@@ -925,11 +926,6 @@ public final class Composer {
         case .idle, .drafting: return false
         }
     }
-
-    /// A draft still free of Chinese text, e.g. "@improve this is …" typed in English mode: a shortcut
-    /// (⌘A, ⌘⏎ …) inserts it as typed and then reaches the application; ⌘V instead takes the
-    /// clipboard's text into the draft (`pasted`).
-    public var isLatinDraft: Bool { !draft.isEmpty && !draft.containsHan }
 
     /// Whether Space on the draft starts level two now. Only with the `space` action key (in English
     /// mode the first Space after a word is a space; right after dictation one Space is enough);
@@ -1561,7 +1557,8 @@ public final class Composer {
     // MARK: - Keys
 
     public func handleKeyDown(_ event: KeyEvent) -> Response {
-        var response = keyDown(event)
+        // ⌘⏎ on a command not run yet is ⏎: it runs (Composer+CommandDraft.swift).
+        var response = keyDown(returnForCommandDraft(event))
         response.effects = forField(response.effects)
         return response
     }
@@ -1659,7 +1656,7 @@ public final class Composer {
         shiftPressedAt = nil
         optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
-        // Code's word being typed, held as marked text (Composer+CodeWord.swift).
+        // Code's word being typed, held in the panel (Composer+CodeWord.swift).
         if let response = handleCodeWordKey(event) { return response }
         // A held key goes no further than its first press did: holding ⏎ runs a command, it doesn't then
         // also insert the result, or send the message it shows to confirm.
@@ -1750,7 +1747,7 @@ public final class Composer {
         if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "c", oneAtStatsHighlighted {
             return .consumed(copyWeekStats())
         }
-        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft() {
+        if modifiers == primary, event.charactersIgnoringModifiers.lowercased() == "v", let response = pasteIntoDraft(evenWhereTheAppPastes: pastesIntoCommand) {
             return response
         }
         // ⌃V does the same in every app: none pastes on it by itself (terminals and Notes do on ⌘V,
@@ -1759,20 +1756,21 @@ public final class Composer {
            let response = pasteIntoDraft(evenWhereTheAppPastes: true) {
             return response
         }
-        // ⌘← ⌘→ in a command's text: to its start or end, as in any text field.
-        if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight,
-           !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
-            return .consumed(moveCursor(event))
+        // ⌘← ⌘→ in a command's text: to its start or end, as in any text field (its pinyin into it first).
+        if let edge = roles.lineEdge, modifiers == Modifiers.kind(edge), leftOrRight, !draft.isEmpty, !isLevelTwo,
+           !engineState.isComposing || dropsCommandDraft, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
+            return .consumed(convertBeforeCursorMove() + moveCursor(event))
         }
         // ⌘⏎ in a conversation: where it can go on (`ChatHandoff`); ⌘R on @reply's replies: three more (Composer+Reply.swift).
         if let response = handleHandoffKey(event) ?? handleReplyKey(event) { return response }
         // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
         let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
         if modifiers.contains(primary), !byWord {
-            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘⏎ …). A note with line
+            // A shortcut with an English draft pending acts on the text as typed (⌘A, ⌘S …); a command not run yet,
+            // whatever its text, goes as when the field is left (`commitAll`), typing nothing. A note with line
             // breaks can't go in as typed: it stays, and the shortcut is the app's (a terminal's ⌘V then pastes
             // the clipboard as it was, not the note put there by `commitAll`).
-            return isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
+            return dropsCommandDraft || isLatinDraft && !isLevelTwo && !draftIsNoteWithLines ? Response(effects: commitAll(), handled: false) : .passThrough
         }
         if event.key == .space, modifiers == [.shift] {
             // ⇧Space is Space in every state (Shift is often still down after a capital: "I am").
@@ -2069,7 +2067,7 @@ public final class Composer {
             // A refine that brought nothing leaves the results before it.
             if !answered, id == refineID { return refineFailed(messages.noResult) }
             if id == refineID { refineID = nil }
-            phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
+            phase = answered ? .choosing : failing(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
             return [.showPanel] + rememberAnswer()
         }
         return [.showPanel]
@@ -2112,7 +2110,7 @@ public final class Composer {
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
-        phase = .failed(message)
+        phase = failing(message)
         failureFix = place.map { (message, $0) }
         return [.showPanel]
     }
@@ -2214,12 +2212,14 @@ public final class Composer {
 
     // MARK: - Ending the composition from outside
 
-    /// The application ends the composition (focus change, click elsewhere, input source switch):
-    /// everything pending is committed as converted text, including speech recognized so far (but not a
-    /// note with line breaks: `finishAsTyped`).
-    public func commitAll() -> [Effect] {
+    /// The application ends the composition (the menu's commit, a window of ours taking the focus): everything pending is
+    /// committed as converted text, including speech recognized so far (but not a note with line breaks:
+    /// `finishAsTyped`); without `convertingComposition`, what the engine composes is dropped instead (`leaveField`).
+    /// A command not run yet goes instead, and one that ran stops: nothing typed in (`leavesNothing`).
+    public func commitAll(convertingComposition: Bool = true) -> [Effect] {
         // A key parked for the selection read after the "@" key is done first: the read gives up with the field.
         var effects = parkedForSelection != nil ? selectionRead(nil) : []
+        if leavesNothing { return effects + dropCommandDraft() }
         typePendingAccent()
         var spoken = ""
         if let id = voice.id {
@@ -2227,7 +2227,7 @@ public final class Composer {
             effects += cancelVoice(id, refresh: false)
         }
         var text = draft
-        if !isLevelTwo, let engine, engine.snapshot().isComposing {
+        if !isLevelTwo, convertingComposition, let engine, engine.snapshot().isComposing {
             text += engine.commitComposition() ?? ""
         }
         text += spoken.isEmpty ? "" : separator(before: spoken, after: text) + spoken
@@ -2236,15 +2236,14 @@ public final class Composer {
     }
 
     /// Commits everything exactly as typed (draft plus raw letters), without converting (but not a note with
-    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over).
+    /// line breaks: `finishAsTyped`). Speech being recognized is dropped (this runs when a password field takes over:
+    /// `passwordFieldTakesOver`, or refuses a request).
     public func commitAsTyped() -> [Effect] {
         typePendingAccent()
         var effects: [Effect] = []
         if let id = voice.id { effects = cancelVoice(id, refresh: false) }
         var text = draft
-        if !isLevelTwo, let engine, engine.snapshot().isComposing {
-            text += engine.rawInput
-        }
+        if !isLevelTwo, let engine, engine.snapshot().isComposing { text += engine.rawInput }
         return effects + finishAsTyped(text)
     }
 
@@ -3027,7 +3026,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
-        if let response = handleChatReturn(event) { return response }
+        if let response = handleChatKey(event) { return response }
         if let response = handleRefineKey(event) { return response }
         switch event.key {
         case .space:
@@ -3057,8 +3056,8 @@ public final class Composer {
             }
             return .consumed(commitChoice(at: highlighted))
         case .escape, .backspace:
-            // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
-            // stays, and Esc goes back a round).
+            // Where a conversation can go on, shown with ⌘⏎ before its last round: ⌫ hides it again (at the last
+            // round it stays, and ⌫ goes back a round). Esc never gets here in a conversation: it closes (`handleChatKey`).
             if handoffRequested, !chatAtLimit, phase == .choosing {
                 handoffRequested = false
                 return .consumed([.showPanel])
@@ -3086,23 +3085,12 @@ public final class Composer {
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
             guard activeCommand?.kind == .reminder else { return .consumed() }
         }
-        // While a refine runs, a key that doesn't start the next step's line does nothing (Esc goes back, above).
-        if isRefining { return .consumed() }
+        // While a refine runs or an answer comes in, a key that doesn't start the next step's line does nothing.
+        if isRefining || chatIsAnswering { return .consumed() }
         // Typing more: back to the draft and continue the sentence with this key.
         let back = backToDraft()
         let next = handleLevelOne(event)
         return .consumed(back + next.effects)
-    }
-
-    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
-    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
-    private func handleChatReturn(_ event: KeyEvent) -> Response? {
-        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
-        switch event.modifiers.subtracting(.capsLock) {
-        case []: return .consumed(continueChat())
-        case .shift: return .consumed(commitChoice(at: highlighted))
-        default: return nil
-        }
     }
 
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
@@ -3114,7 +3102,8 @@ public final class Composer {
     /// does what it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a
     /// refine runs the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts
     /// pinyin (it is sent once the results are in) and Esc goes back to the results before the running refine, as
-    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts
+    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts, Esc closes the panel at once whatever is typed, and
+    /// Space with the line empty does nothing (`handleChatKey`, before this). Nil: the key acts
     /// as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
@@ -3768,8 +3757,8 @@ public final class Composer {
         return (filled.plan, filled.used, codeLeft)
     }
 
-    /// The app took the text being typed into the document on its own (`MarkedTextWatch`): start over
-    /// with nothing pending, without inserting anything or sending a request.
+    /// The app ended what is being typed with nothing to go in (IMK's `cancelComposition`, a key the client gave up on,
+    /// the session closed): start over with nothing pending, without inserting anything or sending a request.
     public func appTookMarkedText() -> [Effect] {
         let wasRequesting = isLevelTwo
         let recording = voice.id
@@ -3919,7 +3908,7 @@ public final class Composer {
         }
     }
 
-    private func commitChoice(at index: Int) -> [Effect] {
+    func commitChoice(at index: Int) -> [Effect] {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete else { return [] }
         if case let .issue(url) = all[index].kind, let command = activeCommand {

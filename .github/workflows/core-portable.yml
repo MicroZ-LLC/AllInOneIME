@@ -3,7 +3,7 @@
 # guards (Scripts/check-core-portable.sh, its self-test, Scripts/check-core-standalone.sh) must pass, and on macOS the
 # core and its tests must build, in release too. The Linux and Windows jobs were removed in 0.7.4 (owner, 2026-11-14:
 # no Linux or Windows users for now; the Windows shell moved to MicroZ-LLC/AllInOneIME-Windows in 0.7.5). The tests run in
-# full on the Mac with `make test`.
+# quality.yml: the core's on an export like these on Linux and macOS (core-test), and the Mac's on the Mac mini.
 name: Core on other platforms
 
 on:

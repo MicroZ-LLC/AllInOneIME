@@ -63,8 +63,8 @@ extension InputSessionTests {
             for host in [editor, terminal, vault] { host.press(FakeHost.at) }
             #expect(editor.composer.selection?.text == "4F2K-9QX1" && editor.composer.draftInPanel)
             for host in [terminal, vault] {
-                #expect(host.composer.selection == nil && !host.composer.draftInPanel && host.marked == "@"
-                        && host.composer.draft == "@", "\(host.app ?? "-"): \(host.composer.draft) \(host.marked)")
+                #expect(host.composer.selection == nil && !host.composer.draftInPanel && host.preedit == "@"
+                        && host.composer.draft == "@", "\(host.app ?? "-"): \(host.composer.draft) \(host.preedit)")
             }
             #expect(vault.panel?.rows.map(\.text) == terminal.panel?.rows.map(\.text) && vault.panel?.footer == terminal.panel?.footer,
                     "the same list as a terminal's")
@@ -79,7 +79,7 @@ extension InputSessionTests {
             mac.readsWhatIsWanted = true
             (mac.document, mac.selection) = ("Recovery code: 4F2K-9QX1", 15..<24)
             mac.press(FakeHost.at)
-            #expect(mac.composer.selection == nil && mac.marked == "@")
+            #expect(mac.composer.selection == nil && mac.marked.isEmpty && mac.preedit == "@")
         }
     }
 

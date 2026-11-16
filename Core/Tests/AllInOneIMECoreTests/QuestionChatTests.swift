@@ -230,13 +230,13 @@ struct QuestionChatTests {
         followUp(c, "who made it", reply: "Graydon Hoare.")
         type("and when", c)
         #expect(commits(c.handleKeyDown(shiftEnterKey)) == ["Graydon Hoare."] && c.phase == .idle && c.refineText.isEmpty)
-        // Space with nothing typed inserts too; with something typed it's a space in the question.
+        // With something typed Space is a space in the question; with nothing typed it does nothing (owner 2026-11-15).
         let d = asked()
         type("why", d)
         _ = d.handleKeyDown(spaceKey)
         #expect(d.refineText == "why " && d.isLevelTwo)
         let e = asked()
-        #expect(commits(e.handleKeyDown(spaceKey)) == ["A systems language."])
+        #expect(commits(e.handleKeyDown(spaceKey)).isEmpty && e.isQuestionChat)
     }
 
     @Test func everyRoundsAnswerCanBePicked() {
@@ -309,19 +309,45 @@ struct QuestionChatTests {
         #expect(started(tap(2))?.0.turns.map(\.instruction) == ["who"])
     }
 
-    @Test func escClearsTheQuestionThenGoesBackARoundThenLeaves() {
+    @Test func escClosesTheConversationAtAnyRoundLeavingNothing() {
+        // Owner 2026-11-15: Esc closes, whatever is typed, never a round back.
         let c = asked()
         followUp(c, "who made it", reply: "Graydon Hoare.")
         followUp(c, "when", reply: "In 2006.")
         type("where", c)
-        _ = c.handleKeyDown(escKey)
-        #expect(c.refineText.isEmpty && c.chatRound == 3)
-        _ = c.handleKeyDown(escKey)
-        #expect(c.chatRound == 2 && c.chatRounds.last == QuestionChat.Round(question: "who made it", answer: "Graydon Hoare."))
-        _ = c.handleKeyDown(escKey)
-        #expect(c.chatRound == 1 && c.choices.map(\.text) == ["A systems language."] && c.isLevelTwo)
-        _ = c.handleKeyDown(escKey)
-        #expect(!c.isLevelTwo && c.draft == "@question what is rust")
+        let effects = c.handleKeyDown(escKey).effects
+        #expect(effects.contains(.hidePanel) && !effects.contains { if case .commit = $0 { return true } else { return false } })
+        #expect(!c.isLevelTwo && c.draft.isEmpty && c.refineText.isEmpty)
+        // At round 1, with nothing typed.
+        let d = asked()
+        #expect(d.handleKeyDown(escKey).effects.contains(.hidePanel) && !d.isLevelTwo && d.draft.isEmpty)
+    }
+
+    @Test func escWithAModifierClosesToo() {
+        // Shift still held on Esc: closed as well, never a round back.
+        let c = asked()
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        let shiftEsc = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}", modifiers: .shift)
+        #expect(c.handleKeyDown(shiftEsc).effects.contains(.hidePanel) && !c.isLevelTwo && c.draft.isEmpty)
+        // ⌥ or ⌃ held: the same (⌘Esc is the app's, as every ⌘ shortcut: it never steps back a round either).
+        for modifiers: Modifiers in [.option, .control] {
+            let d = asked()
+            followUp(d, "who made it", reply: "Graydon Hoare.")
+            let esc = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}", modifiers: modifiers)
+            #expect(d.handleKeyDown(esc).effects.contains(.hidePanel) && !d.isLevelTwo && d.draft.isEmpty)
+        }
+    }
+
+    @Test func spaceAndReturnWithNothingTypedDoNothing() {
+        // Owner 2026-11-15: only ⇧⏎ inserts the answer; Space and ⏎ on an empty line leave the conversation up.
+        let c = asked()
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        followUp(c, "when", reply: "In 2006.")
+        for key in [spaceKey, enterKey] {
+            let response = c.handleKeyDown(key)
+            #expect(response.handled && !response.effects.contains { if case .commit = $0 { return true } else { return false } })
+            #expect(c.isQuestionChat && c.chatRound == 3 && c.refineText.isEmpty)
+        }
     }
 
     @Test func aFailedFollowUpKeepsTheRoundsAndPutsTheQuestionBack() {
@@ -439,12 +465,12 @@ struct QuestionChatTests {
         #expect(e.handOff(digit: 9).isEmpty && e.isLevelTwo)
     }
 
-    @Test func commandReturnShowsTheChoicesAtAnyRoundAndEscHidesThem() {
+    @Test func commandReturnShowsTheChoicesAtAnyRoundAndBackspaceHidesThem() {
         let c = asked()
         // Not shown: ⌘1 is the app's (and ⌥1 types as usual).
         #expect(!c.handleKeyDown(commandOne).handled)
         #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff && !c.chatAtLimit)
-        _ = c.handleKeyDown(escKey)
+        _ = c.handleKeyDown(backspaceKey)
         #expect(!c.showsHandoff && c.isLevelTwo && c.chatRound == 1)
         // Shown, a follow-up typed goes with the hand-off; ⏎ asks nothing and launches nothing then.
         _ = c.handleKeyDown(commandReturn)
@@ -455,36 +481,28 @@ struct QuestionChatTests {
         #expect(url?.host == "chatgpt.com" && url?.absoluteString.hasSuffix("discussion.%0A%0Amore") == true)
     }
 
-    @Test func everyEscAtTheLastRoundDoesSomething() {
-        // ⏎ with a follow-up at the limit, then Esc: the follow-up goes; the next Esc goes back a round.
+    @Test func escAtTheLastRoundCloses() {
+        // ⏎ with a follow-up at the limit, then Esc: closed, the follow-up with it.
         let c = asked(rounds: 2)
         followUp(c, "who made it", reply: "Graydon Hoare.")
         type("more", c)
         _ = c.handleKeyDown(enterKey)
+        #expect(c.showsHandoff && c.refineText == "more")
         _ = c.handleKeyDown(escKey)
-        #expect(c.refineText.isEmpty && c.showsHandoff && c.chatRound == 2)
-        _ = c.handleKeyDown(escKey)
-        #expect(!c.showsHandoff && c.chatRound == 1)
-        // ⌘⏎ at the limit (the choices are up already), then Esc: back a round at once.
+        #expect(!c.isLevelTwo && !c.showsHandoff && c.refineText.isEmpty && c.draft.isEmpty)
+        // ⌘⏎ at the limit (the choices are up already), then Esc: closed.
         let d = asked(rounds: 2)
         followUp(d, "who made it", reply: "Graydon Hoare.")
         _ = d.handleKeyDown(commandReturn)
         _ = d.handleKeyDown(escKey)
-        #expect(!d.showsHandoff && d.chatRound == 1)
-        // ⌘⏎ before the limit, a round asked meanwhile up to it: Esc goes back a round there too.
-        let e = asked(rounds: 2)
-        _ = e.handleKeyDown(commandReturn)
-        _ = e.handleKeyDown(escKey)
-        followUp(e, "who made it", reply: "Graydon Hoare.")
-        _ = e.handleKeyDown(escKey)
-        #expect(e.chatRound == 1 && !e.showsHandoff)
+        #expect(!d.isLevelTwo && !d.showsHandoff)
     }
 
-    @Test func theRoundsGoBackFromTheHandoffWithEsc() {
+    @Test func theRoundsGoBackFromTheHandoffWithBackspace() {
         let c = asked(rounds: 2)
         followUp(c, "who made it", reply: "Graydon Hoare.")
         #expect(c.showsHandoff)
-        _ = c.handleKeyDown(escKey)
+        _ = c.handleKeyDown(backspaceKey)
         #expect(!c.showsHandoff && c.chatRound == 1)
         // A question can be asked again from there.
         #expect(followUp(c, "who designed it", reply: "Graydon.") != nil && c.chatAtLimit)
@@ -542,7 +560,7 @@ struct QuestionChatTests {
         #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff)
         // After a failure too (nothing to show), and elsewhere ⌘⏎ is still the app's.
         let d = asked()
-        _ = d.handleKeyDown(escKey)
+        _ = d.handleKeyDown(backspaceKey)  // back to the question (Esc would close)
         _ = d.handleKeyDown(enterKey)
         _ = d.fail("timeout", id: 2)
         #expect(d.handleKeyDown(commandReturn) == .consumed())

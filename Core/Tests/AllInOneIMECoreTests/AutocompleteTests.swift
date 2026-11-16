@@ -256,6 +256,9 @@ struct AutocompleteTests {
         // The field tells nothing: what was typed into it stands in.
         #expect(Autocomplete.context(nil, typed: "我们明天") == Autocomplete.Context(before: "我们明天"))
         #expect(Autocomplete.context(nil, typed: "") == nil)
+        // A field read as empty (a chat app's, cleared once its message was sent) is empty: what was typed before it was
+        // cleared doesn't stand in (nil is a field that can't be read, `FieldContext.text`).
+        #expect(Autocomplete.context(FieldText(before: "", after: ""), typed: "hello wor") == nil)
     }
 
     @Test func atMost1500CharactersBeforeAnd200After() {

@@ -129,8 +129,8 @@ extension SelfTest {
             controller.refreshTranslateChip()
             _ = pump(timeout: 0.3) { false }
             snapshot("release-translate-mode\(suffix)", in: snapshotDirectory)
-            try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("release-translate-mode\(suffix).marked.txt"))
-            check(CandidatePanel.shared.view.model.chip != nil, "the chip is in the image (\(client.marked))")
+            try? Data(controller.preedit.utf8).write(to: snapshotDirectory.appendingPathComponent("release-translate-mode\(suffix).marked.txt"))
+            check(CandidatePanel.shared.view.model.chip != nil, "the chip is in the image (\(controller.preedit))")
             idle()
             client.bundleIDOverride = nil
             controller.activateServer(client)
@@ -156,14 +156,14 @@ extension SelfTest {
             _ = pump(timeout: 0.3) { false }
             check(ready, "the screenshot is read (\(controller.panelModel().headerText ?? "-"))")
             snapshot("release-reply-screenshot\(suffix)", in: snapshotDirectory)
-            try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("release-reply-screenshot\(suffix).marked.txt"))
+            try? Data(controller.preedit.utf8).write(to: snapshotDirectory.appendingPathComponent("release-reply-screenshot\(suffix).marked.txt"))
             _ = enter(controller, client)
             let replied = pump(timeout: 10) { controller.composer.phase == .choosing }
             _ = pump(timeout: 0.3) { false }
             check(replied && controller.composer.choices.filter { $0.kind == .answer }.count == 3,
                   "three replies (\(controller.composer.choices.map(\.text)))")
             snapshot("release-reply\(suffix)", in: snapshotDirectory)
-            try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("release-reply\(suffix).marked.txt"))
+            try? Data(controller.preedit.utf8).write(to: snapshotDirectory.appendingPathComponent("release-reply\(suffix).marked.txt"))
             idle()
 
             // @agent's notice when it took the Chrome page along.
