@@ -9,10 +9,10 @@ set -eu
 cd "$(dirname "$0")/.."
 dir=${TMPDIR:-/tmp}
 dry=${1:-}
-# The prefixes the tests name: in FileManager's temporary directory directly, through TestScratch, or in the wire
-# server's test mode (Core/Sources); SourceCompiler's and the wire server's by name (their calls span two lines).
+# The prefixes the tests name: in FileManager's temporary directory directly or through TestScratch; SourceCompiler's
+# and the wire server's test mode by name (their calls span two lines). Not the app's own (Sources, Core/Sources).
 prefixes=$( { grep -rhoE '(temporaryDirectory|NSTemporaryDirectory\(\))[^"]{0,80}"[A-Za-z][A-Za-z0-9._-]{3,}' \
-        Core/Tests Tests Core/Sources Sources 2>/dev/null
+        Core/Tests Tests 2>/dev/null
     grep -rhoE 'TestScratch\.temporary\("[A-Za-z][A-Za-z0-9._-]{3,}' Core/Tests Tests 2>/dev/null
     echo '"source-compiler-'; echo '"allinoneime-wire-settings-'; } |
     grep -oE '"[A-Za-z][A-Za-z0-9._-]+$' | tr -d '"' | sed -E 's/[-_.]+$//' |
@@ -21,7 +21,8 @@ uuid='[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12
 # One expression for every name, matched whole: a run's own folder, or a prefix, -, _ or ., a UUID and an extension at
 # most (config-<UUID>.json), so another program's folder that merely starts the same way is left alone.
 alternatives=$(printf '%s\n' "$prefixes" | sed 's/[.]/\\./g' | paste -sd'|' -)
-names="allinoneime-tests\.[A-Za-z0-9]+|($alternatives)[-_.]$uuid(\.[A-Za-z0-9]+)?"
+# The Rime tests' folders end in the process's number, not a UUID.
+names="allinoneime-tests\.[A-Za-z0-9]+|allinoneime-rime(-sync)?-tests-[0-9]+|($alternatives)[-_.]$uuid(\.[A-Za-z0-9]+)?"
 cd "$dir"
 find . -mindepth 1 -maxdepth 1 -mmin +360 2>/dev/null | sed 's#^\./##' |
     grep -vE '^(kiro|com\.apple|swift-generated-sources)' | grep -xE "$names" |
