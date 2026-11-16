@@ -279,9 +279,11 @@ public enum OneAt {
     static let chineseNonQuestions = ["几乎", "好几", "这几", "那几", "前几", "后几", "十几", "几十", "几百", "几千", "几万",
                                       "没什么", "没有什么", "不算什么", "什么都", "什么也", "不怎么", "怎么都", "怎么也",
                                       "哪怕", "哪里哪里", "哪儿都", "哪里都", "哪都", "多少有", "或多或少"]
-    /// 过几天, 过几个月 …: "in a few days" where 过 starts the clause or follows 再, 等, 就, 要, 会, 才 or someone (过几天再说,
-    /// 等过几天, 我们过几天见); after another verb 过 says it happened and 几 asks how many (你学过几年中文, 你在北京住过几个月).
-    static let inAFewTimes = try? NSRegularExpression(pattern: "(^|[\\s\\p{P}再等就要会才我你他她它们咱])过几(个?(小时|星期|月)|[天日分秒周年])")
+    /// 过几天, 过几个月 …: "in a few days" where 过 starts the clause or follows an adverb, a particle or someone (过几天再说,
+    /// 等过几天, 没过几天, 不过几天, 又过几天, 刚过几天, 经过几天, 我们过几天见); after a verb 过 says it happened and 几 asks
+    /// how many (你学过几年中文, 你在北京住过几个月).
+    static let inAFewTimes = try? NSRegularExpression(
+        pattern: "(^|[\\s\\p{P}\\p{N}没不又刚已都还才再等就要会也只先经便我你他她它们咱这那])过几(个?(小时|星期|月)|[天日分秒周年])")
 
     /// The English words a question starts with.
     static let englishQuestionWords: Set<String> = ["how", "what", "why", "when", "where", "who", "whose", "whom", "which",

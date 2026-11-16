@@ -31,9 +31,12 @@ struct OneAtTests {
             #expect(!OneAt.isQuestion(text), "\(text)")
         }
         // 过几 + a time is "in a few …"; after a verb's 过 it asks how many.
-        for text in ["你去过几次北京", "你学过几种语言", "你学过几年中文", "你在北京住过几个月", "what's a good way to learn Japanese",
-                     "what’s an input method"] { #expect(OneAt.isQuestion(text), "\(text)") }
-        for text in ["过几天再说", "过几分钟就好", "过几年再看", "等过几个月再说", "我们过几天见", "what a lovely day", "what an idea"] { #expect(!OneAt.isQuestion(text), "\(text)") }
+        let asking = ["你去过几次北京", "你学过几种语言", "你学过几年中文", "你在北京住过几个月", "你在那儿待过几天",
+                      "what's a good way to learn Japanese", "what’s an input method"]
+        for text in asking { #expect(OneAt.isQuestion(text), "\(text)") }
+        let saying = ["过几天再说", "过几分钟就好", "过几年再看", "等过几个月再说", "我们过几天见", "没过几天他就走了", "不过几天而已",
+                      "又过几天", "刚过几天", "已过几年", "都过几个月了", "还过几天才到", "才过几分钟", "what a lovely day", "what an idea"]
+        for text in saying { #expect(!OneAt.isQuestion(text), "\(text)") }
         #expect(OneAt.mostly("这个PR我觉得还可以") == .chinese)
         #expect(OneAt.mostly("please update the 文档 today") == .english)
         #expect(!OneAt.isOtherLanguage("3*7+2", main: .chinese), "no letters: no language")
