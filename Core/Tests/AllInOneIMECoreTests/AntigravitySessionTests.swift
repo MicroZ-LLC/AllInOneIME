@@ -10,7 +10,7 @@ import Testing
 /// Gemini CLI's session moved. The fake agent (`FakeClaude`'s processes) answers as `agy acp` 1.5.8 does.
 @Suite(.serialized)
 struct AntigravitySessionTests {
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("antigravity-\(UUID().uuidString)")
+    let base = TestScratch.temporary("antigravity-\(UUID().uuidString)")
     var backend: AntigravityBackend { AntigravityBackend(base: base, signIn: { _, _ in true }) }
     var folder: URL { backend.directory }
     var store: ClaudeSessionStore { ClaudeSessionStore(backend) }

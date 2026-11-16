@@ -197,7 +197,7 @@ struct SuggestionsInsertChoiceTests {
 
     /// The GitHub-like plugin's source as declared.
     static func githubSource() throws -> CompletionSource? {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-choice-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("insert-choice-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         return try SuggestionsPlugins.install(SuggestionsPlugins.githubManifest(query: false, insert: githubInsert), in: folder)?
             .manifest.completions.first
@@ -263,7 +263,7 @@ struct SuggestionsInsertChoiceTests {
         #expect(none["suggestionsInsert"] == nil, "a file from before doesn't gain the key")
         #expect(Config.allKeys.contains("suggestionsInsert"))
 
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-config-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("insert-config-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -377,7 +377,7 @@ struct SuggestionsInsertChoiceTests {
     /// only from an older version stays honored: its value, shown under its name, never picked anew.
     @Test(arguments: [SettingsPlatform.windows, .mac])
     func theSettingsDocumentHasBothFields(_ platform: SettingsPlatform) async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-settings-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("insert-settings-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -434,7 +434,7 @@ struct SuggestionsInsertChoiceTests {
     /// insert picked turns them back on with it; null clears both. Everywhere's Insert has no Off.
     @Test(arguments: [SettingsPlatform.windows, .mac])
     func theSettingsDocumentHasAnAppsOff(_ platform: SettingsPlatform) async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("insert-off-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("insert-off-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")

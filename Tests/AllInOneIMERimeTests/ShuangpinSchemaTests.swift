@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -7,7 +8,7 @@ import Testing
 /// the schemes' letters by are the schemas' own, and a scheme picked is deployed and typed with as the app sets it up
 /// (the patch the settings write for its schema, the schema list), in a process of its own (`RimeWorker`).
 struct ShuangpinSchemaTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-shuangpin-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-shuangpin-\(UUID().uuidString)")
     static var runs: Bool {
         RimeWorker.scenario == nil && (RimeWorker.dataAvailable && FileManager.default.fileExists(atPath: TraditionalChineseRimeTests.openCC.path)
             || RimeWorker.required)

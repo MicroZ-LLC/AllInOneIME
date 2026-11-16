@@ -7,7 +7,7 @@ import Testing
 /// session's CLI answered, or the provider; whether the agent's conversation is new with it (the first question, or one
 /// whose conversation couldn't be resumed: the agent doesn't have the rounds before); the tokens the CLI says it used.
 struct QuestionAnswerFooterTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("answer-footer-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("answer-footer-\(UUID().uuidString)")
 
     func converter(_ sessions: [SessionAgent: ClaudeSessionManager], _ backend: QuestionBackend?) -> Converter {
         var config = Config.default

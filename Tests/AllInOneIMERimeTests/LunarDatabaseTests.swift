@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -8,7 +9,7 @@ import Testing
 /// pinyin from starting. The copying in folders of the test's own; starting librime in a process of its own each
 /// (`RimeWorker`), since it starts once per process.
 struct LunarDatabaseTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-lunar-\(UUID().uuidString)")
+    let root = TestScratch.temporary("allinoneime-lunar-\(UUID().uuidString)")
     var shared: URL { root.appendingPathComponent("shared") }
     var user: URL { root.appendingPathComponent("user") }
     var database: URL { user.appendingPathComponent("lua/lunar.db") }

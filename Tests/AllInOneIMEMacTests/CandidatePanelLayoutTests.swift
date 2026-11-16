@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 
@@ -70,7 +71,7 @@ private enum LayoutChild {
     /// `program`, against the core as `swift build` built it (.build/debug).
     static func compile() throws -> URL {
         let fm = FileManager.default
-        let scratch = fm.temporaryDirectory.appendingPathComponent("candidate-panel-layout-\(UUID().uuidString)")
+        let scratch = TestScratch.temporary("candidate-panel-layout-\(UUID().uuidString)")
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         let main = scratch.appendingPathComponent("Main.swift")
         try program.write(to: main, atomically: true, encoding: .utf8)
@@ -91,7 +92,7 @@ private enum LayoutChild {
 
     static func command(_ executable: URL, _ arguments: [String], timeout: TimeInterval) throws -> (status: Int32, output: String) {
         // A file, not a pipe: the compiler's diagnostics can fill a pipe's buffer.
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("candidate-panel-layout-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("candidate-panel-layout-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         defer { try? handle.close(); try? FileManager.default.removeItem(at: log) }

@@ -8,7 +8,7 @@ import Testing
 /// back to the provider; and `@question` going to the session of @agent's agent. The fake agent (`FakeClaude`'s
 /// processes: what is sent, what it says) answers as `kiro-cli acp` 3.1.0 does.
 struct ACPSessionTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("kiro-session-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("kiro-session-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder, files: ACPBackend.kiro.files) }
 
     func manager(_ fake: FakeClaude) -> ClaudeSessionManager {

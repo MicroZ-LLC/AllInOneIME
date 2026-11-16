@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 
@@ -36,7 +37,7 @@ struct UpdateRelaunchTests {
     /// The kernel's process list finds a process by its executable's path, links resolved (not by Launch Services, for
     /// which the helper may be the app at that path), and the path follows the bundle when it is moved.
     @Test func aProcessIsFoundByItsExecutablesPath() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("relaunch-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("relaunch-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let macOS = folder.appendingPathComponent("Some.app/Contents/MacOS", isDirectory: true)
         try FileManager.default.createDirectory(at: macOS, withIntermediateDirectories: true)

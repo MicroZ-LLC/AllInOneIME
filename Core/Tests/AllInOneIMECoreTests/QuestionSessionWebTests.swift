@@ -9,7 +9,7 @@ import Testing
 /// Codex, Gemini CLI and Kiro CLI, which can't be kept to addresses, have no web tools then; an agent that can't have
 /// them off isn't asked.
 struct QuestionSessionWebTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("session-web-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("session-web-\(UUID().uuidString)")
 
     func url(_ text: String) -> URL { URL(string: text)! }
 

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -30,7 +31,7 @@ struct ExtensionRobustnessTests {
     /// An entry of the extension sources' status file that isn't an object (a `null`) is skipped and the others read:
     /// JSONSerialization raises, not throws, when it's asked to write one.
     @Test func aNullInTheSourcesStatusFileIsSkipped() throws {
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent("sources-\(UUID().uuidString).json")
+        let file = TestScratch.temporary("sources-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: file) }
         try ExtensionSourceStatus.save(["file:///a.git": ExtensionSourceStatus(url: "file:///a.git", trusted: true)], to: file)
         var object = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: file)) as? [String: Any])

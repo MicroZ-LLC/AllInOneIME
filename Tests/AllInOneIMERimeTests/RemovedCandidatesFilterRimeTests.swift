@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ import Testing
 /// Traditional characters too; the highlight on the removed one's row. In a process of its own each (`RimeWorker`):
 /// librime starts once per process, and these start it on shared data and a user folder of their own.
 struct RemovedCandidatesFilterRimeTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-removed-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-removed-\(UUID().uuidString)")
     static var runs: Bool { RimeWorker.scenario == nil && (RimeWorker.dataAvailable || RimeWorker.required) }
 
     @Test(.enabled(if: runs, "no rime-ice data in ThirdParty (make deps)"))

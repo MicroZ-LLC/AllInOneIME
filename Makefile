@@ -441,6 +441,9 @@ TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
 # can take past the input method's 10 s, which left the tests that read it with nothing. `swift test` gives it 60 s;
 # selftest, screenshots and install run the input method's binary with its own 10 s.
 TEST_THREADS += ALLINONEIME_LOGIN_SHELL_TIMEOUT=60
+# Each `swift test` with a TMPDIR of its own, removed when it ends (Scripts/test-tmpdir.sh), for what reads it (swiftc,
+# the shell's children); the tests remove what they put in FileManager's temporary directory (TestScratch).
+TEST_TMP := Scripts/test-tmpdir.sh
 
 test:
 	@status=0; $(MAKE) test-core || status=$$?; $(MAKE) test-mac || exit; exit $$status
@@ -460,14 +463,14 @@ test-core: check-ios portable
 test-mac: deps strings-check
 	swift build --product $(APP_NAME)
 	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; status=0; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
 
 # The tests that need windows really drawn on screen (Scripts/on-screen-tests.txt), alone: on an unlocked Mac, when CI
 # skipped them because the Mac mini's screen was locked (TEST_SKIP, a regular expression of test names).
 test-screen: deps
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test --filter "$$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) swift test --filter "$$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
 
 # The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
 # SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ import Testing
 /// compile ("error loading prism definition from …/build/rime_ice.schema.yaml"). Nor does a deployment warn that a file
 /// it compiled before is missing (what that removal made it say). Each run in a process of its own (`RimeWorker`).
 struct DeploymentLogTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-deployment-log-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-deployment-log-\(UUID().uuidString)")
 
     @Test(.enabled(if: ZhuyinSchemaTests.runs, "needs rime-ice, the Zhuyin data and OpenCC's data (make deps)"),
           arguments: [PinyinScheme.full, .xiaohe, .zhuyin])

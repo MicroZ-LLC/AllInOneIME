@@ -294,7 +294,7 @@ struct RemovedCandidatesFullPageTests {
     /// file stays the app's (its first line), and the user's own is never written over.
     @Test func thePatchHasTheFilterLastWhereTheScriptIs() throws {
         let fm = FileManager.default
-        let dir = fm.temporaryDirectory.appendingPathComponent("removed-filter-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("removed-filter-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: dir) }
         let shared = dir.appendingPathComponent("pack"), user = dir.appendingPathComponent("user")
         try fm.createDirectory(at: shared.appendingPathComponent("lua"), withIntermediateDirectories: true)

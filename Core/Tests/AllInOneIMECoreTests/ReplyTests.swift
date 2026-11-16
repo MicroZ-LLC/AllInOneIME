@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CoreGraphics
 import Foundation
 import Testing
@@ -340,7 +341,7 @@ struct ReplyTests {
     /// nothing else differs afterwards only in that command's name. No key it didn't have is added (`agent`,
     /// `agentCommand`, `agentPageContext` … with their defaults, as writing the whole config would).
     @Test func theRenameWritesOnlyTheCommandsName() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rename-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("rename-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("config.json")

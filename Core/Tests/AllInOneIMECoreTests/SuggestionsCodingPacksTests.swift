@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -48,7 +49,7 @@ struct SuggestionsCodingPacksTests {
             .filter { $0.pathExtension == "json" }
         let languages = files.map { $0.deletingPathExtension().lastPathComponent }
         #expect(Set(languages) == ["c", "cpp", "go", "java", "javascript", "python", "typescript"], "\(languages)")
-        let directory = FileManager.default.temporaryDirectory.appendingPathComponent("coding-packs-\(UUID().uuidString)")
+        let directory = TestScratch.temporary("coding-packs-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: directory) }
         let store = CodingPackStore(directory: directory)
         let t = InterfaceWords(language: "en")

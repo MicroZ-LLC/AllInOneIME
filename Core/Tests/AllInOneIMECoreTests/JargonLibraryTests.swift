@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -39,7 +40,7 @@ struct JargonLibraryTests {
     }
 
     @Test func loadsFromAFileAndTreatsAMissingFileAsEmpty() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-jargon-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("allinoneime-jargon-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("jargon.txt")
