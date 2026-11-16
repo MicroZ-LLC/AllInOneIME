@@ -32,6 +32,10 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - Leaving a text field while pinyin is still being typed leaves nothing of it there, in every app: clicking anywhere (into another field, elsewhere in the same field, another app), switching apps, or closing the window or tab drops the pinyin not yet picked, and the candidate box goes. Before, the first candidate went in, and Brave, Chrome, Slack and other Chromium apps, and single-line fields, put the pinyin in as shown ("ni hao") themselves (GitHub #116, #115). A click also drops a command being written (`@improve …`), nothing of it put in.
 
+- In an `@question` conversation, Space with nothing typed no longer inserts the answer and ends the conversation: with the line empty, Space and ⏎ do nothing, and only ⇧⏎ (or the answer's digit, or a click) inserts. Esc closes the panel at any round and leaves nothing in the field, even with a question half typed, instead of going back a round; the conversation stays in the recent questions.
+
+- In an `@question` conversation, typing while the first answer is still coming in starts the next question, as from the second answer on: the answer goes on, the pinyin is typed on the "question 2" line, and ⏎ asks it once the answer is in. It used to cancel the answer and add what you typed to the first question.
+
 - In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
 
 - Autocomplete no longer suggests from text that's gone: in a field its app cleared (a chat app's, once your message was sent), what you typed before stood in for the field's text, so the next suggestion went on from the message already sent. An empty field now reads as empty. In Chrome, Brave, Slack and other Chromium apps, autocomplete now reads the text before the caret instead of going by what was typed since the field took the focus.
