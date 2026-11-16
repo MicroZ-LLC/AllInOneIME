@@ -68,8 +68,8 @@ struct AutocompleteMessages {
 
     /// It stopped in `app` (its name) for want of use: Forget in Privacy → Learned… starts it there again.
     func stopped(in app: String) -> String {
-        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 → 隐私 →「学到的内容…」里撤销）",
-                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → Privacy → Learned… can undo it)")
+        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 →「更多设置」→「隐私」→「学到的内容…」里撤销）",
+                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)")
     }
 
     /// The on-device model can't run (`reason`): nothing is shown, and nothing goes to the cloud.

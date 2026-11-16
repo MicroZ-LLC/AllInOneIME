@@ -548,8 +548,8 @@ extension InputSession {
         let (enter, backspace) = (terms.enter, terms.backspace)
         let footer: String
         if clipboard.first {
-            footer = t.tr("只存在这台 Mac 上；在设置 →「通用」→「剪贴板历史」里可以关掉",
-                          "Kept on this Mac only; turn it off in Settings → General → Clipboard history")
+            footer = t.tr("只存在这台 Mac 上；在设置 →「常用」→「剪贴板历史」里可以关掉",
+                          "Kept on this Mac only; turn it off in Settings → Common → Clipboard history")
         } else if all == 0 {
             footer = t.tr("\(backspace) 删字 · Esc 隐藏", "\(backspace) deletes · Esc hides")
         } else if !selected.isEmpty {

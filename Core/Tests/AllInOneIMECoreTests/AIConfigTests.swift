@@ -99,7 +99,7 @@ struct AIConfigTests {
         #expect(try reason(#"{"changes": [{"key": "outputLanguages", "value": "en"}]}"#) == "not a valid value")
         // A language whose pack isn't installed: refused, pointing to Settings, where it downloads.
         #expect(try reason(#"{"changes": [{"key": "inputLanguages", "value": ["zh", "en", "ko"]}]}"#)
-                == "needs the Korean language pack (download it in Settings → General)")
+                == "needs the Korean language pack (download it in Settings → Common)")
         #expect(try reason(#"{"changes": [{"key": "defaultInput", "value": "fr"}]}"#) == "French isn't one of your input languages")
         // French needs no pack; added, it can be the default in the same answer.
         let rows = try self.rows(#"{"changes": [{"key": "defaultInput", "value": "fr"}, {"key": "inputLanguages", "value": ["zh", "en", "fr"]}]}"#)

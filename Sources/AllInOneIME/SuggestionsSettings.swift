@@ -1,7 +1,7 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Settings → General → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
+/// Settings → More Settings → Suggestions (spec suggestions v1, 3): their switch, the input menu's, for plugins' completions
 /// and Code's rows alike; under More… (owner, 0.7.4), what a row inserts (decision 28; Settings v2, 4): everywhere, then
 /// in the apps with their own choice. The rows picked (picked before, they come first) are in Privacy → Learned….
 struct SuggestionsSection: View {
@@ -26,7 +26,7 @@ struct SuggestionsSection: View {
             }
             .disclosureGroupStyle(RowDisclosureStyle())
         } header: {
-            SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.general.icon)
+            SectionTitle(tr("建议", "Suggestions"), icon: SettingsPage.suggestions.icon)
         }
         .disabled(!model.canSave)
         // Opened again, as a new window starts (`SettingsView`'s own state is reset the same way).

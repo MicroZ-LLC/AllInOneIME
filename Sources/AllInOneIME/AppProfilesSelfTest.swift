@@ -180,7 +180,7 @@ extension SelfTest {
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.setOrder([Language.chinese, .english])
             preview.config.appProfiles = AppProfileSamples.profiles
-            for (page, suffix) in [(SettingsPage.general, ""), (.privacy, "-privacy"), (.advanced, "-advanced")] {
+            for (page, suffix) in [(SettingsPage.suggestions, ""), (.privacy, "-privacy"), (.advanced, "-advanced")] {
                 let url = snapshotDirectory.appendingPathComponent("\(name)\(suffix).png")
                 SettingsImage.render(preview, page: page, to: url) { seconds in _ = pump(timeout: seconds) { false } }
                 check(FileManager.default.fileExists(atPath: url.path), "the per-app settings rendered on \(page.rawValue) (\(language))")

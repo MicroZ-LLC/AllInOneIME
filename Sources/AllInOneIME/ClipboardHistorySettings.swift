@@ -2,12 +2,14 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import SwiftUI
 
-/// Settings → General → Clipboard history: its switch (no input-menu item: on by default, off here), why it isn't
+/// Settings → Common → Clipboard history: its switch (no input-menu item: on by default, off here), why it isn't
 /// recording when macOS doesn't let it (Privacy & Security → Paste from Other Apps, with a button to that page), and
 /// Clear History. How many it keeps has no row of its own (owner, 0.7.4): set otherwise than 20 (by hand, an earlier
 /// version), it shows with Restore Default. Both keys are this Mac's own (never synced), as the history is.
 struct ClipboardHistorySection: View {
     @ObservedObject var model: SettingsModel
+    /// Its own section title: none on Common, where it is one of the commands and features (#120).
+    var titled = true
     /// Whether it may read the clipboard without asking, as macOS says now (told again as the window comes back from
     /// System Settings).
     @State private var access = ClipboardHistoryShared.access
@@ -41,7 +43,7 @@ struct ClipboardHistorySection: View {
                 }
             }
         } header: {
-            SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.general.icon)
+            if titled { SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.common.icon) }
         }
         .disabled(!model.canSave)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

@@ -25,7 +25,7 @@ extension Doctor {
         let sync = facts.iCloudSync
         guard sync.enabled else {
             return [Finding(area: .iCloudSync, status: .ok, title: t.tr("没有开「通过 iCloud 同步」", "Sync through iCloud is off"),
-                            detail: t.tr("在设置 → 通用里打开", "Settings → General turns it on"))]
+                            detail: t.tr("在设置 →「更多设置」→「界面与同步」里打开", "Settings → More Settings → Interface and sync turns it on"))]
         }
         guard sync.available else {
             return [Finding(area: .iCloudSync, status: .problem, title: t.tr("iCloud 云盘不可用", "iCloud Drive isn't available"),
@@ -49,7 +49,7 @@ extension Doctor {
             out.append(Finding(area: .iCloudSync, status: .ok, title: t.tr("已通过 iCloud 同步（\(ago)）", "Synced through iCloud \(ago)")))
         } else {
             out.append(Finding(area: .iCloudSync, status: .warning, title: t.tr("还没有通过 iCloud 同步过", "Not synced through iCloud yet"),
-                               detail: t.tr("在设置 → 通用里点「立即同步」", "Settings → General → Sync Now")))
+                               detail: t.tr("在设置 →「更多设置」→「界面与同步」里点「立即同步」", "Settings → More Settings → Interface and sync → Sync Now")))
         }
         if !sync.refused.isEmpty {
             let list = sync.refused.sorted { $0.key < $1.key }.map { "\($0.key) (\($0.value.text(language: t.language)))" }
@@ -86,5 +86,5 @@ extension AIConfig {
 extension AIConfig.Text {
     public var iCloudSyncLabel: String { tr("通过 iCloud 同步", "Sync through iCloud") }
     /// What syncs is only chosen in Settings: hidden words and recent questions need the user's own informed choice.
-    var syncOnlyInSettings: String { tr("只能在设置 → 通用里选", "only chosen in Settings → General") }
+    var syncOnlyInSettings: String { tr("只能在设置 →「更多设置」→「界面与同步」里选", "only chosen in Settings → More Settings → Interface and sync") }
 }

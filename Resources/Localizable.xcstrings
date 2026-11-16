@@ -2978,6 +2978,100 @@
         }
       }
     },
+    "%@ settings" : {
+      "comment" : "%@ 项 — Sources/AllInOneIME/SettingsPages.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 項目"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 項"
+          }
+        }
+      }
+    },
+    "%@ settings you rarely change are in More Settings, in %@ groups; or just say what to change above." : {
+      "comment" : "不常改的 %@ 项在更多设置里，分成 %@ 组；不想找，就在上面直接说。 — Sources/AllInOneIME/SettingsPages.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ selten geänderte Einstellungen sind unter Weitere Einstellungen, in %@ Gruppen; oder sag oben einfach, was du ändern möchtest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes que rara vez cambias están en Más ajustes, en %@ grupos; o di arriba qué quieres cambiar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ réglages que vous changez rarement sont dans Autres réglages, en %@ groupes ; ou dites simplement ci-dessus ce qu’il faut changer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あまり変えない %@ 項目は「その他の設定」に %@ つのグループで入っています。探さずに、上で変えたいことを入力することもできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자주 바꾸지 않는 설정 %@개는 추가 설정에 %@개 그룹으로 있습니다. 찾기 싫으면 위에 바꿀 내용을 그대로 말하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes que você raramente muda estão em Mais ajustes, em %@ grupos; ou diga acima o que mudar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不常改的 %@ 項在更多設定裡，分成 %@ 組；不想找，就在上面直接說。"
+          }
+        }
+      }
+    },
     "%@ speech model" : {
       "comment" : "%@语音模型 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -4581,7 +4675,7 @@
       }
     },
     "About" : {
-      "comment" : "关于 — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "关于 — Sources/AllInOneIME/SettingsPage.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -8634,6 +8728,53 @@
       "comment" : "自动（现在：Kiro 会话） — Sources/AllInOneIME/ClaudeSessionSettings.swift",
       "extractionState" : "stale"
     },
+    "Available" : {
+      "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Verfügbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponibles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponibles"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ダウンロード可能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "다운로드 가능"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Disponíveis"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "可下載"
+          }
+        }
+      }
+    },
     "AWS Profile" : {
       "comment" : "AWS profile — Sources/AllInOneIME/AWSProfileSettings.swift",
       "localizations" : {
@@ -8681,49 +8822,49 @@
         }
       }
     },
-    "Available" : {
-      "comment" : "可下载 — Sources/AllInOneIME/CodeInputSettings.swift",
+    "Back to More Settings" : {
+      "comment" : "返回更多设置 — Sources/AllInOneIME/SettingsPages.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verfügbar"
+            "value" : "Zurück zu Weitere Einstellungen"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disponibles"
+            "value" : "Volver a Más ajustes"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disponibles"
+            "value" : "Retour aux Autres réglages"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ダウンロード可能"
+            "value" : "その他の設定に戻る"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "다운로드 가능"
+            "value" : "추가 설정으로 돌아가기"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Disponíveis"
+            "value" : "Voltar para Mais ajustes"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "可下載"
+            "value" : "返回更多設定"
           }
         }
       }
@@ -9901,6 +10042,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查這台 Mac 上的設定，也可以描述遇到的問題讓 AI 幫你看。"
+          }
+        }
+      }
+    },
+    "Chinese typing" : {
+      "comment" : "中文输入方式 — Sources/AllInOneIME/SettingsSearch.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinesisch tippen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura en chino"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie du chinois"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中国語の入力方式"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중국어 입력 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação em chinês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中文輸入方式"
           }
         }
       }
@@ -11700,7 +11888,7 @@
       }
     },
     "Commands" : {
-      "comment" : "命令 — Sources/AllInOneIME/SettingsWindow.swift",
+      "comment" : "命令库 — Sources/AllInOneIME/SettingsPage.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11742,6 +11930,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指令"
+          }
+        }
+      }
+    },
+    "Commands and features" : {
+      "comment" : "命令与功能 — Sources/AllInOneIME/SettingsPages.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehle und Funktionen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos y funciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commandes et fonctions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドと機能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령과 기능"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos e recursos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令與功能"
           }
         }
       }
@@ -11883,6 +12118,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Commit"
+          }
+        }
+      }
+    },
+    "Common" : {
+      "comment" : "常用 — Sources/AllInOneIME/SettingsPage.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Häufig"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frecuentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Courants"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "よく使う項目"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자주 쓰는 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequentes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常用"
           }
         }
       }
@@ -17139,8 +17421,56 @@
         }
       }
     },
+    "Input and keys" : {
+      "comment" : "输入与按键 — Sources/AllInOneIME/SettingsPage.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingabe und Tasten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada y teclas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie et touches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力とキー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력과 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada e teclas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入與按鍵"
+          }
+        }
+      }
+    },
     "Input Languages" : {
       "comment" : "输入语言 — Sources/AllInOneIME/SettingsWindow.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17840,6 +18170,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "正在安裝⋯"
+          }
+        }
+      }
+    },
+    "Interface and sync" : {
+      "comment" : "界面与同步 — Sources/AllInOneIME/SettingsPage.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oberfläche und Synchronisierung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interfaz y sincronización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interface et synchronisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示と同期"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터페이스와 동기화"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interface e sincronização"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "介面與同步"
           }
         }
       }
@@ -20260,6 +20637,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多輸入語言即將推出"
+          }
+        }
+      }
+    },
+    "More Settings" : {
+      "comment" : "更多设置 — Sources/AllInOneIME/SettingsPage.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autres réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他の設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多設定"
           }
         }
       }
@@ -30528,6 +30952,100 @@
         }
       }
     },
+    "Say what to change" : {
+      "comment" : "想改什么，直接说 — Sources/AllInOneIME/SettingsPages.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sag, was du ändern möchtest"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di qué quieres cambiar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dites ce qu’il faut changer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変えたいことをそのまま入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꿀 내용을 그대로 말하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga o que mudar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想改什麼，直接說"
+          }
+        }
+      }
+    },
+    "Say what to change, e.g. translate into English and Japanese, candidates in a column" : {
+      "comment" : "想改什么，直接说，例如：翻译成英文和日文，候选竖排 — Sources/AllInOneIME/SettingsPages.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sag, was du ändern möchtest, z. B. ins Englische und Japanische übersetzen, Kandidaten untereinander"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di qué quieres cambiar, p. ej. traducir al inglés y al japonés, candidatos en columna"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dites ce qu’il faut changer, p. ex. traduire en anglais et en japonais, candidats en colonne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変えたいことをそのまま入力。例：英語と日本語に翻訳、候補を縦に並べる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꿀 내용을 그대로 말하세요. 예: 영어와 일본어로 번역, 후보를 세로로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga o que mudar, por exemplo: traduzir para inglês e japonês, candidatos em coluna"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想改什麼，直接說，例如：翻譯成英文和日文，候選直排"
+          }
+        }
+      }
+    },
     "Search settings…" : {
       "comment" : "搜索设置… — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -31142,6 +31660,59 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多⋯"
+          }
+        }
+      }
+    },
+    "settings.typing" : {
+      "comment" : "打字 — Sources/AllInOneIME/SettingsWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打字"
           }
         }
       }

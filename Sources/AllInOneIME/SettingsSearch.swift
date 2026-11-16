@@ -24,35 +24,36 @@ enum SettingsSpot: String, CaseIterable {
     // About
     case updates, troubleshoot, reportIssue
 
-    /// The page it's on.
+    /// The page or More Settings' group it lives in (owner, 0.7.5, #120): the ten most people need on Common, the AI's
+    /// on AI, the rest in More Settings' groups.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage, .switchKey, .candidateLayout, .keyHints: return .input
-        case .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
-             .menuBarIcon, .interfaceLanguage, .iCloudSync:
-            return .general
-        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection,
-             .rewriteStyles, .improveTranslates, .jargonList, .outputLanguages, .questionContinueIn, .rememberQuestions:
-            return .ai
+        case .inputLanguages, .pinyinScheme, .chineseCharacters, .switchKey, .candidateLayout,
+             .magicKey, .outputLanguages, .clipboardHistory, .autocomplete:
+            return .common
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage, .actionKey: return .inputAndKeys
+        case .suggestions, .suggestionsInsert, .appInserts: return .suggestions
         case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .learnEnglishWords, .learned, .installID:
             return .privacy
+        // Key hints came after the plan (#99): how the panel looks, with the interface.
+        case .menuBarIcon, .interfaceLanguage, .iCloudSync, .keyHints: return .interface
+        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
+        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection,
+             .rewriteStyles, .improveTranslates, .jargonList, .questionContinueIn, .rememberQuestions:
+            return .ai
         case .customCommands, .agent, .notes, .plugins, .scriptExtensions, .extensionSources:
             return .commands
-        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
         case .updates, .troubleshoot, .reportIssue: return .about
         }
     }
 
-    /// The row outlined for it: its own, or the input languages' for what is in a chip.
-    var row: SettingsSpot {
-        chip == nil ? self : .inputLanguages
-    }
+    /// The row outlined for it: its own (each has a row of its own since #120; the input chips no longer hold any).
+    var row: SettingsSpot { self }
 
-    /// The input whose chip holds it.
+    /// The input whose options section (Input and keys) holds it.
     var chip: Input? {
         switch self {
-        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -63,7 +64,8 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
-        case .pinyinScheme: return UIText.pinyinSchemeLabel
+        // A row of its own on Common since #120, no longer under Chinese's name: Chinese said.
+        case .pinyinScheme: return tr("中文输入方式", "Chinese typing")
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")

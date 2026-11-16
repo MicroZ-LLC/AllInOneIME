@@ -165,7 +165,7 @@ extension SettingsSchema {
             } else if state.changed {
                 field.status = CompletionSource.scriptChanged
             } else if holds, config.suggestions == false {
-                field.status = tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General.")
+                field.status = tr("建议关着，这些补全不会出现：在「更多设置」→「建议」里打开。", "Suggestions are off, so these completions don't show: turn them on in More Settings → Suggestions.")
             } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == key.plugin && $0.source == key.source }) {
                 field.status = status.summary()
             }

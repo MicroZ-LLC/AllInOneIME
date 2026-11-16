@@ -54,7 +54,7 @@ extension SettingsSchema {
                 field.status = tr("插件更新后改了联网的主机、前缀、实时查询或脚本：要再打开一次",
                                   "The plugin changed its hosts, its prefix, its live query or its script since you turned this on: turn it on again")
             } else if holds, config.suggestions == false {
-                field.status = tr("建议关着，这些补全不会出现：在「通用」里打开。", "Suggestions are off, so these completions don't show: turn them on in General.")
+                field.status = tr("建议关着，这些补全不会出现：在「更多设置」→「建议」里打开。", "Suggestions are off, so these completions don't show: turn them on in More Settings → Suggestions.")
             } else if holds, let status = suggestionStatuses.first(where: { $0.plugin == plugin.name && $0.source == source.name }) {
                 field.status = status.summary()
             }
@@ -140,7 +140,7 @@ extension SettingsSchema {
             code.status = tr("\(CodingLanguagePack.title(of: language)) 的语言包还没安装：从下面的编程语言库装好以后才能切到代码。",
                              "The \(CodingLanguagePack.title(of: language)) pack isn't installed: Code can be typed once it is (from the coding language library below).")
         } else if config.codingLanguage != nil, config.suggestions == false {
-            code.status = tr("建议关着，代码输入不会列出什么：在「通用」里打开。", "Suggestions are off, so Code shows no rows: turn them on in General.")
+            code.status = tr("建议关着，代码输入不会列出什么：在「更多设置」→「建议」里打开。", "Suggestions are off, so Code shows no rows: turn them on in More Settings → Suggestions.")
         }
         add(code, to: &fields) { value in store.config.codingLanguage = value.string }
         var installed = Field(id: "code.installed", kind: .items, label: tr("已安装的编程语言", "Installed coding languages"))

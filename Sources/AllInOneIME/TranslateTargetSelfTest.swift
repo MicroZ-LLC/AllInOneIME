@@ -150,9 +150,9 @@ extension SelfTest {
             return (first?[kCGWindowNumber as String] as? Int) == window.windowNumber
         }
         let others = OutputLanguage.catalog.filter { $0 != .english }.map(UIText.name)
-        for start in ["closed", "on General, behind another window", "in the Dock"] {
+        for start in ["closed", "on Common, behind another window", "in the Dock"] {
             if start != "closed" {
-                SettingsWindow.shared.show(page: .general)
+                SettingsWindow.shared.show(page: .common)
                 _ = pump(timeout: 0.8) { false }
                 if start == "in the Dock" {
                     settingsWindow()?.miniaturize(nil)
