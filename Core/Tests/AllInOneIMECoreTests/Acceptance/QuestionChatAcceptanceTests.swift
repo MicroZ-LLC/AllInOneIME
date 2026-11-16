@@ -137,8 +137,11 @@ private let qcShiftReturn = acceptanceShiftReturn
 private let qcCommandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
 private let qcCommandC = KeyEvent(keyCode: 0x08, characters: "c", charactersIgnoringModifiers: "c", modifiers: .command)
 private let qcOptionSpace = KeyEvent(keyCode: VirtualKey.space, characters: "\u{A0}", charactersIgnoringModifiers: " ", modifiers: .option)
-private func qcCommandDigit(_ n: Int) -> KeyEvent {
-    KeyEvent(keyCode: 0x12, characters: String(n), charactersIgnoringModifiers: String(n), modifiers: .command)
+private func qcOptionDigit(_ n: Int) -> KeyEvent {
+    let codes: [UInt16] = [0x1D, 0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19]
+    let characters = ["º", "¡", "™", "£", "¢", "∞", "§", "¶", "•", "ª"]
+    return KeyEvent(keyCode: codes[n], characters: characters[n],
+                    charactersIgnoringModifiers: String(n), modifiers: .option)
 }
 
 // MARK: - The input controller, stood in for
@@ -387,10 +390,10 @@ func qcLeavesThePanel(_ effects: [Composer.Effect]) -> [Composer.Effect] {
     }
 }
 
-/// ⌘ and the number of `destination` among the choices shown (⌘1 the first).
-func qcCommandKey(for destination: ChatHandoff.Destination, in rig: QCRig) throws -> KeyEvent {
+/// ⌥ and the number of `destination` among the choices shown (⌥1 the first).
+func qcOptionKey(for destination: ChatHandoff.Destination, in rig: QCRig) throws -> KeyEvent {
     let index = try #require(rig.c.handoffChoices.firstIndex(of: destination), "\(destination) not in \(rig.c.handoffChoices)")
-    return KeyEvent(keyCode: 0x12, characters: String(index + 1), charactersIgnoringModifiers: String(index + 1), modifiers: .command)
+    return qcOptionDigit(index + 1)
 }
 
 /// The answer the stub gives to `question` (sent as is).
@@ -862,7 +865,7 @@ struct QuestionChatAcceptanceTests {
         let rig = QCRig { $0.questionContinueIn = [.claudeCode, .copy] }
         await rig.converse(5)
         await rig.type("tell me more")
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let prompt = try #require(rig.claudeCode.first)
         #expect(prompt.hasSuffix("tell me more"), "\(prompt)")
         #expect(prompt.contains("q5") && prompt.contains(qcAnswer("q5")))
@@ -870,10 +873,10 @@ struct QuestionChatAcceptanceTests {
     }
 
     /// Coordinator (after review, unchanged by the agent hand-off): ⏎ with text at the round limit only shows the
-    /// choices: no agent is started, nothing opened or copied, the text stays for the hand-off, and ⌘1–⌘9 is needed to
+    /// choices: no agent is started, nothing opened or copied, the text stays for the hand-off, and ⌥1–⌥9 is needed to
     /// pick where it goes.
     @Test func limit_returnWithTextAtTheLimitOnlyShowsTheChoices() async throws {
-        // The default choices with two agents installed: @agent's (Claude Code by default) on ⌘1, then Gemini CLI.
+        // The default choices with two agents installed: @agent's (Claude Code by default) on ⌥1, then Gemini CLI.
         let rig = QCRig(programs: ["claude", "gemini"])
         await rig.converse(5)
         await rig.type("tell me more")
@@ -883,8 +886,8 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.requestCount == 5 && rig.committed.isEmpty)
         #expect(rig.c.isQuestionChat && rig.c.showsHandoff, "the choices should be shown")
         #expect(rig.c.refineText == "tell me more", "the text typed should stay, for the hand-off")
-        // ⌘1 then hands it off, with the text.
-        await rig.key(qcCommandDigit(1))
+        // ⌥1 then hands it off, with the text.
+        await rig.key(qcOptionDigit(1))
         #expect(rig.claudeCode.count == 1 && rig.claudeCode.first?.hasSuffix("tell me more") == true)
     }
 
@@ -964,23 +967,36 @@ struct QuestionChatAcceptanceTests {
 
     // MARK: Continuing elsewhere
 
-    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌘1–⌘9 pick one while they're shown; digits still
+    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌥1–⌥9 pick one while they're shown; digits still
     /// pick answers; ⌫ hides them (owner 2026-11-15: Esc there closes the panel instead).
     @Test func handoff_commandReturnOpensTheChoicesAtAnyRound() async throws {
+        let beforeChoices = QCRig()
+        await beforeChoices.ask("what is rust")
+        #expect(!beforeChoices.c.showsHandoff)
+        // ⌥1 before the choices are shown must not hand the conversation off.
+        await beforeChoices.key(qcOptionDigit(1))
+        #expect(beforeChoices.copied.isEmpty && beforeChoices.opened.isEmpty && beforeChoices.launched.isEmpty)
+
         let rig = QCRig()
         await rig.ask("what is rust")
         #expect(!rig.c.showsHandoff)
-        // ⌘ and a number before they are shown does nothing of the hand-off.
-        for n in 1...9 { await rig.key(qcCommandDigit(n)) }
-        #expect(rig.copied.isEmpty && rig.opened.isEmpty && rig.launched.isEmpty && rig.c.isQuestionChat)
         await rig.key(qcCommandReturn)
         #expect(rig.c.showsHandoff && rig.requestCount == 1 && rig.committed.isEmpty)
         #expect(rig.c.handoffChoices.contains(.copy))
+        for terms in [PlatformTerms.mac, .windows] {
+            let panel = PanelPresenter(config: rig.config, language: "en", terms: terms).model(for: rig.c)
+            let shortcuts = try #require(panel.handoff?.choices.map(\.shortcut))
+            #expect(shortcuts == (1...rig.c.handoffChoices.count).map(terms.pick))
+            #expect(panel.footer.hasPrefix(terms.picks(rig.c.handoffChoices.count)))
+        }
+        let commandOne = KeyEvent(keyCode: 0x12, characters: "1", modifiers: .command)
+        let commandResponse = await rig.key(commandOne)
+        #expect(qcLeavesThePanel(commandResponse).isEmpty && rig.c.showsHandoff)
         await rig.key(backspaceKey)
         #expect(!rig.c.showsHandoff && rig.c.isQuestionChat)
         await rig.key(qcCommandReturn)
         // Copy, by its number among the choices.
-        await rig.key(try qcCommandKey(for: .copy, in: rig))
+        await rig.key(try qcOptionKey(for: .copy, in: rig))
         #expect(rig.copied.count == 1 && rig.committed.isEmpty && !rig.c.isComposing)
 
         // A digit with the choices shown still picks an answer.
@@ -1049,7 +1065,7 @@ struct QuestionChatAcceptanceTests {
             await rig.key(enterKey)
             #expect(rig.c.isQuestionChat, "\(destination)")
             await rig.key(qcCommandReturn)
-            await rig.key(qcCommandDigit(1))
+            await rig.key(qcOptionDigit(1))
             let text: String
             switch destination {
             case .copy: text = try #require(rig.copied.first, "\(destination)")
@@ -1082,7 +1098,7 @@ struct QuestionChatAcceptanceTests {
         await rig.converse(2)
         await rig.key(qcCommandReturn)
         await rig.type("and in 2020")
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let prompt = try #require(rig.claudeCode.first)
         #expect(rig.claudeCode.count == 1 && rig.committed.isEmpty && rig.replaced.isEmpty && !rig.c.isComposing)
         let q1 = try #require(prompt.range(of: "q1")), a1 = try #require(prompt.range(of: qcAnswer("q1")))
@@ -1099,7 +1115,7 @@ struct QuestionChatAcceptanceTests {
         let rig = QCRig { $0.questionContinueIn = [.copy] }
         await rig.converse(2)
         await rig.key(qcCommandReturn)
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let text = try #require(rig.copied.first)
         let lines = text.split(separator: "\n").map(String.init).filter { !$0.isEmpty }
         #expect(lines == ["**Q:** q1", "**A:** " + qcAnswer("q1"), "**Q:** q2", "**A:** " + qcAnswer("q2")], "\(text)")
@@ -1111,7 +1127,7 @@ struct QuestionChatAcceptanceTests {
         let rig = QCRig { $0.questionContinueIn = [.claudeWeb, .chatgpt] }
         await rig.ask("what is a & b + c # d = e?")
         await rig.key(qcCommandReturn)
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let url = try #require(rig.opened.first)
         #expect(url.absoluteString.hasPrefix("https://claude.ai/new?q="), "\(url)")
         let q = try #require(url.absoluteString.components(separatedBy: "?q=").last?.removingPercentEncoding)
@@ -1122,7 +1138,7 @@ struct QuestionChatAcceptanceTests {
         let gpt = QCRig { $0.questionContinueIn = [.claudeWeb, .chatgpt] }
         await gpt.ask("what is rust")
         await gpt.key(qcCommandReturn)
-        await gpt.key(qcCommandDigit(2))
+        await gpt.key(qcOptionDigit(2))
         let chat = try #require(gpt.opened.first)
         #expect(chat.host == "chatgpt.com" && chat.absoluteString.contains("?q="), "\(chat)")
         #expect(chat.absoluteString.components(separatedBy: "?q=").last?.removingPercentEncoding?.contains("what is rust") == true)
@@ -1135,7 +1151,7 @@ struct QuestionChatAcceptanceTests {
         QCStubProtocol.enqueue(rig.host, .answer(String(repeating: "长回答。", count: 1500)))
         await rig.ask("tell me everything")
         await rig.key(qcCommandReturn)
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let url = try #require(rig.opened.first)
         #expect(url.absoluteString == "https://claude.ai/new" || url.absoluteString == "https://claude.ai/new/", "\(url)")
         let clip = try #require(rig.copied.first)
@@ -1184,7 +1200,7 @@ struct QuestionChatAcceptanceTests {
         return ChatHandoff.choices(configured, picked: picked, installed: { ChatHandoff.installed($0, in: fixed, program: programs.contains) })
     }
 
-    /// The agent hand-off (spec change, 2026-10-16): by default @agent's agent first (⌘1), then every other installed
+    /// The agent hand-off (spec change, 2026-10-16): by default @agent's agent first (⌥1), then every other installed
     /// agent in the order Claude Code, Gemini CLI, Kiro CLI, the custom one, then Claude on the web, ChatGPT and Copy.
     /// Gemini on the web stays opt-in.
     @Test func handoff_theDefaultChoicesPickedAgentFirstThenTheOtherInstalledAgentsThenTheWeb() async throws {
@@ -1206,8 +1222,8 @@ struct QuestionChatAcceptanceTests {
         await rig.ask("what is rust")
         await rig.key(qcCommandReturn)
         #expect(rig.c.handoffChoices == [.geminiCLI, .claudeCode] + Self.web)
-        await rig.key(qcCommandDigit(1))
-        #expect(rig.launched.map(\.agent) == [.gemini], "⌘1 started \(rig.launched.map(\.agent))")
+        await rig.key(qcOptionDigit(1))
+        #expect(rig.launched.map(\.agent) == [.gemini], "⌥1 started \(rig.launched.map(\.agent))")
     }
 
     /// The agent hand-off: another agent (Gemini CLI, Kiro CLI, a custom one) gets the conversation as Claude Code does,
@@ -1222,7 +1238,7 @@ struct QuestionChatAcceptanceTests {
             await rig.key(qcCommandReturn)
             await rig.type("and then")
             #expect(rig.c.handoffChoices.first == ChatHandoff.Destination(agent: agent))
-            await rig.key(qcCommandDigit(1))
+            await rig.key(qcOptionDigit(1))
             let launch = try #require(rig.launched.first, "\(agent): nothing started")
             #expect(rig.launched.count == 1 && launch.agent == agent, "\(agent): started \(rig.launched.map(\.agent))")
             #expect(rig.claudeCode.isEmpty, "\(agent): Claude Code was started instead")
@@ -1237,13 +1253,13 @@ struct QuestionChatAcceptanceTests {
         }
     }
 
-    /// The agent hand-off: `claudeCode` is Claude Code, also while @agent hands to another agent (⌘2 here, or first in
+    /// The agent hand-off: `claudeCode` is Claude Code, also while @agent hands to another agent (⌥2 here, or first in
     /// a configured list), and its note says Claude Code.
     @Test func handoff_claudeCodeMeansClaudeCodeWhileAnotherAgentIsPicked() async throws {
         let rig = QCRig(programs: ["claude", "gemini"]) { $0.agent = .gemini }
         await rig.ask("what is rust")
         await rig.key(qcCommandReturn)
-        await rig.key(try qcCommandKey(for: .claudeCode, in: rig))
+        await rig.key(try qcOptionKey(for: .claudeCode, in: rig))
         #expect(rig.launched.map(\.agent) == [.claude], "started \(rig.launched.map(\.agent))")
         let note = try #require(rig.notices.last)
         #expect(note.contains("Claude Code") && !note.contains("Gemini"), "the note is \(note)")
@@ -1255,7 +1271,7 @@ struct QuestionChatAcceptanceTests {
         await configured.ask("what is rust")
         await configured.key(qcCommandReturn)
         #expect(configured.c.handoffChoices == [.claudeCode, .copy])
-        await configured.key(qcCommandDigit(1))
+        await configured.key(qcOptionDigit(1))
         #expect(configured.launched.map(\.agent) == [.claude], "started \(configured.launched.map(\.agent))")
     }
 
@@ -1275,8 +1291,8 @@ struct QuestionChatAcceptanceTests {
         await rig.ask("what is rust")
         await rig.key(qcCommandReturn)
         #expect(rig.c.handoffChoices == [.copy, .chatgpt, .kiroCLI, .claudeCode])
-        await rig.key(qcCommandDigit(3))
-        #expect(rig.launched.map(\.agent) == [.kiro], "⌘3 started \(rig.launched.map(\.agent))")
+        await rig.key(qcOptionDigit(3))
+        #expect(rig.launched.map(\.agent) == [.kiro], "⌥3 started \(rig.launched.map(\.agent))")
     }
 
     /// The agent hand-off: an agent that isn't installed is never offered, configured or not, nor @agent's own; Claude
@@ -1295,25 +1311,25 @@ struct QuestionChatAcceptanceTests {
         // Its program not here: not offered either.
         #expect(choices(picked: .custom, programs: ["claude"]) == [.claudeCode] + Self.web)
 
-        // In the panel: Gemini CLI picked but missing; ⌘1 is the first installed (Claude Code), and nothing starts Gemini.
+        // In the panel: Gemini CLI picked but missing; ⌥1 is the first installed (Claude Code), and nothing starts Gemini.
         let rig = QCRig(programs: ["claude"]) { $0.agent = .gemini }
         await rig.ask("what is rust")
         await rig.key(qcCommandReturn)
         #expect(rig.c.handoffChoices == [.claudeCode] + Self.web)
         for agent in [ChatHandoff.Destination.geminiCLI, .kiroCLI, .customAgent] { #expect(!rig.c.handoffChoices.contains(agent)) }
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         #expect(rig.launched.map(\.agent) == [.claude])
-        // And nothing installed: ⌘1 is Claude on the web, no Terminal.
+        // And nothing installed: ⌥1 is Claude on the web, no Terminal.
         let none = QCRig(programs: [])
         await none.ask("what is rust")
         await none.key(qcCommandReturn)
         #expect(none.c.handoffChoices == Self.web)
-        await none.key(qcCommandDigit(1))
+        await none.key(qcOptionDigit(1))
         #expect(none.launched.isEmpty && none.opened.first?.host == "claude.ai")
     }
 
-    /// The agent hand-off: with more than 5 choices ⌘6–⌘9 pick them too; a number past the last does nothing.
-    @Test func handoff_commandSixToNinePickTheLaterChoices() async throws {
+    /// The agent hand-off: with more than 5 choices ⌥6–⌥9 pick them too; a number past the last does nothing.
+    @Test func handoff_optionSixToNinePickTheLaterChoices() async throws {
         let eight: [ChatHandoff.Destination] = [.claudeCode, .geminiCLI, .kiroCLI, .customAgent, .claudeWeb, .chatgpt, .gemini, .copy]
         func shown(_ list: [ChatHandoff.Destination]? = nil) async -> QCRig {
             let rig = QCRig(programs: Self.allPrograms) {
@@ -1324,25 +1340,25 @@ struct QuestionChatAcceptanceTests {
             await rig.key(qcCommandReturn)
             return rig
         }
-        // The default list with every agent installed: 7 choices; ⌘6 ChatGPT, ⌘7 Copy.
+        // The default list with every agent installed: 7 choices; ⌥6 ChatGPT, ⌥7 Copy.
         let six = await shown()
         #expect(six.c.handoffChoices.count == 7)
-        await six.key(qcCommandDigit(6))
-        #expect(six.opened.first?.host == "chatgpt.com", "⌘6: \(six.opened)")
+        await six.key(qcOptionDigit(6))
+        #expect(six.opened.first?.host == "chatgpt.com", "⌥6: \(six.opened)")
         let seven = await shown()
-        await seven.key(qcCommandDigit(7))
-        #expect(seven.copied.count == 1 && seven.opened.isEmpty, "⌘7: \(seven.copied)")
-        // All eight: ⌘7 Gemini on the web, ⌘8 Copy, ⌘9 nothing.
+        await seven.key(qcOptionDigit(7))
+        #expect(seven.copied.count == 1 && seven.opened.isEmpty, "⌥7: \(seven.copied)")
+        // All eight: ⌥7 Gemini on the web, ⌥8 Copy, ⌥9 nothing.
         let gemini = await shown(eight)
         #expect(gemini.c.handoffChoices == eight)
-        await gemini.key(qcCommandDigit(7))
-        #expect(gemini.opened.first?.absoluteString == "https://gemini.google.com/app", "⌘7: \(gemini.opened)")
+        await gemini.key(qcOptionDigit(7))
+        #expect(gemini.opened.first?.absoluteString == "https://gemini.google.com/app", "⌥7: \(gemini.opened)")
         let copy = await shown(eight)
-        await copy.key(qcCommandDigit(8))
-        #expect(copy.copied.count == 1 && copy.opened.isEmpty && copy.launched.isEmpty, "⌘8")
+        await copy.key(qcOptionDigit(8))
+        #expect(copy.copied.count == 1 && copy.opened.isEmpty && copy.launched.isEmpty, "⌥8")
         let nine = await shown(eight)
-        let out = await nine.key(qcCommandDigit(9))
-        #expect(qcLeavesThePanel(out).isEmpty && nine.c.isQuestionChat && nine.c.showsHandoff, "⌘9 with 8 choices: \(out)")
+        let out = await nine.key(qcOptionDigit(9))
+        #expect(qcLeavesThePanel(out).isEmpty && nine.c.isQuestionChat && nine.c.showsHandoff, "⌥9 with 8 choices: \(out)")
     }
 
     // MARK: "@agent's agent" in the list (2026-10-16)
@@ -1371,7 +1387,7 @@ struct QuestionChatAcceptanceTests {
             let own = ChatHandoff.Destination(agent: agent)
             #expect(choices([.copy, .atAgent, .chatgpt], picked: agent, programs: all) == [.copy, own, .chatgpt], "\(agent)")
             #expect(choices(nil, picked: agent, programs: all) == choices(ChatHandoff.defaultList, picked: agent, programs: all))
-            #expect(choices(nil, picked: agent, programs: all).first == own, "\(agent): ⌘1")
+            #expect(choices(nil, picked: agent, programs: all).first == own, "\(agent): ⌥1")
         }
         // A list without it stays as it was configured.
         #expect(choices([.claudeCode, .geminiCLI, .copy], picked: .gemini, programs: all) == [.claudeCode, .geminiCLI, .copy])
@@ -1391,7 +1407,7 @@ struct QuestionChatAcceptanceTests {
             await rig.ask("what is rust")
             await rig.key(qcCommandReturn)
             #expect(rig.c.handoffChoices == [.copy, ChatHandoff.Destination(agent: agent), .chatgpt], "\(agent)")
-            await rig.key(qcCommandDigit(2))
+            await rig.key(qcOptionDigit(2))
             #expect(rig.launched.map(\.agent) == [agent], "\(agent): started \(rig.launched.map(\.agent))")
             #expect(rig.notices.last?.contains(name) == true, "\(agent): \(rig.notices)")
         }
@@ -1441,7 +1457,7 @@ struct QuestionChatAcceptanceTests {
         await rig.ask("what is rust")
         await rig.key(qcCommandReturn)
         #expect(rig.c.handoffChoices == [.copy])
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         #expect(rig.copied.count == 1 && rig.launched.isEmpty)
     }
 
@@ -1494,13 +1510,13 @@ struct QuestionChatAcceptanceTests {
             await rig.key(qcCommandReturn)
             #expect(rig.c.handoffChoices.count == 7, "\(refusal): \(rig.c.handoffChoices)")
             for destination in rig.c.handoffChoices where destination != .copy {
-                await rig.key(try qcCommandKey(for: destination, in: rig))
+                await rig.key(try qcOptionKey(for: destination, in: rig))
                 #expect(rig.opened.isEmpty && rig.launched.isEmpty && rig.copied.isEmpty, "\(refusal) \(destination)")
                 #expect(rig.c.isQuestionChat && rig.committed.isEmpty, "\(refusal) \(destination): the conversation should stay up")
                 if !rig.c.showsHandoff { await rig.key(qcCommandReturn) }
             }
             #expect(!rig.notices.isEmpty, "\(refusal): nothing said")
-            await rig.key(try qcCommandKey(for: .copy, in: rig))
+            await rig.key(try qcOptionKey(for: .copy, in: rig))
             #expect(rig.copied.count == 1 && rig.copied.first?.contains(qcAnswer("q2")) == true, "\(refusal): copy")
             #expect(rig.requestCount == 2)
         }
@@ -1515,7 +1531,7 @@ struct QuestionChatAcceptanceTests {
         await rig.ask("is Phoenix on track")
         await rig.followUp("call +86 138 0013 8000 about Phoenix")
         await rig.key(qcCommandReturn)
-        await rig.key(qcCommandDigit(1))
+        await rig.key(qcOptionDigit(1))
         let text = try #require(rig.copied.first)
         #expect(text.contains("is Phoenix on track") && text.contains("+86 138 0013 8000") && text.contains(qcAnswer("is Phoenix on track")))
         #expect(!text.contains("[ITEM_") && !text.contains("[PHONE_") && !text.contains("_1]"), "\(text)")

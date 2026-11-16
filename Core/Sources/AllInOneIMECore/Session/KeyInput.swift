@@ -238,7 +238,7 @@ public struct ModifierKey: Hashable, Sendable {
 /// ⌘ or ⌥ by name: what a modifier does with a key is the system's, not the key's.
 public struct ModifierRoles: Hashable, Sendable {
     /// Shortcuts' modifier: ⌘ on the Mac, Ctrl on Windows. The input method's own are with it (⌘C on a result, ⌘V
-    /// into a draft, ⌘⏎ and ⌘1 … in a conversation, ⌘R on a saved answer); any other key with it is the app's. A
+    /// into a draft, ⌘⏎ in a conversation, ⌘R on a saved answer); any other key with it is the app's. A
     /// shortcut recorded with ⌘ (`KeyShortcut`) is pressed with it (`swappingPrimary`).
     public var primary: Key.ModifierKind
     /// With ← →, a word at a time: ⌥ on the Mac, Ctrl on Windows.

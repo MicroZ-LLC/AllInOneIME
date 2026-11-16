@@ -106,7 +106,7 @@ struct PlatformSeamTests {
 struct PlatformTermsTests {
     @Test func theMacsSymbols() {
         let mac = PlatformTerms.mac
-        #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌘2", "⌘1", "⌘1–⌘3"])
+        #expect([mac.copy, mac.paste, mac.again, mac.pick(2), mac.picks(1), mac.picks(3)] == ["⌘C", "⌃V", "⌘R", "⌥2", "⌥1", "⌥1–⌥3"])
         #expect(mac.voiceKey == "⌥" && mac.actionTap == "⌥" && mac.shortcut(.option, "Space") == "⌥Space")
         #expect([mac.enter, mac.shiftEnter, mac.backspace] == ["⏎", "⇧⏎", "⌫"])
         #expect(mac.isApp("/Applications/Calculator.app") && !mac.isApp("/Users/a/Calculator.app.zip") && !mac.isApp("C:/x/Word.lnk"))
@@ -115,7 +115,7 @@ struct PlatformTermsTests {
     @Test func windowsNames() {
         let windows = PlatformTerms.windows
         #expect([windows.copy, windows.paste, windows.again, windows.pick(2), windows.picks(1), windows.picks(3)]
-                == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Ctrl+2", "Ctrl+1", "Ctrl+1–3"])
+                == ["Ctrl+C", "Ctrl+V", "Ctrl+R", "Alt+2", "Alt+1", "Alt+1–3"])
         // The keys follow the roles: the right Ctrl dictates, a tap of Ctrl is the action key.
         #expect(windows.voiceKey == "Ctrl" && windows.actionTap == "Ctrl" && windows.shortcut(.command, "D") == "Win+D")
         // Return, ⇧Return and Delete by the names Windows' keyboards print.

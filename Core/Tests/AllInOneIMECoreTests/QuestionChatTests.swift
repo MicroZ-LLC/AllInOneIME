@@ -11,9 +11,12 @@ struct QuestionChatTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
     let commandReturn = KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command)
+    /// ⌥ and a digit, by the digit key (what it types is the layout's: "¡" for ⌥1 on U.S.).
     func command(_ digit: Int) -> KeyEvent {
-        KeyEvent(keyCode: 0, characters: String(digit), charactersIgnoringModifiers: String(digit), modifiers: .command)
+        let codes: [UInt16] = [0x1D, 0x12, 0x13, 0x14, 0x15, 0x17, 0x16, 0x1A, 0x1C, 0x19]
+        return KeyEvent(keyCode: codes[digit], characters: "¡", charactersIgnoringModifiers: String(digit), modifiers: .option)
     }
+    let commandOne = KeyEvent(keyCode: 0x12, characters: "1", charactersIgnoringModifiers: "1", modifiers: .command)
 
     func type(_ s: String, _ c: Composer) {
         for ch in s { _ = c.handleKeyDown(ch == " " ? spaceKey : k(String(ch))) }
@@ -395,7 +398,7 @@ struct QuestionChatTests {
         type("go deeper", c)
         #expect(c.handleKeyDown(enterKey).effects == [.showPanel] && c.showsHandoff && c.refineText == "go deeper")
         #expect(c.isLevelTwo && c.chatRound == 2)
-        // ⌘1 (Claude Code here) goes on there with it.
+        // ⌥1 (Claude Code here) goes on there with it.
         let effects = c.handleKeyDown(command(1)).effects
         #expect(started(effects) == nil && c.phase == .idle)
         let prompt = effects.compactMap { if case let .continueInClaudeCode(p) = $0 { return p } else { return nil } }.first
@@ -425,12 +428,12 @@ struct QuestionChatTests {
     @Test func commandDigitsPickWhereToGoOnOnceShown() {
         let c = asked(rounds: 2)
         followUp(c, "who made it", reply: "Graydon Hoare.")
-        // ⌘2: Claude on the web, the conversation in the address.
+        // ⌥2: Claude on the web, the conversation in the address.
         let web = c.handleKeyDown(command(2))
         let url = web.effects.compactMap { if case let .openLink(u) = $0 { return u } else { return nil } }.first
         #expect(web.handled && url?.absoluteString.hasPrefix("https://claude.ai/new?q=%2A%2AQ%3A%2A%2A%20what%20is%20rust") == true)
         #expect(!web.effects.contains { if case .copy = $0 { true } else { false } })
-        // ⌘4: copy, in Markdown.
+        // ⌥4: copy, in Markdown.
         let d = asked(rounds: 2)
         followUp(d, "who made it", reply: "Graydon Hoare.")
         let copy = d.handleKeyDown(command(4)).effects
@@ -464,8 +467,8 @@ struct QuestionChatTests {
 
     @Test func commandReturnShowsTheChoicesAtAnyRoundAndBackspaceHidesThem() {
         let c = asked()
-        // Not shown: ⌘1 is the app's.
-        #expect(!c.handleKeyDown(command(1)).handled)
+        // Not shown: ⌘1 is the app's (and ⌥1 types as usual).
+        #expect(!c.handleKeyDown(commandOne).handled)
         #expect(c.handleKeyDown(commandReturn).effects == [.showPanel] && c.showsHandoff && !c.chatAtLimit)
         _ = c.handleKeyDown(backspaceKey)
         #expect(!c.showsHandoff && c.isLevelTwo && c.chatRound == 1)
@@ -812,7 +815,7 @@ struct QuestionChatTests {
 
     // MARK: - The hand-off
 
-    /// The default choices: the agent `@agent` hands to first (⌘1), then the other agents installed, then Claude on the web,
+    /// The default choices: the agent `@agent` hands to first (⌥1), then the other agents installed, then Claude on the web,
     /// ChatGPT and Copy; an agent that isn't installed isn't there.
     @Test func theDefaultChoicesAreTheAgentsInstalledThePickedOneFirst() {
         let all: (AgentKind) -> Bool = { _ in true }
@@ -865,7 +868,7 @@ struct QuestionChatTests {
                 == [.copy, .atAgent, .kiroCLI, .geminiCLI, .claudeCode, .chatgpt])
         #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .chatgpt, .copy]) == [.atAgent, .kiroCLI, .geminiCLI, .chatgpt, .copy])
         #expect(ChatHandoff.edited(list, shown: shown, to: [.atAgent, .claudeCode, .chatgpt, .copy, .gemini]) == list + [.gemini])
-        // Taken out, @agent's agent takes the entry it stands for (Gemini CLI's own) with it: ⌘1 really changes.
+        // Taken out, @agent's agent takes the entry it stands for (Gemini CLI's own) with it: ⌥1 really changes.
         let without = ChatHandoff.edited(list, shown: shown, to: [.claudeCode, .chatgpt, .copy], picked: .gemini)
         #expect(without == [.claudeCode, .kiroCLI, .chatgpt, .copy])
         #expect(ChatHandoff.choices(without, picked: .gemini, installed: { _ in true }) == without)

@@ -393,8 +393,9 @@ extension Composer {
     func whileSelectionIsRead(_ event: KeyEvent) -> SelectionReadKey? {
         guard selectionPending, draft.hasPrefix(commandTrigger) else { return nil }
         guard oneAt != nil, parkedForSelection == nil else { return .settles }
-        let modifiers = event.modifiers.subtracting(.capsLock)
-        let lone = draft == commandTrigger && !engineState.isComposing
+        let modifiers = event.modifiers.subtracting(.capsLock), lone = draft == commandTrigger && !engineState.isComposing
+        // ⌥1 … is a click on its row (`handleNumberedPick`, `chooseOneAt`): that row parked for the read, which isn't settled.
+        if placesPick(event) { return .edits }
         // The list's own keys, taken with nothing selected too.
         let listsKey: Bool
         switch event.key {

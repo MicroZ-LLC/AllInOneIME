@@ -4,7 +4,14 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ## 0.7.5 (unreleased)
 
+### Added
+
+- Each row of the list after the magic key has its number key: ⌥1 does the first row shown, ⌥2 the second, and so on (as a click on the row, or ⏎ on it), with the key on the row. It goes by the key, whatever your keyboard layout types with ⌥ (¡, ™ …), and only while the list is up: elsewhere ⌥ and a digit type as before. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌥1 is the top row shown. On Windows, Alt+1 ….
+- Settings → Input → **Show key hints**: turn it off and the candidate box leaves out the keys explained at its bottom (⏎ inserts, Esc cancels…) and "Space picks a word" after the pinyin line, a smaller box once you know them. What is going on ("… is writing"), the page and the time a result took still show, and so do the rows' own keys. On by default; `"keyHints": false` in the config, synced through iCloud with the other settings.
+
 ### Changed
+
+- Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). ⌘⏎ still shows the choices.
 
 - Japanese is its own language: a selected or pasted text with kana in it (`東京駅で待ってます`, `ありがとう`) is no longer taken for Chinese or English. `@translate` translates it into your languages, Chinese and English included (before, a Chinese user's `@translate` never gave Chinese); `@improve` rewrites it in Japanese (before, it came back in Chinese); one @ on it puts Translate first; the line under the command says so (`translate to English, Chinese`). Kanji alone still count as Chinese.
 - One @ tells questions better: `@过几天再说`, `@没过几天就忘了`, `@我几乎忘了`, `@没什么`, `@哪怕下雨也去` are no longer taken for questions (Improve first, not Ask AI), and `@what's the capital of Peru`, `@how's it going`, `@did you see my email` are, without a `?`, and so are `@你学过几年中文` and `@你去过几次北京`.

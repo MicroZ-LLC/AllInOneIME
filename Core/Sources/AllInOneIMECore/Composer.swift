@@ -430,7 +430,7 @@ public final class Composer {
     public var questionSession = false
     /// Whose session that is (`Config.questionSessionAgent`): Claude Code's, Codex's, Antigravity's or Kiro CLI's.
     public var questionSessionAgent = SessionAgent.claude
-    /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌘1, ⌘2 … pick them.
+    /// Where a conversation can go on, in order (`ChatHandoff.choices`, set by the controller): ⌥1, ⌥2 … pick them.
     public var handoffChoices = ChatHandoff.defaultChoices(picked: .claude, installed: { _ in false })
     /// The agent "@agent's agent" (`ChatHandoff.Destination.atAgent`) stands for: the one `@agent` hands to, when it's
     /// installed (set by the controller); nil: none, and a hand-off to `.atAgent` does nothing.
@@ -1688,7 +1688,8 @@ public final class Composer {
         case .off:
             break
         }
-        let response = dispatchKey(event, afterVoice: afterVoice || !prefix.isEmpty && draftEndsWithVoice)
+        // ⌥1 … on numbered choices first, before a dead key could wait (Composer+NumberedPicks.swift).
+        let response = handleNumberedPick(event) ?? dispatchKey(event, afterVoice: afterVoice || !prefix.isEmpty && draftEndsWithVoice)
         return Response(effects: prefix + response.effects, handled: response.handled)
     }
 
@@ -1763,10 +1764,8 @@ public final class Composer {
            !draft.isEmpty, !isLevelTwo, !engineState.isComposing, voice == .off, palette == nil, !(oneAt != nil && draft == commandTrigger) {
             return .consumed(moveCursor(event))
         }
-        // ⌘⏎ and ⌘1 … in a conversation: where it can go on (`ChatHandoff`).
-        if let response = handleHandoffKey(event) { return response }
-        // ⌘R on @reply's replies: three more (Composer+Reply.swift).
-        if let response = handleReplyKey(event) { return response }
+        // ⌘⏎ in a conversation: where it can go on (`ChatHandoff`); ⌘R on @reply's replies: three more (Composer+Reply.swift).
+        if let response = handleHandoffKey(event) ?? handleReplyKey(event) { return response }
         // A word at a time is no shortcut where its modifier is the shortcuts' too (Ctrl+← on Windows): it moves on below.
         let byWord = leftOrRight && modifiers.subtracting(.shift) == Modifiers.kind(roles.word)
         if modifiers.contains(primary), !byWord {
@@ -3178,7 +3177,7 @@ public final class Composer {
     /// the instruction (`Effect.startRefine`). The rows stream in in their place; the selection, if any, stays as it is.
     /// In an @question conversation the line is the next question (`QuestionChat`), asked the same way by ⏎; at its last
     /// round, or with where it can go on shown (⌘⏎), nothing is asked: the choices are shown (`showsHandoff`), the line
-    /// stays as the hand-off's first message, and only ⌘1–⌘5 send it.
+    /// stays as the hand-off's first message, and only ⌥1–⌥5 send it.
     /// `fresh`: asked again past the cache (⌘R on a saved conversation: its latest question, `reaskSaved`).
     func runRefine(fresh: Bool = false) -> [Effect] {
         if let engine, engine.snapshot().isComposing {

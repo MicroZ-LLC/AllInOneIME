@@ -101,53 +101,6 @@ public struct Config: Codable, Equatable, Sendable {
     }
     public static func validCommandTrigger(_ value: String) -> Bool { commandTriggerProblem(value) == nil }
 
-    /// Why `value` can't be the command trigger; nil when it can. It opens the command list where a sentence starts, after
-    /// a space and after Chinese, and goes in as itself when no command follows: one ASCII symbol, and not one typing
-    /// needs there (`typingSymbols`).
-    public static func commandTriggerProblem(_ value: String) -> CommandTriggerProblem? {
-        guard value.unicodeScalars.count == 1, let scalar = value.unicodeScalars.first, (33...126).contains(scalar.value),
-              !CharacterSet.alphanumerics.contains(scalar) else { return .notASymbol }
-        return typingSymbols.contains(Character(value)) ? .typingSymbol(value) : nil
-    }
-
-    /// The ASCII symbols typing needs, which the command trigger would take from it: pinyin's (rime-ice's): ' between
-    /// syllables, ` its lookup key (`speller/alphabet`, `key_binder/search`), - and = turning the candidates' pages,
-    /// [ and ] picking a word's first or last character (`key_binder`), , . : held after a digit
-    /// (`punctuator/digit_separators`); and every symbol its punctuation types as Chinese (`punctuator/half_shape`:
-    /// ，。；：？！“”‘’、（）《》【】「」…… —— · ¥), and /. What is left types as itself in every mode (`commandTriggers`).
-    /// The macOS shell's Rime tests (CommandTriggerSymbolsTests) check them against rime-ice as it is deployed.
-    public static let typingSymbols: Set<Character> = [
-        "'", "`", "-", "=", "[", "]", ",", ".", ":", ";", "/", "\\", "?", "!", "\"", "(", ")", "<", ">", "{", "}", "^", "_", "$",
-    ]
-
-    /// Every symbol the command trigger can be, in ASCII order: # % & * + @ | ~.
-    public static var commandTriggers: [String] {
-        (33...126).compactMap(UnicodeScalar.init).map(String.init).filter(validCommandTrigger)
-    }
-
-    /// Why a command trigger is refused (`commandTriggerProblem`), as Settings says it.
-    public enum CommandTriggerProblem: Error, Equatable, LocalizedError {
-        /// Not one ASCII symbol: a letter, a digit, a space, nothing, several characters, or another script's.
-        case notASymbol
-        /// A symbol typing needs (`typingSymbols`).
-        case typingSymbol(String)
-
-        public var errorDescription: String? { message(language: UIText.language) }
-
-        /// What Settings says, in `language`, with the symbols that work.
-        public func message(language: String) -> String {
-            let t = InterfaceWords(language: language), these = Config.commandTriggers.joined(separator: " ")
-            switch self {
-            case .notASymbol:
-                return t.tr("魔法键只能是一个符号，不能是字母、数字或空格。可以用：\(these)",
-                            "The magic key must be one symbol, not a letter, digit or space. These work: \(these)")
-            case let .typingSymbol(symbol):
-                return t.tr("\(symbol) 打字时要用（拼音或中文标点），不能用来打开命令。可以用：\(these)",
-                            "\(symbol) is needed for typing (pinyin or Chinese punctuation), so it can't open commands. These work: \(these)")
-            }
-        }
-    }
-
     /// The interface language (`InterfaceLanguage.code(forSetting:shipped:)`): "zh" (Simplified Chinese) and "en", as
     /// older versions write them, or another shipped language's code ("fr"); nil follows the system. A code this version
     /// doesn't ship is kept, and followed as nil.
@@ -259,6 +212,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// default, also for a file from before the setting), or in a column. The other lists (commands, results) are
     /// always a column.
     public var candidateLayout: CandidateArrangement
+    /// The keys explained at the bottom of the candidate panel (⏎ inserts, Esc cancels…): on by default (also for a file
+    /// from before the setting); off, the panel leaves them out (`PanelModel.withoutKeyHints`), a smaller panel for one who
+    /// knows them.
+    public var keyHints: Bool = true
     /// The key that switches the input language (`SwitchKey`): a tap of Shift (the default, also for a file from before
     /// the setting), or a press of Caps Lock, whose lock is turned off again at once (Settings → Input). Written into the
     /// file only when it isn't Shift.
@@ -454,7 +411,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout, keyHints
         case switchKey
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
@@ -569,8 +526,9 @@ public struct Config: Codable, Equatable, Sendable {
         typeOutRate = try c.decodeIfPresent(Double.self, forKey: .typeOutRate) ?? olderRate ?? d.typeOutRate
         typeOutVaries = try c.decodeIfPresent(Bool.self, forKey: .typeOutVaries) ?? (older == "random")
         typeOutMistakes = try c.decodeIfPresent(Bool.self, forKey: .typeOutMistakes) ?? d.typeOutMistakes
-        // Not chosen (a file from before the setting) or a value a later version added: the default, in a row.
-        candidateLayout = (try? c.decodeIfPresent(CandidateArrangement.self, forKey: .candidateLayout)).flatMap { $0 } ?? d.candidateLayout
+        // Not chosen (a file from before the setting) or a value a later version added: the default, in a row; key hints
+        // on (`decodePanel`).
+        (candidateLayout, keyHints) = try Self.decodePanel(c, default: d)
         // The same: Shift.
         switchKey = (try? c.decodeIfPresent(SwitchKey.self, forKey: .switchKey)).flatMap { $0 } ?? d.switchKey
         checkForUpdates = try c.decodeIfPresent(Bool.self, forKey: .checkForUpdates) ?? d.checkForUpdates
@@ -768,7 +726,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(typeOutRate, forKey: .typeOutRate)
         try c.encode(typeOutVaries, forKey: .typeOutVaries)
         try c.encode(typeOutMistakes, forKey: .typeOutMistakes)
-        try c.encode(candidateLayout, forKey: .candidateLayout)
+        try encodePanel(into: &c)
         // Only Caps Lock: a file from before the setting doesn't gain the key, nor one back on Shift.
         if switchKey != .shift { try c.encode(switchKey, forKey: .switchKey) }
         try c.encode(checkForUpdates, forKey: .checkForUpdates)

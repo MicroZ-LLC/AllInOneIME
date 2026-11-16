@@ -928,7 +928,7 @@ extension InputSession {
         }
         if all > Self.shownSuggestionRows { detail += " · \(window.lowerBound + 1)–\(window.upperBound) / \(all)" }
         let highlighted = suggesting.chosen.flatMap { window.contains($0) ? $0 - window.lowerBound : nil }
-        return PanelModel(rows: rows, highlighted: highlighted, footer: footer, detail: notice ?? detail)
+        return keyHinted(PanelModel(rows: rows, highlighted: highlighted, footer: footer, detail: notice ?? detail))
     }
 
     /// A list's age as the footer says it, once older than 10 minutes: "12 min ago", "2 h ago", "3 d ago".

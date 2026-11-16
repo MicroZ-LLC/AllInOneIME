@@ -155,6 +155,13 @@ extension UIText {
     /// How many texts clipboard history keeps (`Config.clipboardHistoryLimit`), the label of its number.
     public static var clipboardHistoryLimitLabel: String { tr("保留最近几条", "Keep the last") }
 
+    /// The key hints' switch (Settings → Input, `Config.keyHints`), under its name: the keys the candidate panel explains
+    /// at its bottom, as `terms` names them (⏎; Enter), and why one would turn them off.
+    public static func keyHintsHelp(terms: PlatformTerms = Platform.current.terms) -> String {
+        tr("候选框底部的按键说明（\(terms.enter) 上屏、Esc 取消……）。熟悉以后可以关掉，候选框更小。",
+           "The keys explained at the bottom of the candidate box (\(terms.enter) inserts, Esc cancels…). Turn them off once you know them for a smaller box.")
+    }
+
     /// The characters Chinese is typed in (Settings → Input → Chinese, `Config.chineseCharacters`): its name, and what it
     /// says under it.
     public static var chineseCharactersLabel: String { tr("字形", "Characters") }

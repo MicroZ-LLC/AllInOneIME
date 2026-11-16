@@ -125,7 +125,7 @@ public struct PanelModel: Equatable, Sendable {
     }
 
     /// Where an `@question` conversation can go on (after its last round, or ⌘⏎): a title, and the destinations, each
-    /// with the shortcut that picks it ("⌘1", "Ctrl+1").
+    /// with the shortcut that picks it ("⌥1", "Alt+1").
     public struct Handoff: Equatable, Sendable {
         public struct Choice: Equatable, Sendable {
             public var shortcut: String
@@ -287,6 +287,28 @@ extension PanelModel {
         if ["Esc", "Tab", "Enter", "Return", "Space", "空格", "Backspace", "Delete", "Del"].contains(word) { return true }
         if let plus = word.firstIndex(of: "+"), ["Ctrl", "Shift", "Alt", "Win"].contains(word[..<plus]) { return true }
         return word.first?.isNumber == true && word.allSatisfy { $0.isNumber || $0 == "–" || $0 == "-" }
+    }
+}
+
+// MARK: - Keys on the panel
+
+extension PanelModel {
+    /// The panel without its keys explained (`Config.keyHints` off): no footer keys, nor what Space does at the end of the
+    /// pinyin line; what is going on (`footerHints`' note) and the detail on the right stay, and the rows as they are.
+    public var withoutKeyHints: PanelModel {
+        var model = self
+        model.note = footerHints.note
+        (model.footer, model.hints, model.candidatesHint) = ("", [], nil)
+        return model
+    }
+
+    /// `rows` each labelled with the key that picks it by its place (`key(1)`: "⌥1" …), up to the 9th; those after, none.
+    static func numbered(_ rows: [Row], by key: (Int) -> String) -> [Row] {
+        rows.enumerated().map { place, row in
+            var row = row
+            row.label = place < 9 ? key(place + 1) : ""
+            return row
+        }
     }
 }
 

@@ -8,7 +8,7 @@ import SwiftUI
 enum SettingsSpot: String, CaseIterable {
     // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
-    case switchKey, candidateLayout
+    case switchKey, candidateLayout, keyHints
     // General
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
@@ -28,7 +28,7 @@ enum SettingsSpot: String, CaseIterable {
     var page: SettingsPage {
         switch self {
         case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage, .switchKey, .candidateLayout: return .input
+             .codingLanguage, .switchKey, .candidateLayout, .keyHints: return .input
         case .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
              .menuBarIcon, .interfaceLanguage, .iCloudSync:
             return .general
@@ -108,6 +108,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return tr("扩展来源", "Extension Sources")
         case .typeOut: return tr("逐字上屏", "Type results out")
         case .candidateLayout: return tr("候选排列", "Candidate layout")
+        case .keyHints: return tr("显示按键提示", "Show key hints")
         case .switchKey: return UIText.switchKeyLabel
         case .useSelection: return tr("使用选中的文字", "Use the selected text")
         case .configFile: return tr("配置文件", "Config file")
@@ -154,6 +155,7 @@ enum SettingsSpot: String, CaseIterable {
             return tr("一个本机随机生成的编号，只用于统计安装数，不含其他信息。",
                       "A random number made on this Mac, so we can count installs. Nothing else is sent.")
         case .typeOut: return Self.typeOutNote
+        case .keyHints: return UIText.keyHintsHelp()
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
         case .troubleshoot:
@@ -218,6 +220,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .keyHints: return "key hints shortcuts footer keys bottom hide smaller 按键 提示 快捷键 底部 隐藏 候选框"
         case .switchKey: return "switch key shift caps lock capslock capitals chinese english input language 切换 中英文 大写锁定 大写 输入语言"
         case .useSelection: return "selection selected text restore default 选中 文字 恢复默认"
         case .configFile: return "config file json 配置文件"
