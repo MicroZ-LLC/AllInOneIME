@@ -8,8 +8,8 @@
 #     can't be found again in `swift test list`. The first run's status is then the result.
 #   - The tests are found in Swift Testing's xUnit results (--xunit-output): a test's suite (`classname`, the module then
 #     its types, "AllInOneIMECoreTests.Outer.Inner") and its function (`name`, "test(_:)"), which `swift test list` names
-#     "AllInOneIMECoreTests.Outer/Inner/test(_:)" ("AllInOneIMECoreTests.test()" outside a type). XCTest's failures (none
-#     in this repository) aren't run again.
+#     "AllInOneIMECoreTests.Outer/Inner/test(_:)" ("AllInOneIMECoreTests.test()" outside a type). A run with an XCTest
+#     failure (none in this repository) isn't run again.
 #   - The second run takes the first one's arguments without its --filter, plus --skip-build, --no-parallel and a filter
 #     of exactly these tests; its own per-test timeouts are the tests' own.
 # Usage: retry-failed-tests.sh swift test [--package-path P] [--filter F] [--skip S] …
@@ -20,15 +20,38 @@ trap 'rm -rf "$work"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 
-# The first run, its output shown as it comes and kept.
-{ "$@" --xunit-output "$work/first.xml"; echo $? > "$work/first.status"; } 2>&1 | tee "$work/first.log"
-status=$(cat "$work/first.status" 2>/dev/null || echo 1)
+# Runs a command, its output shown as it comes and kept in the file $1. Through a FIFO, not a pipe into `tee`: a pipe
+# ends when every process holding it does, so a test's child left running (a `sleep 60` a timeout gave up on) kept the
+# run waiting; here what's printed after the command ends has a moment to arrive, then the copy stops.
+run_logged() {
+    log=$1
+    shift
+    fifo="$work/output"
+    rm -f "$fifo"
+    mkfifo "$fifo" || return 1
+    tee "$log" < "$fifo" &
+    copier=$!
+    "$@" > "$fifo" 2>&1
+    code=$?
+    waited=0
+    while kill -0 "$copier" 2>/dev/null && [ "$waited" -lt 20 ]; do sleep 0.1; waited=$((waited + 1)); done
+    kill "$copier" 2>/dev/null
+    wait "$copier" 2>/dev/null
+    rm -f "$fifo"
+    return "$code"
+}
+
+# The first run.
+status=0
+run_logged "$work/first.log" "$@" --xunit-output "$work/first.xml" || status=$?
 [ "$status" -eq 0 ] && exit 0
 
 results="$work/first-swift-testing.xml"
 give_up() { echo "retry-failed-tests: not run again: $1" >&2; exit "$status"; }
 [ -s "$results" ] || give_up "no Swift Testing results (the build failed, or the run didn't end)"
 grep -q "Test run with .* failed" "$work/first.log" || give_up "the run didn't end"
+# XCTest's failures aren't in Swift Testing's results: one ("Executed 3 tests, with 1 failure") fails the run as it was.
+grep -Eq "Executed [0-9]+ tests?, with [1-9][0-9]* failures?" "$work/first.log" && give_up "an XCTest test failed"
 
 # The failed tests: "classname<TAB>name", once each.
 awk '
@@ -86,8 +109,8 @@ sed 's/^/  /' "$work/ids"
 # The second run: the first's arguments (one per line in $work/args) without its filter, plus this one.
 set --
 while IFS= read -r arg; do set -- "$@" "$arg"; done < "$work/args"
-{ "$@" --skip-build --no-parallel --filter "$filter" --xunit-output "$work/second.xml"; echo $? > "$work/second.status"; } 2>&1 | tee "$work/second.log"
-second=$(cat "$work/second.status" 2>/dev/null || echo 1)
+second=0
+run_logged "$work/second.log" "$@" --skip-build --no-parallel --filter "$filter" --xunit-output "$work/second.xml" || second=$?
 ran=$(grep -c "<testcase " "$work/second-swift-testing.xml" 2>/dev/null) || true
 ran=${ran:-0}
 if [ "$second" -ne 0 ] || [ "$ran" -lt "$count" ]; then

@@ -458,6 +458,7 @@ test:
 test-core: check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
+	$(CORE)/Scripts/retry-failed-tests-test.sh
 	with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) && $(CORE)/Scripts/test.sh --skip "$$with_app"
 
 # The macOS shell's half: the input method's debug build, the core's tests that run it as their child process, then this
