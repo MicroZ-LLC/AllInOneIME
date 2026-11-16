@@ -38,9 +38,13 @@ extension Composer {
     }
 
     /// `conversation` with the follow-up's screenshot, ready, as the round just added (`runRefine`); it goes from the line.
+    /// Its text isn't the user's (it could tell the agent to send the conversation somewhere): from now on the session's
+    /// web tools reach only the addresses typed (`SessionWeb`), as for a first question with a screenshot; the follow-up's
+    /// own are added after (`runRefine`). A round taken back doesn't open them again.
     func withFollowUpAttachment(_ conversation: QuestionConversation) -> QuestionConversation {
         guard case let .screenshot(.ready(text))? = replyState.followUp else { return conversation }
         var conversation = conversation
+        if case .open = conversation.web { conversation.web = .only([]) }
         conversation.attachments[refinements.count] = QuestionConversation.Attachment(text: text.text, image: replyState.followUpImage)
         let sent = (text, replyState.followUpImage)
         replyState.followUpEnded()

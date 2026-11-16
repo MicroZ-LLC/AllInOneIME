@@ -331,5 +331,17 @@ struct QuestionScreenshotTests {
         pasteScreenshot(c, text: lines(["Error 42"]))
         #expect(c.attachment == nil && c.draft.contains("Error 42"))
     }
+
+    @Test func aFollowUpsScreenshotKeepsTheSessionToTheAddressesTyped() {
+        let c = composer(sees: true)
+        questionDraft(c, "what is rust")
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A language.")]), isFinal: true, id: 1)
+        #expect(c.questionConversation?.web == .open)
+        type("and this", c)
+        pasteScreenshot(c, text: lines(["fn main"]))
+        _ = c.handleKeyDown(enterKey)
+        #expect(c.questionConversation?.web == .only([]))
+    }
 }
 
