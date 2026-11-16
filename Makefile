@@ -437,6 +437,11 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
 # thread when one waits.
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
+# The login shell is read once per test process (ShellEnvironment.login): on a loaded Mac (two CI runners on one) it
+# can take past the input method's 10 s, which left the tests that read it with nothing. `swift test` gives it 60 s;
+# selftest, screenshots and install run the input method's binary with its own 10 s.
+TEST_THREADS += ALLINONEIME_LOGIN_SHELL_TIMEOUT=60
+
 test: deps strings-check check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh

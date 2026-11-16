@@ -1,6 +1,7 @@
 import Foundation
 import Testing
 @testable import AllInOneIMECore
+@testable import AllInOneIMEMac
 
 /// The Mac's platform (`Platform.mac`), as the input method, its command line and the installer install it: programs
 /// through `MacProcessLauncher`. Scoped to each test (`Platform.override`), with an in-memory secret store.
@@ -37,13 +38,27 @@ struct MacPlatformTests {
 
     /// A key set in the login shell is found there when the keychain has none (`APIKeys.load`).
     @Test func keysFromTheLoginShell() throws {
-        let (name, value) = try #require(ShellEnvironment.login.first { $0.key == "PATH" })
+        let (name, value) = try #require(ShellEnvironment.login.first { $0.key == "PATH" },
+            "the login shell gave no PATH in \(ShellEnvironment.loginReadTimeout) s")
         Platform.$override.withValue(mac) {
             #expect(APIKeys.load(account: "test-\(UUID().uuidString)", variables: ["NO_SUCH_VARIABLE_HERE", name]) == value)
             #expect(CommandRunner.isInstalled("sh", path: "/bin"))
             #expect(CommandRunner.isInstalled("python3", path: "/usr/bin")
                 == (FileManager.default.isExecutableFile(atPath: "/usr/bin/python3") && DeveloperTools.installed(in: DeveloperTools.folders)))
         }
+    }
+}
+
+/// How long the login shell has: the input method's 10 s; a test run, what ALLINONEIME_LOGIN_SHELL_TIMEOUT says (`make test`:
+/// 60 s, so a loaded runner's slow shell doesn't leave `ShellEnvironment.login` empty for the whole run).
+struct LoginShellTimeoutTests {
+    @Test(arguments: [
+        (nil, 10.0), ("60", 60), ("2.5", 2.5), ("0", 10), ("-1", 10), ("abc", 10), ("", 10),
+    ] as [(String?, TimeInterval)])
+    func theTimeoutIsTheEnvironmentsElseTheInputMethods(_ given: String?, _ expected: TimeInterval) {
+        #expect(ShellEnvironment.loginTimeout == 10)
+        let environment = given.map { ["ALLINONEIME_LOGIN_SHELL_TIMEOUT": $0] } ?? ["PATH": "/bin"]
+        #expect(ShellEnvironment.loginReadTimeout(environment) == expected)
     }
 }
 
