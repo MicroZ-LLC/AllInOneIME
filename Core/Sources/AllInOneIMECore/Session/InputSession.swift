@@ -273,7 +273,7 @@ public final class InputSession {
                 guard steps != 0 else { return }
                 // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
                 if clipboardScroll(steps) || suggestionsScroll(steps) { return }
-                perform(composer.scrollPalette(by: steps))
+                perform(composer.wheel(by: steps))  // a row in the command list, a page in a paged list
             case let .clipboard(content, id):
                 // Nothing is read during secure input (the shell doesn't read it then either). Below 0: clipboard history's.
                 let content = secureInputActive() ? ClipboardContent.none : content

@@ -62,6 +62,19 @@ public enum Language: String, Codable, CaseIterable, Sendable {
         guard french else { return .english }
         return Platform.current.languages.dominantLanguage(of: text, among: ["en", "fr"])?.code == "fr" ? .french : .english
     }
+
+    /// Whether `text` is Japanese: it has a kana letter (hiragana or katakana, half-width too), with or without kanji.
+    /// The long-vowel mark ー and the middle dot ・ alone don't count; kanji alone can't be told from Chinese and is Chinese
+    /// (`of`). Japanese is no input language: it is an output language ("ja", `OutputLanguage.of`), never polished as
+    /// Chinese or English, and one @ calls it another language (`OneAt.isOtherLanguage`).
+    public static func isJapanese(_ text: String) -> Bool {
+        text.unicodeScalars.contains { isKana($0.value) }
+    }
+
+    static func isKana(_ v: UInt32) -> Bool {
+        (0x3041...0x3096).contains(v) || (0x309D...0x309F).contains(v) || (0x30A1...0x30FA).contains(v)
+            || (0x30FD...0x30FF).contains(v) || (0x31F0...0x31FF).contains(v) || (0xFF66...0xFF9D).contains(v)
+    }
 }
 
 /// A language the three main versions (1–3) can be written in: the user adds the ones they want
@@ -79,6 +92,7 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
 
     public static let english = OutputLanguage("en")
     public static let chinese = OutputLanguage("zh")
+    public static let japanese = OutputLanguage("ja")
 
     /// The languages that can be added, in the order the settings offer them.
     public static let catalog: [OutputLanguage] = [
@@ -155,6 +169,7 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
             switch code {
             case "en": return "英文"
             case "zh": return "中文"
+            case "ja": return "日语"
             case "zh-Hant": return "繁体中文"
             case "zh-Hant-TW": return "繁体中文（台湾）"
             case "zh-Hant-HK": return "繁体中文（香港）"
@@ -163,6 +178,7 @@ public struct OutputLanguage: Hashable, Codable, Sendable, Identifiable {
         } else if language == "en" {
             switch code {
             case "zh": return "Chinese"
+            case "ja": return "Japanese"
             case "zh-Hant": return "Traditional Chinese"
             case "zh-Hant-TW": return "Traditional Chinese (Taiwan)"
             case "zh-Hant-HK": return "Traditional Chinese (Hong Kong)"

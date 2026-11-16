@@ -119,13 +119,14 @@ public final class RimeService {
             guard let context, let type, let value, String(cString: type) == "deploy" else { return }
             let service = Unmanaged<RimeService>.fromOpaque(context).takeUnretainedValue()
             switch String(cString: value) {
-            case "start": service.setDeploymentStatus(.deploying)
+            case "start": RimeService.markDeploymentThread(); service.setDeploymentStatus(.deploying)
             case "success": service.setDeploymentStatus(.succeeded)
             case "failure": service.setDeploymentStatus(.failed)
             default: break
             }
         }, Unmanaged.passUnretained(self).toOpaque())
         api.pointee.initialize(nil)
+        _ = Self.endsAtExit  // librime ended before its static destructors run (RimeExit)
         let asked = Date()
         do { try PersonalDictionaryStore.datePatches(userDirectory: userDataDir, since: nil) }
         catch { Self.log.error("the Rime patches' times not set: \(error.localizedDescription)") }
@@ -243,31 +244,6 @@ public final class RimeService {
             newest = max(newest, copy.modified)
         }
         return Date(timeIntervalSince1970: newest)
-    }
-
-    /// What the user folder's `lua/lunar.db` (or an OpenCC file) was copied from, and the copy as it was made: a later
-    /// source is copied over it only while it is still that copy.
-    struct LunarCopy: Codable, Equatable {
-        static let fileName = "lunar.db.allinoneime.json"
-
-        /// A file's size and modification time.
-        struct Stamp: Codable, Equatable {
-            var size: UInt64
-            var modified: Double
-
-            /// Nil when `url` isn't a file of `type` (a link isn't followed).
-            init?(_ url: URL, type: FileAttributeType) {
-                guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-                      attributes[.type] as? FileAttributeType == type,
-                      let size = (attributes[.size] as? NSNumber)?.uint64Value,
-                      let modified = attributes[.modificationDate] as? Date else { return nil }
-                self.size = size
-                self.modified = modified.timeIntervalSince1970
-            }
-        }
-
-        var source: Stamp
-        var copy: Stamp
     }
 
     /// rime-ice's English dictionary in the shared data (`EnglishDictionary`), for the English words put among the

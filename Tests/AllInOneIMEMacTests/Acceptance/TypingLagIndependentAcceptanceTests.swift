@@ -68,34 +68,12 @@ private enum Issue23AcceptanceChild {
         let c = try command(URL(fileURLWithPath: "/usr/bin/xcrun"),
                             ["clang", "-dynamiclib", observer.path, "-o", observerLibrary.path], timeout: 30)
         guard c.status == 0 else { throw ChildError(c.output) }
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        let thirdParty = ProcessInfo.processInfo.environment["ALLINONEIME_THIRDPARTY"]
-            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
-            ?? repository.appendingPathComponent("ThirdParty")
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
-        var objects: [String] = []
-        for module in ["AllInOneIMECore", "AllInOneIMEText", "AllInOneIMEScriptEngine", "AllInOneIMERime", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else {
-                let folder = products.appendingPathComponent(module + ".build")
-                objects += try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let executable = scratch.appendingPathComponent("acceptance")
         let sources = ["CandidatePanel.swift", "CommandIcons.swift", "LiveSettings.swift"]
             .map { repository.appendingPathComponent("Sources/AllInOneIME/" + $0).path }
-        let arguments = ["swiftc", "-swift-version", "5", "-parse-as-library", "-I", modules.path,
-                         "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                         "-framework", "AppKit", "-framework", "InputMethodKit"]
-            + sources + [menuURL.path, harness.path, observerLibrary.path] + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 90)
+        let executable = scratch.appendingPathComponent("acceptance")
+        let swift = try SourceCompiler.compile(repository: repository, sources: sources + [menuURL.path, harness.path],
+            extraObjects: [observerLibrary.path], executable: executable,
+            parseAsLibrary: true, timeout: 90)
         guard swift.status == 0 else { throw ChildError(swift.output) }
         return executable
     }
