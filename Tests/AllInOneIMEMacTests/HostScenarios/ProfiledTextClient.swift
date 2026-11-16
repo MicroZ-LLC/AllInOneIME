@@ -254,6 +254,11 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
         state.selection = NSRange(location: at, length: 0)
     }
 
+    /// The app's ⌘A: all of its text selected.
+    func appSelectsAll() {
+        state.selection = NSRange(location: 0, length: length(of: state))
+    }
+
     /// Whether `offset` is inside the marked text (a click there goes to the input method's marked text, as NSTextView
     /// hands it over).
     func isInsideMarkedText(_ offset: Int) -> Bool {

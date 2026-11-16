@@ -295,6 +295,7 @@ final class HostReplayer {
         case 0x7C: client.appMovesCaret(by: 1)
         case 0x35, 0x7D, 0x7E: break
         case 0x06 where flags.contains(.command): client.undo()
+        case 0x00 where flags.contains(.command): client.appSelectsAll()
         default:
             guard !flags.contains(.command), !flags.contains(.control), let text = event.characters, !text.isEmpty else { return }
             client.appTypes(text == "\r" ? "\n" : text)
