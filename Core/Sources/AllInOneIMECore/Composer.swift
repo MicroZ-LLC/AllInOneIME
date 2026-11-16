@@ -446,9 +446,9 @@ public final class Composer {
     /// Whether the results shown can be refined now: they are an AI request's, and all in.
     public var canRefine: Bool { phase == .choosing && refineRequest != nil }
 
-    /// Whether keys go into the refine line: while results can be refined, and while a refine runs (what is typed
-    /// then is the next step, run with ⏎ once its results are in; the running one goes on).
-    public var typesRefine: Bool { canRefine || isRefining }
+    /// Whether keys go into the refine line: while results can be refined, a refine runs or an @question answer comes in,
+    /// the first too (what is typed is the next step, run with ⏎ once its results are in; the running one goes on).
+    public var typesRefine: Bool { canRefine || isRefining || chatIsAnswering }
 
     /// A refine is running (`refinements.last` is its instruction).
     public var isRefining: Bool {
@@ -2069,7 +2069,7 @@ public final class Composer {
             // A refine that brought nothing leaves the results before it.
             if !answered, id == refineID { return refineFailed(messages.noResult) }
             if id == refineID { refineID = nil }
-            phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
+            phase = answered ? .choosing : failing(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
             return [.showPanel] + rememberAnswer()
         }
         return [.showPanel]
@@ -2112,7 +2112,7 @@ public final class Composer {
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
-        phase = .failed(message)
+        phase = failing(message)
         failureFix = place.map { (message, $0) }
         return [.showPanel]
     }
@@ -3027,7 +3027,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
-        if let response = handleChatReturn(event) { return response }
+        if let response = handleChatKey(event) { return response }
         if let response = handleRefineKey(event) { return response }
         switch event.key {
         case .space:
@@ -3057,8 +3057,8 @@ public final class Composer {
             }
             return .consumed(commitChoice(at: highlighted))
         case .escape, .backspace:
-            // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
-            // stays, and Esc goes back a round).
+            // Where a conversation can go on, shown with ⌘⏎ before its last round: ⌫ hides it again (at the last
+            // round it stays, and ⌫ goes back a round). Esc never gets here in a conversation: it closes (`handleChatKey`).
             if handoffRequested, !chatAtLimit, phase == .choosing {
                 handoffRequested = false
                 return .consumed([.showPanel])
@@ -3086,23 +3086,12 @@ public final class Composer {
             // A reminder has one row: another digit belongs to its text ("…下午" + 3), typed below.
             guard activeCommand?.kind == .reminder else { return .consumed() }
         }
-        // While a refine runs, a key that doesn't start the next step's line does nothing (Esc goes back, above).
-        if isRefining { return .consumed() }
+        // While a refine runs or an answer comes in, a key that doesn't start the next step's line does nothing.
+        if isRefining || chatIsAnswering { return .consumed() }
         // Typing more: back to the draft and continue the sentence with this key.
         let back = backToDraft()
         let next = handleLevelOne(event)
         return .consumed(back + next.effects)
-    }
-
-    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
-    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
-    private func handleChatReturn(_ event: KeyEvent) -> Response? {
-        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
-        switch event.modifiers.subtracting(.capsLock) {
-        case []: return .consumed(continueChat())
-        case .shift: return .consumed(commitChoice(at: highlighted))
-        default: return nil
-        }
     }
 
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
@@ -3114,7 +3103,8 @@ public final class Composer {
     /// does what it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a
     /// refine runs the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts
     /// pinyin (it is sent once the results are in) and Esc goes back to the results before the running refine, as
-    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts
+    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts, Esc closes the panel at once whatever is typed, and
+    /// Space with the line empty does nothing (`handleChatKey`, before this). Nil: the key acts
     /// as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
@@ -3919,7 +3909,7 @@ public final class Composer {
         }
     }
 
-    private func commitChoice(at index: Int) -> [Effect] {
+    func commitChoice(at index: Int) -> [Effect] {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete else { return [] }
         if case let .issue(url) = all[index].kind, let command = activeCommand {
