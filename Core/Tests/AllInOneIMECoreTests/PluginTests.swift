@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -59,7 +60,7 @@ struct PluginTests {
     }
 
     @Test func storeLoadsPluginsAndNoticesChangedFiles() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("plugins-\(UUID().uuidString)")
+        let root = TestScratch.temporary("plugins-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let fm = FileManager.default
         // A library plugin (with its install record) and a local one.
@@ -237,7 +238,7 @@ struct OwnTrash: TestTrait, TestScoping {
     }
 
     func provideScope(for test: Test, testCase: Test.Case?, performing function: @Sendable () async throws -> Void) async throws {
-        let trash = FileManager.default.temporaryDirectory.appendingPathComponent("trash-\(UUID().uuidString)", isDirectory: true)
+        let trash = TestScratch.temporary("trash-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: trash) }
         var platform = Platform.current
         platform.files = FolderTrashFileOps(trash: trash)
@@ -254,7 +255,7 @@ struct PluginRemovalTests {
     /// A plugins folder with a library plugin (its install record) and a local one with a file of its author's.
     func plugins() throws -> (root: URL, store: SettingsStore) {
         let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent("plugin-removal-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("plugin-removal-\(UUID().uuidString)", isDirectory: true)
         let root = folder.appendingPathComponent("plugins", isDirectory: true)
         let stock = root.appendingPathComponent("stock"), tone = root.appendingPathComponent("tone")
         try fm.createDirectory(at: stock, withIntermediateDirectories: true)

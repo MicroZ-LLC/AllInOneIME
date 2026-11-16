@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -772,7 +773,7 @@ struct QuestionChatTests {
 
     @Test func oldFilesLoadAsOneRoundAndOneRoundIsWrittenAsBefore() throws {
         let old = #"{"entries":[{"question":"q","answer":"a","date":"2026-10-01T10:00:00Z"}]}"#
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qchat-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qchat-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("recent-questions.json")

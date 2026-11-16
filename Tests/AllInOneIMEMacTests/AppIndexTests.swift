@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -7,7 +8,7 @@ struct AppIndexTests {
     let root: URL
 
     init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("AppIndexTests-\(UUID().uuidString)")
+        root = TestScratch.temporary("AppIndexTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 

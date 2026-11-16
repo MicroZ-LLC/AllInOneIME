@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -5,7 +6,7 @@ import Testing
 /// Paths that a manifest, an index or the settings give relative to a folder stay in it, on every system's terms: on
 /// Windows "\" is a separator too, and a drive or a share is a way out.
 struct PathCheckTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("bundle-\(UUID().uuidString)", isDirectory: true)
+    let folder = TestScratch.temporary("bundle-\(UUID().uuidString)", isDirectory: true)
 
     /// Out of the folder however it is spelled, on every system (here and on Windows alike).
     static let outEverywhere = ["", "..", "../x.sh", "a/../../x.sh", "a/..", "/etc/x.sh", "//server/x.sh", "\\\\server\\x.sh",

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -246,7 +247,7 @@ struct InlineCodeTests {
 
     @Test(.enabled(if: !InlineCodeTests.pythons.isEmpty)) func pythonIgnoresLookalikeModulesInTheWorkingDirectory() throws {
         let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent("inline-code-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("inline-code-\(UUID().uuidString)")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: folder) }
         for name in ["ast", "traceback"] {

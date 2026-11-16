@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CryptoKit
 import Foundation
 import Testing
@@ -218,7 +219,7 @@ struct SuggestionsTests {
     }
 
     @Test func approvalsHoldUntilThePluginChanges() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-approval-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("suggestions-approval-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try FileManager.default.copyItem(at: Self.github, to: folder.appendingPathComponent("github"))
@@ -241,7 +242,7 @@ struct SuggestionsTests {
     /// source changed since it was turned on, and it stays off, the plugin as it was again too, until turned on again. A
     /// scan without the plugin (none read, or it skipped for its minAppVersion) has nothing to compare it with: no lapse.
     @Test func aLapsedApprovalIsKeptMarkedUntilTurnedOnAgain() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-lapsed-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("suggestions-lapsed-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
@@ -408,7 +409,7 @@ struct SuggestionsTests {
     /// `run(input, ctx)` of a probe plugin with two preferences (one set, the token) through the app's child process:
     /// the input, the language and the preferences it got.
     private func runProbe(_ input: String) async throws -> String {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-run-\(UUID().uuidString)/probe", isDirectory: true)
+        let folder = TestScratch.temporary("suggestions-run-\(UUID().uuidString)/probe", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data(#"""
@@ -456,7 +457,7 @@ struct SuggestionsTests {
     /// plugins may be a little older): it may fetch only from the hosts the user approved (on standard input) that
     /// plugin.json still lists; none approved, none.
     @Test(.enabled(if: Available.javaScript)) func theChildProcessFetchesOnlyFromApprovedHosts() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-hosts-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("suggestions-hosts-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data(#"""
@@ -485,7 +486,7 @@ struct SuggestionsTests {
     /// The child process runs the script only if it is the one approved (its SHA-256 on standard input): a plugin
     /// updated between the session's check and the child's read of it fails, nothing of it run.
     @Test(.enabled(if: Available.javaScript)) func theChildProcessRunsOnlyTheScriptApproved() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-sha-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("suggestions-sha-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         try Data(#"""
@@ -521,7 +522,7 @@ struct SuggestionsTests {
     /// file outside the cache folder (beside it, on the same volume): what lists the folder meanwhile finds only the
     /// sources' files, never one half written.
     @Test func aCachedListIsWrittenFromOutsideItsFolder() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-cache-\(UUID().uuidString)")
+        let root = TestScratch.temporary("suggestions-cache-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         let cache = root.appendingPathComponent("suggestions", isDirectory: true)
         let key = CompletionSourceKey(plugin: "github", source: "issues")
@@ -553,7 +554,7 @@ struct SuggestionsTests {
     /// preferences; the switch enables it as it is now, the text preference is kept in the config; Suggestions' switch is
     /// on, and Coding Languages has no packs.
     @Test func thePluginsCompletionsAreInTheSettingsDocument() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-settings-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("suggestions-settings-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
@@ -579,7 +580,7 @@ struct SuggestionsTests {
     /// Mac, which has one), and turned off it is written as false. Off, the Code input and a plugin's source that is on say
     /// nothing of theirs shows, and where Suggestions are turned on.
     @Test func suggestionsSwitchIsInGeneral() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-general-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("suggestions-general-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)
@@ -621,7 +622,7 @@ struct SuggestionsTests {
     /// Removing a plugin (Settings → Plugins, the Mac's or the settings document's) forgets what was enabled of it, and
     /// saves that: installed again, its sources are off until enabled again. Other plugins' stay.
     @Test(OwnTrash()) func uninstallingAPluginForgetsWhatWasEnabledOfIt() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("suggestions-uninstall-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("suggestions-uninstall-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)

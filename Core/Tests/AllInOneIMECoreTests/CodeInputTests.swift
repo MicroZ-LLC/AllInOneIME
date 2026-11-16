@@ -276,7 +276,7 @@ struct CodeInputTests {
     /// of Code's language removes Code too. An app may start in Code there. Windows says its engine doesn't type in Code
     /// yet.
     @Test func theSettingsDocumentHasCodeInInput() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("code-input-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("code-input-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)

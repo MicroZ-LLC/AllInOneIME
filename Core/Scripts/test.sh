@@ -21,4 +21,11 @@ if [ "$(uname -s)" != Darwin ]; then
 fi
 export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
 export SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
-exec swift test --package-path "$root" "$@"
+base=${TMPDIR:-/tmp}
+run=$(mktemp -d "${base%/}/allinoneime-tests.XXXXXX")
+trap 'rm -rf "$run"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+status=0
+TMPDIR="$run/" swift test --package-path "$root" "$@" || status=$?
+exit "$status"

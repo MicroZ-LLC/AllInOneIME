@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -10,7 +11,7 @@ import Testing
 @Suite(.serialized, MemorySecrets())
 struct SettingsServiceTests {
     func service(_ text: String = "{}", platform: SettingsPlatform = .windows) throws -> (SettingsService, URL) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("settings-service-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("settings-service-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)

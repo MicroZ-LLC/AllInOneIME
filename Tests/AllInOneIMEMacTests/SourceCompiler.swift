@@ -31,6 +31,7 @@ public enum SourceCompiler {
         }
         arguments += ["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"]
         arguments += sources + extraObjects + (try libraryObjects(in: products)) + ["-o", executable.path]
+        Scratch.removeAtExit(executable)
         return try run(arguments, repository: repository, timeout: timeout)
     }
 
@@ -78,9 +79,15 @@ public enum SourceCompiler {
             try? handle.close()
             try? FileManager.default.removeItem(at: log)
         }
+        // swiftc's own temporary files (TemporaryDirectory.*, which it left behind) in a folder removed with the log.
+        let driverTemp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("source-compiler-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: driverTemp, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: driverTemp) }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/xcrun")
         process.arguments = arguments
+        process.environment = ProcessInfo.processInfo.environment.merging(["TMPDIR": driverTemp.path + "/"]) { $1 }
         process.currentDirectoryURL = repository
         process.standardOutput = handle
         process.standardError = handle
@@ -95,6 +102,37 @@ public enum SourceCompiler {
                                + ((try? String(contentsOf: log, encoding: .utf8)) ?? ""))
         }
         return (process.terminationStatus, (try? String(contentsOf: log, encoding: .utf8)) ?? "")
+    }
+
+    /// The folders the compiled children were written to, removed when the test process exits: each is a harness
+    /// compiled from the sources (10 to 54 MB), made once per suite and run by its tests until the end, and they were
+    /// never removed (246,000 test folders filled the Mac mini's disk, 2026-11-16). Only a folder directly in the
+    /// temporary directory, never the temporary directory itself.
+    private final class Scratch: @unchecked Sendable {
+        static let shared = Scratch()
+        private let lock = NSLock()
+        private var folders: Set<String> = []
+        private var registered = false
+
+        static func removeAtExit(_ executable: URL) {
+            let folder = executable.deletingLastPathComponent().standardizedFileURL
+            let temporary = FileManager.default.temporaryDirectory.standardizedFileURL
+            guard folder.deletingLastPathComponent().path == temporary.path, folder.path != temporary.path else { return }
+            shared.lock.lock()
+            defer { shared.lock.unlock() }
+            shared.folders.insert(folder.path)
+            if !shared.registered {
+                shared.registered = true
+                atexit { Scratch.shared.removeAll() }
+            }
+        }
+
+        private func removeAll() {
+            lock.lock()
+            let all = folders
+            lock.unlock()
+            for folder in all { try? FileManager.default.removeItem(atPath: folder) }
+        }
     }
 
     private struct CompileError: Error, CustomStringConvertible {

@@ -479,7 +479,7 @@ struct WarmingTests {
     @Test func whereARequestSucceededIsKeptLocally() throws {
         #expect(WarmOrigins.shared.file == CorePaths.cacheDir.appendingPathComponent("warm-origins.json"))
         #expect(BedrockClient(session: StubURLProtocol.session()).warmth.succeeded.file == nil)
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("warm-origins-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("warm-origins-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let file = folder.appendingPathComponent("warm-origins.json")
         let day: TimeInterval = 24 * 3600

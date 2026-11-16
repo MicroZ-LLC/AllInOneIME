@@ -8,7 +8,7 @@ import Testing
 /// question: Claude Code's process started again on a new session id, Codex and an ACP agent opening a new thread or
 /// session in the process they have.
 struct QuestionConversationTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("question-conversation-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("question-conversation-\(UUID().uuidString)")
 
     func claude(_ fake: FakeClaude) -> ClaudeSessionManager {
         ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })

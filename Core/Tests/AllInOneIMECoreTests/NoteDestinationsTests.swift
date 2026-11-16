@@ -1,4 +1,5 @@
 #if canImport(FoundationNetworking)
+import AllInOneIMETestSupport
 import FoundationNetworking
 #endif
 import Foundation
@@ -24,7 +25,7 @@ struct NoteDestinationsTests {
     }
 
     @Test func aVaultIsFoundUpTheTreeAndTheOpenURLEscapesThePath() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("note-dest-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("note-dest-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let deep = root.appendingPathComponent("a/b c/d", isDirectory: true)
         try FileManager.default.createDirectory(at: deep, withIntermediateDirectories: true)
@@ -78,7 +79,7 @@ struct NoteDestinationsTests {
     // MARK: - Writing a file: never half of one, nothing left behind
 
     private func tempFolder() throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("note-dest-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("note-dest-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }

@@ -11,7 +11,7 @@ struct OneAtMacTests {
     let root: URL
 
     init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("OneAtMacTests-\(UUID().uuidString)")
+        root = TestScratch.temporary("OneAtMacTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 

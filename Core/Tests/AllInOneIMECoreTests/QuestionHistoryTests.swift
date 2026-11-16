@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -35,7 +36,7 @@ struct QuestionHistoryTests {
     }
 
     @Test func keptInAFileOnlyTheUserReads() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)/AllInOneIME")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)/AllInOneIME")
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         let url = folder.appendingPathComponent("recent-questions.json")
         #expect(QuestionHistory.load(from: url).entries.isEmpty)  // none yet
@@ -79,7 +80,7 @@ struct QuestionHistoryTests {
     }
 
     @Test func aFileReadableByOthersIsReplacedNeverWidened() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("recent-questions.json")
@@ -99,7 +100,7 @@ struct QuestionHistoryTests {
 
     /// #59: a file that can't be read is set aside and marked for the sync, never written over; a readable one is neither.
     @Test func anUnreadableFileIsSetAsideNotWrittenOver() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("recent-questions.json")
@@ -120,7 +121,7 @@ struct QuestionHistoryTests {
     /// #59: a mark that can't be written (a full disk) leaves the unreadable file where it is, for the sync to set aside:
     /// moved unmarked, with the new file not written either, the sync would take its questions for a Clear.
     @Test func anUnreadableFileIsNotSetAsideUnmarked() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("recent-questions.json")
         let mark = QuestionHistory.setAsideMark(of: url)

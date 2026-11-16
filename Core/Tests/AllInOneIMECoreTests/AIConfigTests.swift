@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -240,7 +241,7 @@ struct AIConfigTests {
         #expect(AIConfig.failureLine(.notAllowed, proposal: only, config: config, environment: env())
                 == "✕ Apps · WeChat · Starts in: it's learned: in this app, switch with Shift before typing, twice in a row")
         // Nothing of it reaches the file.
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-removed-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-removed-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try config.write(to: url)
         _ = try AIConfig.applying(preview.edits, at: url)
@@ -406,7 +407,7 @@ struct AIConfigTests {
     // MARK: - Apply and undo
 
     @Test func applyThenUndoRestoresExactlyTheChangedKeys() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         var before = config
         before.appProfiles["com.apple.mail"] = AppProfile(suggestionsInsert: .title)
@@ -435,7 +436,7 @@ struct AIConfigTests {
     }
 
     @Test func undoIsForTenMinutes() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try config.write(to: url)
         let now = Date()
@@ -673,7 +674,7 @@ struct AIConfigTests {
     // MARK: - Sign-off review fixes
 
     func tempFile(_ text: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         try Data(text.utf8).write(to: url)
         return url
     }
@@ -702,7 +703,7 @@ struct AIConfigTests {
     }
 
     @Test func undoLeavesAKeyChangedSince() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try config.write(to: url)
         let applied = try AIConfig.applying([.flag(.typeOut, true), .candidateLayout(.vertical)], at: url)
@@ -810,7 +811,7 @@ struct AIConfigTests {
     /// writes only what it changed, down to one app's profile and one switch of hiding sensitive information: the other
     /// writer's changes stay.
     @Test func aWriteKeepsWhatAnotherWroteMeanwhile() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         var read = Config.default
         read.appProfiles = ["com.apple.mail": AppProfile(inputLanguage: .english), "com.tencent.xinWeChat": AppProfile(inputLanguage: .chinese)]
@@ -846,7 +847,7 @@ struct AIConfigTests {
     /// finds the learner's file once it has the lock and writes only what it changed: the word stays. So does a whole
     /// config written only where there is none (`Config.writeIfMissing`: the input menu's Open Config File).
     @Test func aWriteStartedWithNoFileKeepsTheFileMadeMeanwhile() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("aiconfig-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -944,7 +945,7 @@ struct AIConfigTests {
     }
 
     @Test func undoGivesTheFileBackByteForByte() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("aiconfig-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("aiconfig-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         var base = Config.default
         base.setOrder([OutputLanguage.english, .chinese])

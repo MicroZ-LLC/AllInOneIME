@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import Foundation
 import Testing
@@ -9,8 +10,7 @@ import Testing
 extension RimeEngineTests {
     @Test func learnedWordsSyncThroughASharedFolder() throws {
         _ = try RimeFixture.startup.get()
-        let shared = FileManager.default.temporaryDirectory
-            .appendingPathComponent("allinoneime-rime-sync-tests-\(ProcessInfo.processInfo.processIdentifier)/rime")
+        let shared = TestScratch.temporary("allinoneime-rime-sync-tests-\(ProcessInfo.processInfo.processIdentifier)/rime")
         try? FileManager.default.removeItem(at: shared.deletingLastPathComponent())
         defer {
             _ = try? RimeSync.setSyncDir(nil, userDataDir: RimeFixture.userData)

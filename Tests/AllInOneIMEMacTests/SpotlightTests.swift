@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -49,7 +50,7 @@ struct SpotlightTests {
         #expect(await running.value == nil)
         #expect(Date().timeIntervalSince(started) < Timing.wellBeforeLongSleep)
         // Nothing starts after that.
-        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("SpotlightTests-\(UUID().uuidString)")
+        let marker = TestScratch.temporary("SpotlightTests-\(UUID().uuidString)")
         let later = await inBackground { spotlight.mdfind(["-c", "touch '\(marker.path)'; echo late"]) }
         let each = await inBackground { spotlight.mdfind(each: [["-c", "touch '\(marker.path)'"]]) }
         #expect(later == nil && each == nil && !FileManager.default.fileExists(atPath: marker.path))
