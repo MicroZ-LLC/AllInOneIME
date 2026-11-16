@@ -178,37 +178,25 @@ public struct FieldReading {
 
 /// The text around the caret in a field, as it tells it through IMK (`FieldText`: `@reply`'s context, autocomplete's,
 /// Code's words, a snippet's indentation).
-public enum FieldTextReading {
+extension FieldTextReading {
     /// The text around the caret, up to `before` characters before it and `after` after it, for `purpose` (the log's),
-    /// without the draft: past the selection or the marked text. None during secure input (`secureInputActive`), in a
-    /// terminal (its text isn't being edited), nor in a field that tells no length, or no selection or marked text to
-    /// read around. In a password manager it is read only for what stays on this Mac (Code's words, a snippet's
-    /// indentation): the session never asks for it for `@reply` there (`InputSession.fieldWants`, `FieldInfo.textStaysHere`).
+    /// without the draft: past the selection or the marked text (`read(_:before:after:substring:)`). None during secure
+    /// input (`secureInputActive`) or in a terminal (its text isn't being edited). In a password manager it is read only
+    /// for what stays on this Mac (Code's words, a snippet's indentation): the session never asks for it for `@reply`
+    /// there (`InputSession.fieldWants`, `FieldInfo.textStaysHere`).
     @MainActor
     public static func read(from target: IMKTextInput?, before beforeLimit: Int, after afterLimit: Int, purpose: String,
                             secureInputActive: () -> Bool, isTerminal: (String?) -> Bool) -> FieldText? {
         guard !secureInputActive(), let target, !isTerminal(target.bundleIdentifier()) else { return nil }
-        let length = target.length()
-        guard length > 0, length != NSNotFound else { return nil }
-        let marked = target.markedRange(), selected = target.selectedRange()
-        let around: NSRange
-        if marked.location != NSNotFound, marked.length > 0 {
-            around = marked
-        } else if selected.location != NSNotFound, selected.length != NSNotFound {
-            around = selected
-        } else {
+        let signals = Signals(length: target.length(), selected: target.selectedRange(), marked: target.markedRange())
+        guard let text = read(signals, before: beforeLimit, after: afterLimit,
+                              substring: { target.attributedSubstring(from: $0)?.string }) else {
+            // Lengths only: what it told, for a field that turns out unreadable where it shouldn't.
+            let caret = signals.selected.location == NSNotFound ? "none" : String(signals.selected.location)
+            fieldLog.notice("field text can't be read for \(purpose, privacy: .public) (length \(signals.length), caret \(caret, privacy: .public))")
             return nil
         }
-        // UTF-16 units, twice the characters kept: an emoji or a rare character takes two.
-        let (span, afterSpan) = (beforeLimit * 2, afterLimit * 2)
-        let start = min(around.location, length)
-        let end = min(NSMaxRange(around), length)
-        let beforeRange = NSRange(location: max(0, start - span), length: start - max(0, start - span))
-        let afterRange = NSRange(location: end, length: min(afterSpan, length - end))
-        let before = beforeRange.length > 0 ? target.attributedSubstring(from: beforeRange)?.string ?? "" : ""
-        let after = afterRange.length > 0 ? target.attributedSubstring(from: afterRange)?.string ?? "" : ""
-        guard !before.isEmpty || !after.isEmpty else { return nil }
-        fieldLog.notice("field text read for \(purpose, privacy: .public) (\(before.count) + \(after.count) characters)")
-        return FieldText(before: before, after: after)
+        fieldLog.notice("field text read for \(purpose, privacy: .public) (\(text.before.count) + \(text.after.count) characters)")
+        return text
     }
 }
