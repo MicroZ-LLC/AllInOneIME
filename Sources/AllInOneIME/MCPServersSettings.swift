@@ -113,8 +113,8 @@ final class MCPServerLister: ObservableObject {
     /// The servers in `agent`'s config, then the tools of the ones checked (`refreshing`) listed again.
     func load(_ agent: SessionAgent, refreshing: [String], save: @escaping (String, [String]) -> Void) async {
         guard MCPServers.supports(agent) else { return }
-        let environment = ClaudeSessionMac.environment(agent)
-        servers = await Task.detached { MCPServers.found(agent, environment: environment) }.value
+        // The login shell's environment off the main thread: it may wait for the shell (`ShellEnvironment`).
+        servers = await Task.detached { MCPServers.found(agent, environment: ClaudeSessionMac.environment(agent)) }.value
         loaded = true
         for server in servers where refreshing.contains(server.name) { await list(server, save: save) }
     }
@@ -148,7 +148,7 @@ final class MCPServerLister: ObservableObject {
         switch error {
         case let .notFound(command): return tr("找不到 \(command)", "\(command) not found")
         case .timedOut: return tr("列出工具超时", "Listing its tools timed out")
-        case .signInNeeded: return tr("它要先登录：在 agent 里登录后再试", "It needs a sign-in: sign in from the agent, then try again")
+        case .signInNeeded: return tr("它要登录，这种服务器暂不支持", "It needs a sign-in: such servers aren't supported yet")
         case .unsupported: return tr("这种连接方式（SSE）暂不支持", "This connection (SSE) isn't supported yet")
         case .failed: return tr("没能列出它的工具", "Couldn't list its tools")
         }

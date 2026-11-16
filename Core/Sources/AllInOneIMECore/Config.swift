@@ -331,7 +331,8 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles: [String] = RewriteStyle.defaultNames,
         outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
         inputLanguages: [Language] = [.english], defaultInput: Language = .english,
-        voiceInput: Bool = true, jargonFile: String? = nil, actionKey: ActionKey = .enter, uiLanguage: String? = nil, customCommands: [CustomCommand] = [],
+        voiceInput: Bool = true, jargonFile: String? = nil,
+        actionKey: ActionKey = .enter, uiLanguage: String? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
         gemini: ProviderSettings = ProviderSettings(), openai: ProviderSettings = ProviderSettings()
     ) {
@@ -500,12 +501,8 @@ public struct Config: Codable, Equatable, Sendable {
         claudeInBackground = try c.decodeIfPresent(Bool.self, forKey: .claudeInBackground) ?? d.claudeInBackground
         rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         questionRounds = QuestionChat.rounds((try? c.decodeIfPresent(Int.self, forKey: .questionRounds)).flatMap { $0 } ?? d.questionRounds)
-        // Names this version doesn't know (a service a later one added) are left out, not an error.
-        questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?.compactMap(ChatHandoff.Destination.init(rawValue:))
-        // One this version doesn't know (a later one's), and 0.7.4's "provider", are none: the AI is the provider.
-        // Gemini CLI's session (0.7.4's earlier builds) is Antigravity's (`QuestionBackend.init(file:)`).
-        questionBackend = (try? c.decodeIfPresent(String.self, forKey: .questionBackend)).flatMap { $0 }
-            .flatMap(QuestionBackend.init(file:)).flatMap { $0 == .provider ? nil : $0 }
+        questionContinueIn = Self.questionContinueIn(in: c)
+        questionBackend = Self.questionBackend(in: c)
         sessionMCP = (try? c.decodeIfPresent([String: [String: [String]]].self, forKey: .sessionMCP)).flatMap { $0 } ?? [:]
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])

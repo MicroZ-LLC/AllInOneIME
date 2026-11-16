@@ -18975,49 +18975,49 @@
         }
       }
     },
-    "It needs a sign-in: sign in from the agent, then try again" : {
-      "comment" : "它要先登录：在 agent 里登录后再试 — Sources/AllInOneIME/MCPServersSettings.swift",
+    "It needs a sign-in: such servers aren't supported yet" : {
+      "comment" : "它要登录，这种服务器暂不支持 — Sources/AllInOneIME/MCPServersSettings.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Er braucht eine Anmeldung: im Agent anmelden und erneut versuchen"
+            "value" : "Er braucht eine Anmeldung: solche Server werden noch nicht unterstützt"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Necesita iniciar sesión: inicia sesión desde el agente y vuelve a intentarlo"
+            "value" : "Necesita iniciar sesión: estos servidores aún no son compatibles"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Il faut se connecter : connectez-vous depuis l’agent, puis réessayez"
+            "value" : "Il demande une connexion : ces serveurs ne sont pas encore pris en charge"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サインインが必要です。agent でサインインしてから、もう一度お試しください"
+            "value" : "サインインが必要です。このようなサーバーにはまだ対応していません"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "로그인이 필요합니다. agent에서 로그인한 뒤 다시 시도하세요"
+            "value" : "로그인이 필요합니다. 이런 서버는 아직 지원하지 않습니다"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "É preciso entrar: entre pelo agente e tente de novo"
+            "value" : "Ele pede login: esses servidores ainda não são compatíveis"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "它要先登入：在 agent 裡登入後再試"
+            "value" : "它要登入，這種伺服器暫不支援"
           }
         }
       }

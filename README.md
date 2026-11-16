@@ -282,7 +282,7 @@ extensions, plugins or apps, or start other agents, and it asks you for nothing;
 Code's `.claude.json`, Codex's `config.toml`, Kiro's `~/.kiro/settings/mcp.json`; only read), none checked at first, and a
 server checked gives the session its **read-only** tools only (a tool whose `readOnlyHint` is true; one that sends,
 writes or changes anything, or doesn't say, is never given), listed as you check it and each time the page shows,
-saved as `sessionMCP` in the config (this Mac's own, never synced); only the servers checked start, with the web tools
+saved as `sessionMCP` in the config (this Mac's own, never synced; the read-only tools as last listed, so a server whose tools changed is listed again as the page shows); only the servers checked start, with the web tools
 open only (Claude Code:
 `--tools WebSearch,WebFetch`; Codex: no environment for commands and files, `CODEX_EXEC_SERVER_URL=none`, with its MCP
 servers, apps and agents turned off; Antigravity: an agent with its web search (`search_web`) alone and no MCP servers,
