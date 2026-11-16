@@ -16,8 +16,11 @@ public enum TestScratch {
         remember(FileManager.default.temporaryDirectory.appendingPathComponent(name, isDirectory: isDirectory))
     }
 
+    /// Remembers the first folder under the temporary directory (`library-<UUID>` of `library-<UUID>/plugins`), so
+    /// the whole of what the test made goes.
     private static func remember(_ url: URL) -> URL {
-        Registry.shared.add(url)
+        let top = url.pathComponents.dropFirst(FileManager.default.temporaryDirectory.pathComponents.count).first
+        Registry.shared.add(top.map { FileManager.default.temporaryDirectory.appendingPathComponent($0) } ?? url)
         return url
     }
 

@@ -1,5 +1,5 @@
-#if canImport(FoundationNetworking)
 import AllInOneIMETestSupport
+#if canImport(FoundationNetworking)
 import FoundationNetworking
 #endif
 import Foundation
