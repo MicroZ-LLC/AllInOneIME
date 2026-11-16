@@ -3028,7 +3028,7 @@ public final class Composer {
     private func handleLevelTwo(_ event: KeyEvent) -> Response {
         refineError = nil
         if let response = handleModeTranslatingKey(event) { return response }
-        if let response = handleChatReturn(event) { return response }
+        if let response = handleChatKey(event) { return response }
         if let response = handleRefineKey(event) { return response }
         switch event.key {
         case .space:
@@ -3058,8 +3058,8 @@ public final class Composer {
             }
             return .consumed(commitChoice(at: highlighted))
         case .escape, .backspace:
-            // Where a conversation can go on, shown with ⌘⏎ before its last round: hidden again (at the last round it
-            // stays, and Esc goes back a round).
+            // Where a conversation can go on, shown with ⌘⏎ before its last round: ⌫ hides it again (at the last
+            // round it stays, and ⌫ goes back a round). Esc never gets here in a conversation: it closes (`handleChatKey`).
             if handoffRequested, !chatAtLimit, phase == .choosing {
                 handoffRequested = false
                 return .consumed([.showPanel])
@@ -3095,17 +3095,6 @@ public final class Composer {
         return .consumed(back + next.effects)
     }
 
-    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
-    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
-    private func handleChatReturn(_ event: KeyEvent) -> Response? {
-        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
-        switch event.modifiers.subtracting(.capsLock) {
-        case []: return .consumed(continueChat())
-        case .shift: return .consumed(commitChoice(at: highlighted))
-        default: return nil
-        }
-    }
-
     /// Keys while AI results can be refined (`canRefine`), or an @question conversation goes on (`isQuestionChat`: the
     /// line is the next question). A letter starts the line (pinyin through the engine, its candidates shown on a line of
     /// their own beside the results, Space and digits picking them, ↑↓ still moving among the results), in Zhuyin any
@@ -3115,7 +3104,8 @@ public final class Composer {
     /// does what it did: digits pick, Space and ⏎ insert, ↑↓ Tab move, Esc and ⌫ go back, ⇧⏎ inserts as typed. While a
     /// refine runs the same keys write the next step's line (the running request goes on), except that ⇧⏎ only converts
     /// pinyin (it is sent once the results are in) and Esc goes back to the results before the running refine, as
-    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts (`handleChatReturn`, before this). Nil: the key acts
+    /// always. In a conversation ⏎ sends the line and ⇧⏎ inserts, Esc closes the panel at once whatever is typed, and
+    /// Space with the line empty does nothing (`handleChatKey`, before this). Nil: the key acts
     /// as usual.
     private func handleRefineKey(_ event: KeyEvent) -> Response? {
         guard typesRefine else { return nil }
@@ -3920,7 +3910,7 @@ public final class Composer {
         }
     }
 
-    private func commitChoice(at index: Int) -> [Effect] {
+    func commitChoice(at index: Int) -> [Effect] {
         let all = choices
         guard all.indices.contains(index), all[index].isComplete else { return [] }
         if case let .issue(url) = all[index].kind, let command = activeCommand {

@@ -467,18 +467,19 @@ struct QuestionChatAcceptanceTests {
         #expect(rig.c.chatRounds.last?.question == "你好")
     }
 
-    /// CHANGE 1: Space while typing is a space in the question; Space with nothing typed inserts the selected answer.
-    @Test func keys_spaceIsASpaceWhileTypingAndInsertsWithNothingTyped() async throws {
+    /// CHANGE 1: Space while typing is a space in the question. Owner 2026-11-15 (superseding "Space with nothing typed
+    /// inserts"): with nothing typed Space does nothing; only ⇧⏎ inserts.
+    @Test func keys_spaceIsASpaceWhileTypingAndDoesNothingWithNothingTyped() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
         await rig.type("who made")
         await rig.key(spaceKey)
         await rig.type("it")
         #expect(rig.c.refineLine == "who made it" && rig.committed.isEmpty)
-        await rig.key(escKey)  // clears it
+        for _ in "who made it" { await rig.key(backspaceKey) }  // deleted again (Esc would close)
         #expect(rig.c.isLevelTwo && rig.committed.isEmpty)
         await rig.key(spaceKey)
-        #expect(rig.committed == [qcAnswer("what is rust")] && !rig.c.isComposing)
+        #expect(rig.committed.isEmpty && rig.c.isQuestionChat && rig.requestCount == 1)
     }
 
     /// ⇧⏎ inserts the selected answer even with a follow-up half typed, which is dropped (nothing asked).
@@ -585,39 +586,19 @@ struct QuestionChatAcceptanceTests {
 
     // MARK: Esc
 
-    /// Esc: the text typed is cleared first, then the choices (⌘⏎) are hidden, then a round goes (the last Q and A are
-    /// dropped, and not sent again), and at round 1 the conversation is left as before (back to the question's text).
-    @Test func esc_clearsTheTextThenHidesTheChoicesThenGoesBackARoundThenLeaves() async throws {
+    /// Owner 2026-11-15 (superseding "Esc clears the text, hides the choices, then goes back a round"): Esc closes the
+    /// panel at any round, whatever is typed, and leaves nothing in the field; the conversation stays saved as it was.
+    @Test func esc_closesAtAnyRoundLeavingNothing() async throws {
         let rig = QCRig()
         await rig.converse(3)
         await rig.key(qcCommandReturn)
         #expect(rig.c.showsHandoff)
         await rig.type("more")
         #expect(rig.c.refineLine == "more")
-        // 1. The text.
         await rig.key(escKey)
-        #expect(rig.c.refineText.isEmpty && rig.c.chatRound == 3)
-        #expect(rig.c.showsHandoff, "Esc with text typed only clears it")
-        // 2. The choices.
-        await rig.key(escKey)
-        #expect(!rig.c.showsHandoff && rig.c.chatRound == 3 && rig.c.isQuestionChat)
-        // 3. A round back: the latest answer is round 2's, selected.
-        await rig.key(escKey)
-        #expect(rig.c.chatRound == 2 && rig.c.chatRounds.map(\.question) == ["q1", "q2"])
-        #expect(rig.c.choices.map(\.text) == [qcAnswer("q1"), qcAnswer("q2")] && rig.selected == qcAnswer("q2"))
-        await rig.key(escKey)
-        #expect(rig.c.chatRound == 1 && rig.c.chatRounds.map(\.question) == ["q1"] && rig.c.isLevelTwo)
-        // The round dropped isn't sent with the next question.
-        await rig.followUp("q2b")
-        let last = try #require(rig.requests.last)
-        #expect(last.messages.map(\.text) == ["q1", qcAnswer("q1"), "q2b"])
-        // The saved thread is the conversation as it now is (the saved-answer-replaces rule).
-        #expect(rig.saved.entries.map { $0.thread.map(\.question) } == [["q1", "q2b"]])
-        await rig.key(escKey)
-        // 4. At round 1: left, back to the question as typed; nothing inserted, nothing asked.
-        await rig.key(escKey)
-        #expect(!rig.c.isLevelTwo && rig.c.draft == "@question q1")
-        #expect(rig.committed.isEmpty && rig.requestCount == 4)
+        #expect(!rig.c.isLevelTwo && !rig.c.isComposing && rig.c.draft.isEmpty)
+        #expect(rig.committed.isEmpty && rig.requestCount == 3)
+        #expect(rig.saved.entries.map { $0.thread.map(\.question) } == [["q1", "q2", "q3"]])
     }
 
     // MARK: The requests
@@ -868,11 +849,11 @@ struct QuestionChatAcceptanceTests {
         #expect(digits.committed == [qcAnswer("q2")] && digits.opened.isEmpty && digits.copied.isEmpty)
     }
 
-    /// limit: Esc at the limit goes back a round, where questions can be asked again.
-    @Test func limit_escAtTheLimitGoesBackARound() async throws {
+    /// limit: ⌫ at the limit goes back a round, where questions can be asked again (Esc closes: owner 2026-11-15).
+    @Test func limit_backspaceAtTheLimitGoesBackARound() async throws {
         let rig = QCRig()
         await rig.converse(5)
-        await rig.key(escKey)
+        await rig.key(backspaceKey)
         #expect(rig.c.chatRound == 4 && !rig.c.showsHandoff)
         await rig.followUp("q5b")
         #expect(rig.requestCount == 6 && rig.c.chatRound == 5 && rig.c.showsHandoff)
@@ -928,7 +909,7 @@ struct QuestionChatAcceptanceTests {
     // MARK: Continuing elsewhere
 
     /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌘1–⌘9 pick one while they're shown; digits still
-    /// pick answers; Esc hides them.
+    /// pick answers; ⌫ hides them (Esc closes: owner 2026-11-15).
     @Test func handoff_commandReturnOpensTheChoicesAtAnyRound() async throws {
         let rig = QCRig()
         await rig.ask("what is rust")
@@ -939,7 +920,7 @@ struct QuestionChatAcceptanceTests {
         await rig.key(qcCommandReturn)
         #expect(rig.c.showsHandoff && rig.requestCount == 1 && rig.committed.isEmpty)
         #expect(rig.c.handoffChoices.contains(.copy))
-        await rig.key(escKey)
+        await rig.key(backspaceKey)
         #expect(!rig.c.showsHandoff && rig.c.isQuestionChat)
         await rig.key(qcCommandReturn)
         // Copy, by its number among the choices.
