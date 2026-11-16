@@ -1324,6 +1324,11 @@ with a button that opens Keyboard settings): System Settings → Keyboard → Te
 to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings →
 Keyboard). An update, or installing again, keeps it in your input sources.
 
+On a fresh install, the installer's last button opens a short start, once: switch to AllInOneIME (it goes on by itself
+when you have), connect an AI (sign in to AllInOneIME Cloud, or Later; your own AI is on Settings → AI), then try one @
+in a field there: after the magic key you type anything and pick what to do (a sum, a time, an app as examples). Done,
+Skip or closing it ends it for good. An update opens Settings.
+
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
 Updating: Settings → About → Check for Updates. When there's a new version, About says so (and a line in the menu bar panel),

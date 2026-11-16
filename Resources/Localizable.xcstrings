@@ -5575,6 +5575,53 @@
         }
       }
     },
+    "After %@, type what you want" : {
+      "comment" : "%@ 后面，想说什么就打什么 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach %@ tippst du, was du willst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de %@, escribe lo que quieras"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après %@, tapez ce que vous voulez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のあとは、言いたいことをそのまま入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 뒤에는 하고 싶은 말을 그대로 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depois de %@, digite o que quiser"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 後面，想說什麼就打什麼"
+          }
+        }
+      }
+    },
     "After the languages, a press of Caps Lock away: rows of this language's keywords and snippets" : {
       "comment" : "在输入语言后面，按大写锁定键切到它：列出这种编程语言的关键字和代码片段 — Sources/AllInOneIME/CodeInputSettings.swift",
       "localizations" : {
@@ -6757,6 +6804,53 @@
         }
       }
     },
+    "Already have your own AI?" : {
+      "comment" : "已经有自己的 AI？ — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du schon eine eigene KI?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Ya tienes tu propia IA?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous avez déjà votre propre IA ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の AI をもう持っていますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미 쓰는 AI가 있나요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Já tem sua própria IA?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經有自己的 AI？"
+          }
+        }
+      }
+    },
     "Also delete the %@ language pack?" : {
       "comment" : "也删除%@语言包？ — Sources/AllInOneIME/SettingsWindow.swift",
       "extractionState" : "stale",
@@ -7136,6 +7230,53 @@
         }
       }
     },
+    "API Key" : {
+      "comment" : "API Key — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé d’API"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API キー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chave de API"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Key"
+          }
+        }
+      }
+    },
     "API keys and passwords" : {
       "comment" : "API 密钥和密码 — Sources/AllInOneIME/ICloudSyncSettings.swift",
       "extractionState" : "stale",
@@ -7274,6 +7415,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "API 金鑰和密碼會留在 iCloud 鑰匙圈中供你的其他 Mac 使用（也會拷貝到這台 Mac 上）；若要從你所有的 Mac 上移除某個金鑰，請在同步開啟時按該金鑰的「移除⋯」。"
+          }
+        }
+      }
+    },
+    "Apple on this Mac" : {
+      "comment" : "这台 Mac 上的 Apple — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac の Apple"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 上的 Apple"
           }
         }
       }
@@ -12406,6 +12594,53 @@
         }
       }
     },
+    "Connect an AI" : {
+      "comment" : "接上 AI — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine KI verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecta una IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecter une IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI につなぐ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 연결하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecte uma IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接上 AI"
+          }
+        }
+      }
+    },
     "Connecting…" : {
       "comment" : "正在连接… — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -16613,6 +16848,53 @@
         }
       }
     },
+    "Get started with AllInOneIME" : {
+      "comment" : "开始使用 AllInOneIME — Sources/AllInOneIME/StartWindow.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erste Schritte mit AllInOneIME"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empieza con AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bien démarrer avec AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME をはじめる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 시작하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comece a usar o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始使用 AllInOneIME"
+          }
+        }
+      }
+    },
     "Git address" : {
       "comment" : "Git 地址 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -17561,6 +17843,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入語言"
+          }
+        }
+      }
+    },
+    "Input source now: " : {
+      "comment" : "现在的输入法： — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Eingabequelle: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuente de entrada actual: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source de saisie actuelle : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の入力ソース："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 입력 소스: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fonte de entrada atual: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在的輸入法："
           }
         }
       }
@@ -19652,6 +19981,53 @@
         }
       }
     },
+    "Later" : {
+      "comment" : "稍后再说 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Später"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más tarde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus tard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あとで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais tarde"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後再說"
+          }
+        }
+      }
+    },
     "Learned" : {
       "comment" : "学到的内容 — Sources/AllInOneIME/SettingsSearch.swift",
       "localizations" : {
@@ -21538,6 +21914,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "還沒有指令"
+          }
+        }
+      }
+    },
+    "No commands to remember. Once you've typed, it lists what it can do; ↑↓ choose one, Return does it. Try it below." : {
+      "comment" : "不用记命令。打完它会列出能帮你做的事，↑↓ 选一个，回车执行。在下面试一次。 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Befehle zum Merken. Nach dem Tippen zeigt es, was es tun kann; ↑↓ wählen, Return führt aus. Probier es unten aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay comandos que recordar. Al escribir, muestra lo que puede hacer; ↑↓ eligen uno y Retorno lo hace. Pruébalo abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune commande à retenir. Une fois que vous avez tapé, il liste ce qu’il peut faire ; ↑↓ pour choisir, Retour pour le faire. Essayez ci-dessous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドを覚える必要はありません。入力すると、できることが一覧になります。↑↓ で選び、Return で実行。下で試してみてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "외울 명령은 없습니다. 입력하면 할 수 있는 일이 나열됩니다. ↑↓로 고르고 Return으로 실행하세요. 아래에서 한번 해 보세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum comando para decorar. Depois de digitar, ele lista o que pode fazer; ↑↓ escolhem, Return executa. Experimente abaixo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用記命令。打完它會列出能幫你做的事，↑↓ 選一個，Return 執行。在下面試一次。"
           }
         }
       }
@@ -26932,8 +27355,56 @@
         }
       }
     },
+    "Press Control + Space, or choose AllInOneIME in the Input menu in the menu bar. Once you have, this goes on by itself." : {
+      "comment" : "按 Control + 空格，或在菜单栏的输入法菜单里选 AllInOneIME。切过去以后，这里自己往下走。 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drück Control + Leertaste oder wähle AllInOneIME im Eingabemenü der Menüleiste. Danach geht es hier von selbst weiter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Control + Espacio o elige AllInOneIME en el menú de entrada de la barra de menús. Después, esto sigue solo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur Contrôle + Espace, ou choisissez AllInOneIME dans le menu Saisie de la barre des menus. Ensuite, ceci continue tout seul."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control + Space を押すか、メニューバーの入力メニューで AllInOneIME を選んでください。切り替えると、ここは自動で次に進みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control + Space를 누르거나 메뉴 막대의 입력 메뉴에서 AllInOneIME를 고르세요. 바꾸면 여기는 저절로 다음으로 넘어갑니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Control + Espaço ou escolha AllInOneIME no menu de entrada da barra de menus. Depois disso, isto continua sozinho."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Control + 空白鍵，或在選單列的輸入法選單裡選 AllInOneIME。切過去以後，這裡自己往下走。"
+          }
+        }
+      }
+    },
     "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
       "comment" : "按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。 — Sources/AllInOneIMEInstaller/main.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26975,6 +27446,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 Ctrl+Space 切換到它，然後在任何文字欄位中輸入 @improve。第一次使用時，請登入 AllInOneIME Cloud（每天 200 次免費要求）；或者在支援 Apple Intelligence 的 Mac 上，不需帳號即可使用它。"
+          }
+        }
+      }
+    },
+    "Press Ctrl+Space to switch to it. In any text field, type @, then whatever you want, and pick what to do from the list; Return does it. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
+      "comment" : "按 Ctrl+空格 切换到它。在任意输入框里先打 @，后面想说什么就打什么，再从列出的事里选一个，回车执行。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。 — Sources/AllInOneIMEInstaller/Installer.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wechsle mit Ctrl+Leertaste zu ihm. Tippe in einem beliebigen Textfeld @, dann, was du willst, und wähle in der Liste, was geschehen soll; Return führt es aus. Melde dich beim ersten Mal bei AllInOneIME Cloud an (200 kostenlose Anfragen pro Tag) oder nutze es auf einem Mac mit Apple Intelligence ohne Konto."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Ctrl+Espacio para cambiar a él. En cualquier campo de texto, escribe @, luego lo que quieras, y elige qué hacer en la lista; Retorno lo hace. La primera vez, inicia sesión en AllInOneIME Cloud (200 solicitudes gratis al día) o, en un Mac con Apple Intelligence, úsalo sin cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur Ctrl+Espace pour y passer. Dans n’importe quel champ de texte, tapez @, puis ce que vous voulez, et choisissez quoi faire dans la liste ; Retour le fait. La première fois, connectez-vous à AllInOneIME Cloud (200 requêtes gratuites par jour) ou, sur un Mac avec Apple Intelligence, utilisez-le sans compte."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Space で切り替えます。どの入力欄でも @ を打ち、続けて言いたいことを入力して、一覧からやりたいことを選びます。Return で実行。初回は AllInOneIME Cloud にサインイン（1 日 200 回まで無料）。Apple Intelligence に対応した Mac なら、アカウントなしでも使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Space로 전환하세요. 아무 입력란에서나 @를 입력하고, 이어서 원하는 말을 입력한 뒤 목록에서 할 일을 고르세요. Return으로 실행합니다. 처음에는 AllInOneIME Cloud에 로그인하세요(하루 200회 무료). Apple Intelligence를 지원하는 Mac에서는 계정 없이도 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Ctrl+Espaço para mudar para ele. Em qualquer campo de texto, digite @, depois o que quiser, e escolha o que fazer na lista; Return executa. Na primeira vez, entre no AllInOneIME Cloud (200 solicitações grátis por dia) ou, num Mac com Apple Intelligence, use-o sem conta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Ctrl+空白鍵 切換到它。在任意輸入框裡先打 @，後面想說什麼就打什麼，再從列出的事裡選一個，Return 執行。第一次用時登入 AllInOneIME 雲（每天 200 次免費）；在支援 Apple Intelligence 的 Mac 上也可以用它，不用帳號。"
           }
         }
       }
@@ -32001,6 +32519,53 @@
         }
       }
     },
+    "Sign in for 200 free requests a day, with no AWS or API key of your own." : {
+      "comment" : "登录后每天免费 200 次，不用自己的 AWS 或 API Key。 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich an für 200 kostenlose Anfragen pro Tag, ohne eigenes AWS oder eigenen API-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión y tendrás 200 solicitudes gratis al día, sin AWS ni clave de API propios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous pour 200 requêtes gratuites par jour, sans AWS ni clé d’API à vous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインすると 1 日 200 回まで無料。自分の AWS や API キーは要りません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인하면 하루 200회 무료입니다. 직접 AWS나 API 키를 준비할 필요가 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entre e tenha 200 solicitações grátis por dia, sem AWS ou chave de API próprias."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後每天免費 200 次，不用自己的 AWS 或 API Key。"
+          }
+        }
+      }
+    },
     "Sign in with Google" : {
       "comment" : "用 Google 登录 — Sources/AllInOneIME/SettingsWindow.swift",
       "localizations" : {
@@ -32279,6 +32844,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SiliconFlow"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "comment" : "跳过上手 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überspringen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "건너뛰기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pular"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳過上手"
           }
         }
       }
@@ -33554,6 +34166,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補充內建詞庫；檔案需直接包含文字、拼音編碼和可選的數字權重，不支援依賴其他詞庫。再次匯入相同 name 會更新副本；只修改原檔案不會自動更新。副本只留在這台 Mac 上，不透過 iCloud 同步或傳給 AI。移除後已學到的詞會保留。"
+          }
+        }
+      }
+    },
+    "Switch to AllInOneIME" : {
+      "comment" : "先切到 AllInOneIME — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu AllInOneIME wechseln"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia a AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer à AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まず AllInOneIME に切り替える"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 AllInOneIME로 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mude para o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先切到 AllInOneIME"
           }
         }
       }
@@ -37531,6 +38190,53 @@
         }
       }
     },
+    "Try it" : {
+      "comment" : "试一试 — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausprobieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pruébalo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essayer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試してみる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "해 보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Experimente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試一試"
+          }
+        }
+      }
+    },
     "Type a few letters and the English words they start (yours, your jargon list's and %@ common ones) come up among pinyin's candidates: bedr → Bedrock." : {
       "comment" : "打几个字母，以它们开头的英文词（你的、黑话库里的和 %@ 个常用词）就出现在拼音的候选里：bedr → Bedrock。 — Sources/AllInOneIME/EnglishWordsSettings.swift",
       "localizations" : {
@@ -40514,6 +41220,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的設定、行話詞庫、自訂指令和拼音學到的詞，在你所有的 Mac 上都一樣。只透過你自己的 iCloud 雲碟：不會傳送到我們的伺服器，也不需要另外登入。"
+          }
+        }
+      }
+    },
+    "Your subscription (Claude Code…)" : {
+      "comment" : "你的订阅（Claude Code 等） — Sources/AllInOneIME/StartView.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Abo (Claude Code …)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu suscripción (Claude Code…)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre abonnement (Claude Code…)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分のサブスクリプション（Claude Code など）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 구독(Claude Code 등)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua assinatura (Claude Code…)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訂閱（Claude Code 等）"
           }
         }
       }

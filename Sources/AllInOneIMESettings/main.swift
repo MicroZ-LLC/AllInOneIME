@@ -46,12 +46,19 @@ guard let url else {
             "The AllInOneIME input method isn't installed (in ~/Library/Input Methods)."))
 }
 
+// The installer after a fresh install asks for the start (#122): the input method shows it once, else Settings.
+let start = CommandLine.arguments.contains("--start")
 let configuration = NSWorkspace.OpenConfiguration()
-configuration.arguments = ["--settings"]
+configuration.arguments = [start ? "--start" : "--settings"]
 configuration.activates = true
 // macOS 14+ cooperative activation: hand our activation to the input method so its window can
 // come to the front.
 NSApp.yieldActivation(toApplicationWithBundleIdentifier: inputMethodID)
+// One running already gets no arguments, only a reopen: it is told to show the start first (`StartWindow.showNotification`).
+if start {
+    DistributedNotificationCenter.default().postNotificationName(Notification.Name("com.allinoneime.inputmethod.showStart"),
+                                                                 object: nil, userInfo: nil, deliverImmediately: true)
+}
 NSWorkspace.shared.openApplication(at: url, configuration: configuration) { _, error in
     DispatchQueue.main.async {
         if let error { fail(error.localizedDescription) }
