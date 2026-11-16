@@ -104,3 +104,17 @@ struct SessionMCPReviewTests {
         #expect(mcp.claudeTools == ["mcp__my_docs__search"])
     }
 }
+
+struct SessionMCPThirdReviewTests {
+    @Test func aMultiLineStringIsSkipped() {
+        let servers = MCPServers.fromTOML(#"""
+            notes = """
+            a [ that never closes
+            [mcp_servers.fake]
+            """
+            [mcp_servers.real]
+            command = "npx"
+            """#)
+        #expect(servers.map(\.name) == ["real"])
+    }
+}

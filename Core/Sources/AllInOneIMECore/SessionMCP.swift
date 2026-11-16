@@ -217,8 +217,11 @@ enum TOMLLine {
     /// The file's lines without blanks and comment lines, a value whose `[` or `{` closes on a later line (an array
     /// written one item a line) joined into one.
     static func logicalLines(_ text: String) -> [String] {
-        var lines: [String] = [], pending = ""
+        var lines: [String] = [], pending = "", multiline: String?
         for raw in text.components(separatedBy: .newlines) {
+            // A multi-line string (`"""`, `'''`) is skipped, its key with it: no server's entry is written so.
+            if let open = multiline { if raw.contains(open) { multiline = nil }; continue }
+            if let open = ["\"\"\"", "'''"].first(where: { raw.components(separatedBy: $0).count == 2 }) { multiline = open; continue }
             let line = withoutComment(raw).trimmingCharacters(in: .whitespaces)
             if line.isEmpty { continue }
             pending += pending.isEmpty ? line : " " + line

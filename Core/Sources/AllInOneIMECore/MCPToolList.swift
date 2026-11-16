@@ -39,10 +39,13 @@ public enum MCPToolListError: Error, Equatable, Sendable {
 /// `initialize`, then `tools/list` (every page), then stopped. Never while typing; nothing it lists is called.
 public enum MCPToolList {
     public static let timeout: Duration = .seconds(20)
+    /// No cookies kept, and no redirect to another host: the headers of the agent's config (a token) go to the server's
+    /// own address only.
+    public static let session = URLSession(configuration: .ephemeral, delegate: SameHostRedirects(), delegateQueue: nil)
     static let protocolVersion = "2025-06-18"
 
     public static func list(_ server: MCPServer, processes: any ProcessLauncher = Platform.current.processes,
-                            session: URLSession = .shared, timeout: Duration = MCPToolList.timeout) async throws -> [MCPTool] {
+                            session: URLSession = MCPToolList.session, timeout: Duration = MCPToolList.timeout) async throws -> [MCPTool] {
         switch server.transport {
         case let .stdio(command, args, env):
             return try await stdio(command: command, args: args, env: env, processes: processes, timeout: timeout)
@@ -69,8 +72,9 @@ public enum MCPToolList {
 
     private static func stdio(command: String, args: [String], env: [String: String], processes: any ProcessLauncher,
                               timeout: Duration) async throws -> [MCPTool] {
-        var environment = processes.loginEnvironment.isEmpty ? processes.environment : processes.loginEnvironment
-        environment.merge(env) { $1 }
+        // As its agent starts it: the input method's environment (HOME, TMPDIR …) with the login shell's PATH and
+        // variables, then the server's own.
+        let environment = processes.environment.merging(processes.loginEnvironment) { $1 }.merging(env) { $1 }
         let executable = command.contains("/") ? URL(fileURLWithPath: (command as NSString).expandingTildeInPath)
             : CommandRunner.resolve(command, path: environment["PATH"])
         guard let executable, FileManager.default.isExecutableFile(atPath: executable.path) else {
@@ -207,4 +211,12 @@ final class MCPLineReader: @unchecked Sendable {
     }
 
     func finish() { continuation.finish() }
+}
+
+/// Follows a redirect only to the same host (`MCPToolList.session`).
+final class SameHostRedirects: NSObject, URLSessionTaskDelegate, Sendable {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest) async -> URLRequest? {
+        request.url?.host == task.originalRequest?.url?.host ? request : nil
+    }
 }
