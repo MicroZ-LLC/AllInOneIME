@@ -40,11 +40,20 @@ public enum HostScenarioSettings {
     private static func took(_ key: String, _ value: Any, _ written: String, in config: Config) -> Bool {
         guard let file = (try? JSONEncoder().encode(config)).flatMap({ try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any]
         else { return false }
-        if let stored = file[key] { return (stored as AnyObject).isEqual(value) }
+        if let stored = file[key] { return sameJSON(stored, value) }
         // Left out: the default. Its value as the config holds it (a choice's name, a number, a switch).
         guard let held = Mirror(reflecting: config).children.first(where: { $0.label == key })?.value else { return false }
         let name = (held as? any RawRepresentable).map { "\($0.rawValue)" } ?? "\(held)"
         return name == written
+    }
+
+    /// Whether two JSON values are the same, compared as JSON (portable: Linux's Foundation has no `AnyObject.isEqual`).
+    private static func sameJSON(_ a: Any, _ b: Any) -> Bool {
+        func data(_ value: Any) -> Data? {
+            try? JSONSerialization.data(withJSONObject: [value], options: [.sortedKeys, .fragmentsAllowed])
+        }
+        guard let left = data(a), let right = data(b) else { return false }
+        return left == right
     }
 
     /// The on-device model as a scenario has it: there, and with nothing to suggest (autocomplete runs, shows nothing, says

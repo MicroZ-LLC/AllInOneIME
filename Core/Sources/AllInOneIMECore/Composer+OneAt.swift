@@ -41,7 +41,7 @@ extension Composer {
         let files = fileQuery != nil && oneAtFiles.query == fileQuery ? oneAtFiles.rows : []
         let key = OneAtKey(text: text, letters: letters, selection: selection?.text, generation: commandsGeneration, usage: commandUsage,
                            app: app, noAI: noAI, files: files.map(\.path), main: inputLanguages.first ?? .chinese,
-                           language: messages.language)
+                           language: messages.language, screenshot: attachment != nil)
         if let cached = oneAtCache, cached.key == key { return cached.rows }
         // The commands the letters start (nothing typed: all of them, as the command list keeps them).
         let named = letters.map { matches(for: $0) } ?? (text.isEmpty && selection == nil ? matches(for: "") : [])
@@ -50,7 +50,7 @@ extension Composer {
                                 chat: AppClass(app: app) == .chat, noAI: noAI, mainLanguage: key.main,
                                 instant: instantResults, files: files, reminder: { [parseReminder] in parseReminder($0) },
                                 words: commandWords())
-        var rows = OneAt.actions(input)
+        var rows = screenshotFirst(OneAt.actions(input))
         // A selection in an app with No AI and nothing typed: no action is left for it but the commands that don't use AI.
         if rows.isEmpty, selection != nil, text.isEmpty {
             rows = Command.palette("", in: commands, usage: commandUsage, app: app, limit: .max).filter { !$0.usesAI }.map(OneAt.Action.command)
@@ -82,6 +82,8 @@ extension Composer {
         var files: [String]
         var main: Language
         var language: String
+        /// A screenshot is attached: Ask AI first (`screenshotFirst`).
+        var screenshot = false
     }
 
     /// The words each of the user's commands is found by (`words(of:)`, split as `OneAt.words` splits them), worked out
@@ -289,8 +291,8 @@ extension Composer {
             }
             draft = commandTrigger
             cursorTail = ""
-            let effects = complete([command], at: 0, run: run)
-            return effects
+            // A screenshot attached for Ask AI: a command without AI gets its text pasted in, as it would have.
+            return complete([command], at: 0, run: run) + pasteAttachedScreenshot(for: command)
         case let .value(value):
             return finish(committing: value)
         case let .open(result):

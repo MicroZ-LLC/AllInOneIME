@@ -481,7 +481,7 @@ struct PerAppAcceptanceTests {
             ("@question what is this", "@question what is this"),
             ("@respond thanks a lot", "@respond thanks a lot"),
             ("@agent fix the bug", "@agent fix the bug"),
-            ("@improve total @py 2*3", "@improve total @py 2*3"),
+            ("@improve total @js 2*3", "@improve total @js 2*3"),
         ]
         for (typed, draft) in cases {
             let (c, _) = field(Self.bank, config, commands: Self.catalog)
@@ -567,12 +567,12 @@ struct PerAppAcceptanceTests {
         let (typing, _) = field(Self.bank, config)
         typeKeys("nihao", typing)
         #expect(commits(typing.handleKeyDown(spaceKey)) == ["你好"])
-        // @py.
-        let (py, _) = field(Self.bank, config)
-        typeKeys("@py 23*17", py)
-        let pyEffects = py.handleKeyDown(enterKey).effects
-        #expect(pyEffects.first == .startRun(.py, input: "23*17", id: 1))
-        #expect(!notices(pyEffects).contains(Self.refusalNotice))
+        // @js.
+        let (js, _) = field(Self.bank, config)
+        typeKeys("@js 23*17", js)
+        let jsEffects = js.handleKeyDown(enterKey).effects
+        #expect(jsEffects.first == .startRun(.js, input: "23*17", id: 1))
+        #expect(!notices(jsEffects).contains(Self.refusalNotice))
         // @open.
         let (open, _) = field(Self.bank, config)
         open.setInputMode(.english)
@@ -612,7 +612,7 @@ struct PerAppAcceptanceTests {
         let effects = c.handleKeyDown(at).effects
         #expect(effects.contains(.showPanel))
         #expect(!notices(effects).contains(Self.refusalNotice))
-        #expect(c.paletteMatches.contains(.py) && c.paletteMatches.contains(.open))
+        #expect(c.paletteMatches.contains(.js) && c.paletteMatches.contains(.open))
         // Picking an AI command only writes it: nothing is refused until it's run.
         typeKeys("i", c)
         let picked = c.handleKeyDown(tab).effects

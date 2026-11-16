@@ -696,8 +696,8 @@ struct InputSessionTests {
 
     @Test func commandsWhoseProgramIsMissingAreNotOffered() async {
         await inEnglish {
-            let host = host { $0.programInstalled = { $0 != InlineCode.python } }
-            #expect(host.settle { !host.composer.commands.contains(.py) })
+            let host = host { $0.programInstalled = { $0 != AgentKind.claude.program() } }
+            #expect(host.settle { !host.composer.commands.contains(.agent) })
             #expect(host.composer.commands.contains(.js))
         }
     }

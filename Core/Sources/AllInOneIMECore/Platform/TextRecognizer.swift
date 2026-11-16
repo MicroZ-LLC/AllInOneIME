@@ -2,7 +2,7 @@ import Foundation
 
 /// Reads the text in an image on the device (OCR), for a screenshot pasted into a draft (`ScreenText`): Vision on Apple
 /// platforms (`VisionTextRecognizer`), Windows.Media.Ocr in the Windows shell later; elsewhere none
-/// (`UnsupportedTextRecognizer`). The image never leaves the device: only the text read from it may be sent.
+/// (`UnsupportedTextRecognizer`). The image itself goes only to an AI that can see it, made smaller first (`downscaled`).
 public protocol TextRecognizer: Sendable {
     /// Loads what recognizing in `languages` needs (the first run of Vision takes seconds, and loads the models of the
     /// languages asked for), so that the next `recognize` in them is quick. A draft calls it once a command is picked
@@ -12,11 +12,16 @@ public protocol TextRecognizer: Sendable {
     /// the likeliest first ("zh-Hans", "en-US", "ja-JP", `ScreenText.languages`), which each recognizer maps to its own
     /// (Vision's, Windows.Media.Ocr's). Throws `ScreenText.Problem.unsupported` where images can't be read.
     func recognize(image: Data, languages: [String]) async throws -> [RecognizedLine]
+    /// `image` (PNG or TIFF data) made small enough to send to an AI that can see it (`PromptImage`): its long side at
+    /// most `longSide` pixels, as JPEG. Nil where images can't be made smaller here: the image isn't sent, its text is.
+    func downscaled(_ image: Data, longSide: Int) -> PromptImage?
 }
 
 extension TextRecognizer {
     /// Nothing to load ahead of time.
     public func prepare(languages: [String]) async {}
+    /// No image to send from here.
+    public func downscaled(_ image: Data, longSide: Int) -> PromptImage? { nil }
 }
 
 /// A line of text read from an image.

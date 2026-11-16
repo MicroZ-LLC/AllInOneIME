@@ -1231,7 +1231,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 15)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 14)
         // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
@@ -1257,7 +1257,7 @@ struct ComposerTests {
         #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.oneAtHighlighted == 14 && a.oneAtFirstVisible == 8)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 13 && a.oneAtFirstVisible == 7)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1297,7 +1297,7 @@ struct ComposerTests {
         _ = b.handleKeyDown(backspaceKey)
         #expect(b.draft == "@")
         #expect(b.handleKeyDown(backspaceKey).effects == [.updateMarkedText, .hidePanel] && b.phase == .idle)
-        // "@" inside a command offers the commands that run in a text (@py); a letter none of them
+        // "@" inside a command offers the commands that run in a text (@js); a letter none of them
         // starts with leaves the "@" as text (a mention). After words already inserted it opens the commands.
         let (m, me) = improveDraft(key: .optionTap)
         type("nihao", m)
@@ -1369,7 +1369,7 @@ struct ComposerTests {
         // At most five: the first built-in ones (nothing used yet).
         #expect(p.paletteVisible.map(\.name) == ["improve", "translate", "question", "agent", "open"])
         // @python: code is typed as letters, the program runs, and Chinese comes back after.
-        let py = start("pyt")  // "py" alone is the built-in @py
+        let py = start("pyt")
         #expect(py.draft == "@python " && py.engineState.isAsciiMode)
         type("print(1)", py)
         let run = tapOption(py, at: 5)
@@ -1397,29 +1397,29 @@ struct ComposerTests {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let respond = CustomCommand(name: "respond", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, respond]).map(\.program)
-            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app", nil,
-                nil, "python3", nil])  // @py needs python3 too
+            == [nil, nil, nil, "claude", nil, nil, nil, nil, nil, nil, nil, "/System/Applications/Messages.app", nil, nil,
+                "python3", nil])  // a run command needs its argv[0] (Settings' example @py: python3)
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
         let catalog = Command.catalog(["respond", "sh"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
-        // Running @py counts it, and says so to the controller (which keeps it).
+        // Running @js counts it, and says so to the controller (which keeps it).
         _ = c.handleKeyDown(at)
-        type("py", c)
+        type("js", c)
         _ = c.handleKeyDown(tab)
         type("nihao", c)
-        #expect(tapOption(c, at: 5).contains(.commandUsed("py")))
-        #expect(c.commandUsage.score("py") > 0)
+        #expect(tapOption(c, at: 5).contains(.commandUsed("js")))
+        #expect(c.commandUsage.score("js") > 0)
         // Next time "@" lists it first, highlighted: Tab picks it.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.oneAtVisible.prefix(5).map { $0.command?.name } == ["py", "improve", "translate", "question", "agent"])
+        #expect(d.oneAtVisible.prefix(5).map { $0.command?.name } == ["js", "improve", "translate", "question", "agent"])
         _ = d.handleKeyDown(tab)
-        #expect(d.draft == "@py ")
+        #expect(d.draft == "@js ")
         // A command beyond the five is found by its letters.
         let (e, _) = composer(key: .optionTap)
         e.commands = catalog
@@ -1448,7 +1448,7 @@ struct ComposerTests {
         }
         let (c, e) = started()
         #expect(c.draft == "@respond 你好@" && c.paletteQuery == "")
-        #expect(c.paletteMatches.map(\.name) == ["py", "js", "stock"])  // only what runs inside a text
+        #expect(c.paletteMatches.map(\.name) == ["js", "stock"])  // only what runs inside a text
         type("st", c)
         #expect(c.draft == "@respond 你好@st" && c.paletteMatches.map(\.name) == ["stock"])
         _ = c.handleKeyDown(tab)
@@ -1524,7 +1524,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.oneAtRows.count == 18 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
+        #expect(c.oneAtRows.count == 17 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
         for _ in 0..<7 { _ = c.handleKeyDown(downKey) }  // past the seventh: scrolls by one
         #expect(c.oneAtHighlighted == 7 && c.oneAtFirstVisible == 1)
         #expect(names(c.oneAtVisible) == ["translate", "question", "agent", "open", "reply", "note", "reminder"])
@@ -1534,10 +1534,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 17 && d.oneAtFirstVisible == 11)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 16 && d.oneAtFirstVisible == 10)
         #expect(names(d.oneAtVisible) == ["settings", "imessage", "reportissue", "stats", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.oneAtHighlighted == 15 && d.oneAtFirstVisible == 11)  // still in view: no scrolling
+        #expect(d.oneAtHighlighted == 14 && d.oneAtFirstVisible == 10)  // still in view: no scrolling
         _ = d.choose(index: 4)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.

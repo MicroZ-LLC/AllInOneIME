@@ -1,22 +1,19 @@
 import Foundation
 
-/// `@py` and `@js`: a line of code, run REPL style. When the code ends with an expression, its value is
-/// the result (text as it is, anything else written as a literal: `[1, 'a']` in Python, `[1, "a"]` in
-/// JavaScript); before it comes what the code printed. Code that ends with a statement gives what it
-/// printed. An error (an exception, a failed exit) is shown as one line: its first.
+/// `@js`: a line of code, run REPL style. When the code ends with an expression, its value is the result
+/// (text as it is, anything else written as a literal: `[1, "a"]`); before it comes what the code printed.
+/// Code that ends with a statement gives what it printed. An error (an exception, a failed exit) is shown
+/// as one line: its first. (Python, `@py`, is one of Settings' examples: `CommandExamples.python`.)
 ///
 /// The code always runs in a child process through `CommandRunner` (timeout, output limit, Esc, the
 /// user's shell PATH, the home folder as the working directory), never in the input method: a script
-/// that doesn't end couldn't be stopped there. `@py` runs the user's `python3`; `@js` runs in this
-/// app's own executable (`runJavaScriptHost`), in the platform's JavaScript (`Platform.scripts`: JavaScriptCore,
-/// which is part of macOS; QuickJS-ng elsewhere), which has nothing but the language (no files, programs, network or
-/// timers).
+/// that doesn't end couldn't be stopped there. It runs in this app's own executable (`runJavaScriptHost`),
+/// in the platform's JavaScript (`Platform.scripts`: JavaScriptCore, which is part of macOS; QuickJS-ng
+/// elsewhere), which has nothing but the language (no files, programs, network or timers).
 ///
 /// The code is what the user typed or pasted: it never contains the output of other commands
 /// (`Command.isCode`), let alone a model's.
 public enum InlineCode {
-    /// The interpreter `@py` runs; without it (`CommandRunner.isInstalled`) the command isn't offered.
-    static let python = "python3"
     /// The option that makes this app's executable the child process `@js` code runs in.
     public static let javaScriptHostOption = "--run-js"
 
@@ -24,60 +21,10 @@ public enum InlineCode {
     /// input, full-width punctuation as ASCII); nil for a command that isn't code.
     public static func definition(for command: Command,
                                   executable: String = Bundle.main.executablePath ?? CommandLine.arguments[0]) -> CustomCommand? {
-        let argv: [String]
-        switch command {
-        case .py: argv = [python, "-X", "utf8", "-c", pythonREPL]
-        case .js: argv = [executable, javaScriptHostOption]
-        default: return nil
-        }
-        return CustomCommand(name: command.name, type: .run, argv: argv, stdin: CustomCommand.placeholder, ascii: true,
-                             timeoutSeconds: CustomCommand.defaultTimeout)
+        guard command == .js else { return nil }
+        return CustomCommand(name: command.name, type: .run, argv: [executable, javaScriptHostOption], stdin: CustomCommand.placeholder,
+                             ascii: true, timeoutSeconds: CustomCommand.defaultTimeout)
     }
-
-    // MARK: - Python
-
-    /// Runs the code on standard input like IPython does a cell: `ast` splits off a last expression,
-    /// the rest is executed, then the expression's value is printed (a str as it is, anything else with
-    /// repr; None not at all). An error is printed to standard error as one line, with the line it
-    /// happened on when the code has several, and the exit status is 1; `sys.exit` works as usual.
-    /// The code runs in a namespace of its own (`__name__` is "__main__"). The working directory (the
-    /// home folder) is left out of `sys.path` while this imports its own modules, so an `ast.py` there
-    /// can't stand in for them; the code itself can import from it, as with `python3 -c`.
-    static let pythonREPL = #"""
-        import sys
-        cwd = sys.path.pop(0) if sys.path[:1] == [""] else None
-        import ast, traceback
-        if cwd is not None:
-            sys.path.insert(0, cwd)
-
-        def fail(error):
-            if isinstance(error, SyntaxError):
-                message, line = type(error).__name__ + (": " + error.msg if error.msg else ""), error.lineno
-            else:
-                message = traceback.format_exception_only(type(error), error)[0]
-                lines = [frame.lineno for frame in traceback.extract_tb(error.__traceback__) if frame.filename == "<input>"]
-                line = lines[-1] if lines else None
-            message = (message.strip().splitlines() or [type(error).__name__])[0]
-            if line and "\n" in source.strip():
-                message += " (line %d)" % line
-            sys.stderr.write(message + "\n")
-            sys.exit(1)
-
-        source = sys.stdin.buffer.read().decode("utf-8", "replace")
-        try:
-            tree = ast.parse(source, "<input>")
-            last = tree.body.pop() if tree.body and isinstance(tree.body[-1], ast.Expr) else None
-            scope = {"__name__": "__main__"}
-            exec(compile(tree, "<input>", "exec"), scope)
-            if last is not None:
-                value = eval(compile(ast.Expression(last.value), "<input>", "eval"), scope)
-                if value is not None:
-                    print(value if isinstance(value, str) else repr(value))
-        except SystemExit:
-            raise
-        except BaseException as error:
-            fail(error)
-        """#
 
     // MARK: - JavaScript
 

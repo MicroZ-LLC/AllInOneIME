@@ -58,7 +58,8 @@ struct PlatformTests {
         #expect(throws: ProcessLaunchError.unsupported) { try none.launch(LaunchSpec(executable: URL(fileURLWithPath: "/bin/sh"))) }
         // The commands that run a program are the ones left out there (`Command.catalog`).
         let commands = Command.catalog([CustomCommand(name: "upper", type: .run, argv: ["tr", "a-z", "A-Z"]),
-                                        CustomCommand(name: "tweet", type: .prompt, prompt: "Rewrite this as a tweet.")])
+                                        CustomCommand(name: "tweet", type: .prompt, prompt: "Rewrite this as a tweet."),
+                                        CommandExamples.python])
         let needing = Set(commands.filter(\.needsChildProcess).map(\.name))
         #expect(needing.isSuperset(of: ["py", "js", "upper"]) && !needing.contains("tweet") && !needing.contains("read"))
     }

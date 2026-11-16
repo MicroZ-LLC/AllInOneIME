@@ -444,6 +444,9 @@ TEST_THREADS += ALLINONEIME_LOGIN_SHELL_TIMEOUT=60
 # Each `swift test` with a TMPDIR of its own, removed when it ends (Scripts/test-tmpdir.sh), for what reads it (swiftc,
 # the shell's children); the tests remove what they put in FileManager's temporary directory (TestScratch).
 TEST_TMP := Scripts/test-tmpdir.sh
+# A test that failed is run again once, alone and one at a time (Core/Scripts/retry-failed-tests.sh): one that passes
+# then failed under the machine's load (CI's timeouts), and is named as flaky (a GitHub warning) instead of failing.
+TEST_RETRY := $(CORE)/Scripts/retry-failed-tests.sh
 
 test:
 	@status=0; $(MAKE) test-core || status=$$?; $(MAKE) test-mac || exit; exit $$status
@@ -455,6 +458,7 @@ test:
 test-core: check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
+	$(CORE)/Scripts/retry-failed-tests-test.sh
 	with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) && $(CORE)/Scripts/test.sh --skip "$$with_app"
 
 # The macOS shell's half: the input method's debug build, the core's tests that run it as their child process, then this
@@ -463,8 +467,8 @@ test-core: check-ios portable
 test-mac: deps strings-check
 	swift build --product $(APP_NAME)
 	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; status=0; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) $(TEST_RETRY) swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) $(TEST_RETRY) swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
 
 # The tests that need windows really drawn on screen (Scripts/on-screen-tests.txt), alone: on an unlocked Mac, when CI

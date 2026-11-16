@@ -20,7 +20,7 @@ extension RimeEngineTests {
         #expect(composer.draft == "~question 你好")
 
         #expect(composer.handleKeyDown(tilde).handled)
-        #expect(composer.paletteMatches.map(\.name) == ["py", "js", "stock"])
+        #expect(composer.paletteMatches.map(\.name) == ["js", "stock"])
         for character in "st" { _ = composer.handleKeyDown(key(character)) }
         _ = composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
         #expect(composer.draft == "~question 你好~stock ")

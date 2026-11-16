@@ -261,7 +261,7 @@ final class AntigravityDriver: SessionDriver {
     }
 
     func opening() -> [Data] { pass(inner.opening()) }
-    func message(_ text: String) -> [Data] { pass(inner.message(text)) }
+    func message(_ text: String, images: [PromptImage]) -> [Data] { pass(inner.message(text, images: images)) }
     func interrupt() -> [Data] { pass(inner.interrupt()) }
     func newConversation() -> [Data]? { inner.newConversation().map(pass) }
     func refusal() -> ClaudeSessionError? { permissionFiles.kept(in: directory) ? nil : .notWebOnly }

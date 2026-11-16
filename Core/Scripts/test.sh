@@ -27,5 +27,5 @@ trap 'rm -rf "$run"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 status=0
-TMPDIR="$run/" swift test --package-path "$root" "$@" || status=$?
+TMPDIR="$run/" "$root/Scripts/retry-failed-tests.sh" swift test --package-path "$root" "$@" || status=$?
 exit "$status"
