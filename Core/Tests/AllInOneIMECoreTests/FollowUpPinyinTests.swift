@@ -82,7 +82,7 @@ struct FollowUpPinyinTests {
         #expect(model.input == PanelModel.Input(prompt: "question 3/5 › ", text: "nihao", caret: 5))
         #expect(model.candidatesHint == PanelModel.Hint("Space", "picks a word"))
         // The footer says it all; its keys leave Space to the candidates' line.
-        #expect(model.footer == "Space picks · ⏎ ask · ⇧⏎ insert the answer · Esc clear the pinyin")
+        #expect(model.footer == "Space picks · ⏎ ask · ⇧⏎ insert the answer · Esc close")
         #expect(model.footerHints.hints == [PanelModel.Hint("⏎", "ask"), PanelModel.Hint("⇧⏎", "insert the answer")])
         #expect(zh.model(for: c).footerHints.hints == [PanelModel.Hint("⏎", "追问"), PanelModel.Hint("⇧⏎", "上屏答案")])
         // A digit picks a candidate into the line, not an answer; the line goes on.
@@ -90,7 +90,7 @@ struct FollowUpPinyinTests {
         #expect(c.refineText == "拟好" && !c.refineIsComposing && c.isLevelTwo)
         let picked = en.model(for: c)
         #expect(picked.rows == before.rows && picked.candidates == nil && picked.candidatesHint == nil)
-        #expect(picked.footer == "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc back")
+        #expect(picked.footer == "⏎ ask · ⇧⏎ insert · 1–5 pick · ⌘C copy · Esc close")
     }
 
     /// Before any answer, pinyin in the question is the draft's: its candidates are the rows, as in any command's text.
@@ -133,25 +133,15 @@ struct FollowUpPinyinTests {
         #expect(meanwhile.candidates == "1 我   2 窝" && meanwhile.input?.text == "wo")
     }
 
-    @Test func escWhileComposingClearsOnlyThePinyinThenGoesBackARound() throws {
+    @Test func escWhileComposingCloses() throws {
+        // Owner 2026-11-15: Esc closes the conversation, pinyin and all; ⌫ still takes the pinyin back a letter at a time.
         let c = try conversation()
-        let before = en.model(for: c)
-        type("nihao", c)
-        _ = c.handleKeyDown(escKey)
-        #expect(!c.engineState.isComposing && c.refineLine == nil && c.chatRounds.count == 2)
-        let cleared = en.model(for: c)
-        #expect(cleared == before, "the conversation as it was before the pinyin")
-        // Pinyin after words picked: Esc clears the pinyin, the words stay.
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
         type("nihao", c)
-        _ = c.handleKeyDown(escKey)
-        #expect(c.refineText == "我" && c.refineLine == "我" && en.model(for: c).candidates == nil)
-        _ = c.handleKeyDown(escKey)
-        #expect(c.refineLine == nil && c.chatRounds.count == 2)
-        // The next Esc goes back a round, as before.
-        _ = c.handleKeyDown(escKey)
-        #expect(c.chatRounds.count == 1 && c.isQuestionChat)
+        let effects = c.handleKeyDown(escKey).effects
+        #expect(effects.contains(.hidePanel) && !c.isLevelTwo && !c.engineState.isComposing && c.refineText.isEmpty)
+        #expect(!effects.contains { if case .commit = $0 { return true } else { return false } })
     }
 
     /// The candidates' layout (in a row or a column) is that of plain typing's candidates: here they are a line of their

@@ -8,7 +8,7 @@
 441 Core/Sources/AllInOneIMECore/ClaudeSession.swift
 1143 Core/Sources/AllInOneIMECore/ClaudeSessionManager.swift
 589 Core/Sources/AllInOneIMECore/Command.swift
-2816 Core/Sources/AllInOneIMECore/Composer.swift
+2808 Core/Sources/AllInOneIMECore/Composer.swift
 641 Core/Sources/AllInOneIMECore/Config.swift
 729 Core/Sources/AllInOneIMECore/Doctor.swift
 483 Core/Sources/AllInOneIMECore/EnglishWords.swift
@@ -24,7 +24,7 @@
 478 Core/Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift
 796 Core/Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift
 1464 Core/Sources/AllInOneIMECore/Session/InputSession.swift
-638 Core/Sources/AllInOneIMECore/Session/PanelPresenter.swift
+635 Core/Sources/AllInOneIMECore/Session/PanelPresenter.swift
 535 Core/Sources/AllInOneIMECore/Session/SessionTasks.swift
 731 Core/Sources/AllInOneIMECore/Settings/SettingsSchema.swift
 699 Core/Sources/AllInOneIMECore/Settings/SettingsService.swift

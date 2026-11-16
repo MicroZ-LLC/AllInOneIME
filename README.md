@@ -65,7 +65,7 @@ In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII d
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
 | The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Each row shown has its number key: ⌥1 does the first row shown, ⌥2 the second … (as a click on it). Digits alone are text there; while pinyin is typed they pick its words |
 | ⏎, ⌘⏎ | Runs the command (⌘⏎ too, which chat apps use to send: the command is never sent as typed; on `@note` it saves the note). Works even if the pinyin isn't picked yet: it's picked first, as with Space |
-| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed it does nothing), and ⇧⏎ inserts the answer |
+| Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed, ⏎ and Space do nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
 | ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); typing filters them (a Chinese text by its pinyin too). ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
@@ -238,13 +238,13 @@ the cache. `@translate` has no refine: typing after its results continues the se
 
 ### Conversations with @question (new)
 
-Once `@question` has answered, what you type is the next question: ⏎ asks it, with the questions and answers so far,
+Once `@question` starts answering, what you type is the next question (the answer goes on): ⏎ asks it once the answer is in, with the questions and answers so far,
 and the panel grows into the conversation, the earlier rounds dimmed as Q / A rows, the latest answer below them. With
-nothing typed, ⏎ does nothing: the conversation stays up. The line on top says which round comes next ("question 2/5 ›
-…"). Every answer can be inserted: its digit (1–5), ↑↓ then ⇧⏎, or a click (Space too, with nothing typed); the latest is
+nothing typed, ⏎ and Space do nothing: the conversation stays up. The line on top says which round comes next ("question 2/5 ›
+…"). Every answer can be inserted: its digit (1–5), ↑↓ then ⇧⏎, or a click; the latest is
 selected, and ⌘C copies the selected one. ⇧⏎ inserts it even with a question half typed (it's dropped). An action key
-other than ⏎ (a tap of ⌥, ⌥Space, a shortcut) does what ⏎ does here. Esc clears what you typed, then goes back one
-round; at the first, it leaves as before. The panel grows to about half the screen, then scrolls, the latest at the
+other than ⏎ (a tap of ⌥, ⌥Space, a shortcut) does what ⏎ does here. Esc closes the panel at any round, leaving nothing in
+the field, even with a question half typed; the conversation stays in your recent questions, to go on with later. The panel grows to about half the screen, then scrolls, the latest at the
 bottom.
 
 After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude

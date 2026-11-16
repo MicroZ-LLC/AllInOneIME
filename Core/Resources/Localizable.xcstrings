@@ -48,6 +48,53 @@
         }
       }
     },
+    " · %@ insert · %@ pick · %@ copy · Esc close" : {
+      "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ einfügen · %2$@ wählen · %3$@ kopieren · Esc schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ insertar · %2$@ elegir · %3$@ copiar · Esc cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ insérer · %2$@ choisir · %3$@ copier · Esc fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ 挿入 · %2$@ 選択 · %3$@ コピー · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ 입력 · %2$@ 선택 · %3$@ 복사 · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ inserir · %2$@ escolher · %3$@ copiar · Esc fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " · %1$@ 插入 · %2$@ 選取 · %3$@ 拷貝 · Esc 關閉"
+          }
+        }
+      }
+    },
     " · %@ matches" : {
       "comment" : " · %@ 条匹配",
       "localizations" : {
@@ -3200,6 +3247,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@ 追問 · %2$@ 插入 · %3$@ 選取 · %4$@ 拷貝 · Esc 返回"
+          }
+        }
+      }
+    },
+    "%@ ask · %@ insert · %@ pick · %@ copy · Esc close" : {
+      "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 关闭",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ nachfragen · %2$@ einfügen · %3$@ wählen · %4$@ kopieren · Esc schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ preguntar · %2$@ insertar · %3$@ elegir · %4$@ copiar · Esc cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ demander · %2$@ insérer · %3$@ choisir · %4$@ copier · Esc fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 質問 · %2$@ 挿入 · %3$@ 選択 · %4$@ コピー · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 질문 · %2$@ 입력 · %3$@ 선택 · %4$@ 복사 · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ perguntar · %2$@ inserir · %3$@ escolher · %4$@ copiar · Esc fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%1$@ 追問 · %2$@ 插入 · %3$@ 選取 · %4$@ 拷貝 · Esc 關閉"
           }
         }
       }
@@ -12274,6 +12368,7 @@
     },
     "Answering… · Esc back" : {
       "comment" : "回答中… · Esc 返回",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -12319,8 +12414,104 @@
         }
       }
     },
+    "Answering… · Esc close" : {
+      "comment" : "回答中… · Esc 关闭",
+      "extractionState" : "stale",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird beantwortet … · Esc schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respondiendo… · Esc cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réponse en cours… · Esc fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答中… · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답변 중… · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respondendo… · Esc fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在回答⋯ · Esc 關閉"
+          }
+        }
+      }
+    },
+    "Answering… · type the next question meanwhile · Esc close" : {
+      "comment" : "回答中… · 可以接着打下一个问题 · Esc 关闭",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wird beantwortet … · nächste Frage schon tippen · Esc schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respondiendo… · escribe la siguiente pregunta mientras tanto · Esc cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réponse en cours… · tapez la question suivante en attendant · Esc fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回答中… · その間に次の質問を入力できます · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "답변 중… · 그동안 다음 질문 입력 가능 · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Respondendo… · digite a próxima pergunta enquanto isso · Esc fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在回答⋯ · 可以先輸入下一個問題 · Esc 關閉"
+          }
+        }
+      }
+    },
     "Answering… · type the next question meanwhile · Esc previous round" : {
       "comment" : "回答中… · 可以接着打下一个问题 · Esc 回到上一轮",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14872,7 +15063,7 @@
       }
     },
     "Bedrock doesn't offer %@ in %@: choose another model in Settings → AI, or a region that offers it" : {
-      "comment" : "Bedrock 在 %@ 不提供 %@：在设置 → AI 里换一个模型，或换一个提供它的区域 — Sources/AllInOneIMECore/BedrockGeography.swift",
+      "comment" : "Bedrock 在 %@ 不提供 %@：在设置 → AI 里换一个模型，或换一个提供它的区域",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -45612,7 +45803,7 @@
       }
     },
     "Sent as %@ in %@" : {
-      "comment" : "在 %@ 实际发送 %@ — Sources/AllInOneIMECore/BedrockGeography.swift",
+      "comment" : "在 %@ 实际发送 %@",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47775,8 +47966,56 @@
         }
       }
     },
+    "Space picks · %@ ask · %@ insert the answer · Esc back" : {
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 返回",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt · %1$@ nachfragen · %2$@ Antwort einfügen · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige · %1$@ preguntar · %2$@ insertar la respuesta · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisir · %1$@ demander · %2$@ insérer la réponse · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 選択 · %1$@ 質問 · %2$@ 回答を挿入 · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %1$@ 질문 · %2$@ 답변 입력 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe · %1$@ perguntar · %2$@ inserir a resposta · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %1$@ 追問 · %2$@ 插入答案 · Esc 返回"
+          }
+        }
+      }
+    },
     "Space picks · %@ ask · %@ insert the answer · Esc clear the pinyin" : {
       "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 清除拼音",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47818,6 +48057,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 選字 · %1$@ 追問 · %2$@ 插入答案 · Esc 清除拼音"
+          }
+        }
+      }
+    },
+    "Space picks · %@ ask · %@ insert the answer · Esc close" : {
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 关闭",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt · %1$@ nachfragen · %2$@ Antwort einfügen · Esc schließen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige · %1$@ preguntar · %2$@ insertar la respuesta · Esc cerrar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisir · %1$@ demander · %2$@ insérer la réponse · Esc fermer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 選択 · %1$@ 質問 · %2$@ 回答を挿入 · Esc 閉じる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %1$@ 질문 · %2$@ 답변 입력 · Esc 닫기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe · %1$@ perguntar · %2$@ inserir a resposta · Esc fechar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %1$@ 追問 · %2$@ 插入答案 · Esc 關閉"
           }
         }
       }
