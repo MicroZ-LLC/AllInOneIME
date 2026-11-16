@@ -14,6 +14,12 @@ public enum ShellEnvironment {
     /// waits it out.
     static let loginTimeout: TimeInterval = 10
 
+    /// The time `login` gives the shell: `loginTimeout`, unless ALLINONEIME_LOGIN_SHELL_TIMEOUT says otherwise. `make test`
+    /// sets it: `login` is read once per process, so in a test run on a loaded Mac (a CI runner beside another) a shell
+    /// past 10 s left every test that reads it with nothing (MacPlatformTests). The input method never has it set.
+    static let loginReadTimeout: TimeInterval = ProcessInfo.processInfo.environment["ALLINONEIME_LOGIN_SHELL_TIMEOUT"]
+        .flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil } ?? loginTimeout
+
     public static let current: [String: String] = {
         var env = ProcessInfo.processInfo.environment
         env["PATH"] = login["PATH"] ?? fallbackPath
@@ -39,7 +45,8 @@ public enum ShellEnvironment {
     public static let login: [String: String] = {
         let values = loginValues(["PATH"] + Provider.allCases.flatMap(\.keyVariables)
                                  + ["SSH_AUTH_SOCK", "GIT_SSH_COMMAND"]
-                                 + AWSEnvironment.variables + SessionAgent.environmentVariables)
+                                 + AWSEnvironment.variables + SessionAgent.environmentVariables,
+                                 timeout: loginReadTimeout)
         readiness.markReady()
         return values
     }()
@@ -61,8 +68,8 @@ public enum ShellEnvironment {
     }
 
     /// `names` as the user's interactive login shell sets them up (unset ones are left out): those it printed in
-    /// `loginTimeout` seconds, none if it printed nothing by then.
-    static func loginValues(_ names: [String]) -> [String: String] {
+    /// `timeout` seconds, none if it printed nothing by then.
+    static func loginValues(_ names: [String], timeout: TimeInterval = loginTimeout) -> [String: String] {
         let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
         let marker = "__AllInOneIME_\(UUID().uuidString)__"
         let process = Process()
@@ -89,7 +96,7 @@ public enum ShellEnvironment {
                 if data.isEmpty { break }
             }
         }
-        if output.complete.wait(timeout: .now() + loginTimeout) == .timedOut, process.isRunning {
+        if output.complete.wait(timeout: .now() + timeout) == .timedOut, process.isRunning {
             process.terminate()
         }
         var values: [String: String] = [:]
