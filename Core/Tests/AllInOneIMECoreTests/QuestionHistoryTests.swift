@@ -271,12 +271,11 @@ extension ComposerTests {
         let d = questionDraft()
         _ = d.handleKeyDown(upKey)
         #expect(d.questionHighlight == 2)
-        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc clears it, then goes back to the
-        // list.
+        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc goes back to the list at once,
+        // what's typed with it (owner 2026-11-15).
         _ = d.handleKeyDown(enterKey)
         _ = d.handleKeyDown(k("s"))
         #expect(d.isLevelTwo && d.isQuestionChat && d.refineText == "s" && d.showsSavedAnswer)
-        _ = d.handleKeyDown(escKey)
         _ = d.handleKeyDown(escKey)
         #expect(d.draft == "@question " && !d.isLevelTwo && d.questionHighlight == 2)
     }

@@ -125,13 +125,13 @@ extension Composer {
     /// closes and nothing goes into the field, whatever is typed on the line (pinyin too), and while an answer comes in;
     /// it never steps back a round, and the rounds answered stay in the recent questions (`rememberQuestion`), where the
     /// conversation goes on. A saved answer picked from them (`showsSavedAnswer`) isn't one yet: Esc goes back to the
-    /// list and Space inserts it, as before. Space with nothing typed on the line does nothing: only ⇧⏎ inserts the answer (owner
+    /// list at once, at any of its rounds (`backToDraft`). Space with nothing typed on the line does nothing: only ⇧⏎ inserts the answer (owner
     /// 2026-11-15). ⏎ and ⇧⏎: `handleChatReturn`. Nil: not a conversation, or another key.
     func handleChatKey(_ event: KeyEvent) -> Response? {
         guard isQuestionChat else { return nil }
         let plain = event.modifiers.subtracting(.capsLock).isEmpty
-        if showsSavedAnswer || !plain { return handleChatReturn(event) }
-        if event.key == .escape { return .consumed(finish(committing: "", selection: .kept)) }
+        if !plain { return handleChatReturn(event) }
+        if event.key == .escape { return .consumed(showsSavedAnswer ? backToDraft() : finish(committing: "", selection: .kept)) }
         // Space on an empty line (with something typed or pinyin, `handleRefineKey` has it).
         if event.key == .space, refineText.isEmpty, !(engine?.snapshot().isComposing ?? false) { return .consumed() }
         return handleChatReturn(event)

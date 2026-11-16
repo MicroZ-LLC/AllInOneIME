@@ -6,8 +6,9 @@ import AllInOneIMETestSupport
 /// The owner's decision of 2026-11-15 on the @question conversation's keys, once an answer is shown (round 1 and later
 /// rounds): with the follow-up line empty Space and ⏎ do nothing; ⇧⏎ inserts the selected answer; pinyin + Space, a
 /// Space after text and ⏎ with text are unchanged; Esc closes the panel and leaves nothing in the field at any round,
-/// whatever the line holds; the conversation stays in the recent questions. Written from the spec by a separate agent;
-/// the implementer doesn't edit it (AGENTS.md rule 11).
+/// whatever the line holds, and while round 1's answer is still coming in; the conversation stays in the recent
+/// questions. On a saved answer picked from them, Space with nothing typed does nothing and Esc goes back to the list.
+/// Written from the spec by a separate agent; the implementer doesn't edit it (AGENTS.md rule 11).
 ///
 /// Driven through the session's key path (`FakeHost`), the provider a Claude API endpoint stubbed at the HTTP level
 /// (`QCStubProtocol`: "Answer: <question>", nothing leaves the Mac), the pinyin engine the tests' stand-in (`FakeEngine`),
@@ -295,5 +296,104 @@ struct ChatKeysAcceptanceTests {
         #expect(chat.composer.showsSavedAnswer && chat.composer.isQuestionChat)
         #expect(chat.composer.chatRounds == rounds)
         #expect(chat.requests == requests && chat.host.document.isEmpty)
+    }
+
+    // MARK: - 7. Esc while round 1's answer is still coming in closes, nothing committed
+
+    /// The panel closed and the field left as it was: no round, no draft, nothing marked, nothing inserted since `mark`.
+    private func expectClosed(_ chat: Chat, mark: Int, _ note: String = "", sourceLocation: SourceLocation = #_sourceLocation) {
+        let composer = chat.composer
+        #expect(chat.host.panel == nil, "the panel closes \(note)", sourceLocation: sourceLocation)
+        #expect(composer.phase == .idle && !composer.isComposing, "idle \(note): \(composer.phase)", sourceLocation: sourceLocation)
+        #expect(!composer.isQuestionChat && composer.chatRounds.isEmpty, "no conversation \(note)", sourceLocation: sourceLocation)
+        #expect(composer.draft.isEmpty, "not back to the draft \(note): \(composer.draft)", sourceLocation: sourceLocation)
+        #expect(chat.host.marked.isEmpty && composer.markedText.isEmpty, "no marked text \(note): \(chat.host.marked)",
+                sourceLocation: sourceLocation)
+        #expect(chat.host.document.isEmpty && inserted(chat, since: mark).isEmpty,
+                "nothing in the field \(note): \(chat.host.document) \(inserted(chat, since: mark))", sourceLocation: sourceLocation)
+    }
+
+    /// "@question q1" ⏎, then Esc before the answer is shown: the panel closes, the request is dropped, the draft is gone,
+    /// and nothing goes into the field, then or once the answer arrives; no second request. `arrived`: the answer has
+    /// reached the input method, not yet handed to the conversation, when Esc goes down.
+    @Test(arguments: [false, true])
+    func p7_escapeWhileRoundOnesAnswerComesInClosesWithNothingCommitted(arrived: Bool) throws {
+        let chat = field()
+        let host = chat.host
+        host.press(FakeHost.at)
+        host.type("q")
+        host.press(FakeHost.tab)
+        try #require(chat.composer.draft == "@question ", "draft=\(chat.composer.draft)")
+        host.type("q1")
+        let mark = host.outputs.count
+        host.press(FakeHost.enter)
+        guard case .translating = chat.composer.phase else {
+            Issue.record("not asking round 1: \(chat.composer.phase)")
+            return
+        }
+        try #require(chat.composer.chatRounds.allSatisfy { $0.answer.isEmpty }, "no answer shown yet")
+        if arrived {
+            try #require(host.waitForAnswer { event in
+                if case let .task(_, .converted(update, _)) = event { update.isFinal } else { false }
+            }, "the answer never came")
+        }
+        let handled = host.press(FakeHost.escape)
+        #expect(handled, "Esc is consumed, not passed to the app")
+        expectClosed(chat, mark: mark, "at Esc")
+        // The answer coming in after it changes nothing.
+        _ = host.settle(timeout: 0.5) { false }
+        expectClosed(chat, mark: mark, "after the answer")
+        #expect(chat.requests <= 1, "asked again: \(chat.requests)")
+        if arrived { #expect(chat.requests == 1) }
+    }
+
+    // MARK: - 8. A saved answer from the recent questions: Space does nothing, Esc goes back to the list
+
+    /// A saved answer picked from the recent questions, nothing typed on the line: Space does nothing (it no longer
+    /// inserts it) and Esc goes back to the list, as before; ⇧⏎ (as the answer's digit, `QuestionHistoryAcceptance`)
+    /// still inserts it.
+    @Test(arguments: [1, 3], Typing.allCases)
+    func p8_onASavedAnswerSpaceDoesNothingAndEscapeGoesBackToTheList(round: Int, typing: Typing) throws {
+        let chat = try answered(round: round)
+        let host = chat.host
+        let rounds = chat.composer.chatRounds
+        host.press(FakeHost.escape)
+        try #require(host.panel == nil && chat.recent.history.entries.first?.thread == rounds,
+                     "Esc closes and keeps it (point 5, 6)")
+        // "@question " lists it; its digit shows it, the saved answer.
+        host.press(FakeHost.at)
+        host.type("q")
+        host.press(FakeHost.tab)
+        try #require(chat.composer.draft == "@question " && chat.composer.questionMatches.first?.thread == rounds)
+        host.type("1")
+        try #require(chat.composer.showsSavedAnswer && chat.composer.chatRounds == rounds)
+        if typing == .chinese { try switchToChinese(chat) }
+        try fill(.empty, chat)
+        let (requests, mark) = (chat.requests, host.outputs.count)
+
+        // Space: nothing.
+        let handled = host.press(FakeHost.space)
+        #expect(handled, "Space is consumed, not passed to the app")
+        #expect(chat.composer.showsSavedAnswer && chat.composer.isQuestionChat && chat.composer.chatRounds == rounds,
+                "the saved answer stays: \(chat.composer.phase)")
+        #expect(host.panel != nil && chat.composer.refineLine == nil && chat.composer.refineText.isEmpty)
+        #expect(chat.requests == requests && host.document.isEmpty && inserted(chat, since: mark).isEmpty,
+                "nothing inserted or asked: \(host.document) \(inserted(chat, since: mark))")
+        _ = host.settle(timeout: 0.3) { false }
+        #expect(chat.requests == requests && host.document.isEmpty && inserted(chat, since: mark).isEmpty)
+
+        // Esc: back to the list it was picked from, nothing in the field.
+        host.press(FakeHost.escape)
+        #expect(!chat.composer.showsSavedAnswer && !chat.composer.isLevelTwo, "\(chat.composer.phase)")
+        #expect(chat.composer.draft == "@question ", "back to the list: \(chat.composer.draft)")
+        #expect(chat.composer.questionMatches.first?.thread == rounds && host.panel != nil)
+        #expect(chat.requests == requests && host.document.isEmpty && inserted(chat, since: mark).isEmpty)
+
+        // Picked again, ⇧⏎ inserts it (the latest answer, selected).
+        host.type("1")
+        try #require(chat.composer.showsSavedAnswer, "picked again: \(chat.composer.draft)")
+        host.press(acceptanceShiftReturn)
+        #expect(host.document == rounds.last?.answer, "inserted: \(host.document)")
+        #expect(host.panel == nil && chat.composer.phase == .idle && chat.requests == requests)
     }
 }
