@@ -11,8 +11,8 @@
 // the code, other languages from the catalog (`InterfaceText`). This scans the sources for `tr` calls with two string
 // literals (not the self-tests, *SelfTest.swift: their text never reaches translators, and shows in English in the other
 // languages) and:
-//   - adds the English formats not in the catalog yet, with the Chinese text and the file it is first used in as the
-//     comment (what translators see; refreshed for every key in use);
+//   - adds the English formats not in the catalog yet, with the Chinese text as the comment (what translators see;
+//     refreshed for every key in use; no source path, so moving a file doesn't rewrite the catalog);
 //   - marks the keys no longer used as stale (`extractionState: stale`), and unmarks those used again;
 //   - keeps every translation.
 // It reports English formats with more than one Chinese text: one key can't hold two meanings, so all but one of them
@@ -78,7 +78,7 @@ let arguments: Arguments = {
 /// A path the arguments give, relative to this folder or absolute.
 func url(_ path: String) -> URL { URL(fileURLWithPath: path, relativeTo: root).standardizedFileURL.resolvingSymlinksInPath() }
 
-/// A file as reports and comments name it: relative to this folder if it is in it.
+/// A file as reports name it: relative to this folder if it is in it.
 func shown(_ url: URL) -> String {
     let path = url.standardizedFileURL.resolvingSymlinksInPath().path
     return path.hasPrefix(root.path + "/") ? String(path.dropFirst(root.path.count + 1)) : path
@@ -453,9 +453,9 @@ if let out = arguments.merge {
 let shipped = Set(strings.values.flatMap { (($0 as? [String: Any])?["localizations"] as? [String: Any])?.keys ?? [String: Any]().keys })
     .subtracting(["en"]).sorted()
 
-/// What translators see: the Chinese text and the file it is first used in; no line number, which would change the
-/// catalog with every edit above it.
-func comment(_ use: Use) -> String { "\(use.chinese) — \(use.file)" }
+/// What translators see: the Chinese text. No file or line, which would change the catalog with every move or edit
+/// above it (and conflict between branches that move files).
+func comment(_ use: Use) -> String { use.chinese }
 
 func isStale(_ entry: [String: Any]) -> Bool { entry["extractionState"] as? String == "stale" }
 
