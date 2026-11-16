@@ -1378,22 +1378,11 @@ public final class Composer {
     }
 
     /// Moves the highlight by `steps` (arrows, the scroll wheel), around the ends, scrolling with it.
-    private func movePaletteHighlight(by steps: Int) {
+    func movePaletteHighlight(by steps: Int) {
         let count = paletteMatches.count
         guard count > 0 else { return }
         paletteHighlight = ((paletteHighlighted + steps) % count + count) % count
         paletteTop = paletteFirstVisible
-    }
-
-    /// The scroll wheel over the list: the highlight moves (the list scrolls with it).
-    public func scrollPalette(by steps: Int) -> [Effect] {
-        if oneAt != nil { return scrollOneAt(by: steps) }
-        guard paletteQuery != nil, steps != 0, !paletteMatches.isEmpty else { return [] }
-        let count = paletteMatches.count
-        // Not around the ends: the wheel stops at the first and the last.
-        let target = min(max(paletteHighlighted + steps, 0), count - 1)
-        movePaletteHighlight(by: target - paletteHighlighted)
-        return [.showPanel]
     }
 
     /// The `@open` text while it is typed, for results as you type (`receiveLive`).
@@ -2574,14 +2563,14 @@ public final class Composer {
     }
 
     /// Clipboard text as one line for the draft (the improve answer has one line per version): line
-    /// breaks become spaces, or nothing between Chinese; control characters become spaces; the ends
-    /// are trimmed.
+    /// breaks become spaces, or nothing between Chinese or Japanese (`joinsLines`; Korean gets a space, as English);
+    /// control characters become spaces; the ends are trimmed.
     public static func oneLine(_ text: String) -> String {
         var out = ""
         for line in text.components(separatedBy: .newlines) {
             let part = CandidateParser.stripControls(line).trimmingCharacters(in: .whitespaces)
             guard let first = part.first else { continue }
-            if let last = out.last, !(isCJK(last) && isCJK(first)) { out += " " }
+            if let last = out.last, !(joinsLines(last) && joinsLines(first)) { out += " " }
             out += part
         }
         return out
@@ -2594,11 +2583,16 @@ public final class Composer {
         text.unicodeScalars.contains { [.control, .lineSeparator, .paragraphSeparator].contains($0.properties.generalCategory) }
     }
 
-    /// Chinese, Japanese and Korean characters and full-width punctuation: no space between lines of them.
+    /// Chinese, Japanese and Korean characters and full-width punctuation: where a word may start (`EnglishModeWords`).
     static func isCJK(_ c: Character) -> Bool {
+        joinsLines(c) || c.unicodeScalars.first.map { (0xAC00...0xD7AF).contains($0.value) } == true
+    }
+
+    /// Chinese and Japanese characters and full-width punctuation: no space between lines of them. Korean writes spaces
+    /// between its words: its lines get one, as English (owner, 2026-11-14).
+    static func joinsLines(_ c: Character) -> Bool {
         guard let v = c.unicodeScalars.first?.value else { return false }
         return String(c).containsHan || (0x3000...0x30FF).contains(v) || (0xFF00...0xFFEF).contains(v)
-            || (0xAC00...0xD7AF).contains(v)
     }
 
     // MARK: - Command palette

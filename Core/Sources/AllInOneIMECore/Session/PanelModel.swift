@@ -311,3 +311,43 @@ extension PanelModel {
         }
     }
 }
+
+/// What the panel shows, as text: as it is drawn (the Mac's `CandidateView`), and as the self-tests read it.
+extension PanelModel {
+    /// The line of input as the Mac draws it, on top (under where a conversation can go on): its prompt and its text,
+    /// "▏" at its caret. Nil: none.
+    public var inputLine: String? {
+        input.map { input in
+            input.prompt + (input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text)
+        }
+    }
+
+    /// What the Mac shows on top, as text: where a conversation can go on, its title and its choices as lines (up to 4 on
+    /// a line, more 3 a line, as they are laid out: each its key on a keycap and its name, `CandidateView.handoffTargets`),
+    /// then the line of input (`inputLine`). Nil: neither.
+    public var inputText: String? {
+        var lines: [String] = []
+        if let handoff {
+            let labels = handoff.choices.map { $0.shortcut + " " + $0.name }
+            let perLine = labels.count <= 4 ? 4 : 3
+            lines.append(handoff.title)
+            lines.append(stride(from: 0, to: labels.count, by: perLine)
+                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
+        }
+        if let inputLine { lines.append(inputLine) }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// The header's lines as the Mac draws them, one under the other; nil without.
+    public var headerText: String? { header.isEmpty ? nil : header.joined(separator: "\n") }
+
+    /// The status's text as the Mac draws it (a list's items under it, after "· "); nil without one. An error's, without
+    /// its "⚠︎".
+    public var statusText: String? {
+        switch status {
+        case .none: return nil
+        case let .loading(text), let .hint(text), let .error(text): return text
+        case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
+        }
+    }
+}

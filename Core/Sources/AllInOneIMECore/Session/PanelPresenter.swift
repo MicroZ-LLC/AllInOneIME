@@ -384,8 +384,9 @@ public struct PanelPresenter {
             let key = composer.actionKey
             if let command = composer.draftCommand {
                 // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
+                // Japanese pasted into it is no input language: told by the text itself (`Language.isJapanese`).
                 let action = t.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft,
-                                      terms: terms)
+                                      terms: terms, text: Language.isJapanese(composer.sentText) ? composer.sentText : nil)
                 model.footer = t.tr("空格 选词 · \(name(key)) \(action)", "Space picks · \(name(key)) to \(action)")
             } else {
                 model.footer = SessionText.translateModeFooter(composer, language: language, terms: terms)

@@ -91,7 +91,7 @@ extension ComposerTests {
         #expect(pasted("see https://example.com/\nthanks") == "see https://example.com/ thanks")  // the URL stays whole
         #expect(pasted("(a)\n(b)\n50%\nof users") == "(a) (b) 50% of users")
         #expect(pasted("One.\nTwo\u{1B}[31m\n") == "One. Two [31m")  // control characters become spaces
-        #expect(pasted("日本語\nの文\n한국어\n문장") == "日本語の文한국어문장")
+        #expect(pasted("日本語\nの文\n한국어\n문장") == "日本語の文 한국어 문장")  // Korean lines get a space (owner, 2026-11-14)
     }
 
     @Test func withoutADraftTheAppPastesAndWithoutTextANoticeSaysSo() {
