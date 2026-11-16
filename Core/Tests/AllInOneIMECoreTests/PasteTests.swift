@@ -270,15 +270,18 @@ extension ComposerTests {
     }
 
     @Test func aCustomRunCommandsTextRunsNoCommands() {
-        // Its text goes to the user's program exactly as typed, like @py's.
+        // Its text goes to the user's program exactly as typed, like @js's: "@" in it opens no command list.
         let catalog = Command.catalog([CustomCommand(name: "lint", type: .run, argv: ["lint", "{input}"]),
                                        CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
         let c = Composer(engine: FakeEngine())
         c.commands = catalog
         c.setInputMode(.english)
-        for ch in "@lint x @stock AAPL" {
-            _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch)))
+        func type(_ text: String) {
+            for ch in text { _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch))) }
         }
+        type("@lint x @")
+        #expect(c.draft == "@lint x @" && c.paletteQuery == nil)
+        type("stock AAPL")
         let effects = c.handleKeyDown(enterKey).effects
         guard case let .startRun(command, input, _)? = effects.first else {
             Issue.record("expected the command to run, got \(effects)")

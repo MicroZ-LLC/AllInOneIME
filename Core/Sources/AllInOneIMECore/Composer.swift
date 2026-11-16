@@ -1300,15 +1300,14 @@ public final class Composer {
         return nil
     }
 
-    /// The draft is a note, a reminder, a search, code (`@py`, `@js`), a terminal command (`@agent`, a custom
-    /// one), a snippet (what is typed fills it in) or a script extension: no command inside its text runs first
-    /// (`startAction`; Terminal, the agent and the script get the text as typed), so an "@" in it is just text (no list
-    /// to pick a command from, none shown as picked).
+    /// The draft is a note, a reminder, a search, a terminal command (`@agent`, a custom one), a snippet (what is typed
+    /// fills it in), or code or a program (`Command.runsCode`: `@js`, a custom `run` command, a script extension): no
+    /// command inside its text runs first (`startAction`; Terminal, the agent and the program get the text as typed), so
+    /// an "@" in it is just text (no list to pick a command from, none shown as picked).
     private var takesTextAsTyped: Bool {
         guard let command = draftCommand else { return false }
         return command.kind == .note || command.kind == .reminder || command.kind == .search || command.kind == .terminal
-            || command.kind == .report || command.kind == .snippet || command.isCode
-            || command.script != nil
+            || command.kind == .report || command.kind == .snippet || command.runsCode
     }
 
     /// The commands the list inside a text can offer: the ones that run there, and inside `@translate` `@improve` (or
