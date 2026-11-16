@@ -4,7 +4,8 @@
 # past its limit, a panel's layout), not on the change. Each such test is named as a GitHub warning ("flaky: …") and
 # added to $FLAKY_TESTS_FILE (and the job's summary on GitHub), so that it gets fixed rather than forgotten.
 #   - Nothing is run again when the build fails, when the run didn't end (a crash: no results file, no "Test run with"
-#     line), when more than $RETRY_LIMIT tests failed (default 15: that is a real break), or when a failed test's name
+#     line), when more than $RETRY_LIMIT tests failed (default 5:
+#     load's timeouts fail one or two; more is a real break, and a change that breaks tests only in parallel shouldn't pass), or when a failed test's name
 #     can't be found again in `swift test list`. The first run's status is then the result.
 #   - The tests are found in Swift Testing's xUnit results (--xunit-output): a test's suite (`classname`, the module then
 #     its types, "AllInOneIMECoreTests.Outer.Inner") and its function (`name`, "test(_:)"), which `swift test list` names
@@ -14,7 +15,7 @@
 #     of exactly these tests; its own per-test timeouts are the tests' own.
 # Usage: retry-failed-tests.sh swift test [--package-path P] [--filter F] [--skip S] …
 set -u
-limit=${RETRY_LIMIT:-15}
+limit=${RETRY_LIMIT:-5}
 work=$(mktemp -d "${TMPDIR:-/tmp}/allinoneime-retry.XXXXXX") || exit 1
 trap 'rm -rf "$work"' EXIT
 trap 'exit 130' INT
@@ -69,6 +70,10 @@ awk '
 count=$(wc -l < "$work/failed.tsv" | tr -d ' ')
 [ "$count" -gt 0 ] || give_up "no failed test in the results"
 [ "$count" -le "$limit" ] || give_up "$count tests failed (more than $limit)"
+# Every failure the run printed is one of these: as many tests ("✘ Test a() failed after …", "✘ Test b(_:) with 2 test
+# cases failed after …") as in the results, or something else failed the run too.
+printed=$(grep -E '^✘ Test .*failed after' "$work/first.log" | grep -vc '^✘ Test run with') || true
+[ "${printed:-0}" -eq "$count" ] || give_up "the run printed ${printed:-0} failed tests, its results $count"
 
 # The first run's arguments without its --filter and --xunit-output, one per line, for the second run; its package path
 # for `swift test list`.

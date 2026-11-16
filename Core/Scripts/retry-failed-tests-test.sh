@@ -1,7 +1,8 @@
 #!/bin/sh
 # Offline test of retry-failed-tests.sh, with a fake `swift` that prints fixed results: a test that fails once then
 # passes is run again alone and counts as passed; one that fails again, a build error, a crash, too many failures, a
-# name `swift test list` doesn't know and an XCTest failure each keep the first run's failure. `make test-core` runs it.
+# name `swift test list` doesn't know, a failure the results don't hold and an XCTest failure each keep the first run's
+# failure. `make test-core` runs it.
 set -eu
 here=$(cd "$(dirname "$0")" && pwd)
 work=$(mktemp -d "${TMPDIR:-/tmp}/allinoneime-retry-test.XXXXXX")
@@ -64,7 +65,8 @@ ended="✘ Test run with 4 tests in 2 suites failed after 1 seconds with 3 issue
 
 setup flaky
 xml 'fail:Mod.Suite|a()' 'fail:Mod.Suite.Inner|b(_:)' 'fail:Mod|c()' 'pass:Mod.Suite|passes()' > "$FAKE/run1.xml"
-echo "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
+printf '%s\n' "✘ Test a() failed after 1 seconds with 1 issue." "✘ Test b(_:) with 2 test cases failed after 1 seconds with 1 issue." "✘ Test c() failed after 1 seconds with 1 issue." "$ended" > "$FAKE/run1.log"
+echo 1 > "$FAKE/run1.rc"
 xml 'pass:Mod.Suite|a()' 'pass:Mod.Suite.Inner|b(_:)' 'pass:Mod|c()' > "$FAKE/run2.xml"; echo 0 > "$FAKE/run2.rc"
 check "failed once, passed alone: passes, named as flaky" 0 2
 grep -qx -- '--no-parallel' "$FAKE/run2.args" && grep -qx -- '--skip-build' "$FAKE/run2.args" \
@@ -75,7 +77,7 @@ grep -qx -- '--no-parallel' "$FAKE/run2.args" && grep -qx -- '--skip-build' "$FA
     || { echo "✘ the flaky tests weren't named"; failures=$((failures + 1)); }
 
 setup real
-xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"; echo "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
+xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"; printf '%s\n' "✘ Test a() failed after 1 seconds with 1 issue." "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
 xml 'fail:Mod.Suite|a()' > "$FAKE/run2.xml"; echo 1 > "$FAKE/run2.rc"
 check "failed again alone: fails" 1 2
 
@@ -88,17 +90,25 @@ xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"; echo "◇ Test a() started." > "$FA
 check "crash (no end of run): not run again" 1 1
 
 setup many
-xml 'fail:Mod.Suite|a()' 'fail:Mod|c()' > "$FAKE/run1.xml"; echo "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
+xml 'fail:Mod.Suite|a()' 'fail:Mod|c()' > "$FAKE/run1.xml"
+printf '%s\n' "✘ Test a() failed after 1 seconds with 1 issue." "✘ Test c() failed after 1 seconds with 1 issue." "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
 check "more failures than the limit: not run again" 1 1 RETRY_LIMIT=1
 
 setup unknown
-xml 'fail:Mod.Other|z()' > "$FAKE/run1.xml"; echo "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
+xml 'fail:Mod.Other|z()' > "$FAKE/run1.xml"; printf '%s\n' "✘ Test z() failed after 1 seconds with 1 issue." "$ended" > "$FAKE/run1.log"; echo 1 > "$FAKE/run1.rc"
 check "a name swift test list doesn't know: not run again" 1 1
 
 setup xctest
-xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"; printf '%s\nExecuted 3 tests, with 1 failure\n' "$ended" > "$FAKE/run1.log"
+xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"
+printf '%s\n' "✘ Test a() failed after 1 seconds with 1 issue." "$ended" "Executed 3 tests, with 1 failure" > "$FAKE/run1.log"
 echo 1 > "$FAKE/run1.rc"
 check "an XCTest failure: not run again" 1 1
+
+setup unaccounted
+xml 'fail:Mod.Suite|a()' > "$FAKE/run1.xml"
+printf '%s\n' "✘ Test a() failed after 1 seconds with 1 issue." "✘ Test c() failed after 1 seconds with 1 issue." "$ended" > "$FAKE/run1.log"
+echo 1 > "$FAKE/run1.rc"
+check "a failure the results don't hold: not run again" 1 1
 
 setup passes
 echo 0 > "$FAKE/run1.rc"
