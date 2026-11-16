@@ -320,12 +320,19 @@ struct QuestionChatTests {
         #expect(d.handleKeyDown(escKey).effects.contains(.hidePanel) && !d.isLevelTwo && d.draft.isEmpty)
     }
 
-    @Test func shiftEscClosesToo() {
+    @Test func escWithAModifierClosesToo() {
         // Shift still held on Esc: closed as well, never a round back.
         let c = asked()
         followUp(c, "who made it", reply: "Graydon Hoare.")
         let shiftEsc = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}", modifiers: .shift)
         #expect(c.handleKeyDown(shiftEsc).effects.contains(.hidePanel) && !c.isLevelTwo && c.draft.isEmpty)
+        // ⌥ or ⌃ held: the same (⌘Esc is the app's, as every ⌘ shortcut: it never steps back a round either).
+        for modifiers: Modifiers in [.option, .control] {
+            let d = asked()
+            followUp(d, "who made it", reply: "Graydon Hoare.")
+            let esc = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}", modifiers: modifiers)
+            #expect(d.handleKeyDown(esc).effects.contains(.hidePanel) && !d.isLevelTwo && d.draft.isEmpty)
+        }
     }
 
     @Test func spaceAndReturnWithNothingTypedDoNothing() {

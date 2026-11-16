@@ -130,8 +130,8 @@ extension Composer {
     func handleChatKey(_ event: KeyEvent) -> Response? {
         guard isQuestionChat else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock)
-        // Esc with Shift still held closes as well (never the round back the line's Esc would take).
-        if event.key == .escape, modifiers.isSubset(of: .shift) {
+        // Esc with any modifier held closes as well (never the round back the line's Esc would take).
+        if event.key == .escape {
             return .consumed(showsSavedAnswer ? backToDraft() : finish(committing: "", selection: .kept))
         }
         let plain = modifiers.isEmpty
