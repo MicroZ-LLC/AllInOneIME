@@ -58,6 +58,8 @@ A new install writes English; to type Chinese, French, Korean or Hindi too, add 
 
 What you're typing (pinyin, a command such as `@improve …`, a note) shows only on the top line of the candidate box, with its cursor, in every app: nothing is shown in the text field until you pick, insert or run it. Leaving the field while you type (a click anywhere, in the same field too, another app, closing the window or tab) drops the pinyin not yet picked, so nothing of it is left behind.
 
+In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII digit, so `3.14`, `10:30` and `1,000` type as shown. Other punctuation and punctuation after other characters keep their usual behavior.
+
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
