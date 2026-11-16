@@ -587,7 +587,7 @@ struct ChineseCharactersTests {
         #expect(summary.allSatisfy { $0.count <= 120 })
         let english = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "en"))
         #expect(english.contains("missing or can't be read") && english.contains("reinstall AllInOneIME")
-                    && english.contains("files of your own") && english.contains("Settings → Input → Chinese → Characters"), "\(english)")
+                    && english.contains("files of your own") && english.contains("Settings → Common → Characters"), "\(english)")
         let chinese = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "zh-Hans"))
         #expect(chinese.hasPrefix("Rime：繁体字的转换数据（OpenCC）缺少或读不出来") && chinese.contains("重新安装")
                     && chinese.hasSuffix("，2 次"), "\(chinese)")

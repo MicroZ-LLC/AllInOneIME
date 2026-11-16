@@ -51,7 +51,7 @@
 418 Sources/AllInOneIME/ICloudSyncController.swift
 1000 Sources/AllInOneIME/InputController.swift
 2934 Sources/AllInOneIME/SelfTest.swift
-3055 Sources/AllInOneIME/SettingsWindow.swift
+2991 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
 800 Sources/AllInOneIME/Updates.swift
 528 Sources/AllInOneIME/main.swift

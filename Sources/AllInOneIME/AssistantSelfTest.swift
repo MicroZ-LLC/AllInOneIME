@@ -426,10 +426,10 @@ extension SelfTest {
         var previous = saved
         previous.appProfiles = ["com.apple.mail": AppProfile(typeOut: true)]  // a previous per-app setting
         let found: [(String, SettingsSpot, SettingsPage)] = [
-            ("横排", .candidateLayout, .input), ("keep", .clipboardHistory, .general), ("notify", .updates, .about),
-            ("icloud learned words", .iCloudSync, .general), ("codename", .wordsToHide, .privacy),
+            ("横排", .candidateLayout, .common), ("keep", .clipboardHistory, .common), ("notify", .updates, .about),
+            ("icloud learned words", .iCloudSync, .interface), ("codename", .wordsToHide, .privacy),
             ("raycast", .scriptExtensions, .commands), ("trust its updates", .extensionSources, .commands),
-            ("insert id", .suggestionsInsert, .general), ("per-app insert", .appInserts, .general),
+            ("insert id", .suggestionsInsert, .suggestions), ("per-app insert", .appInserts, .suggestions),
             ("app profiles", .previousAppSettings, .advanced)]
         let missed = found.filter { query, spot, page in
             !SettingsSpot.search(query, trigger: "@", config: previous).contains(spot) || spot.page != page
@@ -454,30 +454,30 @@ extension SelfTest {
               && ExtensionSourcesSection.opensByItself(fresh, updates: 0, error: false, spot: .extensionSources),
               "Commands' Folders and sources… folded by default; open with a source, an error, or the search pointing into it")
 
-        // Input and Advanced.
+        // Common and Advanced.
         model.config = previous
-        let input = shown(.input), advanced = shown(.advanced)
-        check(has(input, SettingsSpot.candidateLayout.title) && !has(advanced, SettingsSpot.candidateLayout.title)
+        let common = shown(.common), advanced = shown(.advanced)
+        check(has(common, SettingsSpot.candidateLayout.title) && !has(advanced, SettingsSpot.candidateLayout.title)
               && has(advanced, SettingsSpot.previousAppSettings.title),
-              "the candidate layout on Input, not Advanced; the previous per-app settings on Advanced")
+              "the candidate layout on Common, not Advanced; the previous per-app settings on Advanced")
 
-        // General: the clipboard history's length and iCloud's learned words, set otherwise, with Restore Default; Insert
-        // and In these apps under More…, folded until the search points at them.
+        // Common's clipboard history's length and Interface and sync's iCloud learned words, set otherwise, with Restore
+        // Default; Suggestions' Insert and In these apps under More…, folded until the search points at them.
         model.config = saved
         model.config.clipboardHistoryLimit = 50
         model.config.iCloudSync = ICloudSyncSettings(enabled: true, learnedWords: false)
         model.spot = .clipboardHistory
-        let clipboard = shown(.general)
+        let clipboard = shown(.common)
         model.spot = .iCloudSync
-        let iCloud = shown(.general)
+        let iCloud = shown(.interface)
         model.spot = .suggestions
-        let folded = shown(.general)
+        let folded = shown(.suggestions)
         model.spot = .appInserts
-        let unfolded = shown(.general)
+        let unfolded = shown(.suggestions)
         model.spot = nil
         check(has(clipboard, tr("保留最近 50 条", "Keep the last 50")) && has(clipboard, tr("恢复默认", "Restore Default"))
               && has(iCloud, tr("学到的词：不同步", "Learned words: not synced")),
-              "General: the clipboard history's 50 and iCloud's learned words off, each shown with Restore Default")
+              "The clipboard history's 50 and iCloud's learned words off, each shown with Restore Default")
         check(!folded.contains(SettingsSpot.suggestionsInsert.title) && !folded.contains(SettingsSpot.appInserts.title)
               && has(folded, tr("更多…", "More…", key: "settings.more")) && has(unfolded, SettingsSpot.appInserts.title),
               "Suggestions: Insert and In these apps under More…, folded; the search opens it")
@@ -707,11 +707,11 @@ extension SelfTest {
         let rig = AssistantRig(snapshotDirectory, name: "assistant-page.json", config: start)
         rig.facts = troubledFacts
         defer { rig.restore() }
-        let pages: [SettingsPage] = [.week, .general, .input, .ai, .privacy, .commands, .advanced, .about]
-        check(SettingsPage.allCases == pages && SettingsView.firstPage == .general
-              && SettingsPage(rawValue: "assistant") == nil && SettingsPage(rawValue: "apps") == nil,
-              "eight pages in order, This Week first in the sidebar, Settings opening on General, no Assistant or Apps page "
-              + "(\(SettingsPage.allCases.map(\.rawValue)))")
+        let pages: [SettingsPage] = [.common, .ai, .week, .commands, .more, .about]
+        check(SettingsPage.sidebar == pages && SettingsView.firstPage == .common && SettingsPage.groups.allSatisfy { $0.parent == .more }
+              && SettingsPage(rawValue: "general") == nil && SettingsPage(rawValue: "input") == nil,
+              "six pages in the sidebar, in order, Settings opening on Common, More Settings' groups not in the sidebar, "
+              + "no General or Input page (\(SettingsPage.sidebar.map(\.rawValue)))")
         check(SettingsSpot.search("doctor", trigger: "@", config: start).first == .troubleshoot
               && SettingsSpot.search("诊断", trigger: "@", config: start).first == .troubleshoot,
               "searching for doctor or 诊断 finds About → Troubleshoot")
@@ -745,7 +745,7 @@ extension SelfTest {
         enhanced(true)
         defer { enhanced(false) }
 
-        // A window opened with no page asked for: General, its probes, no connection test.
+        // A window opened with no page asked for: Common, its probes, no connection test.
         let assistant = AssistantModel()
         let model = SettingsModel(configURL: rig.url, persists: false)
         let window = open(SettingsView(model: model, assistant: assistant))
@@ -766,24 +766,24 @@ extension SelfTest {
         let order = titles.compactMap { title in rows.firstIndex { $0.hasPrefix(title) } }
         check(order.count == pages.count && order == order.sorted() && !rows.contains(tr("助手", "Assistant"))
               && !rows.contains(tr("按 App 设置", "Apps")),
-              "the sidebar has the seven pages in order, no Assistant or Apps (\(rows))")
-        check(!shown.contains(SettingsSpot.inputLanguages.title) && shown.contains(SettingsSpot.outputLanguages.title)
-              && SettingsSpot.inputLanguages.page == .input && SettingsSpot.fuzzyPinyin.page == .input,
-              "Settings opens on General: Translate to there; the input languages and their options on Input")
+              "the sidebar has the six pages in order, no Assistant or Apps (\(rows))")
+        check(shown.contains(SettingsSpot.inputLanguages.title) && shown.contains(SettingsSpot.outputLanguages.title)
+              && SettingsSpot.inputLanguages.page == .common && SettingsSpot.fuzzyPinyin.page == .inputAndKeys,
+              "Settings opens on Common: the input languages and Translate to there; fuzzy pinyin in Input and keys")
         check(rig.probed >= 1 && !assistant.findings.isEmpty && rig.tested == 0 && assistant.connectionTests == 0,
               "its probes ran as it opened (\(rig.probed)), never the connection test")
-        // The made-up problems: General's (the input method, if any) on its banner; Input's (Korean's pack) and AI's (no
-        // key) only a dot on their rows here.
-        let general = assistant.issues.filter { SettingsPage.of($0.element.area) == .general }.map(\.element)
-        check(general.allSatisfy { shown.contains($0.title) }
-              && rows.contains(SettingsPage.input.title + tr("：", ": ") + tr("有问题", "Has a problem"))
+        // The made-up problems: Common's (the input method, if any, and Korean's pack) on its banner; AI's (no key) only
+        // a dot on its row here.
+        let common = assistant.issues.filter { SettingsPage.of($0.element.area) == .common }.map(\.element)
+        check(common.allSatisfy { shown.contains($0.title) }
+              && rows.contains(SettingsPage.ai.title + tr("：", ": ") + tr("有问题", "Has a problem"))
               && !shown.contains(tr("修复", "Fix")),
-              "General's problems on its banner, a dot on Input's row (Korean's pack), no button just \"Fix\" (\(general.map(\.title)); "
-                  + "banner \(general.allSatisfy { shown.contains($0.title) }), rows \(rows), Fix \(shown.contains(tr("修复", "Fix"))))")
-        // A pack's problem is Input's (its banner there, a dot on its row); its button says Download.
+              "Common's problems on its banner, a dot on AI's row (no key), no button just \"Fix\" (\(common.map(\.title)); "
+                  + "banner \(common.allSatisfy { shown.contains($0.title) }), rows \(rows), Fix \(shown.contains(tr("修复", "Fix"))))")
+        // A pack's problem is Common's, with the input languages (its banner there); its button says Download.
         let download = assistant.issues.map(\.element).first { if case .downloadPack = $0.fix { return true } else { return false } }
-        check(download.map { SettingsPage.of($0.area) == .input && FindingRow.title($0.fix!) == tr("下载", "Download") } == true,
-              "the pack's problem on Input, its button says Download")
+        check(download.map { SettingsPage.of($0.area) == .common && $0.fix.map(FindingRow.title) == tr("下载", "Download") } == true,
+              "the pack's problem on Common, its button says Download")
         close(window)
 
         // AI: the provider's problem on its banner, its button Add Key…; a setting no longer shown, set otherwise than its
@@ -910,7 +910,7 @@ extension SelfTest {
             for (appearance, dark) in [(NSAppearance.Name.aqua, ""), (.darkAqua, "-dark")] {
                 let name = "assistant\(suffix)\(dark).png"
                 let url = snapshotDirectory.appendingPathComponent(name)
-                SettingsImage.render(preview, page: .general, assistant: shown, query: shown.request, to: url, appearance: appearance) { seconds in
+                SettingsImage.render(preview, page: .common, assistant: shown, query: shown.request, to: url, appearance: appearance) { seconds in
                     _ = pump(timeout: seconds) { false }
                 }
                 let size = (try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? Int ?? 0

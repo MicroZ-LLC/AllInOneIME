@@ -1222,7 +1222,7 @@ public final class InputSession {
     /// Privacy (Settings v2), Windows' Apps.
     public static var aiRefusal: String {
         Platform.current.terms.device == .mac
-            ? tr("这个 App 里关了 AI，没有发给 AI（设置 → 隐私）", "AI is off in this app: nothing was sent (Settings → Privacy)")
+            ? tr("这个 App 里关了 AI，没有发给 AI（设置 →「更多设置」→「隐私」）", "AI is off in this app: nothing was sent (Settings → More Settings → Privacy)")
             : tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
     }
 
