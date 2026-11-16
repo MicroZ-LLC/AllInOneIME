@@ -64,52 +64,39 @@ struct AILogoTile: View {
     }
 }
 
-/// Settings → AI, collapsed: the AI chosen (its logo, its name, how it is now) and Change ▾, which opens the choices
-/// (`AIChoicesGrid`). The chosen one's own settings are the rows under it (`SettingsView.providerSection`).
+/// Settings → AI, at the top: the AI chosen (its logo, its name, how it is now: orange when it can't answer). Its own
+/// settings are the rows under it (`SettingsView.providerSection`); every choice is a card below (`AIChoicesGrid`).
 struct AIChosenRow: View {
     let choice: AIChoice
     let status: AIStatus
-    let change: () -> Void
 
     var body: some View {
-        Button(action: change) {
-            HStack(spacing: 12) {
-                AILogoTile(choice: choice, size: 36)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(choice.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
-                    Text(choice.detail(status)).font(.callout).foregroundStyle(status.isProblem ? Color.orange : Color.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                Spacer(minLength: 8)
-                Text(tr("更换 ▾", "Change ▾")).foregroundStyle(Color.accentColor).fontWeight(.medium)
+        HStack(spacing: 12) {
+            AILogoTile(choice: choice, size: 36)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(choice.name).font(.system(size: 15, weight: .semibold)).foregroundStyle(.primary)
+                Text(choice.detail(status)).font(.callout).foregroundStyle(status.isProblem ? Color.orange : Color.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.vertical, 4)
-            .contentShape(Rectangle())
+            Spacer(minLength: 8)
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(tr("更换 AI", "Change the AI") + tr("：", ": ") + choice.name + tr("，", ", ", key: "ai.label.separator") + status.text)
+        .padding(.vertical, 4)
+        .accessibilityElement(children: .combine)
     }
 }
 
-/// Settings → AI, open: every choice as a card, by group (`AIChoice.groups`), the chosen one outlined. Picking one
-/// chooses it (and closes the cards); Cancel closes them, nothing changed.
+/// Settings → AI: every choice as a card, by group (`AIChoice.groups`), always shown (owner, 0.7.5, #121): one click
+/// chooses one; the chosen one is outlined and says In use.
 struct AIChoicesGrid: View {
     let chosen: AIChoice
     let groups: [(group: AIChoice.Group, choices: [AIChoice])]
     let status: (AIChoice) -> AIStatus
     let pick: (AIChoice) -> Void
-    let cancel: () -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top), count: 4)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
-            HStack {
-                Text(SettingsSpot.provider.title).font(.system(size: 14, weight: .semibold))
-                Spacer()
-                Button(tr("取消", "Cancel"), action: cancel).buttonStyle(.plain).foregroundStyle(Color.accentColor)
-                    .keyboardShortcut(.cancelAction)
-            }
             ForEach(groups.indices, id: \.self) { index in
                 let entry = groups[index]
                 VStack(alignment: .leading, spacing: 8) {
@@ -129,12 +116,20 @@ struct AIChoicesGrid: View {
     }
 }
 
-/// One choice: its logo, its name and its status (green when it can answer, orange when something is missing).
+/// One choice: its logo, its name and a caption: In use for the chosen one; the others' status in gray, never orange
+/// (on a fresh install most aren't set up, and orange everywhere reads as an error; #121).
 struct AIChoiceCard: View {
+    enum Tone: Equatable { case secondary, inUse }
+
     let choice: AIChoice
     let status: AIStatus
     let chosen: Bool
     let pick: () -> Void
+
+    /// What the card says under its name, and in which color.
+    static func caption(_ status: AIStatus, chosen: Bool) -> (text: String, tone: Tone) {
+        chosen ? (tr("正在使用", "In use"), .inUse) : (status.text, .secondary)
+    }
 
     var body: some View {
         Button(action: pick) {
@@ -145,8 +140,9 @@ struct AIChoiceCard: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(choice.name).font(.system(size: 13, weight: .medium)).foregroundStyle(.primary)
                         .lineLimit(2).fixedSize(horizontal: false, vertical: true)
-                    Text(status.text).font(.caption).lineLimit(1).minimumScaleFactor(0.8)
-                        .foregroundStyle(status.isReady ? Color.green : status.isProblem ? Color.orange : Color.secondary)
+                    let caption = Self.caption(status, chosen: chosen)
+                    Text(caption.text).font(.caption).lineLimit(1).minimumScaleFactor(0.8)
+                        .foregroundStyle(caption.tone == .inUse ? Color.accentColor : Color.secondary)
                 }
                 Spacer(minLength: 0)
             }
@@ -165,7 +161,7 @@ struct AIChoiceCard: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(choice.name + tr("，", ", ", key: "ai.label.separator") + status.text)
+        .accessibilityLabel(choice.name + tr("，", ", ", key: "ai.label.separator") + Self.caption(status, chosen: chosen).text)
         .accessibilityAddTraits(chosen ? .isSelected : [])
     }
 }

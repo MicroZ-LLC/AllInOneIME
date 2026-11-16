@@ -8,6 +8,18 @@ import Security
 /// `make uninstall` does: the input method in ~/Library/Input Methods, 「AllInOneIME 设置」 in
 /// ~/Applications, registered and added to the user's input sources. No administrator password.
 enum Installer {
+    /// What the last dialog's button opens the AllInOneIME Settings app with: the start after a fresh install (#122),
+    /// shown once; an update opens Settings as before.
+    static func settingsAppArguments(fresh: Bool) -> [String] { fresh ? ["--start"] : [] }
+
+    /// The last dialog's text once it's installed: after the magic key (`trigger`) you type anything and pick what to do
+    /// (one @), never a command name to learn.
+    static func installedDetails(trigger: String) -> String {
+        UIText.triggered(tr("按 Ctrl+空格 切换到它。在任意输入框里先打 @，后面想说什么就打什么，再从列出的事里选一个，回车执行。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
+                            "Press Ctrl+Space to switch to it. In any text field, type @, then whatever you want, and pick what to do from the list; Return does it. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account."),
+                         trigger: trigger)
+    }
+
     static let bundleID = Updater.bundleID
     static let settingsBundleID = Updater.settingsBundleID
     /// The input method's process name.
