@@ -5,8 +5,8 @@
 # mini), which builds on the core. A path counts for
 #   - neither: the docs nobody's tests read (docs/, site/, AGENTS.md, CLAUDE.md) and the core's (Core/docs/, Core/'s
 #     own Markdown files and LICENSE);
-#   - core: the core's tests (Core/Tests/), but for what the shell's tests use too (AllInOneIMETestSupport) and a file
-#     of tests that runs the input method (it names PlugLangCLI: Scripts/core-tests-with-app.sh), or one deleted (it
+#   - core: the core's tests (Core/Tests/), but for what the shell's tests use too (AllInOneIMETestSupport, the host
+#     scenarios its replayer plays: HostScenarios) and a file of tests that runs the input method (it names PlugLangCLI: Scripts/core-tests-with-app.sh), or one deleted (it
 #     may have), which count for both;
 #   - mac: Sources/, Tests/, Scripts/ and Resources/, and the files the shell's tests read (README.md, CHANGELOG.md and
 #     their translations, THIRD_PARTY_NOTICES.md, LICENSE);
@@ -20,7 +20,7 @@ core=false mac=false
 while IFS= read -r path || [ -n "$path" ]; do
     case $path in
     '' | docs/* | site/* | AGENTS.md | CLAUDE.md | Core/docs/*) ;;
-    Core/Tests/AllInOneIMETestSupport/*) core=true mac=true ;;
+    Core/Tests/AllInOneIMETestSupport/* | Core/Tests/HostScenarios/*) core=true mac=true ;;
     Core/Tests/*)
         core=true
         if [ ! -f "$path" ] || grep -q PlugLangCLI "$path"; then mac=true; fi ;;

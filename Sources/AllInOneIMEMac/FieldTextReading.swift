@@ -72,14 +72,17 @@ public enum FieldTextReading {
 
     /// The text after the caret in a field that tells no length: the longest range up to `span` that reads back (a range
     /// past the end reads nil), found by a binary search between a length that reads and one that doesn't. Editing inside
-    /// a line keeps its rest, so autocomplete, which asks only at the end of a line, doesn't take it for the end.
+    /// a line keeps its rest, so autocomplete, which asks only at the end of a line, doesn't take it for the end. Each read
+    /// is a call into the app on the main thread: the whole span is tried first (a field with that much after the caret),
+    /// and one character (the end of the text), before the search.
     static func readAfter(_ caret: Int, span: Int, substring: (NSRange) -> String?) -> String {
         func read(_ length: Int) -> String? {
             guard let text = substring(NSRange(location: caret, length: length)), !text.isEmpty else { return nil }
             return text
         }
         guard span > 0, var best = read(1) else { return "" }
-        var (low, high) = (1, span)  // low reads; above high is unknown or doesn't
+        if span > 1, let all = read(span) { return all }
+        var (low, high) = (1, span - 1)  // low reads; above high is unknown or doesn't
         while low < high {
             let middle = (low + high + 1) / 2
             if let text = read(middle) { (low, best) = (middle, text) } else { high = middle - 1 }

@@ -263,7 +263,7 @@ The first frame is `hello`. Its shape, and the shape of `welcome`, never change 
 
 - **Reasons:** `"terminated"` comes from `ITfCompositionSink::OnCompositionTerminated`; `"timeout"` comes from §5.4.
 - **Applying the result:** the DLL applies the result's outputs with the write cookie it was given. A `commit` there replaces the range the composition covered.
-- **Engine side:** `commitAll` for `terminated`. For `timeout`, the engine resets its draft and returns `panel shown:false` with **no** `composition`: the DLL has already ended the composition (keeping the draft as typed) and the app has had the key, so an empty `composition` would only remove text the document should keep. The two sides are back in step.
+- **Engine side:** `leaveField` for `terminated`, as for `blur`: pinyin not yet confirmed and a command not run yet go, the rest of what is pending is committed. For `timeout`, the engine resets its draft and returns `panel shown:false` with **no** `composition`: the DLL has already ended the composition (keeping the draft as typed) and the app has had the key, so an empty `composition` would only remove text the document should keep. The two sides are back in step.
 
 ## 6. Outputs
 
@@ -852,7 +852,7 @@ What the Swift side (`AllInOneIMEWire`, the Windows engine) found while building
 - **`open` again** for a known `sid` replaces its `field` and is not an error.
 - **`focus` re-sent while focused** (§4: a new keyboard layout or input scope, noticed at the next key) keeps the same serial — the DLL increments the serial only for a real new focus or a reconnect — so an `apply` the engine already pushed for that focus still matches and applies. It doesn't blur or commit the draft. The DLL and engine agree on this (`focus-resent`).
 - **`focus` without a `blur`** of the previously focused session: the engine blurs that session itself, and its outputs are dropped. The DLL must always send `blur` first (§4).
-- **Order on a focus move.** TSF terminates a live composition before it moves the focus, so the DLL sends `endComposition {terminated}` (the draft committed as typed, or a command not run yet dropped) and *then* `blur`, which finds nothing left to commit (`focus-moves`).
+- **Order on a focus move.** TSF terminates a live composition before it moves the focus, so the DLL sends `endComposition {terminated}` (pinyin not yet confirmed and a command not run yet dropped, the rest committed) and *then* `blur`, which finds nothing left to commit (`focus-moves`).
 - **Caret reports** are sent only while the panel is shown (§6). The engine forgets the last caret when the panel hides, so a panel shown again waits for a fresh report rather than anchoring at the stale rectangle.
 - **A field that turns secure** (`focus` re-sent with `secure:true`) while a draft is pending gets the draft committed as typed (a command not run yet, `@note` aside, or one that ran is dropped instead: nothing committed), pushed as `apply` (`focus` has no result), with `panel shown:false`. A key from a secure field, if one comes anyway, is `handled:false`, with a notice in the engine and no composition.
 - **`blur` and `endComposition terminated`** commit the draft *as typed*, with its "@" (`@john`), not as shown, and hide the panel. A command not run yet (`@improve helo` before ⏎) is dropped instead: an empty `composition`, nothing committed (`terminated`, `focus-moves`); one that ran (its versions shown or still streaming) leaves nothing either, its request cancelled (`blur-mid-stream`).

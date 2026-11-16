@@ -170,11 +170,11 @@ public final class ComposerSession: @unchecked Sendable {
         host.sessionClosed(self)
     }
 
-    /// `endComposition` (§5.5): the app ended our composition ("terminated": what is pending goes in, or a command not run
-    /// yet goes, as `commitAll` has it), or the client gave up on a key ("timeout"). After a timeout the app has had the
-    /// key: the draft starts over and the panel goes.
+    /// `endComposition` (§5.5): the app ended our composition ("terminated": as the Mac's commit, `leaveField`: pinyin not
+    /// yet confirmed and a command not run yet go, the rest of what is pending goes in), or the client gave up on a key
+    /// ("timeout"). After a timeout the app has had the key: the draft starts over and the panel goes.
     func endComposition(reason: String) -> [Output] {
-        guard reason == "timeout" else { return map(composer.commitAll(), from: .async) + hidePanel() }
+        guard reason == "timeout" else { return map(composer.leaveField(), from: .async) + hidePanel() }
         return map(composer.appTookMarkedText(), from: .async) + hidePanel()
     }
 

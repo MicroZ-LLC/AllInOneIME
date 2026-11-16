@@ -111,9 +111,10 @@ struct CommandDraftKeysTests {
         #expect(commits(pinyin.commitAll()).isEmpty && !pinyin.engineState.isComposing && pinyin.phase == .idle)
     }
 
-    /// The session's blur and the app's commit, with a Chinese command: nothing in the field. Plain text still goes in.
+    /// The session's blur, the app's commit and a click, with a Chinese command: nothing in the field. Plain text still
+    /// goes in.
     @Test func aChineseCommandIsDroppedWhenTheFieldIsLeftAndPlainTextIsNot() {
-        for event in [SessionEvent.blur, .commit] {
+        for event in [SessionEvent.blur, .commit, .pointerDown] {
             let host = Self.host()
             host.press(FakeHost.at)
             host.type("question")
@@ -143,6 +144,22 @@ struct CommandDraftKeysTests {
         #expect(c.draft == "@john" && c.draftCommand == nil)
         let response = c.handleKeyDown(commandA)
         #expect(!response.handled && commits(response) == ["@john"])
+    }
+
+    /// `@note` of one line keeps going in as typed when the session's field is left, the app commits or a click comes,
+    /// as with a shortcut (the owner kept it as it was).
+    @Test func theSessionKeepsAOneLineNoteOnEveryWayOut() {
+        for event in [SessionEvent.blur, .commit, .pointerDown] {
+            let host = Self.host()
+            host.composer.setInputMode(.english)
+            host.press(FakeHost.at)
+            host.type("note")
+            host.press(FakeHost.tab)
+            host.type("buy milk")
+            #expect(host.composer.draft == "@note buy milk", "\(event)")
+            host.send(event)
+            #expect(host.document == "@note buy milk" && host.composer.draft.isEmpty, "\(event): \"\(host.document)\"")
+        }
     }
 
     /// `@note` of one line keeps going in as typed: a shortcut, the field left (the owner kept it as it was).
@@ -204,9 +221,9 @@ struct CommandDraftKeysTests {
         #expect(commits(ended).isEmpty && ended.contains(.hidePanel) && shown.phase == .idle)
     }
 
-    /// The session's blur and the app's commit while the command runs: nothing in the field.
+    /// The session's blur, the app's commit and a click while the command runs: nothing in the field.
     @Test func theSessionPutsNothingInWhenACommandThatRanIsLeft() {
-        for event in [SessionEvent.blur, .commit] {
+        for event in [SessionEvent.blur, .commit, .pointerDown] {
             let host = Self.host()
             host.composer.setInputMode(.english)
             host.press(FakeHost.at)

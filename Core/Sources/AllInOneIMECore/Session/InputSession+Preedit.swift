@@ -9,13 +9,14 @@ import Foundation
 /// nothing marked, leaving a field while typing leaves nothing there. The composer still has its composition
 /// (`Composer.markedText`, `markedCursor`); only the shell is never asked to mark it.
 extension InputSession {
-    /// What is being typed is left (`SessionEvent.commit`, `cancel`, `pointerDown`): the app's commit puts in what the
-    /// composer leaves a field with (`Composer.leaveField`: never the pinyin); cancelled or a click, nothing pending goes
-    /// in (`appTookMarkedText`). A click (or the app's commit on one) may have moved the caret: the suggestion token ends.
+    /// What is being typed is left (`SessionEvent.commit`, `cancel`, `pointerDown`): the app's commit and a click put in
+    /// what the composer leaves a field with (`Composer.leaveField`: never the pinyin nor a command not run yet; a note or
+    /// what dictation heard, as typed), as leaving the field does; cancelled, nothing pending goes in
+    /// (`appTookMarkedText`). A click (or the app's commit on one) may have moved the caret: the suggestion token ends.
     func left(_ event: SessionEvent) {
         autocompleteLeft(.ignored)
         clipboardLeft()
-        if case .commit = event { perform(composer.leaveField()) } else { perform(composer.appTookMarkedText()) }
+        if case .cancel = event { perform(composer.appTookMarkedText()) } else { perform(composer.leaveField()) }
         if case .cancel = event { return }
         suggestionsClicked()
     }

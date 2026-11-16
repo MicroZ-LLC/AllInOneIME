@@ -133,4 +133,17 @@ struct FieldTextReadingTests {
         let field = Field(name: "Brave", text: "hello" + rest, length: 0, selected: Self.caret(5))
         #expect(field.read(before: 300, after: 300)?.after == String(rest.prefix(600)))
     }
+
+    /// Each read is a call into the app on the main thread: with a full span after the caret, the text after it takes two
+    /// reads (one character, then the span), not a search.
+    @Test func aFullSpanAfterTheCaretIsReadAtOnce() {
+        let text = "hello" + String(repeating: "x", count: 2000)
+        var calls = 0
+        let read = FieldTextReading.read(.init(length: 0, selected: Self.caret(5)), before: 300, after: 300) {
+            calls += 1
+            guard NSMaxRange($0) <= (text as NSString).length else { return nil }
+            return (text as NSString).substring(with: $0)
+        }
+        #expect(read == FieldText(before: "hello", after: String(repeating: "x", count: 600)) && calls == 3, "\(calls) reads")
+    }
 }
