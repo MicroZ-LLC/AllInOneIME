@@ -41,8 +41,8 @@ public struct PromptImage: Hashable, Sendable {
 extension Provider {
     /// Whether this provider's model can be sent an image (`PromptImage`): the Claude API and Gemini, always; OpenAI's own
     /// API (another service behind an OpenAI-compatible URL may not take images, and fails the request if it doesn't);
-    /// Bedrock's Claude and Nova models (not Nova Micro, text only); never AllInOneIME Cloud (its service takes text only)
-    /// nor the on-device model.
+    /// Bedrock's Claude models from Claude 3 on (not the text-only Claude 2, Instant and Claude 3.5 Haiku) and Nova models
+    /// (not Nova Micro, text only); never AllInOneIME Cloud (its service takes text only) nor the on-device model.
     public func seesImages(model: String, baseURL: String?) -> Bool {
         switch self {
         case .anthropic, .gemini: return true
@@ -51,7 +51,8 @@ extension Provider {
             return host == "api.openai.com"
         case .bedrock:
             let model = model.lowercased()
-            return model.contains("anthropic.") || (model.contains("amazon.nova-") && !model.contains("nova-micro"))
+            let textOnlyClaude = ["claude-v2", "claude-instant", "claude-3-5-haiku"].contains { model.contains($0) }
+            return (model.contains("anthropic.") && !textOnlyClaude) || (model.contains("amazon.nova-") && !model.contains("nova-micro"))
         case .hosted, .apple: return false
         }
     }

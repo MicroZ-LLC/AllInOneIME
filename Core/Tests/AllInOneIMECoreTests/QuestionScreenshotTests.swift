@@ -28,6 +28,8 @@ struct QuestionScreenshotTests {
         (.bedrock, "amazon.nova-lite-v1:0", nil, true),
         (.bedrock, "amazon.nova-micro-v1:0", nil, false),
         (.bedrock, "meta.llama3-8b-instruct-v1:0", nil, false),
+        (.bedrock, "anthropic.claude-v2:1", nil, false),
+        (.bedrock, "us.anthropic.claude-3-5-haiku-20241022-v1:0", nil, false),
         (.hosted, "hosted", "https://svc.test", false),
         (.apple, "apple", nil, false),
     ] as [(Provider, String, String?, Bool)])
