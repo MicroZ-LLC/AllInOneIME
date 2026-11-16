@@ -1,8 +1,9 @@
 # Plugins: plan
 
 Commands come in three tiers: **built-in** (`@improve`, `@translate`, `@question`, `@agent`, `@open`, `@note`,
-`@reminder`, `@py`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`), **plugins** installed from the plugin
-library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Commands → Your Commands).
+`@reminder`, `@js`, `@tasks`, `@settings`, `@imessage`, `@reportissue`), **plugins** installed from the plugin
+library (what not everyone wants, like `@stock`), and the user's **custom** commands (Settings → Commands → Your Commands,
+where Start from an Example adds `@py`, which runs a line of Python with the user's `python3`; built in before 0.7.5).
 When names clash: built-in > plugin > custom, so a plugin named like a built-in command never shows up.
 
 ## What a plugin is

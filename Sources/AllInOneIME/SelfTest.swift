@@ -2306,25 +2306,25 @@ enum SelfTest {
             controller.services.programInstalled = installed
             controller.setCommands(commands)
         }
-        // Only the built-in commands, so the user's own can't come first in the list.
-        controller.setCommands(Command.catalog([]), recheck: true)
+        // The built-ins and Settings' example @py, so the user's own commands can't come first in the list.
+        let catalog = Command.catalog([CommandExamples.python])
+        func offersPy() -> Bool { controller.composer.commands.contains { $0.name == "py" } }
+        controller.setCommands(catalog, recheck: true)
         let python = CommandRunner.isInstalled("python3", path: ShellEnvironment.current["PATH"])
-        check(pump(timeout: 10) { controller.composer.commands.contains(.py) == python },
-              "@py is offered only with python3 installed (python3: \(python))")
+        check(pump(timeout: 10) { offersPy() == python }, "@py is offered only with python3 installed (python3: \(python))")
         // A check of the programs that ends while a command is being written applies once that's done.
-        controller.services.programInstalled = { $0 != Command.py.program }
+        controller.services.programInstalled = { $0 != "python3" }
         press(controller, client, "@", code: 0x13, flags: .shift)  // composing: the list is up
-        controller.setCommands(Command.catalog([]), recheck: true)
+        controller.setCommands(catalog, recheck: true)
         _ = pump(timeout: 1) { false }  // the check runs in the background meanwhile
-        let keptWhileComposing = controller.composer.commands.contains(.py) == python
+        let keptWhileComposing = offersPy() == python
         _ = escape(controller, client)
         press(controller, client, "@", code: 0x13, flags: .shift)  // the next key outside a command applies it
-        check(keptWhileComposing && !controller.composer.commands.contains(.py),
-              "a program check that ended while a command was written hides @py once it's done")
+        check(keptWhileComposing && !offersPy(), "a program check that ended while a command was written hides @py once it's done")
         _ = escape(controller, client)
         controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
-        controller.setCommands(Command.catalog([]), recheck: true)
-        _ = pump(timeout: 10) { controller.composer.commands.contains(.py) == python }
+        controller.setCommands(catalog, recheck: true)
+        _ = pump(timeout: 10) { offersPy() == python }
 
         // Symbols with their US-layout keys (`type` sends key code 0 for anything not in `keyCodes`).
         let symbols: [Character: (UInt16, NSEvent.ModifierFlags)] = [

@@ -96,10 +96,8 @@ public struct Command: Hashable, Sendable {
     /// `@reminder 明天下午3点给张三打电话`.
     public static let reminder = Command(name: "reminder", kind: .reminder)
 
-    /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
-    /// `@py 2**100`. It runs with the user's `python3`.
-    public static let py = Command(name: "py", kind: .run)
-    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in the platform's JavaScript
+    /// JavaScript code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
+    /// `@js [1, 2, 3].map(x => x * 2)`. It runs in the platform's JavaScript
     /// (JavaScriptCore on the Mac, QuickJS-ng off Apple platforms), in this app's own child process (no files,
     /// programs or network).
     public static let js = Command(name: "js", kind: .run)
@@ -129,18 +127,18 @@ public struct Command: Hashable, Sendable {
 
     /// `@reply` after the first five: the list opens on the ones it always had.
     public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .note, .reminder,
-                                             .py, .js, .tasks, .settings, .imessage, .reportIssue, .stats]
+                                             .js, .tasks, .settings, .imessage, .reportIssue, .stats]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
     /// still taken. None at the moment.
     public static let off: [Command] = []
 
-    /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
+    /// `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
-    public var isCode: Bool { self == .py || self == .js }
+    public var isCode: Bool { self == .js }
 
-    /// Its text goes to code or a program the user wrote: `@py`, `@js`, a custom `run` command, a script
-    /// extension. None of it runs inside another command's text unless typed there (`Composer`: not from a paste,
+    /// Its text goes to code or a program the user wrote: `@js`, a custom `run` command (Settings' example `@py`), a
+    /// script extension. None of it runs inside another command's text unless typed there (`Composer`: not from a paste,
     /// dictation or a restored draft), and other commands don't run inside its text.
     public var runsCode: Bool { isCode || (custom != nil || script != nil) && kind == .run }
 
@@ -152,11 +150,10 @@ public struct Command: Hashable, Sendable {
     public var program: String? { program(agent: .claude) }
 
     /// The program this command needs on the Mac: the agent's for `@agent` (`AgentKind.program`; `agentCommand` is a
-    /// custom agent's), `python3` for `@py`, `argv[0]` for a custom `run` or `terminal` command, the app that sends for a
+    /// custom agent's), `argv[0]` for a custom `run` or `terminal` command, the app that sends for a
     /// send command (an absolute ".app" path); nil when it needs none.
     public func program(agent: AgentKind, custom agentCommand: [String] = []) -> String? {
         if self == .agent { return agent.program(custom: agentCommand) }
-        if self == .py { return InlineCode.python }
         if self == .imessage { return "/System/Applications/Messages.app" }
         guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
         return custom.argv?.first
@@ -257,7 +254,7 @@ public struct Command: Hashable, Sendable {
         return bundled.map(Extension.script) + snippets.map(Extension.snippet) + scripts.dropFirst(bundled.count).map(Extension.script)
     }
 
-    /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
+    /// It runs a program in a child process (`ProcessLauncher`): `@js`, a custom `run` command, a script
     /// extension, a plugin's script.
     public var needsChildProcess: Bool {
         isCode || kind == .run && (custom != nil || script != nil || plugin != nil)
