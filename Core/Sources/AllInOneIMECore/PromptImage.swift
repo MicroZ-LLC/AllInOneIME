@@ -39,8 +39,9 @@ public struct PromptImage: Hashable, Sendable {
 }
 
 extension Provider {
-    /// Whether this provider's model can be sent an image (`PromptImage`): the Claude API and Gemini, always; OpenAI's own
-    /// API (another service behind an OpenAI-compatible URL may not take images, and fails the request if it doesn't);
+    /// Whether this provider's model can be sent an image (`PromptImage`): the Claude API and Gemini, always (every model
+    /// they serve sees images); OpenAI's own API (another service behind an OpenAI-compatible URL may not take images, and
+    /// fails the request if it doesn't);
     /// Bedrock's Claude models from Claude 3 on (not the text-only Claude 2, Instant and Claude 3.5 Haiku) and Nova models
     /// (not Nova Micro, text only); never AllInOneIME Cloud (its service takes text only) nor the on-device model.
     public func seesImages(model: String, baseURL: String?) -> Bool {

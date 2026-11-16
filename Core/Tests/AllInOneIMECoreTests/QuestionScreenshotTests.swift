@@ -343,5 +343,15 @@ struct QuestionScreenshotTests {
         _ = c.handleKeyDown(enterKey)
         #expect(c.questionConversation?.web == .only([]))
     }
+
+    @Test func aFollowUpCanBeJustAScreenshot() {
+        let c = composer(sees: true)
+        questionDraft(c, "what is rust")
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A language.")]), isFinal: true, id: 1)
+        pasteScreenshot(c, text: lines(["fn main"]))
+        #expect(c.handleKeyDown(enterKey).effects.contains { if case .startRefine = $0 { true } else { false } })
+        #expect(c.questionConversation?.attachments[1]?.text == "fn main")
+    }
 }
 

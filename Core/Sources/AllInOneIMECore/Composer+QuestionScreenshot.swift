@@ -25,6 +25,12 @@ extension Composer {
     /// can see it.
     var sendsScreenshotImage: Bool { asksWithScreenshot && replyState.image != nil && aiSeesImages() }
 
+    /// A follow-up's screenshot is ready: it can be asked about with nothing typed, as a first question can.
+    var followUpScreenshotReady: Bool {
+        guard isQuestionChat, case .screenshot(.ready)? = replyState.followUp else { return false }
+        return true
+    }
+
     /// The follow-up's screenshot goes with its image (`sendsScreenshotImage`'s, for the line).
     var sendsFollowUpImage: Bool { replyState.followUpImage != nil && aiSeesImages() }
 

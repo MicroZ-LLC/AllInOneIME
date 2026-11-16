@@ -3184,7 +3184,7 @@ public final class Composer {
             engineState = engine.snapshot()
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
+        guard canRefine, let request = refineRequest, !instruction.isEmpty || followUpScreenshotReady else { return [.showPanel] }
         if !fresh, showsHandoff { return [.showPanel] }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
@@ -3250,7 +3250,7 @@ public final class Composer {
             engine.clearComposition()
             engineState = engine.snapshot()
         }
-        refineText = ""
+        (refineText, replyState.followUp, replyState.followUpImage, replyState.followUpRecognition) = ("", nil, nil, nil)
         refinements = []
         refineRequest = nil
         refineID = nil
