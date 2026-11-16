@@ -120,8 +120,10 @@ public enum SessionText {
         if composer.sentText.isEmpty, composer.attachment == nil {
             return t.tr("写点内容，或按 \(paste) 粘贴", "Write something, or \(paste) to paste")
         }
+        // Japanese (pasted) is no input language: told by the text itself (`Language.isJapanese`).
+        let japanese = Language.isJapanese(composer.sentText) ? composer.sentText : nil
         return "\(how) → " + t.action(command, input: config.language(of: composer.sentText), config: config, draft: composer.draft,
-                                       terms: terms)
+                                       terms: terms, text: japanese)
     }
 
     /// The instructions the results shown were refined with, oldest first ("Refined: shorter · more formal"); Esc goes

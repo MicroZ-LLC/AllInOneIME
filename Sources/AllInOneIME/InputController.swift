@@ -79,6 +79,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Only set by the self-test: IMK refuses to create a controller for anything but its own
     /// client proxies, so the test injects its fake text field here.
     var clientOverride: IMKTextInput?
+    /// Set for one `apply`: its outputs answer a key the session took that composes (see `apply`).
+    private var keyComposes = false
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
     /// Opens an `@open` result: a web address in the default browser, anything else as a file (the self-test opens
@@ -139,7 +141,7 @@ final class AllInOneIMEInputController: IMKInputController {
     static var microphoneAllowed = true
     /// Whether marked text of ours is in the document: only a row marked during its key (`markRow`). What is being typed
     /// is never marked there (`InputSession+Preedit.swift`): the panel's input line shows it.
-    private var hasMarkedText: Bool { markedRow != nil }
+    var hasMarkedText: Bool { markedRow != nil }
     /// What a key the rows took put in as marked text in a Chromium or Electron app (a row, or the token's last character
     /// again), to commit once the key is done (`markRow`).
     private var markedRow: MarkedRow?
@@ -724,7 +726,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     /// The key being answered came from the key tap (`keyAtTap`): no app will have it, so nothing is marked to keep it
     /// from one (`marksRow`, `keepFromTerminal`).
-    private var atTap = false
+    private(set) var atTap = false
 
     /// A key down handed over for the first time.
     @MainActor
@@ -758,7 +760,8 @@ final class AllInOneIMEInputController: IMKInputController {
         if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
         let composing = composer.isComposing
         let response = session.handle(.key(key, context))
-        apply(response.outputs, client: client, keyComposes: response.handled && (composing || composer.isComposing))
+        keyComposes = response.handled && (composing || composer.isComposing)
+        apply(response.outputs, client: client)
         if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
         return response.handled
     }
@@ -838,7 +841,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// key the input method took when nothing is marked during it, as a key the rows take is (`rowByKey`): Chromium's
     /// pages and Electron's apps (`marksRow`), terminals (`keepFromTerminal`).
     @MainActor
-    func apply(_ outputs: [SessionOutput], client: IMKTextInput?, keyComposes: Bool = false) {
+    func apply(_ outputs: [SessionOutput], client: IMKTextInput?) {
+        let keyComposes = self.keyComposes
+        self.keyComposes = false
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // What the next `replace` must take out (`checkNextReplace`): a row in the token's place.
         var check: ReplacementCheck?
@@ -1031,22 +1036,6 @@ final class AllInOneIMEInputController: IMKInputController {
         if marking, check.otherwise.isEmpty { markBeforeCaret(in: target, for: what + ", adding nothing") }
         let instead = check.otherwise.isEmpty ? "nothing" : "its plain insertion"
         log.notice("a row didn't take the token's place: other text in its range now (\(range.count, privacy: .public) UTF-16 units); \(instead, privacy: .public) put in instead")
-    }
-
-    /// Whether what a key the rows took puts in (`SessionOutput.rowByKey`: a row), or nothing (`rowsTookKey`: ↓ ↑ → Esc),
-    /// goes in as marked text during the key in `client` (`markRow`): only in an app built on Chromium or Electron
-    /// (`chromiumApp`), whose page would get the key as well; not in a terminal (its keys go to a shell, and it takes no
-    /// marked text in place of a range), nor where marked text of ours is in the field before the key (Code's word: the
-    /// page has the key as the input method's already). Everywhere else (AppKit's fields, WebKit's: Messages, Notes, Mail,
-    /// Safari) what the key puts in goes in as 0.6.7.1 put it, a row in the token's place with its range: those never act
-    /// on a key the input method took. The same keys and rows everywhere; only how they go in differs.
-    @MainActor
-    func marksRow(in client: IMKTextInput?) -> Bool {
-        guard !atTap, let client, !hasMarkedText else { return false }
-        let app = client.bundleIdentifier()
-        guard !Self.isTerminal(app: app), chromiumApp(app) else { return false }
-        KeyGuard.shared.markedInstead()
-        return true
     }
 
     /// What a key the rows took puts in, in an app built on Chromium or Electron (`marksRow`): a row in place of `range`
