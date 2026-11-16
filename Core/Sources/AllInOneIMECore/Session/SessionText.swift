@@ -143,6 +143,8 @@ public enum SessionText {
         switch composer.attachment {
         case .screenshot(.recognizing)?:
             return [composer.messages.reply.reading]
+        case let .screenshot(.ready(text))? where composer.sendsScreenshotImage:
+            return [screenshotSent(text, language: language)]
         case let .screenshot(.ready(text))?:
             let lines = text.lineCount
             switch terms.device {
@@ -272,3 +274,26 @@ public enum SessionText {
         return languages + [language]
     }
 }
+
+extension SessionText {
+    /// A screenshot whose image goes to the AI with its text (`Composer.aiSeesImages`), as the panel's header says it.
+    static func screenshotSent(_ text: ScreenText, language: String) -> String {
+        let t = InterfaceWords(language: language)
+        let lines = text.lineCount
+        return lines == 0 ? t.tr("截图（没有文字）· 图片发给 AI", "Screenshot (no text) · its image goes to the AI")
+            : t.tr("截图 · \(lines) 行 · 图片和认出的文字一起发给 AI", "Screenshot · \(lines) lines · its image and text go to the AI")
+    }
+
+    /// The header line for a follow-up's screenshot (`Composer.followUpAttachment`): being read, or ready.
+    public static func followUpHeader(_ composer: Composer, language: String) -> [String] {
+        let t = InterfaceWords(language: language)
+        switch composer.followUpAttachment {
+        case .screenshot(.recognizing)?: return [composer.messages.reply.reading]
+        case let .screenshot(.ready(text))? where composer.sendsFollowUpImage: return [screenshotSent(text, language: language)]
+        case let .screenshot(.ready(text))?:
+            return [t.tr("截图 · \(text.lineCount) 行 · 只发送认出的文字", "Screenshot · \(text.lineCount) lines · only its text is sent")]
+        case .copiedText?, nil: return []
+        }
+    }
+}
+

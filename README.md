@@ -168,7 +168,7 @@ script extensions are also found by the words of their summary, title or keyword
 summary is "Email signature"), but `run`, `terminal` and `link` commands, snippets and script extensions are never
 offered for an arbitrary sentence.
 `@question`, `@improve`, `@translate` and `@reply` send to the AI you chose in Settings → AI only when you press the action key (a screenshot is read on
-this Mac and only its text is sent); `@open` searches only on this
+this Mac and its text is sent; a question about one sends the image too, made smaller, to an AI that can see images); `@open` searches only on this
 Mac; `@note` and `@reminder` go only to Notes and Reminders on this Mac (`@note` to a folder or to Notion instead, if you chose one); `@agent` uses the agent installed on your Mac (Claude Code's `claude` command by default) and its own account, and it asks
 you first, as usual, before changing files or running commands. Without the agent installed, `@agent` isn't offered.
 `@imessage` reads Contacts on this Mac only (names, phone numbers, emails), never goes through the AI, and Messages sends
@@ -219,6 +219,14 @@ A screenshot pasted into any other command works too: `@translate` ⌃V ⏎ tran
 does this say` ⌃V ⏎ asks about it, and commands without AI get its text as if it had been copied (`@note` keeps its lines).
 With text selected, `@improve` and `@translate` keep working on the selection, and a notice says the screenshot wasn't
 used.
+
+A question about a screenshot (new): ⌃V in `@question`, after one @'s text (Ask AI moves to the top), or while typing a
+follow-up in the conversation attaches it, and ⏎ asks. Its text, read on this Mac, always goes; the image itself goes
+too, its long side at most 1568 pixels, when the AI can see images: the Claude API, Gemini, OpenAI's own API, Bedrock's
+Claude and Nova models, and Claude Code, Codex, Antigravity and Kiro CLI. AllInOneIME Cloud, Apple Intelligence and
+other OpenAI-compatible services get the text only. A screenshot with no text (a chart, a photo) can be asked about
+only when the AI sees images. ⌫ on an empty follow-up line takes its screenshot away. When hiding sensitive information
+took something out, the image isn't sent. A question asked with a screenshot isn't kept in the recent questions.
 
 ### Refining the results (new)
 
@@ -1552,6 +1560,11 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 - Continuing an `@question` conversation elsewhere (⌥1 … after the last round, or ⌘⏎) sends it, with what you typed, to the service you pick: a coding agent on this Mac (Claude Code, Gemini CLI, Kiro CLI or your own, each with its own account and service), claude.ai, chatgpt.com or gemini.google.com, in the web address or through the clipboard. It goes as you saw it: values hidden from the AI's requests (see below) are in it as they are, since you choose to send it there. Nothing goes anywhere until you pick one; "Copy the conversation" only puts it on the clipboard.
 - An `@question` about AllInOneIME itself (naming the app, one of its settings, commands or keys) also sends two or three short sections of the app's own user guide, picked on the Mac (about 3,000 characters at most): the app's documentation, nothing of yours (no settings, no keys); a coding agent you continue such a conversation in is given the guide's path instead. Any other question is sent exactly as before.
 - With AllInOneIME Cloud, the sentence goes through the developer's server to a model provider (currently through OpenRouter): the server keeps counts only, never the text. Signing in keeps only your email address.
+- A screenshot pasted into a question (⌃V in `@question`, one @ or a follow-up, new) is read on this Mac; its text goes
+  with the question, and the image itself, made smaller (long side at most 1568 pixels), goes only to the AI you chose
+  when it can see images (the Claude API, Gemini, OpenAI's own API, Bedrock's Claude and Nova models, or the CLI
+  answering questions). AllInOneIME never keeps or logs it, nor sends it when hiding sensitive information took something
+  out; a CLI answering questions keeps it in that CLI's own session history, as it keeps the questions.
 - Hide sensitive information (Settings → More Settings → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be left out in the config (`"phones": false`). Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Autocomplete (off by default) reads the text around the caret after each pause (up to 1,500 characters before it and
   200 after it, never during secure input, in a password field it can tell (without Accessibility a few aren't told:

@@ -149,6 +149,8 @@ extension Composer {
     /// 2026-11-15). ⏎ and ⇧⏎: `handleChatReturn`. Nil: not a conversation, or another key.
     func handleChatKey(_ event: KeyEvent) -> Response? {
         guard isQuestionChat else { return nil }
+        // ⌘V, ⌃V: the clipboard for the follow-up (a screenshot attached to it); ⏎ while it's read, ⌫ to take it away.
+        if let response = followUpPasteKey(event) ?? followUpAttachmentKey(event) { return response }
         let modifiers = event.modifiers.subtracting(.capsLock)
         // Esc with any modifier held closes as well (never the round back the line's Esc would take).
         if event.key == .escape {

@@ -2492,7 +2492,7 @@ public final class Composer {
     }
 
     /// Asks for the clipboard's text (`pasted`); only the latest request counts.
-    private func requestClipboard() -> Effect {
+    func requestClipboard() -> Effect {
         pasteCounter += 1
         pendingPaste = pasteCounter
         return .readClipboard(id: pasteCounter)
@@ -2517,7 +2517,7 @@ public final class Composer {
             guard case let .text(text) = content else { return snippetPasted(nil, for: pending.draft) }
             return snippetPasted(text, for: pending.draft)
         }
-        guard !isLevelTwo, voice == .off, !draft.isEmpty else { return [] }
+        guard !isLevelTwo, voice == .off, !draft.isEmpty else { return followUpPasted(content) }
         switch content {
         case let .text(text): return pasteReplyMessage(text) ?? insertPasted(text)
         case let .image(image): return pasteScreenshot(image)
@@ -3183,7 +3183,7 @@ public final class Composer {
             engineState = engine.snapshot()
         }
         let instruction = refineText.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard canRefine, let request = refineRequest, !instruction.isEmpty else { return [.showPanel] }
+        guard canRefine, let request = refineRequest, !instruction.isEmpty || followUpScreenshotReady else { return [.showPanel] }
         if !fresh, showsHandoff { return [.showPanel] }
         // A refine sends the results to the model: not in an app with no AI (`AppProfile.noAI`), which may have been
         // turned on while they were up. They stay, the instruction too.
@@ -3199,7 +3199,7 @@ public final class Composer {
             recalled = nil
             // An address typed in the follow-up may be read too; not one in a saved question asked again (`fresh`,
             // `reaskSaved`), which the user may not have typed (`loadThread`).
-            var conversation = questionConversation ?? QuestionConversation()
+            var conversation = withFollowUpAttachment(questionConversation ?? QuestionConversation())
             if !fresh { conversation.web = conversation.web.allowing(instruction) }
             questionConversation = conversation
         }
@@ -3213,7 +3213,7 @@ public final class Composer {
 
     /// Esc (or ⌫) after a refine: the results before it are back, as they were (a refine running is stopped).
     private func previousResults() -> [Effect] {
-        guard let last = refinements.popLast() else { return backToDraft() }
+        guard let last = popRound() else { return backToDraft() }
         var effects: [Effect] = []
         if case .translating = phase { effects.append(.cancelConversion) }
         if let engine, engine.snapshot().isComposing {  // the next step's pinyin goes with its line
@@ -3232,7 +3232,7 @@ public final class Composer {
     /// A refine that failed (or brought nothing): the results before it stay, and its instruction is back in the line
     /// to run again with ⇧⏎, with what went wrong (`refineError`).
     private func refineFailed(_ message: String) -> [Effect] {
-        guard let last = refinements.popLast() else { return [.showPanel] }
+        guard let last = popRound(failed: true) else { return [.showPanel] }
         result = last.answer
         refineID = nil
         // Its instruction back in the line, unless the next one was typed meanwhile (that one stays).
@@ -3249,7 +3249,7 @@ public final class Composer {
             engine.clearComposition()
             engineState = engine.snapshot()
         }
-        refineText = ""
+        (refineText, replyState.followUp, replyState.followUpImage, replyState.followUpRecognition) = ("", nil, nil, nil)
         refinements = []
         refineRequest = nil
         refineID = nil
@@ -3376,7 +3376,7 @@ public final class Composer {
         // address, and has no web search, as a saved conversation (`loadThread`).
         let untrusted = selected != nil || screenshot != nil || plan?.isEmpty == false
         let web = saved ? SessionWeb.only([]) : SessionWeb(untrusted: untrusted, typed: typed)
-        questionConversation = command == .question ? QuestionConversation(web: web) : nil
+        questionConversation = command == .question ? QuestionConversation(web: web, attachments: questionAttachments(command)) : nil
         return requestStarted(start, commands: [command] + (inner?.snippets ?? []) + (plan?.inner.map(\.command) ?? []), codeLeft: codeLeft)
     }
 
@@ -4115,7 +4115,7 @@ extension Composer {
     /// someone else's, isn't kept, nor synced; asked again later, it wouldn't be there), or it's a saved answer shown again.
     func rememberAnswer() -> [Effect] {
         guard remembersQuestions, phase == .choosing, recalled == nil, activeCommand == .question, selection == nil,
-              attachment == nil, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
+              attachment == nil, !hasQuestionScreenshot, !secureInputActive(), let answer = result.versions.first, answer.isComplete,
               !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
         let question = sentText
         guard !question.isEmpty else { return [] }

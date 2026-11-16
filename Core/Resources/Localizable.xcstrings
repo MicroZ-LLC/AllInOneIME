@@ -44727,6 +44727,100 @@
         }
       }
     },
+    "Screenshot · %@ lines · its image and text go to the AI" : {
+      "comment" : "截图 · %@ 行 · 图片和认出的文字一起发给 AI",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildschirmfoto · %@ Zeilen · Bild und Text gehen an die KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de pantalla · %@ líneas · la imagen y su texto van a la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture d’écran · %@ lignes · l’image et son texte sont envoyés à l’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショット · %@行 · 画像と読み取った文字をAIに送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크린샷 · %@줄 · 이미지와 인식한 텍스트를 AI에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de tela · %@ linhas · a imagem e o texto vão para a IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖 · %@ 行 · 圖片和辨識出的文字一起傳給 AI"
+          }
+        }
+      }
+    },
+    "Screenshot · %@ lines · only its text is sent" : {
+      "comment" : "截图 · %@ 行 · 只发送认出的文字",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildschirmfoto · %@ Zeilen · nur der Text wird gesendet"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de pantalla · %@ líneas · solo se envía su texto"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture d’écran · %@ lignes · seul son texte est envoyé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショット · %@行 · 読み取った文字だけを送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크린샷 · %@줄 · 인식한 텍스트만 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de tela · %@ linhas · só o texto é enviado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖 · %@ 行 · 只傳送辨識出的文字"
+          }
+        }
+      }
+    },
     "Screenshot · %@ lines (read on this Mac)" : {
       "comment" : "截图 · %@ 行（本机识别）",
       "localizations" : {
@@ -44817,6 +44911,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "截圖 · %@ 行（在這台電腦上辨識）"
+          }
+        }
+      }
+    },
+    "Screenshot (no text) · its image goes to the AI" : {
+      "comment" : "截图（没有文字）· 图片发给 AI",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bildschirmfoto (ohne Text) · das Bild geht an die KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de pantalla (sin texto) · la imagen va a la IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Capture d’écran (sans texte) · l’image est envoyée à l’IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スクリーンショット（文字なし）· 画像をAIに送ります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "스크린샷 (텍스트 없음) · 이미지를 AI에 보냅니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Captura de tela (sem texto) · a imagem vai para a IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "截圖（沒有文字）· 圖片傳給 AI"
           }
         }
       }
