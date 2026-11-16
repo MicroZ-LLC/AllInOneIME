@@ -9247,6 +9247,7 @@
     },
     "Change ▾" : {
       "comment" : "更换 ▾ — Sources/AllInOneIME/AIPicker.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9341,6 +9342,7 @@
     },
     "Change the AI" : {
       "comment" : "更换 AI — Sources/AllInOneIME/AIPicker.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17417,6 +17419,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在這些 App 裡"
+          }
+        }
+      }
+    },
+    "In use" : {
+      "comment" : "正在使用 — Sources/AllInOneIME/AIPicker.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Verwendung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En uso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uso"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在使用"
           }
         }
       }

@@ -1098,8 +1098,6 @@ struct SettingsView: View {
     private let chipShown: Input?
     /// The AI page's More… (the base URL): open with one set until clicked, then as clicked.
     @State private var aiMore = SettingsDisclosure()
-    /// The AI page's choices shown (Change ▾), not only the one chosen.
-    @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
     /// Commands → "Folders and sources…": open when it opens by itself (`ExtensionSourcesSection.opensByItself`) until
@@ -1132,10 +1130,8 @@ struct SettingsView: View {
     /// `page`: the one shown first; nil: General (the last one isn't remembered). `query`: the search typed (images).
     @MainActor
     init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Input? = nil, keySheetShown: Provider? = nil,
-         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false,
-         choosingAI: Bool = false) {
+         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false) {
         self.model = model
-        _choosingAI = State(initialValue: choosingAI)
         self.keySheetShown = keySheetShown
         self.troubleshootShown = troubleshootShown
         self.learnedShown = learnedShown
@@ -1913,47 +1909,50 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. Collapsed, the one chosen (its
-    /// logo, name and status) with Change ▾, and its own settings under it; open, every choice as a card by how it
-    /// connects (`AIChoicesGrid`), the chosen one outlined. The settings search's AI row opens the cards.
+    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. The one chosen (its logo, name and
+    /// status) with its own settings under it, then every choice as a card by how it connects (`AIChoicesGrid`, #121), the
+    /// chosen one outlined; the settings search's AI row points at the cards.
     @ViewBuilder var providerSection: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
         Section {
-            AIChoiceSettings(model: model, choosing: $choosingAI)
-            if !choosingAI {
-                switch chosen {
-                case let .cli(agent):
-                    AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
-                case .provider(.bedrock): bedrockSettings
-                case .provider(.hosted): hostedSettings
-                case .provider(.apple): appleSettings
-                case let .provider(provider): apiKeySettings(provider)
-                }
-                if chosen.provider != nil {
-                    HStack {
-                        Button(SettingsSpot.testConnection.title) { model.runTest() }
-                            .disabled(model.testStatus == .running)
-                        switch model.testStatus {
-                        case .idle: EmptyView()
-                        case .running: ProgressView().controlSize(.small)
-                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                        }
+            AIChosenRow(choice: chosen, status: facts.status(chosen, config: model.config))
+            switch chosen {
+            case let .cli(agent):
+                AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
+            case .provider(.bedrock): bedrockSettings
+            case .provider(.hosted): hostedSettings
+            case .provider(.apple): appleSettings
+            case let .provider(provider): apiKeySettings(provider)
+            }
+            if chosen.provider != nil {
+                HStack {
+                    Button(SettingsSpot.testConnection.title) { model.runTest() }
+                        .disabled(model.testStatus == .running)
+                    switch model.testStatus {
+                    case .idle: EmptyView()
+                    case .running: ProgressView().controlSize(.small)
+                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
                     }
-                    .settingsRow(.testConnection, shown: model.spot)
                 }
+                .settingsRow(.testConnection, shown: model.spot)
             }
         } header: {
+            SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+        }
+        .disabled(!model.canSave)
+        // Every choice as a card, always shown (#121): one click chooses.
+        Section {
+            AIChoiceSettings(model: model)
+        } header: {
             HStack(alignment: .firstTextBaseline) {
-                SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+                SectionTitle(SettingsSpot.provider.title, icon: CommandIcons.provider)
                 Spacer()
                 Text(SettingsSpot.provider.note ?? "").font(.callout).foregroundStyle(.secondary)
             }
         }
         .disabled(!model.canSave)
-        .onAppear { if model.spot == .provider { choosingAI = true } }
-        .onChange(of: model.spot) { if model.spot == .provider { choosingAI = true } }
     }
 
     /// Where `@note` saves (`Config.notes`): Notes, Notion (its token in the keychain, never in the config; the link of a
@@ -3619,11 +3618,11 @@ enum SettingsImage {
     @MainActor
     static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Input? = nil, keySheet: Provider? = nil,
                        assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, learned: Bool = false,
-                       choosingAI: Bool = false, to url: URL, appearance: NSAppearance.Name = .aqua,
+                       to url: URL, appearance: NSAppearance.Name = .aqua,
                        settle: (TimeInterval) -> Void) {
         let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
                                                         assistant: assistant, query: query, troubleshootShown: troubleshoot,
-                                                        learnedShown: learned, choosingAI: choosingAI))
+                                                        learnedShown: learned))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)

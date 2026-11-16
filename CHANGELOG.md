@@ -11,6 +11,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Changed
 
+- Settings → AI shows every AI as a card, always: one click changes the AI, with no Change ▾ to open and no Cancel. The one in use is outlined and says In use; the others' status is in gray (most aren't set up on a new Mac, which isn't an error); the AI in use still turns orange when it can't answer. Each CLI's sign-in is looked at as the page shows, as last found unless that's older than a minute (signed in: until AllInOneIME quits); never at launch or while you type.
+
 - Settings opens on **Common**, with the settings most people need: the input languages, Chinese typing and Characters, Switch input language, the candidate layout, the magic key, Translate to, Clipboard history and Autocomplete, and at the top a field to say what to change (⏎ asks the AI, as the search's Change: … does). The rest is in **More Settings**, in five groups, each a short page of its own with a back button: Input and keys (fuzzy pinyin, personal dictionaries, removed candidates, your English words, Code, the action key), Suggestions, Privacy, Interface and sync (Show in Menu Bar, the interface language, Show key hints, Sync through iCloud) and Advanced. The sidebar is Common, AI, This Week, Commands, More Settings and About; General and Input are gone. Every setting works and is saved as before, the search finds each where it is now, and the texts that named a page name the new one.
 
 - Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). ⌘⏎ still shows the choices.

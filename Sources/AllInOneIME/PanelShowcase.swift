@@ -296,9 +296,9 @@ enum SettingsPageImages {
         // The AI page's CLIs: as the owner's design shows them (Antigravity not signed in), never this Mac's.
         model.sessionAvailability = [.claude: .ready, .codex: .ready, .antigravity: .signedOut, .kiro: .ready]
         func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "",
-                    troubleshoot: Bool = false, choosingAI: Bool = false) {
+                    troubleshoot: Bool = false) {
             SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot,
-                                 choosingAI: choosingAI, to: output.appendingPathComponent("settings-\(name).png"),
+                                 to: output.appendingPathComponent("settings-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         for page in SettingsPage.allCases { render(page, page.rawValue) }
@@ -338,12 +338,9 @@ enum SettingsPageImages {
         model.config.switchKey = .capsLock
         render(.common, "common-caps-lock")
         model.config = saved
-        // The AI page: its choices open (Change ▾), the one chosen outlined; and Claude Code chosen, with where what has to
-        // be fast goes.
-        render(.ai, "ai-choices", choosingAI: true)
+        // The AI page with Claude Code chosen, with where what has to be fast goes, its card In use.
         model.config.ai = .cli(.claude)
         render(.ai, "ai-claude-code")
-        render(.ai, "ai-choices-claude-code", choosingAI: true)
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")
