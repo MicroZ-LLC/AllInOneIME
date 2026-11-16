@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -9,7 +10,7 @@ import Testing
 /// as a change makes. In a process of its own each (`RimeWorker`): librime starts once per process, and these start it
 /// with a user folder of their own.
 struct TraditionalChineseRimeTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-traditional-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-traditional-\(UUID().uuidString)")
     static let openCC = RimeFixture.thirdParty.appendingPathComponent("opencc", isDirectory: true)
     static let schema = RimeFixture.sharedData.appendingPathComponent("rime_ice.schema.yaml")
     static var runs: Bool {

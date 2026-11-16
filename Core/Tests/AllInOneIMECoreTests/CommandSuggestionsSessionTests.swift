@@ -21,7 +21,7 @@ struct CommandSuggestionsSessionTests {
         let log: URL
 
         init(_ body: String) throws {
-            folder = FileManager.default.temporaryDirectory.appendingPathComponent("command-suggestions-\(UUID().uuidString)",
+            folder = TestScratch.temporary("command-suggestions-\(UUID().uuidString)",
                                                                                  isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             script = folder.appendingPathComponent("jira-list")

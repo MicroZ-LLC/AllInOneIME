@@ -708,6 +708,7 @@
     },
     " (fix it in the file, Settings → Advanced; it's never deleted for you)" : {
       "comment" : "（打开设置 → 高级 → 配置文件修正它；不会自动删除）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -749,6 +750,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "（請到設定 → 進階打開設定檔修正；不會自動刪除）"
+          }
+        }
+      }
+    },
+    " (fix it in the file, Settings → More Settings → Advanced; it's never deleted for you)" : {
+      "comment" : "（打开设置 →「更多设置」→「高级」→ 配置文件修正它；不会自动删除）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (in der Datei korrigieren, Einstellungen → Weitere Einstellungen → Erweitert; wird nie automatisch gelöscht)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (corrígelo en el archivo, Ajustes → Más ajustes → Avanzado; nunca se elimina automáticamente)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (corrigez-le dans le fichier, Réglages → Autres réglages → Avancé ; il n’est jamais supprimé à votre place)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（設定 → その他の設定 → 詳細で設定ファイルを修正してください。自動では削除されません）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (설정 → 추가 설정 → 고급에서 파일을 직접 수정하세요. 자동으로 삭제되지 않습니다)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : " (corrija no arquivo, em Ajustes → Mais ajustes → Avançado; ele nunca é apagado automaticamente)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "（請到設定 → 更多設定 → 進階打開設定檔修正；不會自動刪除）"
           }
         }
       }
@@ -1181,6 +1229,7 @@
     },
     " (saved questions are kept; Settings → General → “Clear” deletes them)" : {
       "comment" : "（已存的问题保留；要删除，在设置 → 通用里点「清除」）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -4851,8 +4900,56 @@
         }
       }
     },
+    "%@ is the magic key: typing it opens the command list, so these completions can't show (pick another magic key in Common)" : {
+      "comment" : "%@ 是魔法键，打 %@ 会打开命令列表，所以这个补全不会出现（在「常用」里换一个魔法键就行）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ist die magische Taste: Sie öffnet die Befehlsliste, daher können diese Vervollständigungen nicht erscheinen (wähle unter „Häufig“ eine andere magische Taste)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ es la tecla mágica: al escribirla se abre la lista de comandos, así que estas sugerencias no pueden aparecer (elige otra tecla mágica en Frecuentes)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ est la touche magique : la taper ouvre la liste des commandes, ces complétions ne peuvent donc pas s’afficher (choisissez une autre touche magique dans Courants)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ はマジックキーです。入力するとコマンド一覧が開くため、この補完は表示されません（「よく使う項目」でマジックキーを別の記号に変えてください）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@는 매직 키입니다. 입력하면 명령 목록이 열리므로 이 자동 완성은 표시되지 않습니다(자주 쓰는 항목에서 다른 매직 키를 선택하세요)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ é a tecla mágica: digitá-la abre a lista de comandos, então estas sugestões não podem aparecer (escolha outra tecla mágica em Frequentes)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 是魔法鍵，打它會打開命令列表，所以這個補全不會出現（在「常用」裡換一個魔法鍵就行）"
+          }
+        }
+      }
+    },
     "%@ is the magic key: typing it opens the command list, so these completions can't show (pick another magic key in General)" : {
       "comment" : "%@ 是魔法键，打 %@ 会打开命令列表，所以这个补全不会出现（在「通用」里换一个魔法键就行）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10695,8 +10792,56 @@
         }
       }
     },
+    "AI is off in this app: nothing was sent (Settings → More Settings → Privacy)" : {
+      "comment" : "这个 App 里关了 AI，没有发给 AI（设置 →「更多设置」→「隐私」）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "KI ist in dieser App aus: nichts wurde gesendet (Einstellungen → Weitere Einstellungen → Datenschutz)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La IA está desactivada en esta app: no se envió nada (Ajustes → Más ajustes → Privacidad)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L’IA est désactivée dans cette app : rien n’a été envoyé (Réglages → Autres réglages → Confidentialité)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このAppではAIがオフです：何も送信しませんでした（設定 → その他の設定 → プライバシー）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 앱에서는 AI가 꺼져 있음: 아무것도 보내지 않았습니다 (설정 → 추가 설정 → 개인정보 보호)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A IA está desativada neste app: nada foi enviado (Ajustes → Mais ajustes → Privacidade)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個 App 中已關閉 AI：未傳送任何內容（設定 → 更多設定 → 隱私權）"
+          }
+        }
+      }
+    },
     "AI is off in this app: nothing was sent (Settings → Privacy)" : {
       "comment" : "这个 App 里关了 AI，没有发给 AI（设置 → 隐私）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -13834,8 +13979,56 @@
         }
       }
     },
+    "Autocomplete wasn't used in %@, so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)" : {
+      "comment" : "续写在「%@」里没用上，已在这个 App 里停下（可以在设置 →「更多设置」→「隐私」→「学到的内容…」里撤销）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autovervollständigen wurde in %@ nicht genutzt und ist dort jetzt aus (Einstellungen → Weitere Einstellungen → Datenschutz → Gelerntes … kann das rückgängig machen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar no se usó en %@, así que se detuvo ahí (Ajustes → Más ajustes → Privacidad → Aprendido… puede deshacerlo)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La complétion automatique n’a pas servi dans %@ : elle s’y est arrêtée (Réglages → Autres réglages → Confidentialité → Appris… peut l’annuler)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ではオートコンプリートが使われなかったため、このAppでは止めました（設定 → その他の設定 → プライバシー →「学習した内容…」で元に戻せます）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@에서 자동 완성을 쓰지 않아 이 앱에서는 멈췄습니다 (설정 → 추가 설정 → 개인정보 보호 → ‘학습한 내용…’에서 되돌릴 수 있음)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autocompletar não foi usado em %@, então parou lá (Ajustes → Mais ajustes → Privacidade → Aprendido… pode desfazer isso)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "續寫在「%@」中沒用上，已在這個 App 中停下（可以在設定 → 更多設定 → 隱私權 →「學到的內容⋯」裡復原）"
+          }
+        }
+      }
+    },
     "Autocomplete wasn't used in %@, so it stopped there (Settings → Privacy → Learned… can undo it)" : {
       "comment" : "续写在「%@」里没用上，已在这个 App 里停下（可以在设置 → 隐私 →「学到的内容…」里撤销）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -16053,6 +16246,7 @@
     },
     "change it in Settings → Advanced (output tokens, timeout, temperature)" : {
       "comment" : "在设置 → 高级里改（最多输出 tokens、超时、temperature）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -16094,6 +16288,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請在設定 → 進階中更改（輸出 token 上限、逾時、temperature）"
+          }
+        }
+      }
+    },
+    "change it in Settings → AI (output tokens, timeout, temperature)" : {
+      "comment" : "在设置 → AI 里改（最多输出 tokens、超时、temperature）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "in Einstellungen → KI ändern (Ausgabe-Tokens, Zeitlimit, Temperatur)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "cámbialo en Ajustes → IA (tokens de salida, tiempo de espera, temperatura)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "modifiez-le dans Réglages → IA (tokens de sortie, délai d’expiration, température)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → AIで変更してください（出力トークン、タイムアウト、temperature）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → AI에서 변경 (출력 토큰, 시간 제한, temperature)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "altere em Ajustes → IA (tokens de saída, tempo limite, temperatura)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請在設定 → AI中更改（輸出 token 上限、逾時、temperature）"
           }
         }
       }
@@ -27737,8 +27978,56 @@
         }
       }
     },
+    "Kept on this Mac only; turn it off in Settings → Common → Clipboard history" : {
+      "comment" : "只存在这台 Mac 上；在设置 →「常用」→「剪贴板历史」里可以关掉",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nur auf diesem Mac gespeichert; ausschalten unter Einstellungen → Häufig → Verlauf der Zwischenablage"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Solo se guarda en este Mac; desactívalo en Ajustes → Frecuentes → Historial del portapapeles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gardé sur ce Mac seulement ; désactivez-le dans Réglages → Courants → Historique du presse-papiers"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac にだけ保存されます。設定 → よく使う項目 →「クリップボード履歴」でオフにできます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac에만 보관됩니다. 설정 → 자주 쓰는 항목 → 클립보드 기록에서 끌 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Guardado só neste Mac; desative em Ajustes → Frequentes → Histórico da área de transferência"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只存在這台 Mac 上；在設定 →「常用」→「剪貼簿歷史」裡可以關掉"
+          }
+        }
+      }
+    },
     "Kept on this Mac only; turn it off in Settings → General → Clipboard history" : {
       "comment" : "只存在这台 Mac 上；在设置 →「通用」→「剪贴板历史」里可以关掉",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30294,8 +30583,56 @@
         }
       }
     },
+    "needs the %@ language pack (download it in Settings → Common)" : {
+      "comment" : "需要%@语言包（在设置 →「常用」里下载）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "erfordert das Sprachpaket für %@ (in Einstellungen → Häufig herunterladen)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "requiere el paquete de idioma %@ (descárgalo en Ajustes → Frecuentes)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nécessite le pack de langue %@ (téléchargez-le dans Réglages → Courants)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@の言語パックが必要です（設定 → よく使う項目でダウンロード）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 언어 팩 필요 (설정 → 자주 쓰는 항목에서 다운로드)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "requer o pacote de idioma %@ (baixe em Ajustes → Frequentes)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要%@語言套件（請在設定 → 常用中下載）"
+          }
+        }
+      }
+    },
     "needs the %@ language pack (download it in Settings → General)" : {
       "comment" : "需要%@语言包（在设置 → 通用里下载）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30343,6 +30680,7 @@
     },
     "needs the %@ language pack (download it in Settings → Input)" : {
       "comment" : "需要%@语言包（在设置 → 输入里下载）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35433,6 +35771,7 @@
     },
     "only chosen in Settings → General" : {
       "comment" : "只能在设置 → 通用里选",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -35474,6 +35813,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "只能在設定 → 一般中選擇"
+          }
+        }
+      }
+    },
+    "only chosen in Settings → More Settings → Interface and sync" : {
+      "comment" : "只能在设置 →「更多设置」→「界面与同步」里选",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "nur in Einstellungen → Weitere Einstellungen → Oberfläche und Synchronisierung wählbar"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "solo se elige en Ajustes → Más ajustes → Interfaz y sincronización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "à choisir uniquement dans Réglages → Autres réglages → Interface et synchronisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → その他の設定 → 表示と同期でのみ選択できます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → 추가 설정 → 인터페이스와 동기화에서만 선택 가능"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "escolhido apenas em Ajustes → Mais ajustes → Interface e sincronização"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只能在設定 → 更多設定 → 介面與同步中選擇"
           }
         }
       }
@@ -42034,8 +42420,56 @@
         }
       }
     },
+    "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Common → Characters" : {
+      "comment" : "Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「常用」→「字形」里选「简体」",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: Die Daten für traditionelle Schriftzeichen (OpenCC) fehlen oder lassen sich nicht lesen; installiere AllInOneIME neu (entferne vorher eigene Dateien aus opencc im Rime-Ordner) oder wähle „Vereinfacht“ unter Einstellungen → Häufig → Schriftzeichen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: faltan los datos de los caracteres tradicionales (OpenCC) o no se pueden leer; reinstala AllInOneIME (antes quita los archivos tuyos de opencc en la carpeta de Rime) o elige Simplificado en Ajustes → Frecuentes → Caracteres"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime : les données des caractères traditionnels (OpenCC) manquent ou sont illisibles ; réinstallez AllInOneIME (retirez d’abord vos propres fichiers du dossier opencc de Rime), ou choisissez Simplifié dans Réglages → Courants → Caractères"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁体字の変換データ（OpenCC）がないか、読み込めません。AllInOneIMEを再インストールするか（先にRimeフォルダのopencc内にあるご自分のファイルを削除してください）、設定 → よく使う項目 → 字体で「簡体字」を選んでください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: 번체용 변환 데이터(OpenCC)가 없거나 읽을 수 없습니다. AllInOneIME를 다시 설치하거나(먼저 Rime 폴더의 opencc에 직접 넣은 파일을 지우세요) 설정 → 자주 쓰는 항목 → 자형에서 '간체'를 선택하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime: os dados dos caracteres tradicionais (OpenCC) estão faltando ou não podem ser lidos; reinstale o AllInOneIME (antes remova seus próprios arquivos da pasta opencc do Rime) ou escolha Simplificado em Ajustes → Frequentes → Caracteres"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Rime：繁體字的轉換資料（OpenCC）缺少或讀不出來；請重新安裝 AllInOneIME（先刪掉你自己放進 Rime 使用者資料夾 opencc 資料夾裡的檔案），或在設定 →「常用」→「字形」裡選「簡體」"
+          }
+        }
+      }
+    },
     "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters" : {
       "comment" : "Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46040,6 +46474,7 @@
     },
     "Settings → General → Sync Now" : {
       "comment" : "在设置 → 通用里点「立即同步」",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46087,6 +46522,7 @@
     },
     "Settings → General turns it on" : {
       "comment" : "在设置 → 通用里打开",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -46128,6 +46564,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在設定 → 一般中開啟"
+          }
+        }
+      }
+    },
+    "Settings → More Settings → Interface and sync → Sync Now" : {
+      "comment" : "在设置 →「更多设置」→「界面与同步」里点「立即同步」",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Einstellungen → Weitere Einstellungen → Oberfläche und Synchronisierung → Jetzt synchronisieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes → Más ajustes → Interfaz y sincronización → Sincronizar ahora"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages → Autres réglages → Interface et synchronisation → Synchroniser maintenant"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → その他の設定 → 表示と同期 →「今すぐ同期」"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → 추가 설정 → 인터페이스와 동기화 → 지금 동기화"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajustes → Mais ajustes → Interface e sincronização → Sincronizar Agora"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → 更多設定 → 介面與同步 → 立即同步"
+          }
+        }
+      }
+    },
+    "Settings → More Settings → Interface and sync turns it on" : {
+      "comment" : "在设置 →「更多设置」→「界面与同步」里打开",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Einstellungen → Weitere Einstellungen → Oberfläche und Synchronisierung einschalten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actívalo en Ajustes → Más ajustes → Interfaz y sincronización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Réglages → Autres réglages → Interface et synchronisation permet de l’activer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設定 → その他の設定 → 表示と同期でオンにできます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "설정 → 추가 설정 → 인터페이스와 동기화에서 켜기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ative em Ajustes → Mais ajustes → Interface e sincronização"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在設定 → 更多設定 → 介面與同步中開啟"
           }
         }
       }
@@ -49558,6 +50088,7 @@
     },
     "Suggestions are off, so Code shows no rows: turn them on in General." : {
       "comment" : "建议关着，代码输入不会列出什么：在「通用」里打开。",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -49599,6 +50130,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議關著，程式碼輸入不會列出什麼：在「一般」裡打開。"
+          }
+        }
+      }
+    },
+    "Suggestions are off, so Code shows no rows: turn them on in More Settings → Suggestions." : {
+      "comment" : "建议关着，代码输入不会列出什么：在「更多设置」→「建议」里打开。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher zeigt Code keine Zeilen: Schalte sie unter „Weitere Einstellungen → Vorschläge“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Las sugerencias están desactivadas, así que Código no muestra filas: actívalas en Más ajustes → Sugerencias."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, Code n’affiche donc aucune ligne : activez-les dans Autres réglages → Suggestions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、コード入力でも何も表示されません。「その他の設定」→「サジェスト」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 코드 입력에서도 아무것도 표시되지 않습니다. 추가 설정 → 제안에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "As sugestões estão desativadas, então Código não mostra linhas: ative-as em Mais ajustes → Sugestões."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，程式碼輸入不會列出什麼：在「更多設定」→「建議」裡打開。"
           }
         }
       }
@@ -49653,6 +50231,7 @@
     },
     "Suggestions are off, so these completions don't show: turn them on in General." : {
       "comment" : "建议关着，这些补全不会出现：在「通用」里打开。",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -49698,8 +50277,56 @@
         }
       }
     },
+    "Suggestions are off, so these completions don't show: turn them on in More Settings → Suggestions." : {
+      "comment" : "建议关着，这些补全不会出现：在「更多设置」→「建议」里打开。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher erscheinen diese Vervollständigungen nicht: Schalte sie unter „Weitere Einstellungen → Vorschläge“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El interruptor Sugerencias está desactivado, así que estas no aparecen: actívalo en Más ajustes → Sugerencias."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, ces complétions ne s’affichent donc pas : activez-les dans Autres réglages → Suggestions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、この補完は表示されません。「その他の設定」→「サジェスト」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 이 자동 완성은 표시되지 않습니다. 추가 설정 → 제안에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O interruptor Sugestões está desativado, então estas não aparecem: ative-o em Mais ajustes → Sugestões."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，這些補全不會出現：在「更多設定」→「建議」裡打開。"
+          }
+        }
+      }
+    },
     "Suggestions are off, so this source doesn't show: turn them on in General." : {
       "comment" : "建议关着，这个来源不会出现：在「通用」里打开。",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -49741,6 +50368,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議關著，這個來源不會出現：在「一般」裡打開。"
+          }
+        }
+      }
+    },
+    "Suggestions are off, so this source doesn't show: turn them on in More Settings → Suggestions." : {
+      "comment" : "建议关着，这个来源不会出现：在「更多设置」→「建议」里打开。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vorschläge sind aus, daher erscheint diese Quelle nicht: Schalte sie unter „Weitere Einstellungen → Vorschläge“ ein."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El interruptor Sugerencias está desactivado, así que esta fuente no aparece: actívalo en Más ajustes → Sugerencias."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Les suggestions sont désactivées, cette source ne s’affiche donc pas : activez-les dans Autres réglages → Suggestions."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補がオフなので、このソースは表示されません。「その他の設定」→「サジェスト」でオンにしてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안이 꺼져 있어 이 소스는 표시되지 않습니다. 추가 설정 → 제안에서 켜세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O interruptor Sugestões está desativado, então esta fonte não aparece: ative-o em Mais ajustes → Sugestões."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議關著，這個來源不會出現：在「更多設定」→「建議」裡打開。"
           }
         }
       }
@@ -60102,6 +60776,7 @@
     },
     "What a row inserts: Settings → General" : {
       "comment" : "建议的行插入什么：设置 →「通用」",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -60143,6 +60818,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建議的行插入什麼：設定 →「一般」"
+          }
+        }
+      }
+    },
+    "What a row inserts: Settings → More Settings → Suggestions" : {
+      "comment" : "建议的行插入什么：设置 →「更多设置」→「建议」",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Was eine Vorschlagszeile einfügt: Einstellungen → Weitere Einstellungen → Vorschläge"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lo que inserta una fila de sugerencias: Ajustes → Más ajustes → Sugerencias"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce qu’insère une ligne de suggestion : Réglages → Autres réglages → Suggestions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の行が挿入する内容：設定 → その他の設定 → サジェスト"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "제안 행이 삽입하는 내용: 설정 → 추가 설정 → 제안"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O que uma linha de sugestão insere: Ajustes → Mais ajustes → Sugestões"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建議的行插入什麼：設定 →「更多設定」→「建議」"
           }
         }
       }

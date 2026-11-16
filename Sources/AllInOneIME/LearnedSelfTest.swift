@@ -81,13 +81,13 @@ extension SelfTest {
         close(privacy)
         let gone = [tr("忘掉选过的行（42）", "Forget Picked Rows (42)"), tr("忘掉改不回来的 App（1）", "Forget apps where typos couldn't be fixed (1)"),
                     tr("不发 temperature 的模型：1 个（它们不接受）", "Models that get no temperature: 1 (they refused it)")]
-        let elsewhere = [SettingsPage.general, .advanced, .ai].flatMap { page -> [String] in
+        let elsewhere = [SettingsPage.common, .advanced, .ai].flatMap { page -> [String] in
             let window = open(SettingsView(model: model, page: page), height: 900)
             defer { close(window) }
             return texts(window)
         }
         check(!gone.contains(where: elsewhere.contains) && !elsewhere.contains(tr("这些 App 里不再打错：Terminal", "No typos in: com.apple.Terminal")),
-              "General, Advanced and AI have no Forget of their own any more")
+              "Common, Advanced and AI have no Forget of their own any more")
 
         // The list: a row each, Forget on the first (Mail's starting input), then Forget All.
         let sheet = open(LearnedSheet(model: model) {}, height: 420)

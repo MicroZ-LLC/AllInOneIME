@@ -283,7 +283,7 @@ struct ClipboardHistorySessionTests {
             let host = host()
             host.firstClipboardPanel = true
             host.press(FakeHost.controlV)
-            #expect(host.panel?.footer == "Kept on this Mac only; turn it off in Settings → General → Clipboard history",
+            #expect(host.panel?.footer == "Kept on this Mac only; turn it off in Settings → Common → Clipboard history",
                     "\(host.panel?.footer ?? "-")")
             host.press(FakeHost.escape)
             host.press(FakeHost.controlV)

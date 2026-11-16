@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 @testable import AllInOneIMERime
 import Foundation
@@ -24,7 +25,7 @@ private enum Issue57Rime {
 
     /// Runs the scenario in a copy of this process with a folder of its own, and waits for it.
     static func run() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("issue57-rime-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("issue57-rime-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let output = root.appendingPathComponent("worker-output.txt")

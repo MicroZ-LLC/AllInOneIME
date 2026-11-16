@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -65,7 +66,7 @@ struct PlatformTests {
 
     @Test func swapsAndPrivateWrites() throws {
         let files = SystemFileOps()
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("platform-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("platform-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         func folderHolding(_ name: String, _ text: String) throws -> URL {

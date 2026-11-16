@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AppKit
 import Foundation
 import Testing
@@ -98,7 +99,7 @@ struct ItemIconsTests {
 
     /// Finder's icon for a folder here, drawn at the rows' size, two pixels a point; none for what isn't there.
     @Test func finderIconsAreDrawnAtTheRowsSize() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ItemIconsTests-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("ItemIconsTests-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let image = try #require(ItemIcons.finderIcon(folder.path))
@@ -111,7 +112,7 @@ struct ItemIconsTests {
     /// What `InstantFiles` keeps is told for its icons, on the thread that keeps it: the index's apps (what was opened
     /// before first) as they are made, a folder's entries as they are listed.
     @Test func whatInstantFilesKeepsIsToldForItsIcons() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ItemIconsTests-\(UUID().uuidString)")
+        let root = TestScratch.temporary("ItemIconsTests-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         for name in ["Calendar", "WeChat"] {
             let contents = root.appendingPathComponent("\(name).app/Contents")

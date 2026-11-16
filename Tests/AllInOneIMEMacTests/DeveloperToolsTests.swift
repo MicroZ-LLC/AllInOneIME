@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -6,7 +7,7 @@ import Testing
 struct DeveloperToolsTests {
     @Test func standInsCountOnlyWithTheDeveloperTools() throws {
         let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent("inline-code-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("inline-code-\(UUID().uuidString)")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: folder) }
         let standIn = folder.appendingPathComponent("stand-in")

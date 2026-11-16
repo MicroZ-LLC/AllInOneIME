@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -7,7 +8,7 @@ import Testing
 /// the app carries (`make deps`' rime-zhuyin) linked into the pack (`LanguagePackStore.linkData`), the patch the settings
 /// write for its schema, the schema list; then typed on the Standard (Daqian) keys, in a process of its own (`RimeWorker`).
 struct ZhuyinSchemaTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-zhuyin-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-zhuyin-\(UUID().uuidString)")
     /// Where `make deps` puts the Zhuyin data the app carries (Contents/SharedSupport/rime-zhuyin).
     static let data = RimeFixture.thirdParty.appendingPathComponent("rime-zhuyin")
     static var runs: Bool {

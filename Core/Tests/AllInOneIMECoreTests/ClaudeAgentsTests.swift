@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -27,7 +28,7 @@ struct ClaudeAgentsTests {
     }
 
     @Test func theLastReplyFromTheTranscript() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        let root = TestScratch.temporary("projects-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(ClaudeAgents.projectFolder(for: "/Users/me") == "-Users-me")
         #expect(ClaudeAgents.projectFolder(for: "/Users/me/code/my.app") == "-Users-me-code-my-app")

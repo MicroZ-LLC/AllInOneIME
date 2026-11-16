@@ -7,7 +7,7 @@ import Testing
 /// user's provider settings passed with `--settings`, AWS credential errors, no answer in time; and what one long session
 /// needs across questions: placeholders that never stand for two values, rounds it didn't see told once.
 struct ClaudeSessionProviderTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("claude-provider-\(UUID().uuidString)")
+    let root = TestScratch.temporary("claude-provider-\(UUID().uuidString)")
     var folder: URL { root.appendingPathComponent("session") }
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
     var userFile: URL { root.appendingPathComponent("config/settings.json") }

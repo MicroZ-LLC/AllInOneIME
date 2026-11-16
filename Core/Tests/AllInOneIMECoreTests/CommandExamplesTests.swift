@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -109,7 +110,7 @@ struct CommandExamplesTests {
 
     @Test(.enabled(if: !CommandExamplesTests.pythons.isEmpty)) func pythonIgnoresLookalikeModulesInTheWorkingDirectory() throws {
         let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent("command-examples-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("command-examples-\(UUID().uuidString)")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: folder) }
         try Data("raise ImportError('not the standard ast')\n".utf8).write(to: folder.appendingPathComponent("ast.py"))

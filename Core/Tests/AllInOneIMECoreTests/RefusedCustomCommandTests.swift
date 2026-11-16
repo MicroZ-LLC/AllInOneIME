@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ struct RefusedCustomCommandTests {
 
     /// A config.json of its own (in a temporary folder) with `commands` (JSON, an entry each) as its custom commands.
     static func file(_ commands: [String]) throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("refused-commands-\(UUID().uuidString)",
+        let folder = TestScratch.temporary("refused-commands-\(UUID().uuidString)",
                                                                                  isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import AllInOneIMEMac
 import Foundation
@@ -7,7 +8,7 @@ import Testing
 /// the record as a file (identifiers only, the user's alone), when it is the next version's, and a test install's key
 /// store. Files in a folder of the test's own.
 struct IdentityHandoverTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("identity-handover-\(UUID().uuidString)", isDirectory: true)
+    let folder = TestScratch.temporary("identity-handover-\(UUID().uuidString)", isDirectory: true)
 
     func sample() -> CleanupRecord {
         var record = CleanupRecord()

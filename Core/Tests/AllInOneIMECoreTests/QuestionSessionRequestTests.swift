@@ -8,7 +8,7 @@ import Testing
 /// another field asked meanwhile. A writing task never goes into an `@question` conversation and never has web tools.
 /// And a CLI found signed in again after it wasn't is started again by the next question.
 struct QuestionSessionRequestTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("session-request-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("session-request-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
     func claude(_ fake: FakeClaude) -> ClaudeSessionManager {

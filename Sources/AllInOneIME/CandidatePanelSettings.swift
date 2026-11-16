@@ -2,19 +2,27 @@ import AllInOneIMECore
 import AppKit
 import SwiftUI
 
-/// Settings → Input, under the input languages: how the candidate panel looks. How a word's candidates are laid out,
-/// and whether the keys are explained at the panel's bottom (`Config.keyHints`). Each saved as it changes.
+/// How the candidate panel looks: how a word's candidates are laid out (Common → Typing), and whether the keys are
+/// explained at the panel's bottom (`Config.keyHints`, More Settings → Interface and sync). Each saved as it changes.
 struct CandidatePanelRows: View {
+    enum Rows { case layout, keyHints }
+
     @ObservedObject var model: SettingsModel
+    /// The row shown.
+    var rows: Rows
 
     var body: some View {
-        layoutRow
-            .onChange(of: model.config.candidateLayout) { model.save() }
-        keyHintsRow
-            .onChange(of: model.config.keyHints) { model.save() }
+        switch rows {
+        case .layout:
+            layoutRow
+                .onChange(of: model.config.candidateLayout) { model.save() }
+        case .keyHints:
+            keyHintsRow
+                .onChange(of: model.config.keyHints) { model.save() }
+        }
     }
 
-    /// Input → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
+    /// Common → how the candidates of a word being typed (pinyin, Hindi) are laid out: in a column, or in a row like
     /// macOS's own panel (owner, 0.7.4: with the input languages, no longer in Advanced).
     private var layoutRow: some View {
         LabeledContent {
@@ -29,7 +37,7 @@ struct CandidatePanelRows: View {
         .settingsRow(.candidateLayout, shown: model.spot)
     }
 
-    /// Input → the keys explained at the bottom of the candidate box (⏎ inserts, Esc cancels…): on by default; off for a
+    /// Interface and sync → the keys explained at the bottom of the candidate box (⏎ inserts, Esc cancels…): on by default; off for a
     /// smaller box once they're known (forum, 0.7.5).
     private var keyHintsRow: some View {
         Toggle(isOn: $model.config.keyHints) {

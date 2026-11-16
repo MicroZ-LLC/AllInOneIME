@@ -8,7 +8,7 @@ import Testing
 /// they always worked (the provider and 0.7.4's `questionBackend`), keys and settings untouched; and with a CLI chosen,
 /// where what has to be fast goes (`Config.fastProvider`): through the converter too (`FastRoute`).
 struct AIChoiceTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ai-choice-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("ai-choice-\(UUID().uuidString)")
 
     // MARK: - The choices and their groups
 

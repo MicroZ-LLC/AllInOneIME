@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -53,7 +54,7 @@ struct CommandTriggerTextTests {
     /// Every text of the settings document (both platforms') that names a command names it with the config's trigger.
     @Test(arguments: [SettingsPlatform.mac, .windows])
     func theSettingsDocumentNamesCommandsWithIt(_ platform: SettingsPlatform) throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("trigger-text-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("trigger-text-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")

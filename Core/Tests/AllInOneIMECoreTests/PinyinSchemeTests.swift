@@ -64,7 +64,7 @@ struct PinyinSchemeTests {
     /// A temporary Rime data folder with two schemas, rime-ice's and Xiaohe's, as much of them as the patch reads; and a
     /// user folder.
     private func folders() throws -> (shared: URL, user: URL) {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("pinyin-scheme-\(UUID().uuidString)")
+        let root = TestScratch.temporary("pinyin-scheme-\(UUID().uuidString)")
         let shared = root.appendingPathComponent("shared"), user = root.appendingPathComponent("user")
         try FileManager.default.createDirectory(at: shared.appendingPathComponent("lua"), withIntermediateDirectories: true)
         try Data("-- filter".utf8).write(to: shared.appendingPathComponent("lua/\(RemovedCandidates.luaFilter).lua"))

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -9,7 +10,7 @@ struct ScriptStatusTests {
     /// Made, nothing is read (the key that first shows a status line never reads the file); `prepare`, at launch, reads
     /// it off the main thread, and the values show once in, a value this launch already had kept.
     @Test func theValuesKeptAreReadOffTheMainThread() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("script-status-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("script-status-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let file = StatusFile(url: folder.appendingPathComponent("script-statuses.json"))
         file.write(["weather": StatusSchedule.Kept(text: "21°", at: Date())])

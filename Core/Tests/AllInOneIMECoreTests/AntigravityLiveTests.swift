@@ -11,7 +11,7 @@ import Testing
 struct AntigravityLiveTests {
     static let environment = ProcessInfo.processInfo.environment
     static let path = (environment["PATH"] ?? "") + ":\(NSHomeDirectory())/.local/bin"
-    let base = FileManager.default.temporaryDirectory.appendingPathComponent("agy-live-\(UUID().uuidString)")
+    let base = TestScratch.temporary("agy-live-\(UUID().uuidString)")
 
     /// The tools the agent's lines say completed (`tool_call_update`s), by name.
     static func completedTools(_ lines: [Data]) -> [String] {
@@ -76,9 +76,9 @@ struct AntigravityLiveTests {
         #expect(again.store.agentSessionID() == conversation)
 
         // A shell command and a file outside the folder: refused, nothing run or read.
-        let marker = FileManager.default.temporaryDirectory.appendingPathComponent("agy-live-\(UUID().uuidString).txt")
+        let marker = TestScratch.temporary("agy-live-\(UUID().uuidString).txt")
         let shell = try await ask(again, "Use your terminal tool to run this shell command: date > \(marker.path) — then tell me what it printed.")
-        let secret = FileManager.default.temporaryDirectory.appendingPathComponent("agy-live-secret-\(UUID().uuidString).txt")
+        let secret = TestScratch.temporary("agy-live-secret-\(UUID().uuidString).txt")
         let word = "zebra-\(UUID().uuidString.prefix(8))"
         try Data("The secret word is \(word).\n".utf8).write(to: secret)
         defer { try? FileManager.default.removeItem(at: secret) }

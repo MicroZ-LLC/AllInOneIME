@@ -451,7 +451,7 @@ enum SelfTest {
         UIText.choice = "zh"
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config.actionKey = .enter
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .inputAndKeys))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -484,7 +484,7 @@ enum SelfTest {
               "…and with ~ once the trigger is ~: \(model.triggered(agent))")
         let tilde = SettingsSpot.search("~agent", trigger: "~", config: model.config)
         check(tilde.first == .agent && SettingsSpot.search("@agent", trigger: "~", config: model.config).first == .agent
-              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
+              && !SettingsPage.common.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
               "the search finds ~agent's row (Commands) with ~ the trigger (\(tilde.map(\.rawValue)))")
         // The action key's note with the trigger picked in the menu, the process's still the one before (~ → #).
         let triggerBefore = UIText.commandTrigger
@@ -505,7 +505,7 @@ enum SelfTest {
         config.candidateLayout = .vertical
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .common))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -562,15 +562,16 @@ enum SelfTest {
     }
 
     /// The interface languages the app ships besides Simplified Chinese and English, each with its name in itself, and
-    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and "General".
+    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and the first page's title
+    /// (`general`: Common since #120).
     static let interfaceLanguages: [(code: String, name: String, interfaceLanguage: String, general: String)] = [
-        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Allgemein"),
-        ("es", "Español", "Idioma de la interfaz", "General"),
-        ("fr", "Français", "Langue de l’interface", "Général"),
-        ("ja", "日本語", "表示言語", "一般"),
-        ("ko", "한국어", "인터페이스 언어", "일반"),
-        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Geral"),
-        ("zh-Hant", "繁體中文", "介面語言", "一般"),
+        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Häufig"),
+        ("es", "Español", "Idioma de la interfaz", "Frecuentes"),
+        ("fr", "Français", "Langue de l’interface", "Courants"),
+        ("ja", "日本語", "表示言語", "よく使う項目"),
+        ("ko", "한국어", "인터페이스 언어", "자주 쓰는 항목"),
+        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Frequentes"),
+        ("zh-Hant", "繁體中文", "介面語言", "常用"),
     ]
 
     /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
@@ -583,13 +584,13 @@ enum SelfTest {
         defer { UIText.choice = pickedBefore }
         for language in interfaceLanguages {
             UIText.choice = InterfaceLanguage.setting(for: language.code)
-            let label = tr("界面语言", "Interface language"), general = SettingsPage.general.title
+            let label = tr("界面语言", "Interface language"), common = SettingsPage.common.title
             // The core's text through the same lookup ("Vertical" is Spanish and Portuguese too: compared with the .lproj).
             let core = AIConfig.Text(language: UIText.language).layout(.vertical)
             let lproj = InterfaceText.bundle(language.code, app: .main).flatMap { InterfaceText.translate("Vertical", in: $0) }
-            check(UIText.language == language.code && label == language.interfaceLanguage && general == language.general
+            check(UIText.language == language.code && label == language.interfaceLanguage && common == language.general
                   && lproj != nil && core == lproj && core != "竖排",
-                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(general), \(core))")
+                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(common), \(core))")
             if language.code == "zh-Hant" {
                 let key = UIText.name(ActionKey.optionTap), french = UIText.name(Language.french)
                 check(key == "單按 ⌥" && french == "法文" && UIText.chineseOnly("插件库的索引没有签名") == "插件庫的索引沒有簽名",
@@ -597,15 +598,15 @@ enum SelfTest {
             }
             let folder = shots.appendingPathComponent(language.code)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            for page in [SettingsPage.general, .privacy] {
+            for page in [SettingsPage.common, .privacy] {
                 let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
                 preview.profileShownAs = "default"  // never the user's own profile name in a picture
                 SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
                     _ = pump(timeout: seconds) { false }
                 }
             }
-            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("general.png").path),
-                  "\(language.name): Settings → General drawn in it (\(folder.path))")
+            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("common.png").path),
+                  "\(language.name): Settings → Common drawn in it (\(folder.path))")
             // The custom command editor: its "What it does" picker whole, segmented or a menu.
             let editor = folder.appendingPathComponent("command-editor.png")
             renderLight(CommandEditor(edit: CommandEdit(index: nil, command: CustomCommand(name: "sig", type: .snippet, text: "{name?}\n{date}")),
@@ -771,8 +772,8 @@ enum SelfTest {
             defer { rig.restore() }
             let fine = sampleAssistant(rig, fine: true)
             fine.dismissPreview()
-            // General, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
-            SettingsImage.render(preview, page: .general, assistant: fine,
+            // Common, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
+            SettingsImage.render(preview, page: .common, assistant: fine,
                                  to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }
@@ -1982,14 +1983,14 @@ enum SelfTest {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
-        // The setting is in Input, with the input languages (owner, 0.7.4), and the search finds it there.
+        // The setting is on Common, with the input languages (#120), and the search finds it there.
         let layout = ["candidate layout", "横排"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
-        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .input
-              && !SettingsPage.general.matches("横排") && !SettingsPage.advanced.matches("横排"),
-              "searching for the candidate layout finds its row in Input, not General or Advanced (\(layout))")
+        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .common
+              && !SettingsPage.inputAndKeys.matches("横排") && !SettingsPage.advanced.matches("横排"),
+              "searching for the candidate layout finds its row on Common, not in Input and keys or Advanced (\(layout))")
         // @agent's settings are with the command, in Commands.
         let agents = ["kiro", "后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
-        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.general.matches("kiro"),
+        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.common.matches("kiro"),
               "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")
     }
 

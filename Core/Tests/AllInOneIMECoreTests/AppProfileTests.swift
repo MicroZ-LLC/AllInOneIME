@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -60,7 +61,7 @@ struct AppProfileTests {
         var config = Config.default
         config.appProfiles = [slack: AppProfile(inputLanguage: .english, rewriteStyles: [], typeOut: true),
                               mail: AppProfile(noAI: true)]
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("appprofiles-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("appprofiles-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try config.write(to: url)
         #expect(try Config.load(from: url) == config)
@@ -73,7 +74,7 @@ struct AppProfileTests {
     }
 
     @Test func noKeyWithoutAProfileAndEmptyOnesDropped() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("appprofiles-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("appprofiles-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         func keys() throws -> [String: Any] {
             try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
@@ -167,7 +168,7 @@ struct AppProfileTests {
             #expect(config.appProfiles == [mail: AppProfile(noAI: true)])
             #expect(!config.allowsAI(in: mail) && !config.allowsAI(in: "com.apple.Mail"))
         }
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("appprofiles-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("appprofiles-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try decode(json).write(to: url)
         #expect(try Config.load(from: url).appProfiles == [mail: AppProfile(noAI: true)])

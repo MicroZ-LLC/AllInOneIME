@@ -99,7 +99,7 @@ enum PanelShowcase {
         exit(0)
     }
 
-    /// A settings menu clicked open on screen and captured: Settings → General's interface language menu, each language
+    /// A settings menu clicked open on screen and captured: Settings → More Settings → Interface and sync's interface language menu, each language
     /// in its own (`language-menu.png`), then Settings → Commands → Notes (@note)'s "Save to" (`note-save-to-menu.png`).
     /// The settings window from a config of its own (the defaults; nothing saved, no key looked up); run it with a
     /// sample home (CFFIXED_USER_HOME) so the Commands page lists no plugins of the user's. Exits when done.
@@ -109,7 +109,7 @@ enum PanelShowcase {
         SettingsModel.looksUpKeys = false
         // Each found by the item it shows (its menu is filled as it opens).
         let menus: [(page: SettingsPage, item: String, file: String, setUp: (SettingsModel) -> Void)] = [
-            (.general, tr("跟随系统", "Follow the system"), "language-menu.png", { _ in }),
+            (.interface, tr("跟随系统", "Follow the system"), "language-menu.png", { _ in }),
             (.commands, tr("文件夹（Obsidian 等）", "Folder (Obsidian or any)"), "note-save-to-menu.png",
              { $0.config.notes = NoteSettings(destination: .folder, folder: "~/Vault/Inbox") }),
         ]
@@ -309,13 +309,13 @@ enum SettingsPageImages {
         model.config.suggestionsInsert = .id
         render(.ai, "restore-default")
         render(.privacy, "restore-default-privacy")
-        render(.general, "restore-default-insert")
+        render(.suggestions, "restore-default-insert")
         // …and those whose rows went in 0.7.4 (the owner's simplification): how many the clipboard history keeps, iCloud's
         // learned words, a new version's notification.
         model.config.clipboardHistoryLimit = 50
         model.config.iCloudSync.learnedWords = false
         model.config.notifiesUpdates = false
-        render(.general, "restore-default-general")
+        for (page, name) in [(SettingsPage.common, "restore-default-common"), (.interface, "restore-default-interface")] { render(page, name) }
         render(.about, "restore-default-about")
         // …and the one whose switch went in 0.7.5 (learned per app now): "Use the selected text".
         model.config.useSelection = false
@@ -326,17 +326,17 @@ enum SettingsPageImages {
         model.config.appProfiles = [:]
         model.config.extensionSources = []
         model.config.redaction.enabled = false
-        render(.general, "general-folded")
+        render(.suggestions, "suggestions-folded")
         render(.commands, "commands-folded")
         render(.privacy, "privacy-not-hiding")
         // Insert set to Markdown link, everywhere (0.6.7.1).
         model.config = saved
         model.config.suggestionsInsert = .markdownLink
-        render(.general, "insert-markdown-link")
+        render(.suggestions, "insert-markdown-link")
         // Caps Lock switching the input language (0.7.4), with what it says under it.
         model.config = saved
         model.config.switchKey = .capsLock
-        render(.input, "input-caps-lock")
+        render(.common, "common-caps-lock")
         model.config = saved
         // The AI page: its choices open (Change ▾), the one chosen outlined; and Claude Code chosen, with where what has to
         // be fast goes.
@@ -348,7 +348,7 @@ enum SettingsPageImages {
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")
         // The sample request's preview where the search's "Change: …" shows it, the search typed.
-        render(.general, "search", assistant: troubled, query: troubled.request)
+        render(.common, "search", assistant: troubled, query: troubled.request)
         troubled.dismissPreview()
         render(.ai, "problem", assistant: troubled)
         render(.about, "troubleshoot", assistant: troubled, troubleshoot: true)
@@ -376,7 +376,7 @@ enum SettingsPageImages {
         AWSProfileSamples.render(model, to: output, appearance: dark ? .darkAqua : .aqua)
         // Input with its options under the chips (each input's options under its name).
         for input in model.config.inputs {
-            SettingsImage.render(model, page: .input, inputTab: input,
+            SettingsImage.render(model, page: .inputAndKeys, inputTab: input,
                                  to: output.appendingPathComponent("settings-input-\(input.rawValue).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
