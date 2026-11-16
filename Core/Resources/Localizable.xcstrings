@@ -42883,6 +42883,7 @@
     },
     "run Python" : {
       "comment" : "运行 Python",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
