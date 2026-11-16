@@ -8,6 +8,14 @@ import Testing
 /// lock while it runs and Terminal's CLI holds it while it runs (`ClaudeSessionManager.terminalCommand`), and a relaunch
 /// never resumes the conversation it was answering in.
 struct QuestionSessionHandOffTests {
+    /// Takes the conversation lock, retrying for a moment: right after its holder lets go, a program another test starts
+    /// at that instant still holds a copy of the holder's descriptor (and so the flock) until it execs, which O_CLOEXEC
+    /// only closes then. Seen on the loaded CI runner as "our lock is still held".
+    static func takeOnceFree(_ file: URL) async -> ConversationLock? {
+        let held = Locked<ConversationLock?>(initialState: nil)
+        _ = await Timing.eventually(within: 2) { held.withLock { $0 = ConversationLock.take(file); return $0 != nil } }
+        return held.withLock { $0 }
+    }
     let folder = FileManager.default.temporaryDirectory.appendingPathComponent("hand-off-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
@@ -108,7 +116,7 @@ struct QuestionSessionHandOffTests {
         #expect(Date().timeIntervalSince(before) >= 0.25 && !process.isRunning && !process.wasKilled)
         #expect(arguments == ["/u/claude", "--resume", id] && lock == store.lockFile(id))
         // Its lock let go: Terminal can have it.
-        let terminal = try #require(ConversationLock.take(lock))
+        let terminal = try #require(await Self.takeOnceFree(lock))
         terminal.release()
     }
 
@@ -238,7 +246,7 @@ struct QuestionSessionHandOffTests {
         process.inner.autoExitOnTerminate = false
         let (_, _, lock) = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(!process.isRunning && !process.wasKilled)
-        let terminal = try #require(ConversationLock.take(lock), "our lock is still held")
+        let terminal = try #require(await Self.takeOnceFree(lock), "our lock is still held")
         terminal.release()
         // Told now: a prewarm meanwhile starts its process then.
         session.prewarm()
@@ -284,7 +292,7 @@ struct QuestionSessionHandOffTests {
         let file = store.lockFile(try store.sessionID())
         #expect(ConversationLock.take(file) == nil, "held while our process runs")
         process.exit(0)  // it ended
-        let lock = try #require(ConversationLock.take(file))
+        let lock = try #require(await Self.takeOnceFree(file))
         lock.release()
     }
 
@@ -355,7 +363,7 @@ struct QuestionSessionHandOffTests {
         #expect(await Timing.eventually(within: 10) { FileManager.default.fileExists(atPath: ran.path) })
         #expect(ConversationLock.take(file) == nil, "held while Terminal's CLI runs")
         #expect(await Timing.eventually(within: 10) { !terminal.isRunning })
-        let after = try #require(ConversationLock.take(file))
+        let after = try #require(await Self.takeOnceFree(file))
         after.release()
     }
     #endif
