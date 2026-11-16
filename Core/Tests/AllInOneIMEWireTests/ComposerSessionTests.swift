@@ -3,9 +3,10 @@ import AllInOneIMECore
 import Foundation
 import Testing
 
-/// What the Windows DLL and the engine agreed on where the spec's text left room (Spec notes): each composition carries
-/// the draft as typed, a key the client gave up on leaves the document as the client left it, re-sending `focus` keeps
-/// the draft and the serial, and a caret report counts only while the panel it anchors is shown.
+/// What the Windows DLL and the engine agreed on where the spec's text left room (Spec notes): what is typed is never a
+/// composition in the document, only the engine's panel's input line; a key the client gave up on leaves the document as
+/// the client left it, re-sending `focus` keeps the draft and the serial, and a caret report counts only while the panel
+/// it anchors is shown.
 struct ComposerSessionTests {
     /// A client with session 1 open and focused in Notepad.
     final class Client {
@@ -50,17 +51,15 @@ struct ComposerSessionTests {
         }
     }
 
-    static func draft(_ text: String, caret: Int, typed: String? = nil) -> Output {
-        .composition(text: text, caret: caret, segments: [Segment(from: 0, to: text.utf16.count, style: Segment.Style.draft)],
-                     typed: typed)
-    }
-
-    @Test func compositionsCarryTheDraftAsTyped() {
+    /// What is typed is never sent as a composition (the owner, 2026-11-15): the panel shows it, up from the first key;
+    /// the document gets text only when something goes in.
+    @Test func whatIsTypedIsOnlyInThePanel() throws {
         let client = Client()
-        // "@" is shown as typed: no `typed`.
-        #expect(client.type("@") == [Self.draft("@", caret: 1), .panel(shown: true)])
-        #expect(client.type("i") == [Self.draft("i", caret: 1, typed: "@i")])
-        #expect(client.type("mprove h") == [Self.draft("improve › h", caret: 11, typed: "@improve h")])
+        #expect(client.type("@") == [.panel(shown: true)])
+        #expect(client.type("i") == [])
+        #expect(client.type("mprove h") == [])
+        let session = try #require(client.engine.host.sessions[1])
+        #expect(SessionText.panelInput(session.composer)?.text == "improve › h")
     }
 
     @Test func aTimeoutLeavesTheDocumentAlone() {
@@ -72,7 +71,7 @@ struct ComposerSessionTests {
         #expect(client.send(.endComposition(sid: 1, reason: "timeout")) == [.result(re: id, outputs: [.panel(shown: false)])])
         // Back in step: plain typing, and a new draft starts as before.
         #expect(client.type(" x ") == [])
-        #expect(client.type("@") == [Self.draft("@", caret: 1), .panel(shown: true)])
+        #expect(client.type("@") == [.panel(shown: true)])
     }
 
     @Test func aTimeoutAtLevelTwoStopsTheRequest() throws {
@@ -98,7 +97,7 @@ struct ComposerSessionTests {
         let session = try #require(client.engine.host.sessions[1])
         #expect(session.caret?.rect == [812, 440, 9, 20])
         // Esc gives the draft up: the panel goes, and the caret it was anchored at with it.
-        #expect(client.press(vk: 0x1B, scan: 0x01, text: "\u{1B}") == [.composition(text: ""), .panel(shown: false)])
+        #expect(client.press(vk: 0x1B, scan: 0x01, text: "\u{1B}") == [.panel(shown: false)])
         #expect(session.caret == nil)
         // The next panel waits for its own report.
         client.type("@")
@@ -117,6 +116,7 @@ struct ComposerSessionTests {
         let session = try #require(client.engine.host.sessions[1])
         #expect(session.focusSerial == 1)
         #expect(session.field.layout == "00000804")
-        #expect(client.type("r") == [Self.draft("impr", caret: 4, typed: "@impr")])
+        #expect(client.type("r") == [])
+        #expect(SessionText.panelInput(session.composer)?.text == "impr")
     }
 }

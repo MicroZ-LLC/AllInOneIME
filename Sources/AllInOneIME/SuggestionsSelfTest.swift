@@ -255,17 +255,17 @@ extension SelfTest {
                   "Code: \"de\"'s rows in the candidate panel, the notice on its footer (\(CandidatePanel.shared.view.model.detail ?? "-")), "
                       + "no other window of ours where they are (\(others.map { "\(Swift.type(of: $0)) \(NSStringFromRect($0.frame))" }))")
             _ = space(controller, client)  // the token ends: "de" goes in as typed, the space the app's
-            check(client.inserted == ["de"] && client.marked.isEmpty, "…a space puts the word in as typed (\(client.inserted))")
+            check(client.inserted == ["de"] && controller.preedit.isEmpty, "…a space puts the word in as typed (\(client.inserted))")
             client.inserted.removeAll()
             type("pr", controller, client)
             let coded = pump(timeout: 2) { controller.session.panelModel().rows.contains { $0.text == "print" } }
-            check(coded && client.marked == "pr" && client.inserted.isEmpty,
-                  "Code: \"pr\" held as marked text (\(client.marked)) offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
+            check(coded && controller.preedit == "pr" && client.inserted.isEmpty,
+                  "Code: \"pr\" held as marked text (\(controller.preedit)) offers the pack's print (\(controller.session.panelModel().rows.map(\.text)))")
             // ↓ and ↑ are the rows', the word still marked (Chromium's pages hand them to the page when nothing is).
             let down = press(controller, client, "", code: VirtualKey.down), moved = controller.session.panelModel().highlighted
             let up = press(controller, client, "", code: VirtualKey.up)
-            check(down && up && moved == 1 && controller.session.panelModel().highlighted == 0 && client.marked == "pr",
-                  "…↓ and ↑ move the chosen row with the word still marked (\(client.marked))")
+            check(down && up && moved == 1 && controller.session.panelModel().highlighted == 0 && controller.preedit == "pr",
+                  "…↓ and ↑ move the chosen row with the word still marked (\(controller.preedit))")
             snapshot("suggestions-code", in: snapshotDirectory)
             let panel = controller.session.panelModel()
             check(panel.highlighted == 0 && !panel.rows.contains { $0.comment.contains("Python") },
@@ -274,7 +274,7 @@ extension SelfTest {
                 for _ in 0..<index { press(controller, client, "", code: VirtualKey.down) }
                 press(controller, client, "\r", code: VirtualKey.returnKey)
             }
-            check(client.inserted.last == "print()" && client.marked.isEmpty,
+            check(client.inserted.last == "print()" && controller.preedit.isEmpty,
                   "…⏎ puts the snippet in as \"print()\" in place of the word held (\(client.inserted.last ?? "-"))")
 
             // The long press of Shift in Code: Translate as You Type isn't available there, and nothing changes.

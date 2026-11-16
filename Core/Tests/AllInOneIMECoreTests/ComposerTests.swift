@@ -420,7 +420,8 @@ struct ComposerTests {
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
         type("nihao", c)
-        #expect(commits(c.commitAll()) == ["@improve 我你好"])
+        // A command not run yet goes, nothing typed in (the owner, 2026-11-15: CommandDraftKeysTests).
+        #expect(commits(c.commitAll()).isEmpty && c.draft.isEmpty)
         #expect(c.phase == .idle)
         #expect(!c.engineState.isComposing)
 
@@ -428,11 +429,12 @@ struct ComposerTests {
         type("wo", d)
         _ = d.handleKeyDown(spaceKey)
         type("ni", d)
-        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])
+        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])  // a request refused in a known password field
         #expect(d.markedText.isEmpty)
 
+        // A command that ran stops, nothing typed in (the integrator, 2026-11-15).
         let (t, _) = translating()
-        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .commit("@improve 你好")])
+        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .updateMarkedText])
         let (p, _) = composer()  // pinyin alone: converted
         type("nihao", p)
         #expect(commits(p.commitAll()) == ["你好"])
@@ -482,19 +484,18 @@ struct ComposerTests {
         #expect(c.handleKeyDown(spaceKey).effects.first == .startConversion(input: "ok go", id: 1))
     }
 
-    @Test func shortcutsInsertAnEnglishCommandAsTypedAndReachTheApp() {
-        let shortcuts = [
-            KeyEvent(keyCode: 0x00, characters: "a", modifiers: .command),  // ⌘A
-            KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command),  // ⌘⏎
-        ]
-        for key in shortcuts {
-            let (c, _) = improveDraft(english: true)
-            type("ok", c)
-            let r = c.handleKeyDown(key)
-            #expect(!r.handled, "\(key)")
-            #expect(commits(r) == ["@improve ok"], "\(key)")
-            #expect(c.phase == .idle && c.draft.isEmpty, "\(key)")
-        }
+    @Test func shortcutsDropAnEnglishCommandAndReachTheApp() {
+        // A command not run yet isn't typed in (the owner, 2026-11-15: CommandDraftKeysTests): ⌘A drops it and is the
+        // app's; ⌘⏎ runs it, as ⏎.
+        let (c, _) = improveDraft(english: true)
+        type("ok", c)
+        let r = c.handleKeyDown(KeyEvent(keyCode: 0x00, characters: "a", modifiers: .command))
+        #expect(!r.handled && commits(r).isEmpty)
+        #expect(c.phase == .idle && c.draft.isEmpty)
+        let (d, _) = improveDraft(english: true)
+        type("ok", d)
+        let run = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
+        #expect(run.handled && commits(run).isEmpty && d.isLevelTwo)
         // Editing keys stay with the command (Return runs it, Esc clears it); ← moves the cursor in its text.
         let editingKeys = [upKey, downKey, KeyEvent(keyCode: VirtualKey.tab, characters: "\t"),
                            KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")]
@@ -540,8 +541,6 @@ struct ComposerTests {
         type("nihao", c)
         _ = c.handleKeyDown(spaceKey)
         #expect(c.draft == "@improve ok你好" && !c.isLatinDraft)
-        // Shortcuts no longer insert it as typed: they reach the app with the draft still pending.
-        #expect(c.handleKeyDown(k("a", mods: .command)) == .passThrough && c.draft == "@improve ok你好")
         #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "ok你好", id: 1))
     }
 
@@ -741,16 +740,22 @@ struct ComposerTests {
     }
 
     @Test func focusLossKeepsWhatWasHeardAndShiftIsIgnoredWhileListening() {
-        let (c, e) = improveDraft()
-        type("wo", c)
-        _ = c.handleKeyDown(spaceKey)
+        let (c, e) = composer()
         _ = startDictation(c)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [.shift, .option, .rightOption], timestamp: 10.1)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [.option, .rightOption], timestamp: 10.2)
         #expect(!e.ascii && c.voice == .listening(id: 1, text: ""))
         _ = c.voiceText("今天", id: 1)
-        #expect(c.commitAll() == [.cancelVoice(id: 1), .hidePanel, .commit("@improve 我今天")])
+        #expect(c.commitAll() == [.cancelVoice(id: 1), .hidePanel, .commit("今天")])
         #expect(c.voice == .off && c.phase == .idle)
+        // Heard into a command not run yet: it goes with the command, nothing typed in (the owner, 2026-11-15).
+        let (d, _) = improveDraft()
+        type("wo", d)
+        _ = d.handleKeyDown(spaceKey)
+        _ = startDictation(d)
+        _ = d.voiceText("今天", id: 1)
+        #expect(d.commitAll() == [.cancelVoice(id: 1), .hidePanel, .updateMarkedText])
+        #expect(d.voice == .off && d.phase == .idle && d.draft.isEmpty)
     }
 
     @Test func shiftSpaceInAnEnglishDraftIsASpace() {
@@ -1497,19 +1502,8 @@ struct ComposerTests {
         #expect(c.markedText == "improve › 你好stock › AAPL ＠bob")
     }
 
-    @Test func aTakenCompositionStartsOver() {
-        // An app that reports its marked text: taken when it reports none while a draft is pending.
-        var watch = MarkedTextWatch()
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: nil))  // never seen it report: unknown
-        watch.didSet(expected: "improve › 你好", reportedLength: 12)
-        #expect(watch.appReportsMarkedText)
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: 12))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: 0))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: nil))
-        #expect(!watch.appTookText(expected: "", reportedLength: nil))  // nothing pending
-        watch.reset()
-        #expect(!watch.appTookText(expected: "x", reportedLength: nil))
-        // The composer then forgets the draft: nothing inserted, nothing sent, the panel hidden.
+    @Test func aCancelledCompositionStartsOver() {
+        // The app cancelled the composition: the composer forgets the draft, nothing inserted, nothing sent, the panel hidden.
         let (c, e) = composer(key: .enter)
         _ = c.handleKeyDown(at)
         type("q", c)

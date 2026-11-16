@@ -1,0 +1,14 @@
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
+# Owner decision 2026-11-15: punctuation typed right after an ASCII digit stays ASCII in Chinese mode (. , :), so
+# numbers, times and amounts come out as written (rime-ice's punctuator/digit_separators, Config.typingSymbols).
+NAME a colon right after a digit stays ASCII in Chinese mode
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE 12:30
+EXPECT doc "Hi 12:30|"
+EXPECT marked none
+EXPECT preedit none
+EXPECT lang chinese
+EXPECT nolost

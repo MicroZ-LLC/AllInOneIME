@@ -1,0 +1,5 @@
+NAME an emoji immediately before the caret survives UTF-16 reading
+PROFILES nstextview chromium electron
+LANG english
+TEXT "hi 😀| there"
+EXPECT context before "hi 😀"

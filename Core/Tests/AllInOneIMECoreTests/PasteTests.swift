@@ -134,12 +134,13 @@ extension ComposerTests {
         #expect(f.draft == "@improve second")
     }
 
-    @Test func terminalsKeepCommandVForThemselves() {
-        // Terminals paste on ⌘V themselves: the input method stays out (no second copy in the draft).
+    @Test func commandVPastesIntoACommandWhereTheAppPastesItself() {
+        // Terminals paste on ⌘V themselves (the Mac's key tap keeps it from them then): in a command not run yet it is
+        // the same paste as in any other app (the integrator, 2026-11-15: one behaviour everywhere).
         let (c, _) = improveDraft(key: .enter)
         c.pastesIntoDraft = false
         let (ref, _) = improveDraft(key: .enter)
-        #expect(c.handleKeyDown(pasteKey) == ref.handleKeyDown(k("a", mods: .command)))  // as before the paste feature
+        #expect(c.handleKeyDown(pasteKey) == ref.handleKeyDown(pasteKey))
     }
 
     var controlV: KeyEvent { KeyEvent(keyCode: 0x09, characters: "\u{16}", charactersIgnoringModifiers: "v", modifiers: .control) }

@@ -41,7 +41,7 @@ struct PanelPresenterTests {
         #expect(zh.highlighted == 0)
         #expect(zh.footer == "空格 选词 · 开头打 @ 用命令")
         #expect(en.footer == "Space picks · type @ first for commands")
-        #expect(zh.status == .none && zh.input == nil && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
+        #expect(zh.status == .none && zh.input?.text == c.markedText && zh.header.isEmpty && zh.chip == nil && !zh.transcript)
         // The candidates are the rows: no line of them besides (`candidates`, one @'s).
         #expect(zh.candidates == nil)
         // A click on a row picks what its number would.
@@ -84,7 +84,7 @@ struct PanelPresenterTests {
         for presenter in [zh, en] {
             let model = presenter.model(for: c)
             #expect(model.candidates == "1 你好   2 拟好")
-            #expect(model.header.isEmpty && model.input == nil && model.status == .none)
+            #expect(model.header.isEmpty && model.input?.text == c.markedText && model.status == .none)
             // The rows are one @'s (what can be done with 你好), none of them a candidate; the first highlighted, each
             // clicked by its own index.
             try #require(!model.rows.isEmpty)

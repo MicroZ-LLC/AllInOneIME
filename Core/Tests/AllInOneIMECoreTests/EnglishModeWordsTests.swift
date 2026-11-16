@@ -279,9 +279,8 @@ struct EnglishModeLearningTests {
             #expect(learned.words == ["zorblax"])
             let shown = host.outputs.dropFirst(before).filter { output in
                 switch output {
-                case let .marked(text, _, _): return !text.isEmpty
                 case .commit, .commitAfterKey, .replace, .typeOut: return true
-                case let .panel(model): return model.map { !$0.rows.isEmpty } ?? false
+                case let .panel(model): return model.map { !$0.rows.isEmpty || $0.input != nil } ?? false
                 default: return false
                 }
             }

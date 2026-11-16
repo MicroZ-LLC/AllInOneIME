@@ -50,12 +50,12 @@ extension SelfTest {
               "1 shows the saved answer at once, no request (\(saved.footer) | \(saved.detail ?? "-"))")
         snapshot("question-saved", in: snapshotDirectory)
         _ = escape(controller, client)
-        check(client.marked == "question › " && controller.composer.questionMatches.count == 1, "Esc goes back to the list ('\(client.marked)')")
+        check(controller.preedit == "question › " && controller.composer.questionMatches.count == 1, "Esc goes back to the list ('\(controller.preedit)')")
         // Typing filters it: a word that isn't in it lists nothing, and ⏎ would ask that.
         type("zaijian", controller, client)
         _ = space(controller, client)
-        check(controller.panelModel().rows.isEmpty && client.marked.count > "question › ".count,
-              "a question not asked before lists nothing ('\(client.marked)')")
+        check(controller.panelModel().rows.isEmpty && controller.preedit.count > "question › ".count,
+              "a question not asked before lists nothing ('\(controller.preedit)')")
         controller.commitComposition(client)
         client.inserted.removeAll()
 
@@ -111,7 +111,7 @@ extension SelfTest {
             question()
             check(controller.panelModel().rows.count == entries.count, "\(name): \(entries.count) recent questions listed")
             snapshot(name, in: snapshotDirectory)
-            try? Data(client.marked.utf8).write(to: snapshotDirectory.appendingPathComponent("\(name).marked.txt"))
+            try? Data(controller.preedit.utf8).write(to: snapshotDirectory.appendingPathComponent("\(name).marked.txt"))
             controller.commitComposition(client)
         }
         listed([("东京现在几点", "东京现在是下午 3 点（UTC+9）。", 120), ("一公里等于多少英里", "约 0.62 英里。", 3600),

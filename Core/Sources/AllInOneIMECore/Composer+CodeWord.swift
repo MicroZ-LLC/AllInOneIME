@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Code's word (decision 33)
 
-/// Code holds the word being typed as marked text (decision 33), as the command list holds what is typed after its trigger:
+/// Code holds the word being typed, in the panel's input line (decision 33), as the command list holds what is typed after its trigger:
 /// where Code's rows may show (`holdsCodeWord`, the session's: not in a terminal, in secure input or a password field),
 /// a word's characters (`isCodeWordCharacter`: letters, digits, "_"; it starts with a letter or "_", as an identifier
 /// does) collect into the draft, shown as typed, instead of going into the field one by one, and the rows follow it. A

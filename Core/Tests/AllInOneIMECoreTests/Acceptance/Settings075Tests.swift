@@ -360,17 +360,18 @@ struct Settings075Tests {
         return host
     }
 
-    /// "@" and `@improve` picked from the list (its first letter, Tab): whether it works on the selection (written in the
-    /// panel, the field keeping its selection) rather than marked in the field as without one.
+    /// "@" and `@improve` picked from the list (its first letter, Tab): whether it works on the selection rather than as
+    /// without one. (Every draft is written in the panel since the owner's decision of 2026-11-15, so where it is shown
+    /// no longer tells them apart.)
     func pickingImproveUsesTheSelection(_ host: FakeHost) -> Bool {
         host.press(FakeHost.at)
         host.type("i")
         host.press(FakeHost.tab)
-        return host.composer.draftInPanel
+        return host.composer.selection != nil
     }
 
-    /// An app that learned the selection off: "@" there no longer works on the selected text (the draft is marked as
-    /// without a selection, the text left as it is); another app as before; forgotten, the app uses it again.
+    /// An app that learned the selection off: "@" there no longer works on the selected text (the draft is written as
+    /// without a selection, in the panel, the text left as it is); another app as before; forgotten, the app uses it again.
     @Test func anAppThatLearnedTheSelectionOffDoesNotUseIt() async throws {
         let folder = try Self.temporaryFolder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -382,7 +383,8 @@ struct Settings075Tests {
             learned.turnSelectionOff(in: Apps.mail)
             let mail = selectedField(in: Apps.mail, config: config, learned: learned)
             #expect(!pickingImproveUsesTheSelection(mail), "learned off in Mail")
-            #expect(mail.document == "hello world" && !mail.marked.isEmpty, "marked as without a selection: \(mail.document) | \(mail.marked)")
+            #expect(mail.document == "hello world" && mail.marked.isEmpty && mail.inputLine != nil,
+                    "written as without a selection, in the panel: \(mail.document) | \(mail.composing)")
             #expect(pickingImproveUsesTheSelection(selectedField(in: Apps.slack, config: config, learned: learned)), "Slack as before")
             // Forget on its row in Privacy → Learned….
             for app in learned.selectionOffApps { learned.forgetSelectionOff(in: app) }
