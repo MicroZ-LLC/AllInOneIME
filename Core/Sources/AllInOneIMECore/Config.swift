@@ -170,6 +170,10 @@ public struct Config: Codable, Equatable, Sendable {
     /// `provider` (also for "provider", the choice of the provider for questions in 0.7.4's builds). This Mac's own (never
     /// synced): whether a CLI is installed and signed in is this Mac's.
     public var questionBackend: QuestionBackend?
+    /// The MCP servers each agent's session may use (`SessionMCP`, owner 0.7.5), by agent (`SessionAgent` raw value),
+    /// then by server name (as the agent's own config names it): the server's read-only tools, the only ones allowed.
+    /// Checked in Settings → AI; empty: none, as before.
+    public var sessionMCP: [String: [String: [String]]] = [:]
     /// An icon in the menu bar that drops the panel down (notes, reminders, Claude tasks) when clicked.
     public var menuBarIcon: Bool
     /// Fuzzy pinyin (模糊音): the pairs typed either way (`FuzzyPinyin.pairs` ids, e.g. "z-zh", "n-l"); none by default.
@@ -327,8 +331,7 @@ public struct Config: Codable, Equatable, Sendable {
         rewriteStyles: [String] = RewriteStyle.defaultNames,
         outputLanguage: OutputLanguage = .english, outputLanguages: [OutputLanguage]? = nil,
         inputLanguages: [Language] = [.english], defaultInput: Language = .english,
-        voiceInput: Bool = true, jargonFile: String? = nil,
-        actionKey: ActionKey = .enter, uiLanguage: String? = nil, customCommands: [CustomCommand] = [],
+        voiceInput: Bool = true, jargonFile: String? = nil, actionKey: ActionKey = .enter, uiLanguage: String? = nil, customCommands: [CustomCommand] = [],
         provider: Provider = .bedrock, anthropic: ProviderSettings = ProviderSettings(),
         gemini: ProviderSettings = ProviderSettings(), openai: ProviderSettings = ProviderSettings()
     ) {
@@ -415,7 +418,7 @@ public struct Config: Codable, Equatable, Sendable {
         case switchKey
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
-        case rememberQuestions, questionRounds, questionContinueIn, questionBackend
+        case rememberQuestions, questionRounds, questionContinueIn, questionBackend, sessionMCP
         case redaction
         case autocomplete
         case iCloudSync
@@ -498,12 +501,12 @@ public struct Config: Codable, Equatable, Sendable {
         rememberQuestions = try c.decodeIfPresent(Bool.self, forKey: .rememberQuestions) ?? d.rememberQuestions
         questionRounds = QuestionChat.rounds((try? c.decodeIfPresent(Int.self, forKey: .questionRounds)).flatMap { $0 } ?? d.questionRounds)
         // Names this version doesn't know (a service a later one added) are left out, not an error.
-        questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?
-            .compactMap(ChatHandoff.Destination.init(rawValue:))
+        questionContinueIn = (try? c.decodeIfPresent([String].self, forKey: .questionContinueIn)).flatMap { $0 }?.compactMap(ChatHandoff.Destination.init(rawValue:))
         // One this version doesn't know (a later one's), and 0.7.4's "provider", are none: the AI is the provider.
         // Gemini CLI's session (0.7.4's earlier builds) is Antigravity's (`QuestionBackend.init(file:)`).
         questionBackend = (try? c.decodeIfPresent(String.self, forKey: .questionBackend)).flatMap { $0 }
             .flatMap(QuestionBackend.init(file:)).flatMap { $0 == .provider ? nil : $0 }
+        sessionMCP = (try? c.decodeIfPresent([String: [String: [String]]].self, forKey: .sessionMCP)).flatMap { $0 } ?? [:]
         menuBarIcon = try c.decodeIfPresent(Bool.self, forKey: .menuBarIcon) ?? d.menuBarIcon
         fuzzyPinyin = FuzzyPinyin.known(try c.decodeIfPresent([String].self, forKey: .fuzzyPinyin) ?? [])
         // One this version doesn't know (a later one's) follows the system, not an error.
@@ -704,11 +707,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(agentCommand, forKey: .agentCommand)
         try c.encode(agentPageContext, forKey: .agentPageContext)
         try c.encode(claudeInBackground, forKey: .claudeInBackground)
-        try c.encode(rememberQuestions, forKey: .rememberQuestions)
-        // Only when set: a file that never had them doesn't gain them.
-        if questionRounds != QuestionChat.defaultRounds { try c.encode(questionRounds, forKey: .questionRounds) }
-        try c.encodeIfPresent(questionContinueIn, forKey: .questionContinueIn)
-        try c.encodeIfPresent(questionBackend, forKey: .questionBackend)
+        try encodeQuestions(into: &c)
         try c.encode(menuBarIcon, forKey: .menuBarIcon)
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
@@ -882,35 +881,6 @@ extension Optional where Wrapped == String {
 
 extension Config {
     static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "config")
-}
-
-extension CustomCommand {
-    /// An entry of `Config.customCommands` as the file has it: a command this version reads; the JSON of one whose
-    /// `type` is a string this version doesn't know and whose `name` is a string (a later version's: kept,
-    /// `Config.unreadCustomCommands`); or the JSON of any other it can't read, refused with its reason
-    /// (`Config.refusedCustomCommands`, decision 25). No entry is an error for the whole list.
-    struct Entry: Decodable {
-        var command: CustomCommand?
-        var unread: AIConfig.JSONValue?
-        var refused: Refused?
-
-        init(from decoder: Decoder) throws {
-            do {
-                command = try CustomCommand(from: decoder)
-            } catch {
-                guard let json = try? AIConfig.JSONValue(from: decoder) else { throw error }
-                if Self.name(json) != nil { unread = json } else { refused = Refused(json) }
-            }
-        }
-
-        /// The name of an entry of a later version's (a JSON object whose `type` this version doesn't know and whose
-        /// `name` is a string), or nil when it isn't one.
-        static func name(_ json: AIConfig.JSONValue) -> String? {
-            guard case let .object(fields) = json, case let .string(type)? = fields["type"], CommandType(rawValue: type) == nil,
-                  case let .string(name)? = fields["name"] else { return nil }
-            return name
-        }
-    }
 }
 
 extension CustomCommand {

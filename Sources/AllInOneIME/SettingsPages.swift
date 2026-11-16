@@ -28,8 +28,10 @@ extension SettingsView {
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
             }
         case .ai:
-            // Who answers, then what the AI commands do, then the model's parameters (owner, 0.7.5).
+            // Who answers (a CLI: the MCP servers its session may use), then what the AI commands do, then the model's
+            // parameters (owner, 0.7.5).
             providerSection
+            if let agent = model.config.questionSessionAgent { MCPServersSection(model: model, agent: agent) }
             aiCommandsSection
             requestSection
         case .commands:

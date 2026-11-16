@@ -341,6 +341,11 @@ enum SettingsPageImages {
         // The AI page with Claude Code chosen, with where what has to be fast goes, its card In use.
         model.config.ai = .cli(.claude)
         render(.ai, "ai-claude-code")
+        // Its MCP servers (0.7.5): one checked with its read-only tools, one checked with none, one not checked.
+        MCPServerLister.preview = .sample
+        model.config.sessionMCP = ["claude": ["github": ["search_code"], "linear": []]]
+        render(.ai, "ai-mcp")
+        MCPServerLister.preview = nil
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")

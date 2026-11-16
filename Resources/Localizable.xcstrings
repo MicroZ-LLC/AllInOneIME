@@ -2836,6 +2836,53 @@
         }
       }
     },
+    "%@ not found" : {
+      "comment" : "找不到 %@ — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ nicht gefunden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontró %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ introuvable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ が見つかりません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 찾을 수 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não encontrado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到 %@"
+          }
+        }
+      }
+    },
     "%@ of %@; the first is the default" : {
       "comment" : "第 %@ 个，共 %@ 个；第一个是默认 — Sources/AllInOneIME/SettingsWindow.swift",
       "extractionState" : "stale",
@@ -2880,6 +2927,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %@ 個，共 %@ 個；第一個是預設"
+          }
+        }
+      }
+    },
+    "%@ read-only tools (of %@)" : {
+      "comment" : "%@ 个只读工具（共 %@ 个） — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Lese-Werkzeuge (von %@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ herramientas de solo lectura (de %@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ outils en lecture seule (sur %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り専用ツール %@ 個（全 %@ 個）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 전용 도구 %@개 (전체 %@개)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ferramentas só de leitura (de %@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個唯讀工具（共 %@ 個）"
           }
         }
       }
@@ -3542,6 +3636,53 @@
         }
       }
     },
+    "%@'s session can't use MCP servers yet." : {
+      "comment" : "%@ 的会话暂时不能用 MCP 服务器。 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Sitzung von %@ kann noch keine MCP-Server nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de %@ aún no puede usar servidores MCP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session de %@ ne peut pas encore utiliser de serveurs MCP."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のセッションではまだ MCP サーバーを使えません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 세션에서는 아직 MCP 서버를 사용할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do %@ ainda não pode usar servidores MCP."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的工作階段暫時不能用 MCP 伺服器。"
+          }
+        }
+      }
+    },
     "%@%% downloaded" : {
       "comment" : "已下载 %@%% — Sources/AllInOneIME/Updates.swift",
       "localizations" : {
@@ -4196,6 +4337,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個更新"
+          }
+        }
+      }
+    },
+    "A checked server gives the AI chat its read-only tools only (search, read), never one that sends or changes anything. The servers come from %@'s own settings." : {
+      "comment" : "勾上的服务器，AI 对话只能用它的只读工具（搜索、读取），发送、修改的工具一律不给。服务器取自 %@ 自己的设置。 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein angehakter Server gibt dem KI-Chat nur seine Lese-Werkzeuge (suchen, lesen), nie eines, das etwas sendet oder ändert. Die Server stammen aus den eigenen Einstellungen von %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un servidor marcado da al chat de IA solo sus herramientas de lectura (buscar, leer), nunca una que envíe o cambie algo. Los servidores vienen de la configuración propia de %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un serveur coché ne donne au chat IA que ses outils en lecture seule (chercher, lire), jamais un outil qui envoie ou modifie quoi que ce soit. Les serveurs viennent des réglages de %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックしたサーバーは、読み取り専用のツール（検索・読み取り）だけを AI チャットに渡します。送信や変更をするツールは渡しません。サーバーは %@ 自身の設定から読み込みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체크한 서버는 읽기 전용 도구(검색, 읽기)만 AI 채팅에 넘기며, 무언가를 보내거나 바꾸는 도구는 절대 넘기지 않습니다. 서버 목록은 %@ 자체 설정에서 가져옵니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um servidor marcado dá ao chat de IA só as ferramentas de leitura (buscar, ler), nunca uma que envie ou altere algo. Os servidores vêm das configurações do próprio %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾選的伺服器，AI 對話只能用它的唯讀工具（搜尋、讀取），傳送、修改的工具一律不給。伺服器取自 %@ 自己的設定。"
           }
         }
       }
@@ -10048,6 +10236,53 @@
         }
       }
     },
+    "Check it to list its tools" : {
+      "comment" : "勾上后列出它的工具 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhaken, um seine Werkzeuge aufzulisten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Márcalo para ver sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cochez-le pour lister ses outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックするとツールを一覧します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체크하면 도구 목록을 가져옵니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marque para listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾選後列出它的工具"
+          }
+        }
+      }
+    },
     "Check Now" : {
       "comment" : "立即检查 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -13060,6 +13295,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒能取得語言庫的列表："
+          }
+        }
+      }
+    },
+    "Couldn't list its tools" : {
+      "comment" : "没能列出它的工具 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge konnten nicht aufgelistet werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron listar sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lister ses outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールを一覧できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오지 못했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒能列出它的工具"
           }
         }
       }
@@ -18693,6 +18975,53 @@
         }
       }
     },
+    "It needs a sign-in: sign in from the agent, then try again" : {
+      "comment" : "它要先登录：在 agent 里登录后再试 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er braucht eine Anmeldung: im Agent anmelden und erneut versuchen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesita iniciar sesión: inicia sesión desde el agente y vuelve a intentarlo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il faut se connecter : connectez-vous depuis l’agent, puis réessayez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインが必要です。agent でサインインしてから、もう一度お試しください"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인이 필요합니다. agent에서 로그인한 뒤 다시 시도하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "É preciso entrar: entre pelo agente e tente de novo"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它要先登入：在 agent 裡登入後再試"
+          }
+        }
+      }
+    },
     "It remembers what you asked. Start Over begins a new one that doesn't (the old one stays in %@'s history)." : {
       "comment" : "记得聊过的。重新开始一个新会话，之前的问题它就不记得了（旧会话还在 %@ 的历史里）。 — Sources/AllInOneIME/AIPicker.swift",
       "extractionState" : "stale",
@@ -20264,6 +20593,100 @@
         }
       }
     },
+    "Listing its tools timed out" : {
+      "comment" : "列出工具超时 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auflisten der Werkzeuge hat zu lange gedauert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agotó el tiempo al listar sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La liste de ses outils a expiré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールの一覧がタイムアウトしました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오는 시간이 초과되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo esgotado ao listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出工具逾時"
+          }
+        }
+      }
+    },
+    "Listing its tools…" : {
+      "comment" : "正在列出工具… — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge werden aufgelistet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listando sus herramientas…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste de ses outils…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールを一覧しています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listando as ferramentas…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在列出工具…"
+          }
+        }
+      }
+    },
     "lists" : {
       "comment" : "列表 — Sources/AllInOneIME/ExtensionSourcesSettings.swift",
       "localizations" : {
@@ -20590,6 +21013,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "管理訂閱"
+          }
+        }
+      }
+    },
+    "MCP Servers" : {
+      "comment" : "MCP 服务器 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP-Server"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servidores MCP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serveurs MCP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP サーバー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 서버"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servidores MCP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 伺服器"
           }
         }
       }
@@ -22248,6 +22718,53 @@
         }
       }
     },
+    "No MCP servers in %@'s settings." : {
+      "comment" : "%@ 的设置里没有 MCP 服务器。 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine MCP-Server in den Einstellungen von %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay servidores MCP en la configuración de %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun serveur MCP dans les réglages de %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の設定に MCP サーバーがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 설정에 MCP 서버가 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não há servidores MCP nas configurações do %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的設定裡沒有 MCP 伺服器。"
+          }
+        }
+      }
+    },
     "No microphone access: System Settings → Privacy & Security → Microphone → turn on AllInOneIME" : {
       "comment" : "没有麦克风权限：系统设置 → 隐私与安全性 → 麦克风 → 打开 AllInOneIME — Sources/AllInOneIME/InputController.swift",
       "localizations" : {
@@ -22715,6 +23232,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不打錯字的 App："
+          }
+        }
+      }
+    },
+    "None of its %@ tools is read-only: none goes to the AI chat" : {
+      "comment" : "%@ 个工具都不是只读的，不会给 AI 对话 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keines seiner %@ Werkzeuge ist nur lesend: keines geht an den KI-Chat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguna de sus %@ herramientas es de solo lectura: ninguna va al chat de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun de ses %@ outils n’est en lecture seule : aucun ne va au chat IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個のツールはどれも読み取り専用ではないため、AI チャットには渡しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 %@개 중 읽기 전용이 없어 AI 채팅에 넘기지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma das %@ ferramentas é só de leitura: nenhuma vai para o chat de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個工具都不是唯讀的，不會給 AI 對話"
           }
         }
       }
@@ -36959,6 +37523,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "無法載入這個擴充套件："
+          }
+        }
+      }
+    },
+    "This connection (SSE) isn't supported yet" : {
+      "comment" : "这种连接方式（SSE）暂不支持 — Sources/AllInOneIME/MCPServersSettings.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Verbindungsart (SSE) wird noch nicht unterstützt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexión (SSE) aún no es compatible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette connexion (SSE) n’est pas encore prise en charge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この接続方式（SSE）にはまだ対応していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 연결 방식(SSE)은 아직 지원하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexão (SSE) ainda não é compatível"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這種連線方式（SSE）暫不支援"
           }
         }
       }
