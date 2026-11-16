@@ -1,0 +1,7 @@
+NAME typing over a selection replaces it exactly once
+PROFILES all
+LANG english
+TEXT "hello [world]"
+TYPE friend
+EXPECT doc "hello friend"
+EXPECT nolost

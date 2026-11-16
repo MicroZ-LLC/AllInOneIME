@@ -198,10 +198,10 @@ extension KeyEchoesTests {
             keys.type("ni")
             let outputs = host.outputs.count
             #expect(keys.again() == true)
-            #expect(host.marked == "ni" && engine.input == "ni", "\(host.marked), \(engine.input)")
+            #expect(host.preedit == "ni" && engine.input == "ni", "\(host.preedit), \(engine.input)")
             #expect(host.outputs.count == outputs && keys.reached == 2)
             keys.type("hao")
-            #expect(host.marked == "nihao" && host.panel?.rows.first?.text == "你好", "\(host.marked)")
+            #expect(host.preedit == "nihao" && host.panel?.rows.first?.text == "你好", "\(host.preedit)")
         }
     }
 

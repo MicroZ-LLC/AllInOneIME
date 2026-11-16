@@ -166,7 +166,8 @@ struct KeyboardLayoutTests {
         let t = try Typist("com.apple.keylayout.US")
         t.type("@improve caf")
         t.press(keyE, .option)
-        #expect(commits(t.composer.commitAll()) == ["@improve caf´"])
+        // A command not run yet goes with it, nothing typed in (the owner, 2026-11-15: CommandDraftKeysTests).
+        #expect(t.composer.pendingAccent == "´" && commits(t.composer.commitAll()).isEmpty && t.composer.pendingAccent == nil)
         t.press(keyE, .option)
         #expect(commits(t.composer.commitAll()) == ["´"] && t.composer.pendingAccent == nil)
     }

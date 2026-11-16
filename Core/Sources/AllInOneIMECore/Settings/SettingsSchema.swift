@@ -488,7 +488,9 @@ struct SettingsSchema {
                                  (Choice("high", "high"), nil), (Choice("", tr("不设置（模型不支持时选）", "Not set (for models without it)")), nil)]),
                 to: &fields) { store.setProviderField(provider, \.effort, to: $0.string ?? "", empty: "") }
         case .bedrock:
-            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), value: .string(config.modelId))
+            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
+            // Under it, the ID sent where it isn't this one (a "us." profile to a region in Europe goes as "eu.").
+            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), help: UIText.bedrockModelSent(config, profileRegion: region), value: .string(config.modelId))
             model.choices = SuggestedModel.all.map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { value in
                 let id = SettingsStore.typed(value.string ?? "")
@@ -503,7 +505,6 @@ struct SettingsSchema {
                        choices: profiles.map { (Choice($0, $0), nil) }), to: &fields) { value in
                 store.config.awsProfile = value.string ?? store.config.awsProfile
             }
-            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
             add(text("bedrock.region", tr("区域", "Region"), value: config.region,
                      placeholder: tr("留空用 profile 的区域（\(region)）", "Empty: the profile's region (\(region))")), to: &fields) { value in
                 store.setBedrockRegion(value.string ?? "")

@@ -71,7 +71,10 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
 
 16. **Every change passes the same gate**: `make lint` (static checks) and `make test`, together `make check`, run by
     CI (`.github/workflows/quality.yml`) on every PR into `mainline` or `release-*`, plus the independent review.
-    Nothing merges around them, the pipeline included. *Why: quality by machines, not memory.*
+    Nothing merges around them, the pipeline included. `make test` is `make test-core` (the core's tests, which CI
+    runs on GitHub's Linux and macOS machines) and `make test-mac` (the Mac's, on the Mac mini); a PR runs those its
+    paths can affect (`Scripts/test-scope.sh`), a push both. Core work can be tested on Linux too:
+    `Core/Scripts/test.sh`. *Why: quality by machines, not memory.*
 17. **Baselines only go down.** `.swiftlint.baseline.json` and `Scripts/oversized-files.txt` hold today's debt; after
     fixing some, `make lint-baseline` lowers them. A PR that raises them fails CI **(checked)**. *Why: a ratchet.*
 18. **Commit messages** read like the repository's: `Area: what changed, as the user sees it`, plain English, no
