@@ -1593,6 +1593,27 @@ struct ComposerTests {
         #expect(commits(d.handleKeyDown(enterKey)) == ["你好"])
     }
 
+    /// The next question typed while the first answer comes in goes with that answer when it fails (or brings nothing):
+    /// the failure shows as before, with no line and no pinyin left composing.
+    @Test func aFirstAnswerFailingTakesTheQuestionTypedMeanwhile() {
+        for failure in [true, false] {
+            let (c, _) = palette("q")
+            _ = c.handleKeyDown(tab)
+            type("nihao", c)
+            _ = tapOption(c)
+            _ = c.receive(ConversionResult(versions: [CandidateLine("你好的", isComplete: false)]), isFinal: false, id: 1)
+            type("wo", c)
+            _ = c.handleKeyDown(spaceKey)
+            type("shi", c)
+            #expect(c.refineText == "我" && c.engineState.isComposing && c.refineLine == "我shi")
+            _ = failure ? c.fail("出错了", id: 1) : c.receive(.empty, isFinal: true, id: 1)
+            #expect(c.phase == .failed(failure ? "出错了" : "没有得到结果"))
+            #expect(c.refineText.isEmpty && !c.engineState.isComposing && c.refineLine == nil)
+            // ⏎ then inserts the question as before.
+            #expect(commits(c.handleKeyDown(enterKey)) == ["你好"])
+        }
+    }
+
     @Test func openPicksAFileWithoutInsertingText() {
         let calculator = SearchResult(name: "Calculator", path: "/System/Applications/Calculator.app")
         let (c, _) = palette("o", english: true)

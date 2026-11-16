@@ -2069,7 +2069,7 @@ public final class Composer {
             // A refine that brought nothing leaves the results before it.
             if !answered, id == refineID { return refineFailed(messages.noResult) }
             if id == refineID { refineID = nil }
-            phase = answered ? .choosing : .failed(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
+            phase = answered ? .choosing : failing(activeCommand?.isCode == true ? messages.noOutput : messages.noResult)
             return [.showPanel] + rememberAnswer()
         }
         return [.showPanel]
@@ -2112,7 +2112,7 @@ public final class Composer {
         guard phase == .translating(id: id) else { return [] }
         if id == modeRequestID { return modeFailed(message) }
         if id == refineID { return refineFailed(message) }
-        phase = .failed(message)
+        phase = failing(message)
         failureFix = place.map { (message, $0) }
         return [.showPanel]
     }

@@ -58,6 +58,19 @@ extension Composer {
         return true
     }
 
+    /// The failure of the request running (not a refine's: `refineFailed`). An @question's first answer failing takes the
+    /// next question typed meanwhile with it, its pinyin too: there is no answer to follow up, and the failure shows as before.
+    func failing(_ message: String) -> Phase {
+        if chatIsAnswering {
+            if let engine, engine.snapshot().isComposing {
+                engine.clearComposition()
+                engineState = engine.snapshot()
+            }
+            refineText = ""
+        }
+        return .failed(message)
+    }
+
     /// The conversation's rounds, oldest first, as the panel shows them: the first question as typed (the selection,
     /// when nothing was), the latest answer as far as it has come (empty while asked). None outside one.
     public var chatRounds: [QuestionChat.Round] {
