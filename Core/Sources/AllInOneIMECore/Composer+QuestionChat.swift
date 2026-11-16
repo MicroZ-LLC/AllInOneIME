@@ -129,9 +129,13 @@ extension Composer {
     /// 2026-11-15). ⏎ and ⇧⏎: `handleChatReturn`. Nil: not a conversation, or another key.
     func handleChatKey(_ event: KeyEvent) -> Response? {
         guard isQuestionChat else { return nil }
-        let plain = event.modifiers.subtracting(.capsLock).isEmpty
+        let modifiers = event.modifiers.subtracting(.capsLock)
+        // Esc with Shift still held closes as well (never the round back the line's Esc would take).
+        if event.key == .escape, modifiers.isSubset(of: .shift) {
+            return .consumed(showsSavedAnswer ? backToDraft() : finish(committing: "", selection: .kept))
+        }
+        let plain = modifiers.isEmpty
         if !plain { return handleChatReturn(event) }
-        if event.key == .escape { return .consumed(showsSavedAnswer ? backToDraft() : finish(committing: "", selection: .kept)) }
         // Space on an empty line (with something typed or pinyin, `handleRefineKey` has it).
         if event.key == .space, refineText.isEmpty, !(engine?.snapshot().isComposing ?? false) { return .consumed() }
         return handleChatReturn(event)

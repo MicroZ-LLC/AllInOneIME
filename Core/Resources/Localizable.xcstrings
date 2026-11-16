@@ -3,7 +3,6 @@
   "strings" : {
     " · %@ insert · %@ pick · %@ copy · Esc back" : {
       "comment" : " · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -3207,7 +3206,6 @@
     },
     "%@ ask · %@ insert · %@ pick · %@ copy · Esc back" : {
       "comment" : "%@ 追问 · %@ 上屏 · %@ 选 · %@ 复制 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -47822,6 +47820,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "空白鍵 / %@ 重試 · 0 原文 · Esc 返回"
+          }
+        }
+      }
+    },
+    "Space picks · %@ ask · %@ insert the answer · Esc back" : {
+      "comment" : "空格 选词 · %@ 追问 · %@ 上屏答案 · Esc 返回 — Sources/AllInOneIMECore/Session/PanelPresenter.swift",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Leertaste wählt · %1$@ nachfragen · %2$@ Antwort einfügen · Esc zurück"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espacio elige · %1$@ preguntar · %2$@ insertar la respuesta · Esc volver"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espace choisir · %1$@ demander · %2$@ insérer la réponse · Esc retour"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スペース 選択 · %1$@ 質問 · %2$@ 回答を挿入 · Esc 戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Space 단어 선택 · %1$@ 질문 · %2$@ 답변 입력 · Esc 뒤로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Espaço escolhe · %1$@ perguntar · %2$@ inserir a resposta · Esc voltar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "空白鍵 選字 · %1$@ 追問 · %2$@ 插入答案 · Esc 返回"
           }
         }
       }

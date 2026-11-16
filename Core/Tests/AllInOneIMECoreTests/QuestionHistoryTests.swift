@@ -280,6 +280,16 @@ extension ComposerTests {
         #expect(d.draft == "@question " && !d.isLevelTwo && d.questionHighlight == 2)
     }
 
+    @Test func aSavedAnswersFooterSaysEscGoesBack() {
+        // Esc goes back to the list on a saved answer, what's typed or not (the conversation's own footer says close).
+        let c = questionDraft()
+        _ = c.handleKeyDown(upKey)
+        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(k("s"))
+        #expect(c.showsSavedAnswer && c.refineText == "s")
+        #expect(PanelPresenter(config: .default, language: "en").model(for: c).footer.hasSuffix("Esc back"))
+    }
+
     @Test func aClickShowsTheSavedAnswer() {
         let c = questionDraft()
         type("swift", c)

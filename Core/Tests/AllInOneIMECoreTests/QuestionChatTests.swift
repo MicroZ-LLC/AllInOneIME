@@ -320,6 +320,14 @@ struct QuestionChatTests {
         #expect(d.handleKeyDown(escKey).effects.contains(.hidePanel) && !d.isLevelTwo && d.draft.isEmpty)
     }
 
+    @Test func shiftEscClosesToo() {
+        // Shift still held on Esc: closed as well, never a round back.
+        let c = asked()
+        followUp(c, "who made it", reply: "Graydon Hoare.")
+        let shiftEsc = KeyEvent(keyCode: VirtualKey.escape, characters: "\u{1B}", modifiers: .shift)
+        #expect(c.handleKeyDown(shiftEsc).effects.contains(.hidePanel) && !c.isLevelTwo && c.draft.isEmpty)
+    }
+
     @Test func spaceAndReturnWithNothingTypedDoNothing() {
         // Owner 2026-11-15: only ⇧⏎ inserts the answer; Space and ⏎ on an empty line leave the conversation up.
         let c = asked()

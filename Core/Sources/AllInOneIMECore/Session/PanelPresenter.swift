@@ -716,8 +716,12 @@ public struct PanelPresenter {
         if composer.refineIsComposing, !composer.showsHandoff {
             // The next question's pinyin: the conversation stays, its candidates on a line of their own (⏎ converts it and
             // asks, ⇧⏎ inserts the answer selected: `Composer.handleChatReturn`).
-            followUpComposing(footer: t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 关闭",
-                                           "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc close"),
+            // Esc closes the conversation; on a saved answer it goes back to the list (`Composer.handleChatKey`).
+            followUpComposing(footer: composer.showsSavedAnswer
+                              ? t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 返回",
+                                     "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc back")
+                              : t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 关闭",
+                                     "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc close"),
                               into: &model)
         } else if answering {
             model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 关闭", "Answering… · Esc close")
@@ -725,7 +729,9 @@ public struct PanelPresenter {
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close")
+                + (composer.showsSavedAnswer
+                    ? t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
+                    : t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close"))
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
@@ -735,8 +741,11 @@ public struct PanelPresenter {
                        "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
             // ⏎ asks the question typed (with nothing typed it does nothing), ⇧⏎ inserts the answer selected.
-            model.footer = t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭",
-                                "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close")
+            model.footer = composer.showsSavedAnswer
+                ? t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
+                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
+                : t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 关闭",
+                       "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc close")
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []
