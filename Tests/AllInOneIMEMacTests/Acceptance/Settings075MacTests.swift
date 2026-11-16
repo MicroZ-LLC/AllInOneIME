@@ -36,6 +36,8 @@ struct Settings075MacTests {
     /// The AI commands' rows: @improve's, @translate's, @question's (its recent questions too).
     static let aiCommands = ["rewriteStyles", "improveTranslates", "jargonList", "outputLanguages", "questionContinueIn",
                              "rememberQuestions"]
+    /// The page each AI command's row is on: #120 (later spec) moves @translate's languages to Common; the rest stay on AI.
+    static func page(_ row: String) -> String { row == "outputLanguages" ? "common" : "ai" }
     /// The Commands page's rows that aren't AI commands: they stay there.
     static let commandsRows = ["customCommands", "agent", "notes", "plugins", "scriptExtensions", "extensionSources"]
 
@@ -44,7 +46,7 @@ struct Settings075MacTests {
     @Test func theAICommandsRowsAreOnTheAIPage() throws {
         let report = try Settings075Child.run((Self.aiCommands + Self.commandsRows).map { Ask(.plain, "en", "page:" + $0) })
         for row in Self.aiCommands {
-            #expect(report.page(row) == "ai", "\(row) is on \(report.page(row) ?? "no page"): \(report)")
+            #expect(report.page(row) == Self.page(row), "\(row) is on \(report.page(row) ?? "no page"): \(report)")
         }
         for row in Self.commandsRows {
             #expect(report.page(row) == "commands", "\(row) is on \(report.page(row) ?? "no page"): \(report)")
@@ -63,13 +65,13 @@ struct Settings075MacTests {
         for interface in Self.interfaces {
             for row in Self.aiCommands {
                 let found = report.found(Ask(.jargon, interface, "title:" + row))
-                #expect(found?.contains(.init(row, "ai")) == true, "\(interface): searching \(row)'s title lists \(found ?? []): \(report)")
+                #expect(found?.contains(.init(row, Self.page(row))) == true, "\(interface): searching \(row)'s title lists \(found ?? []): \(report)")
             }
             for (command, rows) in [("@improve", ["rewriteStyles", "improveTranslates"]), ("@translate", ["outputLanguages"]),
                                     ("@question", ["questionContinueIn", "rememberQuestions"])] {
                 let found = report.found(Ask(.jargon, interface, command))
                 for row in rows {
-                    #expect(found?.contains(.init(row, "ai")) == true, "\(interface): searching \(command) lists \(found ?? []): \(report)")
+                    #expect(found?.contains(.init(row, Self.page(row))) == true, "\(interface): searching \(command) lists \(found ?? []): \(report)")
                 }
             }
         }
