@@ -9011,7 +9011,7 @@
       }
     },
     "Calculate with bc" : {
-      "comment" : "用 bc 计算 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "用 bc 计算 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -14813,7 +14813,7 @@
       }
     },
     "Email signature" : {
-      "comment" : "邮件签名 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "邮件签名 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -18459,7 +18459,7 @@
       }
     },
     "Jira issues" : {
-      "comment" : "Jira 问题 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "Jira 问题 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -19793,7 +19793,7 @@
       }
     },
     "Meeting link" : {
-      "comment" : "会议链接 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "会议链接 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30010,7 +30010,7 @@
       }
     },
     "Run Node.js" : {
-      "comment" : "运行 Node.js — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "运行 Node.js — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -30717,7 +30717,7 @@
       }
     },
     "Search with Google" : {
-      "comment" : "用 Google 搜索 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "用 Google 搜索 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36251,7 +36251,7 @@
       }
     },
     "Today's date" : {
-      "comment" : "今天的日期 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "今天的日期 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -36583,7 +36583,7 @@
       }
     },
     "Translate to Japanese" : {
-      "comment" : "翻译成日语 — Sources/AllInOneIME/CommandEditor.swift",
+      "comment" : "翻译成日语 — Sources/AllInOneIME/CommandEditorExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {
