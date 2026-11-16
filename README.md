@@ -1585,7 +1585,9 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 ## Development
 
 ```sh
-make test         # unit tests, plus tests that run the real Rime engine (and make strings-check)
+make test         # unit tests, plus tests that run the real Rime engine (and make strings-check): make test-core, then make test-mac
+make test-core    # the core's tests and checks alone (Core/); on Linux: Core/Scripts/test.sh
+make test-mac     # the Mac app's tests, the Rime ones among them
 make lint         # the static checks every change passes: SwiftLint and the file size ratchet (new problems only), the core's portability guards, make strings-check
 make check        # make lint, then make test: what CI requires of a pull request
 make strings      # adds new interface text to Resources/Localizable.xcstrings, marks what's unused stale
@@ -1718,8 +1720,11 @@ Every change, whoever writes it (a person, Claude Code, Codex, Kiro or the agent
 [AGENTS.md](AGENTS.md), the repository's rules (Claude Code reads it through `CLAUDE.md`), and goes into `mainline` or a
 `release-*` branch only through a pull request that passed the same two checks:
 
-- **Quality gate** (`.github/workflows/quality.yml`, on the maintainer's Mac): `make lint` and `make test`. Run
-  `make check` before you push.
+- **Quality gate** (`.github/workflows/quality.yml`): `make lint`, and `make test` in two halves side by side: the
+  core's tests (`make test-core`) on GitHub's Linux and macOS machines, the Mac app's (`make test-mac`) on the
+  maintainer's Mac. A pull request runs only the halves its files can affect (`Scripts/test-scope.sh`: `docs/` or
+  `site/` alone need neither); a push to `mainline` or `release-*` runs both. Run `make check` before you push; for
+  work on the core alone, `make test-core` (or `Core/Scripts/test.sh`, which runs the core's tests on Linux too).
 - **review** (`.github/workflows/review.yml`): an independent review of the diff against AGENTS.md by another model
   (Codex CLI, else Claude Code), as one comment on the pull request. It fails only for a high-confidence correctness
   or privacy problem.

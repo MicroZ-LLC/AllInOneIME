@@ -1210,7 +1210,9 @@ Mac 支持 Apple Intelligence（Apple 芯片、macOS 26 或更新，并在 系�
 ## 开发
 
 ```sh
-make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和 make strings-check）
+make test         # 单元测试，加上用真实 Rime 引擎跑的测试（和 make strings-check）：先 make test-core，再 make test-mac
+make test-core    # 只跑核心（Core/）的测试和检查；在 Linux 上用 Core/Scripts/test.sh
+make test-mac     # Mac App 的测试，包括 Rime 的
 make lint         # 每个改动都要过的静态检查：SwiftLint 和文件大小棘轮（只拦新问题）、核心的可移植性检查、make strings-check
 make check        # 先 make lint 再 make test：CI 对每个 pull request 的要求
 make strings      # 把新的界面文字加进 Resources/Localizable.xcstrings，不再用的标成 stale
@@ -1296,8 +1298,11 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 每个改动，不管是谁写的（人、Claude Code、Codex、Kiro 或 agent 流水线），都遵守 [AGENTS.md](AGENTS.md) 里的仓库规则
 （Claude Code 通过 `CLAUDE.md` 读它），而且只能通过 pull request 进入 `mainline` 或 `release-*` 分支，并且通过同样的两项检查：
 
-- **Quality gate**（`.github/workflows/quality.yml`，在维护者的 Mac 上跑）：`make lint` 和 `make test`。推送之前先跑
-  `make check`。
+- **Quality gate**（`.github/workflows/quality.yml`）：`make lint`，以及分成两半同时跑的 `make test`：核心的测试
+  （`make test-core`）在 GitHub 的 Linux 和 macOS 机器上跑，Mac App 的（`make test-mac`）在维护者的 Mac 上跑。
+  pull request 只跑它改的文件可能影响到的那一半（`Scripts/test-scope.sh`：只改 docs/ 或 site/ 的两半都不用跑）；推到 `mainline`
+  或 `release-*` 时两半都跑。推送之前先跑 `make check`；只改核心时跑 `make test-core`（或 `Core/Scripts/test.sh`，
+  它在 Linux 上也能跑核心的测试）。
 - **review**（`.github/workflows/review.yml`）：另一个模型（Codex CLI，没有时用 Claude Code）按 AGENTS.md 独立审查改动，
   在 pull request 上留一条评论。只有高把握的正确性或隐私问题才会让它失败。
 
