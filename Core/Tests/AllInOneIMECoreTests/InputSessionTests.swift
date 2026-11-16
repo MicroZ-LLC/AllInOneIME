@@ -31,7 +31,7 @@ struct InputSessionTests {
     /// `@question` picked while a CLI is the AI: its process starts ahead, off the key's thread, and nothing there reads
     /// the settings (the Mac's are the main thread's, `LiveConfig`): they're read on the key's thread before.
     @Test func theQuestionPrewarmReadsNoSettingsOffTheKeyThread() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("prewarm-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("prewarm-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let fake = FakeClaude()
         let claude = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })

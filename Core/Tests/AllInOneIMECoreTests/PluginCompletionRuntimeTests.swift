@@ -10,7 +10,7 @@ import AllInOneIMETestSupport
 struct PluginCompletionRuntimeTests {
     /// A folder with a stand-in executable running `body` (sh), its arguments written to `arguments` beside it.
     final class StandIn {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("completion-runtime-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("completion-runtime-\(UUID().uuidString)", isDirectory: true)
         var executable: URL { folder.appendingPathComponent("allinoneime") }
         var arguments: URL { folder.appendingPathComponent("arguments") }
 

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -84,7 +85,7 @@ struct ChineseCharactersTests {
     /// In the settings document, next to fuzzy pinyin while Chinese is typed: the three, the one in use chosen (the
     /// system's until one is picked), and picking one saves it.
     @Test func inTheSettingsDocument() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("characters-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
@@ -170,7 +171,7 @@ struct ChineseCharactersTests {
     /// The same file as fuzzy pinyin's (`rime_ice.custom.yaml`), this app's by its first line: there with Traditional
     /// characters alone, with fuzzy pinyin too, and gone again with neither; the user's own file never touched.
     @Test func writtenWithFuzzyPinyin() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("characters-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let schemaURL = dir.appendingPathComponent("rime_ice.schema.yaml")
@@ -202,7 +203,7 @@ struct ChineseCharactersTests {
     /// With personal dictionaries the patch holds theirs and the characters' lines (the store's branch with them), and an
     /// import or a removal writes it with the characters it is given; the last one removed, the characters stay.
     @Test func keptWithThePersonalDictionaries() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("characters-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let user = dir.appendingPathComponent("user")
         try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -223,7 +224,7 @@ struct ConfigTests {
     }
 
     @Test func fileRoundTripAndMissingFile() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-test-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("allinoneime-test-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("config.json")
         // No file yet: a new user, on the hosted service once it is set up (an old file without
@@ -255,7 +256,7 @@ struct ConfigTests {
     /// drafts; its name is split so a search for removed settings finds only the cleanup in main.swift)
     /// is ignored, and saving doesn't write it back.
     @Test func removedKeysInAnOldFileAreIgnored() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-test-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("allinoneime-test-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("config.json")

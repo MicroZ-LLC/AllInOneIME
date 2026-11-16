@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ struct ACPSessionLiveTests {
     static let folder: URL = {
         let given = ProcessInfo.processInfo.environment["ALLINONEIME_KIRO_LIVE_DIR"].flatMap { $0.isEmpty ? nil : $0 }
         return given.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.temporaryDirectory.appendingPathComponent("kiro-session-live-\(UUID().uuidString)")
+            ?? TestScratch.temporary("kiro-session-live-\(UUID().uuidString)")
     }()
 
     static let environment = ProcessInfo.processInfo.environment

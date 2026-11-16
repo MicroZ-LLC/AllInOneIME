@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AppKit
 import Foundation
 import Testing
@@ -83,13 +84,13 @@ enum TerminalPasteStopChild {
         let fm = FileManager.default
         let name = "com.allinoneime.inputmethod.pastestop.\(UUID().uuidString)"
         defer { NSPasteboard(name: NSPasteboard.Name(name)).releaseGlobally() }
-        let home = fm.temporaryDirectory.appendingPathComponent("pastestop-home-\(UUID().uuidString)", isDirectory: true)
+        let home = TestScratch.temporary("pastestop-home-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: home.appendingPathComponent(".config/allinoneime"), withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: home) }
         let environment = ["CFFIXED_USER_HOME": home.path, "HOME": home.path]
 
         // The app the copy was made in: copies it anew at each SIGUSR1.
-        let log = fm.temporaryDirectory.appendingPathComponent("pastestop-source-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("pastestop-source-\(UUID().uuidString).log")
         fm.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         let source = Process()
@@ -123,7 +124,7 @@ enum TerminalPasteStopChild {
 
     static func compile() throws -> URL {
         let fm = FileManager.default
-        let scratch = fm.temporaryDirectory.appendingPathComponent("pastestop-child-\(UUID().uuidString)")
+        let scratch = TestScratch.temporary("pastestop-child-\(UUID().uuidString)")
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         let sources = repository.appendingPathComponent("Sources/AllInOneIME")
         let main = try String(contentsOf: sources.appendingPathComponent("main.swift"), encoding: .utf8)
@@ -147,7 +148,7 @@ enum TerminalPasteStopChild {
 
     private static func command(_ executable: URL, _ arguments: [String], environment: [String: String] = [:],
                                 timeout: TimeInterval) throws -> (status: Int32, output: String) {
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("pastestop-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("pastestop-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         defer {

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import os
 import Testing
@@ -10,7 +11,7 @@ struct AWSCTHome {
     let root: URL
 
     init(config: String = "", credentials: String = "") throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("aws-creds-tests-\(UUID().uuidString)", isDirectory: true)
+        root = TestScratch.temporary("aws-creds-tests-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root.appendingPathComponent(".aws/sso/cache"), withIntermediateDirectories: true)
         try write(config: config, credentials: credentials)
     }

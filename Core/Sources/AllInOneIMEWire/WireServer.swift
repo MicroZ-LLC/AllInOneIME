@@ -82,8 +82,8 @@ public final class WireServer: @unchecked Sendable {
     private var lastID: ConnectionID = 0
     private var connects: [UInt32: [Double]] = [:]
     private var settingsService: SettingsService?
-    /// A test's settings (`#! settings`): their folder, removed when they are replaced.
-    private var testSettingsFolder: URL?
+    /// A test's settings (`#! settings`): their folder, removed when they are replaced and when the server ends.
+    private var testSettingsFolder: RemovedWhenReleased?
     /// Where the settings' work is done (§12): made when first needed (`settingsQueue`).
     private var settingsQueueMade: WireQueue?
     /// A check of the settings file is queued (`checkSettings`).
@@ -510,11 +510,11 @@ public final class WireServer: @unchecked Sendable {
                                           secrets: .inMemory())
             // Keys from the test's store only, never the environment's.
             service.keySource = { APIKeys.hasKeychainKey(account: $0.rawValue) ? .keychain : .none }
-            let previous = lock.guarded { () -> URL? in
-                defer { testSettingsFolder = folder }
+            let previous = lock.guarded { () -> RemovedWhenReleased? in
+                defer { testSettingsFolder = RemovedWhenReleased(folder) }
                 return testSettingsFolder
             }
-            if let previous { try? FileManager.default.removeItem(at: previous) }
+            withExtendedLifetime(previous) {}  // removed here, outside the lock
             settings = service
             return true
         } catch {

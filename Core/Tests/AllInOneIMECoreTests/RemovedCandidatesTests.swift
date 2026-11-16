@@ -929,7 +929,7 @@ struct RemovedCandidatesSessionTests {
     /// Settings' ✕ (`SettingsStore.restoreCandidate`) on the file: the session reads it and shows the candidate again.
     @Test func restoredInSettingsItComesBack() async throws {
         try await inEnglish {
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)")
+            let folder = TestScratch.temporary("removed-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: folder) }
             let url = folder.appendingPathComponent("config.json")
@@ -952,7 +952,7 @@ struct RemovedCandidatesSessionTests {
     /// again. Twice, the same.
     @Test func aRestoreRightAfterARemovalOnceTheFieldLostFocus() async throws {
         try await inEnglish {
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)")
+            let folder = TestScratch.temporary("removed-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: folder) }
             let url = folder.appendingPathComponent("config.json")
@@ -996,7 +996,7 @@ struct RemovedCandidatesSessionTests {
 
     /// A config file of these tests' settings (`change`d) in a folder of its own.
     func configFile(_ change: (inout Config) -> Void = { _ in }) throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("removed-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Settings(change).config.write(to: url)
@@ -1210,7 +1210,7 @@ struct RemovedCandidatesSessionTests {
     /// again, in this field or another; ✕ in Removed candidates brings it back where it was.
     @Test func anEnglishWordOfTheUsersRemovedAndRestored() async throws {
         try await inEnglish {
-            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)")
+            let folder = TestScratch.temporary("removed-\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: folder) }
             let url = folder.appendingPathComponent("config.json")
@@ -1292,7 +1292,7 @@ struct RemovedCandidatesSessionTests {
 @Suite(.serialized)
 struct RemovedCandidatesStorageTests {
     func folder() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("removed-\(UUID().uuidString)", isDirectory: true)
+        let url = TestScratch.temporary("removed-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
@@ -1690,7 +1690,7 @@ struct RemovedCandidatesStorageTests {
 /// then, only that key written.
 struct RemovedCandidatesSettingsTests {
     func file(_ text: String) throws -> URL {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("removed-settings-\(UUID().uuidString)", isDirectory: true)
+        let dir = TestScratch.temporary("removed-settings-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)

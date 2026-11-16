@@ -17,7 +17,7 @@ struct CommandListTests {
 
     /// A temporary folder the test removes.
     final class Folder: @unchecked Sendable {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("command-list-\(UUID().uuidString)", isDirectory: true)
+        let url = TestScratch.temporary("command-list-\(UUID().uuidString)", isDirectory: true)
 
         init() throws { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
 

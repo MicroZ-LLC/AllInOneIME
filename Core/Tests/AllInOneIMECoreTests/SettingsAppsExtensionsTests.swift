@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ struct SettingsAppsExtensionsTests {
     typealias JSON = AIConfig.JSONValue
 
     func service(_ text: String = #"{"extensionFolders": []}"#) throws -> (SettingsService, URL) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("settings-more-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("settings-more-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)
@@ -103,7 +104,7 @@ struct SettingsAppsExtensionsTests {
     /// The folders, a bundle with its switch, preferences and password (kept in the secret store, shown by its ending),
     /// and a loose script's switch.
     @Test func scriptExtensions() throws {
-        let extensions = FileManager.default.temporaryDirectory.appendingPathComponent("settings-ext-\(UUID().uuidString)", isDirectory: true)
+        let extensions = TestScratch.temporary("settings-ext-\(UUID().uuidString)", isDirectory: true)
         let bundle = extensions.appendingPathComponent("tools", isDirectory: true)
         try FileManager.default.createDirectory(at: bundle, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: extensions) }

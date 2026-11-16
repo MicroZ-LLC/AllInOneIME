@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -6,7 +7,7 @@ import Testing
 /// a source it wrote in the second librime recorded for it is dated the next, so librime doesn't take it for unchanged;
 /// what librime compiled is never removed (a deployment under way may be reading it).
 struct PatchDatesTests {
-    let user = FileManager.default.temporaryDirectory.appendingPathComponent("patch-dates-\(UUID().uuidString)")
+    let user = TestScratch.temporary("patch-dates-\(UUID().uuidString)")
     var build: URL { user.appendingPathComponent("build") }
     /// A whole second, librime's time for a source.
     let recorded = 1_794_379_400
