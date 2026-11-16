@@ -2,9 +2,9 @@ import Foundation
 import Testing
 
 /// Settings → AI looks at the CLIs' sign-in as little as it can (read from the input method's sources: the executable
-/// target can't be linked into a test): the CLI chosen as the page shows, the others as the cards open, each as last
-/// found unless that is too old (`ClaudeSessionManager.checkAvailability`'s cache, tested in the core); only a refresh
-/// asked for forces a look.
+/// target can't be linked into a test): every CLI as the page shows, for its card (#121: the cards are always shown),
+/// each as last found unless that is too old (`ClaudeSessionManager.checkAvailability`'s cache, tested in the core);
+/// only a refresh asked for forces a look.
 struct AIPageSignInLookTests {
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
 
@@ -26,12 +26,13 @@ struct AIPageSignInLookTests {
         return String(rest[..<end])
     }
 
-    @Test func showingThePageLooksAtTheChosenCLIOnlyAndUnforced() throws {
+    @Test func showingThePageLooksAtEveryCLIUnforced() throws {
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        let appear = try block(settings, ".onAppear {")
-        #expect(appear.contains("model.config.ai.agent") && appear.contains("choosing ? SessionAgent.allCases"), "\(appear)")
-        #expect(!appear.contains("force"), "\(appear)")
-        // The cards opened, a CLI chosen there: every CLI, unforced.
+        let appear = try #require(settings.split(separator: "\n").first { $0.contains(".onAppear {") })
+        #expect(appear.contains("model.aiPageShown()") && !appear.contains("force"), "\(appear)")
+        let shown = try #require(settings.split(separator: "\n").first { $0.contains("func aiPageShown(") })
+        #expect(shown.contains("refreshSessions()") && !shown.contains("force"), "\(shown)")
+        // Every CLI, unforced.
         let refresh = try block(settings, "func refreshSessions(")
         #expect(refresh.contains("force: Bool = false") && refresh.contains("SessionAgent.allCases, force: force"), "\(refresh)")
         #expect(!settings.contains("refreshSessions(force: true)"), "a look forced where none was asked for")
