@@ -260,7 +260,7 @@ public final class Composer {
         public var noteTooLong: String
         /// A `link` command's text is longer than `LinkTemplate.maxInputLength`.
         public var linkTooLong: String
-        /// `@py` / `@js` code that printed nothing and ended without a value.
+        /// `@js` code that printed nothing and ended without a value.
         public var noOutput: String
         /// A note with line breaks was left unsaved (the text field lost focus, ⇧⏎): it isn't inserted, its text
         /// is on the clipboard instead.

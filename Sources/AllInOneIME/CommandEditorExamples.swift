@@ -11,7 +11,9 @@ extension CommandEditor {
             CustomCommand(name: "today", type: .snippet, summary: tr("今天的日期", "Today's date"), text: "{date}"),
             CustomCommand(name: "ja", type: .prompt, summary: tr("翻译成日语", "Translate to Japanese"),
                           prompt: "Translate the user's text into natural Japanese. Reply with the translation only."),
-            // Python and sandboxed JavaScript are built in (@py, @js); Node.js with its files and modules isn't.
+            // Sandboxed JavaScript is built in (@js); Python, as the built-in @py ran it before 0.7.5, and Node.js with its
+            // files and modules aren't.
+            CommandExamples.python,
             CustomCommand(name: "node", type: .run, summary: tr("运行 Node.js", "Run Node.js"), argv: ["node", "-p", CustomCommand.placeholder]),
             CustomCommand(name: "bc", type: .run, summary: tr("用 bc 计算", "Calculate with bc"), argv: ["bc", "-l"],
                           stdin: CustomCommand.placeholder + "\n"),

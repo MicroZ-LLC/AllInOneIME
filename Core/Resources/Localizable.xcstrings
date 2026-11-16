@@ -42645,6 +42645,7 @@
     },
     "run Python" : {
       "comment" : "运行 Python — Sources/AllInOneIMECore/UIText+Names.swift",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -42691,7 +42692,7 @@
       }
     },
     "Run Python; insert the result" : {
-      "comment" : "运行 Python，结果可以直接上屏 — Sources/AllInOneIMECore/UIText+Names.swift",
+      "comment" : "运行 Python，结果可以直接上屏 — Sources/AllInOneIMECore/CommandExamples.swift",
       "localizations" : {
         "de" : {
           "stringUnit" : {

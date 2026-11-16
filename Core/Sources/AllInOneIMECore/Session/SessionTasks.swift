@@ -324,7 +324,7 @@ public final class SessionTasks {
             command == request.command ? conversation : command == .question ? QuestionConversation() : nil
         }
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            // @py, @js: the code runs in a child process, like a custom program (never in this one).
+            // @js: the code runs in a child process, like a custom program (never in this one).
             if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }

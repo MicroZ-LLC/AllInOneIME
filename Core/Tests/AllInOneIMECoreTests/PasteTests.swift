@@ -242,9 +242,9 @@ extension ComposerTests {
     }
 
     @Test func pastedCodeCommandsStayText() {
-        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])],
+        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"]), CommandExamples.python],
                                       plugins: [calculatorPlugin])
-        // "@py …" in a paste: no plan, the text goes to @improve as it is, and the user is told.
+        // "@py …" (Settings' example) in a paste: no plan, the text goes to @improve as it is, and the user is told.
         let (c, _) = improveDraft(key: .enter)
         c.commands = catalog
         paste("Bonjour @py「print(1)」 merci", into: c)
