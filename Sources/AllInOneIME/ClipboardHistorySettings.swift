@@ -9,7 +9,7 @@ import SwiftUI
 struct ClipboardHistorySection: View {
     @ObservedObject var model: SettingsModel
     /// Its own section title: none on Common, where it is one of the commands and features (#120).
-    var titled = true
+    var showsTitle = true
     /// Whether it may read the clipboard without asking, as macOS says now (told again as the window comes back from
     /// System Settings).
     @State private var access = ClipboardHistoryShared.access
@@ -43,7 +43,7 @@ struct ClipboardHistorySection: View {
                 }
             }
         } header: {
-            if titled { SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.common.icon) }
+            if showsTitle { SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.common.icon) }
         }
         .disabled(!model.canSave)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

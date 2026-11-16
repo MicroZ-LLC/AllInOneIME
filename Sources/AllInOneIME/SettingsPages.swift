@@ -20,7 +20,7 @@ extension SettingsView {
                 SectionTitle(tr("命令与功能", "Commands and features"), icon: CommandIcons.commands)
             }
             .disabled(!model.canSave)
-            ClipboardHistorySection(model: model, titled: false)
+            ClipboardHistorySection(model: model, showsTitle: false)
             autocompleteSection
             Section {} footer: {
                 Text(Self.moreFooter(SettingsPage.more.shownCount(model.config)))
