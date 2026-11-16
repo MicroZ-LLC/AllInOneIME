@@ -1370,6 +1370,7 @@ Translations and rewrites go to the AI provider picked in Settings → AI. A new
 ### Amazon Bedrock
 
 1. Enable Bedrock in the AWS console and make sure you can use the chosen model. The default is Claude Haiku 4.5; the first time you use an Anthropic model, you fill in a use-case form once.
+   A model ID with a geography's prefix (`us.…`) is sent with your region's own (`eu.…` in Europe, `jp.…` in Tokyo; never `global.`), and Settings → AI shows which ID is sent.
 2. Use an AWS profile allowed `bedrock:InvokeModelWithResponseStream`: static keys in `~/.aws/credentials`, or a profile
    that gets temporary credentials (`credential_process`, a role, SSO; see "AWS profiles" below).
 3. Open "AllInOneIME Settings": you can find it in Spotlight or in Applications, or open it from the input method's icon in the menu bar → Settings….
