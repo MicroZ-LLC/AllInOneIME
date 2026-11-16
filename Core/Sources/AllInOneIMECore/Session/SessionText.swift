@@ -143,7 +143,7 @@ public enum SessionText {
         switch composer.attachment {
         case .screenshot(.recognizing)?:
             return [composer.messages.reply.reading]
-        case let .screenshot(.ready(text))? where composer.asksWithScreenshot && composer.aiSeesImages():
+        case let .screenshot(.ready(text))? where composer.sendsScreenshotImage:
             return [screenshotSent(text, language: language)]
         case let .screenshot(.ready(text))?:
             let lines = text.lineCount
@@ -289,7 +289,7 @@ extension SessionText {
         let t = InterfaceWords(language: language)
         switch composer.followUpAttachment {
         case .screenshot(.recognizing)?: return [composer.messages.reply.reading]
-        case let .screenshot(.ready(text))? where composer.aiSeesImages(): return [screenshotSent(text, language: language)]
+        case let .screenshot(.ready(text))? where composer.sendsFollowUpImage: return [screenshotSent(text, language: language)]
         case let .screenshot(.ready(text))?:
             return [t.tr("截图 · \(text.lineCount) 行 · 只发送认出的文字", "Screenshot · \(text.lineCount) lines · only its text is sent")]
         case .copiedText?, nil: return []

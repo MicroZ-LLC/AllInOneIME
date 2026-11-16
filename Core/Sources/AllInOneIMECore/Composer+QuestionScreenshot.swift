@@ -19,7 +19,14 @@ extension Composer {
     public var followUpAttachment: Attachment? { replyState.followUp }
 
     /// The draft asks AI a question: `@question`, or one @'s text (Ask AI is offered first with a screenshot).
-    var asksWithScreenshot: Bool { draftCommand == .question || (draftCommand == nil && oneAt != nil) }
+    var asksWithScreenshot: Bool { draftCommand == .question || (draftCommand == nil && oneAt != nil && aiAllowed()) }
+
+    /// The image of the screenshot attached goes to the AI with it (the panel's header says so): one was made, and the AI
+    /// can see it.
+    var sendsScreenshotImage: Bool { asksWithScreenshot && replyState.image != nil && aiSeesImages() }
+
+    /// The follow-up's screenshot goes with its image (`sendsScreenshotImage`'s, for the line).
+    var sendsFollowUpImage: Bool { replyState.followUpImage != nil && aiSeesImages() }
 
     /// A screenshot went with the question or a follow-up: the conversation isn't kept (`rememberAnswer`).
     var hasQuestionScreenshot: Bool { !(questionConversation?.attachments.isEmpty ?? true) }
@@ -35,16 +42,34 @@ extension Composer {
         guard case let .screenshot(.ready(text))? = replyState.followUp else { return conversation }
         var conversation = conversation
         conversation.attachments[refinements.count] = QuestionConversation.Attachment(text: text.text, image: replyState.followUpImage)
+        let sent = (text, replyState.followUpImage)
         replyState.followUpEnded()
+        replyState.sentFollowUp = sent
         return conversation
     }
 
-    /// ⌘V or ⌃V while a follow-up can be typed: the clipboard is read for it (`followUpPasted`). Nil: another key.
+    /// The last round taken back (⌫ a round back, or its follow-up failed: `failed`), its screenshot with it: never sent
+    /// with another follow-up. A failed one's screenshot goes back on the line, shown, with its question (unless another
+    /// was pasted meanwhile), to be sent again or taken away with ⌫.
+    func popRound(failed: Bool = false) -> Refinement.Turn? {
+        guard let turn = refinements.popLast() else { return nil }
+        let removed = questionConversation?.attachments.removeValue(forKey: refinements.count + 1)
+        if failed, removed != nil, replyState.followUp == nil, let sent = replyState.sentFollowUp {
+            (replyState.followUp, replyState.followUpImage) = (.screenshot(.ready(sent.text)), sent.image)
+        }
+        replyState.sentFollowUp = nil
+        return turn
+    }
+
+    /// ⌃V (`ModifierRoles.pasteAnywhere`; where there is none, ⌘V outside the apps that paste on it themselves:
+    /// `pastesIntoDraft`) while a follow-up can be typed: the clipboard is read for it (`followUpPasted`). ⌘V on the Mac
+    /// stays the app's, as other shortcuts at level two. Nil: another key.
     func followUpPasteKey(_ event: KeyEvent) -> Response? {
         guard typesRefine, !showsHandoff, event.charactersIgnoringModifiers.lowercased() == "v" else { return nil }
         let modifiers = event.modifiers.subtracting(.capsLock), roles = modifierRoles
-        guard modifiers == Modifiers.kind(roles.primary) || roles.pasteAnywhere.map({ modifiers == Modifiers.kind($0) }) == true
-        else { return nil }
+        let paste = roles.pasteAnywhere.map { modifiers == Modifiers.kind($0) }
+            ?? (modifiers == Modifiers.kind(roles.primary) && pastesIntoDraft)
+        guard paste else { return nil }
         var effects: [Effect] = []
         if let engine, engine.snapshot().isComposing { effects += convertComposition(engine) }
         return .consumed(effects + [.showPanel, requestClipboard()])
@@ -106,6 +131,15 @@ extension Composer {
             return .consumed([.showPanel])
         }
         return nil
+    }
+
+    /// A command picked from one @'s list with a screenshot attached: one without AI (`pastesScreenshot`) gets its text
+    /// pasted into the draft, as it would have been pasted into its own; an AI command keeps it attached.
+    func pasteAttachedScreenshot(for command: Command) -> [Effect] {
+        guard !isLevelTwo, case let .screenshot(.ready(text))? = attachment, Self.pastesScreenshot(command), !text.text.isEmpty
+        else { return [] }
+        (attachment, replyState.image) = (nil, nil)
+        return insertPasted(text.text)
     }
 
     /// One @'s rows with a screenshot attached: Ask AI first (it is what a screenshot is pasted for).

@@ -3,8 +3,8 @@ import Foundation
 /// A screenshot as it goes to an AI that can see images (`Provider.seesImages`, the question sessions' CLIs): pasted with
 /// ⌃V into a question or a follow-up, made smaller on the device first (`TextRecognizer.downscaled`, its long side at
 /// most `longSide` pixels). Its text, read on the device, always goes along too (`Prompt.withScreenshot`), so an AI that
-/// can't see images still has it. Never kept: the recent questions only note that one was attached
-/// (`QuestionHistory.Entry.hadScreenshot`).
+/// can't see images still has it. Never kept: a question asked with one isn't kept in the recent questions at all
+/// (`Composer.rememberAnswer`).
 public struct PromptImage: Hashable, Sendable {
     /// JPEG or PNG data.
     public var data: Data

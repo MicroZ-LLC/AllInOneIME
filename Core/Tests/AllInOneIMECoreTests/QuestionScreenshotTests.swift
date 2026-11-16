@@ -276,4 +276,58 @@ struct QuestionScreenshotTests {
         _ = c.handleKeyDown(backspaceKey)
         #expect(c.followUpAttachment == nil && c.isQuestionChat)
     }
+
+    /// "@question what is rust" asked and answered, then a follow-up with a screenshot asked (request 2).
+    func askedWithFollowUpScreenshot() -> Composer {
+        let c = composer(sees: true)
+        questionDraft(c, "what is rust")
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A language.")]), isFinal: true, id: 1)
+        type("and this", c)
+        pasteScreenshot(c, text: lines(["fn main"]))
+        _ = c.handleKeyDown(enterKey)
+        return c
+    }
+
+    @Test func aRoundTakenBackTakesItsScreenshotWithIt() {
+        let c = askedWithFollowUpScreenshot()
+        _ = c.receive(ConversionResult(versions: [CandidateLine("It's Rust.")]), isFinal: true, id: 2)
+        #expect(c.questionConversation?.attachments[1] != nil)
+        _ = c.handleKeyDown(backspaceKey)  // a round back
+        #expect(c.questionConversation?.attachments[1] == nil && c.followUpAttachment == nil)
+        type("what else", c)
+        _ = c.handleKeyDown(enterKey)
+        #expect(c.questionConversation?.attachments.isEmpty == true)
+    }
+
+    @Test func aFailedFollowUpGetsItsScreenshotBackOnTheLine() {
+        let c = askedWithFollowUpScreenshot()
+        _ = c.fail("offline", id: 2)
+        #expect(c.questionConversation?.attachments[1] == nil)
+        guard case .screenshot(.ready)? = c.followUpAttachment else {
+            Issue.record("not back: \(String(describing: c.followUpAttachment))")
+            return
+        }
+        _ = c.handleKeyDown(enterKey)
+        #expect(c.questionConversation?.attachments[1]?.image == image)
+    }
+
+    @Test func commandVInTheConversationStaysTheAppsOnTheMac() {
+        let c = composer(sees: true)
+        questionDraft(c, "what is rust")
+        _ = c.handleKeyDown(enterKey)
+        _ = c.receive(ConversionResult(versions: [CandidateLine("A language.")]), isFinal: true, id: 1)
+        #expect(!c.handleKeyDown(commandV).effects.contains { if case .readClipboard = $0 { true } else { false } })
+    }
+
+    @Test func noAIOneAtPastesTheScreenshotsTextAsBefore() {
+        let c = composer(sees: true)
+        c.commands = Command.catalog([])
+        c.aiAllowed = { false }
+        _ = c.handleKeyDown(at)
+        type("see", c)
+        pasteScreenshot(c, text: lines(["Error 42"]))
+        #expect(c.attachment == nil && c.draft.contains("Error 42"))
+    }
 }
+

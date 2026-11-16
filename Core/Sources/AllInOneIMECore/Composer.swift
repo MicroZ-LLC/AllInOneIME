@@ -3214,7 +3214,7 @@ public final class Composer {
 
     /// Esc (or ⌫) after a refine: the results before it are back, as they were (a refine running is stopped).
     private func previousResults() -> [Effect] {
-        guard let last = refinements.popLast() else { return backToDraft() }
+        guard let last = popRound() else { return backToDraft() }
         var effects: [Effect] = []
         if case .translating = phase { effects.append(.cancelConversion) }
         if let engine, engine.snapshot().isComposing {  // the next step's pinyin goes with its line
@@ -3233,7 +3233,7 @@ public final class Composer {
     /// A refine that failed (or brought nothing): the results before it stay, and its instruction is back in the line
     /// to run again with ⇧⏎, with what went wrong (`refineError`).
     private func refineFailed(_ message: String) -> [Effect] {
-        guard let last = refinements.popLast() else { return [.showPanel] }
+        guard let last = popRound(failed: true) else { return [.showPanel] }
         result = last.answer
         refineID = nil
         // Its instruction back in the line, unless the next one was typed meanwhile (that one stays).

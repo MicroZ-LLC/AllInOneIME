@@ -125,7 +125,7 @@ extension Composer {
             return [.notice(messages.reply.noText), .updateMarkedText, .showPanel]
         }
         var effects: [Effect]
-        if !isLevelTwo, draftCommand.map(Self.pastesScreenshot) ?? (oneAt == nil) {
+        if !isLevelTwo, draftCommand.map(Self.pastesScreenshot) ?? !asksWithScreenshot {
             // A command without AI, `@agent`, or none (a Translate as You Type draft): the text goes in as clipboard text
             // would.
             attachment = nil
@@ -371,6 +371,8 @@ struct ReplyState {
     var followUp: Composer.Attachment?
     var followUpImage: PromptImage?
     var followUpRecognition: Int?
+    /// The follow-up's screenshot as it was sent last: back on the line if that follow-up fails (`popRound`).
+    var sentFollowUp: (text: ScreenText, image: PromptImage?)?
     var seesImages: () -> Bool = { false }
 
     /// The draft is done: what it had attached goes (the hooks stay).
@@ -388,5 +390,6 @@ struct ReplyState {
         followUp = nil
         followUpImage = nil
         followUpRecognition = nil
+        sentFollowUp = nil
     }
 }

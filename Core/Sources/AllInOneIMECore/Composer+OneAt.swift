@@ -291,8 +291,8 @@ extension Composer {
             }
             draft = commandTrigger
             cursorTail = ""
-            let effects = complete([command], at: 0, run: run)
-            return effects
+            // A screenshot attached for Ask AI: a command without AI gets its text pasted in, as it would have.
+            return complete([command], at: 0, run: run) + pasteAttachedScreenshot(for: command)
         case let .value(value):
             return finish(committing: value)
         case let .open(result):
