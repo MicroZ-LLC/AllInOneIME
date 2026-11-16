@@ -1,6 +1,9 @@
 # Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
 # "improve › ok"), never as marked text in the field; the field gets text only on commit.
-NAME switching to ABC commits pinyin once and hides its panel
+# Owner decision 2026-11-15: switching to another input source (ABC) mid-composition is leaving: nothing of the
+# pinyin stays (not committed, not marked), and the panel is hidden. (Our own Shift / Caps Lock switch still puts the
+# letters in as typed: 41, 42.)
+NAME switching to ABC mid-composition leaves nothing of the pinyin and hides its panel
 PROFILES all
 LANG chinese
 TEXT "Hi |"
@@ -8,7 +11,7 @@ TYPE nihao
 EXPECT marked none
 EXPECT preedit "ni hao"
 SWITCH abc
-EXPECT doc "Hi 你好"
+EXPECT doc "Hi |"
 EXPECT marked none
 EXPECT preedit none
 EXPECT panel hidden
