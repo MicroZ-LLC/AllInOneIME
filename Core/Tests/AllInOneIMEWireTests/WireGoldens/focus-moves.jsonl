@@ -36,7 +36,7 @@
 > {"id":17,"type":"keyDown","sid":1,"t":2150,"key":{"vk":76,"scan":38,"text":"l","textIgnoringModifiers":"l"},"ctx":{"sel":[0,0]}}
 < {"id":15,"re":17,"type":"result","handled":true}
 > {"id":18,"type":"endComposition","sid":1,"reason":"terminated"}
-< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"composition","text":""}]}
+< {"id":16,"re":18,"type":"result","outputs":[{"op":"panel","shown":false}]}
 > {"id":19,"type":"blur","sid":1}
 < {"id":17,"re":19,"type":"result"}
 # The other field: plain typing

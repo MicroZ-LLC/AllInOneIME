@@ -110,15 +110,15 @@ enum HostSmokeCases {
         EXPECT switches 1
         """#)
 
-    /// What autocomplete and the AI read before the caret, as each field tells it (a field that tells no length tells
-    /// nothing to read: a local case, with the profiles' differences as they are today).
+    /// What autocomplete and the AI read before the caret, as each field tells it: Chromium and Electron tell length 0
+    /// but read back up to the caret (`FieldTextReading.readToTheCaret`); a field that tells no caret, nothing.
     static let autocompleteReadsWhatTheFieldTells = Case(name: "what autocomplete reads", text: #"""
         NAME   what autocomplete reads before the caret
         PROFILES all
         LANG   english
         TEXT   "Hello wor|ld"
-        EXPECT context before "Hello wor"   @profile nstextview
-        EXPECT context unreadable           @profile chromium electron tellsnothing
+        EXPECT context before "Hello wor"   @profile nstextview chromium electron
+        EXPECT context unreadable           @profile tellsnothing
         CLICK  inside 5
         EXPECT context before "Hello"       @profile nstextview
         """#)

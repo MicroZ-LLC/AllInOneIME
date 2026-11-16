@@ -124,8 +124,10 @@ struct CommandDraftKeysTests {
             host.send(event)
             #expect(host.document.isEmpty && host.composer.draft.isEmpty, "\(event): \"\(host.document)\"")
         }
+        // Plain text picked stays when the field is left (pinyin not yet picked leaves nothing: #126).
         let host = Self.host()
         host.type("nihao")
+        host.press(FakeHost.space)
         host.send(.blur)
         #expect(host.document == "你好")
     }

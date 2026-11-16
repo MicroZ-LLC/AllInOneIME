@@ -21,18 +21,18 @@ struct ProfiledReadingTests {
 
     // MARK: What the field tells
 
-    /// The text around the caret (`FieldTextReading`): where the field tells its length; nothing where it tells none
-    /// (Chromium's length is 0 whatever its text: what autocomplete and `@reply` read there today), nor from a terminal
-    /// or WeChat.
+    /// The text around the caret (`FieldTextReading`): where the field tells its length; where it tells 0 (Chromium's,
+    /// whatever its text), read back up to the caret and after it as far as it reads; nothing from a field that tells no
+    /// caret (a terminal, WeChat).
     @Test(arguments: HostProfile.allCases)
     func theTextAroundTheCaret(_ profile: HostProfile) throws {
         let client = try field(profile, "Hello wor|ld")
         let text = FieldTextReading.read(from: client, before: 1500, after: 200, purpose: "test",
                                          secureInputActive: { false }, isTerminal: { _ in false })
         switch profile {
-        case .nstextview:
-            #expect(text == FieldText(before: "Hello wor", after: "ld"))
-        case .chromium, .electron, .tellsnothing:
+        case .nstextview, .chromium, .electron:
+            #expect(text == FieldText(before: "Hello wor", after: "ld"), "\(String(describing: text))")
+        case .tellsnothing:
             #expect(text == nil, "\(String(describing: text))")
         }
         // Never during secure input, nor in a terminal: the field isn't even asked its length.

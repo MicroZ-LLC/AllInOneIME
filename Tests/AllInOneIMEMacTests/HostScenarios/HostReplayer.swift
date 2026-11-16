@@ -180,7 +180,9 @@ final class HostReplayer {
             withModifiers(key.modifiers) { flags in
                 let found = HostKeys.key(for: character)
                 let typed = flags.contains(.option) ? HostKeys.option[found.base] ?? String(character)
-                    : flags.contains(.control) ? Self.control(found.base) : String(character)
+                    : flags.contains(.control) ? Self.control(found.base)
+                    // Shift with a letter types its capital, as the keyboard does ("shift+a" is "A").
+                    : flags.contains(.shift) && character.isLetter ? String(character).uppercased() : String(character)
                 keyDown(code: found.code, characters: typed, ignoringModifiers: String(found.base), flags: flags)
             }
         }
@@ -588,6 +590,19 @@ extension HostReplayer {
     static func counts(_ text: String) -> [Character: Int] {
         text.reduce(into: [:]) { $0[$1, default: 0] += 1 }
     }
+
+    /// `text` without its syllable splits: the spaces between two Latin letters.
+    static func unsplit(_ text: String) -> String {
+        let characters = Array(text)
+        var kept = ""
+        for (index, character) in characters.enumerated() {
+            if character == " ", index > 0, index + 1 < characters.count,
+               characters[index - 1].isASCII && characters[index - 1].isLetter,
+               characters[index + 1].isASCII && characters[index + 1].isLetter { continue }
+            kept.append(character)
+        }
+        return kept
+    }
 }
 
 // MARK: - Expectations
@@ -597,7 +612,14 @@ extension HostReplayer {
         func fail(_ message: String) { failures.append("line \(line): \(message)") }
         switch expectation {
         case let .doc(expected):
-            if client.doc != expected { fail("doc is \(client.doc.debugDescription), expected \(expected.debugDescription)") }
+            // `|` and `[…]` in it are the caret and the selection, checked too (contract v1.3, as the core's runner does).
+            let markup = (try? HostText(markup: expected)) ?? HostText()
+            if client.doc != markup.text {
+                fail("doc is \(client.doc.debugDescription), expected \(markup.text.debugDescription)")
+            } else if expected.contains("|") || expected.contains("["), client.state.marked == nil,
+                      client.state.selection != markup.selection {
+                fail("the selection is \(client.state.selection), expected \(markup.selection) (\(expected.debugDescription))")
+            }
         case let .marked(expected):
             if client.markedText != expected {
                 fail("marked is \(client.markedText?.debugDescription ?? "none"), expected \(expected?.debugDescription ?? "none")")
@@ -605,9 +627,14 @@ extension HostReplayer {
         case let .preedit(expected, caret):
             let input = panel?.input
             let line = input.map { $0.prompt + $0.text }.flatMap { $0.isEmpty ? nil : $0 }
-            if line != expected { fail("preedit is \(line?.debugDescription ?? "none"), expected \(expected?.debugDescription ?? "none")") }
-            if let caret, let input, input.caret.map({ input.prompt.count + $0 }) != caret {
-                fail("the preedit's caret is at \(input.caret.map { String(input.prompt.count + $0) } ?? "none"), expected \(caret)")
+            // A syllable split isn't compared (the core's runner does the same): librime shows "ni hao", the fake "nihao".
+            if line.map(Self.unsplit) != expected.map(Self.unsplit) {
+                fail("preedit is \(line?.debugDescription ?? "none"), expected \(expected?.debugDescription ?? "none")")
+            } else if let caret, let expected, let line, let input {
+                let before = input.caret.map { String(line.prefix(input.prompt.count + $0)) }
+                if before.map(Self.unsplit) != Self.unsplit(String(expected.prefix(caret))) {
+                    fail("the preedit's caret is after \(before?.debugDescription ?? "none"), expected after \(String(expected.prefix(caret)).debugDescription)")
+                }
             }
         case let .panel(shown):
             checkPanel(shown: shown, fail: fail)

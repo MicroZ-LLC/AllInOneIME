@@ -53,7 +53,7 @@
 < {"id":20,"re":23,"type":"result","handled":true}
 #! advance 150
 > {"id":24,"type":"blur","sid":1}
-< {"id":21,"re":24,"type":"result","outputs":[{"op":"panel","shown":false},{"op":"composition","text":""}]}
+< {"id":21,"re":24,"type":"result","outputs":[{"op":"panel","shown":false}]}
 #! run tasks
 # Focused again: a fresh start
 > {"id":25,"type":"focus","sid":1,"focus":2}
