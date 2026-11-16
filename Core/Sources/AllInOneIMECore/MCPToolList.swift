@@ -54,7 +54,8 @@ public enum MCPToolList {
 
     static func request(_ id: Int, _ method: String, _ params: [String: Any] = [:]) -> Data {
         let object: [String: Any] = ["jsonrpc": "2.0", "id": id, "method": method, "params": params]
-        return (try? JSONSerialization.data(withJSONObject: object)) ?? Data()
+        // Its keys in one order every time (`method` before `params`), whatever the dictionary's.
+        return (try? JSONSerialization.data(withJSONObject: object, options: .sortedKeys)) ?? Data()
     }
 
     static let initialized = Data(#"{"jsonrpc":"2.0","method":"notifications/initialized"}"#.utf8)
@@ -104,10 +105,12 @@ public enum MCPToolList {
     static func converse(send: @Sendable (Data) -> Void, answers: AsyncStream<Data>) async throws -> [MCPTool] {
         send(request(1, "initialize", initializeParams))
         var tools: [MCPTool] = []
-        var next = 2
+        var next = 2, awaited = 1
         for await line in answers {
-            guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any],
-                  let id = message["id"] as? Int else { continue }  // a notification, or a request of its own
+            // Only the answer to the request sent last: a notification, or a request of the server's own (`ping`,
+            // `roots/list`: a `method`, an id of its own), isn't one.
+            guard let message = (try? JSONSerialization.jsonObject(with: line)) as? [String: Any], message["method"] == nil,
+                  let id = message["id"] as? Int, id == awaited else { continue }
             if message["error"] != nil { throw MCPToolListError.failed }
             let result = message["result"] as? [String: Any] ?? [:]
             if id == 1 {
@@ -118,7 +121,7 @@ public enum MCPToolList {
             }
             let cursor = id == 1 ? nil : result["nextCursor"] as? String
             send(request(next, "tools/list", cursor.map { ["cursor": $0] } ?? [:]))
-            next += 1
+            (awaited, next) = (next, next + 1)
         }
         throw MCPToolListError.failed
     }

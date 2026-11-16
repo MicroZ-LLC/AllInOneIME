@@ -72,3 +72,35 @@ struct SessionMCPTests {
         #expect(MCPToolList.message(in: Data("nothing".utf8)) == nil)
     }
 }
+
+/// What the review of #139 found, kept from coming back.
+struct SessionMCPReviewTests {
+    @Test func codexArraysOnSeveralLinesAndCommentsAfterAHeader() {
+        let servers = MCPServers.fromTOML("""
+            [mcp_servers.docs]  # the docs
+            command = "npx"
+            args = [
+              "-y",  # quiet
+              "docs-server",
+            ]
+            """)
+        #expect(servers.first?.transport == .stdio(command: "npx", args: ["-y", "docs-server"], env: [:]))
+    }
+
+    @Test func aRequestOfTheServersOwnIsNoAnswer() async throws {
+        let lines = [#"{"jsonrpc":"2.0","id":7,"method":"ping"}"#, #"{"jsonrpc":"2.0","id":1,"result":{}}"#,
+                     #"{"jsonrpc":"2.0","id":8,"method":"roots/list"}"#,
+                     #"{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"look","annotations":{"readOnlyHint":true}}]}}"#]
+        let (stream, continuation) = AsyncStream<Data>.makeStream()
+        for line in lines { continuation.yield(Data(line.utf8)) }
+        continuation.finish()
+        let tools = try await MCPToolList.converse(send: { _ in }, answers: stream)
+        #expect(tools == [MCPTool(name: "look", readOnly: true)])
+    }
+
+    @Test func aToolNameThatCouldAddAnotherIsLeftOut() {
+        let server = MCPServer(name: "my docs", transport: .stdio(command: "x", args: [], env: [:]))
+        let mcp = SessionMCP([.init(server: server, tools: ["search", "x,mcp__other__write", ""])])
+        #expect(mcp.claudeTools == ["mcp__my_docs__search"])
+    }
+}

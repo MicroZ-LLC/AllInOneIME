@@ -295,10 +295,8 @@ enum SettingsPageImages {
         fine.dismissPreview()
         // The AI page's CLIs: as the owner's design shows them (Antigravity not signed in), never this Mac's.
         model.sessionAvailability = [.claude: .ready, .codex: .ready, .antigravity: .signedOut, .kiro: .ready]
-        func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "",
-                    troubleshoot: Bool = false) {
-            SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot,
-                                 to: output.appendingPathComponent("settings-\(name).png"),
+        func render(_ page: SettingsPage, _ name: String, assistant: AssistantModel = fine, query: String = "", troubleshoot: Bool = false) {
+            SettingsImage.render(model, page: page, assistant: assistant, query: query, troubleshoot: troubleshoot, to: output.appendingPathComponent("settings-\(name).png"),
                                  appearance: dark ? .darkAqua : .aqua) { RunLoop.main.run(until: Date().addingTimeInterval($0)) }
         }
         for page in SettingsPage.allCases { render(page, page.rawValue) }
@@ -341,11 +339,7 @@ enum SettingsPageImages {
         // The AI page with Claude Code chosen, with where what has to be fast goes, its card In use.
         model.config.ai = .cli(.claude)
         render(.ai, "ai-claude-code")
-        // Its MCP servers (0.7.5): one checked with its read-only tools, one checked with none, one not checked.
-        MCPServerLister.preview = .sample
-        model.config.sessionMCP = ["claude": ["github": ["search_code"], "linear": []]]
-        render(.ai, "ai-mcp")
-        MCPServerLister.preview = nil
+        MCPServerLister.withSample(model) { render(.ai, "ai-mcp") }  // its MCP servers (0.7.5)
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")

@@ -60,7 +60,15 @@ public struct SessionMCP: Equatable, Sendable {
 
     public var servers: [Server]
 
-    public init(_ servers: [Server] = []) { self.servers = servers.filter { !$0.tools.isEmpty } }
+    /// Each server's tools with a name MCP allows (letters, digits, `_`, `-`, `.`) only: one with a comma or a space
+    /// could add another tool to an agent's list of those allowed.
+    public init(_ servers: [Server] = []) {
+        self.servers = servers.map { Server(server: $0.server, tools: $0.tools.filter(Self.isToolName)) }.filter { !$0.tools.isEmpty }
+    }
+
+    static func isToolName(_ name: String) -> Bool {
+        !name.isEmpty && name.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) && $0.isASCII || "_-.".unicodeScalars.contains($0) }
+    }
 
     public static let none = SessionMCP()
 
@@ -81,7 +89,11 @@ public struct SessionMCP: Equatable, Sendable {
 
     /// Claude Code's names of the tools allowed (`mcp__<server>__<tool>`), for `--allowedTools`.
     public var claudeTools: [String] {
-        servers.flatMap { server in server.tools.map { "mcp__\(server.server.name)__\($0)" } }
+        servers.flatMap { server in
+            // Claude Code's name of a server: any character but a letter, digit, `_` or `-` as `_`.
+            let name = String(server.server.name.unicodeScalars.map { $0.isASCII && (CharacterSet.alphanumerics.contains($0) || $0 == "_" || $0 == "-") ? Character($0) : "_" })
+            return server.tools.map { "mcp__\(name)__\($0)" }
+        }
     }
 
     /// Kiro's names of the tools allowed (`@<server>/<tool>`), for its agent config's `tools` and `allowedTools`.
@@ -173,11 +185,10 @@ public enum MCPServers {
         var entries: [String: [String: Any]] = [:]
         var order: [String] = []
         var table: (name: String, sub: String?)?
-        for raw in text.components(separatedBy: .newlines) {
-            let line = raw.trimmingCharacters(in: .whitespaces)
-            if line.isEmpty || line.hasPrefix("#") { continue }
+        for line in TOMLLine.logicalLines(text) {
             if line.hasPrefix("[") {
-                let path = TOMLLine.keyPath(String(line.trimmingCharacters(in: CharacterSet(charactersIn: "[] "))))
+                let header = line.firstIndex(of: "]").map { String(line[..<$0]) } ?? line
+                let path = TOMLLine.keyPath(String(header.trimmingCharacters(in: CharacterSet(charactersIn: "[] "))))
                 guard path.count >= 2, path[0] == "mcp_servers" else { table = nil; continue }
                 table = (path[1], path.count > 2 ? path[2] : nil)
                 if entries[path[1]] == nil { entries[path[1]] = [:]; order.append(path[1]) }
@@ -203,6 +214,46 @@ public enum MCPServers {
 /// The few TOML forms an MCP server's entry is written with: `key = "string"`, `key = 'literal'`, `key = true`,
 /// `key = ["a", "b"]` and `key = { a = "b" }` on one line.
 enum TOMLLine {
+    /// The file's lines without blanks and comment lines, a value whose `[` or `{` closes on a later line (an array
+    /// written one item a line) joined into one.
+    static func logicalLines(_ text: String) -> [String] {
+        var lines: [String] = [], pending = ""
+        for raw in text.components(separatedBy: .newlines) {
+            let line = withoutComment(raw).trimmingCharacters(in: .whitespaces)
+            if line.isEmpty { continue }
+            pending += pending.isEmpty ? line : " " + line
+            if pending.hasPrefix("[") || depth(pending) <= 0 { lines.append(pending); pending = "" }
+        }
+        if !pending.isEmpty { lines.append(pending) }
+        return lines
+    }
+
+    /// How many `[` and `{` outside quotes are still open in `text`.
+    static func depth(_ text: String) -> Int {
+        var depth = 0, quote: Character?
+        for character in text {
+            if let open = quote { if character == open { quote = nil }; continue }
+            switch character {
+            case "\"", "'": quote = character
+            case "[", "{": depth += 1
+            case "]", "}": depth -= 1
+            default: continue
+            }
+        }
+        return depth
+    }
+
+    /// `line` up to a `#` outside quotes.
+    static func withoutComment(_ line: String) -> String {
+        var quote: Character?
+        for index in line.indices {
+            let character = line[index]
+            if let open = quote { if character == open { quote = nil }; continue }
+            if character == "\"" || character == "'" { quote = character } else if character == "#" { return String(line[..<index]) }
+        }
+        return line
+    }
+
     static func keyPath(_ text: String) -> [String] {
         var parts: [String] = []
         var current = "", quote: Character?
@@ -233,24 +284,29 @@ enum TOMLLine {
         while let first = text.first, first == " " || first == "\t" { text.removeFirst() }
     }
 
+    /// A quoted string from `text`, which starts with its `quote`: escapes only in a "basic" one.
+    private static func string(_ text: inout Substring, quote first: Character) -> String? {
+        text.removeFirst()
+        var result = ""
+        while let character = text.first {
+            text.removeFirst()
+            if character == first { return result }
+            if character == "\\" && first == "\"", let escaped = text.first {
+                text.removeFirst()
+                result.append(["n": "\n", "t": "\t"][escaped] ?? escaped)
+            } else {
+                result.append(character)
+            }
+        }
+        return nil
+    }
+
     static func value(_ text: inout Substring) -> Any? {
         skipSpaces(&text)
         guard let first = text.first else { return nil }
         switch first {
         case "\"", "'":
-            text.removeFirst()
-            var result = ""
-            while let character = text.first {
-                text.removeFirst()
-                if character == first { return result }
-                if character == "\\" && first == "\"", let escaped = text.first {
-                    text.removeFirst()
-                    result.append(["n": "\n", "t": "\t"][escaped] ?? escaped)
-                } else {
-                    result.append(character)
-                }
-            }
-            return nil
+            return string(&text, quote: first)
         case "[":
             text.removeFirst()
             var items: [Any] = []
@@ -278,6 +334,7 @@ enum TOMLLine {
             }
         default:
             let word = text.prefix { !",]} \t#".contains($0) }
+            guard !word.isEmpty else { return nil }
             text = text.dropFirst(word.count)
             if word == "true" { return true }
             if word == "false" { return false }

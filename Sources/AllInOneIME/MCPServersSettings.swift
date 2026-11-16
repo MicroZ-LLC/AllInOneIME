@@ -35,11 +35,12 @@ struct MCPServersSection: View {
             Text(tr("勾上的服务器，AI 对话只能用它的只读工具（搜索、读取），发送、修改的工具一律不给。服务器取自 \(agent.displayName) 自己的设置。",
                     "A checked server gives the AI chat its read-only tools only (search, read), never one that sends or changes anything. The servers come from \(agent.displayName)'s own settings."))
                 .font(.callout).foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
         }
         .disabled(!model.canSave)
         .task(id: agent) {
             guard MCPServerLister.preview == nil else { return }
-            await lister.load(agent, refreshing: Array(checkedTools.keys)) { save($0, $1) }
+            await lister.load(agent, refreshing: Array(checkedTools.keys)) { saveListed($0, $1) }
         }
     }
 
@@ -49,11 +50,17 @@ struct MCPServersSection: View {
         Binding(get: { checkedTools[server.name] != nil }, set: { on in
             if on {
                 save(server.name, [])
-                Task { await lister.list(server) { save($0, $1) } }
+                Task { await lister.list(server) { saveListed($0, $1) } }
             } else {
                 save(server.name, nil)
             }
         })
+    }
+
+    /// A server's read-only tools as listed, saved only while it is still checked: unchecked while its tools were being
+    /// listed, it stays unchecked.
+    private func saveListed(_ name: String, _ tools: [String]) {
+        if checkedTools[name] != nil { save(name, tools) }
     }
 
     /// `tools` (read-only) saved for `name`, nil: unchecked. The session's process ends: the next question starts it with
@@ -83,6 +90,15 @@ final class MCPServerLister: ObservableObject {
 
     /// What the page shows instead of this Mac's servers (the README's images, `SettingsPageImages`); nil: this Mac's.
     static var preview: MCPServerLister?
+
+    /// `render` with the sample servers on the page, as checked in `model`: one checked with its read-only tools, one
+    /// checked with none, one not checked (the README's images).
+    static func withSample(_ model: SettingsModel, _ render: () -> Void) {
+        preview = .sample
+        model.config.sessionMCP = ["claude": ["github": ["search_code"], "linear": []]]
+        render()
+        preview = nil
+    }
 
     /// Three servers as an agent's config might have them: one checked with its tools listed, one checked with none
     /// read-only, one not checked.
