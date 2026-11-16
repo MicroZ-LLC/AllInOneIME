@@ -270,7 +270,7 @@ under its first question in the recent questions, and picking it shows the round
 
 ### @question in a session of its own (new)
 
-Settings → AI is one choice for every AI feature (Change ▾ opens the choices, by how they connect): Claude Code, Codex,
+Settings → AI is one choice for every AI feature (every choice is a card, by how they connect; one click chooses): Claude Code, Codex,
 Antigravity (Google Antigravity's CLI, `agy`) or Kiro CLI under "With your subscription" (`questionBackend` in the
 config) has `@question` answered in the input method's own session on that CLI. (Gemini CLI is no longer one of them: it
 stopped serving personal Google accounts, which Google moved to Antigravity; a config that chose it is on Antigravity
@@ -316,10 +316,9 @@ is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes
 one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
 from before is resumed. Whether each CLI is installed
 and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Antigravity's sign-in in the
-keychain or its settings without starting it, `kiro-cli whoami`): the CLI chosen when it shows, every CLI when you open
-the choices (Change ▾) and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and
-anything else for a minute, so showing it again runs no CLI before then; never at launch nor for a question, and with a
-provider chosen and the choices closed it runs none of them. The one chosen is tried as a question comes; one found
+keychain or its settings without starting it, `kiro-cli whoami`): every CLI when the page shows, for its card, and when
+you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else for a minute, so
+showing the page again runs no CLI before then; never at launch nor for a question. The one chosen is tried as a question comes; one found
 signed in after it wasn't has its session's process started again by the next question. A CLI takes a second or more to
 answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
@@ -713,7 +712,8 @@ Settings has six pages in the sidebar, in this order, and opens on Common:
   to (`@translate`'s languages), Clipboard history (with Clear History) and Autocomplete (Beta). The last line says how
   many settings More Settings has. A language pack's problem shows its banner on this page.
 - **AI**: the AI that answers (the provider, its model, its key or AWS profile, and Test Connection; the base URL is
-  under More…, which opens by itself once one is set); then **AI Commands**, each AI command's options together:
+  under More…, which opens by itself once one is set); then every choice as a card, by how it connects, always shown
+  (one click chooses; the one in use is outlined and says In use, the others' status is in gray); then **AI Commands**, each AI command's options together:
   `@improve`'s rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a
   list is set), and `@question`'s: where a conversation continues and
   remembering recent questions (with Forget), their only place in Settings.
@@ -1438,7 +1438,7 @@ in Settings wins over both.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-You don't need AWS: pick one in Settings → AI (Change ▾), paste an API key, click "Save", then "Test Connection".
+You don't need AWS: pick one of the cards in Settings → AI, paste an API key, click "Save", then "Test Connection".
 
 | Provider | Default model | API key |
 |---|---|---|
@@ -1455,7 +1455,7 @@ You don't need AWS: pick one in Settings → AI (Change ▾), paste an API key, 
 
 ### Apple Intelligence on this Mac (macOS 26)
 
-On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple on-device" in Settings → AI (Change ▾): no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
+On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in System Settings → Apple Intelligence & Siri), choose "Apple on-device" in Settings → AI: no key, no cost, and nothing you type leaves the Mac. It uses the model built into macOS (the Foundation Models framework), with the same instructions and answer format as the other providers, but only the examples written in the sentence's own language (a small model copies an example's language too readily).
 
 - It's a small model: its context is about 4K tokens (8K on macOS 27), so a long paragraph may be too long for it, and it speaks fewer languages (English, Chinese, Japanese, Korean, French, German, Spanish and a few more; not Hindi). Either one says so. Its results are below the cloud models', and its `@question` answers on facts and code are often wrong.
 - Where it can't be used, it's listed greyed out with the reason (not supported on this Mac, turned off, model not ready), and the settings link to System Settings → Apple Intelligence & Siri. Before macOS 26 it isn't listed.
