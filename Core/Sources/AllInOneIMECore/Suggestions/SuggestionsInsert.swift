@@ -56,7 +56,7 @@ public enum SuggestionsInsert: String, CaseIterable, Codable, Sendable {
 
     /// Where it is chosen, for Settings → Plugins, where a plugin's completions are turned on.
     public static var chosenIn: String {
-        tr("建议的行插入什么：设置 →「通用」", "What a row inserts: Settings → General")
+        tr("建议的行插入什么：设置 →「更多设置」→「建议」", "What a row inserts: Settings → More Settings → Suggestions")
     }
 }
 

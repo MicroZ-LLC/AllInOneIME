@@ -1,49 +1,25 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Settings → AI's choice (`Config.ai`, the owner's design): collapsed, the AI chosen (`AIChosenRow`); open (Change ▾),
-/// every choice as a card by how it connects (`AIChoicesGrid`), the chosen one outlined. A CLI's card says whether it is
-/// installed and signed in, as last looked at. The CLI chosen is looked at as this shows, every CLI as the cards open and
-/// as a CLI is chosen (`SettingsModel.cli`), each as last found unless that is too old (`ClaudeSessionMac
-/// .checkAvailability`: its program runs only then); with a provider chosen and the cards closed, none is.
+/// Settings → AI's choices (`Config.ai`, the owner's design; #121): every choice as a card by how it connects
+/// (`AIChoicesGrid`), always shown, the chosen one outlined; one click chooses. A CLI's card says whether it is installed
+/// and signed in, as last looked at: every CLI is looked at as the page shows (`SettingsModel.aiPageShown`), each as last
+/// found unless that is too old (`ClaudeSessionMac.checkAvailability`: its program runs only then).
 struct AIChoiceSettings: View {
     @ObservedObject var model: SettingsModel
-    /// The cards shown (Change ▾), not only the one chosen.
-    @Binding var choosing: Bool
 
     var body: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
-        Group {
-            if choosing {
-                AIChoicesGrid(chosen: chosen,
-                              groups: AIChoice.groups(apple: facts.apple, keeping: chosen),
-                              status: { facts.status($0, config: model.config) },
-                              pick: { choice in
-                                  model.choose(choice)
-                                  if model.spot == .provider { model.spot = nil }
-                                  withAnimation(.easeOut(duration: 0.15)) { choosing = false }
-                              },
-                              cancel: { withAnimation(.easeOut(duration: 0.15)) { choosing = false } })
-            } else {
-                AIChosenRow(choice: chosen, status: facts.status(chosen, config: model.config)) {
-                    withAnimation(.easeOut(duration: 0.15)) { choosing = true }
-                }
-            }
-        }
-        .settingsRow(.provider, shown: model.spot)
-        .onAppear {
-            // A provider chosen, the cards closed: no agent's program is run to say so (a preview: nothing of this Mac's).
-            guard model.persists, choosing || model.config.ai.agent != nil else { return }
-            let agents = choosing ? SessionAgent.allCases : [model.config.ai.agent].compactMap { $0 }  // the others as the cards open
-            ClaudeSessionMac.checkAvailability(agents, done: shown)
-        }
-        .onChange(of: choosing) { if choosing { model.refreshSessions() } }  // the cards opened: each CLI's sign-in
-    }
-
-    /// What each CLI's sign-in was found to be, shown.
-    private func shown() {
-        model.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
+        AIChoicesGrid(chosen: chosen,
+                      groups: AIChoice.groups(apple: facts.apple, keeping: chosen),
+                      status: { facts.status($0, config: model.config) },
+                      pick: { choice in
+                          model.choose(choice)
+                          if model.spot == .provider { model.spot = nil }
+                      })
+            .settingsRow(.provider, shown: model.spot)
+            .onAppear { model.aiPageShown() }
     }
 }
 
@@ -68,6 +44,11 @@ extension SettingsModel {
             if backend != nil { self.refreshSessions() }
         })
     }
+
+    /// The AI page shown: every CLI's sign-in looked at for its card, as last found unless that is too old (a signed-in
+    /// one kept until quit, the others for `ClaudeSessionManager.recheckInterval`): shown again within it, nothing runs.
+    /// Never at launch or while typing; a preview shows what it was given.
+    func aiPageShown() { refreshSessions() }
 
     /// Looks whether each CLI is installed and signed in (`ClaudeSessionMac.checkAvailability`: as last found unless that
     /// is too old; `force`: each one's program run now), then shows it. A preview shows what it was given: nothing of this

@@ -12,6 +12,7 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
+      --start           …and open the start once (a fresh install), else the settings window
       --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only |
                  --suggestions-only | --clipboard-only]
                         drive the input controller (real Rime engine on DATA, else the installed
@@ -185,7 +186,11 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
     static let shared = IMEAppDelegate()
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MainActor.assumeIsolated { SettingsWindow.shared.show() }
+        MainActor.assumeIsolated {
+            // The Settings app's reopen after it asked for the start (`StartWindow.showNotification`): not Settings over it.
+            if let shown = StartWindow.shownAt, Date().timeIntervalSince(shown) < 5 { return }
+            SettingsWindow.shared.show()
+        }
         return false
     }
 
@@ -226,7 +231,7 @@ private let terminationSignal: DispatchSourceSignal = {
     return source
 }()
 
-func runServer(showSettings: Bool = false) -> Never {
+func runServer(showSettings: Bool = false, showStart: Bool = false) -> Never {
     let app = NSApplication.shared
     app.delegate = IMEAppDelegate.shared
     guard let name = Bundle.main.object(forInfoDictionaryKey: "InputMethodConnectionName") as? String,
@@ -260,15 +265,8 @@ func runServer(showSettings: Bool = false) -> Never {
             MenuBarIcon.shared.apply(LiveConfig.current.menuBarIcon)
         }
     }
-    if showSettings {
-        // On About instead when the move to this identity shows the step to add the input source first (decided by
-        // `UpdateController.start` below, before this runs).
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                if UpdateController.shared.firstShown != .inputSourceStep { SettingsWindow.shared.show() }
-            }
-        }
-    }
+    // The window the AllInOneIME Settings app asked for: the start a fresh install opens (once), or Settings.
+    MainActor.assumeIsolated { StartWindow.launched(start: showStart, settings: showSettings) }
     // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     // Whether the input source is enabled (the user adds a new one in System Settings): About shows the step until it is.
@@ -667,6 +665,9 @@ case "--apply-update":
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)
+case "--start":
+    // Started by the AllInOneIME Settings app after a fresh install: the start (#122), once; else Settings.
+    runServer(showStart: true)
 case "-h", "--help":
     print(usage)
     exit(0)

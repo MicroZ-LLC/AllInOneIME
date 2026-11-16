@@ -1086,8 +1086,8 @@ struct SettingsView: View {
     @State private var keySheet: KeySheetRequest?
     /// The Notion token row's paste field.
     @State private var editingNotionToken = false
-    /// The page shown (General when none is asked for) and what's typed in the sidebar's search field.
-    @State private var page: SettingsPage
+    /// The page shown (Common when none is asked for) and what's typed in the sidebar's search field.
+    @State var page: SettingsPage
     @State private var query = ""
     /// The search's row chosen (↑↓ move it; the last one is "Change: …").
     @State private var chosen = 0
@@ -1098,13 +1098,11 @@ struct SettingsView: View {
     private let chipShown: Input?
     /// The AI page's More… (the base URL): open with one set until clicked, then as clicked.
     @State private var aiMore = SettingsDisclosure()
-    /// The AI page's choices shown (Change ▾), not only the one chosen.
-    @State private var choosingAI: Bool
     /// About's Troubleshoot… sheet.
     @State private var troubleshooting = false
     /// Commands → "Folders and sources…": open when it opens by itself (`ExtensionSourcesSection.opensByItself`) until
     /// clicked, then as clicked.
-    @State private var foldersAndSources = SettingsDisclosure()
+    @State var foldersAndSources = SettingsDisclosure()
     /// Script Extensions' folders with no new commands, opened.
     @State private var showsOtherFolders = false
     /// The language packs and their downloads (Chinese is a download: the app ships English only).
@@ -1120,7 +1118,7 @@ struct SettingsView: View {
     /// The search's "Change: …" (a request to change settings in a sentence, its preview, Apply and Undo) and the checks
     /// behind the pages' banners and Troubleshoot: the process's own (`AssistantModel.shared`), so they stay while other
     /// pages are shown and the window is closed. Observed: the sidebar's dots follow the checks.
-    @ObservedObject private var assistant: AssistantModel
+    @ObservedObject var assistant: AssistantModel
 
     /// The README images: the key sheet drawn over the page, for this provider (a real sheet isn't in a page's image).
     private let keySheetShown: Provider?
@@ -1132,10 +1130,8 @@ struct SettingsView: View {
     /// `page`: the one shown first; nil: General (the last one isn't remembered). `query`: the search typed (images).
     @MainActor
     init(model: SettingsModel, page: SettingsPage? = nil, inputTab: Input? = nil, keySheetShown: Provider? = nil,
-         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false,
-         choosingAI: Bool = false) {
+         assistant: AssistantModel? = nil, query: String = "", troubleshootShown: Bool = false, learnedShown: Bool = false) {
         self.model = model
-        _choosingAI = State(initialValue: choosingAI)
         self.keySheetShown = keySheetShown
         self.troubleshootShown = troubleshootShown
         self.learnedShown = learnedShown
@@ -1146,7 +1142,7 @@ struct SettingsView: View {
     }
 
     /// The page Settings opens on when none is asked for.
-    static let firstPage = SettingsPage.general
+    static let firstPage = SettingsPage.common
 
     /// Translate to's Add… as the accessibility tree has it (the rewrite styles' Add… is on the same page).
     static let addOutputLanguageID = "outputLanguages.add"
@@ -1161,7 +1157,7 @@ struct SettingsView: View {
         model.windowShown(discoverExtensions: page == .commands)
     }
 
-    @ViewBuilder private var loadErrorSection: some View {
+    @ViewBuilder var loadErrorSection: some View {
         if let loadError = model.loadError {
             Section {
                 Label(tr("配置文件有误，未做修改：", "The config file has an error and was left as is: ") + loadError,
@@ -1172,51 +1168,51 @@ struct SettingsView: View {
         }
     }
 
-    /// The magic key and the action key.
-    @ViewBuilder private var keysSection: some View {
-        Section {
-            // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
-            // so there is nothing to refuse.
-            LabeledContent {
-                // Shown like the action key: the symbol as text, and a click opens the symbols to pick from, the one in
-                // use checked (a toggle each: the menu's own checkmark). Drawn by SwiftUI as a plain button: AppKit's
-                // borderless pop-up gives its title the controls' color, not the text's, and an inset on the right.
-                Menu {
-                    ForEach(Config.commandTriggers, id: \.self) { symbol in
-                        Toggle(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol,
-                               isOn: Binding(get: { model.config.commandTrigger == symbol },
-                                             set: { if $0 { model.config.commandTrigger = symbol } }))
-                    }
-                } label: {
-                    HStack(alignment: .firstTextBaseline, spacing: 3) {
-                        Text(model.config.commandTrigger).foregroundStyle(.primary)
-                        Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
-                    }
-                    .contentShape(Rectangle())
+    /// Common → the magic key: one of the symbols that type as themselves in every mode.
+    var magicKeyRow: some View {
+        // One of the symbols that type as themselves in every mode (`Config.commandTriggers`): picked, never typed,
+        // so there is nothing to refuse.
+        LabeledContent {
+            // Shown like the action key: the symbol as text, and a click opens the symbols to pick from, the one in
+            // use checked (a toggle each: the menu's own checkmark). Drawn by SwiftUI as a plain button: AppKit's
+            // borderless pop-up gives its title the controls' color, not the text's, and an inset on the right.
+            Menu {
+                ForEach(Config.commandTriggers, id: \.self) { symbol in
+                    Toggle(symbol == "@" ? tr("@（默认）", "@ (default)") : symbol,
+                           isOn: Binding(get: { model.config.commandTrigger == symbol },
+                                         set: { if $0 { model.config.commandTrigger = symbol } }))
                 }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .accessibilityLabel(tr("魔法键：", "Magic key: ") + model.config.commandTrigger)
             } label: {
-                titled(.magicKey)
+                HStack(alignment: .firstTextBaseline, spacing: 3) {
+                    Text(model.config.commandTrigger).foregroundStyle(.primary)
+                    Image(systemName: "chevron.down").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
             }
-            .settingsRow(.magicKey, shown: model.spot)
-            // Return by default; a click on it takes the next key pressed (or a tap of ⌥).
-            LabeledContent {
-                KeyRecorder(key: $model.config.actionKey)
-            } label: {
-                titled(SettingsSpot.actionKey.title, Self.actionKeyNote(model.config.actionKey, trigger: model.config.commandTrigger))
-            }
-            .settingsRow(.actionKey, shown: model.spot)
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .accessibilityLabel(tr("魔法键：", "Magic key: ") + model.config.commandTrigger)
+        } label: {
+            titled(.magicKey)
         }
-        .disabled(!model.canSave)
+        .settingsRow(.magicKey, shown: model.spot)
+    }
+
+    /// Input and keys → the action key: Return by default; a click on it takes the next key pressed (or a tap of ⌥).
+    var actionKeyRow: some View {
+        LabeledContent {
+            KeyRecorder(key: $model.config.actionKey)
+        } label: {
+            titled(SettingsSpot.actionKey.title, Self.actionKeyNote(model.config.actionKey, trigger: model.config.commandTrigger))
+        }
+        .settingsRow(.actionKey, shown: model.spot)
     }
 
     /// Advanced → typing results out, as a person types: its speed, its ups and downs, its typos (the apps where they
     /// couldn't be fixed are in Privacy → Learned…).
-    @ViewBuilder private var typeOutSection: some View {
+    @ViewBuilder var typeOutSection: some View {
         Section {
             // Results typed in character by character, like a person typing.
             Toggle(isOn: $model.config.typeOut) {
@@ -1273,7 +1269,7 @@ struct SettingsView: View {
     /// method learns it per app (an app whose field doesn't take a result in place of its selection, `LearnedStore`:
     /// Privacy → Learned…). Turned off in the config (by hand, an earlier version, the search's Change), it shows with
     /// Restore Default.
-    @ViewBuilder private var typingSection: some View {
+    @ViewBuilder var typingSection: some View {
         if !model.config.useSelection {
             Section {
                 RestoreDefaultRow(title: SettingsSpot.useSelection.title + tr("：", ": ") + tr("关", "Off"),
@@ -1287,8 +1283,8 @@ struct SettingsView: View {
     }
 
 
-    /// The menu bar icon and the interface language.
-    @ViewBuilder private var appearanceSection: some View {
+    /// Interface and sync → the menu bar icon, the interface language and the candidate box's key hints.
+    @ViewBuilder var appearanceSection: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.menuBarIcon }, set: { model.setMenuBarIcon($0) })) {
                 titled(.menuBarIcon)
@@ -1308,6 +1304,7 @@ struct SettingsView: View {
             }
             .pickerStyle(.menu)
             .settingsRow(.interfaceLanguage, shown: model.spot)
+            CandidatePanelRows(model: model, rows: .keyHints)
         }
     }
 
@@ -1315,7 +1312,7 @@ struct SettingsView: View {
     /// the switch key switches), Code after them with its coding language; ⊗ removes one, dragging reorders the
     /// languages, and "Add…" adds one. The packs on their way under them, then the key that switches and how the
     /// candidates are laid out; each input's options follow in sections of their own.
-    @ViewBuilder private var inputSection: some View {
+    @ViewBuilder var inputSection: some View {
         Section {
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
@@ -1338,16 +1335,46 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
+            // Chinese's scheme and characters, rows of their own while Chinese is typed (#120: out of its chip).
+            if model.config.inputLanguages.contains(.chinese) {
+                pinyinSchemeRow
+                chineseCharactersRow
+            }
             switchKeyRow
-            CandidatePanelRows(model: model)
-
+            CandidatePanelRows(model: model, rows: .layout)
         } header: {
-            SectionTitle(tr("输入语言", "Input Languages"), icon: CommandIcons.input)
+            SectionTitle(tr("打字", "Typing", key: "settings.typing"), icon: CommandIcons.input)
         }
         .disabled(!model.canSave)
         // Pointed at something in a chip (the search found fuzzy pinyin): that chip opened.
         .onChange(of: model.spot) { openChipOfSpot() }
         .onAppear { openChipOfSpot() }
+    }
+
+    /// Common → how Chinese is typed: full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`).
+    private var pinyinSchemeRow: some View {
+        Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
+            ForEach(PinyinScheme.allCases, id: \.self) { scheme in
+                Text(scheme.name(in: UIText.language)).tag(scheme)
+            }
+        } label: {
+            titled(.pinyinScheme)
+        }
+        .pickerStyle(.menu)
+        .settingsRow(.pinyinScheme, shown: model.spot)
+    }
+
+    /// Common → the Chinese characters typed, as the system's languages say until one is picked (`Config.typedChinese`).
+    private var chineseCharactersRow: some View {
+        Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
+            ForEach(ChineseCharacters.allCases, id: \.self) { characters in
+                Text(characters.name(in: UIText.language)).tag(characters)
+            }
+        } label: {
+            titled(.chineseCharacters)
+        }
+        .pickerStyle(.menu)
+        .settingsRow(.chineseCharacters, shown: model.spot)
     }
 
     /// Voice input (`Features.voiceInput`, off for now): its switch, the speech models, the microphone.
@@ -1438,7 +1465,7 @@ struct SettingsView: View {
     /// style or a list chosen already). `@translate`: the languages it writes in, a line in each, in order. `@question`:
     /// where a conversation goes on (`ChatHandoff`; QuestionChatSettings.swift: the chips, scrolled sideways when they're
     /// more than the card's width), and the recent questions kept (`QuestionHistory`; off forgets them).
-    @ViewBuilder private var aiCommandsSection: some View {
+    @ViewBuilder var aiCommandsSection: some View {
         Section {
             // Like the languages: the styles added, in the order they're shown; drag to reorder.
             LabeledContent {
@@ -1483,38 +1510,6 @@ struct SettingsView: View {
                 }
                 .settingsRow(.jargonList, shown: model.spot)
             }
-            // @translate writes a line in each, in this order (three versions with only one).
-            LabeledContent {
-                HStack(spacing: 6) {
-                    // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
-                    let chinese = model.config.typedChinese
-                    LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
-                                  firstNote: nil,
-                                  reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
-                    Menu(tr("添加…", "Add…")) {
-                        ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
-                            Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
-                        }
-                    }
-                    .fixedSize()
-                    .accessibilityIdentifier(Self.addOutputLanguageID)
-                }
-            } label: {
-                if model.config.hasLanguageToTranslateInto {
-                    titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
-                } else {
-                    // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
-                    let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(SettingsSpot.outputLanguages.title)
-                        Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
-                                "Add one besides \(typed): a sentence isn't translated into its own language"))
-                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-            }
-            // Opened from @translate's notice (nothing to translate into): this is where.
-            .settingsRow(.outputLanguages, shown: model.spot)
             VStack(alignment: .leading, spacing: 8) {
                 HStack(alignment: .top) {
                     titled(SettingsSpot.questionContinueIn.title,
@@ -1569,13 +1564,49 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
+    /// Common → @translate's languages: it writes a line in each, in this order (three versions with only one). On Common
+    /// since #120, out of the AI page's AI commands.
+    var outputLanguagesRow: some View {
+        LabeledContent {
+            HStack(spacing: 6) {
+                // "zh" is Simplified Chinese by name for someone typing Traditional characters (into it: a translation).
+                let chinese = model.config.typedChinese
+                LanguageChips(items: model.config.outputLanguages, name: { UIText.name($0, typing: chinese) },
+                              firstNote: nil,
+                              reorder: { model.config.setOrder($0) }, remove: removeOutputLanguage)
+                Menu(tr("添加…", "Add…")) {
+                    ForEach(OutputLanguage.catalog.filter { !model.config.outputLanguages.contains($0) }) { language in
+                        Button(UIText.name(language, typing: chinese)) { addOutputLanguage(language) }
+                    }
+                }
+                .fixedSize()
+                .accessibilityIdentifier(Self.addOutputLanguageID)
+            }
+        } label: {
+            if model.config.hasLanguageToTranslateInto {
+                titled(SettingsSpot.outputLanguages.title, tr("每种一行，拖动排序", "A line in each; drag to reorder"))
+            } else {
+                // Only the languages typed (a new user whose Mac has English alone): @translate has nothing to do yet.
+                let typed = model.config.inputLanguages.map { UIText.name(model.config.typedLanguage($0)) }.joined(separator: tr("、", ", "))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(SettingsSpot.outputLanguages.title)
+                    Text(tr("再加一种\(typed)以外的语言：句子不会翻译成它本来的语言",
+                            "Add one besides \(typed): a sentence isn't translated into its own language"))
+                        .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        // Opened from @translate's notice (nothing to translate into): this is where.
+        .settingsRow(.outputLanguages, shown: model.spot)
+    }
+
     /// The jargon list's row shows with the Jargon style on, or a list chosen already.
     static func showsJargon(_ config: Config) -> Bool {
         config.jargonFile != nil || RewriteStyle.resolve(config.rewriteStyles).contains { $0.tag == "JARGON" }
     }
 
     /// Autocomplete's switch (the input menu's), where its text goes under it; then Suggestions.
-    @ViewBuilder private var autocompleteSection: some View {
+    @ViewBuilder var autocompleteSection: some View {
         Section {
             Toggle(isOn: Binding(get: { model.config.autocomplete }, set: { model.setAutocomplete($0) })) {
                 VStack(alignment: .leading, spacing: 2) {
@@ -1599,7 +1630,7 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    @ViewBuilder private var commandsSection: some View {
+    @ViewBuilder var commandsSection: some View {
         Section {
             // By place: two of one name (a config edited by hand) are two rows. Edit and Delete still go by the name.
             ForEach(Array(model.config.customCommands.enumerated()), id: \.offset) { index, command in
@@ -1669,7 +1700,7 @@ struct SettingsView: View {
 
     /// Script extensions (docs/extensions.md): the bundles and their preferences, the commands (each turned on or off),
     /// and what was left out, with why. Where they're looked for is under "Folders and sources…" (`extensionFolderRows`).
-    @ViewBuilder private var extensionsSection: some View {
+    @ViewBuilder var extensionsSection: some View {
         Section {
             ForEach(model.extensionIndex.bundles, id: \.name) { bundle in bundleRow(bundle) }
             ForEach(model.extensionIndex.commands.filter { $0.source.bundleName == nil }, id: \.id) { command in extensionRow(command) }
@@ -1704,7 +1735,7 @@ struct SettingsView: View {
     /// Under "Folders and sources…" (`ExtensionSourcesSection`): the plugins' folder, Raycast's switch, the extension
     /// folders (those that bring commands, each on its row; the others folded into one), Add Folder… and the copies
     /// skipped.
-    @ViewBuilder private var extensionFolderRows: some View {
+    @ViewBuilder var extensionFolderRows: some View {
         HStack {
             Button(tr("打开插件文件夹", "Open Plugins Folder")) { model.openPluginsFolder() }
             Button(tr("刷新", "Refresh")) { model.refreshPlugins() }
@@ -1839,7 +1870,7 @@ struct SettingsView: View {
         .help(ExtensionStore.abbreviated(command.file.path))
     }
 
-    @ViewBuilder private var pluginsSection: some View {
+    @ViewBuilder var pluginsSection: some View {
         Section {
             ForEach(model.plugins, id: \.name) { plugin in
                 VStack(alignment: .leading, spacing: 2) {
@@ -1878,52 +1909,55 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. Collapsed, the one chosen (its
-    /// logo, name and status) with Change ▾, and its own settings under it; open, every choice as a card by how it
-    /// connects (`AIChoicesGrid`), the chosen one outlined. The settings search's AI row opens the cards.
-    @ViewBuilder private var providerSection: some View {
+    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. The one chosen (its logo, name and
+    /// status) with its own settings under it, then every choice as a card by how it connects (`AIChoicesGrid`, #121), the
+    /// chosen one outlined; the settings search's AI row points at the cards.
+    @ViewBuilder var providerSection: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
         Section {
-            AIChoiceSettings(model: model, choosing: $choosingAI)
-            if !choosingAI {
-                switch chosen {
-                case let .cli(agent):
-                    AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
-                case .provider(.bedrock): bedrockSettings
-                case .provider(.hosted): hostedSettings
-                case .provider(.apple): appleSettings
-                case let .provider(provider): apiKeySettings(provider)
-                }
-                if chosen.provider != nil {
-                    HStack {
-                        Button(SettingsSpot.testConnection.title) { model.runTest() }
-                            .disabled(model.testStatus == .running)
-                        switch model.testStatus {
-                        case .idle: EmptyView()
-                        case .running: ProgressView().controlSize(.small)
-                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                        }
+            AIChosenRow(choice: chosen, status: facts.status(chosen, config: model.config))
+            switch chosen {
+            case let .cli(agent):
+                AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
+            case .provider(.bedrock): bedrockSettings
+            case .provider(.hosted): hostedSettings
+            case .provider(.apple): appleSettings
+            case let .provider(provider): apiKeySettings(provider)
+            }
+            if chosen.provider != nil {
+                HStack {
+                    Button(SettingsSpot.testConnection.title) { model.runTest() }
+                        .disabled(model.testStatus == .running)
+                    switch model.testStatus {
+                    case .idle: EmptyView()
+                    case .running: ProgressView().controlSize(.small)
+                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
                     }
-                    .settingsRow(.testConnection, shown: model.spot)
                 }
+                .settingsRow(.testConnection, shown: model.spot)
             }
         } header: {
+            SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+        }
+        .disabled(!model.canSave)
+        // Every choice as a card, always shown (#121): one click chooses.
+        Section {
+            AIChoiceSettings(model: model)
+        } header: {
             HStack(alignment: .firstTextBaseline) {
-                SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+                SectionTitle(SettingsSpot.provider.title, icon: CommandIcons.provider)
                 Spacer()
                 Text(SettingsSpot.provider.note ?? "").font(.callout).foregroundStyle(.secondary)
             }
         }
         .disabled(!model.canSave)
-        .onAppear { if model.spot == .provider { choosingAI = true } }
-        .onChange(of: model.spot) { if model.spot == .provider { choosingAI = true } }
     }
 
     /// Where `@note` saves (`Config.notes`): Notes, Notion (its token in the keychain, never in the config; the link of a
     /// page or database, which Test resolves) or a folder of Markdown files (an Obsidian vault or any folder).
-    @ViewBuilder private var notesSection: some View {
+    @ViewBuilder var notesSection: some View {
         Section {
             Picker(tr("存到", "Save to"), selection: Binding(get: { model.config.notes.destination }, set: { destination in
                 // After the picker's own update: a folder may ask for one first, in an open panel.
@@ -2000,7 +2034,7 @@ struct SettingsView: View {
     /// shown, still read from the config: one set to something else than its default (by hand, an earlier version, the
     /// search's Change) shows its row with Restore Default. The models remembered as refusing a temperature are in Privacy
     /// → Learned….
-    @ViewBuilder private var requestSection: some View {
+    @ViewBuilder var requestSection: some View {
         let defaults = Config.default
         let usesTemperature = model.config.provider == .bedrock || model.config.provider == .apple
         let effort = model.config.provider.needsKey ? model.providerSettings(model.config.provider).effort : nil
@@ -2039,7 +2073,7 @@ struct SettingsView: View {
         }
     }
 
-    @ViewBuilder private var filesSection: some View {
+    @ViewBuilder var filesSection: some View {
         Section {
             let path = (model.configURL.path as NSString).abbreviatingWithTildeInPath
             LabeledContent {
@@ -2119,17 +2153,17 @@ struct SettingsView: View {
         typed.isEmpty ? [] : SettingsSpot.search(typed, trigger: model.config.commandTrigger, config: model.config)
     }
 
-    /// The pages: a thin line before Advanced, as in System Settings.
+    /// The pages: a thin line before More Settings, as in System Settings; a group of it shown, More Settings selected.
     private var pageList: some View {
-        List(selection: Binding(get: { page }, set: { if let new = $0 { page = new } })) {
-            ForEach(SettingsPage.allCases) { item in
-                if item == .advanced {
+        List(selection: Binding(get: { page.sidebarPage }, set: { if let new = $0, new != page.sidebarPage { page = new } })) {
+            ForEach(SettingsPage.sidebar) { item in
+                if item == .more {
                     Divider().padding(.horizontal, 6).padding(.vertical, 2)
                         .selectionDisabled()
                 }
                 // Something the checks found wrong on the page: a dot, red for a problem (its banner says what), which
                 // VoiceOver reads after the page's name.
-                let worst = assistant.issues.map(\.element).filter { SettingsPage.of($0.area) == item }.map(\.status).min()
+                let worst = assistant.issues.map(\.element).filter { SettingsPage.of($0.area).sidebarPage == item }.map(\.status).min()
                 Label {
                     HStack {
                         Text(item.title).font(.system(size: 13.5)).padding(.leading, 4)
@@ -2165,7 +2199,7 @@ struct SettingsView: View {
                     resultRow(index) {
                         VStack(alignment: .leading, spacing: 1) {
                             Text(spot.title).lineLimit(1)
-                            Text(spot.page.title).font(.caption).foregroundStyle(.secondary)
+                            Text(spot.page.place).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -2232,7 +2266,7 @@ struct SettingsView: View {
     /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin, personal dictionaries and
     /// the candidates removed, French's keyboard layout), the English words pinyin offers (English's, or Chinese's without
     /// English), and its place among the languages; Code's coding language and packs.
-    @ViewBuilder private func inputOptions(_ input: Input) -> some View {
+    @ViewBuilder func inputOptions(_ input: Input) -> some View {
         switch input {
         case .code:
             CodeOptions(model: model)
@@ -2269,28 +2303,11 @@ struct SettingsView: View {
             }
             switch language {
             case .chinese:
-                // Full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`), beside the characters.
-                Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
-                    ForEach(PinyinScheme.allCases, id: \.self) { scheme in
-                        Text(scheme.name(in: UIText.language)).tag(scheme)
-                    }
-                } label: {
-                    titled(.pinyinScheme)
-                }
-                .pickerStyle(.menu)
-                // As the system's languages say until one is picked (`Config.typedChinese`).
-                Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
-                    ForEach(ChineseCharacters.allCases, id: \.self) { characters in
-                        Text(characters.name(in: UIText.language)).tag(characters)
-                    }
-                } label: {
-                    titled(.chineseCharacters)
-                }
-                .pickerStyle(.menu)
                 Toggle(isOn: Binding(get: { !model.config.fuzzyPinyin.isEmpty },
                                      set: { model.setFuzzyPinyin($0 ? SettingsModel.fuzzyDefaults : []) })) {
                     titled(.fuzzyPinyin)
                 }
+                .settingsRow(.fuzzyPinyin, shown: model.spot)
                 if !model.config.fuzzyPinyin.isEmpty {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 110), alignment: .leading)], alignment: .leading, spacing: 8) {
                         ForEach(FuzzyPinyin.pairs) { pair in
@@ -2341,7 +2358,7 @@ struct SettingsView: View {
     }
 
     /// The version, its updates, who makes it, where to read more.
-    @ViewBuilder private var aboutSection: some View {
+    @ViewBuilder var aboutSection: some View {
         // The one step left while the input source isn't enabled (macOS lets only the user add it): first.
         InputSourceStepSection(status: .shared)
         Section {
@@ -2470,44 +2487,7 @@ struct SettingsView: View {
                     // What the checks found wrong on this page, and the search's "Change: …" with its preview.
                     ProblemBanners(assistant: assistant, page: page)
                     ChangeCard(assistant: assistant)
-                    switch page {
-                    case .week: EmptyView()  // `WeekStatsPage`, above
-                    case .general:
-                        // The keys first, then the menu bar and the interface language (the owner, 0.6.7).
-                        keysSection
-                        appearanceSection
-                        autocompleteSection
-                        SuggestionsSection(model: model)
-                        ClipboardHistorySection(model: model)
-                        ICloudSyncSection(model: model)
-                    case .input:
-                        // The input languages, then each one's options under its name (owner, 0.6.7: a page of its own,
-                        // as before, not a popover on General).
-                        inputSection
-                        ForEach(model.config.inputs, id: \.self) { input in inputOptions(input) }
-                    case .ai:
-                        // Who answers, then what the AI commands do, then the model's parameters (owner, 0.7.5).
-                        providerSection
-                        aiCommandsSection
-                        requestSection
-                    case .privacy:
-                        PrivacySection(model: model)
-                    case .commands:
-                        commandsSection
-                        AgentSettingsPage(model: model)
-                        notesSection
-                        pluginsSection
-                        extensionsSection
-                        // The plugins' folder, the extensions' folders and the extension sources, folded (owner, 0.7.4).
-                        ExtensionSourcesSection(model: model, disclosure: $foldersAndSources, folders: AnyView(extensionFolderRows))
-                    case .advanced:
-                        typeOutSection
-                        typingSection
-                        // Only while an app has one; migration from before Settings v2 (owner, 0.7.4: from General).
-                        PreviousAppSettingsSection(model: model)
-                        filesSection
-                    case .about: aboutSection
-                    }
+                    pageContent
                 }
                 .formStyle(.grouped)
                 // A white page under light gray cards, as in Raycast and System Settings (dark in dark mode).
@@ -3633,77 +3613,16 @@ func titled(_ spot: SettingsSpot) -> some View {
 }
 
 
-/// The settings window's pages, in the sidebar's order.
-enum SettingsPage: String, CaseIterable, Identifiable {
-    /// This week's stats (`WeekStatsPage`), first: how much AllInOneIME was used, as a picture to share.
-    case week
-    case general, input, ai, privacy, commands, advanced, about
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .week: return WeekStatsText.sidebarTitle(language: UIText.language)
-        case .general: return tr("通用", "General")
-        case .input: return tr("输入", "Input")
-        case .ai: return tr("AI", "AI")
-        case .privacy: return tr("隐私", "Privacy")
-        case .commands: return tr("命令", "Commands")
-        case .advanced: return tr("高级", "Advanced")
-        case .about: return tr("关于", "About")
-        }
-    }
-
-    var icon: CandidateView.Icon {
-        switch self {
-        case .week: return CommandIcons.icon(for: .stats)
-        case .general: return CandidateView.Icon(symbol: "gearshape.fill", color: .systemGray)
-        case .input: return CandidateView.Icon(symbol: "keyboard.fill", color: .systemBlue)
-        case .ai: return CommandIcons.provider
-        case .privacy: return CandidateView.Icon(symbol: "hand.raised.fill", color: .systemBlue)
-        case .commands: return CommandIcons.commands
-        case .advanced: return CommandIcons.advanced
-        case .about: return CandidateView.Icon(symbol: "info", color: .systemBlue)
-        }
-    }
-
-    /// Its rows (`SettingsSpot`), in order.
-    var spots: [SettingsSpot] { SettingsSpot.allCases.filter { $0.page == self } }
-
-    /// Whether the page has a row `query` finds (its title counts too), with commands named with the command trigger
-    /// (`trigger`: "~agent") as its rows name them ("@agent").
-    func matches(_ query: String, trigger: String = "@") -> Bool {
-        let words = query.lowercased().replacingOccurrences(of: trigger, with: "@").split(whereSeparator: \.isWhitespace)
-        guard !words.isEmpty else { return true }
-        return words.allSatisfy { title.lowercased().contains($0) } || spots.contains { $0.matches(query, trigger: trigger) }
-    }
-
-    /// The page a Doctor finding of `area` shows on, as a banner at its top (and a dot on its sidebar row); what has no
-    /// page of its own (secure input, the logs' errors) is About's, with Troubleshoot.
-    static func of(_ area: Doctor.Area) -> SettingsPage {
-        switch area {
-        case .inputMethod, .iCloudSync: return .general
-        case .languagePacks: return .input
-        case .provider, .connection, .appleIntelligence: return .ai
-        case .permissions: return .privacy
-        case .extensions: return .commands
-        case .config: return .advanced
-        case .updates, .secureInput, .recentErrors: return .about
-        }
-    }
-}
-
-
 /// The settings window drawn offscreen, for the README and the wiki: `page`, as tall as its content.
 enum SettingsImage {
     @MainActor
     static func render(_ model: SettingsModel, page: SettingsPage, inputTab: Input? = nil, keySheet: Provider? = nil,
                        assistant: AssistantModel? = nil, query: String = "", troubleshoot: Bool = false, learned: Bool = false,
-                       choosingAI: Bool = false, to url: URL, appearance: NSAppearance.Name = .aqua,
+                       to url: URL, appearance: NSAppearance.Name = .aqua,
                        settle: (TimeInterval) -> Void) {
         let host = NSHostingView(rootView: SettingsView(model: model, page: page, inputTab: inputTab, keySheetShown: keySheet,
                                                         assistant: assistant, query: query, troubleshootShown: troubleshoot,
-                                                        learnedShown: learned, choosingAI: choosingAI))
+                                                        learnedShown: learned))
         // Taller than any page; the empty space below it is cut off after drawing (a form's scroll view
         // doesn't tell how tall its content is).
         let size = NSSize(width: 880, height: 2600)

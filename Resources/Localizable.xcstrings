@@ -2836,6 +2836,53 @@
         }
       }
     },
+    "%@ not found" : {
+      "comment" : "找不到 %@",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ nicht gefunden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se encontró %@"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ introuvable"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ が見つかりません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@을(를) 찾을 수 없습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ não encontrado"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "找不到 %@"
+          }
+        }
+      }
+    },
     "%@ of %@; the first is the default" : {
       "comment" : "第 %@ 个，共 %@ 个；第一个是默认",
       "extractionState" : "stale",
@@ -2880,6 +2927,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "第 %@ 個，共 %@ 個；第一個是預設"
+          }
+        }
+      }
+    },
+    "%@ read-only tools (of %@)" : {
+      "comment" : "%@ 个只读工具（共 %@ 个）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Lese-Werkzeuge (von %@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ herramientas de solo lectura (de %@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ outils en lecture seule (sur %@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み取り専用ツール %@ 個（全 %@ 個）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "읽기 전용 도구 %@개 (전체 %@개)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ferramentas só de leitura (de %@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個唯讀工具（共 %@ 個）"
           }
         }
       }
@@ -2974,6 +3068,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "已儲存 %@ 個問題。"
+          }
+        }
+      }
+    },
+    "%@ settings" : {
+      "comment" : "%@ 项",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 項目"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@개 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 項"
+          }
+        }
+      }
+    },
+    "%@ settings you rarely change are in More Settings, in %@ groups; or just say what to change above." : {
+      "comment" : "不常改的 %@ 项在更多设置里，分成 %@ 组；不想找，就在上面直接说。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ selten geänderte Einstellungen sind unter Weitere Einstellungen, in %@ Gruppen; oder sag oben einfach, was du ändern möchtest."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes que rara vez cambias están en Más ajustes, en %@ grupos; o di arriba qué quieres cambiar."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ réglages que vous changez rarement sont dans Autres réglages, en %@ groupes ; ou dites simplement ci-dessus ce qu’il faut changer."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あまり変えない %@ 項目は「その他の設定」に %@ つのグループで入っています。探さずに、上で変えたいことを入力することもできます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자주 바꾸지 않는 설정 %@개는 추가 설정에 %@개 그룹으로 있습니다. 찾기 싫으면 위에 바꿀 내용을 그대로 말하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ ajustes que você raramente muda estão em Mais ajustes, em %@ grupos; ou diga acima o que mudar."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不常改的 %@ 項在更多設定裡，分成 %@ 組；不想找，就在上面直接說。"
           }
         }
       }
@@ -3444,6 +3632,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%1$@：它的檔案夾（%2$@）會移到垃圾桶，還可以從那裡放回來。"
+          }
+        }
+      }
+    },
+    "%@'s session can't use MCP servers yet." : {
+      "comment" : "%@ 的会话暂时不能用 MCP 服务器。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Die Sitzung von %@ kann noch keine MCP-Server nutzen."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La sesión de %@ aún no puede usar servidores MCP."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La session de %@ ne peut pas encore utiliser de serveurs MCP."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のセッションではまだ MCP サーバーを使えません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 세션에서는 아직 MCP 서버를 사용할 수 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A sessão do %@ ainda não pode usar servidores MCP."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的工作階段暫時不能用 MCP 伺服器。"
           }
         }
       }
@@ -4102,6 +4337,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "1 個更新"
+          }
+        }
+      }
+    },
+    "A checked server gives the AI chat its read-only tools only (search, read), never one that sends or changes anything. The servers come from %@'s own settings." : {
+      "comment" : "勾上的服务器，AI 对话只能用它的只读工具（搜索、读取），发送、修改的工具一律不给。服务器取自 %@ 自己的设置。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ein angehakter Server gibt dem KI-Chat nur seine Lese-Werkzeuge (suchen, lesen), nie eines, das etwas sendet oder ändert. Die Server stammen aus den eigenen Einstellungen von %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un servidor marcado da al chat de IA solo sus herramientas de lectura (buscar, leer), nunca una que envíe o cambie algo. Los servidores vienen de la configuración propia de %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un serveur coché ne donne au chat IA que ses outils en lecture seule (chercher, lire), jamais un outil qui envoie ou modifie quoi que ce soit. Les serveurs viennent des réglages de %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックしたサーバーは、読み取り専用のツール（検索・読み取り）だけを AI チャットに渡します。送信や変更をするツールは渡しません。サーバーは %@ 自身の設定から読み込みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체크한 서버는 읽기 전용 도구(검색, 읽기)만 AI 채팅에 넘기며, 무언가를 보내거나 바꾸는 도구는 절대 넘기지 않습니다. 서버 목록은 %@ 자체 설정에서 가져옵니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Um servidor marcado dá ao chat de IA só as ferramentas de leitura (buscar, ler), nunca uma que envie ou altere algo. Os servidores vêm das configurações do próprio %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾選的伺服器，AI 對話只能用它的唯讀工具（搜尋、讀取），傳送、修改的工具一律不給。伺服器取自 %@ 自己的設定。"
           }
         }
       }
@@ -5481,6 +5763,53 @@
         }
       }
     },
+    "After %@, type what you want" : {
+      "comment" : "%@ 后面，想说什么就打什么",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach %@ tippst du, was du willst"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Después de %@, escribe lo que quieras"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après %@, tapez ce que vous voulez"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ のあとは、言いたいことをそのまま入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 뒤에는 하고 싶은 말을 그대로 입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depois de %@, digite o que quiser"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 後面，想說什麼就打什麼"
+          }
+        }
+      }
+    },
     "After the languages, a press of Caps Lock away: rows of this language's keywords and snippets" : {
       "comment" : "在输入语言后面，按大写锁定键切到它：列出这种编程语言的关键字和代码片段",
       "localizations" : {
@@ -6663,6 +6992,53 @@
         }
       }
     },
+    "Already have your own AI?" : {
+      "comment" : "已经有自己的 AI？",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hast du schon eine eigene KI?"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "¿Ya tienes tu propia IA?"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Vous avez déjà votre propre IA ?"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の AI をもう持っていますか？"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이미 쓰는 AI가 있나요?"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Já tem sua própria IA?"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已經有自己的 AI？"
+          }
+        }
+      }
+    },
     "Also delete the %@ language pack?" : {
       "comment" : "也删除%@语言包？",
       "extractionState" : "stale",
@@ -7042,6 +7418,53 @@
         }
       }
     },
+    "API Key" : {
+      "comment" : "API Key",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API-Schlüssel"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clave de API"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Clé d’API"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API キー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chave de API"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "API Key"
+          }
+        }
+      }
+    },
     "API keys and passwords" : {
       "comment" : "API 密钥和密码",
       "extractionState" : "stale",
@@ -7180,6 +7603,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "API 金鑰和密碼會留在 iCloud 鑰匙圈中供你的其他 Mac 使用（也會拷貝到這台 Mac 上）；若要從你所有的 Mac 上移除某個金鑰，請在同步開啟時按該金鑰的「移除⋯」。"
+          }
+        }
+      }
+    },
+    "Apple on this Mac" : {
+      "comment" : "这台 Mac 上的 Apple",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple auf diesem Mac"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple en este Mac"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple sur ce Mac"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この Mac の Apple"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 Mac의 Apple"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple neste Mac"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這台 Mac 上的 Apple"
           }
         }
       }
@@ -8728,6 +9198,53 @@
         }
       }
     },
+    "Back to More Settings" : {
+      "comment" : "返回更多设置",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zurück zu Weitere Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volver a Más ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retour aux Autres réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他の設定に戻る"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 설정으로 돌아가기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Voltar para Mais ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回更多設定"
+          }
+        }
+      }
+    },
     "background" : {
       "comment" : "后台",
       "localizations" : {
@@ -9106,6 +9623,7 @@
     },
     "Change ▾" : {
       "comment" : "更换 ▾",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9200,6 +9718,7 @@
     },
     "Change the AI" : {
       "comment" : "更换 AI",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9717,6 +10236,53 @@
         }
       }
     },
+    "Check it to list its tools" : {
+      "comment" : "勾上后列出它的工具",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Anhaken, um seine Werkzeuge aufzulisten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Márcalo para ver sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cochez-le pour lister ses outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックするとツールを一覧します"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "체크하면 도구 목록을 가져옵니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marque para listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "勾選後列出它的工具"
+          }
+        }
+      }
+    },
     "Check Now" : {
       "comment" : "立即检查",
       "localizations" : {
@@ -9901,6 +10467,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檢查這台 Mac 上的設定，也可以描述遇到的問題讓 AI 幫你看。"
+          }
+        }
+      }
+    },
+    "Chinese typing" : {
+      "comment" : "中文输入方式",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chinesisch tippen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura en chino"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie du chinois"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中国語の入力方式"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중국어 입력 방식"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação em chinês"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中文輸入方式"
           }
         }
       }
@@ -11700,7 +12313,7 @@
       }
     },
     "Commands" : {
-      "comment" : "命令",
+      "comment" : "命令库",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -11742,6 +12355,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "指令"
+          }
+        }
+      }
+    },
+    "Commands and features" : {
+      "comment" : "命令与功能",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Befehle und Funktionen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos y funciones"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commandes et fonctions"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドと機能"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "명령과 기능"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comandos e recursos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "命令與功能"
           }
         }
       }
@@ -11883,6 +12543,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Commit"
+          }
+        }
+      }
+    },
+    "Common" : {
+      "comment" : "常用",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Häufig"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frecuentes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Courants"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "よく使う項目"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "자주 쓰는 항목"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Frequentes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "常用"
           }
         }
       }
@@ -12118,6 +12825,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補全沒有載入："
+          }
+        }
+      }
+    },
+    "Connect an AI" : {
+      "comment" : "接上 AI",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine KI verbinden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecta una IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connecter une IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI につなぐ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 연결하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Conecte uma IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "接上 AI"
           }
         }
       }
@@ -12541,6 +13295,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒能取得語言庫的列表："
+          }
+        }
+      }
+    },
+    "Couldn't list its tools" : {
+      "comment" : "没能列出它的工具",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge konnten nicht aufgelistet werden"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No se pudieron listar sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Impossible de lister ses outils"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールを一覧できませんでした"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오지 못했습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não foi possível listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒能列出它的工具"
           }
         }
       }
@@ -16329,6 +17130,53 @@
         }
       }
     },
+    "Get started with AllInOneIME" : {
+      "comment" : "开始使用 AllInOneIME",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Erste Schritte mit AllInOneIME"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empieza con AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bien démarrer avec AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME をはじめる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AllInOneIME 시작하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Comece a usar o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始使用 AllInOneIME"
+          }
+        }
+      }
+    },
     "Git address" : {
       "comment" : "Git 地址",
       "localizations" : {
@@ -17139,8 +17987,103 @@
         }
       }
     },
+    "In use" : {
+      "comment" : "正在使用",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In Verwendung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En uso"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utilisé"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用中"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "사용 중"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Em uso"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在使用"
+          }
+        }
+      }
+    },
+    "Input and keys" : {
+      "comment" : "输入与按键",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eingabe und Tasten"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada y teclas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie et touches"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力とキー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력과 키"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entrada e teclas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "輸入與按鍵"
+          }
+        }
+      }
+    },
     "Input Languages" : {
       "comment" : "输入语言",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17182,6 +18125,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "輸入語言"
+          }
+        }
+      }
+    },
+    "Input source now: " : {
+      "comment" : "现在的输入法：",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aktuelle Eingabequelle: "
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fuente de entrada actual: "
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Source de saisie actuelle : "
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在の入力ソース："
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "지금 입력 소스: "
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fonte de entrada atual: "
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在的輸入法："
           }
         }
       }
@@ -17844,6 +18834,53 @@
         }
       }
     },
+    "Interface and sync" : {
+      "comment" : "界面与同步",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oberfläche und Synchronisierung"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interfaz y sincronización"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interface et synchronisation"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示と同期"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "인터페이스와 동기화"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interface e sincronização"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "介面與同步"
+          }
+        }
+      }
+    },
     "It can't be chosen any more; by default each plugin or command says what goes in." : {
       "comment" : "现在不能再选它了；默认用插件或命令自己定的。",
       "localizations" : {
@@ -17934,6 +18971,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更新後它沒能自己重新啟動（%@），是之後才啟動的。"
+          }
+        }
+      }
+    },
+    "It needs a sign-in: such servers aren't supported yet" : {
+      "comment" : "它要登录，这种服务器暂不支持",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Er braucht eine Anmeldung: solche Server werden noch nicht unterstützt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Necesita iniciar sesión: estos servidores aún no son compatibles"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il demande une connexion : ces serveurs ne sont pas encore pris en charge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインが必要です。このようなサーバーにはまだ対応していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인이 필요합니다. 이런 서버는 아직 지원하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ele pede login: esses servidores ainda não são compatíveis"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "它要登入，這種伺服器暫不支援"
           }
         }
       }
@@ -19226,6 +20310,53 @@
         }
       }
     },
+    "Later" : {
+      "comment" : "稍后再说",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Später"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más tarde"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Plus tard"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あとで"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "나중에"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais tarde"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "稍後再說"
+          }
+        }
+      }
+    },
     "Learned" : {
       "comment" : "学到的内容",
       "localizations" : {
@@ -19458,6 +20589,100 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "學到的內容⋯"
+          }
+        }
+      }
+    },
+    "Listing its tools timed out" : {
+      "comment" : "列出工具超时",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Auflisten der Werkzeuge hat zu lange gedauert"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Se agotó el tiempo al listar sus herramientas"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "La liste de ses outils a expiré"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールの一覧がタイムアウトしました"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오는 시간이 초과되었습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tempo esgotado ao listar as ferramentas"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "列出工具逾時"
+          }
+        }
+      }
+    },
+    "Listing its tools…" : {
+      "comment" : "正在列出工具…",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Werkzeuge werden aufgelistet…"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listando sus herramientas…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Liste de ses outils…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ツールを一覧しています…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 목록을 가져오는 중…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listando as ferramentas…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在列出工具…"
           }
         }
       }
@@ -19788,6 +21013,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "管理訂閱"
+          }
+        }
+      }
+    },
+    "MCP Servers" : {
+      "comment" : "MCP 服务器",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP-Server"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servidores MCP"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Serveurs MCP"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP サーバー"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 서버"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Servidores MCP"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MCP 伺服器"
           }
         }
       }
@@ -20260,6 +21532,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多輸入語言即將推出"
+          }
+        }
+      }
+    },
+    "More Settings" : {
+      "comment" : "更多设置",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weitere Einstellungen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Más ajustes"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autres réglages"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他の設定"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "추가 설정"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mais ajustes"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多設定"
           }
         }
       }
@@ -21069,6 +22388,53 @@
         }
       }
     },
+    "No commands to remember. Once you've typed, it lists what it can do; ↑↓ choose one, Return does it. Try it below." : {
+      "comment" : "不用记命令。打完它会列出能帮你做的事，↑↓ 选一个，回车执行。在下面试一次。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine Befehle zum Merken. Nach dem Tippen zeigt es, was es tun kann; ↑↓ wählen, Return führt aus. Probier es unten aus."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay comandos que recordar. Al escribir, muestra lo que puede hacer; ↑↓ eligen uno y Retorno lo hace. Pruébalo abajo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucune commande à retenir. Une fois que vous avez tapé, il liste ce qu’il peut faire ; ↑↓ pour choisir, Retour pour le faire. Essayez ci-dessous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "コマンドを覚える必要はありません。入力すると、できることが一覧になります。↑↓ で選び、Return で実行。下で試してみてください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "외울 명령은 없습니다. 입력하면 할 수 있는 일이 나열됩니다. ↑↓로 고르고 Return으로 실행하세요. 아래에서 한번 해 보세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhum comando para decorar. Depois de digitar, ele lista o que pode fazer; ↑↓ escolhem, Return executa. Experimente abaixo."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不用記命令。打完它會列出能幫你做的事，↑↓ 選一個，Return 執行。在下面試一次。"
+          }
+        }
+      }
+    },
     "No extensions yet. Put scripts, extension bundles or Raycast Script Commands in a folder under Folders and sources…." : {
       "comment" : "还没有扩展。把脚本、扩展包或 Raycast 的脚本命令放进「文件夹和来源…」里的文件夹就行。",
       "localizations" : {
@@ -21348,6 +22714,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有符合的任務"
+          }
+        }
+      }
+    },
+    "No MCP servers in %@'s settings." : {
+      "comment" : "%@ 的设置里没有 MCP 服务器。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine MCP-Server in den Einstellungen von %@."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No hay servidores MCP en la configuración de %@."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun serveur MCP dans les réglages de %@."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ の設定に MCP サーバーがありません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 설정에 MCP 서버가 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Não há servidores MCP nas configurações do %@."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 的設定裡沒有 MCP 伺服器。"
           }
         }
       }
@@ -21819,6 +23232,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "不打錯字的 App："
+          }
+        }
+      }
+    },
+    "None of its %@ tools is read-only: none goes to the AI chat" : {
+      "comment" : "%@ 个工具都不是只读的，不会给 AI 对话",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keines seiner %@ Werkzeuge ist nur lesend: keines geht an den KI-Chat"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ninguna de sus %@ herramientas es de solo lectura: ninguna va al chat de IA"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Aucun de ses %@ outils n’est en lecture seule : aucun ne va au chat IA"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個のツールはどれも読み取り専用ではないため、AI チャットには渡しません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "도구 %@개 중 읽기 전용이 없어 AI 채팅에 넘기지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nenhuma das %@ ferramentas é só de leitura: nenhuma vai para o chat de IA"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 個工具都不是唯讀的，不會給 AI 對話"
           }
         }
       }
@@ -26459,8 +27919,56 @@
         }
       }
     },
+    "Press Control + Space, or choose AllInOneIME in the Input menu in the menu bar. Once you have, this goes on by itself." : {
+      "comment" : "按 Control + 空格，或在菜单栏的输入法菜单里选 AllInOneIME。切过去以后，这里自己往下走。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drück Control + Leertaste oder wähle AllInOneIME im Eingabemenü der Menüleiste. Danach geht es hier von selbst weiter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Control + Espacio o elige AllInOneIME en el menú de entrada de la barra de menús. Después, esto sigue solo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur Contrôle + Espace, ou choisissez AllInOneIME dans le menu Saisie de la barre des menus. Ensuite, ceci continue tout seul."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control + Space を押すか、メニューバーの入力メニューで AllInOneIME を選んでください。切り替えると、ここは自動で次に進みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Control + Space를 누르거나 메뉴 막대의 입력 메뉴에서 AllInOneIME를 고르세요. 바꾸면 여기는 저절로 다음으로 넘어갑니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Control + Espaço ou escolha AllInOneIME no menu de entrada da barra de menus. Depois disso, isto continua sozinho."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Control + 空白鍵，或在選單列的輸入法選單裡選 AllInOneIME。切過去以後，這裡自己往下走。"
+          }
+        }
+      }
+    },
     "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
       "comment" : "按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26502,6 +28010,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "按 Ctrl+Space 切換到它，然後在任何文字欄位中輸入 @improve。第一次使用時，請登入 AllInOneIME Cloud（每天 200 次免費要求）；或者在支援 Apple Intelligence 的 Mac 上，不需帳號即可使用它。"
+          }
+        }
+      }
+    },
+    "Press Ctrl+Space to switch to it. In any text field, type @, then whatever you want, and pick what to do from the list; Return does it. The first time, sign in to AllInOneIME Cloud (200 free requests a day); or, on a Mac with Apple Intelligence, use it with no account." : {
+      "comment" : "按 Ctrl+空格 切换到它。在任意输入框里先打 @，后面想说什么就打什么，再从列出的事里选一个，回车执行。第一次用时登录 AllInOneIME 云（每天 200 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wechsle mit Ctrl+Leertaste zu ihm. Tippe in einem beliebigen Textfeld @, dann, was du willst, und wähle in der Liste, was geschehen soll; Return führt es aus. Melde dich beim ersten Mal bei AllInOneIME Cloud an (200 kostenlose Anfragen pro Tag) oder nutze es auf einem Mac mit Apple Intelligence ohne Konto."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pulsa Ctrl+Espacio para cambiar a él. En cualquier campo de texto, escribe @, luego lo que quieras, y elige qué hacer en la lista; Retorno lo hace. La primera vez, inicia sesión en AllInOneIME Cloud (200 solicitudes gratis al día) o, en un Mac con Apple Intelligence, úsalo sin cuenta."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Appuyez sur Ctrl+Espace pour y passer. Dans n’importe quel champ de texte, tapez @, puis ce que vous voulez, et choisissez quoi faire dans la liste ; Retour le fait. La première fois, connectez-vous à AllInOneIME Cloud (200 requêtes gratuites par jour) ou, sur un Mac avec Apple Intelligence, utilisez-le sans compte."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Space で切り替えます。どの入力欄でも @ を打ち、続けて言いたいことを入力して、一覧からやりたいことを選びます。Return で実行。初回は AllInOneIME Cloud にサインイン（1 日 200 回まで無料）。Apple Intelligence に対応した Mac なら、アカウントなしでも使えます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ctrl+Space로 전환하세요. 아무 입력란에서나 @를 입력하고, 이어서 원하는 말을 입력한 뒤 목록에서 할 일을 고르세요. Return으로 실행합니다. 처음에는 AllInOneIME Cloud에 로그인하세요(하루 200회 무료). Apple Intelligence를 지원하는 Mac에서는 계정 없이도 쓸 수 있습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pressione Ctrl+Espaço para mudar para ele. Em qualquer campo de texto, digite @, depois o que quiser, e escolha o que fazer na lista; Return executa. Na primeira vez, entre no AllInOneIME Cloud (200 solicitações grátis por dia) ou, num Mac com Apple Intelligence, use-o sem conta."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按 Ctrl+空白鍵 切換到它。在任意輸入框裡先打 @，後面想說什麼就打什麼，再從列出的事裡選一個，Return 執行。第一次用時登入 AllInOneIME 雲（每天 200 次免費）；在支援 Apple Intelligence 的 Mac 上也可以用它，不用帳號。"
           }
         }
       }
@@ -30528,6 +32083,100 @@
         }
       }
     },
+    "Say what to change" : {
+      "comment" : "想改什么，直接说",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sag, was du ändern möchtest"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di qué quieres cambiar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dites ce qu’il faut changer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変えたいことをそのまま入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꿀 내용을 그대로 말하세요"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga o que mudar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想改什麼，直接說"
+          }
+        }
+      }
+    },
+    "Say what to change, e.g. translate into English and Japanese, candidates in a column" : {
+      "comment" : "想改什么，直接说，例如：翻译成英文和日文，候选竖排",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sag, was du ändern möchtest, z. B. ins Englische und Japanische übersetzen, Kandidaten untereinander"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Di qué quieres cambiar, p. ej. traducir al inglés y al japonés, candidatos en columna"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dites ce qu’il faut changer, p. ex. traduire en anglais et en japonais, candidats en colonne"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変えたいことをそのまま入力。例：英語と日本語に翻訳、候補を縦に並べる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "바꿀 내용을 그대로 말하세요. 예: 영어와 일본어로 번역, 후보를 세로로"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diga o que mudar, por exemplo: traduzir para inglês e japonês, candidatos em coluna"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "想改什麼，直接說，例如：翻譯成英文和日文，候選直排"
+          }
+        }
+      }
+    },
     "Search settings…" : {
       "comment" : "搜索设置…",
       "localizations" : {
@@ -31146,6 +32795,59 @@
         }
       }
     },
+    "settings.typing" : {
+      "comment" : "打字",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tippen"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Typing"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escritura"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saisie"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "입력"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Digitação"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打字"
+          }
+        }
+      }
+    },
     "Several separated by commas" : {
       "comment" : "几个词用逗号分开",
       "localizations" : {
@@ -31377,6 +33079,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用電子郵件登入 / 註冊"
+          }
+        }
+      }
+    },
+    "Sign in for 200 free requests a day, with no AWS or API key of your own." : {
+      "comment" : "登录后每天免费 200 次，不用自己的 AWS 或 API Key。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Melde dich an für 200 kostenlose Anfragen pro Tag, ohne eigenes AWS oder eigenen API-Schlüssel."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Inicia sesión y tendrás 200 solicitudes gratis al día, sin AWS ni clave de API propios."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Connectez-vous pour 200 requêtes gratuites par jour, sans AWS ni clé d’API à vous."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインすると 1 日 200 回まで無料。自分の AWS や API キーは要りません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "로그인하면 하루 200회 무료입니다. 직접 AWS나 API 키를 준비할 필요가 없습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Entre e tenha 200 solicitações grátis por dia, sem AWS ou chave de API próprias."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後每天免費 200 次，不用自己的 AWS 或 API Key。"
           }
         }
       }
@@ -31659,6 +33408,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "SiliconFlow"
+          }
+        }
+      }
+    },
+    "Skip" : {
+      "comment" : "跳过上手",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Überspringen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Omitir"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "スキップ"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "건너뛰기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pular"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳過上手"
           }
         }
       }
@@ -32934,6 +34730,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "補充內建詞庫；檔案需直接包含文字、拼音編碼和可選的數字權重，不支援依賴其他詞庫。再次匯入相同 name 會更新副本；只修改原檔案不會自動更新。副本只留在這台 Mac 上，不透過 iCloud 同步或傳給 AI。移除後已學到的詞會保留。"
+          }
+        }
+      }
+    },
+    "Switch to AllInOneIME" : {
+      "comment" : "先切到 AllInOneIME",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zu AllInOneIME wechseln"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cambia a AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Passer à AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まず AllInOneIME に切り替える"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 AllInOneIME로 전환"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mude para o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先切到 AllInOneIME"
           }
         }
       }
@@ -35684,6 +37527,53 @@
         }
       }
     },
+    "This connection (SSE) isn't supported yet" : {
+      "comment" : "这种连接方式（SSE）暂不支持",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Diese Verbindungsart (SSE) wird noch nicht unterstützt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexión (SSE) aún no es compatible"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cette connexion (SSE) n’est pas encore prise en charge"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この接続方式（SSE）にはまだ対応していません"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 연결 방식(SSE)은 아직 지원하지 않습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Esta conexão (SSE) ainda não é compatível"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這種連線方式（SSE）暫不支援"
+          }
+        }
+      }
+    },
     "This copy isn't the installed one (~/Library/Input Methods); download the installer instead." : {
       "comment" : "这份不是装好的那份（~/Library/Input Methods），请下载安装程序。",
       "localizations" : {
@@ -36907,6 +38797,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "再試一次"
+          }
+        }
+      }
+    },
+    "Try it" : {
+      "comment" : "试一试",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ausprobieren"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pruébalo"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Essayer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試してみる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "해 보기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Experimente"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試一試"
           }
         }
       }
@@ -39894,6 +41831,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "你的設定、行話詞庫、自訂指令和拼音學到的詞，在你所有的 Mac 上都一樣。只透過你自己的 iCloud 雲碟：不會傳送到我們的伺服器，也不需要另外登入。"
+          }
+        }
+      }
+    },
+    "Your subscription (Claude Code…)" : {
+      "comment" : "你的订阅（Claude Code 等）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dein Abo (Claude Code …)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tu suscripción (Claude Code…)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Votre abonnement (Claude Code…)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分のサブスクリプション（Claude Code など）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 구독(Claude Code 등)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sua assinatura (Claude Code…)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的訂閱（Claude Code 等）"
           }
         }
       }

@@ -609,9 +609,9 @@ struct SuggestionsTests {
                 #expect(try Config.load(from: url).suggestions == false)
                 #expect(service.document().field("suggestions")?.value == .bool(false))
                 #expect(service.document().field("codingLanguage")?.status
-                        == "Suggestions are off, so Code shows no rows: turn them on in General.")
+                        == "Suggestions are off, so Code shows no rows: turn them on in More Settings → Suggestions.")
                 #expect(service.document().field("plugins.completion.github.issues")?.status
-                        == "Suggestions are off, so these completions don't show: turn them on in General.")
+                        == "Suggestions are off, so these completions don't show: turn them on in More Settings → Suggestions.")
                 #expect((try? service.set("suggestions", to: .bool(true)).get()) != nil)
                 #expect(try Config.load(from: url).suggestions == nil)
             }

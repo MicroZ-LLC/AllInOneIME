@@ -134,6 +134,39 @@ public struct ACPBackend: SessionBackend {
                   permissionFiles: files.filter(\.enforced))
     }
 
+    /// Kiro's: an agent config of its own for the MCP servers (`kiroMCPAgent`), its mode then; any other ACP agent's
+    /// session has none.
+    public func mcpFiles(_ mcp: SessionMCP) -> [SessionFile] {
+        guard agent == .kiro else { return [] }
+        return [SessionFile(path: ".kiro/agents/\(Self.kiroMCPMode).json", content: mcp.isEmpty ? "" : Self.kiroMCPAgent(mcp))]
+    }
+
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb,
+                       mcp: SessionMCP) -> any SessionDriver {
+        let files = mcpFiles(mcp).filter { !$0.content.isEmpty }
+        guard web == .open, !files.isEmpty else {
+            return driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: web)
+        }
+        return ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: Self.kiroMCPMode,
+                         permissionFiles: self.files.filter(\.enforced) + files)
+    }
+
+    /// The mode of Kiro's session with MCP servers (`kiroMCPAgent`).
+    public static let kiroMCPMode = "allinoneime-mcp"
+
+    /// Kiro's agent config with `mcp`'s servers: the web tools and the servers' read-only tools, allowed without asking,
+    /// nothing else (`kiroAgent`'s otherwise).
+    static func kiroMCPAgent(_ mcp: SessionMCP) -> String {
+        let tools = ["web_search", "web_fetch"] + mcp.kiroTools
+        return SessionMCP.json([
+            "name": kiroMCPMode,
+            "description": "The input method's own session: answers questions, may read the web and the MCP servers checked in its settings.",
+            "tools": tools, "allowedTools": tools, "resources": ["file://.kiro/steering/**/*.md"],
+            "mcpServers": mcp.kiroServers, "includeMcpJson": false,
+            "permissions": ["rules": [["capability": "web_fetch", "effect": "allow"], ["capability": "web_search", "effect": "allow"]]],
+        ])
+    }
+
     /// Its web tools off (any `only`) in its offline mode or launch; one with neither can't have them off.
     public func effective(_ web: SessionWeb) -> SessionWeb? {
         guard case .only = web else { return .open }
@@ -162,7 +195,7 @@ final class ACPDriver: SessionDriver {
     }
 
     private let directory: URL
-    private let mode: String?
+    let mode: String?
     private let permissionFiles: [SessionFile]
     /// The agent's id of the session: the one to load, then the one open.
     private var agentSessionID: String?

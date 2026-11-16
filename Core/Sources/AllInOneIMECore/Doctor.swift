@@ -503,8 +503,8 @@ public enum Doctor {
         let t = Words(language: language)
         if let error {
             return [Finding(area: .config, status: .problem, title: t.tr("config.json 读不了", "config.json can't be read"),
-                            detail: error + t.tr("（打开设置 → 高级 → 配置文件修正它；不会自动删除）",
-                                                 " (fix it in the file, Settings → Advanced; it's never deleted for you)"))]
+                            detail: error + t.tr("（打开设置 →「更多设置」→「高级」→ 配置文件修正它；不会自动删除）",
+                                                 " (fix it in the file, Settings → More Settings → Advanced; it's never deleted for you)"))]
         }
         guard let config else { return [] }
         var out: [Finding] = []
@@ -535,8 +535,8 @@ public enum Doctor {
                                    : t.tr("高级设置里的值超出范围", "An Advanced setting is out of range"),
                                detail: mac ? t.tr("在设置 → AI 里恢复默认（最多输出 tokens、超时、temperature）",
                                                   "restore its default in Settings → AI (output tokens, timeout, temperature)")
-                                   : t.tr("在设置 → 高级里改（最多输出 tokens、超时、temperature）",
-                                          "change it in Settings → Advanced (output tokens, timeout, temperature)")))
+                                   : t.tr("在设置 → AI 里改（最多输出 tokens、超时、temperature）",
+                                          "change it in Settings → AI (output tokens, timeout, temperature)")))
         }
         if config.outputLanguages.count > AIConfig.maxOutputLanguages {
             let kept = config.outputLanguages.prefix(AIConfig.maxOutputLanguages).map { AIConfig.JSONValue.string($0.code) }
@@ -672,8 +672,8 @@ public enum Doctor {
         case providedLunarDatabase:
             event = t.tr("之前运行 Rime 时缺少 lua/lunar.db；此版本已提供该文件", "Earlier Rime run: lua/lunar.db was missing; this version provides it")
         case failedOpenCC:
-            event = t.tr("Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「输入」→ 中文的「字形」里选「简体」",
-                         "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Input → Chinese → Characters")
+            event = t.tr("Rime：繁体字的转换数据（OpenCC）缺少或读不出来；请重新安装 AllInOneIME（先删掉你自己放进 Rime 用户目录 opencc 文件夹里的文件），或在设置 →「常用」→「字形」里选「简体」",
+                         "Rime: the data for Traditional characters (OpenCC) is missing or can't be read; reinstall AllInOneIME (first remove any files of your own from the Rime folder's opencc), or choose Simplified under Settings → Common → Characters")
         case providedOpenCC:
             event = t.tr("之前运行 Rime 时用不了繁体字的转换数据（OpenCC）；此版本已提供", "Earlier Rime run: the data for Traditional characters (OpenCC) couldn't be used; this version provides it")
         case unusedOpenCC:
