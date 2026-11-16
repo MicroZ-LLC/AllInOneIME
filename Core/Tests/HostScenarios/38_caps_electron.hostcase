@@ -1,0 +1,9 @@
+NAME delayed duplicate Electron Caps Lock events switch only once
+PROFILES electron
+LANG chinese
+SET switchKey capsLock
+TEXT "|"
+KEY capslock
+WAIT 300ms
+EXPECT lang english
+EXPECT switches 1

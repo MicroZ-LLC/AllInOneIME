@@ -1,0 +1,7 @@
+NAME duplicate Chromium Shift events switch only once
+PROFILES chromium
+LANG chinese
+TEXT "|"
+KEY shift
+EXPECT lang english
+EXPECT switches 1

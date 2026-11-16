@@ -1,0 +1,8 @@
+NAME Shift with a letter types a capital without switching
+PROFILES all
+LANG english
+TEXT "|"
+KEY shift+a
+EXPECT doc "A"
+EXPECT lang english
+EXPECT switches 0

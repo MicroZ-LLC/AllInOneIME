@@ -13,6 +13,8 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). ⌘⏎ still shows the choices.
 
+- What you're typing (pinyin, a command such as `@improve …` or `@question …`, an `@note`, Code's word) shows only on the top line of the candidate box, with its cursor, in every app, as Squirrel's `inline_preedit: false` does; nothing is shown in the text field until you pick, insert or run it. The candidate box sits at the cursor.
+
 - Japanese is its own language: a selected or pasted text with kana in it (`東京駅で待ってます`, `ありがとう`) is no longer taken for Chinese or English. `@translate` translates it into your languages, Chinese and English included (before, a Chinese user's `@translate` never gave Chinese); `@improve` rewrites it in Japanese (before, it came back in Chinese); one @ on it puts Translate first; the line under the command says so (`translate to English, Chinese`). Kanji alone still count as Chinese.
 - One @ tells questions better: `@过几天再说`, `@没过几天就忘了`, `@我几乎忘了`, `@没什么`, `@哪怕下雨也去` are no longer taken for questions (Improve first, not Ask AI), and `@what's the capital of Peru`, `@how's it going`, `@did you see my email` are, without a `?`, and so are `@你学过几年中文` and `@你去过几次北京`.
 - Korean pasted on several lines into a command (⌘V, ⌃V) gets a space between the lines, as English does; Chinese and Japanese lines are still joined without one. The same for a screenshot's message lines in `@reply`.
@@ -28,7 +30,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
-- Leaving a text field while pinyin is still being typed no longer puts the first candidate in: switching to another app, clicking into another app, closing the window, or clicking into another field from a multi-line text view leaves nothing of the pinyin there, and the candidate box goes. Brave, Chrome and other Chromium apps still keep the pinyin as shown ("ni hao") when you click elsewhere or switch apps, and so does a single-line field when you click into another one: they put it in themselves before the input method is told, and the input method now adds nothing after it. With Accessibility allowed, it also tries to drop the pinyin on the mouse down, before the app has the click.
+- Leaving a text field while pinyin is still being typed leaves nothing of it there, in every app: clicking anywhere (into another field, elsewhere in the same field, another app), switching apps, or closing the window or tab drops the pinyin not yet picked, and the candidate box goes. Before, the first candidate went in, and Brave, Chrome, Slack and other Chromium apps, and single-line fields, put the pinyin in as shown ("ni hao") themselves (GitHub #116, #115). A click also drops a command being written (`@improve …`), nothing of it put in.
 
 - In Chinese pinyin mode, typing `.`, `,` or `:` immediately after an ASCII digit keeps it ASCII: `3.14`, `10:30` and `1,000` type as shown. A click, caret move, selection or paste ends that digit context when the field cannot be read.
 

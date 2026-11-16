@@ -47,6 +47,11 @@ Magic key (Settings → General): typed at the start of a sentence, it opens the
 
 「魔法键」（设置 →「通用」）：打在句首就打开命令列表，⌥1、⌥2……执行它的行（单按数字是文字）。默认 @，也可选 # % & * + | ~（常在聊天里 @ 人就换一个，命令随之变成 ~improve 这样）。紧跟在字母、数字、. _ - 后面的 @（邮箱）照常上屏。「执行键」（设置 →「通用」）：执行命令的键，默认 ⏎。点它，再按单按 ⌥、⌥空格、空格或带 ⌃ ⌥ ⌘ 的快捷键；「恢复 ⏎」还原。⏎ 始终也能用，⌘⏎ 也一样（在 @note 上就是存笔记）。还没执行的命令不会原样上屏：离开输入框、换到密码框或按别的 ⌘ 快捷键（⌘A、⌘S…）会丢掉它；⇧⏎ 才原样上屏；⌘V 在哪个 App 里都贴进命令，终端也是。已经执行的命令离开输入框时也什么都不上屏：它会停下。
 
+## What you type shows in the panel / 正在打的字显示在面板里
+What you're typing (pinyin, a command, a note) shows only on the panel's top line, with its cursor, never in the text field: the field gets text only when you pick, insert or run it. Leaving the field while typing (a click anywhere, another app, closing the window) drops the pinyin not yet picked.
+
+正在打的内容（拼音、命令、笔记）只显示在面板最上面一行，带着光标，从不显示在输入框里：选词、上屏或执行时才进输入框。打字时离开输入框（点任何地方、换 App、关窗口），还没选的拼音就丢掉。
+
 ## Panels and their keys / 面板和按键
 All panels work alike (commands, suggestions, clipboard history): the first row is chosen, ↑↓ move, ⏎ or Tab inserts it, → or Esc close it and give the keys back. A command's list (@open, @tasks, an extension's) and clipboard history: 5 rows a page, ← → turn it. On results, Space or ⏎ inserts the highlighted one (@question: ⇧⏎), a digit that one (0 the original), ⇧⏎ with nothing typed what you typed, ⌘C copies. To refine, type an instruction ("shorter") and press ⇧⏎; Esc steps back. Use the selected text: a command works on the selection, the result replaces it. Type results out: letter by letter, Esc stops. Settings → Input → Show key hints: off hides footer keys.
 

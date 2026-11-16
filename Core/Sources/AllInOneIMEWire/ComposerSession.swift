@@ -65,9 +65,10 @@ public struct WirePeer: Equatable, Sendable {
 
 /// One text field's session, run by the core's `Composer`: the adapter until `InputSession` (plan step 8) exists (§11).
 /// It builds the Composer's key events from `WindowsKeyCodes`, feeds it the field's context, does the Mac input
-/// controller's checks before a key, and maps the Composer's effects to outputs: the marked text to `composition`
-/// (UTF-16 caret; `draft`, or `converted` at level two; none while the draft is in the panel), the commits to `commit`,
-/// the panel to the engine's own and to `panel` when that changes; the rest goes to the `WireHost`.
+/// controller's checks before a key, and maps the Composer's effects to outputs: the commits to `commit`, the panel to the
+/// engine's own and to `panel` when that changes; the rest goes to the `WireHost`. What is being typed is never sent as a
+/// `composition`: the panel's input line shows it, as on every platform (`InputSession+Preedit.swift`), so the panel is
+/// up while there is any.
 ///
 /// Only used on its connection's queue.
 public final class ComposerSession: @unchecked Sendable {
@@ -94,17 +95,12 @@ public final class ComposerSession: @unchecked Sendable {
     /// Logs, sizes and kinds only (never text).
     let log: @Sendable (String) -> Void
 
-    /// The composition the document has, as we last set it (empty: none).
-    private var documentComposition = ComposerSession.noComposition
     /// The client's panel state, as we last told it.
     private var panelShown = false
-    private var markedWatch = MarkedTextWatch()
     private var secureNoticeShown = false
     private var alive = true
     /// Whether the client's process owned the foreground when the key being handled arrived (asked once, when needed).
     private var keyInForeground: Bool?
-
-    static let noComposition = Output.composition(text: "")
 
     public init(sid: UInt32, field: WireField, peer: WirePeer, composer: Composer, host: WireHost, allowsForeground: Bool,
                 enqueue: @escaping @Sendable (@escaping @Sendable () -> Void) -> Void,
@@ -144,8 +140,6 @@ public final class ComposerSession: @unchecked Sendable {
         focusSerial = serial
         if !isFocused {
             isFocused = true
-            documentComposition = Self.noComposition
-            markedWatch.reset()
             secureNoticeShown = false
             context = nil
             host.sessionFocused(self)
@@ -153,13 +147,12 @@ public final class ComposerSession: @unchecked Sendable {
         return outputs
     }
 
-    /// `blur` (§4): the Composer's policy, `commitAll`: pending text goes in (a command not run yet goes), running requests
-    /// stop.
+    /// `blur` (§4): the Composer's policy, `leaveField`: pinyin not yet confirmed goes, a command not run yet goes, the rest
+    /// of what is pending goes in, running requests stop.
     func blur() -> [Output] {
         guard isFocused else { return [] }
-        let outputs = map(composer.commitAll(), from: .async) + hidePanel()
+        let outputs = map(composer.leaveField(), from: .async) + hidePanel()
         isFocused = false
-        documentComposition = Self.noComposition
         return outputs
     }
 
@@ -178,14 +171,10 @@ public final class ComposerSession: @unchecked Sendable {
     }
 
     /// `endComposition` (§5.5): the app ended our composition ("terminated": what is pending goes in, or a command not run
-    /// yet goes, as `commitAll` has it), or the client gave up on a key ("timeout"). After a timeout the client has ended
-    /// the composition itself, leaving the draft as typed in the document (`composition.typed`), and the app has had the
-    /// key since: the draft starts over and the panel goes, with no composition sent, since an empty one would remove that
-    /// text.
+    /// yet goes, as `commitAll` has it), or the client gave up on a key ("timeout"). After a timeout the app has had the
+    /// key: the draft starts over and the panel goes.
     func endComposition(reason: String) -> [Output] {
         guard reason == "timeout" else { return map(composer.commitAll(), from: .async) + hidePanel() }
-        documentComposition = Self.noComposition
-        markedWatch.reset()
         return map(composer.appTookMarkedText(), from: .async) + hidePanel()
     }
 
@@ -225,19 +214,6 @@ public final class ComposerSession: @unchecked Sendable {
             return (false, gate)
         }
         secureNoticeShown = false
-        // The app took our composition without saying so (§5.1 `comp`): start over rather than set it again, doubled.
-        // This key is dropped, so ⏎ doesn't send half a sentence.
-        if let ctx = frame.ctx, composer.isComposing, !composer.draftInPanel {
-            let expected = compositionText
-            if markedWatch.appTookText(expected: expected, reportedLength: ctx.comp) {
-                log("session \(sid): the app took the composition: starting over")
-                let outputs = map(composer.appTookMarkedText(), from: .key)
-                documentComposition = Self.noComposition
-                markedWatch.reset()
-                return (true, outputs)
-            }
-            markedWatch.didSet(expected: expected, reportedLength: ctx.comp)
-        }
         // The selection a command is written on changed (a click, the app's own keys): the command is given up.
         if let written = composer.selection?.range, let now = frame.ctx?.selection, now != written {
             log("session \(sid): the selection moved under a command: given up")
@@ -298,34 +274,19 @@ public final class ComposerSession: @unchecked Sendable {
         for effect in effects {
             switch effect {
             case .updateMarkedText:
-                let composition = currentComposition
-                if composition != documentComposition {
-                    outputs.append(composition)
-                    documentComposition = composition
-                }
+                // Nothing goes in as a composition: the panel's input line shows what is typed, unless the panel follows.
+                if !effects.contains(.showPanel), !effects.contains(.hidePanel) { outputs += panel(shown: composer.wantsPanel || composing) }
             case let .commit(text), let .replaceSelection(text, _):
                 outputs.append(.commit(text: text))
-                documentComposition = Self.noComposition
             case let .commitAfterKey(text):
                 outputs.append(.commit(text: text, afterKey: true))
-                documentComposition = Self.noComposition
             case let .typeOut(text):
                 // Typed out step by step (`apply` pushes, each after the last `applied`) comes later: in one go now.
                 outputs.append(.commit(text: text))
-                documentComposition = Self.noComposition
             case .showPanel:
-                host.panel(shown: true, in: self)
-                if !panelShown {
-                    panelShown = true
-                    outputs.append(.panel(shown: true))
-                }
+                outputs += panel(shown: true)
             case .hidePanel:
-                host.panel(shown: false, in: self)
-                if panelShown {
-                    panelShown = false
-                    caret = nil
-                    outputs.append(.panel(shown: false))
-                }
+                outputs += panel(shown: composing)  // the input line stays while something is typed
             default:
                 if let refusal = refusal(of: effect, from: origin) {
                     outputs += refuse(effect, refusal, from: origin)
@@ -349,22 +310,17 @@ public final class ComposerSession: @unchecked Sendable {
         return [.panel(shown: false)]
     }
 
-    /// The composition for the Composer's marked text now, with the draft as typed when that isn't what is shown.
-    private var currentComposition: Output {
-        guard !composer.draftInPanel else { return Self.noComposition }
-        let text = composer.markedText
-        guard !text.isEmpty else { return Self.noComposition }
-        let caret = String(text.prefix(max(composer.markedCursor, 0))).utf16.count
-        let style = composer.isLevelTwo ? Segment.Style.converted : Segment.Style.draft
-        let typed = composer.textAsTyped
-        return .composition(text: text, caret: caret, segments: [Segment(from: 0, to: text.utf16.count, style: style)],
-                            typed: typed.isEmpty || typed == text ? nil : typed)
+    /// The engine's panel shown (drawn again) or hidden, and `panel` when that changes.
+    private func panel(shown: Bool) -> [Output] {
+        host.panel(shown: shown, in: self)
+        guard shown != panelShown else { return [] }
+        panelShown = shown
+        if !shown { caret = nil }
+        return [.panel(shown: shown)]
     }
 
-    private var compositionText: String {
-        if case let .composition(text, _, _, _) = documentComposition { return text }
-        return ""
-    }
+    /// Something is being typed: the panel's input line shows it (`SessionText.panelInput`).
+    private var composing: Bool { SessionText.panelInput(composer) != nil }
 
     // MARK: - Trust (§8)
 

@@ -1,0 +1,6 @@
+NAME a zero-length report with a caret at zero reads empty before text
+PROFILES chromium electron
+LANG english
+TEXT "|hello world"
+EXPECT context before ""
+# QUESTION: The contract has no EXPECT context after; how should this assert that "hello world" after the caret was read?

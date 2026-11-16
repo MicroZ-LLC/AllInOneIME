@@ -28,24 +28,17 @@ public struct FieldReading {
     public var selectionMayBeUntold: ((IMKTextInput?, _ chromium: Bool) -> Bool)?
     /// Whether an app (a bundle id) is built on Chromium or Electron (`ChromiumApps`).
     public var chromiumApp: (String?) -> Bool
-    /// What the field reported of the marked text when it was set (`MarkedTextWatch`), and the marked text the composer
-    /// has now (asked only where the session wants to know whether the app took it).
-    public var markedWatch: MarkedTextWatch
-    public var markedText: () -> String
 
     public init(isTerminal: @escaping (String?) -> Bool, secureInputActive: @escaping () -> Bool,
                 blocksComposing: @escaping (IMKTextInput?) -> Bool = { _ in false }, passwordField: @escaping () -> Bool? = { false },
                 selectionMayBeUntold: ((IMKTextInput?, _ chromium: Bool) -> Bool)? = nil,
-                chromiumApp: @escaping (String?) -> Bool = { _ in false },
-                markedWatch: MarkedTextWatch = MarkedTextWatch(), markedText: @escaping () -> String = { "" }) {
+                chromiumApp: @escaping (String?) -> Bool = { _ in false }) {
         self.isTerminal = isTerminal
         self.secureInputActive = secureInputActive
         self.blocksComposing = blocksComposing
         self.passwordField = passwordField
         self.selectionMayBeUntold = selectionMayBeUntold
         self.chromiumApp = chromiumApp
-        self.markedWatch = markedWatch
-        self.markedText = markedText
     }
 
     /// The longest selection read, in UTF-16 units: a longer one isn't read (the command is then marked in the field as
@@ -78,9 +71,6 @@ public struct FieldReading {
             let told = passwordField()
             context.field?.secure = told == true
             context.passwordFieldUnknown = told == nil
-        }
-        if parts.contains(.markedText), let target {
-            context.markedTextTaken = markedWatch.appTookText(expected: markedText(), reportedLength: Self.markedLength(target))
         }
         if parts.contains(.selectedRange) { context.selectedRange = target.flatMap { Self.range($0.selectedRange()) } }
         if parts.contains(.selection) {

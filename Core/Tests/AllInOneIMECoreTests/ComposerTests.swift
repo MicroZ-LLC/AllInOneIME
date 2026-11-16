@@ -1502,19 +1502,8 @@ struct ComposerTests {
         #expect(c.markedText == "improve › 你好stock › AAPL ＠bob")
     }
 
-    @Test func aTakenCompositionStartsOver() {
-        // An app that reports its marked text: taken when it reports none while a draft is pending.
-        var watch = MarkedTextWatch()
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: nil))  // never seen it report: unknown
-        watch.didSet(expected: "improve › 你好", reportedLength: 12)
-        #expect(watch.appReportsMarkedText)
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: 12))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: 0))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: nil))
-        #expect(!watch.appTookText(expected: "", reportedLength: nil))  // nothing pending
-        watch.reset()
-        #expect(!watch.appTookText(expected: "x", reportedLength: nil))
-        // The composer then forgets the draft: nothing inserted, nothing sent, the panel hidden.
+    @Test func aCancelledCompositionStartsOver() {
+        // The app cancelled the composition: the composer forgets the draft, nothing inserted, nothing sent, the panel hidden.
         let (c, e) = composer(key: .enter)
         _ = c.handleKeyDown(at)
         type("q", c)

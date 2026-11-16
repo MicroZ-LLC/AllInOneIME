@@ -3,8 +3,7 @@ import Foundation
 private struct SessionSendableBox<Value>: @unchecked Sendable { let value: Value }
 
 /// One text field's input session, the same on every platform: the `Composer`, and what goes on around it. Before a key:
-/// secure input (nothing composed, keys go straight in), the app taking the marked text on its own, the settings and the
-/// commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
+/// secure input (nothing composed, keys go straight in), the settings and the commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
 /// becomes what the shell does (`SessionOutput`) or work the session starts (`SessionTasks`): level two's requests,
 /// refused during secure input; script extensions and lists; `@open`'s searches; notes, reminders, messages, agents, the
 /// web page; the notices and the candidate panel (`PanelPresenter`).
@@ -26,6 +25,8 @@ public final class InputSession {
     public private(set) var field = FieldInfo()
     /// The notice up now ("已复制" …), on the panel's footer or on its own; it expires (`SessionOutput.startTimer`).
     public var notice: String?
+    /// What was being typed when the panel was last told (`followPreedit`).
+    var preeditShown: PanelModel.Input?
     /// How long the last result took, whether it came from the cache, how many values its request hid from the AI
     /// (`Redaction`), whether an `@question` conversation was shortened to fit the model: the panel says so.
     public private(set) var lastElapsed: TimeInterval?
@@ -248,11 +249,8 @@ public final class InputSession {
                 fieldSession += 1
                 fieldText = nil
                 lastTyped.forget()
-            case .commit, .cancel:
-                autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
-                clipboardLeft()
-                // Cancelled: nothing pending goes in, as when the app took it (`appTookMarkedText`).
-                if case .cancel = event { perform(composer.appTookMarkedText() + [.updateMarkedText]) } else { perform(composer.leaveField()); suggestionsClicked() }
+            case .commit, .cancel, .pointerDown:
+                left(event)
                 lastTyped.forget()
             case let .pick(row):
                 // Clipboard history's rows and suggestions' put in what a click picks.
@@ -344,11 +342,17 @@ public final class InputSession {
         body()
         depth -= 1
         guard depth == 0 else { return [] }
+        followPreedit()
         defer { outputs = [] }
         return outputs
     }
 
     func emit(_ output: SessionOutput) {
+        var output = output
+        if case let .panel(model) = output {
+            output = .panel(withPreedit(model))
+            preeditShown = SessionText.panelInput(composer)
+        }
         outputs.append(output)
         autocompleteFollow(output)  // what goes into the field, for a kept suggestion on the key
     }
@@ -933,7 +937,6 @@ public final class InputSession {
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
         if suggestionsWantPasswordField() { wants.insert(.passwordField) }
-        if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
@@ -1017,16 +1020,6 @@ public final class InputSession {
         if learningAsksPasswordField(for: event, in: context.field ?? field) {
             passwordFieldAsked = fieldSession
             emit(.readPasswordField(focus: fieldSession))
-        }
-        // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than show the draft
-        // again, doubled. This key is dropped, so ⏎ doesn't send half a sentence. (A command on the selection marks
-        // nothing in the field: there's nothing for the app to take.)
-        if composer.isComposing, !composer.draftInPanel, context.markedTextTaken {
-            log.notice("the app took the marked text: starting over")
-            autocomplete.known = nil  // the field has text the session didn't put in
-            perform(composer.appTookMarkedText())
-            lastTyped.forget()
-            return true
         }
         // One @ while the selection after the "@" key is read: a key that neither edits the draft nor is parked for the read
         // settles it as none first (`Composer.whileSelectionIsRead`), whatever takes it then.
@@ -1254,10 +1247,7 @@ public final class InputSession {
         for effect in effects {
             switch effect {
             case .updateMarkedText:
-                // A command on the selection is written in the panel: the field keeps its selection, nothing marked over it.
-                guard !composer.draftInPanel else { break }
-                let text = composer.markedText
-                emit(.marked(text, cursor: String(text.prefix(composer.markedCursor)).utf16.count, converted: composer.isLevelTwo))
+                break  // nothing is marked in the field: the panel's input line follows it (`followPreedit`)
             case let .inputLanguageChanged(language):
                 emit(.keyboardLayout)
                 if language != .english || composer.coding, englishWords != nil {
@@ -2007,8 +1997,10 @@ public final class InputSession {
     // MARK: - The candidate panel and notices
 
     /// The candidate panel as it is now: clipboard history's while it shows, suggestions' rows where they show, else the
-    /// composer's (`PanelPresenter`).
-    public func panelModel() -> PanelModel { clipboardPanel() ?? suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
+    /// composer's (`PanelPresenter`); with the input line while something is being typed (`withPreedit`).
+    public func panelModel() -> PanelModel {
+        withPreedit(clipboardPanel() ?? suggestionsShownPanel() ?? panelPresenter().model(for: composer)) ?? PanelModel()
+    }
 
     /// Suggestions' panel, where it is the one shown: the rows with nothing composed.
     private func suggestionsShownPanel() -> PanelModel? {
@@ -2028,13 +2020,14 @@ public final class InputSession {
                               chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }
 
-    private func showPanel() {
+    func showPanel() {
         emit(.panel(shownPanel()))
     }
 
     /// The panel to show now: `panelModel` where the composer wants one or clipboard history shows, else suggestions'
-    /// rows where they are the one shown (what `panelModel` would be then); nil: none.
-    private func shownPanel() -> PanelModel? {
+    /// rows where they are the one shown (what `panelModel` would be then); nil: none (the input line alone while
+    /// something is being typed: `withPreedit`).
+    func shownPanel() -> PanelModel? {
         composer.wantsPanel || clipboard.shown ? panelModel() : suggestionsShownPanel()
     }
 

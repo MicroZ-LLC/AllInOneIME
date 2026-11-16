@@ -11,6 +11,8 @@ struct HostCase: Sendable, CustomStringConvertible {
     var source = ""
     var profiles: [HostProfile] = HostProfile.allCases
     var language: Language = .chinese
+    /// `SET <configKey> <value>` lines (contract v1.1): the config the field starts with.
+    var settings: [(key: String, value: String)] = []
     var field = HostText()
     var steps: [Step] = []
 
@@ -43,6 +45,8 @@ struct HostCase: Sendable, CustomStringConvertible {
     enum Expectation: Sendable {
         case doc(String)
         case marked(String?)
+        /// The panel's input line (its prompt and text), its caret where the text has a `|` (contract v1.3); nil: none.
+        case preedit(String?, caret: Int?)
         case panel(shown: Bool)
         case language(Language)
         /// What autocomplete and the AI would read before the caret; nil: nothing (unreadable).
@@ -171,6 +175,10 @@ extension HostCase {
             switch directive.uppercased() {
             case "NAME": scenario.name = rest
             case "PROFILES": scenario.profiles = try profiles(rest, fail: fail)
+            case "SET":
+                let (key, value) = split(rest)
+                guard !key.isEmpty, !value.isEmpty else { throw fail("SET <configKey> <value>") }
+                scenario.settings.append((key, value))
             case "LANG":
                 guard let language = language(rest) else { throw fail("LANG is chinese or english, not \(rest)") }
                 scenario.language = language
@@ -228,6 +236,11 @@ extension HostCase {
         switch what {
         case "doc": return .doc(try quoted(rest, fail: fail))
         case "marked": return .marked(rest == "none" ? nil : try quoted(rest, fail: fail))
+        case "preedit":
+            guard rest != "none" else { return .preedit(nil, caret: nil) }
+            let line = try quoted(rest, fail: fail)
+            let caret = line.firstIndex(of: "|").map { line.distance(from: line.startIndex, to: $0) }
+            return .preedit(line.replacingOccurrences(of: "|", with: ""), caret: caret)
         case "panel":
             guard rest == "shown" || rest == "hidden" else { throw fail("EXPECT panel shown | hidden") }
             return .panel(shown: rest == "shown")
