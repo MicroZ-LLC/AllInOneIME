@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -19,8 +20,7 @@ struct WeekStatsStoreKeepingTests {
     private static let instant = calendar().date(from: DateComponents(year: 2026, month: 11, day: 10, hour: 12))!
 
     private static func tempRoot() throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("week-stats-keeping-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("week-stats-keeping-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }

@@ -13,9 +13,35 @@ public struct ConverseRequest: Encodable, Equatable, Sendable {
     public struct Message: Encodable, Equatable, Sendable {
         public var role: String
         public var content: [Text]
+        /// A screenshot sent with the text (`PromptImage`), only to a model that can see it (`Provider.seesImages`):
+        /// before the text, as `{"image": {"format": …, "source": {"bytes": base64}}}` blocks.
+        public var images: [PromptImage] = []
+
         public init(role: String, text: String) {
             self.role = role
             self.content = [Text(text)]
+        }
+
+        private enum Keys: String, CodingKey { case role, content }
+
+        private struct ImageBlock: Encodable {
+            struct Image: Encodable {
+                struct Source: Encodable { var bytes: String }
+                var format: String
+                var source: Source
+            }
+
+            var image: Image
+        }
+
+        public func encode(to encoder: Encoder) throws {
+            var container = encoder.container(keyedBy: Keys.self)
+            try container.encode(role, forKey: .role)
+            var blocks = container.nestedUnkeyedContainer(forKey: .content)
+            for image in images {
+                try blocks.encode(ImageBlock(image: .init(format: image.format, source: .init(bytes: image.base64))))
+            }
+            for text in content { try blocks.encode(text) }
         }
     }
 

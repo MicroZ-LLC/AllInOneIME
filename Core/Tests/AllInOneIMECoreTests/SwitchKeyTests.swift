@@ -85,7 +85,7 @@ struct SwitchKeyTests {
     // MARK: The settings document
 
     @Test func underTheInputLanguagesOnTheMacOnly() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("switch-key-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("switch-key-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")

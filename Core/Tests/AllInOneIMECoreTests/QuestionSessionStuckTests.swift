@@ -8,7 +8,7 @@ import Testing
 /// web; what Terminal runs with a follow-up; the processes ended when the backend changes and when the input method
 /// quits.
 struct QuestionSessionStuckTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("stuck-session-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("stuck-session-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
     func manager(_ fake: any ClaudeSessionLauncher, answerClock: any Clock<Duration> = ContinuousClock()) -> ClaudeSessionManager {

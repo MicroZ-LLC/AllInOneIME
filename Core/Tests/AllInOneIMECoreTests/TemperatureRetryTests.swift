@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -13,7 +14,7 @@ struct TemperatureRetryTests {
 
     /// A cache file in a folder of the test's own.
     static func cacheFile() -> URL {
-        FileManager.default.temporaryDirectory.appendingPathComponent("temperature-\(UUID().uuidString)/unsupported-temperature.json")
+        TestScratch.temporary("temperature-\(UUID().uuidString)/unsupported-temperature.json")
     }
 
     static func client(_ support: TemperatureSupport, apple: any AppleModelBackend = AIConfigTests.GuidedStub(.deviceNotEligible, answer: ""))

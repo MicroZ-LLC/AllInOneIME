@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -49,7 +50,7 @@ struct KeyShortcutTests {
     @Test func aWrittenConfigIsReadByTheOldReader() throws {
         var config = Config.default
         config.actionKey = .shortcut(KeyShortcut(keyCode: 0x26, modifiers: .command, name: "⌘J"))
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("keyshortcut-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("keyshortcut-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         try config.write(to: url)
         let data = try Data(contentsOf: url)

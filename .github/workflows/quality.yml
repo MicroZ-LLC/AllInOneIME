@@ -159,6 +159,10 @@ jobs:
           persist-credentials: false
       - name: Only this change's files
         run: git clean -ffdx -e .build/
+      - name: What earlier test runs left in TMPDIR, over 6 hours old
+        # A run killed midway leaves its TMPDIR folder (Scripts/test-tmpdir.sh); older runs left one per test, and
+        # 246,000 of them filled this disk (2026-11-16). Only names the tests make (Scripts/sweep-test-tmp.sh).
+        run: Scripts/sweep-test-tmp.sh
       - name: Where the dependencies go (kept between runs, per their pinned versions)
         run: |
           pins=$(grep -E '^[A-Z_]+_(VERSION|TAG|TARBALL|ZIP|SHA256|COMMIT) +:=' Makefile | shasum | cut -c1-12)

@@ -16,7 +16,7 @@ struct QuestionSessionHandOffTests {
         _ = await Timing.eventually(within: 2) { held.withLock { $0 = ConversationLock.take(file); return $0 != nil } }
         return held.withLock { $0 }
     }
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("hand-off-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("hand-off-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
     func claude(_ launcher: any ClaudeSessionLauncher) -> ClaudeSessionManager {

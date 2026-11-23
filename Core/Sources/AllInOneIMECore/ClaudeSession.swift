@@ -72,10 +72,11 @@ public struct QuestionConversation: Hashable, Sendable {
     public var id: String
     /// What the session's web tools may reach in it (`SessionWeb`).
     public var web: SessionWeb
+    /// The screenshots asked about, by round (`Attachment`, Composer+QuestionScreenshot.swift).
+    public var attachments: [Int: Attachment] = [:]
 
     public init(id: String = UUID().uuidString, web: SessionWeb = .open) {
-        self.id = id
-        self.web = web
+        (self.id, self.web) = (id, web)
     }
 
     /// A conversation of one request, a writing task (`Converter.sessionStream`): an id of its own, so it never goes into

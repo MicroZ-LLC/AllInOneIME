@@ -205,6 +205,9 @@ final class ACPDriver: SessionDriver {
     private var requests: [Int: Request] = [:]
     /// A message waiting for the session to open, and whether it was stopped meanwhile.
     private var queued: String?
+    private var queuedImages: [PromptImage] = []
+    /// The agent takes images in a prompt (`initialize`'s `promptCapabilities.image`: Kiro CLI 3.3 and agy 1.5.8 do).
+    private var takesImages = false
     private var queuedCancelled = false
     /// The prompt being answered.
     private var prompting = false
@@ -223,12 +226,12 @@ final class ACPDriver: SessionDriver {
                                              "clientCapabilities": ["fs": ["readTextFile": false, "writeTextFile": false]]])]
     }
 
-    func message(_ text: String) -> [Data] {
+    func message(_ text: String, images: [PromptImage]) -> [Data] {
         guard ready else {
-            (queued, queuedCancelled) = (text, false)
+            (queued, queuedImages, queuedCancelled) = (text, images, false)
             return []
         }
-        return [prompt(text)]
+        return [prompt(text, images: images)]
     }
 
     func newConversation() -> [Data]? {
@@ -290,6 +293,7 @@ final class ACPDriver: SessionDriver {
         case .initialize:
             if let failure { return ([.failed(failure, endsProcess: true)], []) }
             let capabilities = result?["agentCapabilities"] as? [String: Any]
+            takesImages = (capabilities?["promptCapabilities"] as? [String: Any])?["image"] as? Bool == true
             if let agentSessionID, capabilities?["loadSession"] as? Bool == true {
                 return ([], [request(.load, "session/load", ["sessionId": agentSessionID, "cwd": directory.path, "mcpServers": []])])
             }
@@ -338,18 +342,22 @@ final class ACPDriver: SessionDriver {
     private func becameReady() -> (events: [ClaudeSession.Event], replies: [Data]) {
         ready = true
         guard let text = queued else { return ([.started], []) }
-        queued = nil
+        let images = queuedImages
+        (queued, queuedImages) = (nil, [])
         if queuedCancelled { return ([.started, .result(error: false, interrupted: true, text: "", status: nil)], []) }
-        return ([.started], [prompt(text)])
+        return ([.started], [prompt(text, images: images)])
     }
 
     private func newSession() -> Data {
         request(.new, "session/new", ["cwd": directory.path, "mcpServers": []])
     }
 
-    private func prompt(_ text: String) -> Data {
+    private func prompt(_ text: String, images: [PromptImage]) -> Data {
         prompting = true
-        return request(.prompt, "session/prompt", ["sessionId": agentSessionID ?? "", "prompt": [["type": "text", "text": text]]])
+        // A screenshot as an ACP image block before the text, where the agent takes one; else the text alone (it has
+        // the screenshot's text).
+        let blocks: [[String: Any]] = takesImages ? images.map { ["type": "image", "mimeType": $0.mediaType, "data": $0.base64] } : []
+        return request(.prompt, "session/prompt", ["sessionId": agentSessionID ?? "", "prompt": blocks + [["type": "text", "text": text]]])
     }
 
     private func request(_ kind: Request, _ method: String, _ params: [String: Any]) -> Data {

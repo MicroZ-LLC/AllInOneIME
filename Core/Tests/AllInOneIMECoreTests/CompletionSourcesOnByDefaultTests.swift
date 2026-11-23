@@ -23,7 +23,7 @@ struct CompletionSourcesOnByDefaultTests {
 
     /// A folder of plugins of a test's own, removed after it.
     final class Plugins: @unchecked Sendable {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("plugins-default-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("plugins-default-\(UUID().uuidString)", isDirectory: true)
         deinit { try? FileManager.default.removeItem(at: folder) }
 
         /// The plugin `manifest` declares (its script `script`) written, or written again (an update), and read back.

@@ -194,14 +194,14 @@ struct InputLanguageTests {
         _ = type("dkssud", c)
         _ = c.handleKeyDown(spaceKey)
         _ = c.handleKeyDown(at)
-        _ = type("py", c)
+        _ = type("js", c)
         _ = c.handleKeyDown(tab)
         _ = type("print", c)
-        #expect(c.draft == "@translate 안녕 @py print")
+        #expect(c.draft == "@translate 안녕 @js print")
         // A space after its argument: Hangul again.
         _ = c.handleKeyDown(spaceKey)
         _ = type("gk", c)
-        #expect(c.draft == "@translate 안녕 @py print ")
+        #expect(c.draft == "@translate 안녕 @js print ")
         #expect(c.markedText.hasSuffix(" 하"))
         // Shift leaves the letters early, staying in Korean.
         let d = korean()
@@ -211,12 +211,12 @@ struct InputLanguageTests {
         _ = type("dkssud", d)
         _ = d.handleKeyDown(spaceKey)
         _ = d.handleKeyDown(at)
-        _ = type("py", d)
+        _ = type("js", d)
         _ = d.handleKeyDown(tab)
         _ = shiftTap(d, at: 1)
         #expect(d.inputLanguage == .korean)
         _ = type("gk", d)
-        #expect(d.markedText.hasSuffix("py › 하"))
+        #expect(d.markedText.hasSuffix("js › 하"))
     }
 
     /// A syllable being typed, with nothing else, is a composition: the controller commits it when a password field

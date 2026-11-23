@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import AllInOneIMEMac
 import Foundation
@@ -14,7 +15,7 @@ struct LegacyLearnedTests {
         let defaults: UserDefaults
 
         init() throws {
-            folder = FileManager.default.temporaryDirectory.appendingPathComponent("learned-\(UUID().uuidString)", isDirectory: true)
+            folder = TestScratch.temporary("learned-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             defaults = try #require(UserDefaults(suiteName: suite))
         }

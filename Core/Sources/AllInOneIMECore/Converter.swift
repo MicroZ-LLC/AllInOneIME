@@ -219,7 +219,8 @@ public final class Converter: Sendable {
                     if command == .reply {
                         try await self.runReply(input: input, app: app, fresh: fresh, turns: turns, continuation: continuation)
                     } else {
-                        try await self.runCommand(command, input: input, app: app, fresh: fresh, turns: turns,
+                        try await self.runCommand(command, input: input, app: app, fresh: fresh,
+                                                  turns: Self.withScreenshots(turns, conversation),
                                                   conversation: conversation, continuation: continuation)
                     }
                     continuation.finish()
@@ -282,10 +283,10 @@ public final class Converter: Sendable {
             (redaction, texts) = redacting(route, hide)
         }
         let (sent, lastMessage) = (texts.sent, texts.last)
-        let hidden = redaction?.count ?? 0
+        let (hidden, images) = Self.hiddenAndImages(redaction, command == .question ? conversation : nil)
         // A custom command's instruction is part of the key: editing it asks again.
         let key = "@\(command.name)|\(command.custom?.prompt ?? "")|\(route.model)|\(Prompt.commandVersion)|\(input)"
-            + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns)))
+            + (turns.isEmpty ? "" : "|" + (chat ? QuestionChat.turnsKey(turns) : Prompt.turnsKey(turns))) + Self.imagesKey(images)
         // A question about AllInOneIME: the parts of its user guide that answer it best go with it (`UserGuide`); the
         // request for any other question is as it always was.
         let questions = chat ? QuestionChat.rounds(first: input, turns: turns, latest: nil).map(\.question) : [input]
@@ -301,8 +302,8 @@ public final class Converter: Sendable {
                                                  after: texts.missing)
             let message = ClaudeSession.message(hidden > 0 ? question + "\n\n(" + Redaction.note + ")" : question, guide: guide)
             do {
-                try await runInSession(session, sessionRequest, message: message, redaction: redaction, hidden: hidden,
-                                       started: started, told: missing,
+                try await runInSession(session, sessionRequest, message: message, images: images[turns.count].map { [$0] } ?? [],
+                                       redaction: redaction, hidden: hidden, started: started, told: missing,
                                        question: turns.last?.instruction ?? input, continuation: continuation)
                 return
             } catch let error as ClaudeSessionError {
@@ -313,7 +314,7 @@ public final class Converter: Sendable {
         let request = chat ? QuestionChat.request(first: input, turns: turns, config: config, guide: guide)
             : turns.isEmpty ? Prompt.commandRequest(command, input: input, config: config, guide: guide)
             : Prompt.commandRefineRequest(command, input: input, config: config, turns: turns)
-        var protected = redaction?.protect(request, sent: lastMessage) ?? request
+        var protected = Self.attaching(images, to: redaction?.protect(request, sent: lastMessage) ?? request, config: config)
         // The on-device model's context is small: a long conversation is fitted into it, older rounds shortened first
         // (said for an answer from the cache too).
         var shortened = false
@@ -364,7 +365,7 @@ public final class Converter: Sendable {
     /// Answered, the answer and `told` (the earlier rounds' answers sent with the question) are in the session
     /// (`ClaudeSessionManager.remember`).
     private func runInSession(_ session: ClaudeSessionManager, _ request: ClaudeSessionManager.Request, message: String,
-                              redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant,
+                              images: [PromptImage], redaction: Redaction?, hidden: Int, started: ContinuousClock.Instant,
                               told: [QuestionChat.Round], question: String,
                               continuation: AsyncThrowingStream<ConversionUpdate, Error>.Continuation) async throws {
         func elapsed() -> TimeInterval { Self.seconds(since: started) }
@@ -378,7 +379,7 @@ public final class Converter: Sendable {
         let answeredBy = QuestionBackend(session.backend.agent)
         try Task.checkCancellation()  // given up: not sent
         do {
-            for try await reply in request.answer(message) {
+            for try await reply in request.answer(message, images: images) {
                 (text, latest) = (reply.text, reply)
                 if firstToken == nil, !text.isEmpty { firstToken = elapsed() }
                 if text.utf8.count > Self.maxOutputBytes { break }

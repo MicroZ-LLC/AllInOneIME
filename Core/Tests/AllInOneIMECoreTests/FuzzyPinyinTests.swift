@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -35,7 +36,7 @@ struct FuzzyPinyinTests {
     }
 
     @Test func writtenChangedRemovedAndTheUsersOwnLeftAlone() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("fuzzy-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("fuzzy-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let schemaURL = dir.appendingPathComponent("rime_ice.schema.yaml")

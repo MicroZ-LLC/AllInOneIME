@@ -117,7 +117,7 @@ public protocol SessionDriver: AnyObject {
     /// Written as soon as the process starts (an ACP handshake), before any message.
     func opening() -> [Data]
     /// The lines for one user message (none yet when the session isn't ready: sent when it is).
-    func message(_ text: String) -> [Data]
+    func message(_ text: String, images: [PromptImage]) -> [Data]
     /// The lines that stop the turn being answered (the process stays).
     func interrupt() -> [Data]
     /// One line of the process's output: what it says, and the lines to write back (a permission request denied).
@@ -187,7 +187,7 @@ final class ClaudeStreamDriver: SessionDriver {
 
     func opening() -> [Data] { [] }
 
-    func message(_ text: String) -> [Data] { [ClaudeSession.userMessage(text)] }
+    func message(_ text: String, images: [PromptImage]) -> [Data] { [ClaudeSession.userMessage(text, images: images)] }
 
     func interrupt() -> [Data] {
         interrupts += 1

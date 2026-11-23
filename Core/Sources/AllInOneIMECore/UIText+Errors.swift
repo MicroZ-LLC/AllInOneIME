@@ -19,8 +19,9 @@ extension UIText {
         if let error = error as? AWSCredentialError { return error.shortMessage(language: language) }
         // Settings → Assistant's request too long for Apple Intelligence on this Mac: a shorter one, or the provider to set up.
         if let error = error as? AIConfigService.TooLong { return error.line(language: language, describe: { describe($0) }) }
-        if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error,
-           [Command.py, .js].contains(where: { $0.name == name }) {
+        // A command inside a text that failed (`@question x @js 1`): its name, then what it says on its own; the same for
+        // every command, built in or the user's own (`@py`, Settings' example).
+        if let error = error as? CommandPipelineError, case let .inner(name, underlying) = error {
             return commandTrigger + name + tr("：", ": ") + underlying
         }
         if let error = error as? NoteError { return error.message(language: language) }

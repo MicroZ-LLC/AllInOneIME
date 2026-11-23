@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -204,7 +205,7 @@ struct DashboardTests {
 
     @Test func repliesAreReadAgainOnlyWhenTheTranscriptChanges() throws {
         let fm = FileManager.default
-        let root = fm.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        let root = TestScratch.temporary("projects-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: root) }
         let folder = root.appendingPathComponent("-Users-me")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -240,7 +241,7 @@ struct DashboardTests {
 
     @Test func onlyTheEndOfALongTranscriptIsRead() throws {
         let fm = FileManager.default
-        let root = fm.temporaryDirectory.appendingPathComponent("projects-\(UUID().uuidString)")
+        let root = TestScratch.temporary("projects-\(UUID().uuidString)")
         defer { try? fm.removeItem(at: root) }
         let folder = root.appendingPathComponent("-Users-me")
         try fm.createDirectory(at: folder, withIntermediateDirectories: true)

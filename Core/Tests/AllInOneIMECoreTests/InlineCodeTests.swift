@@ -1,9 +1,11 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
 import AllInOneIMEQuickJS
 
-/// `@py` and `@js` (`InlineCode`): a line of code run in a child process, REPL style.
+/// `@js` (`InlineCode`): a line of code run in a child process, REPL style. Python, `@py`, is Settings' example run
+/// command (`CommandExamplesTests`); in the composer it works the same way.
 struct InlineCodeTests {
     let at = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
     let tab = KeyEvent(keyCode: VirtualKey.tab, characters: "\t")
@@ -16,51 +18,48 @@ struct InlineCodeTests {
     // MARK: - The programs
 
     @Test func definitions() throws {
-        let py = try #require(InlineCode.definition(for: .py))
-        #expect(py.argv == ["python3", "-X", "utf8", "-c", InlineCode.pythonREPL])
-        #expect(py.type == .run && py.typesLatin && py.timeout == CustomCommand.defaultTimeout)
-        // The code goes on standard input with full-width punctuation as ASCII; the arguments never change.
-        #expect(py.standardInput(for: "print（“牛逼”）") == "print(\"牛逼\")")
-        #expect(py.arguments(for: "print（“牛逼”）") == py.argv && py.arguments(for: "{input}") == py.argv)
-        // @js: this app's own executable as the child process.
+        // This app's own executable as the child process; the code on standard input with full-width punctuation as ASCII.
         let js = try #require(InlineCode.definition(for: .js, executable: "/Apps/AllInOneIME.app/Contents/MacOS/AllInOneIME"))
         #expect(js.argv == ["/Apps/AllInOneIME.app/Contents/MacOS/AllInOneIME", "--run-js"])
         #expect(js.arguments(for: "{input}") == js.argv && js.standardInput(for: "[1，2].map(x => x * 2)") == "[1,2].map(x => x * 2)")
         #expect(js.timeout == CustomCommand.defaultTimeout && js.typesLatin)
-        // Nothing else is code: not the other built-in commands, not a custom one running python3.
+        // Nothing else is code: not the other built-in commands, not a custom one running python3 (Settings' @py).
         for command in Command.builtins where !command.isCode { #expect(InlineCode.definition(for: command) == nil) }
         let custom = Command.catalog([CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])])
         #expect(InlineCode.definition(for: try #require(custom.last)) == nil)
+        #expect(InlineCode.definition(for: try #require(Command.catalog([CommandExamples.python]).last)) == nil)
     }
 
     @Test func builtInCommands() {
-        #expect(Command.builtins.contains(.py) && Command.builtins.contains(.js) && Command.py.kind == .run && Command.js.kind == .run)
-        #expect(Command.py.isCode && Command.js.isCode && !Command.open.isCode && !Command.question.isCode)
-        #expect(Command.py.typesLatin && Command.js.typesLatin)
-        // @py is offered only where python3 runs; @js needs nothing but this app.
-        #expect(Command.py.program == "python3" && Command.js.program == nil)
-        // Built-in names: the editor refuses them, and a custom command of that name gives way.
-        #expect(CustomCommand(name: "py", type: .run, argv: ["python3", "-c", "{input}"]).problem(among: []) == .nameTaken)
-        let catalog = Command.catalog([CustomCommand(name: "js", type: .run, argv: ["node", "-p", "{input}"])])
-        #expect(catalog.filter { $0.name == "js" } == [.js])
-        #expect(CommandPlan.canBeInner(.py) && CommandPlan.canBeInner(.js))
+        #expect(Command.builtins.contains(.js) && Command.js.kind == .run && !Command.builtins.contains { $0.name == "py" })
+        #expect(Command.js.isCode && !Command.open.isCode && !Command.question.isCode)
+        #expect(Command.js.typesLatin && Command.js.runsCode)
+        // @js needs nothing but this app.
+        #expect(Command.js.program == nil)
+        // A built-in name: the editor refuses it, and a custom command of that name gives way.
+        let node = CustomCommand(name: "js", type: .run, argv: ["node", "-p", "{input}"])
+        #expect(node.problem(among: []) == .nameTaken)
+        #expect(Command.catalog([node]).filter { $0.name == "js" } == [.js])
+        #expect(CommandPlan.canBeInner(.js))
     }
 
     // MARK: - In the composer
 
-    @Test func pickedFromTheListAndRun() {
+    @Test func pickedFromTheListAndRun() throws {
         let c = Composer(engine: FakeEngine())  // ⏎ is the action key
+        c.commands = Command.catalog([CommandExamples.python])  // @py: Settings' example, added
+        let py = try #require(c.commands.first { $0.name == "py" })
         _ = c.handleKeyDown(at)
         typeKeys("p", c)
-        #expect(c.paletteMatches.first == .py)
+        #expect(c.paletteMatches.first == py)
         _ = c.handleKeyDown(tab)
         #expect(c.draft == "@py " && c.engineState.isAsciiMode)  // code is typed as letters
         typeKeys("2**100", c)
         #expect(c.markedText == "py › 2**100")
         let effects = c.handleKeyDown(enterKey).effects
         // A run like a custom program's (the controller refuses `.startRun` during secure input).
-        #expect(effects.first == .startRun(.py, input: "2**100", id: 1))
-        #expect(effects.contains(.commandUsed("py")) && c.activeCommand == .py && c.phase == .translating(id: 1))
+        #expect(effects.first == .startRun(py, input: "2**100", id: 1))
+        #expect(effects.contains(.commandUsed("py")) && c.activeCommand == py && c.phase == .translating(id: 1))
         _ = c.receive(ConversionResult(versions: [CandidateLine("1267650600228229401496703205376")]), isFinal: true, id: 1)
         #expect(c.choices.map(\.kind) == [.original, .answer] && c.highlighted == 1)
         #expect(c.choices.first?.text == "2**100")  // 0: the code as typed
@@ -78,8 +77,9 @@ struct InlineCodeTests {
         #expect(j.handleKeyDown(escKey).effects.first == .cancelConversion && j.draft == "@js [1,2].map(x => x * 2)")
     }
 
-    @Test func insideAnotherCommandsText() {
-        let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply.")])
+    @Test func insideAnotherCommandsText() throws {
+        let catalog = Command.catalog([CustomCommand(name: "respond", type: .prompt, prompt: "Reply."), CommandExamples.python])
+        let py = try #require(catalog.first { $0.name == "py" })
         let engine = FakeEngine()
         let c = Composer(engine: engine)
         c.commands = catalog
@@ -89,7 +89,7 @@ struct InlineCodeTests {
         typeKeys("nihao", c)
         _ = c.handleKeyDown(spaceKey)
         _ = c.handleKeyDown(at)
-        #expect(c.paletteMatches.map(\.name) == ["py", "js"])  // the commands that run inside a text
+        #expect(c.paletteMatches.map(\.name) == ["js", "py"])  // the commands that run inside a text
         typeKeys("p", c)
         _ = c.handleKeyDown(tab)
         #expect(c.draft == "@respond 你好@py " && engine.ascii)
@@ -99,7 +99,7 @@ struct InlineCodeTests {
             Issue.record("expected a plan, got \(effects)")
             return
         }
-        #expect(outer?.name == "respond" && plan.inner.map(\.command) == [.py] && plan.inner.map(\.argument) == ["2**100"])
+        #expect(outer?.name == "respond" && plan.inner.map(\.command) == [py] && plan.inner.map(\.argument) == ["2**100"])
         #expect(plan.input(outputs: ["1267650600228229401496703205376"]) == "你好1267650600228229401496703205376")
         #expect(effects.contains(.commandUsed("respond")) && effects.contains(.commandUsed("py")))
         // Code with spaces in it is quoted.
@@ -107,8 +107,9 @@ struct InlineCodeTests {
         #expect(quoted.inner.map(\.argument) == ["sum(x * x for x in range(4))", "[1, 2].map(x => x * 2)"])
     }
 
-    @Test func codeRunsExactlyAsTyped() {
-        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
+    @Test func codeRunsExactlyAsTyped() throws {
+        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"]), CommandExamples.python])
+        let py = try #require(catalog.first { $0.name == "py" })
         let c = Composer(engine: FakeEngine())
         c.commands = catalog
         c.setInputMode(.english)
@@ -118,9 +119,10 @@ struct InlineCodeTests {
         #expect(c.markedText == "py › x = \"＠stock AAPL\"; x")  // not shown as a command either
         // No other command runs first: nothing they return (a web page, a program's output) is executed.
         let effects = c.handleKeyDown(enterKey).effects
-        #expect(effects.first == .startRun(.py, input: "x = \"@stock AAPL\"; x", id: 1))
+        #expect(effects.first == .startRun(py, input: "x = \"@stock AAPL\"; x", id: 1))
         #expect(!effects.contains(.commandUsed("stock")))
         let inner = Composer(engine: FakeEngine())
+        inner.commands = catalog
         inner.setInputMode(.english)
         typeKeys("@js \"@py 1\"", inner)
         #expect(inner.handleKeyDown(enterKey).effects.first == .startRun(.js, input: "\"@py 1\"", id: 1))
@@ -137,141 +139,30 @@ struct InlineCodeTests {
             _ = c.receive(.empty, isFinal: true, id: 1)
             return c
         }
-        #expect(ran("@py x = 5").phase == .failed("代码没有输出：最后写一个表达式，或者把结果打印出来"))
+        #expect(ran("@js let y = 1").phase == .failed("代码没有输出：最后写一个表达式，或者把结果打印出来"))
         #expect(ran("@js let y = 1", messages: .english).phase
             == .failed("The code printed nothing: end it with an expression, or print the result"))
-        // Other commands as before.
-        let upper = Command.catalog([CustomCommand(name: "upper", type: .run, argv: ["tr", "a-z", "A-Z"])])
-        #expect(ran("@upper example", commands: upper).phase == .failed("没有得到结果"))
+        // Other commands as before: the user's own run commands, Settings' example @py among them.
+        let custom = Command.catalog([CustomCommand(name: "upper", type: .run, argv: ["tr", "a-z", "A-Z"]), CommandExamples.python])
+        #expect(ran("@upper example", commands: custom).phase == .failed("没有得到结果"))
+        #expect(ran("@py x = 5", commands: custom).phase == .failed("没有得到结果"))
     }
 
     /// (@imessage's program is Messages.app, which only a Mac has.)
     @Test(.enabled(if: Available.messagesApp)) func hiddenWithoutTheirProgram() {
         // The controller leaves out the commands whose program isn't installed (`setCommands`)…
-        let missing = Set(Command.builtins.compactMap { command in
+        let catalog = Command.catalog([CommandExamples.python])  // @py: Settings' example, added
+        let missing = Set(catalog.compactMap { command in
             command.program.flatMap { CommandRunner.isInstalled($0, path: "/nowhere") ? nil : command.name }
         })
         #expect(missing == ["agent", "py"])  // @js needs no program
         let c = Composer(engine: FakeEngine())
-        c.commands = Command.builtins.filter { !missing.contains($0.name) }
+        c.commands = catalog.filter { !missing.contains($0.name) }
         // …so the list doesn't offer @py, and "@py …" is plain text.
         _ = c.handleKeyDown(at)
         typeKeys("p", c)
-        #expect(!c.paletteMatches.contains(.py) && !c.paletteMatches.isEmpty)
+        #expect(!c.paletteMatches.contains { $0.name == "py" } && !c.paletteMatches.isEmpty)
         #expect(Command.parse("@py 1+1", in: c.commands) == nil && Command.parse("@js 1+1", in: c.commands)?.command == .js)
-    }
-
-    // MARK: - Python
-
-    /// The folders with a python3 that would run (none: the Python tests are skipped), one per interpreter.
-    static let pythons: [String] = {
-        let path = (ProcessInfo.processInfo.environment["PATH"] ?? "") + ":/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-        var seen = Set<String>()
-        return path.split(separator: ":").map(String.init).filter { folder in
-            guard CommandRunner.isInstalled("python3", path: folder),
-                  let url = CommandRunner.resolve("python3", path: folder) else { return false }
-            return seen.insert(url.resolvingSymlinksInPath().path).inserted
-        }
-    }()
-
-    /// `code` through `@py`'s program, the way the input method runs it, with the python3 in `folder`: within `timeout`
-    /// seconds, by default a limit no busy test run reaches (`Timing`; a Python started for the first time on a runner
-    /// takes seconds), since what it prints is checked, not how long it takes.
-    func python(_ code: String, in folder: String, timeout: Double = Double(Timing.longSleep)) async -> Result<String, Error> {
-        guard var definition = InlineCode.definition(for: .py) else { return .failure(InlineCodeError("no definition")) }
-        definition.timeoutSeconds = timeout
-        do {
-            var text = ""
-            let environment = ["PATH": folder, "HOME": NSHomeDirectory()]
-            for try await update in CommandRunner.run(definition, input: code, environment: environment) where update.isFinal {
-                text = update.result.versions.first?.text ?? ""
-            }
-            return .success(text)
-        } catch {
-            return .failure(error)
-        }
-    }
-
-    @Test(.enabled(if: !InlineCodeTests.pythons.isEmpty)) func pythonIsREPLStyle() async throws {
-        let cases: [(code: String, result: String)] = [
-            ("2**100", "1267650600228229401496703205376"),  // the value of the last expression
-            ("'abc'.upper()", "ABC"),  // a str as it is
-            ("[1, 'a', None]", "[1, 'a', None]"),  // anything else with repr
-            ("b'x'", "b'x'"),
-            ("x = 6; x * 7", "42"),
-            ("1; 2", "2"),  // only the last expression
-            ("print('hi')", "hi"),  // its value, None, isn't printed
-            ("print('a'); 1 + 1", "a\n2"),  // what it printed, then the value
-            ("for i in range(3): print(i)", "0\n1\n2"),  // statements: what they print
-            ("x = 5", ""),
-            ("import math; math.sqrt(16)", "4.0"),
-            ("import sys; print('warning', file=sys.stderr); 42", "42"),  // standard error doesn't count when it works
-            ("'你好' * 2", "你好你好"),
-            ("print（“牛逼”）", "牛逼"),  // full-width punctuation from Chinese typing
-            ("__name__", "__main__"),
-            ("[k for k in globals() if not k.startswith('__')]", "[]"),  // a namespace of its own
-            ("exit()", ""),
-        ]
-        for folder in Self.pythons {
-            for (code, result) in cases {
-                let got = await python(code, in: folder)
-                #expect((try? got.get()) == result, "\(code) with the python3 in \(folder): \(got)")
-            }
-        }
-    }
-
-    @Test(.enabled(if: !InlineCodeTests.pythons.isEmpty)) func pythonErrorsAreOneLine() async throws {
-        let cases: [(code: String, error: CommandRunner.RunError)] = [
-            ("1/0", .failed(status: 1, message: "ZeroDivisionError: division by zero")),
-            ("raise ValueError('first line\\nsecond line')", .failed(status: 1, message: "ValueError: first line")),
-            ("x = 1\ny = 0\nx / y", .failed(status: 1, message: "ZeroDivisionError: division by zero (line 3)")),
-            ("input()", .failed(status: 1, message: "EOFError: EOF when reading a line")),  // no standard input to read
-            ("import sys; sys.exit('bad input')", .failed(status: 1, message: "bad input")),
-            ("import sys; sys.exit(3)", .failed(status: 3, message: "")),
-        ]
-        for folder in Self.pythons {
-            for (code, error) in cases {
-                let got = await python(code, in: folder)
-                #expect(got.runError == error, "\(code) with the python3 in \(folder): \(got)")
-            }
-            // The wording of syntax errors changes between Python versions.
-            guard case let .failed(status, message)? = await python("print(", in: folder).runError else {
-                Issue.record("print( didn't fail with the python3 in \(folder)")
-                continue
-            }
-            #expect(status == 1 && message.hasPrefix("SyntaxError: ") && !message.contains("\n"), "\(message)")
-            #expect(await python("while True: pass", in: folder, timeout: 0.5).runError == .timedOut(0.5))
-        }
-    }
-
-    @Test(.enabled(if: !InlineCodeTests.pythons.isEmpty)) func pythonIgnoresLookalikeModulesInTheWorkingDirectory() throws {
-        let fm = FileManager.default
-        let folder = fm.temporaryDirectory.appendingPathComponent("inline-code-\(UUID().uuidString)")
-        try fm.createDirectory(at: folder, withIntermediateDirectories: true)
-        defer { try? fm.removeItem(at: folder) }
-        for name in ["ast", "traceback"] {
-            try Data("raise ImportError('not the standard \(name)')\n".utf8).write(to: folder.appendingPathComponent("\(name).py"))
-        }
-        try Data("VALUE = 42\n".utf8).write(to: folder.appendingPathComponent("helper.py"))
-        let argv = try #require(InlineCode.definition(for: .py)?.argv)
-        for python in Self.pythons {
-            // Run there (the input method runs in the home folder), the code on standard input.
-            let process = Process()
-            process.executableURL = CommandRunner.resolve("python3", path: python)
-            process.arguments = Array(argv.dropFirst())
-            process.currentDirectoryURL = folder
-            let input = Pipe(), output = Pipe()
-            process.standardInput = input
-            process.standardOutput = output
-            process.standardError = FileHandle.nullDevice
-            try process.run()
-            input.fileHandleForWriting.write(Data("import helper; helper.VALUE + 1".utf8))
-            try input.fileHandleForWriting.close()
-            let text = String(decoding: output.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            process.waitUntilExit()
-            // Its own modules are the standard ones; the code still imports from the folder, as with `python3 -c`.
-            #expect(process.terminationStatus == 0 && text == "43\n", "the python3 in \(python): \(text)")
-        }
     }
 
     // MARK: - JavaScript
@@ -346,12 +237,5 @@ struct InlineCodeTests {
             let error = #expect(throws: InlineCodeError.self, "\(code)") { try InlineCode.evaluateJavaScript(code) }
             #expect(error?.message.hasSuffix(" (line \(line))") == true, "\(code): \(error?.message ?? "")")
         }
-    }
-}
-
-private extension Result where Failure == Error {
-    var runError: CommandRunner.RunError? {
-        if case let .failure(error) = self { return error as? CommandRunner.RunError }
-        return nil
     }
 }

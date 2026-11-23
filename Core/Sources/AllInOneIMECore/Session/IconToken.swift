@@ -13,7 +13,7 @@ public struct IconToken: Equatable, Sendable {
     /// Symbols (`appleSymbol`). The names (`rawValue`) are the list a shell's mapping goes by:
     ///
     /// - the built-in commands: `improve`, `translate`, `question`, `reply`, `agent`, `open`, `note`, `reminder`,
-    ///   `python`, `javascript`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`, `stats`, and `command` for
+    ///   `javascript`, `tasks`, `settings`, `message` (`@imessage`), `reportIssue`, `stats`, and `command` for
     ///   one without an icon of its own;
     /// - plugins and custom commands, by what they are: `plugin`, `link`, `prompt`, `run`, `terminal`, `snippet`;
     /// - script extensions, by what they do: `scriptInsert`, `scriptShow`, `scriptList`, `scriptSilent`,
@@ -21,7 +21,7 @@ public struct IconToken: Equatable, Sendable {
     /// - a background task's state (`@tasks`): `done`, `working`, `needsYou`;
     /// - an image (clipboard history): `image`.
     public enum Builtin: String, CaseIterable, Sendable {
-        case improve, translate, question, reply, agent, open, note, reminder, python, javascript, tasks
+        case improve, translate, question, reply, agent, open, note, reminder, javascript, tasks
         case settings, message, reportIssue, stats, command
         case plugin, link, prompt, run, terminal, snippet
         case scriptInsert, scriptShow, scriptList, scriptSilent, scriptBackground, scriptStatus
@@ -40,7 +40,7 @@ public struct IconToken: Equatable, Sendable {
             case .open: return "magnifyingglass"
             case .note: return "note.text"
             case .reminder: return "bell.fill"
-            case .python, .run: return "chevron.left.forwardslash.chevron.right"
+            case .run: return "chevron.left.forwardslash.chevron.right"
             case .javascript: return "curlybraces"
             case .tasks: return "checklist"
             case .settings: return "gearshape.fill"
@@ -153,7 +153,6 @@ extension IconToken {
         case .open: return IconToken(.open, color: .gray)
         case .note: return IconToken(.note, color: .yellow)
         case .reminder: return IconToken(.reminder, color: .red)
-        case .py: return IconToken(.python, color: .blue)
         case .js: return IconToken(.javascript, color: .yellow)
         case .tasks: return IconToken(.tasks, color: .green)
         case .settings: return IconToken(.settings, color: .gray)

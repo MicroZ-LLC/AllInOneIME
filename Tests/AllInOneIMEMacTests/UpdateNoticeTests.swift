@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -34,7 +35,7 @@ struct UpdateNoticeTests {
 
     /// A notifier on a config file (`config`) and defaults of the test's own; `remove()` deletes them.
     final class Fixture {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("update-notice-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("update-notice-\(UUID().uuidString)", isDirectory: true)
         let suite = "allinoneime-update-notice-\(UUID().uuidString)"
         var configURL: URL { folder.appendingPathComponent("config.json") }
 

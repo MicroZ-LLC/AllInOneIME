@@ -222,13 +222,13 @@ extension ComposerTests {
         #expect(open.handleKeyDown(enterKey).effects.first == .search(query: "报告@r", id: 1))
         // A command written in their text isn't shown as one either; where commands do run inside, the list is there.
         let pasted = command("n")
-        _ = paste("看 @py 2**10", into: pasted)
-        #expect(pasted.markedText == "note › 看 ＠py 2**10")
+        _ = paste("看 @js 2**10", into: pasted)
+        #expect(pasted.markedText == "note › 看 ＠js 2**10")
         let question = command("q")
         type("nihao", question)
         _ = question.handleKeyDown(spaceKey)
         _ = question.handleKeyDown(at)
-        #expect(question.paletteQuery == "" && question.paletteMatches == [.py, .js])
+        #expect(question.paletteQuery == "" && question.paletteMatches == [.js])
     }
 
     @Test func noCommandListInsideATerminalCommand() {

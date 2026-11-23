@@ -23,7 +23,7 @@ struct AgentKindTests {
         #expect(Command.agent.program(agent: .kiro) == "kiro-cli")
         #expect(Command.agent.program(agent: .custom, custom: ["muse"]) == "muse")
         #expect(Command.agent.program(agent: .custom) == nil)
-        #expect(Command.py.program(agent: .gemini) == Command.py.program)  // only @agent's depends on it
+        #expect(Command.imessage.program(agent: .gemini) == Command.imessage.program)  // only @agent's depends on it
         #expect(Command.agent.usesAI)
     }
 

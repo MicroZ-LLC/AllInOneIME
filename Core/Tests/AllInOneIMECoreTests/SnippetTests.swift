@@ -91,14 +91,16 @@ private func rendered(_ template: String, input: String = "") -> String {
     let sig = snippet("sig", "Wei <wei@example.com>")
 
     @Test func anAtInASnippetDoesntStopTheUsersCommands() throws {
-        let catalog = Command.catalog([sig])
+        // `@py`: Settings' example, a run command of the user's own.
+        let catalog = Command.catalog([CommandExamples.python, sig])
+        let py = try #require(catalog.first { $0.name == "py" })
         let filled = CommandPlan.make("1+1 @py print(2) @sig 。", commands: catalog).fillingSnippets(SnippetValues())
-        #expect(filled.plan.inner.map(\.command) == [.py] && filled.plan.inner.map(\.argument) == ["print(2)"])
+        #expect(filled.plan.inner.map(\.command) == [py] && filled.plan.inner.map(\.argument) == ["print(2)"])
         #expect(filled.used.map(\.name) == ["sig"])
         #expect(filled.plan.input(outputs: ["2"]) == "1+1 2 Wei <wei@example.com> 。")
 
         // In the composer: @py runs, the signature is text in the question, nothing said about code not run.
-        let c = field([sig])
+        let c = field([CommandExamples.python, sig])
         typeIn("@question 1+1 @py print(2) @sig 。", c)
         #expect(c.draft == "@question 1+1 @py print(2) @sig 。", "\(c.draft)")
         let effects = c.handleKeyDown(enterKey).effects
@@ -106,7 +108,7 @@ private func rendered(_ template: String, input: String = "") -> String {
             Issue.record("expected a plan, got \(effects)")
             return
         }
-        #expect(outer == .question && plan.inner.map(\.command) == [.py], "\(plan)")
+        #expect(outer == .question && plan.inner.map(\.command) == [py], "\(plan)")
         #expect(plan.input(outputs: ["2"]) == "1+1 2 Wei <wei@example.com> 。")
         #expect(notices(effects).isEmpty, "\(effects)")
         #expect(effects.contains(.commandUsed("sig")) && effects.contains(.commandUsed("py")))
@@ -114,17 +116,17 @@ private func rendered(_ template: String, input: String = "") -> String {
 
     @Test func aCommandWrittenInASnippetIsText() {
         // What a snippet inserts is never read for commands again: neither code nor a program in it runs.
-        let memo = snippet("memo", "run @py 1+1 and @stock AAPL")
+        let memo = snippet("memo", "run @js 1+1 and @stock AAPL")
         let catalog = Command.catalog([memo, CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
         let filled = CommandPlan.make("see @memo.", commands: catalog).fillingSnippets(SnippetValues())
         #expect(filled.plan.isEmpty && filled.used.map(\.name) == ["memo"])
-        #expect(filled.plan.input(outputs: []) == "see run @py 1+1 and @stock AAPL.")
-        #expect(SnippetTemplate.expandInner("see @memo.", commands: catalog, values: SnippetValues()) == "see run @py 1+1 and @stock AAPL.")
+        #expect(filled.plan.input(outputs: []) == "see run @js 1+1 and @stock AAPL.")
+        #expect(SnippetTemplate.expandInner("see @memo.", commands: catalog, values: SnippetValues()) == "see run @js 1+1 and @stock AAPL.")
 
         let c = field([memo])
         typeIn("@improve see @memo.", c)
         let effects = c.handleKeyDown(enterKey).effects
-        #expect(effects.first == .startConversion(input: "see run @py 1+1 and @stock AAPL.", id: 1), "\(effects)")
+        #expect(effects.first == .startConversion(input: "see run @js 1+1 and @stock AAPL.", id: 1), "\(effects)")
         #expect(notices(effects).isEmpty && c.refineRequest != nil)
     }
 }

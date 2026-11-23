@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -9,7 +10,7 @@ import Testing
 
 /// One test's temporary world.
 final class ProbeWorld {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("aio-icloud-review-\(UUID().uuidString)")
+    let root = TestScratch.temporary("aio-icloud-review-\(UUID().uuidString)")
     deinit { try? FileManager.default.removeItem(at: root) }
 
     func drive(_ name: String) -> URL {

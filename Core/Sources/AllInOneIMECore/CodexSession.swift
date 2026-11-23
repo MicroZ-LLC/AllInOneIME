@@ -131,6 +131,7 @@ final class CodexDriver: SessionDriver {
     private var requests: [Int: Request] = [:]
     /// A message waiting for the thread to open, and whether it was stopped meanwhile.
     private var queued: String?
+    private var queuedImages: [PromptImage] = []
     private var queuedCancelled = false
     /// The turn being answered: started (its id, once `turn/start` answered), stopped before it had one.
     private var turnStarted = false
@@ -174,12 +175,12 @@ final class CodexDriver: SessionDriver {
         [request(.initialize, "initialize", Self.initializeParams)]
     }
 
-    func message(_ text: String) -> [Data] {
+    func message(_ text: String, images: [PromptImage]) -> [Data] {
         guard ready else {
-            (queued, queuedCancelled) = (text, false)
+            (queued, queuedImages, queuedCancelled) = (text, images, false)
             return []
         }
-        return [turn(text)]
+        return [turn(text, images: images)]
     }
 
     func newConversation() -> [Data]? {
@@ -327,18 +328,21 @@ final class CodexDriver: SessionDriver {
         let name = naming && threadID != nil
             ? [request(.name, "thread/name/set", ["threadId": threadID ?? "", "name": SessionAgent.sessionName])] : []
         guard let text = queued else { return ([.started], name) }
-        queued = nil
+        let images = queuedImages
+        (queued, queuedImages) = (nil, [])
         if queuedCancelled { return ([.started, .result(error: false, interrupted: true, text: "", status: nil)], name) }
-        return ([.started], name + [turn(text)])
+        return ([.started], name + [turn(text, images: images)])
     }
 
     private func startThread() -> Data {
         request(.start, "thread/start", threadParams)
     }
 
-    private func turn(_ text: String) -> Data {
+    private func turn(_ text: String, images: [PromptImage]) -> Data {
         (turnStarted, turnID, interruptPending, messageItem, tokensBefore) = (true, nil, false, nil, nil)
-        return request(.turn, "turn/start", ["threadId": threadID ?? "", "input": [["type": "text", "text": text]]])
+        // A screenshot as an `image` input (a data URL, codex 0.163's `ImageUserInput`) before the text.
+        let input: [[String: Any]] = images.map { ["type": "image", "url": $0.dataURL] } + [["type": "text", "text": text]]
+        return request(.turn, "turn/start", ["threadId": threadID ?? "", "input": input])
     }
 
     private func request(_ kind: Request, _ method: String, _ params: [String: Any]) -> Data {

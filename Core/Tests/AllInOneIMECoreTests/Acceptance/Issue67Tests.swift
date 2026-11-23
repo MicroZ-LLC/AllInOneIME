@@ -8,7 +8,8 @@ import AllInOneIMETestSupport
 /// the panel says "@py：Stopped after 10 seconds". Printing too much and a non-zero exit without a message stay in
 /// English the same way, for `@js` and a custom run command too. Expected: the wording it has on its own, after the
 /// command's name ("@py："). The programs are stand-ins that fail as `CommandRunner` does (`SessionServices.runProgram`);
-/// the failure stops the text before the outer command, so no model is asked.
+/// the failure stops the text before the outer command, so no model is asked. Since 0.7.5 `@py` is no longer built in: it
+/// is the user's own run command, added from Settings' examples (`CommandExamples.python`), in the config here.
 @Suite(.serialized)
 struct Issue67Tests {
     /// How a program fails, and what the panel says for it in Chinese when it runs on its own.
@@ -50,11 +51,11 @@ struct Issue67Tests {
             config = .default
             config.uiLanguage = "zh"
             config.setOrder([Language.chinese, .english])
-            config.customCommands = [Issue67Tests.custom]
+            config.customCommands = [Issue67Tests.custom, CommandExamples.python]
         }
     }
 
-    /// Every program (`@py`, `@js`, the custom command) fails with `failure`; what runs is counted.
+    /// Every program (`@py`, `@js`, the other custom command) fails with `failure`; what runs is counted.
     static func failing(_ failure: Failure, ran: Locked<[String]>) -> @Sendable (CustomCommand, String) -> AsyncThrowingStream<ConversionUpdate, Error> {
         { command, _ in
             ran.withLock { $0.append(command.name) }
@@ -144,7 +145,8 @@ struct Issue67Tests {
         services.runProgram = Self.failing(.timedOut, ran: ran)
         let place = SessionTasks.Place(app: nil, terminal: false, pastesInTerminal: false, improveTranslates: false,
                                        pluginLanguage: .chinese)
-        let request = SessionTasks.Request(input: "", command: .question, plan: CommandPlan.make("x @py 1", commands: Command.builtins))
+        let request = SessionTasks.Request(input: "", command: .question,
+                                           plan: CommandPlan.make("x @py 1", commands: Command.catalog([CommandExamples.python])))
         /// What the panel says for the request's error (`InputSession`: a `DescribedError`'s message, or the error
         /// described), in `language`.
         func shown(in language: String) async -> String? {

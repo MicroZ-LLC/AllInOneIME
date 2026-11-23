@@ -10,7 +10,7 @@ import Testing
 /// failure; and the process started ahead only for an `@question` about to be asked.
 @Suite(.serialized)
 struct QuestionSessionBackendsTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("sessions-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("sessions-\(UUID().uuidString)")
 
     func collect(_ stream: AsyncThrowingStream<String, Error>) async -> (answers: [String], error: Error?) {
         var answers: [String] = []

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -14,7 +15,7 @@ final class GitFixture: @unchecked Sendable {
     let sources: URL
 
     init() throws {
-        let made = FileManager.default.temporaryDirectory.appendingPathComponent("sources-\(UUID().uuidString)", isDirectory: true)
+        let made = TestScratch.temporary("sources-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: made, withIntermediateDirectories: true)
         root = URL(fileURLWithPath: realpath(made.path, nil).map { defer { free($0) }; return String(cString: $0) } ?? made.path,
                    isDirectory: true)
@@ -597,7 +598,7 @@ final class GitRecorder: GitRunning, @unchecked Sendable {
 
     /// A config file with a few keys of its own, in a temporary folder removed after the test.
     static func configFile(_ text: String) throws -> (url: URL, folder: URL) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("config-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("config-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)
@@ -904,7 +905,7 @@ enum ExtensionSourceCommandLine {
 @Suite(.enabled(if: ExtensionSourceCommandLine.binary != nil, "needs the built app binary (swift build)"))
 struct ExtensionSourceCommandLineTests {
     @Test func anUnknownOptionIsRefused() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("extension-cli-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("extension-cli-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let config = folder.appendingPathComponent("config.json"), sources = folder.appendingPathComponent("Sources")

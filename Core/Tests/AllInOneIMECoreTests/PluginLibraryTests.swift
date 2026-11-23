@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CryptoKit
 import Foundation
 import os
@@ -58,7 +59,7 @@ struct TestLibrary {
 
     init() {
         host = "lib-\(UUID().uuidString.prefix(8).lowercased()).test"
-        directory = FileManager.default.temporaryDirectory.appendingPathComponent("library-\(UUID().uuidString)/plugins")
+        directory = TestScratch.temporary("library-\(UUID().uuidString)/plugins")
     }
 
     func library(publicKey: Data? = nil, appVersion: String = "0.5.0") -> PluginLibrary {

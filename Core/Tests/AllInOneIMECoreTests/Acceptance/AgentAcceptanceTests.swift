@@ -360,7 +360,7 @@ struct AgentAcceptanceTests {
 
     // MARK: 4. Offered only when the agent's program is installed
 
-    @Test func s4_theProgramAgentNeedsIsTheChosenAgents() {
+    @Test func s4_theProgramAgentNeedsIsTheChosenAgents() throws {
         for kind in [AgentKind.claude, .gemini, .kiro] {
             #expect(Command.agent.program(agent: kind) == kind.program(), "\(kind)")
         }
@@ -371,8 +371,11 @@ struct AgentAcceptanceTests {
         #expect(Command.agent.program == "claude")
         // A custom agent without a command needs a program it can't have.
         #expect(AgentKind.custom.program(custom: []) == nil && AgentKind.custom.terminalArguments(custom: []) == nil)
-        // Other commands' programs don't depend on the agent.
-        #expect(Command.py.program(agent: .gemini) == Command.py.program)
+        // Other commands' programs don't depend on the agent: a custom run command's is its own, whichever agent is picked.
+        let tr = try #require(Command.catalog([CustomCommand(name: "tr", type: .run, argv: ["tr", "a-z", "A-Z"])])
+            .first { $0.name == "tr" })
+        #expect(tr.program == "tr")
+        #expect(tr.program(agent: .gemini) == tr.program && tr.program(agent: .custom, custom: ["muse", "--"]) == tr.program)
         #expect(Command.question.program(agent: .kiro) == nil)
     }
 

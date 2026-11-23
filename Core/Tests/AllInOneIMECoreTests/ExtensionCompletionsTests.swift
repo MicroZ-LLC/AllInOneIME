@@ -21,7 +21,7 @@ struct ExtensionCompletionsTests {
         let folder: URL
 
         init() throws {
-            folder = FileManager.default.temporaryDirectory.appendingPathComponent("extension-completions-\(UUID().uuidString)",
+            folder = TestScratch.temporary("extension-completions-\(UUID().uuidString)",
                                                                                  isDirectory: true)
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         }
@@ -610,7 +610,7 @@ struct ExtensionCompletionsTests {
         let key = CompletionSourceKey(extensionCommand: "~/.config/allinoneime/extensions/tickets.sh")
         #expect(key.isScriptExtension && key.fileName.hasPrefix("script-extensions.") && key.fileName.count == "script-extensions.".count + 16 + 5)
         #expect(CompletionSourceKey.isCacheFile(key.fileName) && CompletionSourceKey(fileName: key.fileName) == nil)
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("extension-cache-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("extension-cache-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let other = CompletionSourceKey(extensionCommand: "team/issues")
@@ -631,7 +631,7 @@ struct ExtensionCompletionsTests {
         let extensions = try Extensions()
         let command = try Self.tickets(in: extensions, declaration: Self.declaration(#", "query": true"#))
         try extensions.script("bad.sh", metadata: ["schemaVersion 1", #"completion {"query": true}"#], body: "echo")
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("extension-settings-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("extension-settings-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")

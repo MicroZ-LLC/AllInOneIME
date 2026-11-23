@@ -685,7 +685,8 @@ public final class InputSession {
         if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
-        composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
+        // The on-device model gets less of a screenshot (`ReplyContext.Limits`); an AI that can see one gets its image.
+        (composer.provider, composer.aiSeesImages) = (config.provider, { [seesImages = config.questionsSeeImages] in seesImages })
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         let fallback = services
         composer.issueDiagnostics = { [weak self] in
@@ -1674,8 +1675,8 @@ public final class InputSession {
             say(tr("已发送给 ", "Sent to ") + recipient.displayName)
         case let .saved(outcome):
             saved(outcome)
-        case let .recognized(text, request):
-            perform(composer.recognized(text, id: request))
+        case let .recognized(text, image, request):
+            perform(composer.recognized(text, image: image, id: request))
         case let .recognitionFailed(error, request):
             perform(composer.recognitionFailed(composer.messages.reply.describe(failure: error), id: request))
         case let .programs(missing, check):

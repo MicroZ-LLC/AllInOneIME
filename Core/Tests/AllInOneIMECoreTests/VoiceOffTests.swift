@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -95,7 +96,7 @@ struct VoiceOffTests {
     // MARK: - Helpers
 
     func service(_ text: String, platform: SettingsPlatform) throws -> (SettingsService, URL) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("voice-off-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("voice-off-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)

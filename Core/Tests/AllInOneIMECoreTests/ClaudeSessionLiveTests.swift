@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -14,7 +15,7 @@ struct ClaudeSessionLiveTests {
     static let folder: URL = {
         let given = ProcessInfo.processInfo.environment["ALLINONEIME_CLAUDE_LIVE_DIR"].flatMap { $0.isEmpty ? nil : $0 }
         return given.map { URL(fileURLWithPath: $0, isDirectory: true) }
-            ?? FileManager.default.temporaryDirectory.appendingPathComponent("claude-session-live-\(UUID().uuidString)")
+            ?? TestScratch.temporary("claude-session-live-\(UUID().uuidString)")
     }()
 
     /// The environment without this process's own Claude Code variables (a test run inside a Claude Code session).

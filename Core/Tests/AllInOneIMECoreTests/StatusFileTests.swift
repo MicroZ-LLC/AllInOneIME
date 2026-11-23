@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ struct StatusFileTests {
     }
 
     @Test func theLastValuesShowAfterALaunchUntilRefreshed() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("status-file-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("status-file-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let file = StatusFile(url: folder.appendingPathComponent("script-statuses.json"))
         let now = Date(timeIntervalSince1970: 1_800_000_000)

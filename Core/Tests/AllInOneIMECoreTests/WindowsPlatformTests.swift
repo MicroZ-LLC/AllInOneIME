@@ -1,4 +1,5 @@
 #if os(Windows)
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 import WinSDK
@@ -9,7 +10,7 @@ import WinSDK
 struct WindowsPlatformTests {
     /// A folder of its own, removed after.
     final class Folder {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("windows-platform-\(UUID().uuidString)", isDirectory: true)
+        let url = TestScratch.temporary("windows-platform-\(UUID().uuidString)", isDirectory: true)
         init() throws { try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true) }
         deinit { try? FileManager.default.removeItem(at: url) }
 
@@ -286,7 +287,7 @@ struct WindowsPlatformTests {
     static let hasCredentialManager: Bool = {
         // A folder of its own (never made: the key is short), as a store removes the files no credential names in its.
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests probe \(UUID().uuidString)",
-                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+                                                       folder: TestScratch.temporary(UUID().uuidString))
         guard store.write("probe", "probe", "", "", nil, nil) == .ok else { return false }
         _ = store.delete("probe")
         return true
@@ -368,7 +369,7 @@ struct WindowsPlatformTests {
     /// is said in words that say so; here, without one, a write fails with it.
     @Test func noCredentialManagerIsSaidPlainly() {
         let store = APIKeys.Keychain.credentialManager(service: "AllInOneIME tests \(UUID().uuidString)",
-                                                       folder: FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString))
+                                                       folder: TestScratch.temporary(UUID().uuidString))
         let message = store.message(Int32(ERROR_NO_SUCH_LOGON_SESSION)) ?? ""
         #expect(message.contains("Credential Manager") && message.contains("SSH"), "\(message)")
         if !Self.hasCredentialManager {
