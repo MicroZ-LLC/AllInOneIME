@@ -48,6 +48,15 @@ public protocol SessionBackend: Sendable {
     /// whatever it starts with: "--" (Claude Code, Codex, Kiro CLI: no option after it), Antigravity's "-i" (its
     /// `--prompt-interactive`: the message, then interactive).
     func terminalArguments(program: String, sessionID: String, agentSessionID: String?, resume: Bool, followUp: Bool) -> [String]
+    /// The files the MCP servers the session gets (`SessionMCP`, none when its web tools aren't open) are written into its
+    /// folder as, readable by the user only (a server's `env` may hold a key): always the same paths, an empty content
+    /// for one not wanted now (removed). None for an agent that gets them another way, or can't have any.
+    func mcpFiles(_ mcp: SessionMCP) -> [SessionFile]
+    /// `arguments`, with `mcp`, its files in `directory` (the session's folder).
+    func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb, mcp: SessionMCP, directory: URL) -> [String]
+    /// `driver`, with `mcp`.
+    func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb,
+                mcp: SessionMCP) -> any SessionDriver
 }
 
 extension SessionBackend {
@@ -58,6 +67,19 @@ extension SessionBackend {
     }
 
     public var environment: [String: String] { [:] }
+    /// No MCP servers: the agent's own `arguments` and `driver`.
+    public func mcpFiles(_ mcp: SessionMCP) -> [SessionFile] { [] }
+
+    public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb, mcp: SessionMCP,
+                          directory: URL) -> [String] {
+        arguments(sessionID: sessionID, resume: resume, settings: settings, web: web)
+    }
+
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb,
+                       mcp: SessionMCP) -> any SessionDriver {
+        driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: web)
+    }
+
     public func signedIn(environment: [String: String], home: URL) -> Bool? { nil }
     public var availabilityInput: [Data] { [] }
     public func signedIn(line: Data) -> Bool? { nil }
@@ -129,6 +151,17 @@ public struct ClaudeCodeBackend: SessionBackend {
 
     public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb) -> [String] {
         ClaudeSession.arguments(sessionID: sessionID, resume: resume, settings: settings, web: web)
+    }
+
+    /// Its servers in a file of the folder (`--mcp-config`), their read-only tools allowed (`ClaudeSession.arguments`).
+    public func mcpFiles(_ mcp: SessionMCP) -> [SessionFile] {
+        [SessionFile(path: ClaudeSession.mcpFile, content: mcp.isEmpty ? "" : mcp.claudeConfig)]
+    }
+
+    public func arguments(sessionID: String, resume: Bool, settings: URL?, web: SessionWeb, mcp: SessionMCP,
+                          directory: URL) -> [String] {
+        ClaudeSession.arguments(sessionID: sessionID, resume: resume, settings: settings, web: web, mcp: mcp,
+                                mcpConfig: directory.appendingPathComponent(ClaudeSession.mcpFile))
     }
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {

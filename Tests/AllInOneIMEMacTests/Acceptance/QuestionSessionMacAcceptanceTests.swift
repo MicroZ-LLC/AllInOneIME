@@ -164,6 +164,8 @@ struct QuestionSessionMacAcceptanceTests {
     }
 
     /// The user's own Gemini CLI and Codex settings are never written: nothing in the sources names them as a file to write.
+    /// Reading them is allowed (Gemini CLI's sign-in; Codex's config.toml, in CODEX_HOME or ~/.codex, for the user's MCP
+    /// servers listed in Settings → AI), writing is not.
     @Test func theUsersGeminiAndCodexSettingsAreNeverWritten() throws {
         var sources = try inputMethodSources().map(\.code)
         let core = Self.root.appendingPathComponent("Core/Sources/AllInOneIMECore")
@@ -171,8 +173,12 @@ struct QuestionSessionMacAcceptanceTests {
             sources.append(try code("Core/Sources/AllInOneIMECore/" + name))
         }
         for code in sources {
-            #expect(!code.contains("config.toml"))
-            #expect(!code.contains(#"".codex""#))
+            // Codex's config (config.toml in CODEX_HOME or ~/.codex) is read (the user's MCP servers), never written.
+            for line in code.split(separator: "\n")
+            where line.contains("config.toml") || line.contains(".codex") || line.contains("CODEX_HOME") {
+                #expect(!line.contains(".write(") && !line.contains("createFile") && !line.contains("copyItem")
+                        && !line.contains("moveItem") && !line.contains("removeItem"), "\(line)")
+            }
             // Gemini CLI's settings are read (the sign-in), never written.
             for line in code.split(separator: "\n") where line.contains(".gemini") || line.contains("GeminiCli") {
                 #expect(!line.contains(".write(") && !line.contains("createFile") && !line.contains("copyItem"), "\(line)")
