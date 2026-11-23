@@ -38,8 +38,6 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 ### Fixed
 
-- The input method no longer quits while you type in apps that are slow to say where their caret is (Brave, Chrome and other Chromium apps): a key typed while the candidate box was being placed could stop it, and macOS restarted it.
-
 - Leaving a text field while pinyin is still being typed leaves nothing of it there, in every app: clicking anywhere (into another field, elsewhere in the same field, another app), switching apps, or closing the window or tab drops the pinyin not yet picked, and the candidate box goes. Before, the first candidate went in, and Brave, Chrome, Slack and other Chromium apps, and single-line fields, put the pinyin in as shown ("ni hao") themselves (GitHub #116, #115). A click also drops a command being written (`@improve …`), nothing of it put in.
 
 - In an `@question` conversation, Space with nothing typed no longer inserts the answer and ends the conversation: with the line empty, Space and ⏎ do nothing, and only ⇧⏎ (or the answer's digit, or a click) inserts. Esc closes the panel at any round and leaves nothing in the field, even with a question half typed, instead of going back a round; the conversation stays in the recent questions.

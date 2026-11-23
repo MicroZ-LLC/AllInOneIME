@@ -1290,9 +1290,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
             return read
         }
-        // Kept unless a placement came in while the field was asked (it holds what's newer).
-        if token == anchorToken { (panelAnchor, Self.lastAnchorByApp) = (memory, lastByApp) }
         let (told, placement) = (placed.told, placed.placement)
+        // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
+        if token == anchorToken { (panelAnchor, Self.lastAnchorByApp) = (memory, lastByApp) } else { return placement.rect }
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
