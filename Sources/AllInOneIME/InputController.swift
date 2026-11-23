@@ -185,8 +185,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
     var panelAnchor = PanelAnchor.Memory()
     var anchorToken = 0
-    /// Each app's last panel rect to trust, whatever its field (`anchor`: the fallback where a field has none yet).
-    @MainActor private static var lastAnchorByApp: [String: NSRect] = [:]
+    /// How many times the panel was placed (`anchor`): one placed while the field was asked is newer (`show(_:anchoredIn:)`).
+    var placements = 0
     /// What the log said last of a panel's anchor not trusted (`anchor`).
     var anchorSaid: String?
 
@@ -1265,7 +1265,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`).
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
-        anchorToken += 1
+        (anchorToken, placements) = (anchorToken + 1, placements + 1)
         let token = anchorToken
         // The field's app, asked of the client once.
         let app = client.bundleIdentifier()

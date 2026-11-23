@@ -7,15 +7,18 @@ import InputMethodKit
 /// text. Asking the field waits on its app over XPC, running the run loop, so a key can be handled inside the call: what
 /// it reads and writes (`panelAnchor`) is copied, never held open across the field's answer (a crash, 2026-11-22).
 extension AllInOneIMEInputController {
-    /// `model` shown in the panel at its place in `client` (`anchor`), unless a key placed the panel anew while the field
-    /// was asked where that is: the panel shows what's newer then. `keepingUnchanged`: not shown again where it already
+    /// Each app's last panel rect to trust, whatever its field (`anchor`: the fallback where a field has none yet).
+    @MainActor static var lastAnchorByApp: [String: NSRect] = [:]
+
+    /// `model` shown in the panel at its place in `client` (`anchor`), unless the panel was placed anew (a key showing it)
+    /// while the field was asked where that is: the panel shows what's newer then. A key that places nothing doesn't count. `keepingUnchanged`: not shown again where it already
     /// shows the same, there (nothing moves).
     /// False: not shown (the newer placement's panel stays).
     @MainActor @discardableResult
     func show(_ model: PanelModel, anchoredIn client: IMKTextInput, keepingUnchanged: Bool = false) -> Bool {
-        let token = anchorToken
+        let placed = placements
         let rect = anchor(client)
-        guard anchorToken == token + 1 else { return false }
+        guard placements == placed + 1 else { return false }
         let panel = CandidatePanel.shared
         if !keepingUnchanged || !panel.shows(model, anchor: rect) { panel.show(model, anchor: rect) }
         return true
