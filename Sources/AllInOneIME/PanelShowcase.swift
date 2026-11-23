@@ -338,9 +338,10 @@ enum SettingsPageImages {
         model.config.switchKey = .capsLock
         render(.common, "common-caps-lock")
         model.config = saved
-        // The AI page with Claude Code chosen, with where what has to be fast goes, its card In use.
+        // The AI page with Claude Code chosen, with where what has to be fast goes, its card In use, and its MCP servers
+        // (0.7.5: a sample's, never this Mac's).
         model.config.ai = .cli(.claude)
-        render(.ai, "ai-claude-code")
+        MCPServerLister.withSample(model) { render(.ai, "ai-claude-code") }
         model.config = saved
         let troubled = SelfTest.sampleAssistant(rig, fine: shownChecks.contains("fine"), noAccessibility: shownChecks.contains("noax"))
         troubled.showsFine = shownChecks.contains("open")
