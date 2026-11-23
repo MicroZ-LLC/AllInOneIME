@@ -31,6 +31,21 @@ struct AnchorReentrancyTests {
         let shown = result.output.split(separator: "\n").first { $0.hasPrefix("SHOWN ") } ?? ""
         #expect(shown.contains("newer") && !shown.contains("older"), "the panel shows \(shown):\n\(result.output)")
     }
+
+    /// The key that came in meanwhile hid the panel (Esc, a candidate picked): the older panel doesn't come back.
+    @Test func aPanelTheLaterKeyHidStaysHidden() throws {
+        let result = try AnchorReentrancyChild.run("hide")
+        #expect(result.status == 0 && result.output.contains("REENTERED"), "exit \(result.status):\n\(result.output)")
+        #expect(result.output.contains("SHOWING false"), "the older panel came back after the key hid it:\n\(result.output)")
+    }
+
+    /// A key that came in meanwhile and changed nothing of the panel doesn't keep it from showing (a notice isn't lost).
+    @Test func aKeyThatLeftThePanelAsItWasDoesntKeepItFromShowing() throws {
+        let result = try AnchorReentrancyChild.run("idle")
+        #expect(result.status == 0 && result.output.contains("REENTERED"), "exit \(result.status):\n\(result.output)")
+        let shown = result.output.split(separator: "\n").first { $0.hasPrefix("SHOWN ") } ?? ""
+        #expect(shown.contains("older"), "the panel shows \(shown):\n\(result.output)")
+    }
 }
 
 enum AnchorReentrancyChild {
@@ -90,7 +105,7 @@ enum AnchorReentrancyChild {
     final class ReenteringField: NSObject, IMKTextInput {
         weak var controller: AllInOneIMEInputController?
         var reentered = false
-        var showing = false
+        var meanwhile = "anchor"
 
         private func reenter() {
             guard !reentered, let controller else { return }
@@ -98,7 +113,12 @@ enum AnchorReentrancyChild {
             print("REENTERED")
             fflush(stdout)
             MainActor.assumeIsolated {  // the key that came in meanwhile shows the panel
-                if showing { controller.show(.notice("newer"), anchoredIn: self) } else { _ = controller.anchor(self) }
+                switch meanwhile {
+                case "show": controller.show(.notice("newer"), anchoredIn: self)
+                case "hide": CandidatePanel.shared.hide()  // Esc, as hidePanelIfOwned does it
+                case "idle": controller.anchorToken += 1  // a key that leaves the panel as it is
+                default: _ = controller.anchor(self)
+                }
             }
         }
 
@@ -145,11 +165,14 @@ enum AnchorReentrancyChild {
             _ = controller.anchor(field)  // placed once, not trusted: asked again later
             field.reentered = false
             _ = controller.reasked(field, token: controller.anchorToken)
-        case "show":
+        case "show", "hide", "idle":
             _ = NSApplication.shared
-            field.showing = true
+            field.reentered = true
+            controller.show(.notice("first"), anchoredIn: field)  // the panel up, this controller's
+            (field.reentered, field.meanwhile) = (false, arguments[0])
             controller.show(.notice("older"), anchoredIn: field)
             print("SHOWN \(CandidatePanel.shared.view.model)")
+            print("SHOWING \(CandidatePanel.shared.isShowing)")
         default:
             print("FAIL way \(arguments.first ?? "")")
             exit(3)

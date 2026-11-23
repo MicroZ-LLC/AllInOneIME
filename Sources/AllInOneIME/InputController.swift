@@ -185,7 +185,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
     var panelAnchor = PanelAnchor.Memory()
     var anchorToken = 0
-    /// How many times the panel was placed (`anchor`): one placed while the field was asked is newer (`show(_:anchoredIn:)`).
+    /// How many times the panel was placed (`anchor`): one placed while the field was asked holds what's newer.
     var placements = 0
     /// What the log said last of a panel's anchor not trusted (`anchor`).
     var anchorSaid: String?
@@ -1266,7 +1266,7 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
         (anchorToken, placements) = (anchorToken + 1, placements + 1)
-        let token = anchorToken
+        let placing = placements
         // The field's app, asked of the client once.
         let app = client.bundleIdentifier()
         // Copies: asking the field (and Accessibility) below waits on the app, running the run loop, and a key handled
@@ -1292,7 +1292,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let (told, placement) = (placed.told, placed.placement)
         // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
-        guard token == anchorToken else { return placement.rect }
+        guard placements == placing else { return placement.rect }
         // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then):
         // the dictionary is every controller's, and another may have written it meanwhile.
         (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""])

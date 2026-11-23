@@ -10,16 +10,17 @@ extension AllInOneIMEInputController {
     /// Each app's last panel rect to trust, whatever its field (`anchor`: the fallback where a field has none yet).
     @MainActor static var lastAnchorByApp: [String: NSRect] = [:]
 
-    /// `model` shown in the panel at its place in `client` (`anchor`), unless the panel was placed anew (a key showing it)
-    /// while the field was asked where that is: the panel shows what's newer then. A key that places nothing doesn't count. `keepingUnchanged`: not shown again where it already
-    /// shows the same, there (nothing moves).
-    /// False: not shown (the newer placement's panel stays).
+    /// `model` shown in the panel at its place in `client` (`anchor`), unless the panel changed while the field was asked
+    /// where that is (a key handled meanwhile showed it anew, or hid it): what that key left is newer. False: not shown.
+    /// `keepingUnchanged`: not shown again where it already shows the same, there (nothing moves).
     @MainActor @discardableResult
     func show(_ model: PanelModel, anchoredIn client: IMKTextInput, keepingUnchanged: Bool = false) -> Bool {
-        let placed = placements
-        let rect = anchor(client)
-        guard placements == placed + 1 else { return false }
         let panel = CandidatePanel.shared
+        let (placed, showing, shown, owner) = (placements, panel.isShowing, panel.view.model, panel.owner)
+        let rect = anchor(client)
+        guard placements == placed + 1, panel.isShowing == showing, panel.view.model == shown, panel.owner === owner else {
+            return false
+        }
         if !keepingUnchanged || !panel.shows(model, anchor: rect) { panel.show(model, anchor: rect) }
         return true
     }
