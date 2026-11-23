@@ -22,6 +22,15 @@ struct AnchorReentrancyTests {
                 "the input method stopped while the field was asked for the panel's rect (\(way)), exit \(result.status):\n\(result.output)")
         #expect(result.output.contains("REENTERED"), "the field wasn't asked while the panel was placed (\(way)):\n\(result.output)")
     }
+
+    /// The key that came in while the field was asked shows the newer panel; the older one, placed once the field
+    /// answers, doesn't cover it.
+    @Test func thePanelShowsWhatTheLaterKeyShowed() throws {
+        let result = try AnchorReentrancyChild.run("show")
+        #expect(result.status == 0 && result.output.contains("REENTERED"), "exit \(result.status):\n\(result.output)")
+        let shown = result.output.split(separator: "\n").first { $0.hasPrefix("SHOWN ") } ?? ""
+        #expect(shown.contains("newer") && !shown.contains("older"), "the panel shows \(shown):\n\(result.output)")
+    }
 }
 
 enum AnchorReentrancyChild {
@@ -81,13 +90,16 @@ enum AnchorReentrancyChild {
     final class ReenteringField: NSObject, IMKTextInput {
         weak var controller: AllInOneIMEInputController?
         var reentered = false
+        var showing = false
 
         private func reenter() {
             guard !reentered, let controller else { return }
             reentered = true
             print("REENTERED")
             fflush(stdout)
-            _ = MainActor.assumeIsolated { controller.anchor(self) }  // the key that came in meanwhile shows the panel
+            MainActor.assumeIsolated {  // the key that came in meanwhile shows the panel
+                if showing { controller.show(.notice("newer"), anchoredIn: self) } else { _ = controller.anchor(self) }
+            }
         }
 
         func insertText(_ string: Any!, replacementRange: NSRange) {}
@@ -133,6 +145,11 @@ enum AnchorReentrancyChild {
             _ = controller.anchor(field)  // placed once, not trusted: asked again later
             field.reentered = false
             _ = controller.reasked(field, token: controller.anchorToken)
+        case "show":
+            _ = NSApplication.shared
+            field.showing = true
+            controller.show(.notice("older"), anchoredIn: field)
+            print("SHOWN \(CandidatePanel.shared.view.model)")
         default:
             print("FAIL way \(arguments.first ?? "")")
             exit(3)

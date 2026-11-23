@@ -251,8 +251,7 @@ extension AllInOneIMEInputController {
             scroll: { [weak self] steps in self?.received(.scroll(steps)) },  // this field's: no pointer use in it
             chip: { [weak self] part in self?.translateChipClicked(part) },
             handoff: nil))  // no conversation
-        let anchor = anchor(client)
-        if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is
+        show(model, anchoredIn: client, keepingUnchanged: true)  // nothing changed, nothing moved: as it is
         return true
     }
 

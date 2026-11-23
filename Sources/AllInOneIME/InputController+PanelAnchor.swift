@@ -7,6 +7,19 @@ import InputMethodKit
 /// text. Asking the field waits on its app over XPC, running the run loop, so a key can be handled inside the call: what
 /// it reads and writes (`panelAnchor`) is copied, never held open across the field's answer (a crash, 2026-11-22).
 extension AllInOneIMEInputController {
+    /// `model` shown in the panel at its place in `client` (`anchor`), unless a key placed the panel anew while the field
+    /// was asked where that is: the panel shows what's newer then. `keepingUnchanged`: not shown again where it already
+    /// shows the same, there (nothing moves).
+    @MainActor
+    func show(_ model: PanelModel, anchoredIn client: IMKTextInput, keepingUnchanged: Bool = false) {
+        let token = anchorToken
+        let rect = anchor(client)
+        guard anchorToken == token + 1 else { return }
+        let panel = CandidatePanel.shared
+        if keepingUnchanged, panel.shows(model, anchor: rect) { return }
+        panel.show(model, anchor: rect)
+    }
+
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel
     /// moves there once it tells one. Not after a key, the panel placed anew or hidden, the field left.
     @MainActor
@@ -57,5 +70,21 @@ extension AllInOneIMEInputController {
         if !panel.view.model.rows.isEmpty, GhostOverlay.shared.isVisible, GhostOverlay.shared.frame.intersects(panel.frame) {
             GhostOverlay.shared.hide()
         }
+    }
+
+    /// The rect `client` tells for a panel (`FieldAnchor.told`): its marked text's line; for a command on the selection,
+    /// the selection's last character (nothing is marked to go by).
+    @MainActor
+    func toldAnchor(_ client: IMKTextInput) -> NSRect {
+        FieldAnchor.told(client, selection: composer.selection?.range)
+    }
+
+    /// What Accessibility tells of the caret in `app`, the field's app (`FocusedField.caret`; the page's frame till it is
+    /// known): never during secure input or in a password field, never for the self-test's fields (it would read the
+    /// user's own frontmost app).
+    @MainActor
+    func caretByAccessibility(in app: String?, page: Bool) -> PanelAnchor.Accessibility? {
+        guard clientOverride == nil, !session.secureInputActive(), let app else { return nil }
+        return FocusedField.caret(in: app, page: page)
     }
 }

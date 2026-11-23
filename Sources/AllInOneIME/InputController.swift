@@ -927,7 +927,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     // The wheel over it is this field's: no pointer use in it (GitHub #66).
                     let panel = CandidatePanel.shared
                     panel.take(by: self, .session({ [weak self] in self?.received($0) }))
-                    panel.show(.notice(text), anchor: anchor(target))
+                    show(.notice(text), anchoredIn: target)
                 }
             case let .noticeElsewhere(text, long, progress):
                 // In the field being typed in now, else near the pointer; the progress notice here goes.
@@ -1292,7 +1292,9 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         let (told, placement) = (placed.told, placed.placement)
         // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
-        if token == anchorToken { (panelAnchor, Self.lastAnchorByApp) = (memory, lastByApp) } else { return placement.rect }
+        guard token == anchorToken else { return placement.rect }
+        // Only this app's entry: the dictionary is every controller's, and another may have written its own meanwhile.
+        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, lastByApp[app ?? ""] ?? Self.lastAnchorByApp[app ?? ""])
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
@@ -1319,22 +1321,6 @@ final class AllInOneIMEInputController: IMKInputController {
         return placement.rect
     }
 
-    /// The rect `client` tells for a panel (`FieldAnchor.told`): its marked text's line; for a command on the selection,
-    /// the selection's last character (nothing is marked to go by).
-    @MainActor
-    private func toldAnchor(_ client: IMKTextInput) -> NSRect {
-        FieldAnchor.told(client, selection: composer.selection?.range)
-    }
-
-    /// What Accessibility tells of the caret in `app`, the field's app (`FocusedField.caret`; the page's frame till it is
-    /// known): never during secure input or in a password field, never for the self-test's fields (it would read the
-    /// user's own frontmost app).
-    @MainActor
-    private func caretByAccessibility(in app: String?, page: Bool) -> PanelAnchor.Accessibility? {
-        guard clientOverride == nil, !session.secureInputActive(), let app else { return nil }
-        return FocusedField.caret(in: app, page: page)
-    }
-
     @MainActor
     func showPanel(_ model: PanelModel?, _ client: IMKTextInput?) {
         // Nothing to show: Translate as You Type's chip, if it's on here; its list of languages over anything else.
@@ -1345,7 +1331,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }, rows: true,
                                       chip: { [weak self] part in self?.translateChipClicked(part) }))
-        panel.show(model, anchor: anchor(client))
+        show(model, anchoredIn: client)
         hideGhostBehindRows()
     }
 
