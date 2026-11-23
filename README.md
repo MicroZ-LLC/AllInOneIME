@@ -1687,7 +1687,11 @@ the signature, then the archive's size and SHA-256. To try a pack from a local s
 
 Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.json, signed with the releases' own key):
 
-1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree) and the changelogs.
+1. Bump the version (`AppVersion.swift` and the three Info.plists; `AppVersionTests` checks they agree), and write the
+   changelogs: `mkdir -p build && python3 Scripts/changelog.py release <version> <YYYY-MM-DD> > build/release-notes.md`
+   dates the unreleased section of both, with the fragments in `changes/` added to it (each change writes one, AGENTS.md
+   rule 15), removes the fragments with `git rm`, and saves the release notes for step 3 (`python3 Scripts/changelog.py
+   preview` prints them beforehand, changing nothing).
    On an unlocked Mac, `make test-screen`: the tests that need windows drawn on screen, which CI skips while the Mac
    mini's screen is locked (its Quality run says so in a warning).
 2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
@@ -1702,7 +1706,9 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    The profile lists the team's three Developer ID Application certificates (all G1) only: before signing with another
    (a G2 one), make a new profile in the developer portal (by hand: the App ID's signing isn't left to Xcode) that lists
    it, and commit it.
-3. Upload both to the GitHub release `v<version>` and publish it.
+3. Upload both to the GitHub release `v<version>` and publish it, with `build/release-notes.md` as its notes, a summary
+   added atop each language (`**New:** …`, `**新功能：** …`) and the disk image's SHA-256 line at the end, as earlier
+   releases have them.
 4. `make update-manifest UPDATE_SUMMARY_EN="…" UPDATE_SUMMARY_ZH="…"` (a sentence or two each): writes
    `site/public/update-v2.json` (version, build and minimum macOS read from the apps, the asset's address, size and SHA-256,
    the release notes' address and the summary) and signs it into `update-v2.json.sig` with the key from the login keychain

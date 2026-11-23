@@ -49,8 +49,10 @@ handed off (`@agent`, `@question`'s "continue in"), not built in.
 
 ## Docs, for changes a user would notice
 
-As AGENTS.md says: both changelogs, in the top `## X.Y.Z (unreleased)` section (X.Y.Z is the release branch's
-version; add the section if it's missing), and the READMEs where they describe what changed.
+As AGENTS.md says: a changelog fragment, `changes/issue-N.md` (N is the issue's number), with the entry in English and
+Chinese (`changes/README.md` shows the format; `python3 Scripts/changelog.py check` checks it), and the READMEs where
+they describe what changed. Don't edit CHANGELOG.md or CHANGELOG.zh-CN.md: the release writes the fragments into them,
+and `make lint` fails a change that edits them.
 
 ## Your commit message
 

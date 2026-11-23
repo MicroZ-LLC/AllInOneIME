@@ -22,7 +22,8 @@ The pipeline has run `swift build`, `make lint` and `make test`: they pass, apar
 - It is correct: read the code for edge cases, errors, concurrency, and what happens to existing users' settings and
   data.
 - The tests test the issue's behaviour and would catch it breaking; none were weakened or removed to pass.
-- Both changelogs (and the READMEs where they describe it) say what changed; English docs are English only.
+- Its changelog fragment, `changes/issue-$number.md` in English and Chinese (and the READMEs where they describe it),
+  says what changed, and CHANGELOG.md and CHANGELOG.zh-CN.md weren't edited; English docs are English only.
 - It follows AGENTS.md (the repository's rules), reads like the code around it, and has no debugging leftovers,
   secrets, or files that don't belong.
 
