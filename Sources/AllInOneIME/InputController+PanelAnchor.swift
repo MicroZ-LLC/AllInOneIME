@@ -10,14 +10,15 @@ extension AllInOneIMEInputController {
     /// `model` shown in the panel at its place in `client` (`anchor`), unless a key placed the panel anew while the field
     /// was asked where that is: the panel shows what's newer then. `keepingUnchanged`: not shown again where it already
     /// shows the same, there (nothing moves).
-    @MainActor
-    func show(_ model: PanelModel, anchoredIn client: IMKTextInput, keepingUnchanged: Bool = false) {
+    /// False: not shown (the newer placement's panel stays).
+    @MainActor @discardableResult
+    func show(_ model: PanelModel, anchoredIn client: IMKTextInput, keepingUnchanged: Bool = false) -> Bool {
         let token = anchorToken
         let rect = anchor(client)
-        guard anchorToken == token + 1 else { return }
+        guard anchorToken == token + 1 else { return false }
         let panel = CandidatePanel.shared
-        if keepingUnchanged, panel.shows(model, anchor: rect) { return }
-        panel.show(model, anchor: rect)
+        if !keepingUnchanged || !panel.shows(model, anchor: rect) { panel.show(model, anchor: rect) }
+        return true
     }
 
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel
