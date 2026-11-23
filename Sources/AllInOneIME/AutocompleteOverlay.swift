@@ -322,8 +322,7 @@ extension AllInOneIMEInputController {
         // The wheel over the line is this field's: no pointer use in it, so Tab and Esc stay the line's (GitHub #66).
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }))
-        panel.show(.autocomplete(text, language: UIText.language), anchor: anchor(client))
-        ghostInPanel = true
+        if show(.autocomplete(text, language: UIText.language), anchoredIn: client) { ghostInPanel = true }  // superseded: as the newer one left it
     }
 
     @MainActor
