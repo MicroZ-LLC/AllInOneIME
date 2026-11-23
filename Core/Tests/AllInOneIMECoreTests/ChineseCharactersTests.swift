@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -84,7 +85,7 @@ struct ChineseCharactersTests {
     /// In the settings document, next to fuzzy pinyin while Chinese is typed: the three, the one in use chosen (the
     /// system's until one is picked), and picking one saves it.
     @Test func inTheSettingsDocument() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("characters-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
@@ -170,7 +171,7 @@ struct ChineseCharactersTests {
     /// The same file as fuzzy pinyin's (`rime_ice.custom.yaml`), this app's by its first line: there with Traditional
     /// characters alone, with fuzzy pinyin too, and gone again with neither; the user's own file never touched.
     @Test func writtenWithFuzzyPinyin() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("characters-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let schemaURL = dir.appendingPathComponent("rime_ice.schema.yaml")
@@ -202,7 +203,7 @@ struct ChineseCharactersTests {
     /// With personal dictionaries the patch holds theirs and the characters' lines (the store's branch with them), and an
     /// import or a removal writes it with the characters it is given; the last one removed, the characters stay.
     @Test func keptWithThePersonalDictionaries() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("characters-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("characters-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: dir) }
         let user = dir.appendingPathComponent("user")
         try FileManager.default.createDirectory(at: user, withIntermediateDirectories: true)
@@ -415,15 +416,15 @@ struct ChineseCharactersTests {
         #expect(TranslateMode.plan(for: "这个", target: hant, config: taiwan).input == .chinese)
     }
 
-    /// Japanese has kanji that read as either (学 Simplified, 語 Traditional): with any kana it can't tell, and Chinese
-    /// for it is the characters typed, as before.
-    @Test func japaneseTextGoesByTheSetting() {
+    /// Japanese has kanji that read as either (学 Simplified, 語 Traditional): with any kana it can't tell; the text is
+    /// Japanese ("ja"), whatever the characters typed (owner, 2026-11-14).
+    @Test func japaneseTextIsJapaneseWhateverTheSetting() {
         let japanese = ["日本の学校に来た", "会社に行きます", "日本語の勉強", "東京駅で待っています", "ﾃｽﾄの結果"]
         for text in japanese { #expect(ChineseCharacters.writtenTraditional(text) == nil, "\(text)") }
         let taiwan = config(.taiwan, outputs: [.english]), simplified = config(.simplified, outputs: [.english])
         for text in japanese {
-            #expect(taiwan.writtenLanguage(of: text) == .traditionalTaiwan, "\(text)")
-            #expect(simplified.writtenLanguage(of: text) == .chinese, "\(text)")
+            #expect(taiwan.writtenLanguage(of: text) == .japanese, "\(text)")
+            #expect(simplified.writtenLanguage(of: text) == .japanese, "\(text)")
         }
         // Chinese without kana still tells.
         #expect(ChineseCharacters.writtenTraditional("会社") == false && ChineseCharacters.writtenTraditional("東京駅") == true)
@@ -586,7 +587,7 @@ struct ChineseCharactersTests {
         #expect(summary.allSatisfy { $0.count <= 120 })
         let english = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "en"))
         #expect(english.contains("missing or can't be read") && english.contains("reinstall AllInOneIME")
-                    && english.contains("files of your own") && english.contains("Settings → Input → Chinese → Characters"), "\(english)")
+                    && english.contains("files of your own") && english.contains("Settings → Common → Characters"), "\(english)")
         let chinese = Doctor.localizedLogEvent(summary[0], Doctor.Words(language: "zh-Hans"))
         #expect(chinese.hasPrefix("Rime：繁体字的转换数据（OpenCC）缺少或读不出来") && chinese.contains("重新安装")
                     && chinese.hasSuffix("，2 次"), "\(chinese)")

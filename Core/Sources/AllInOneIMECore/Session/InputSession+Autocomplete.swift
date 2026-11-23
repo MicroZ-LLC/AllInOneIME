@@ -68,8 +68,8 @@ struct AutocompleteMessages {
 
     /// It stopped in `app` (its name) for want of use: Forget in Privacy → Learned… starts it there again.
     func stopped(in app: String) -> String {
-        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 → 隐私 →「学到的内容…」里撤销）",
-                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → Privacy → Learned… can undo it)")
+        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 →「更多设置」→「隐私」→「学到的内容…」里撤销）",
+                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)")
     }
 
     /// The on-device model can't run (`reason`): nothing is shown, and nothing goes to the cloud.
@@ -378,8 +378,7 @@ extension InputSession {
         // What was typed stands in only where the field tells nothing, and not past a click.
         let typed = caretMayHaveMoved(within: services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
-        // Which it went by, for a request seen with a field that looked empty (a read with no text: an empty field, or
-        // one that tells none, as WeChat's, which the shell can't tell apart yet).
+        // Which it went by: a field whose text can't be read (an empty one is read as empty, and asks nothing).
         if text == nil { log.notice("autocomplete \(id): the field told no text; what was typed since the focus stands in") }
         if let kept = services.autocomplete.kept(for: request, in: app) {
             autocompleteShow(kept.rest, kept: kept.entry, fromCache: true)

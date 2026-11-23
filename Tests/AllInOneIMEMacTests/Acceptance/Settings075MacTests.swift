@@ -36,6 +36,8 @@ struct Settings075MacTests {
     /// The AI commands' rows: @improve's, @translate's, @question's (its recent questions too).
     static let aiCommands = ["rewriteStyles", "improveTranslates", "jargonList", "outputLanguages", "questionContinueIn",
                              "rememberQuestions"]
+    /// The page each AI command's row is on: #120 (later spec) moves @translate's languages to Common; the rest stay on AI.
+    static func page(_ row: String) -> String { row == "outputLanguages" ? "common" : "ai" }
     /// The Commands page's rows that aren't AI commands: they stay there.
     static let commandsRows = ["customCommands", "agent", "notes", "plugins", "scriptExtensions", "extensionSources"]
 
@@ -44,7 +46,7 @@ struct Settings075MacTests {
     @Test func theAICommandsRowsAreOnTheAIPage() throws {
         let report = try Settings075Child.run((Self.aiCommands + Self.commandsRows).map { Ask(.plain, "en", "page:" + $0) })
         for row in Self.aiCommands {
-            #expect(report.page(row) == "ai", "\(row) is on \(report.page(row) ?? "no page"): \(report)")
+            #expect(report.page(row) == Self.page(row), "\(row) is on \(report.page(row) ?? "no page"): \(report)")
         }
         for row in Self.commandsRows {
             #expect(report.page(row) == "commands", "\(row) is on \(report.page(row) ?? "no page"): \(report)")
@@ -63,13 +65,13 @@ struct Settings075MacTests {
         for interface in Self.interfaces {
             for row in Self.aiCommands {
                 let found = report.found(Ask(.jargon, interface, "title:" + row))
-                #expect(found?.contains(.init(row, "ai")) == true, "\(interface): searching \(row)'s title lists \(found ?? []): \(report)")
+                #expect(found?.contains(.init(row, Self.page(row))) == true, "\(interface): searching \(row)'s title lists \(found ?? []): \(report)")
             }
             for (command, rows) in [("@improve", ["rewriteStyles", "improveTranslates"]), ("@translate", ["outputLanguages"]),
                                     ("@question", ["questionContinueIn", "rememberQuestions"])] {
                 let found = report.found(Ask(.jargon, interface, command))
                 for row in rows {
-                    #expect(found?.contains(.init(row, "ai")) == true, "\(interface): searching \(command) lists \(found ?? []): \(report)")
+                    #expect(found?.contains(.init(row, Self.page(row))) == true, "\(interface): searching \(command) lists \(found ?? []): \(report)")
                 }
             }
         }
@@ -211,29 +213,10 @@ enum Settings075Child {
         let others = try fm.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" && $0.lastPathComponent != "main.swift" }.map(\.path).sorted()
         // The Mac library, the core and librime's wrapper, as `swift test` built them.
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMEMac", "AllInOneIMECore", "AllInOneIMERime", "AllInOneIMEText", "AllInOneIMEScriptEngine",
-                       "CQuickJS", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else if let files = try? fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil) {
-                objects += files.filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
         let executable = scratch.appendingPathComponent("settings075")
-        let arguments = ["swiftc", "-swift-version", "5", "-j", "\(max(2, ProcessInfo.processInfo.activeProcessorCount))",
-                         "-I", modules.path, "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                         "-framework", "AppKit", "-framework", "InputMethodKit", "-framework", "Carbon", "-framework", "AVFoundation",
-                         "-framework", "Speech", "-framework", "EventKit", "-framework", "SwiftUI",
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                         mainFile.path] + others + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 900)
+        let swift = try SourceCompiler.compile(repository: repository, sources: [mainFile.path] + others,
+            executable: executable,
+            timeout: 900)
         guard swift.status == 0 else { throw Failure(description: "compiling Sources/AllInOneIME with the harness:\n\(swift.output)") }
         return executable
     }

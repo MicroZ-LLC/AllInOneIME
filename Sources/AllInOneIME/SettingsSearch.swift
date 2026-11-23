@@ -8,7 +8,7 @@ import SwiftUI
 enum SettingsSpot: String, CaseIterable {
     // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
-    case switchKey, candidateLayout
+    case switchKey, candidateLayout, keyHints
     // General
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
@@ -24,35 +24,36 @@ enum SettingsSpot: String, CaseIterable {
     // About
     case updates, troubleshoot, reportIssue
 
-    /// The page it's on.
+    /// The page or More Settings' group it lives in (owner, 0.7.5, #120): the ten most people need on Common, the AI's
+    /// on AI, the rest in More Settings' groups.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage, .switchKey, .candidateLayout: return .input
-        case .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
-             .menuBarIcon, .interfaceLanguage, .iCloudSync:
-            return .general
-        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection,
-             .rewriteStyles, .improveTranslates, .jargonList, .outputLanguages, .questionContinueIn, .rememberQuestions:
-            return .ai
+        case .inputLanguages, .pinyinScheme, .chineseCharacters, .switchKey, .candidateLayout,
+             .magicKey, .outputLanguages, .clipboardHistory, .autocomplete:
+            return .common
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage, .actionKey: return .inputAndKeys
+        case .suggestions, .suggestionsInsert, .appInserts: return .suggestions
         case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .learnEnglishWords, .learned, .installID:
             return .privacy
+        // Key hints came after the plan (#99): how the panel looks, with the interface.
+        case .menuBarIcon, .interfaceLanguage, .iCloudSync, .keyHints: return .interface
+        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
+        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection,
+             .rewriteStyles, .improveTranslates, .jargonList, .questionContinueIn, .rememberQuestions:
+            return .ai
         case .customCommands, .agent, .notes, .plugins, .scriptExtensions, .extensionSources:
             return .commands
-        case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
         case .updates, .troubleshoot, .reportIssue: return .about
         }
     }
 
-    /// The row outlined for it: its own, or the input languages' for what is in a chip.
-    var row: SettingsSpot {
-        chip == nil ? self : .inputLanguages
-    }
+    /// The row outlined for it: its own (each has a row of its own since #120; the input chips no longer hold any).
+    var row: SettingsSpot { self }
 
-    /// The input whose chip holds it.
+    /// The input whose options section (Input and keys) holds it.
     var chip: Input? {
         switch self {
-        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -63,7 +64,8 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
-        case .pinyinScheme: return UIText.pinyinSchemeLabel
+        // A row of its own on Common since #120, no longer under Chinese's name: Chinese said.
+        case .pinyinScheme: return tr("中文输入方式", "Chinese typing")
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
@@ -108,6 +110,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return tr("扩展来源", "Extension Sources")
         case .typeOut: return tr("逐字上屏", "Type results out")
         case .candidateLayout: return tr("候选排列", "Candidate layout")
+        case .keyHints: return tr("显示按键提示", "Show key hints")
         case .switchKey: return UIText.switchKeyLabel
         case .useSelection: return tr("使用选中的文字", "Use the selected text")
         case .configFile: return tr("配置文件", "Config file")
@@ -154,6 +157,7 @@ enum SettingsSpot: String, CaseIterable {
             return tr("一个本机随机生成的编号，只用于统计安装数，不含其他信息。",
                       "A random number made on this Mac, so we can count installs. Nothing else is sent.")
         case .typeOut: return Self.typeOutNote
+        case .keyHints: return UIText.keyHintsHelp()
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
         case .troubleshoot:
@@ -218,6 +222,7 @@ enum SettingsSpot: String, CaseIterable {
         case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .keyHints: return "key hints shortcuts footer keys bottom hide smaller 按键 提示 快捷键 底部 隐藏 候选框"
         case .switchKey: return "switch key shift caps lock capslock capitals chinese english input language 切换 中英文 大写锁定 大写 输入语言"
         case .useSelection: return "selection selected text restore default 选中 文字 恢复默认"
         case .configFile: return "config file json 配置文件"

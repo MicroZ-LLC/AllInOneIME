@@ -548,8 +548,8 @@ extension InputSession {
         let (enter, backspace) = (terms.enter, terms.backspace)
         let footer: String
         if clipboard.first {
-            footer = t.tr("只存在这台 Mac 上；在设置 →「通用」→「剪贴板历史」里可以关掉",
-                          "Kept on this Mac only; turn it off in Settings → General → Clipboard history")
+            footer = t.tr("只存在这台 Mac 上；在设置 →「常用」→「剪贴板历史」里可以关掉",
+                          "Kept on this Mac only; turn it off in Settings → Common → Clipboard history")
         } else if all == 0 {
             footer = t.tr("\(backspace) 删字 · Esc 隐藏", "\(backspace) deletes · Esc hides")
         } else if !selected.isEmpty {
@@ -580,7 +580,7 @@ extension InputSession {
         let highlighted = window.contains(clipboard.chosen) ? clipboard.chosen - window.lowerBound : nil
         // The filter on top, as a line typed into, its caret at its end.
         let input = filtered ? PanelModel.Input(prompt: t.tr("筛选 › ", "filter › "), text: clipboard.filter, caret: clipboard.filter.count) : nil
-        return PanelModel(rows: rows, highlighted: highlighted, input: input, footer: footer, detail: notice ?? detail)
+        return keyHinted(PanelModel(rows: rows, highlighted: highlighted, input: input, footer: footer, detail: notice ?? detail))
     }
 
     /// How large a kept image is: "820 KB", "2.4 MB".

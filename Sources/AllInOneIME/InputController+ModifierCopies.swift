@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import os
 
@@ -16,18 +17,19 @@ extension AllInOneIMEInputController {
     @MainActor
     static func isModifierCopy(_ event: NSEvent) -> Bool {
         let now = ProcessInfo.processInfo.systemUptime
-        if modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue, timestamp: event.timestamp, now: now) {
-            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
-            // 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "modifier copy"'`): what
-            // shows a real app hands the copy over with the event's own time.
+        // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
+        // 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "modifier copy"'`): what
+        // shows a real app hands the copy over with the event's own time.
+        switch MacKeyEvents.copy(event, now: now, echoes: &modifierEchoes, capsLock: &capsLockCopies, lockOn: { CapsLockKey.isOn() }) {
+        case .echo?:
             logCopy(event, now: now, kind: "")
             return true
+        case .capsLock?:
+            logCopy(event, now: now, kind: " (Caps Lock, a time of its own)")
+            return true
+        case nil:
+            return false
         }
-        guard event.keyCode == CapsLockKey.keyCode,
-              capsLockCopies.isCopy(saysOn: event.modifierFlags.contains(.capsLock), lockOn: CapsLockKey.isOn(),
-                                    timestamp: event.timestamp, now: now) else { return false }
-        logCopy(event, now: now, kind: " (Caps Lock, a time of its own)")
-        return true
     }
 
     private static func logCopy(_ event: NSEvent, now: TimeInterval, kind: String) {

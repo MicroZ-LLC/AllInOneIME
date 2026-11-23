@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import AllInOneIMEMac
 import AppKit
@@ -48,7 +49,7 @@ struct ClipboardHistoryRecordingTests {
     }
 
     static func folder() throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("clipboard-history-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("clipboard-history-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }

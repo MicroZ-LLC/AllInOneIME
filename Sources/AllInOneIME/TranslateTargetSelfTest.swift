@@ -65,13 +65,13 @@ extension SelfTest {
             _ = pump(timeout: 2.5) { !opened.isEmpty }  // the notice up a while: nothing opens meanwhile
             let shown = controller.panelModel()
             let line = "\(shown.status)"
-            check(opened.isEmpty && model.requests.count == before.1 && client.inserted == before.0 && client.marked.contains("good morning"),
-                  "[\(ui)] ⏎: nothing sent and nothing opens by itself; the draft stays as it is (\(opened), marked '\(client.marked)')")
+            check(opened.isEmpty && model.requests.count == before.1 && client.inserted == before.0 && controller.preedit.contains("good morning"),
+                  "[\(ui)] ⏎: nothing sent and nothing opens by itself; the draft stays as it is (\(opened), marked '\(controller.preedit)')")
             check(line.contains(page) && line.contains("⏎") && line.contains(tr("还没有要翻译成的语言", "No language to translate into yet"))
                   && shown.footer.hasPrefix(tr("空格 / ⏎ 打开设置", "Space / ⏎ open the settings")),
                   "[\(ui)] …the notice, still up, names the page and offers ⏎ (\(line) | \(shown.footer))")
             if key == "⏎" { _ = enter(controller, client) } else { _ = space(controller, client) }
-            check(opened == ["ai/outputLanguages"] && client.inserted.last == "good morning" && client.marked.isEmpty
+            check(opened == ["ai/outputLanguages"] && client.inserted.last == "good morning" && controller.preedit.isEmpty
                   && controller.composer.phase == .idle,
                   "[\(ui)] \(key) on it opens Settings on \(page) at the languages; the sentence goes in as typed (\(opened), \(client.inserted.last ?? "-"))")
         }
@@ -150,9 +150,9 @@ extension SelfTest {
             return (first?[kCGWindowNumber as String] as? Int) == window.windowNumber
         }
         let others = OutputLanguage.catalog.filter { $0 != .english }.map(UIText.name)
-        for start in ["closed", "on General, behind another window", "in the Dock"] {
+        for start in ["closed", "on Common, behind another window", "in the Dock"] {
             if start != "closed" {
-                SettingsWindow.shared.show(page: .general)
+                SettingsWindow.shared.show(page: .common)
                 _ = pump(timeout: 0.8) { false }
                 if start == "in the Dock" {
                     settingsWindow()?.miniaturize(nil)

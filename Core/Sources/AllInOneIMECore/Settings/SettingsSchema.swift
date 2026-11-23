@@ -331,17 +331,8 @@ struct SettingsSchema {
             to: &fields) { value in
             store.config.switchKey = value.string.flatMap(SwitchKey.init(rawValue:)) ?? store.config.switchKey
         }
-        add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
-                   config.candidateLayout == .horizontal
-                       ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",
-                            "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
-                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。",
-                            "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page."),
-                   value: .string(config.candidateLayout.rawValue),
-                   choices: [(Choice("vertical", tr("竖排", "Vertical")), nil), (Choice("horizontal", tr("横排", "Horizontal")), nil)]),
-            to: &fields) { value in
-            store.config.candidateLayout = value.string.flatMap(CandidateArrangement.init(rawValue:)) ?? store.config.candidateLayout
-        }
+        // How the candidate panel looks (SettingsSchema+Panel.swift).
+        panel(&fields)
         if config.inputLanguages.contains(.chinese) {
             // Full pinyin, a Shuangpin scheme or Zhuyin, beside the characters (`PinyinScheme`): the Mac deploys it (Windows
             // not yet). Zhuyin picked first picks Taiwan's characters (`SettingsStore.setPinyinScheme`).
@@ -497,7 +488,9 @@ struct SettingsSchema {
                                  (Choice("high", "high"), nil), (Choice("", tr("不设置（模型不支持时选）", "Not set (for models without it)")), nil)]),
                 to: &fields) { store.setProviderField(provider, \.effort, to: $0.string ?? "", empty: "") }
         case .bedrock:
-            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), value: .string(config.modelId))
+            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
+            // Under it, the ID sent where it isn't this one (a "us." profile to a region in Europe goes as "eu.").
+            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), help: UIText.bedrockModelSent(config, profileRegion: region), value: .string(config.modelId))
             model.choices = SuggestedModel.all.map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { value in
                 let id = SettingsStore.typed(value.string ?? "")
@@ -512,7 +505,6 @@ struct SettingsSchema {
                        choices: profiles.map { (Choice($0, $0), nil) }), to: &fields) { value in
                 store.config.awsProfile = value.string ?? store.config.awsProfile
             }
-            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
             add(text("bedrock.region", tr("区域", "Region"), value: config.region,
                      placeholder: tr("留空用 profile 的区域（\(region)）", "Empty: the profile's region (\(region))")), to: &fields) { value in
                 store.setBedrockRegion(value.string ?? "")

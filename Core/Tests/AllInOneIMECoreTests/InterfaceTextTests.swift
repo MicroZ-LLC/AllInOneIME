@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -9,7 +10,7 @@ struct InterfaceTextTests {
     /// A folder standing in for an app: `<code>.lproj/Localizable.strings` with `tables[code]`, as the Makefile
     /// compiles the catalog (an XML property list). A new folder each time: Bundle keeps what it has read.
     static func app(_ tables: [String: [String: String]]) throws -> Bundle {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("interface-text-\(UUID().uuidString)")
+        let root = TestScratch.temporary("interface-text-\(UUID().uuidString)")
         for (code, table) in tables {
             let folder = root.appendingPathComponent("\(code).lproj")
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
@@ -236,7 +237,7 @@ struct InterfaceTextTests {
         let text = String(decoding: try JSONEncoder().encode(config), as: UTF8.self)
         #expect(text.contains(#""uiLanguage":"zh""#))
 
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("ui-language-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("ui-language-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         #expect(ConfigFile.uiLanguage(from: url) == nil)
         try Data(#"{"uiLanguage": "fr", "maxTokens": "not a number"}"#.utf8).write(to: url)

@@ -43,8 +43,8 @@ extension SelfTest {
         improve(controller, client)
         type("hello there", controller, client)
         act(controller, client)
-        check(!controller.composer.isLevelTwo && client.marked == "improve › hello there" && client.inserted.isEmpty,
-              "@improve in the chat app sends nothing, the draft stays (\(client.marked), \(controller.composer.phase))")
+        check(!controller.composer.isLevelTwo && controller.preedit == "improve › hello there" && client.inserted.isEmpty,
+              "@improve in the chat app sends nothing, the draft stays (\(controller.preedit), \(controller.composer.phase))")
         check(controller.composer.aiRefusal() == AppProfileText.refusal, "…with the notice: \(controller.composer.aiRefusal() ?? "none")")
         _ = escape(controller, client)
         _ = escape(controller, client)
@@ -180,7 +180,7 @@ extension SelfTest {
             let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
             preview.config.setOrder([Language.chinese, .english])
             preview.config.appProfiles = AppProfileSamples.profiles
-            for (page, suffix) in [(SettingsPage.general, ""), (.privacy, "-privacy"), (.advanced, "-advanced")] {
+            for (page, suffix) in [(SettingsPage.suggestions, ""), (.privacy, "-privacy"), (.advanced, "-advanced")] {
                 let url = snapshotDirectory.appendingPathComponent("\(name)\(suffix).png")
                 SettingsImage.render(preview, page: page, to: url) { seconds in _ = pump(timeout: seconds) { false } }
                 check(FileManager.default.fileExists(atPath: url.path), "the per-app settings rendered on \(page.rawValue) (\(language))")

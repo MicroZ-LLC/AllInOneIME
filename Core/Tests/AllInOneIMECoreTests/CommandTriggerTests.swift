@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -48,7 +49,7 @@ struct CommandTriggerTests {
     // MARK: Settings says why
 
     func service(_ text: String = "{}") throws -> (SettingsService, URL) {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("command-trigger-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("command-trigger-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)

@@ -96,7 +96,7 @@ public struct PanelPresenter {
     public static let latestLimit = 4000
 
     /// The interface text in `language`.
-    private var t: InterfaceWords { InterfaceWords(language: language) }
+    var t: InterfaceWords { InterfaceWords(language: language) }
 
     /// The action key, as `terms` call it.
     private func name(_ key: ActionKey) -> String { t.name(key, terms: terms) }
@@ -137,7 +137,7 @@ public struct PanelPresenter {
     public func model(for composer: Composer) -> PanelModel {
         var presenter = self
         presenter.terms.roles = composer.modifierRoles
-        return presenter.panel(for: composer)
+        return config.keyHints ? presenter.panel(for: composer) : presenter.panel(for: composer).withoutKeyHints
     }
 
     /// `model(for:)`, with `terms`' roles the composer's.
@@ -384,8 +384,9 @@ public struct PanelPresenter {
             let key = composer.actionKey
             if let command = composer.draftCommand {
                 // Pinyin (or Hindi) in an @ command: the action key converts it and runs the command.
+                // Japanese pasted into it is no input language: told by the text itself (`Language.isJapanese`).
                 let action = t.action(command, input: composer.textLanguage(config: config), config: config, draft: composer.draft,
-                                      terms: terms)
+                                      terms: terms, text: Language.isJapanese(composer.sentText) ? composer.sentText : nil)
                 model.footer = t.tr("空格 选词 · \(name(key)) \(action)", "Space picks · \(name(key)) to \(action)")
             } else {
                 model.footer = SessionText.translateModeFooter(composer, language: language, terms: terms)
@@ -517,10 +518,11 @@ public struct PanelPresenter {
     // MARK: - One @
 
     /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
-    /// found by name: the name, and what it does), no numbers (digits are text there); the first highlighted, ↑↓ move.
+    /// found by name: the name, and what it does), each its ⌥digit (`Composer.handleNumberedPick`: digits alone are text
+    /// there); the first highlighted, ↑↓ move.
     private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
         let all = composer.oneAtRows, first = composer.oneAtFirstVisible
-        model.rows = composer.oneAtVisible.map { oneAtRow($0, composer) }
+        model.rows = PanelModel.numbered(composer.oneAtVisible.map { oneAtRow($0, composer) }, by: terms.pick)
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter, lone = composer.draft == composer.commandTrigger && !composer.engineState.isComposing
@@ -705,26 +707,24 @@ public struct PanelPresenter {
                                                         "question \(next)/\(QuestionChat.rounds(composer.questionRounds)) › "),
                                            text: typed, caret: typed.count)
         }
-        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 }
+        model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 } + SessionText.followUpHeader(composer, language: language)
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(t.tr("AI 回答中…", "Answering…")) }
         let count = composer.handoffChoices.count
         let copy = terms.copy, again = terms.again, enter = terms.enter, shiftEnter = terms.shiftEnter
         // The digits that pick an answer: up to the round limit (none with a question session), 9 at most (no digit after it).
         let pick = "1–\(composer.questionSession ? 9 : min(QuestionChat.rounds(composer.questionRounds), 9))"
+        let footers = chatFooters(savedAnswer: composer.showsSavedAnswer, pick: pick)
         if composer.refineIsComposing, !composer.showsHandoff {
             // The next question's pinyin: the conversation stays, its candidates on a line of their own (⏎ converts it and
             // asks, ⇧⏎ inserts the answer selected: `Composer.handleChatReturn`).
-            followUpComposing(footer: t.tr("空格 选词 · \(enter) 追问 · \(shiftEnter) 上屏答案 · Esc 清除拼音",
-                                           "Space picks · \(enter) ask · \(shiftEnter) insert the answer · Esc clear the pinyin"),
-                              into: &model)
+            followUpComposing(footer: footers.composing, into: &model)
         } else if answering {
-            model.footer = composer.refinements.isEmpty ? t.tr("回答中… · Esc 返回", "Answering… · Esc back")
-                : t.tr("回答中… · 可以接着打下一个问题 · Esc 回到上一轮", "Answering… · type the next question meanwhile · Esc previous round")
+            model.footer = t.tr("回答中… · 可以接着打下一个问题 · Esc 关闭", "Answering… · type the next question meanwhile · Esc close")
         } else if composer.showsHandoff {
             model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
-                + t.tr(" · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回", " · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
+                + footers.handoff
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
             // A saved answer: ⌘R asks it again for a fresh one (a conversation's latest question).
             model.footer = composer.refinements.isEmpty
@@ -734,8 +734,7 @@ public struct PanelPresenter {
                        "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(again) re-ask · \(copy) copy · Esc back")
         } else {
             // ⏎ asks the question typed (with nothing typed it does nothing), ⇧⏎ inserts the answer selected.
-            model.footer = t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
-                                "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back")
+            model.footer = footers.idle
         }
         // When it was saved, or how long the answer took; that earlier rounds were shortened to fit the model.
         var details: [String] = []

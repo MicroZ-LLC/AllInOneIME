@@ -7,7 +7,7 @@ import Testing
 /// isn't waited for: the question fails with `ClaudeSessionError.compacting` at once, the provider answers and the panel
 /// says why, rather than after the 30-second first-answer timeout.
 struct QuestionSessionCompactionTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("compaction-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("compaction-\(UUID().uuidString)")
 
     func event(_ text: String) -> ClaudeSession.Event { ClaudeSession.event(Data(text.utf8)) }
 

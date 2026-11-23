@@ -74,9 +74,16 @@ public struct CodexBackend: SessionBackend {
     public var environment: [String: String] { ["CODEX_EXEC_SERVER_URL": "none"] }
 
     public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb) -> any SessionDriver {
+        driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: web, mcp: .none)
+    }
+
+    /// The servers checked turned on in the thread's config, with their read-only tools only (`SessionMCP.codexServers`).
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb,
+                       mcp: SessionMCP) -> any SessionDriver {
         let written = try? String(contentsOf: directory.appendingPathComponent("AGENTS.md"), encoding: .utf8)
         let instructions = written.flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
-        return CodexDriver(directory: directory, threadID: agentSessionID, instructions: instructions ?? ClaudeSession.instructions)
+        return CodexDriver(directory: directory, threadID: agentSessionID, instructions: instructions ?? ClaudeSession.instructions,
+                           mcp: web == .open ? mcp : .none)
     }
 
     public func availabilityArguments(settings: URL?) -> [String] { ["app-server"] }
@@ -124,6 +131,7 @@ final class CodexDriver: SessionDriver {
     private var requests: [Int: Request] = [:]
     /// A message waiting for the thread to open, and whether it was stopped meanwhile.
     private var queued: String?
+    private var queuedImages: [PromptImage] = []
     private var queuedCancelled = false
     /// The turn being answered: started (its id, once `turn/start` answered), stopped before it had one.
     private var turnStarted = false
@@ -134,10 +142,14 @@ final class CodexDriver: SessionDriver {
     /// The thread's tokens before the turn (its `total` less its first update's `last`), from the turn's first update.
     private var tokensBefore: Int?
 
-    init(directory: URL, threadID: String?, instructions: String = ClaudeSession.instructions) {
+    /// The MCP servers the thread gets (`SessionMCP`); every other one of the user's is off.
+    private let mcp: SessionMCP
+
+    init(directory: URL, threadID: String?, instructions: String = ClaudeSession.instructions, mcp: SessionMCP = .none) {
         self.directory = directory
         self.threadID = threadID
         self.instructions = instructions
+        self.mcp = mcp
     }
 
     static var initializeParams: [String: Any] { ["clientInfo": ["name": "allinoneime", "title": "AllInOneIME", "version": "1"]] }
@@ -153,28 +165,22 @@ final class CodexDriver: SessionDriver {
 
     /// The thread's config that turns off each MCP server of `config/read`'s `config` (`mcp_servers`, by name): `enabled`
     /// false with the server's `url` or `command` (Codex rejects one without either). Empty when there are none.
-    static func mcpServersOff(_ config: [String: Any]?) -> [String: Any] {
-        let servers = config?["mcp_servers"] as? [String: Any] ?? [:]
-        var off: [String: Any] = [:]
-        for (name, server) in servers {
-            let server = server as? [String: Any] ?? [:]
-            var entry: [String: Any] = ["enabled": false]
-            for key in ["url", "command"] { if let value = server[key] as? String { entry[key] = value } }
-            off[name] = entry
-        }
-        return off.isEmpty ? [:] : ["mcp_servers": off]
+    /// `mcp`: the servers kept on, each with only its read-only tools (`enabled_tools`).
+    static func mcpServersOff(_ config: [String: Any]?, keeping mcp: SessionMCP = .none) -> [String: Any] {
+        let servers = mcp.codexServers(config?["mcp_servers"] as? [String: Any] ?? [:])
+        return servers.isEmpty ? [:] : ["mcp_servers": servers]
     }
 
     func opening() -> [Data] {
         [request(.initialize, "initialize", Self.initializeParams)]
     }
 
-    func message(_ text: String) -> [Data] {
+    func message(_ text: String, images: [PromptImage]) -> [Data] {
         guard ready else {
-            (queued, queuedCancelled) = (text, false)
+            (queued, queuedImages, queuedCancelled) = (text, images, false)
             return []
         }
-        return [turn(text)]
+        return [turn(text, images: images)]
     }
 
     func newConversation() -> [Data]? {
@@ -276,7 +282,7 @@ final class CodexDriver: SessionDriver {
             guard failure == nil, let read = result?["config"] as? [String: Any] else {
                 return ([.failed(.notWebOnly, endsProcess: true)], [])
             }
-            config = Self.mcpServersOff(read)
+            config = Self.mcpServersOff(read, keeping: mcp)
             if let threadID {
                 return ([], [request(.resume, "thread/resume", threadParams.merging(["threadId": threadID]) { $1 })])
             }
@@ -322,18 +328,21 @@ final class CodexDriver: SessionDriver {
         let name = naming && threadID != nil
             ? [request(.name, "thread/name/set", ["threadId": threadID ?? "", "name": SessionAgent.sessionName])] : []
         guard let text = queued else { return ([.started], name) }
-        queued = nil
+        let images = queuedImages
+        (queued, queuedImages) = (nil, [])
         if queuedCancelled { return ([.started, .result(error: false, interrupted: true, text: "", status: nil)], name) }
-        return ([.started], name + [turn(text)])
+        return ([.started], name + [turn(text, images: images)])
     }
 
     private func startThread() -> Data {
         request(.start, "thread/start", threadParams)
     }
 
-    private func turn(_ text: String) -> Data {
+    private func turn(_ text: String, images: [PromptImage]) -> Data {
         (turnStarted, turnID, interruptPending, messageItem, tokensBefore) = (true, nil, false, nil, nil)
-        return request(.turn, "turn/start", ["threadId": threadID ?? "", "input": [["type": "text", "text": text]]])
+        // A screenshot as an `image` input (a data URL, codex 0.163's `ImageUserInput`) before the text.
+        let input: [[String: Any]] = images.map { ["type": "image", "url": $0.dataURL] } + [["type": "text", "text": text]]
+        return request(.turn, "turn/start", ["threadId": threadID ?? "", "input": input])
     }
 
     private func request(_ kind: Request, _ method: String, _ params: [String: Any]) -> Data {

@@ -505,7 +505,7 @@ struct EnglishWordsTests {
     }
 
     @Test func learnedIntoTheConfigFileAlone() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("englishwords-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -526,7 +526,7 @@ struct EnglishWordsTests {
     /// another writer changed meanwhile (Settings, iCloud sync, the Assistant) stays, every word learned in a row is
     /// there, and those learned while a write goes on go in one more write.
     @Test func learnedOffTheKeysThreadIntoTheFileAsItIsThen() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("englishwords-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -565,7 +565,7 @@ struct EnglishWordsTests {
     /// the file parses again (`retry`), never trying on its own meanwhile; the process drains what's left before it
     /// ends (`drain`).
     @Test func aWordWhoseWriteFailedIsKeptUntilTheFileTakesIt() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("englishwords-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -673,7 +673,7 @@ struct EnglishWordsTests {
         #expect(config.englishWords.count == EnglishWords.maxWords && config.englishWords.prefix(2) == ["word1x", "word2x"])
         #expect(config.englishWords.last == "Bedrock" && config.addedEnglishWords == ["word1x", "Bedrock"])
         // Learned into the file: an added word stays there too.
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishwords-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("englishwords-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("config.json")
@@ -706,7 +706,7 @@ struct EnglishWordsTests {
     }
 
     @Test func rimeIcesDictionaryIsReadFromItsTables() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("englishdict-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("englishdict-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: folder.appendingPathComponent("en_dicts"), withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try Data("""

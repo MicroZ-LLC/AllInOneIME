@@ -194,10 +194,10 @@ public struct ChatTranscript: Equatable, Sendable {
         return .unknown
     }
 
-    /// Two lines of a message: no space between Chinese, Japanese or Korean.
+    /// Two lines of a message: no space between Chinese or Japanese; Korean gets one, as English (`Composer.joinsLines`).
     static func join(_ first: String, _ second: String) -> String {
         guard let last = first.last, let next = second.first else { return first + second }
-        return Composer.isCJK(last) && Composer.isCJK(next) ? first + second : first + " " + second
+        return Composer.joinsLines(last) && Composer.joinsLines(next) ? first + second : first + " " + second
     }
 
     /// A time or day between messages: "14:32", "下午 3:20", "昨天 09:10", "Yesterday 9:10 PM", "星期一", "10月17日 14:32",

@@ -2,7 +2,7 @@ import AllInOneIMECore
 import Foundation
 
 /// General → "Continue a conversation in" (`Config.questionContinueIn`): where an @question conversation can go on
-/// (`ChatHandoff`), in order, the first the default (⌘1; the choices show after the last round or with ⌘⏎). The agents
+/// (`ChatHandoff`), in order, the first the default (⌥1; the choices show after the last round or with ⌘⏎). The agents
 /// only where their program is installed (`AgentAvailability`); "@agent's agent" (`.atAgent`) follows the agent picked.
 /// An edit keeps the entries not shown now (an agent not installed) where they were.
 extension SettingsModel {

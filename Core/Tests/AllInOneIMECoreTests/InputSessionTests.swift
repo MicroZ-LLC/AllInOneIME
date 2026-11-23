@@ -31,7 +31,7 @@ struct InputSessionTests {
     /// `@question` picked while a CLI is the AI: its process starts ahead, off the key's thread, and nothing there reads
     /// the settings (the Mac's are the main thread's, `LiveConfig`): they're read on the key's thread before.
     @Test func theQuestionPrewarmReadsNoSettingsOffTheKeyThread() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("prewarm-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("prewarm-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let fake = FakeClaude()
         let claude = ClaudeSessionManager(launcher: fake, store: ClaudeSessionStore(directory: folder), userSettings: { nil })
@@ -125,10 +125,10 @@ struct InputSessionTests {
         await inEnglish {
             let host = host()
             host.type("nihao")
-            #expect(host.marked == "nihao" && host.composer.isComposing)
+            #expect(host.preedit == "nihao" && host.composer.isComposing)
             #expect(host.panel?.rows.map(\.text).prefix(2) == ["你好", "拟好"], "the candidates in the panel")
             host.press(FakeHost.space)
-            #expect(host.document == "你好" && host.marked.isEmpty && host.panel == nil)
+            #expect(host.document == "你好" && host.preedit.isEmpty && host.panel == nil)
             host.type("nihao")
             host.press(FakeHost.enter)
             #expect(host.document == "你好nihao", "⏎ inserts the letters (\(host.document))")
@@ -139,10 +139,10 @@ struct InputSessionTests {
         await inEnglish {
             let host = host()
             host.press(FakeHost.at)
-            #expect(host.marked == "@" && host.panel?.rows.first.map { !$0.text.hasPrefix("@") && !$0.text.isEmpty } == true)
+            #expect(host.preedit == "@" && host.panel?.rows.first.map { !$0.text.hasPrefix("@") && !$0.text.isEmpty } == true)
             host.type("i")
             host.press(FakeHost.enter)
-            #expect(host.marked == "improve › " && host.composer.draft == "@improve ", "@i ⏎ picks @improve (\(host.marked))")
+            #expect(host.preedit == "improve › " && host.composer.draft == "@improve ", "@i ⏎ picks @improve (\(host.preedit))")
         }
     }
 
@@ -154,7 +154,7 @@ struct InputSessionTests {
                 let key = character == "@" ? FakeHost.at : KeyEvent(keyCode: 0, characters: String(character))
                 if !host.press(key) { host.document += String(character) }  // the app types it
             }
-            #expect(host.document == "bob@" && !host.composer.isComposing, "no command list after a word (\(host.marked))")
+            #expect(host.document == "bob@" && !host.composer.isComposing, "no command list after a word (\(host.preedit))")
             host.document += " "
             host.press(FakeHost.at)
             #expect(host.composer.draft == "@", "after a space it opens")
@@ -167,13 +167,13 @@ struct InputSessionTests {
         await inEnglish {
             let host = host()
             host.secure = true
-            #expect(!host.press(KeyEvent(keyCode: 0, characters: "a")) && host.marked.isEmpty && !host.composer.isComposing)
+            #expect(!host.press(KeyEvent(keyCode: 0, characters: "a")) && host.preedit.isEmpty && !host.composer.isComposing)
             #expect(host.session.notice == "Secure input: the input method is paused, keys go straight in")
             host.secure = false
             host.type("ni")
             host.secure = true
             #expect(!host.press(KeyEvent(keyCode: 2, characters: "d")), "a key passes through once it turns on")
-            #expect(host.document == "ni" && host.marked.isEmpty, "the pending letters go in as typed (\(host.document))")
+            #expect(host.document == "ni" && host.preedit.isEmpty, "the pending letters go in as typed (\(host.document))")
         }
     }
 
@@ -215,7 +215,8 @@ struct InputSessionTests {
             host.type("nihao")
             #expect(host.panel?.detail == notice, "on the panel while composing (\(host.panel?.detail ?? "-"))")
             host.send(.commit)
-            #expect(host.session.notice == notice && host.document == "ni你好", "committing leaves it (\(host.document))")
+            // The app ends the composition (a click): the pinyin goes, nothing of it in (#116).
+            #expect(host.session.notice == notice && host.document == "ni", "committing leaves it (\(host.document))")
             host.type("nihao")
             host.fireTimers()
             #expect(host.session.notice == nil && host.panel != nil && host.panel?.detail != notice,
@@ -223,15 +224,78 @@ struct InputSessionTests {
         }
     }
 
-    @Test func theAppTakingTheMarkedTextStartsOver() async {
+    /// What is being typed shows only in the panel's input line, with its caret, never in the field (the owner,
+    /// 2026-11-15): pinyin, a command's draft, Code's word; the field gets text only when something goes in.
+    @Test func whatIsTypedShowsOnlyInThePanel() async {
         await inEnglish {
             let host = host()
-            host.type("ni")
-            host.appTakesMarkedText = true
-            #expect(host.press(KeyEvent(keyCode: 0x04, characters: "h")), "the key is dropped")
-            #expect(!host.composer.isComposing, "nothing pending: no draft shown again, doubled")
+            host.document = "Hi "
+            host.type("nihao")
+            #expect(host.preedit == "nihao" && host.panel?.input?.caret == 5 && host.document == "Hi ", "\(host.preedit)")
+            host.press(KeyEvent(keyCode: VirtualKey.space, characters: " "))
+            #expect(host.document == "Hi 你好" && host.preedit.isEmpty && host.panel == nil, "\(host.document) | \(host.preedit)")
+            // A command's draft: in the input line, the panel with it.
+            host.composer.setInputMode(.english)
+            host.type("@improve ok")
+            #expect(host.preedit == "improve › ok" && host.document == "Hi 你好", "\(host.preedit)")
+            // The app empties the field meanwhile: nothing of ours is there, and the draft is kept.
+            host.document = ""
+            host.type("!")
+            #expect(host.preedit == "improve › ok!" && host.document.isEmpty, "\(host.preedit)")
+        }
+    }
+
+    /// Leaving the field while pinyin is typed (the app's commit on a click, or the field losing the focus) puts nothing
+    /// of it in and hides the panel, the same in every app (the owner, 2026-11-15; #116); a draft before it still goes
+    /// in as typed.
+    @Test(arguments: [SessionEvent.commit, .blur]) func leavingMidCompositionPutsNothingIn(_ leaving: SessionEvent) async {
+        await inEnglish {
+            let host = host()
+            host.document = "Hi "
+            host.type("nihao")
+            #expect(host.preedit == "nihao" && host.panel != nil)
+            host.send(leaving)
+            #expect(host.document == "Hi " && host.preedit.isEmpty && host.panel == nil, "\(host.document)")
+            #expect(!host.composer.isComposing)
+            host.focus()
             host.type("wo")
-            #expect(host.marked == "wo")
+            #expect(host.preedit == "wo", "the next key starts afresh")
+        }
+    }
+
+    /// The app cancelled the composition (IMK's `cancelComposition`): nothing goes in, neither the pinyin nor the draft
+    /// before it, and the panel goes.
+    @Test func aCancelledCompositionPutsNothingIn() async {
+        await inEnglish {
+            let host = host()
+            host.composer.setInputMode(.english)
+            host.type("@question why ")
+            host.composer.setInputMode(.chinese)
+            host.type("nihao")
+            #expect(host.composer.isComposing && host.panel != nil)
+            host.send(.cancel)
+            #expect(host.document.isEmpty && host.preedit.isEmpty && host.panel == nil, "\(host.document)")
+            #expect(!host.composer.isComposing)
+        }
+    }
+
+    /// A mouse down outside the input method's windows (contract v1.4): whatever is being typed goes, nothing of it in
+    /// (the pinyin, a command's draft), and the panel goes; the next key starts afresh.
+    @Test func aClickLeavesNothing() async {
+        await inEnglish {
+            let host = host()
+            host.document = "Hi "
+            host.type("nihao")
+            host.send(.pointerDown)
+            #expect(host.document == "Hi " && host.preedit.isEmpty && host.panel == nil, "\(host.document)")
+            host.composer.setInputMode(.english)
+            host.type("@improve ok")
+            #expect(host.preedit == "improve › ok")
+            host.send(.pointerDown)
+            #expect(host.document == "Hi " && host.preedit.isEmpty && host.panel == nil && !host.composer.isComposing, "\(host.document)")
+            host.composer.setInputMode(.chinese)
+            host.type("wo")
+            #expect(host.preedit == "wo", "the next key starts afresh")
         }
     }
 
@@ -244,7 +308,7 @@ struct InputSessionTests {
             #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) == [.secure, .selection, .selectedRange],
                     "\"@\" may start a command on the selection")
             host.type("ni")
-            #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure)).contains(.markedText), "composing: the marked text")
+            #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure)) == [.secure], "composing: nothing is marked to check")
         }
     }
 
@@ -297,7 +361,7 @@ struct InputSessionTests {
             #expect(host.settle { host.composer.phase == .choosing })
             #expect(host.composer.choices.contains { $0.text == "42" }, "\(host.composer.choices.map(\.text))")
             host.press(FakeHost.enter)
-            #expect(host.document.hasSuffix("42") && host.marked.isEmpty, "\(host.document)")
+            #expect(host.document.hasSuffix("42") && host.preedit.isEmpty, "\(host.document)")
         }
     }
 
@@ -434,7 +498,7 @@ struct InputSessionTests {
             host.document = "Total: 6*7 apples"
             host.selection = 7..<10
             pick("js", in: host)
-            #expect(host.composer.draftInPanel && host.marked.isEmpty, "written in the panel: the field keeps its selection")
+            #expect(host.composer.draftInPanel && host.marked.isEmpty && host.preedit == "js › ", "written in the panel: the field keeps its selection")
             host.press(FakeHost.enter)
             #expect(host.settle { host.composer.phase == .choosing })
             host.press(FakeHost.enter)
@@ -451,7 +515,7 @@ struct InputSessionTests {
             #expect(host.composer.draftInPanel)
             host.selection = 0..<5  // a click
             host.press(KeyEvent(keyCode: 0, characters: "a"))
-            #expect(!host.composer.draftInPanel && host.marked == "a", "given up; the key types as usual (\(host.marked))")
+            #expect(!host.composer.draftInPanel && host.preedit == "a", "given up; the key types as usual (\(host.preedit))")
         }
     }
 
@@ -475,7 +539,7 @@ struct InputSessionTests {
             host.clipboard = .text("hello there")
             #expect(host.press(FakeHost.controlV))
             #expect(host.outputs.contains { if case .readClipboard = $0 { true } else { false } }, "read once the key is answered")
-            #expect(host.marked == "improve › hello there", "\(host.marked)")
+            #expect(host.preedit == "improve › hello there", "\(host.preedit)")
         }
     }
 
@@ -632,8 +696,8 @@ struct InputSessionTests {
 
     @Test func commandsWhoseProgramIsMissingAreNotOffered() async {
         await inEnglish {
-            let host = host { $0.programInstalled = { $0 != InlineCode.python } }
-            #expect(host.settle { !host.composer.commands.contains(.py) })
+            let host = host { $0.programInstalled = { $0 != AgentKind.claude.program() } }
+            #expect(host.settle { !host.composer.commands.contains(.agent) })
             #expect(host.composer.commands.contains(.js))
         }
     }
@@ -733,7 +797,7 @@ struct InputSessionTests {
                 host.modifiers(ModifierChange(key: .modifier(.option, .right), modifiers: [], timestamp: 101))  // let go
                 #expect(host.platformActions.last == .stopVoice(id: id), "\(host.platformActions)")
                 host.send(.voice(.finished("你好。", id: id)))
-                #expect(host.composer.voice == .off && host.document == "你好。", "the transcript goes in (\(host.document) | \(host.marked))")
+                #expect(host.composer.voice == .off && host.document == "你好。", "the transcript goes in (\(host.document) | \(host.preedit))")
             }
         }
     }

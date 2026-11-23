@@ -428,7 +428,8 @@ struct ClipboardHistoryAcceptanceTests {
             h.firstClipboardPanel = true
             open(h)
             #expect(h.panel?.footer.contains("Kept on this Mac only") == true)
-            #expect(h.panel?.footer.contains("Settings → General → Clipboard history") == true)
+            // #120: the clipboard history row moved from General to Common.
+            #expect(h.panel?.footer.contains("Settings → Common → Clipboard history") == true)
             h.press(FakeHost.escape)
             open(h)
             #expect(h.panel?.footer.contains("Kept on this Mac only") == false)

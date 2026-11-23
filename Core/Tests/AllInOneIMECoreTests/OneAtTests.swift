@@ -30,6 +30,13 @@ struct OneAtTests {
         for text in ["这家店的菜很好吃", "thank you for the gift", "show me how", "明天下午3点开会"] {
             #expect(!OneAt.isQuestion(text), "\(text)")
         }
+        // 过几 + a time is "in a few …"; after a verb's 过 it asks how many.
+        let asking = ["你去过几次北京", "你学过几种语言", "你学过几年中文", "你在北京住过几个月", "你在那儿待过几天",
+                      "what's a good way to learn Japanese", "what’s an input method"]
+        for text in asking { #expect(OneAt.isQuestion(text), "\(text)") }
+        let saying = ["过几天再说", "过几分钟就好", "过几年再看", "等过几个月再说", "我们过几天见", "没过几天他就走了", "不过几天而已",
+                      "又过几天", "刚过几天", "已过几年", "都过几个月了", "还过几天才到", "才过几分钟", "what a lovely day", "what an idea"]
+        for text in saying { #expect(!OneAt.isQuestion(text), "\(text)") }
         #expect(OneAt.mostly("这个PR我觉得还可以") == .chinese)
         #expect(OneAt.mostly("please update the 文档 today") == .english)
         #expect(!OneAt.isOtherLanguage("3*7+2", main: .chinese), "no letters: no language")
@@ -242,7 +249,7 @@ struct OneAtTests {
             told.selection = nil
             told.selectionFollows = true
             host.press(FakeHost.at, with: told)
-            #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.marked)")
+            #expect(host.marked.isEmpty && host.panel != nil, "nothing marked over the selection: \(host.preedit)")
             #expect(host.composer.selection?.text == "The report looks good", "read after the key")
             #expect(host.panel?.rows.first?.comment == "@improve", "the selection's: \(host.panel?.rows.map(\.text) ?? [])")
             #expect(host.composer.parkedForSelection == nil && host.platformActions.isEmpty)
@@ -427,8 +434,8 @@ struct OneAtTests {
 
             let space = reading(selected: true, typing: "hello")
             #expect(space.press(FakeHost.space))
-            #expect(!space.composer.selectionPending && space.composer.draft == "@hello " && space.marked.hasSuffix("hello "),
-                    "marked in the field now: \(space.marked)")
+            #expect(!space.composer.selectionPending && space.composer.draft == "@hello " && space.preedit.hasSuffix("hello "),
+                    "in the input line now: \(space.preedit)")
             let panel = space.panel
             space.answerFieldReads()
             #expect(space.composer.selection == nil && space.panel == panel && space.composer.draft == "@hello ", "dropped")
@@ -494,7 +501,7 @@ struct OneAtTests {
             #expect(host.composer.parkedForSelection == .row(.command(.improve)) && host.composer.draftCommand == nil)
             host.answerFieldReads()
             #expect(host.composer.draftCommand == .improve && host.composer.selection?.text == "hello there", "\(host.composer.draft)")
-            #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.marked)")
+            #expect(host.marked.isEmpty && host.document == "hello there" && host.selection == 0..<11, "\(host.preedit)")
             host.press(FakeHost.enter)
             #expect(host.composer.isLevelTwo && host.composer.activeCommand == .improve)
             #expect(host.platformActions.isEmpty)
@@ -807,7 +814,7 @@ struct OneAtTests {
                     host.composer.setInputMode(.english)
                     host.type(text)
                     let place = "\(trigger) \(text)\(terminal ? " in a terminal" : "")"
-                    #expect(host.document == text && host.marked.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.marked)")
+                    #expect(host.document == text && host.preedit.isEmpty && !host.composer.isComposing, "\(place): \(host.document)|\(host.preedit)")
                     #expect(host.composer.oneAt == nil && host.panel?.rows.isEmpty != false, "\(place)")
                     #expect(!host.settle(timeout: 0.1) { !asked.withLock { $0 }.isEmpty }, "\(place): \(asked.withLock { $0 })")
                 }

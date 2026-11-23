@@ -103,6 +103,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
     private let answerClock: any Clock<Duration>
     private let userSettings: @Sendable () -> URL?
     private let uptime: @Sendable () -> TimeInterval
+    /// The MCP servers checked for this agent (`SessionMCP`), read as a process starts: only one whose web is open gets them.
+    private let mcp: @Sendable () -> SessionMCP
     private let state = Locked(initialState: State())
     private let kept = Locked<Kept?>(initialState: nil)
     /// The locks of the conversations our processes are on.
@@ -118,7 +120,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
                 interruptTimeout: Duration = ClaudeSessionManager.interruptTimeout,
                 answerClock: any Clock<Duration> = ContinuousClock(),
                 userSettings: @escaping @Sendable () -> URL? = { ClaudeSession.userSettingsFile() },
-                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime }) {
+                uptime: @escaping @Sendable () -> TimeInterval = { ProcessInfo.processInfo.systemUptime },
+                mcp: @escaping @Sendable () -> SessionMCP = { .none }) {
         self.backend = backend
         self.launcher = launcher
         self.store = store ?? ClaudeSessionStore(backend)
@@ -130,6 +133,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         self.answerClock = answerClock
         self.userSettings = userSettings
         self.uptime = uptime
+        self.mcp = mcp
     }
 
     /// What is kept of the session `session`: `memory` as saved, and the values hidden so far (in memory only).
@@ -149,7 +153,8 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// It goes on in the agent conversation now (`Request.continues`); else into a new one.
         let continues: Bool
         /// What is written: none until its request has its message (`Request.answer`); nothing behind it goes first.
-        var message: String?
+        /// And the screenshots it is asked with (`PromptImage`), written with it.
+        var message: String?, images: [PromptImage] = []
         var continuation: AsyncThrowingStream<SessionReply, Error>.Continuation?
         /// How it ended before it had its message (the session stopped, it waited too long): its stream ends so.
         var ended: Error?
@@ -398,9 +403,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         /// Asks it, once, with `message` (one user message: the text as the provider would get it, already redacted).
         /// The stream gives the answer so far each time more of it comes, with what the panel tells of it
         /// (`SessionReply`), and ends with the turn; given up (cancelled), it interrupts the turn.
-        public func answer(_ message: String) -> AsyncThrowingStream<SessionReply, Error> {
+        public func answer(_ message: String, images: [PromptImage] = []) -> AsyncThrowingStream<SessionReply, Error> {
             guard let manager else { return AsyncThrowingStream { $0.finish(throwing: CancellationError()) } }
-            return manager.answer(turn, message)
+            return manager.answer(turn, message, images)
         }
 
         /// `answer`, its text alone.
@@ -435,28 +440,9 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         request(conversation).ask(question)
     }
 
-    /// The answer's text from `replies`, each time it changes.
-    static func texts(_ replies: AsyncThrowingStream<SessionReply, Error>) -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
-            let task = Task {
-                do {
-                    var last: String?
-                    for try await reply in replies where reply.text != last {
-                        last = reply.text
-                        continuation.yield(reply.text)
-                    }
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: error)
-                }
-            }
-            continuation.onTermination = { _ in task.cancel() }
-        }
-    }
-
     /// `turn`'s request asked with `message` (`Request.answer`): written once the turns before it are answered. One that
     /// ended before (the session stopped, it waited too long) ends so at once.
-    fileprivate func answer(_ turn: Turn, _ message: String) -> AsyncThrowingStream<SessionReply, Error> {
+    fileprivate func answer(_ turn: Turn, _ message: String, _ images: [PromptImage]) -> AsyncThrowingStream<SessionReply, Error> {
         AsyncThrowingStream { continuation in
             let id = turn.id
             continuation.onTermination = { [weak self] termination in
@@ -464,7 +450,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             }
             let actions = state.withLock { state -> [Action] in
                 guard turn.message == nil else { return [.finish(continuation, CancellationError())] }  // asked once only
-                (turn.message, turn.continuation) = (message, continuation)
+                (turn.message, turn.images, turn.continuation) = (message, images, continuation)
                 if turn.done { return [.finish(continuation, turn.ended ?? CancellationError())] }
                 let actions = pump(&state)
                 // Behind one being answered: it waits so long at most.
@@ -622,14 +608,6 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         guard let actions else { return false }
         perform(actions)
         return true
-    }
-
-    /// What Terminal runs for a hand-off: `arguments` (the CLI's) under `lockf`, which holds `lock` (the conversation's,
-    /// `handOffOnceEnded`) while the CLI runs, waiting up to 10 seconds for it to be let go; as they are where there is no
-    /// `/usr/bin/lockf`. A shell's `exec` keeps the window's process the CLI's (or lockf's, which waits for it).
-    public static func terminalCommand(_ arguments: [String], lock: URL) -> [String] {
-        let script = #"lock="$1"; shift; if [ -x /usr/bin/lockf ]; then exec /usr/bin/lockf -k -t 10 "$lock" "$@"; fi; exec "$@""#
-        return ["/bin/sh", "-c", script, "sh", lock.path] + arguments
     }
 
     /// Ends the process, and the questions it was answering (the app quits, the settings changed).
@@ -877,9 +855,12 @@ public final class ClaudeSessionManager: @unchecked Sendable {
             let resume = store.resumable
             state.generation += 1
             let generation = state.generation
-            let arguments = backend.arguments(sessionID: id, resume: resume, settings: providerSettings(), web: web)
+            let servers = web == .open ? mcp() : .none
+            try store.writeMCP(backend.mcpFiles(servers))
+            let arguments = backend.arguments(sessionID: id, resume: resume, settings: providerSettings(), web: web, mcp: servers,
+                                              directory: store.directory)
             let driver = backend.driver(sessionID: id, agentSessionID: store.agentSessionID(), resume: resume,
-                                        directory: store.directory, web: web)
+                                        directory: store.directory, web: web, mcp: servers)
             let process = try launcher.start(arguments, in: store.directory,
                                              output: { [weak self] in self?.received($0, generation: generation) },
                                              exited: { [weak self] in
@@ -951,7 +932,7 @@ public final class ClaudeSessionManager: @unchecked Sendable {
         turn.newConversation = !asked(&state)
         state.asked = true
         watch(turn)
-        return moved + opening + running.driver.message(message).map { .send(running.process, $0) }
+        return moved + opening + running.driver.message(message, images: turn.images).map { .send(running.process, $0) }
     }
 
     /// `turn`, about to be written, put in its agent conversation (once: sent again after a failed start, it is there):

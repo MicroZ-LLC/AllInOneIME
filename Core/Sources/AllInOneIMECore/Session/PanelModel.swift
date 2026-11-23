@@ -107,8 +107,8 @@ public struct PanelModel: Equatable, Sendable {
         case error(String)
     }
 
-    /// The line of input on top, with its caret: a command written on the selected text (it isn't marked in the field),
-    /// a refine instruction or an `@question` conversation's next question being typed.
+    /// The line of input on top, with its caret: what is being typed (nothing is marked in the field: pinyin, a command's
+    /// draft), a refine instruction or an `@question` conversation's next question being typed.
     public struct Input: Equatable, Sendable {
         /// What it is, before the text: "refine › ", "question 2/5 › " (empty: the text says it, "improve › …").
         public var prompt: String
@@ -125,7 +125,7 @@ public struct PanelModel: Equatable, Sendable {
     }
 
     /// Where an `@question` conversation can go on (after its last round, or ⌘⏎): a title, and the destinations, each
-    /// with the shortcut that picks it ("⌘1", "Ctrl+1").
+    /// with the shortcut that picks it ("⌥1", "Alt+1").
     public struct Handoff: Equatable, Sendable {
         public struct Choice: Equatable, Sendable {
             public var shortcut: String
@@ -287,5 +287,67 @@ extension PanelModel {
         if ["Esc", "Tab", "Enter", "Return", "Space", "空格", "Backspace", "Delete", "Del"].contains(word) { return true }
         if let plus = word.firstIndex(of: "+"), ["Ctrl", "Shift", "Alt", "Win"].contains(word[..<plus]) { return true }
         return word.first?.isNumber == true && word.allSatisfy { $0.isNumber || $0 == "–" || $0 == "-" }
+    }
+}
+
+// MARK: - Keys on the panel
+
+extension PanelModel {
+    /// The panel without its keys explained (`Config.keyHints` off): no footer keys, nor what Space does at the end of the
+    /// pinyin line; what is going on (`footerHints`' note) and the detail on the right stay, and the rows as they are.
+    public var withoutKeyHints: PanelModel {
+        var model = self
+        model.note = footerHints.note
+        (model.footer, model.hints, model.candidatesHint) = ("", [], nil)
+        return model
+    }
+
+    /// `rows` each labelled with the key that picks it by its place (`key(1)`: "⌥1" …), up to the 9th; those after, none.
+    static func numbered(_ rows: [Row], by key: (Int) -> String) -> [Row] {
+        rows.enumerated().map { place, row in
+            var row = row
+            row.label = place < 9 ? key(place + 1) : ""
+            return row
+        }
+    }
+}
+
+/// What the panel shows, as text: as it is drawn (the Mac's `CandidateView`), and as the self-tests read it.
+extension PanelModel {
+    /// The line of input as the Mac draws it, on top (under where a conversation can go on): its prompt and its text,
+    /// "▏" at its caret. Nil: none.
+    public var inputLine: String? {
+        input.map { input in
+            input.prompt + (input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text)
+        }
+    }
+
+    /// What the Mac shows on top, as text: where a conversation can go on, its title and its choices as lines (up to 4 on
+    /// a line, more 3 a line, as they are laid out: each its key on a keycap and its name, `CandidateView.handoffTargets`),
+    /// then the line of input (`inputLine`). Nil: neither.
+    public var inputText: String? {
+        var lines: [String] = []
+        if let handoff {
+            let labels = handoff.choices.map { $0.shortcut + " " + $0.name }
+            let perLine = labels.count <= 4 ? 4 : 3
+            lines.append(handoff.title)
+            lines.append(stride(from: 0, to: labels.count, by: perLine)
+                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
+        }
+        if let inputLine { lines.append(inputLine) }
+        return lines.isEmpty ? nil : lines.joined(separator: "\n")
+    }
+
+    /// The header's lines as the Mac draws them, one under the other; nil without.
+    public var headerText: String? { header.isEmpty ? nil : header.joined(separator: "\n") }
+
+    /// The status's text as the Mac draws it (a list's items under it, after "· "); nil without one. An error's, without
+    /// its "⚠︎".
+    public var statusText: String? {
+        switch status {
+        case .none: return nil
+        case let .loading(text), let .hint(text), let .error(text): return text
+        case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
+        }
     }
 }

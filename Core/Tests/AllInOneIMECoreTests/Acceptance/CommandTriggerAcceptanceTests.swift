@@ -64,9 +64,9 @@ struct CommandTriggerAcceptanceTests {
         for character in "~reply" { _ = press(String(character), on: composer) }
         _ = composer.handleKeyDown(spaceKey)
         #expect(composer.draftCommand == .reply)
-        for character in "hello ~py" { _ = press(String(character), on: composer) }
-        #expect(composer.paletteQuery == "py")
-        #expect(composer.paletteMatches.contains(.py))
+        for character in "hello ~js" { _ = press(String(character), on: composer) }
+        #expect(composer.paletteQuery == "js")
+        #expect(composer.paletteMatches.contains(.js))
     }
 
     @Test func commandTriggerSurvivesSavingAndReloadingConfig() throws {

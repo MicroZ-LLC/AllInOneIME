@@ -40,15 +40,15 @@ struct CodeWordTests {
         try await inEnglish {
             let field = try Self.coding().codeField()
             for letter in "pri" { #expect(field.press(SuggestionKeys.key(letter)), "\(letter): the input method's") }
-            #expect(field.host.marked == "pri" && field.document.isEmpty, "\(field)")
+            #expect(field.host.preedit == "pri" && field.document.isEmpty, "\(field)")
             #expect(field.settle { Self.texts(field) == ["print"] }, "\(field)")
-            let marks = field.host.outputs.compactMap { output -> String? in
-                if case let .marked(text, cursor, converted) = output { return "\(text) \(cursor) \(converted)" } else { return nil }
+            let lines = field.host.outputs.compactMap { output -> String? in
+                if case let .panel(model?) = output, let input = model.input { return "\(input.text) \(input.caret ?? -1)" } else { return nil }
             }
-            #expect(marks == ["p 1 false", "pr 2 false", "pri 3 false"], "\(marks)")
+            #expect(Array(Set(lines)).sorted() == ["p 1", "pr 2", "pri 3"], "\(lines)")
             #expect(Self.committed(field).isEmpty)
             field.type("nt_A2")
-            #expect(field.host.marked == "print_A2" && field.document.isEmpty && field.rows.isEmpty, "\(field)")
+            #expect(field.host.preedit == "print_A2" && field.document.isEmpty && field.rows.isEmpty, "\(field)")
         }
     }
 
@@ -57,13 +57,13 @@ struct CodeWordTests {
         try await inEnglish {
             let field = try Self.coding().codeField()
             field.type("x1")
-            #expect(field.host.marked == "x1" && field.document.isEmpty, "\(field)")
+            #expect(field.host.preedit == "x1" && field.document.isEmpty, "\(field)")
             #expect(!field.press(SuggestionKeys.space) && field.document == "x1 ")
             #expect(!field.press(SuggestionKeys.digit(4)) && !field.press(SuggestionKeys.space))
             for character in "#12" { #expect(!field.press(SuggestionKeys.key(character)), "\(character): the app's") }
-            #expect(field.document == "x1 4 #12" && field.host.marked.isEmpty, "\(field)")
+            #expect(field.document == "x1 4 #12" && field.host.preedit.isEmpty, "\(field)")
             field.type(" _x")
-            #expect(field.host.marked == "_x", "\(field)")
+            #expect(field.host.preedit == "_x", "\(field)")
         }
     }
 
@@ -78,10 +78,10 @@ struct CodeWordTests {
             #expect(field.settle { field.rows.map(\.comment) == ["function", "keyword"] }, "\(field)")
             #expect(field.host.panel?.highlighted == 0, "the first row chosen from the start")
             #expect(field.press(SuggestionKeys.down) && field.host.panel?.highlighted == 1)
-            #expect(field.host.marked == "de" && field.document.isEmpty, "\(field)")
-            #expect(field.press(SuggestionKeys.up) && field.host.panel?.highlighted == 0 && field.host.marked == "de")
+            #expect(field.host.preedit == "de" && field.document.isEmpty, "\(field)")
+            #expect(field.press(SuggestionKeys.up) && field.host.panel?.highlighted == 0 && field.host.preedit == "de")
             #expect(field.press(SuggestionKeys.down) && field.press(SuggestionKeys.enter))
-            #expect(field.document == "def" && field.host.marked.isEmpty && field.rows.isEmpty, "the keyword chosen: \(field)")
+            #expect(field.document == "def" && field.host.preedit.isEmpty && field.rows.isEmpty, "the keyword chosen: \(field)")
         }
     }
 
@@ -95,7 +95,7 @@ struct CodeWordTests {
             #expect(field.settle { Self.texts(field) == ["print"] }, "\(field)")
             let before = field.host.outputs.count
             #expect(field.press(SuggestionKeys.tab))
-            #expect(field.document == "print()" && field.host.marked.isEmpty && field.rows.isEmpty, "\(field)")
+            #expect(field.document == "print()" && field.host.preedit.isEmpty && field.rows.isEmpty, "\(field)")
             #expect(Self.committed(field, since: before) == ["print()"], "\(Self.committed(field, since: before))")
             let moves = field.host.outputs.dropFirst(before).compactMap { output -> String? in
                 if case let .moveCaret(back, after) = output { return "\(back) \(after ?? "")" } else { return nil }
@@ -107,7 +107,7 @@ struct CodeWordTests {
             indented.type("de")
             #expect(indented.settle { indented.rows.first?.comment == "function" }, "\(indented)")
             #expect(indented.press(SuggestionKeys.enter))
-            #expect(indented.document == "class A:\n    def ():\n        " && indented.host.marked.isEmpty,
+            #expect(indented.document == "class A:\n    def ():\n        " && indented.host.preedit.isEmpty,
                     "\(indented.document.debugDescription)")
         }
     }
@@ -118,7 +118,7 @@ struct CodeWordTests {
         try await inEnglish {
             let field = try Self.coding().codeField()
             field.type("x.con")
-            #expect(field.document == "x." && field.host.marked == "con", "\(field)")
+            #expect(field.document == "x." && field.host.preedit == "con", "\(field)")
             #expect(field.settle { Self.texts(field) == ["continue"] }, "\(field)")
             #expect(field.press(SuggestionKeys.tab))
             #expect(field.document == "x.continue", "\(field)")
@@ -135,7 +135,7 @@ struct CodeWordTests {
             field.host.document = "counter = 1\n"
             field.type("cou")
             field.pause(1)
-            #expect(field.host.fieldReads == 1 && field.host.marked == "cou", "\(field)")
+            #expect(field.host.fieldReads == 1 && field.host.preedit == "cou", "\(field)")
             #expect(field.settle { Self.texts(field) == ["counter"] }, "\(field)")
             #expect(field.press(SuggestionKeys.tab) && field.document == "counter = 1\ncounter", "\(field)")
         }
@@ -150,14 +150,14 @@ struct CodeWordTests {
                 field.type("pr")
                 #expect(field.settle { !field.rows.isEmpty }, "\(field)")
                 #expect(field.press(key), "\(key.key): the rows'")
-                #expect(field.document == "pr" && field.host.marked.isEmpty && field.rows.isEmpty, "\(key.key): \(field)")
+                #expect(field.document == "pr" && field.host.preedit.isEmpty && field.rows.isEmpty, "\(key.key): \(field)")
                 #expect(!field.press(key), "\(key.key): the next is the app's")
 
                 let on = try Self.coding().codeField()
                 on.type("pr")
                 #expect(on.settle { !on.rows.isEmpty } && on.press(key))
                 on.type("i")
-                #expect(on.document == "pr" && on.host.marked == "i", "\(key.key): \(on)")
+                #expect(on.document == "pr" && on.host.preedit == "i", "\(key.key): \(on)")
                 #expect(on.settle { Self.texts(on) == ["print"] }, "\(key.key): \(on)")
                 #expect(on.press(SuggestionKeys.tab) && on.document == "print()", "\(key.key): \(on)")
             }
@@ -195,10 +195,10 @@ struct CodeWordTests {
             for (key, typed) in keys {
                 let field = try Self.coding().codeField()
                 field.type("xq")
-                #expect(field.host.marked == "xq" && field.rows.isEmpty, "no rows for it: \(field)")
+                #expect(field.host.preedit == "xq" && field.rows.isEmpty, "no rows for it: \(field)")
                 let before = field.host.outputs.count
                 #expect(!field.press(key), "\(key.key) \(key.characters.debugDescription): the app's")
-                #expect(Self.committed(field, since: before) == ["xq"] && field.document == "xq" + typed && field.host.marked.isEmpty,
+                #expect(Self.committed(field, since: before) == ["xq"] && field.document == "xq" + typed && field.host.preedit.isEmpty,
                         "\(key.key) \(key.characters.debugDescription): \(field)")
             }
             // With rows up: a mark ends the word and the token, the rows go.
@@ -217,10 +217,10 @@ struct CodeWordTests {
             field.host.document = "a = "
             field.type("pri")
             #expect(field.settle { Self.texts(field) == ["print"] }, "\(field)")
-            #expect(field.press(SuggestionKeys.backspace) && field.host.marked == "pr", "\(field)")
+            #expect(field.press(SuggestionKeys.backspace) && field.host.preedit == "pr", "\(field)")
             #expect(field.settle { Self.texts(field) == ["print"] }, "the rows for what is held: \(field)")
-            #expect(field.press(SuggestionKeys.backspace) && field.host.marked == "p" && field.rows.isEmpty, "\(field)")
-            #expect(field.press(SuggestionKeys.backspace) && field.host.marked.isEmpty && !field.host.composer.isComposing, "\(field)")
+            #expect(field.press(SuggestionKeys.backspace) && field.host.preedit == "p" && field.rows.isEmpty, "\(field)")
+            #expect(field.press(SuggestionKeys.backspace) && field.host.preedit.isEmpty && !field.host.composer.isComposing, "\(field)")
             #expect(!field.press(SuggestionKeys.backspace), "the next ⌫ is the app's")
             #expect(Self.committed(field).isEmpty && field.document == "a = ", "\(field)")
         }
@@ -235,27 +235,27 @@ struct CodeWordTests {
             left.type("pri")
             let before = left.host.outputs.count
             left.host.send(.blur)
-            #expect(Self.committed(left, since: before) == ["pri"] && left.document == "pri" && left.host.marked.isEmpty, "\(left)")
+            #expect(Self.committed(left, since: before) == ["pri"] && left.document == "pri" && left.host.preedit.isEmpty, "\(left)")
 
             let clicked = world.codeField()
             clicked.type("pri")
             #expect(clicked.settle { !clicked.rows.isEmpty })
             clicked.host.send(.commit)
-            #expect(clicked.document == "pri" && clicked.host.marked.isEmpty && clicked.rows.isEmpty, "\(clicked)")
+            #expect(clicked.document == "pri" && clicked.host.preedit.isEmpty && clicked.rows.isEmpty, "\(clicked)")
 
             let shifted = world.codeField()
             shifted.type("pr")
             #expect(shifted.settle { !shifted.rows.isEmpty })
             shifted.tapShift()
             #expect(shifted.host.composer.input != .code, "\(shifted.host.composer.input)")
-            #expect(shifted.document == "pr" && shifted.host.marked.isEmpty && shifted.rows.isEmpty, "\(shifted)")
+            #expect(shifted.document == "pr" && shifted.host.preedit.isEmpty && shifted.rows.isEmpty, "\(shifted)")
             #expect(!shifted.press(SuggestionKeys.up), "no rows left behind: ↑ is the app's")
 
             let removed = world.codeField()
             removed.type("pri")
             world.config.codingLanguage = nil
             removed.host.send(.configChanged)
-            #expect(removed.document == "pri" && removed.host.marked.isEmpty && !removed.host.composer.coding, "\(removed)")
+            #expect(removed.document == "pri" && removed.host.preedit.isEmpty && !removed.host.composer.coding, "\(removed)")
         }
     }
 
@@ -267,13 +267,13 @@ struct CodeWordTests {
             field.type("pri")
             field.host.secure = true
             #expect(!field.press(SuggestionKeys.key("n")) && !field.press(SuggestionKeys.key("t")))
-            #expect(field.document == "print" && field.host.marked.isEmpty, "\(field)")
+            #expect(field.document == "print" && field.host.preedit.isEmpty, "\(field)")
 
             let anywhere = world.codeField()
             anywhere.type("pri")
             world.secureInputAnywhere = true
             #expect(!anywhere.press(SuggestionKeys.key("n")) && !anywhere.press(SuggestionKeys.key("t")))
-            #expect(anywhere.document == "print" && anywhere.host.marked.isEmpty, "\(anywhere)")
+            #expect(anywhere.document == "print" && anywhere.host.preedit.isEmpty, "\(anywhere)")
         }
     }
 
@@ -286,28 +286,28 @@ struct CodeWordTests {
             let world = try Self.coding()
             let terminal = world.codeField(terminal: true)
             for letter in "pr" { #expect(!terminal.press(SuggestionKeys.key(letter)), "a terminal: \(letter)") }
-            #expect(terminal.document == "pr" && terminal.host.marked.isEmpty, "\(terminal)")
+            #expect(terminal.document == "pr" && terminal.host.preedit.isEmpty, "\(terminal)")
 
             let password = world.codeField(app: "com.apple.TextEdit")
             var context = password.host.context
             context.field = FieldInfo(app: "com.apple.TextEdit", terminal: false, secure: true)
             password.host.send(.key(SuggestionKeys.key("p"), context))
-            #expect(password.host.marked.isEmpty && !password.host.composer.isComposing, "a password field: \(password)")
+            #expect(password.host.preedit.isEmpty && !password.host.composer.isComposing, "a password field: \(password)")
 
             world.config.changeProfile(for: SuggestionsApps.weChat) { $0.startingInput = .code }
             let secure = world.field(app: SuggestionsApps.weChat, passwordField: true)
             #expect(secure.host.composer.input == .code)
             for letter in "pr" { #expect(!secure.press(SuggestionKeys.key(letter)), "secure input: \(letter)") }
-            #expect(secure.document == "pr" && secure.host.marked.isEmpty, "\(secure)")
+            #expect(secure.document == "pr" && secure.host.preedit.isEmpty, "\(secure)")
 
             let remote = world.codeField(app: SuggestionsApps.remoteDesktop)
             for letter in "pr" { #expect(!remote.press(SuggestionKeys.key(letter)), "a remote desktop: \(letter)") }
-            #expect(remote.document == "pr" && remote.host.marked.isEmpty, "\(remote)")
+            #expect(remote.document == "pr" && remote.host.preedit.isEmpty, "\(remote)")
 
             world.switches.apps[SuggestionsApps.editor] = false
             let off = world.codeField()
             for letter in "pr" { #expect(!off.press(SuggestionKeys.key(letter)), "Suggestions off: \(letter)") }
-            #expect(off.document == "pr" && off.host.marked.isEmpty, "\(off)")
+            #expect(off.document == "pr" && off.host.preedit.isEmpty, "\(off)")
         }
     }
 
@@ -318,7 +318,7 @@ struct CodeWordTests {
             let english = world.field()
             #expect(english.host.composer.input == .language(.english))
             for letter in "pr" { #expect(!english.press(SuggestionKeys.key(letter))) }
-            #expect(english.document == "pr" && english.host.marked.isEmpty, "\(english)")
+            #expect(english.document == "pr" && english.host.preedit.isEmpty, "\(english)")
         }
     }
 

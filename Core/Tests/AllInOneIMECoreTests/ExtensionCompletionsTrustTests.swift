@@ -53,7 +53,7 @@ struct ExtensionCompletionsTrustTests {
         var config = Config.default
 
         init(_ origin: Origin) throws {
-            root = FileManager.default.temporaryDirectory.appendingPathComponent("extension-trust-\(UUID().uuidString)", isDirectory: true)
+            root = TestScratch.temporary("extension-trust-\(UUID().uuidString)", isDirectory: true)
             self.origin = origin
             for folder in [own, sources, logs] { try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true) }
             config.extensionFolders = [own.path]

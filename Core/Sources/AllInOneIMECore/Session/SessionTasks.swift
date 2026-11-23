@@ -64,7 +64,8 @@ public enum TaskUpdate: Sendable {
     /// A note saved, or a reminder added, or not (`SaveOutcome`).
     case saved(SaveOutcome)
     /// A screenshot's text read for request `request`, or why not.
-    case recognized(ScreenText, request: Int)
+    /// `text` nil: none was found, but the image can be sent (`image`).
+    case recognized(ScreenText?, image: PromptImage?, request: Int)
     case recognitionFailed(any Error, request: Int)
     /// The commands whose program isn't installed, by check `check` (`InputSession.setCommands`).
     case programs(missing: Set<String>, check: Int)
@@ -324,7 +325,7 @@ public final class SessionTasks {
             command == request.command ? conversation : command == .question ? QuestionConversation() : nil
         }
         let streamFor: @Sendable (Command?, String) -> AsyncThrowingStream<ConversionUpdate, Error> = { command, input in
-            // @py, @js: the code runs in a child process, like a custom program (never in this one).
+            // @js: the code runs in a child process, like a custom program (never in this one).
             if let command, let code = InlineCode.definition(for: command) { return runProgram(code, input) }
             // A link opens once the commands inside its text have run: their outputs go in it as they are.
             if let command, command.kind == .link { return LinkTemplate.passThrough(input) }
@@ -748,9 +749,9 @@ public final class SessionTasks {
         let started = Date()
         start(nil) { post in
             do {
-                let text = try await ScreenText.recognize(image, with: recognizer, languages: languages)
-                Self.log.notice("screenshot \(id): \(text.lineCount) lines read in \(String(format: "%.2f", Date().timeIntervalSince(started)))s")
-                post(.recognized(text, request: id))
+                let (text, small) = try await ScreenText.recognizeWithImage(image, with: recognizer, languages: languages)
+                Self.log.notice("screenshot \(id): \(text?.lineCount ?? 0) lines read in \(String(format: "%.2f", Date().timeIntervalSince(started)))s")
+                post(.recognized(text, image: small, request: id))
             } catch {
                 Self.log.notice("screenshot \(id): not read (\(String(describing: type(of: error))))")
                 post(.recognitionFailed(error, request: id))

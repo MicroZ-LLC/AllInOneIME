@@ -8,7 +8,7 @@ import AllInOneIMETestSupport
 /// its selection; `useSelection` off in the config still turns it off everywhere.
 extension InputSessionTests {
     @Test func theAppsWhoseSelectionIsntUsedAreKeptOnThisDevice() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("selection-off-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("selection-off-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let file = folder.appendingPathComponent("learned.json")
         func store() -> LearnedStore {

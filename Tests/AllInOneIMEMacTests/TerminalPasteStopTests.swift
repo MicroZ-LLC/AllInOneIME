@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AppKit
 import Foundation
 import Testing
@@ -83,13 +84,13 @@ enum TerminalPasteStopChild {
         let fm = FileManager.default
         let name = "com.allinoneime.inputmethod.pastestop.\(UUID().uuidString)"
         defer { NSPasteboard(name: NSPasteboard.Name(name)).releaseGlobally() }
-        let home = fm.temporaryDirectory.appendingPathComponent("pastestop-home-\(UUID().uuidString)", isDirectory: true)
+        let home = TestScratch.temporary("pastestop-home-\(UUID().uuidString)", isDirectory: true)
         try fm.createDirectory(at: home.appendingPathComponent(".config/allinoneime"), withIntermediateDirectories: true)
         defer { try? fm.removeItem(at: home) }
         let environment = ["CFFIXED_USER_HOME": home.path, "HOME": home.path]
 
         // The app the copy was made in: copies it anew at each SIGUSR1.
-        let log = fm.temporaryDirectory.appendingPathComponent("pastestop-source-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("pastestop-source-\(UUID().uuidString).log")
         fm.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         let source = Process()
@@ -123,7 +124,7 @@ enum TerminalPasteStopChild {
 
     static func compile() throws -> URL {
         let fm = FileManager.default
-        let scratch = fm.temporaryDirectory.appendingPathComponent("pastestop-child-\(UUID().uuidString)")
+        let scratch = TestScratch.temporary("pastestop-child-\(UUID().uuidString)")
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         let sources = repository.appendingPathComponent("Sources/AllInOneIME")
         let main = try String(contentsOf: sources.appendingPathComponent("main.swift"), encoding: .utf8)
@@ -137,36 +138,17 @@ enum TerminalPasteStopChild {
         try TerminalPasteStopHarness.stubs.write(to: stubs, atomically: true, encoding: .utf8)
         let clang = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), ["clang", "-c", stubs.path, "-o", stubsObject.path], timeout: 60)
         guard clang.status == 0 else { throw Failure(description: clang.output) }
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMEMac", "AllInOneIMECore", "AllInOneIMERime", "AllInOneIMEText", "AllInOneIMEScriptEngine",
-                       "CQuickJS", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else if let files = try? fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil) {
-                objects += files.filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
         let executable = scratch.appendingPathComponent("pastestop")
-        let arguments = ["swiftc", "-swift-version", "5", "-j", "\(max(2, ProcessInfo.processInfo.activeProcessorCount))",
-                         "-I", modules.path, "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                         "-framework", "AppKit", "-framework", "InputMethodKit", "-framework", "Carbon", "-framework", "AVFoundation",
-                         "-framework", "Speech", "-framework", "EventKit", "-framework", "SwiftUI",
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                         mainFile.path] + others + [stubsObject.path] + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 900)
+        let swift = try SourceCompiler.compile(repository: repository, sources: [mainFile.path] + others,
+            extraObjects: [stubsObject.path], executable: executable,
+            timeout: 900)
         guard swift.status == 0 else { throw Failure(description: "compiling Sources/AllInOneIME with the harness:\n\(swift.output)") }
         return executable
     }
 
     private static func command(_ executable: URL, _ arguments: [String], environment: [String: String] = [:],
                                 timeout: TimeInterval) throws -> (status: Int32, output: String) {
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("pastestop-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("pastestop-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         defer {

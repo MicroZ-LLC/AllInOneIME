@@ -1,0 +1,8 @@
+NAME Caps Lock as the chosen switch key switches once
+PROFILES nstextview
+LANG chinese
+SET switchKey capsLock
+TEXT "|"
+KEY capslock
+EXPECT lang english
+EXPECT switches 1

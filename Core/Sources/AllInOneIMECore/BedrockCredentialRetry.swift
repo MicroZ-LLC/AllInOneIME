@@ -8,7 +8,7 @@ extension BedrockError {
         switch self {
         case let .http(s, t, m): (status, type, message) = (s, t, m)
         case let .stream(t, m): (status, type, message) = (nil, t, m)
-        case .invalidRegion, .invalidResponse: return false
+        case .invalidRegion, .invalidResponse, .modelNotInRegion: return false
         }
         let lower = message.lowercased()
         let saysExpired = lower.contains("expired") && (lower.contains("token") || lower.contains("credential") || lower.contains("security"))
@@ -22,7 +22,9 @@ extension BedrockError {
 
 extension ChatClient {
     /// Bedrock with the profile's credentials (`loadCredentials`); refused as expired before any answer came, the
-    /// credentials are refreshed (`Resolved.refresh`, else loaded again) and the request sent again, once.
+    /// credentials are refreshed (`Resolved.refresh`, else loaded again) and the request sent again, once. The model ID
+    /// goes out as the region can call it (`Config.bedrockModelId`); refused as one Bedrock doesn't serve there, the
+    /// error names the two (`BedrockError.modelNotInRegion`), not only "The provided model identifier is invalid."
     func bedrockStream(_ body: ConverseRequest, config: Config,
                        loadCredentials: @escaping CredentialLoader) -> AsyncThrowingStream<BedrockStreamEvent, Error> {
         let bedrock = self.bedrock
@@ -33,9 +35,10 @@ extension ChatClient {
                     var retried = false
                     while true {
                         var answered = false
+                        let region = config.bedrockRegion(profileRegion: resolved.region)
+                        let modelId = config.bedrockModelId(in: region)
                         do {
-                            let stream = bedrock.converseStream(body, modelId: config.modelId,
-                                                                region: config.region ?? resolved.region ?? "us-east-1",
+                            let stream = bedrock.converseStream(body, modelId: modelId, region: region,
                                                                 credentials: resolved.credentials, timeout: config.timeoutSeconds)
                             for try await event in stream {
                                 answered = true
@@ -51,6 +54,8 @@ extension ChatClient {
                             } else {
                                 resolved = try await loadCredentials(config.awsProfile)
                             }
+                        } catch let error as BedrockError where error.isInvalidModel {
+                            throw BedrockError.modelNotInRegion(model: modelId, region: region)
                         }
                     }
                 } catch {

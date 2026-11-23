@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CryptoKit
 import Foundation
 import Testing
@@ -143,7 +144,7 @@ struct UpdateTests {
         for version in ["0.6.3", "0.6.2", "0.1.0"] {
             let manifest = try server.decoded(server.publish(Data("archive".utf8), version: version))
             #expect(throws: UpdateError.notNewer(version)) { try server.updater(current: "0.6.3").archiveURL(manifest) }
-            let file = FileManager.default.temporaryDirectory.appendingPathComponent("update-\(UUID().uuidString).zip")
+            let file = TestScratch.temporary("update-\(UUID().uuidString).zip")
             await #expect(throws: UpdateError.notNewer(version)) { try await server.updater(current: "0.6.3").download(manifest, to: file) }
             #expect(!FileManager.default.fileExists(atPath: file.path))
         }
@@ -156,7 +157,7 @@ struct UpdateTests {
     @Test func theDownloadIsCheckedAgainstItsSizeAndHash() async throws {
         let server = TestUpdateServer()
         let archive = Data((0..<50_000).map { UInt8($0 % 251) })
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("update-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("update-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let updater = server.updater()
@@ -299,7 +300,7 @@ struct UpdateTests {
         let found = try await updater.check()
         #expect(LibraryStubProtocol.userAgent(manifest) == agent)
         #expect(LibraryStubProtocol.userAgent(signature)?.contains("install") != true)
-        let file = FileManager.default.temporaryDirectory.appendingPathComponent("update-\(UUID().uuidString).zip")
+        let file = TestScratch.temporary("update-\(UUID().uuidString).zip")
         defer { try? FileManager.default.removeItem(at: file) }
         try await updater.download(found.manifest, to: file)
         #expect(LibraryStubProtocol.asked(host: "127.0.0.1").contains(archive))
@@ -336,7 +337,7 @@ struct UpdateTests {
     }
 
     @Test func theHelpersResultReadsBack() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("update-result-\(UUID().uuidString)/result.json")
+        let url = TestScratch.temporary("update-result-\(UUID().uuidString)/result.json")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         let result = UpdateResult(from: "0.6.3", to: "0.7.0", ok: false, error: "it didn't start", date: Date(timeIntervalSince1970: 1_800_000_000))
         try result.write(to: url)
@@ -398,7 +399,7 @@ struct UpdateTests {
 
     /// Don't Show Again writes only that key (`Config.change`): the rest of the file as it was, a later version's key too.
     @Test func turningNotificationsOffWritesOnlyThatKey() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("update-notify-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("update-notify-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")

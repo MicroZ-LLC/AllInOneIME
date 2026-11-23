@@ -70,7 +70,7 @@ public enum HTTPProviders {
                 "max_tokens": maxTokens + (effort == nil || thinking != nil ? 0 : thinkingHeadroom),
                 "stream": true,
                 "system": system,
-                "messages": body.messages.map { ["role": $0.role, "content": $0.content.map(\.text).joined()] },
+                "messages": body.messages.map(anthropicMessage),
             ]
             if let effort { json["output_config"] = ["effort": effort] }
             if let thinking { json["thinking"] = ["type": thinking.type] }
@@ -90,7 +90,7 @@ public enum HTTPProviders {
             json = [
                 "systemInstruction": ["parts": [["text": system]]],
                 "contents": body.messages.map {
-                    ["role": $0.role == "assistant" ? "model" : "user", "parts": $0.content.map { ["text": $0.text] }]
+                    ["role": $0.role == "assistant" ? "model" : "user", "parts": geminiParts($0)]
                 },
                 "generationConfig": generation,
             ]
@@ -101,7 +101,7 @@ public enum HTTPProviders {
                 "model": model,
                 "stream": true,
                 "messages": [["role": "system", "content": system]]
-                    + body.messages.map { ["role": $0.role, "content": $0.content.map(\.text).joined()] },
+                    + body.messages.map { openAIMessage($0, images: provider.seesImages(model: model, baseURL: settings.baseURL)) },
             ]
             // OpenAI's own API wants max_completion_tokens (its reasoning models reject max_tokens);
             // the compatible services (DeepSeek, Qwen, Ollama, …) take max_tokens.

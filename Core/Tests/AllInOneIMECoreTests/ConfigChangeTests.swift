@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -26,7 +27,7 @@ struct ConfigChangeTests {
         """
 
     func url(_ text: String = Self.file) throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("config-change-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("config-change-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
         try Data(text.utf8).write(to: url)

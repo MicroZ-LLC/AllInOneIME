@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CoreGraphics
 import Foundation
 import Testing
@@ -215,7 +216,7 @@ struct ReplyTests {
         _ = c.handleKeyDown(k("1"))
         #expect(c.showsSavedAnswer)
         _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
-        let effects = c.handleKeyDown(KeyEvent(keyCode: 0, characters: "1", charactersIgnoringModifiers: "1", modifiers: .command)).effects
+        let effects = c.handleKeyDown(KeyEvent(keyCode: 0x12, characters: "¡", charactersIgnoringModifiers: "1", modifiers: .option)).effects
         // The saved question wasn't about the screenshot: it isn't taken along.
         #expect(effects.contains(.copy("**Q:** what is rust\n\n**A:** A language.")), "\(effects)")
     }
@@ -340,7 +341,7 @@ struct ReplyTests {
     /// nothing else differs afterwards only in that command's name. No key it didn't have is added (`agent`,
     /// `agentCommand`, `agentPageContext` … with their defaults, as writing the whole config would).
     @Test func theRenameWritesOnlyTheCommandsName() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rename-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("rename-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("config.json")

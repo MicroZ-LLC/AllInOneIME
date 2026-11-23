@@ -43,26 +43,12 @@ private enum PanelContrastChild {
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         let main = scratch.appendingPathComponent("Main.swift")
         try program.write(to: main, atomically: true, encoding: .utf8)
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMECore", "AllInOneIMEText", "AllInOneIMEScriptEngine", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else {
-                objects += try fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
         let sources = ["CandidatePanel.swift", "CommandIcons.swift", "LiveSettings.swift"]
             .map { repository.appendingPathComponent("Sources/AllInOneIME/" + $0).path }
         let executable = scratch.appendingPathComponent("panel")
-        let arguments = ["swiftc", "-swift-version", "5", "-parse-as-library", "-I", modules.path,
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels", "-framework", "AppKit"]
-            + sources + [main.path] + objects + ["-o", executable.path]
-        let result = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 300)
+        let result = try SourceCompiler.compile(repository: repository, sources: sources + [main.path],
+            executable: executable,
+            parseAsLibrary: true, timeout: 300)
         guard result.status == 0 else { throw Failure(result.output) }
         return executable
     }

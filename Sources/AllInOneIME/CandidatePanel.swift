@@ -131,8 +131,8 @@ final class CandidatePanel: NSPanel {
         let appearing = !isShowing
         pendingHide?.cancel()
         pendingHide = nil
-        // A conversation grows up to about half the screen it's on, then scrolls (`PanelModel.transcript`).
-        view.maxHeight = (Self.screen(for: anchor)?.visibleFrame.height).map { floor($0 / 2) }
+        // No taller than the screen it's on (a conversation, half of it): its rows scroll beyond (`CandidateView.maxHeight`).
+        view.screenHeight = Self.screen(for: anchor)?.visibleFrame.height
         // Up already: no narrower than it shows (`CandidateView.minimumWidth`); coming up, as wide as its rows need.
         view.minimumWidth = appearing ? 0 : frame.width
         view.model = model
@@ -530,6 +530,8 @@ final class CandidateView: NSView {
         /// The highlighted row's corners: the panel's, less the padding (the two curves run together).
         static let rowRadius: CGFloat = 10
         static let footerGap: CGFloat = 7
+        /// The room the tallest panel leaves above and below it on its screen (`maxHeight`).
+        static let screenMargin: CGFloat = 8
         /// A row's number on its keycap: a square this big (a wider key, "Enter", as wide as it needs).
         static let keycapSize: CGFloat = 20
         static let keycapRadius: CGFloat = 6
@@ -744,10 +746,13 @@ final class CandidateView: NSView {
         didSet { if side != oldValue, model.candidates != nil { relayout() } }
     }
 
-    /// The tallest a conversation's panel gets (`PanelModel.transcript`); nil: no limit.
-    var maxHeight: CGFloat? {
-        didSet { if maxHeight != oldValue, model.transcript { relayout() } }
+    /// The height of the screen the panel is on (`CandidatePanel.show`); nil: unknown, no limit.
+    var screenHeight: CGFloat? {
+        didSet { if screenHeight != oldValue { relayout() } }
     }
+    /// The tallest the panel gets, its rows scrolling beyond (`fitRows`): the screen less a margin above and below, a
+    /// conversation (`PanelModel.transcript`) half of it; nil: no limit.
+    var maxHeight: CGFloat? { screenHeight.map { model.transcript ? floor($0 / 2) : $0 - 2 * Metrics.screenMargin } }
 
     /// The narrowest it is laid out: while the panel shows, as wide as it has been since it came up (`CandidatePanel.show`),
     /// so rows ranked again with each key don't move its right edge in and out; the rows' highlight, the footer and the
@@ -757,8 +762,8 @@ final class CandidateView: NSView {
     }
     /// As wide as what it shows needs (`relayout`), `minimumWidth` aside.
     private var naturalWidth: CGFloat = 0
-    /// A conversation's rows taller than fit: how far they are moved up (`rowsShift`), where they're shown
-    /// (`rowsClip`), and how far the wheel moved them from where they'd be (nil: not moved).
+    /// Rows taller than fit: how far they are moved up (`rowsShift`), where they're shown (`rowsClip`), and how far the
+    /// wheel moved a conversation's from where they'd be (nil: not moved).
     private(set) var rowsShift: CGFloat = 0
     private var rowsClip: NSRect?
     private var scrolled: CGFloat?
@@ -806,7 +811,7 @@ final class CandidateView: NSView {
     struct HandoffTarget {
         var shortcut: String
         var name: String
-        /// Its shortcut ("⌘1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
+        /// Its shortcut ("⌥1") on a small keycap, as the footer's keys; and all a click on it takes: the keycap, the name
         /// after it and the room around them.
         var keycapFrame: NSRect
         var targetFrame: NSRect
@@ -985,7 +990,8 @@ final class CandidateView: NSView {
         // In a row, as wide as the candidates need (and the status, the footer); in a column, at least `minWidth`.
         var width = horizontal ? max(cellsWidth, widest > 0 ? inset + widest + Metrics.rowInsetX + p : 0)
             : max(compact ? 0 : Metrics.minWidth, inset + widest + Metrics.rowInsetX + p)
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil {
+        // A detail alone (key hints off: `PanelModel.withoutKeyHints`) has its footer too.
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil {
             let footer = footerWidth()
             width = max(width, ceil(footer) + 2 * (p + Metrics.rowInsetX))
             footerY = y + Metrics.footerGap
@@ -1006,7 +1012,7 @@ final class CandidateView: NSView {
             skeletons[i].bar = NSRect(x: inset, y: (midY - Metrics.skeletonBarHeight / 2).rounded(),
                                       width: (room * Metrics.skeletonBars[i % Metrics.skeletonBars.count]).rounded(), height: Metrics.skeletonBarHeight)
         }
-        fitTranscript(height: ceil(y + p), rowsTop: rowsTop, rowsBottom: rowsBottom, width: width)
+        fitRows(height: ceil(y + p), rowsTop: rowsTop, rowsBottom: rowsBottom, width: width)
         contentSize = NSSize(width: ceil(width), height: min(ceil(y + p), ceil(y + p) - overflow))
         updateShimmer()
         needsDisplay = true
@@ -1078,43 +1084,8 @@ final class CandidateView: NSView {
         return (out, x + hint)
     }
 
-    /// How much taller than `maxHeight` a conversation's panel would be (its rows scroll instead).
+    /// How much taller than `maxHeight` the panel would be (its rows scroll instead).
     private var overflow: CGFloat = 0
-
-    /// A conversation taller than `maxHeight`: its rows are shown between `rowsTop` and what is left above the status
-    /// and footer, moved up to show the bottom of the last one, or the highlighted one when it is above (an earlier
-    /// answer picked with ↑), or as far as the wheel moved them; the status, the candidates' line under them (above the
-    /// caret) and the footer move up with the bottom of the panel.
-    private func fitTranscript(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
-        rowsShift = 0
-        rowsClip = nil
-        overflow = 0
-        guard model.transcript, let maxHeight, height > maxHeight, rowsBottom > rowsTop else { return }
-        overflow = min(height - maxHeight, rowsBottom - rowsTop - 40)  // a few rows always show
-        guard overflow > 0 else { overflow = 0; return }
-        // The newest row stays at the bottom even when it's taller than the panel (its start then scrolls into view);
-        // an earlier one selected above the panel's top comes down to it.
-        var shift = overflow
-        if let highlighted = model.highlighted, rowLayouts.indices.contains(highlighted), highlighted < rowLayouts.count - 1 {
-            shift = min(shift, max(rowLayouts[highlighted].frame.minY - rowsTop, 0))
-        }
-        if let scrolled { shift = min(max(scrolled, 0), overflow) }
-        rowsShift = shift
-        rowsClip = NSRect(x: 0, y: rowsTop, width: width, height: rowsBottom - rowsTop - overflow)
-        for i in rowLayouts.indices {
-            rowLayouts[i].frame.origin.y -= shift
-            rowLayouts[i].textFrame.origin.y -= shift
-            rowLayouts[i].labelFrame.origin.y -= shift
-            rowLayouts[i].iconFrame?.origin.y -= shift
-            rowLayouts[i].lineMidY -= shift
-        }
-        statusFrame?.origin.y -= overflow
-        if side == .above {
-            candidatesFrame?.origin.y -= overflow
-            pills = pills.map { ($0.frame.offsetBy(dx: 0, dy: -overflow), $0.label, $0.text) }
-        }
-        footerY -= overflow
-    }
 
     /// The candidates side by side (`PanelModel.horizontal`), as many to a line as fit in `maxRowWidth`
     /// (`CandidateLayout.flow`): each a cell with its number's keycap and its word, one line, a long one cut short with
@@ -1449,7 +1420,7 @@ final class CandidateView: NSView {
         }
         if let candidatesFrame { drawPills(in: candidatesFrame, dark: dark) }
 
-        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil { drawFooter(dark: dark) }
+        if !model.footer.isEmpty || !model.hints.isEmpty || model.note != nil || model.detail != nil { drawFooter(dark: dark) }
 
         // Its edge: a hairline, over the glass's own.
         (dark ? NSColor.white.withAlphaComponent(0.14) : NSColor.black.withAlphaComponent(0.1)).setStroke()
@@ -1799,7 +1770,7 @@ final class CandidateView: NSView {
 
     /// The light passing over the bars of rows on their way: on while there are some, the panel on screen, and motion on.
     private func updateShimmer() {
-        let bars = skeletons.map(\.bar).filter { $0.width > 0 }
+        let bars = skeletons.map(\.bar).filter { $0.width > 0 && rowsClip?.contains($0) ?? true }
         guard !bars.isEmpty, !Self.reducesMotion else {
             shimmer?.removeFromSuperview()
             shimmer = nil
@@ -1823,15 +1794,17 @@ final class CandidateView: NSView {
     // MARK: - Mouse
 
     override func scrollWheel(with event: NSEvent) {
-        // A conversation taller than the panel: its rows scroll here, by the points the wheel or trackpad moved.
-        if rowsClip != nil {
+        // A conversation taller than the panel: its rows scroll here, by the points the wheel or trackpad moved. (A list's
+        // follow its highlighted row, which the wheel moves.)
+        if rowsClip != nil, model.transcript {
             let points = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY : event.scrollingDeltaY * 24
             scrolled = min(max((scrolled ?? rowsShift) - points, 0), overflow)
             relayout()
             pointer.scrolled(0)  // the pointer on the panel all the same, not in the field (`SessionEvent.scroll`)
             return
         }
-        // A row per notch of a wheel; a trackpad adds up its small steps (about a row per 24 points). Every event is told,
+        // A row per notch of a wheel (the session turns a page instead in a list shown a page at a time:
+        // `Composer.wheel`); a trackpad adds up its small steps (about a row per 24 points). Every event is told,
         // one short of a row as 0 (a trackpad's small steps, its momentum after the last row): none of them is the pointer
         // used in the field.
         let delta = event.hasPreciseScrollingDeltas ? event.scrollingDeltaY / 24 : event.scrollingDeltaY
@@ -1881,7 +1854,7 @@ final class CandidateView: NSView {
     override func mouseExited(with event: NSEvent) { (hovered, hoveredChip, hoveredHandoff) = (nil, nil, nil) }
 
     /// A click picks the row as its digit would (`Composer.choose`), a part of the chip, or where a conversation goes on as
-    /// its ⌘digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
+    /// its ⌥digit would (`pointer`); the text field keeps the focus, the panel being non-activating and never key.
     override func mouseDown(with event: NSEvent) {
         let point = convert(event.locationInWindow, from: nil)
         if let part = chipPart(at: point) {
@@ -1898,6 +1871,50 @@ final class CandidateView: NSView {
     override func rightMouseDown(with event: NSEvent) {
         guard let index = row(at: convert(event.locationInWindow, from: nil)) else { return }
         pointer.rightClicked(index)
+    }
+}
+
+extension CandidateView {
+    /// Rows one under another taller than `maxHeight`: shown between `rowsTop` and what is left above the status and
+    /// footer (the title and the line of input stay on top), moved up. A conversation's to show the bottom of the last
+    /// one, or the highlighted one when it is above (an earlier answer picked with ↑), or as far as the wheel moved them;
+    /// a list's as little as brings the highlighted row into view (↑↓, the wheel) from where they were. The status, the
+    /// candidates' line under them (above the caret) and the footer move up with the bottom of the panel.
+    private func fitRows(height: CGFloat, rowsTop: CGFloat, rowsBottom: CGFloat, width: CGFloat) {
+        let previous = rowsShift
+        rowsShift = 0
+        rowsClip = nil
+        overflow = 0
+        guard !model.horizontal, let maxHeight, height > maxHeight, rowsBottom > rowsTop else { return }
+        overflow = min(height - maxHeight, rowsBottom - rowsTop - 40)  // a few rows always show
+        guard overflow > 0 else { overflow = 0; return }
+        let room = rowsBottom - rowsTop - overflow
+        let highlighted = model.highlighted.flatMap { rowLayouts.indices.contains($0) ? rowLayouts[$0].frame : nil }
+        var shift = overflow
+        if !model.transcript {
+            shift = CandidateLayout.scrollOffset(from: previous, showing: highlighted, top: rowsTop, visible: room, overflow: overflow)
+        } else if let highlighted, model.highlighted != rowLayouts.count - 1 {
+            // The newest row stays at the bottom even when it's taller than the panel (its start then scrolls into view);
+            // an earlier one selected above the panel's top comes down to it.
+            shift = min(shift, max(highlighted.minY - rowsTop, 0))
+        }
+        if let scrolled { shift = min(max(scrolled, 0), overflow) }
+        rowsShift = shift
+        rowsClip = NSRect(x: 0, y: rowsTop, width: width, height: room)
+        for i in rowLayouts.indices {
+            rowLayouts[i].frame.origin.y -= shift
+            rowLayouts[i].textFrame.origin.y -= shift
+            rowLayouts[i].labelFrame.origin.y -= shift
+            rowLayouts[i].iconFrame?.origin.y -= shift
+            rowLayouts[i].lineMidY -= shift
+        }
+        skeletons = skeletons.map { ($0.frame.offsetBy(dx: 0, dy: -shift), $0.keycap?.offsetBy(dx: 0, dy: -shift), $0.bar.offsetBy(dx: 0, dy: -shift)) }
+        statusFrame?.origin.y -= overflow
+        if side == .above {
+            candidatesFrame?.origin.y -= overflow
+            pills = pills.map { ($0.frame.offsetBy(dx: 0, dy: -overflow), $0.label, $0.text) }
+        }
+        footerY -= overflow
     }
 }
 
@@ -1943,44 +1960,5 @@ private final class ShimmerView: NSView {
         }
         mask.path = path
         CATransaction.commit()
-    }
-}
-
-extension PanelModel {
-    /// The line of input as the Mac draws it, on top (under where a conversation can go on): its prompt and its text,
-    /// "▏" at its caret. Nil: none.
-    var inputLine: String? {
-        input.map { input in
-            input.prompt + (input.caret.map { String(input.text.prefix($0)) + "▏" + String(input.text.dropFirst($0)) } ?? input.text)
-        }
-    }
-
-    /// What the Mac shows on top, as text: where a conversation can go on, its title and its choices as lines (up to 4 on
-    /// a line, more 3 a line, as they are laid out: each its key on a keycap and its name, `CandidateView.handoffTargets`),
-    /// then the line of input (`inputLine`). Nil: neither.
-    var inputText: String? {
-        var lines: [String] = []
-        if let handoff {
-            let labels = handoff.choices.map { $0.shortcut + " " + $0.name }
-            let perLine = labels.count <= 4 ? 4 : 3
-            lines.append(handoff.title)
-            lines.append(stride(from: 0, to: labels.count, by: perLine)
-                .map { labels[$0..<min($0 + perLine, labels.count)].joined(separator: "   ") }.joined(separator: "\n"))
-        }
-        if let inputLine { lines.append(inputLine) }
-        return lines.isEmpty ? nil : lines.joined(separator: "\n")
-    }
-
-    /// The header's lines as the Mac draws them, one under the other; nil without.
-    var headerText: String? { header.isEmpty ? nil : header.joined(separator: "\n") }
-
-    /// The status's text as the Mac draws it (a list's items under it, after "· "); nil without one. An error's, without
-    /// its "⚠︎".
-    var statusText: String? {
-        switch status {
-        case .none: return nil
-        case let .loading(text), let .hint(text), let .error(text): return text
-        case let .list(title, items): return title + "\n" + items.map { "· " + $0 }.joined(separator: "\n")
-        }
     }
 }

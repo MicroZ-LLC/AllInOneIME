@@ -1,0 +1,7 @@
+NAME an app-cleared Chromium field has empty context despite length zero
+PROFILES chromium electron
+LANG english
+TEXT "old message|"
+APP clears
+EXPECT doc ""
+EXPECT context before ""

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 
@@ -45,6 +46,15 @@ struct CandidatePanelLayoutTests {
     @Test func whereAConversationGoesOnIsKeysToClickAboveTheRows() throws {
         try LayoutChild.run("handoff")
     }
+
+    /// Key hints off (`PanelModel.withoutKeyHints`): a footer of only its detail (a page, a time) still shows (review of #99).
+    @Test func aFooterOfOnlyItsDetailStillShows() throws {
+        try LayoutChild.run("detail")
+    }
+
+    @Test func aListTallerThanTheScreenScrollsItsRowsToTheHighlightedOne() throws {
+        try LayoutChild.run("tall")
+    }
 }
 
 private enum LayoutChild {
@@ -61,30 +71,16 @@ private enum LayoutChild {
     /// `program`, against the core as `swift build` built it (.build/debug).
     static func compile() throws -> URL {
         let fm = FileManager.default
-        let scratch = fm.temporaryDirectory.appendingPathComponent("candidate-panel-layout-\(UUID().uuidString)")
+        let scratch = TestScratch.temporary("candidate-panel-layout-\(UUID().uuidString)")
         try fm.createDirectory(at: scratch, withIntermediateDirectories: true)
         let main = scratch.appendingPathComponent("Main.swift")
         try program.write(to: main, atomically: true, encoding: .utf8)
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMECore", "AllInOneIMEText", "AllInOneIMEScriptEngine", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else {
-                objects += try fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil)
-                    .filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
         let sources = ["CandidatePanel.swift", "CommandIcons.swift", "LiveSettings.swift"]
             .map { repository.appendingPathComponent("Sources/AllInOneIME/" + $0).path }
         let executable = scratch.appendingPathComponent("layout")
-        let arguments = ["swiftc", "-swift-version", "5", "-parse-as-library", "-I", modules.path,
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels", "-framework", "AppKit"]
-            + sources + [main.path] + objects + ["-o", executable.path]
-        let swiftc = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 300)
+        let swiftc = try SourceCompiler.compile(repository: repository, sources: sources + [main.path],
+            executable: executable,
+            parseAsLibrary: true, timeout: 300)
         guard swiftc.status == 0 else { throw ChildError(swiftc.output) }
         return executable
     }
@@ -96,7 +92,7 @@ private enum LayoutChild {
 
     static func command(_ executable: URL, _ arguments: [String], timeout: TimeInterval) throws -> (status: Int32, output: String) {
         // A file, not a pipe: the compiler's diagnostics can fill a pipe's buffer.
-        let log = FileManager.default.temporaryDirectory.appendingPathComponent("candidate-panel-layout-\(UUID().uuidString).log")
+        let log = TestScratch.temporary("candidate-panel-layout-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: log.path, contents: nil)
         let handle = try FileHandle(forWritingTo: log)
         defer { try? handle.close(); try? FileManager.default.removeItem(at: log) }
@@ -621,11 +617,11 @@ private enum LayoutChild {
             let view = panel.view
             var model = chat(rounds: 2)
             model.handoff = PanelModel.Handoff(title: "2 rounds in: continue in Claude or another AI", choices: [
-                .init(shortcut: "⌘1", name: "Claude Code"), .init(shortcut: "⌘2", name: "Gemini CLI"), .init(shortcut: "⌘3", name: "Claude"),
-                .init(shortcut: "⌘4", name: "ChatGPT"), .init(shortcut: "⌘5", name: "Copy")])
+                .init(shortcut: "⌥1", name: "Claude Code"), .init(shortcut: "⌥2", name: "Gemini CLI"), .init(shortcut: "⌥3", name: "Claude"),
+                .init(shortcut: "⌥4", name: "ChatGPT"), .init(shortcut: "⌥5", name: "Copy")])
             panel.show(model, anchor: high)
             let targets = view.handoffTargets, rows = spans(panel)
-            expect(targets.map(\.shortcut) == ["⌘1", "⌘2", "⌘3", "⌘4", "⌘5"], "every choice, in order: \(targets.map(\.shortcut))")
+            expect(targets.map(\.shortcut) == ["⌥1", "⌥2", "⌥3", "⌥4", "⌥5"], "every choice, in order: \(targets.map(\.shortcut))")
             expect(rows.keys.sorted() == [1, 3], "the answers under the pointer: \(rows.keys.sorted())")
             guard targets.count == 5, let first = rows[1] else { return }
             let lines = targets.map(\.targetFrame.minY)
@@ -634,23 +630,94 @@ private enum LayoutChild {
             for (index, target) in targets.enumerated() {
                 let digit = index + 1
                 expect(target.keycapFrame.height == CandidateView.Metrics.smallKeycapHeight && target.targetFrame.contains(target.keycapFrame),
-                       "⌘\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
+                       "⌥\(digit) on a small keycap, in what a click takes: \(target.keycapFrame) \(target.targetFrame)")
                 expect(view.bounds.contains(target.targetFrame) && target.targetFrame.maxY < first.lowerBound,
-                       "⌘\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
+                       "⌥\(digit) in the panel, above the rows: \(target.targetFrame), first answer \(first)")
                 if index % 3 != 0 {
-                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌘\(digit) apart from the one before it")
+                    expect(targets[index - 1].targetFrame.maxX < target.targetFrame.minX, "⌥\(digit) apart from the one before it")
                 }
                 let point = NSPoint(x: target.targetFrame.midX, y: target.targetFrame.midY)
-                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌘\(digit) highlights it, no row")
+                expect(hovered(panel, at: point) == nil && view.hoveredHandoff == index, "the pointer over ⌥\(digit) highlights it, no row")
                 var digits: [Int] = [], picked: [Int] = []
                 panel.take(by: panel, .init(select: { picked.append($0) }, delete: nil, scroll: nil, chip: nil, handoff: { digits.append($0) }))
                 view.mouseDown(with: event(.leftMouseDown, panel, at: point))
-                expect(digits == [digit] && picked.isEmpty, "a click on ⌘\(digit) goes on there, no row picked: \(digits) \(picked)")
+                expect(digits == [digit] && picked.isEmpty, "a click on ⌥\(digit) goes on there, no row picked: \(digits) \(picked)")
             }
             // Gone again (Esc): nothing of them left to click, the answers still are.
             panel.show(chat(rounds: 2), anchor: high)
             expect(view.handoffTargets.isEmpty && spans(panel).keys.sorted() == [1, 3], "without them, the answers as before")
             panel.hide()
+        }
+    }
+
+    extension Layout {
+        /// The key hints off: a footer of only its detail ("1–7 / 9") laid out and drawn, as tall as with its keys.
+        static func detail() {
+            var paged = column(["one", "two", "three"])
+            paged.detail = "1–7 / 9"
+            let bare = paged.withoutKeyHints
+            expect(bare.footer.isEmpty && bare.hints.isEmpty && bare.note == nil && bare.detail == "1–7 / 9", "only the detail left")
+            var none = bare
+            none.detail = nil
+            let view = CandidateView()
+            view.model = bare
+            let size = view.contentSize
+            expect(view.footerY > 0, "a footer laid out for the detail alone: \(view.footerY)")
+            expect(size.height > natural(none).height, "taller than with no detail: \(size) \(natural(none))")
+            expect(size.height == natural(paged).height, "as tall as with its keys: \(size) \(natural(paged))")
+        }
+    }
+
+    extension Layout {
+        /// A list of `count` rows, each a few lines long, under a title, with a footer, `highlighted` chosen.
+        static func long(_ count: Int, highlighted: Int) -> PanelModel {
+            let text = String(repeating: "A long line that wraps onto a few lines of the panel, as an @improve result does. ", count: 4)
+            return PanelModel(rows: (0..<count).map { Row(label: "\($0 % 10)", text: "\($0) " + text, kind: .translation) },
+                              highlighted: highlighted, header: ["The title"], footer: "⏎ do it · ↑↓ choose · Esc as typed")
+        }
+
+        /// A vertical list taller than the screen: the panel no taller than the screen less its margins, on it on either
+        /// side of the caret, the title and the footer in it; the highlighted row wholly in view as ↑↓ move it down to
+        /// the last and up to the first, the rows moving by as little as that takes. One that fits is laid out as before.
+        static func tall() {
+            let margin = CandidateView.Metrics.screenMargin
+            for anchor in [high, low] {
+                let panel = CandidatePanel()
+                let view = panel.view
+                panel.show(long(40, highlighted: 0), anchor: anchor)
+                let frame = panel.frame
+                expect(frame.height <= screen.height - 2 * margin + 1 && screen.contains(frame),
+                       "the panel on the screen: \(frame) on \(screen)")
+                expect(view.footerY > 0 && view.footerY < view.bounds.height, "the footer in the panel: \(view.footerY), \(view.bounds)")
+                guard let title = view.headerFrame else { expect(false, "the title is drawn"); continue }
+                var shifts: [CGFloat] = []
+                for index in Array(0..<40) + Array((0..<40).reversed()) {
+                    panel.show(long(40, highlighted: index), anchor: anchor)
+                    shifts.append(view.rowsShift)
+                    let row = view.rowFrame(index) ?? .zero
+                    expect(row.minY >= title.maxY && row.maxY <= view.footerY, "row \(index) in view: \(row), title \(title), footer \(view.footerY)")
+                    expect(panel.frame == frame, "the panel stays put with row \(index): \(panel.frame) / \(frame)")
+                }
+                expect(shifts.first == 0 && shifts[39] > 0 && shifts.last == 0, "down to the last and back up to the first: \(shifts)")
+                // ↓ from the first row moves nothing until a row is past the bottom; the rows then move by about a row.
+                let steps = zip(shifts, shifts.dropFirst()).map { $1 - $0 }
+                expect(steps.allSatisfy { abs($0) <= 120 }, "the rows move a row at a time: \(steps)")
+                expect(shifts[1] == 0, "the second row was in view already: \(shifts)")
+                panel.hide()
+            }
+            // One that fits: the screen's height changes nothing.
+            let view = CandidateView()
+            view.model = long(3, highlighted: 2)
+            let free = (view.contentSize, view.rowFrame(2), view.footerY)
+            view.screenHeight = screen.height
+            expect(view.contentSize == free.0 && view.rowFrame(2) == free.1 && view.footerY == free.2 && view.rowsShift == 0,
+                   "a list that fits as before: \(view.contentSize) / \(free.0)")
+            // A short screen: no taller than it, the highlighted row in view.
+            view.screenHeight = 300
+            expect(view.contentSize.height <= 300 - 2 * margin && view.contentSize.height < free.0.height,
+                   "no taller than a short screen: \(view.contentSize)")
+            let last = view.rowFrame(2) ?? .zero
+            expect(last.maxY <= view.footerY && last.minY >= (view.headerFrame?.maxY ?? 0), "the highlighted row in view: \(last)")
         }
     }
 
@@ -676,6 +743,8 @@ private enum LayoutChild {
             case "row": Layout.row()
             case "conversation": Layout.conversation()
             case "handoff": Layout.handoff()
+            case "detail": Layout.detail()
+            case "tall": Layout.tall()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)

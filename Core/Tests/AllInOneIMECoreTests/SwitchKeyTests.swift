@@ -85,7 +85,7 @@ struct SwitchKeyTests {
     // MARK: The settings document
 
     @Test func underTheInputLanguagesOnTheMacOnly() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("switch-key-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("switch-key-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")
@@ -98,9 +98,10 @@ struct SwitchKeyTests {
         #expect(ids.firstIndex(of: "switchKey").map { $0 + 1 } == ids.firstIndex(of: "candidateLayout"), "\(ids)")
         #expect(ids.firstIndex(of: "inputLanguages").map { $0 < (ids.firstIndex(of: "switchKey") ?? 0) } == true, "\(ids)")
         let field = try #require(input.fields.first { $0.id == "switchKey" })
-        #expect(field.kind == .choice && field.value == .string("shift") && field.label == UIText.switchKeyLabel && field.help == nil)
+        #expect(field.kind == .choice && field.value == .string("shift") && field.label == inItsLanguage(mac) { UIText.switchKeyLabel } && field.help == nil)
         #expect(field.choices?.map(\.value) == [.string("shift"), .string("capsLock")])
-        #expect(input.fields.first { $0.id == "inputLanguages" }?.help == UIText.inputLanguagesHelp(.shift, switches: true))
+        #expect(input.fields.first { $0.id == "inputLanguages" }?.help
+                == inItsLanguage(mac) { UIText.inputLanguagesHelp(.shift, switches: true) })
         #expect(try mac.set("switchKey", to: .string("capsLock")).get() == ())
         #expect(try Config.load(from: url).switchKey == .capsLock)
         guard case .failure = mac.set("switchKey", to: .string("rightOption")) else {
@@ -109,8 +110,9 @@ struct SwitchKeyTests {
         }
         // Caps Lock chosen: its row says it no longer locks capitals, and the input languages' names it.
         let after = try #require(mac.document().sections.first { $0.id == "input" })
-        #expect(after.fields.first { $0.id == "switchKey" }?.help == UIText.switchKeyHelp(.capsLock))
-        #expect(after.fields.first { $0.id == "inputLanguages" }?.help == UIText.inputLanguagesHelp(.capsLock, switches: true))
+        #expect(after.fields.first { $0.id == "switchKey" }?.help == inItsLanguage(mac) { UIText.switchKeyHelp(.capsLock) })
+        #expect(after.fields.first { $0.id == "inputLanguages" }?.help
+                == inItsLanguage(mac) { UIText.inputLanguagesHelp(.capsLock, switches: true) })
         // Windows doesn't turn the lock off: no field there.
         let windows = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: library)
         #expect(windows.document().field("switchKey") == nil)

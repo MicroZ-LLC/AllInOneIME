@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ final class SyncRig {
     static let t0 = Date(timeIntervalSince1970: 1_800_000_000)
 
     init() throws {
-        root = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-sync-tests-\(UUID().uuidString)")
+        root = TestScratch.temporary("allinoneime-sync-tests-\(UUID().uuidString)")
         drive = root.appendingPathComponent("CloudDocs")
         try FileManager.default.createDirectory(at: drive, withIntermediateDirectories: true)
     }

@@ -34,7 +34,7 @@ struct CommandTestRunStopsTests {
     }
 
     private func fixture() throws -> (SettingsService, URL) {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("command-test-run-\(UUID())", isDirectory: true)
+        let dir = TestScratch.temporary("command-test-run-\(UUID())", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let file = dir.appendingPathComponent("config.json")
         try Data(#"{"provider":"openai"}"#.utf8).write(to: file)
@@ -200,7 +200,7 @@ struct CommandTestRunStopsTests {
                       CustomCommand(name: "polite", type: .prompt, prompt: "Be polite"),
                       CustomCommand(name: "upper", type: .run, argv: ["/usr/bin/touch", "{input}"])])
     func aTrialStoppedBeforeItStartsRunsNothing(_ command: CustomCommand) async throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("command-trial-\(UUID())", isDirectory: true)
+        let dir = TestScratch.temporary("command-trial-\(UUID())", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let touched = dir.appendingPathComponent("ran").path
