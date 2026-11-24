@@ -52,24 +52,7 @@ public struct Config: Codable, Equatable, Sendable {
         return outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: chinese) } }
     }
 
-    /// The characters Chinese is typed in: the ones picked (`chineseCharacters`), else those of the system's preferred
-    /// languages (`Platform.userLanguages`, `ChineseCharacters.preferred`), read each time: a Mac whose language changes
-    /// follows it.
-    public var typedChinese: ChineseCharacters {
-        chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
-    }
-
-    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, or Zhuyin.
-    public var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
-
-    /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
-    public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
-
-    /// The output language `text` is written in: Chinese by its own characters when they tell, else in the characters
-    /// typed (`OutputLanguage.of`). What decides whether it is translated into an output language or is in it already.
-    public func writtenLanguage(of text: String) -> OutputLanguage {
-        OutputLanguage.of(text, language: language(of: text), chinese: typedChinese)
-    }
+    // How Chinese is typed (`typedChinese`, `typedPinyin`…): Config+Typing.swift.
 
     /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
     /// `CodingLanguagePack.offered`); nil: no Code input. It comes after the input languages, a tap of Shift away from the

@@ -1335,11 +1335,9 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
-            // Chinese's scheme and characters, rows of their own while Chinese is typed (#120: out of its chip).
-            if model.config.inputLanguages.contains(.chinese) {
-                pinyinSchemeRow
-                chineseCharactersRow
-            }
+            // Chinese's scheme and characters, rows of their own while Chinese is typed (#120: out of its chip):
+            // ChineseTypingSettings.swift.
+            if model.config.inputLanguages.contains(.chinese) { ChineseTypingRows(model: model) }
             switchKeyRow
             CandidatePanelRows(model: model, rows: .layout)
         } header: {
@@ -1349,32 +1347,6 @@ struct SettingsView: View {
         // Pointed at something in a chip (the search found fuzzy pinyin): that chip opened.
         .onChange(of: model.spot) { openChipOfSpot() }
         .onAppear { openChipOfSpot() }
-    }
-
-    /// Common → how Chinese is typed: full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`).
-    private var pinyinSchemeRow: some View {
-        Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
-            ForEach(PinyinScheme.allCases, id: \.self) { scheme in
-                Text(scheme.name(in: UIText.language)).tag(scheme)
-            }
-        } label: {
-            titled(.pinyinScheme)
-        }
-        .pickerStyle(.menu)
-        .settingsRow(.pinyinScheme, shown: model.spot)
-    }
-
-    /// Common → the Chinese characters typed, as the system's languages say until one is picked (`Config.typedChinese`).
-    private var chineseCharactersRow: some View {
-        Picker(selection: Binding(get: { model.config.typedChinese }, set: { model.setChineseCharacters($0) })) {
-            ForEach(ChineseCharacters.allCases, id: \.self) { characters in
-                Text(characters.name(in: UIText.language)).tag(characters)
-            }
-        } label: {
-            titled(.chineseCharacters)
-        }
-        .pickerStyle(.menu)
-        .settingsRow(.chineseCharacters, shown: model.spot)
     }
 
     /// Voice input (`Features.voiceInput`, off for now): its switch, the speech models, the microphone.
