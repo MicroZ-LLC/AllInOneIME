@@ -14,7 +14,7 @@ struct FieldReader {
 
     /// What the field says, as the session wants it: asked again, given what was read, until it wants nothing more.
     func context(wants: (FieldContext) -> FieldContext.Parts) -> FieldContext {
-        var context = FieldContext(field: FieldInfo(app: field.profile.app))
+        var context = FieldContext(field: field.profile.field)
         while true {
             let missing = wants(context).subtracting(context.read)
             if missing.isEmpty { return context }
@@ -25,7 +25,7 @@ struct FieldReader {
     /// What the field says when it is read outside a key (`SessionOutput.readField`, `readSelection`): whether it is
     /// secure, where the selection is and what it holds, the text around it.
     func everything() -> FieldContext {
-        var context = FieldContext(field: FieldInfo(app: field.profile.app))
+        var context = FieldContext(field: field.profile.field)
         read([.secure, .passwordField, .selectedRange, .selection, .text], into: &context)
         return context
     }

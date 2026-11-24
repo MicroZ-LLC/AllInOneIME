@@ -29,7 +29,14 @@ struct HostRunTests {
                 #expect(field.length() == 0 && field.selectedRange() == 150..<150)
                 #expect(field.substring(50..<150)?.count == 100 && field.substring(49..<150) == nil, "only 100 around the caret")
                 #expect(field.substring(150..<250)?.count == 100 && field.substring(150..<251) == nil)
-            case .tellsnothing:
+            case .webkit:
+                #expect(field.length() == 0 && field.selectedRange() == 150..<150)
+                #expect(field.substring(0..<3) == "aaa" && field.substring(297..<300) == "bbb" && field.substring(299..<301) == nil)
+            case .qt:
+                #expect(field.length() == 0 && field.selectedRange() == 150..<150)
+                #expect(field.substring(0..<150)?.count == 150 && field.substring(150..<300)?.count == 150)
+                #expect(field.substring(299..<301) == nil, "nil past the end")
+            case .tellsnothing, .terminal:
                 #expect(field.length() == 0 && field.selectedRange() == nil && field.markedRange() == nil)
                 #expect(field.substring(0..<1) == nil)
             }
@@ -58,7 +65,7 @@ struct HostRunTests {
         for profile in HostProfile.allCases {
             let (run, _) = try run("TEXT \"Hi |Bob\"", on: profile)
             let read = run.reader.text(before: 1500, after: 200)
-            #expect(read == (profile == .tellsnothing ? nil : FieldText(before: "Hi ", after: "Bob")), "\(profile)")
+            #expect(read == (profile.tellsNothing ? nil : FieldText(before: "Hi ", after: "Bob")), "\(profile)")
         }
     }
 
@@ -91,6 +98,47 @@ struct HostRunTests {
     @Test func chromiumCommitsTheMarkedTextAsTheFieldLosesTheFocus() throws {
         let (chromium, _) = try run("TEXT \"Hi {nihao}\"\nFOCUS away", on: .chromium)
         #expect(chromium.host.document == "Hi nihao" && chromium.host.marked.isEmpty)
+    }
+
+    /// Qt reads only what `ImTextBeforeCursor` / `ImTextAfterCursor` give, 1024 characters each way.
+    @Test func qtReadsWithinItsReach() throws {
+        let text = String(repeating: "a", count: 1100) + "|"
+        let (run, _) = try run("TEXT \"\(text)\"", on: .qt)
+        #expect(run.field.substring(76..<1100)?.count == 1024 && run.field.substring(75..<1100) == nil)
+    }
+
+    /// A terminal is told as one (its real bundle id, `FieldInfo.terminal`), so the core's terminal rules apply, and
+    /// its field tells nothing.
+    @Test func aTerminalIsToldAsOne() throws {
+        let (run, failures) = try run("LANG english\nTEXT \"ls |\"\nTYPE la\nEXPECT doc \"ls la\"", on: .terminal)
+        #expect(failures.isEmpty, "\(failures)")
+        #expect(run.host.session.field.terminal && run.host.session.field.app == "com.mitchellh.ghostty")
+        #expect(!run.host.composer.pastesIntoDraft && !run.host.composer.appTakesKeysAfterInsert)
+        #expect(run.reader.everything().field == FieldInfo(app: "com.mitchellh.ghostty", terminal: true))
+    }
+
+    /// A terminal sends a key the session took to the shell unless text went in during it, marked text is after it, or
+    /// the Mac's shell kept it (the key composed, or the rows took it); elsewhere a taken key is never the app's.
+    @Test func aTerminalSendsATakenKeyTheShellDidntKeep() throws {
+        let (terminal, _) = try run("LANG chinese\nTEXT \"|\"", on: .terminal)
+        let none = terminal.host.outputs[terminal.host.outputs.endIndex...]
+        #expect(terminal.terminalSends(composing: false, outputs: none))
+        #expect(!terminal.terminalSends(composing: true, outputs: none), "a key that composes is kept")
+        #expect(!terminal.terminalSends(composing: false, outputs: [.rowsTookKey]), "the rows took it")
+        #expect(!terminal.terminalSends(composing: false, outputs: [.commit("你")]), "text went in during it")
+        #expect(terminal.terminalSends(composing: false, outputs: [.commitAfterKey("你")]), "after the key isn't during it")
+        let (nstextview, _) = try run("TEXT \"|\"", on: .nstextview)
+        #expect(!nstextview.terminalSends(composing: false, outputs: none))
+    }
+
+    /// WebKit confirms the marked text itself as it loses first responder (`confirmCompositionAsync`); Qt commits it
+    /// itself on a click (`commitPreedit`); a click in WebKit goes to the input context first, as NSTextView's.
+    @Test func webKitAndQtCommitTheMarkedTextThemselves() throws {
+        let (webkit, _) = try run("TEXT \"Hi {nihao}\"\nFOCUS away", on: .webkit)
+        #expect(webkit.host.document == "Hi nihao" && webkit.host.marked.isEmpty)
+        #expect(try run("TEXT \"Hi {nihao}\"\nCLICK inside 0", on: .qt).run.host.document == "Hi nihao")
+        let inside = try run("TEXT \"Hi {nihao}\"\nCLICK inside 4", on: .webkit).run
+        #expect(inside.host.marked == "nihao" && inside.host.document == "Hi ")
     }
 
     // MARK: Checks

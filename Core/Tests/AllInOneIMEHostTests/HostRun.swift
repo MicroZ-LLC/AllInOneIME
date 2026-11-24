@@ -68,6 +68,7 @@ final class HostRun {
         services.buttonUsedWithin = { _ in clock.clicked }
         let host = FakeHost(services: services)
         host.app = profile.app
+        host.terminal = profile.terminal
         host.caretOffset = 0
         self.host = host
         field = HostField(host: host, profile: profile)
@@ -252,6 +253,7 @@ final class HostRun {
         let start = host.outputs.count
         let before = (host.document, host.caret, ledger)
         let context = reader.context { host.session.fieldWants(for: key, given: $0) }
+        let composing = host.composer.isComposing
         host.appTypesKeys = !copy
         let handled = host.press(key, with: context)
         host.appTypesKeys = false
@@ -263,7 +265,29 @@ final class HostRun {
         }
         followOutputs(from: start)
         remember(before)
+        // A terminal's shell gets a key the session took, where the Mac's shell wouldn't have kept it from it.
+        if handled, !copy, terminalSends(composing: composing, outputs: host.outputs[start...]) {
+            appActs(on: key, typing: true)
+        }
         keyCalls.append((line, Self.describe(key), field.takeCalls()))
+    }
+
+    /// Whether a terminal sends a key the session took to its shell as well (`HostProfile.actsOnTakenKeys`): it does
+    /// unless text went in during the key or marked text is in the field after it, and the Mac's shell marks a space
+    /// during the key (`AllInOneIMEInputController.keepFromTerminal`) where the key composed (`keyComposes`: what is
+    /// being written before or after it) or the rows took it (`rowByKey`, `rowsTookKey`). What goes in once the key is
+    /// done (`commitAfterKey`) isn't during it.
+    func terminalSends(composing: Bool, outputs: ArraySlice<SessionOutput>) -> Bool {
+        guard profile.actsOnTakenKeys, host.marked.isEmpty else { return false }
+        let rowsTook = outputs.contains { if case .rowByKey = $0 { true } else if case .rowsTookKey = $0 { true } else { false } }
+        let inserted = outputs.contains {
+            switch $0 {
+            case .commit, .replace, .typeOut: true
+            default: false
+            }
+        }
+        let keptByShell = composing || host.composer.isComposing || rowsTook
+        return !keptByShell && !inserted
     }
 
     private func deliverModifiers(_ change: ModifierChange, code: UInt16, copy: Bool) {
