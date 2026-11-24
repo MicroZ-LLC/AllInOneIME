@@ -314,7 +314,7 @@ struct TranslateModeComposerTests {
         let enter = c.handleKeyDown(enterKey)
         let sent = request(enter.effects)
         #expect(enter.handled && sent?.input == "你好" && sent?.session == english && commits(enter).isEmpty)
-        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && c.wantsPanel)  // the input line says so, no rows
+        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && !c.wantsPanel)
         // Partial results don't go in.
         #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "你好 · 翻译中…")
         let done = c.receive(hello, isFinal: true, id: sent!.id)
