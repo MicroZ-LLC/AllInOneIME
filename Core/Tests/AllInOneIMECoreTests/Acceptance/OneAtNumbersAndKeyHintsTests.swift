@@ -36,33 +36,38 @@ struct OneAtNumbersAndKeyHintsTests {
         PanelPresenter(config: config, language: "en", terms: terms).model(for: composer)
     }
 
-    /// 0.7.5: rows carry no "⌥1" labels; one key hint `terms.picks(rows shown)` "pick" says ⌥digit picks the n-th row.
-    @Test func oneAtRowsHaveNoLabelsAndOnePickHintCountsTheRowsShown() throws {
+    /// 0.7.5 (owner, replaces "no labels"): each row shown carries its plain number "1", "2" … (from 1 again after
+    /// scrolling); one key hint "⌥+number" "pick" (Windows "Alt+number") says ⌥digit picks the n-th row. All key hints.
+    @Test func oneAtRowsArePlainNumberedAndOnePickHintSaysOptionNumber() throws {
         let composer = composer()
         type("@", into: composer)
         try #require(composer.oneAtRows.count > Composer.oneAtRowsShown)
         var noHints = Config.default
         noHints.keyHints = false
-        for (terms, roles) in [(PlatformTerms.mac, ModifierRoles.mac), (.windows, .windows)] {
+        let keys: [(PlatformTerms, ModifierRoles, String, String)] = [
+            (.mac, .mac, "⌥+number", "⌥+数字"), (.windows, .windows, "Alt+number", "Alt+数字")]
+        for (terms, roles, key, chineseKey) in keys {
             composer.modifierRoles = roles
             let first = model(composer, terms: terms)
             #expect(first.rows.count == Composer.oneAtRowsShown)
-            #expect(first.rows.allSatisfy { $0.label.isEmpty })
-            #expect(first.hints.contains(PanelModel.Hint(terms.picks(first.rows.count), "pick")))
+            #expect(first.rows.map(\.label) == first.rows.indices.map { String($0 + 1) })
+            #expect(first.hints.filter { $0 == PanelModel.Hint(key, "pick") }.count == 1)
             #expect(first.rows.map(\.choice) == first.rows.indices.map { Optional($0) })
             let chinese = PanelPresenter(config: .default, language: "zh-Hans", terms: terms).model(for: composer)
-            #expect(chinese.hints.contains(PanelModel.Hint(terms.picks(chinese.rows.count), "直接选")))
+            #expect(chinese.rows.map(\.label) == chinese.rows.indices.map { String($0 + 1) })
+            #expect(chinese.hints.filter { $0 == PanelModel.Hint(chineseKey, "直接选") }.count == 1)
             let quiet = model(composer, config: noHints, terms: terms)
-            #expect(!quiet.hints.contains { $0.key == terms.picks(quiet.rows.count) })
+            #expect(!quiet.hints.contains { $0.key == key })
             #expect(quiet.rows.allSatisfy { $0.label.isEmpty })
         }
         for _ in 0..<Composer.oneAtRowsShown { _ = composer.handleKeyDown(downKey) }
         #expect(composer.oneAtFirstVisible == 1)
-        for terms in [PlatformTerms.mac, .windows] {
+        for (terms, key) in [(PlatformTerms.mac, "⌥+number"), (.windows, "Alt+number")] {
             composer.modifierRoles = terms.roles
             let scrolled = model(composer, terms: terms)
-            #expect(scrolled.rows.allSatisfy { $0.label.isEmpty })
-            #expect(scrolled.hints.contains(PanelModel.Hint(terms.picks(scrolled.rows.count), "pick")))
+            #expect(scrolled.rows.count <= 9)
+            #expect(scrolled.rows.map(\.label) == scrolled.rows.indices.map { String($0 + 1) })
+            #expect(scrolled.hints.filter { $0 == PanelModel.Hint(key, "pick") }.count == 1)
             #expect(scrolled.rows.first?.choice == 0)
             #expect(scrolled.highlighted == scrolled.rows.count - 1)
         }
@@ -284,8 +289,8 @@ struct OneAtNumbersAndKeyHintsTests {
         composer.modifierRoles = .windows
         type("@", into: composer)
         let panel = model(composer, terms: .windows)
-        #expect(panel.rows.first?.label == "")
-        #expect(panel.hints.contains(PanelModel.Hint(PlatformTerms.windows.picks(panel.rows.count), "pick")))
+        #expect(panel.rows.first?.label == "1")
+        #expect(panel.hints.contains(PanelModel.Hint("Alt+number", "pick")))
         let first = composer.oneAtVisible.first?.command
         #expect(composer.handleKeyDown(shortcut(1)).handled)
         #expect(composer.draftCommand == first)
@@ -369,7 +374,14 @@ struct OneAtNumbersAndKeyHintsTests {
             #expect(hidden.footerHints.note == shown.footerHints.note)
             #expect(hidden.note == shown.note && hidden.detail == shown.detail)
             #expect(hidden.candidatesHint == nil)
-            #expect(hidden.rows == shown.rows && hidden.highlighted == shown.highlighted)
+            // The @ list's row numbers are key hints too: gone with them, the rows otherwise unchanged.
+            if composer.oneAtVisible.isEmpty {
+                #expect(hidden.rows == shown.rows)
+            } else {
+                #expect(hidden.rows.allSatisfy { $0.label.isEmpty })
+                #expect(hidden.rows == shown.rows.map { var row = $0; row.label = ""; return row })
+            }
+            #expect(hidden.highlighted == shown.highlighted)
             #expect(hidden.status == shown.status && hidden.header == shown.header)
             #expect(hidden.input == shown.input && hidden.chip == shown.chip)
             #expect(hidden.candidates == shown.candidates)
