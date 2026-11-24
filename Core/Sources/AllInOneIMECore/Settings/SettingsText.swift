@@ -204,6 +204,14 @@ extension UIText {
            "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3).")
     }
 
+    /// Shape codes after "`" while typing pinyin (Settings → Input → Chinese → Typing, `Config.shapeCode`): its name, what
+    /// it says under it, and its Off.
+    public static var shapeCodeLabel: String { tr("辅助码", "Shape codes") }
+    public static var shapeCodeHelp: String {
+        tr("拼音后按 ` 再打形码，筛出想要的字", "After the pinyin, press ` and type the shape code to narrow the candidates")
+    }
+    public static var shapeCodeOff: String { tr("关闭", "Off", key: "shapeCode.off") }
+
     /// Why a custom command in config.json isn't used (`CustomCommand.Refused`), as Settings → Custom Commands says it
     /// under its name: "This command isn't used: “minChars” should be a whole number".
     public static func describe(_ refused: CustomCommand.Refused) -> String {

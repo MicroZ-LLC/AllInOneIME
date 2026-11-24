@@ -306,18 +306,18 @@ final class SettingsModel: ObservableObject {
 
     /// Fuzzy pinyin (and the characters) couldn't be applied: the Rime folder has the user's own `rime_ice.custom.yaml`.
     @Published private(set) var fuzzyBlocked = false
-    /// Writes the patch, fuzzy pinyin's and the characters', for full pinyin's schema and the Shuangpin scheme typed with,
-    /// and the schemas deployed, and deploys Rime again (the self-test's preview model doesn't).
-    var applyRimePatch: @MainActor ([String], ChineseCharacters, PinyinScheme) -> FuzzyPinyin.Outcome? = {
-        RimeFuzzy.apply($0, characters: $1, scheme: $2)
-    }
+    /// Writes the patch, fuzzy pinyin's, the characters' and the shape codes', for full pinyin's schema and the Shuangpin
+    /// scheme typed with, and the schemas deployed, and deploys Rime again (the self-test's preview model doesn't).
+    var applyRimePatch: @MainActor ([String], ChineseCharacters, PinyinScheme, ShapeCode?) -> FuzzyPinyin.Outcome? = { RimeFuzzy.apply($0, characters: $1, scheme: $2, shapeCode: $3) }
+    /// The patch written again for the settings as they are now (`applyRimePatch`): blocked by the user's own file.
+    func applyRime() { fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin, config.typedShapeCode) == .userFile }
     /// What turning it on picks: the pairs most often mixed up.
     static let fuzzyDefaults = SettingsStore.fuzzyDefaults
 
     func setFuzzyPinyin(_ ids: [String]) {
         store.setFuzzyPinyin(ids)
         guard persists else { return }
-        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
+        applyRime()
     }
 
     /// The characters Chinese is typed in, picked: saved (no longer the system's languages'), and Rime deployed again
@@ -326,7 +326,7 @@ final class SettingsModel: ObservableObject {
         guard characters != config.chineseCharacters else { return }
         store.setChineseCharacters(characters)
         guard persists else { return }
-        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
+        applyRime()
     }
 
     /// How Chinese is typed in pinyin, picked: saved, and the scheme's schema deployed beside full pinyin's with the same
@@ -335,7 +335,7 @@ final class SettingsModel: ObservableObject {
         guard scheme != config.typedPinyin else { return }
         store.setPinyinScheme(scheme)
         guard persists else { return }
-        fuzzyBlocked = applyRimePatch(config.fuzzyPinyin, config.typedChinese, config.typedPinyin) == .userFile
+        applyRime()
     }
 
     func setFuzzy(_ id: String, on: Bool) {
@@ -1335,7 +1335,7 @@ struct SettingsView: View {
             ForEach(LanguagePack.catalog) { pack in packRow(pack) }
             CodeInputRow(model: model)
             if Features.voiceInput { voiceRows }  // off for now: the setting kept as it is
-            // Chinese's scheme and characters, rows of their own while Chinese is typed (#120: out of its chip):
+            // Chinese's scheme, characters and shape codes, rows of their own while Chinese is typed (#120: out of its chip):
             // ChineseTypingSettings.swift.
             if model.config.inputLanguages.contains(.chinese) { ChineseTypingRows(model: model) }
             switchKeyRow

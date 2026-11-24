@@ -334,7 +334,7 @@ struct SettingsSchema {
         // How the candidate panel looks (SettingsSchema+Panel.swift).
         panel(&fields)
         if config.inputLanguages.contains(.chinese) {
-            // How it is typed, its characters, fuzzy pinyin (SettingsSchema+Chinese.swift).
+            // How it is typed, its characters, its shape codes, fuzzy pinyin (SettingsSchema+Chinese.swift).
             chineseTyping(&fields, characters: chinese)
             englishWords(&fields)
         }

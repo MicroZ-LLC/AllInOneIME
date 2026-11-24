@@ -1,7 +1,8 @@
 import Foundation
 
 /// Chinese's settings in Input, while Chinese is typed: how it is typed (`PinyinScheme`), the characters
-/// (`ChineseCharacters`: `characters`, as `Config.typedChinese` read them once), fuzzy pinyin.
+/// (`ChineseCharacters`: `characters`, as `Config.typedChinese` read them once), for pinyin its shape codes (`ShapeCode`),
+/// fuzzy pinyin.
 extension SettingsSchema {
     mutating func chineseTyping(_ fields: inout [Field], characters chinese: ChineseCharacters) {
         let store = store
@@ -18,6 +19,17 @@ extension SettingsSchema {
                    choices: ChineseCharacters.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }),
             to: &fields) { value in
             store.setChineseCharacters(value.string.flatMap(ChineseCharacters.init(rawValue:)) ?? store.config.typedChinese)
+        }
+        // Shape codes after "`" (`ShapeCode`), the tables the app carries, Off ("off": `Config.shapeCode` nil) first: for
+        // pinyin, so not shown with Zhuyin (kept, and unused: its patch has none). Deployed by the Mac, as the scheme is.
+        // After the characters: the scheme stays beside them.
+        if config.typedPinyin != .zhuyin {
+            add(choice("shapeCode", UIText.shapeCodeLabel, UIText.shapeCodeHelp, value: .string(config.typedShapeCode?.rawValue ?? "off"),
+                       choices: [(Choice("off", UIText.shapeCodeOff), nil)]
+                           + ShapeCode.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }, platforms: [.mac]),
+                to: &fields) { value in
+                store.config.shapeCode = ShapeCode(setting: value.string)?.rawValue
+            }
         }
         var fuzzy = Field(id: "fuzzyPinyin", kind: .choices, label: tr("模糊音", "Fuzzy pinyin"),
                           help: tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"),
