@@ -6,7 +6,7 @@ import Testing
 /// runs, as the patch is in the user's Rime folder. Read from the sources, as the input method can't be run here.
 struct SelfTestRimePatchTests {
     @Test func followingTheSystemsLanguagesWritesNothingInTheSelfTest() throws {
-        let body = try #require(InputMenuWritesTests.body(of: "follow", in: try InputMenuWritesTests.source("main.swift")))
+        let body = try #require(InputMenuWritesTests.body(of: "follow", in: try InputMenuWritesTests.source("RimeFuzzy.swift")))
         #expect(body.contains("Config.selfTestURL == nil"))
     }
 }
