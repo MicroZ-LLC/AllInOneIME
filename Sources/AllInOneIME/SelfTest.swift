@@ -275,11 +275,12 @@ enum SelfTest {
         controller.services.pointerUsedWithin = { _ in false }
         check(controller.composer.engineState.isAsciiMode == latin && client.document == "hello world",
               "a Shift-click doesn't switch Chinese and English")
-        // Typing still replaces it, as typing over a selection does.
+        // Typing still replaces it, as typing over a selection does: the word picked goes in its place (the pinyin is on
+        // the panel's input line meanwhile, nothing marked in the field, since 0.7.5).
         type("ni", controller, client)
-        check(!client.document.contains("world") && client.selection == nil,
-              "typing replaces the selection (\(client.document)|\(controller.preedit))")
-        _ = escape(controller, client)
+        check(client.document == "hello world" && client.marked.isEmpty, "the pinyin isn't put in the field (\(client.document)|\(controller.preedit))")
+        _ = space(controller, client)
+        check(!client.document.contains("world") && client.document.hasPrefix("hello ") && client.selection == nil, "the word picked replaces the selection (\(client.document))")
     }
 
     /// Commands on the selected text (`Composer.selection`). The fake field models a selection as NSTextView does
@@ -304,7 +305,8 @@ enum SelfTest {
         }
         /// The field as it was, its selection still selected, nothing marked.
         func untouched(_ document: String = text, _ selected: NSRange? = nil) -> Bool {
-            client.document == document && client.selection == (selected ?? range) && controller.preedit.isEmpty
+            // Nothing marked in the field (what is typed is on the panel's input line, `preedit`, since 0.7.5).
+            client.document == document && client.selection == (selected ?? range) && client.marked.isEmpty
         }
         func command(_ letters: String) {
             press(controller, client, "@", code: 0x13, flags: .shift)
@@ -618,7 +620,7 @@ enum SelfTest {
 
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        // The translate languages are dragged into order (AI → AI Commands: under the rewrite styles, none here).
+        // The translate languages are dragged into order (Common since 0.7.5, #120: "Translate to", after the input languages).
         let japanese = OutputLanguage("ja")
         config.setOrder([OutputLanguage.english, japanese])
         config.rewriteStyles = []
@@ -626,7 +628,7 @@ enum SelfTest {
         model.config = config
         config.setOrder([Language.english])  // one input chip above them
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .ai))  // its chips' page
+        let host = NSHostingView(rootView: SettingsView(model: model, page: SettingsSpot.outputLanguages.page))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -1733,12 +1735,12 @@ enum SelfTest {
             keptOnClipboard("the field loses focus") { terminal.deactivateServer(terminalClient) }
             terminal.activateServer(terminalClient)
             keptOnClipboard("⇧⏎") { _ = shiftEnter(terminal, terminalClient) }
-            // ⌘V there is the terminal's: it pastes the clipboard as it is (no note put there first); the note stays.
+            // ⌘V pastes into the note there too, as in every app (#125, f0e4c60e): the terminal gets nothing; the note stays.
             let before = copied.count
             if pending() {
-                check(!press(terminal, terminalClient, "v", code: 0x09, flags: .command) && copied.count == before
-                      && terminalClient.inserted.isEmpty && terminal.composer.draft == "@note " + lines,
-                      "⌘V in a terminal is the terminal's; the note stays (\(terminalClient.inserted))")
+                check(press(terminal, terminalClient, "v", code: 0x09, flags: .command) && copied.count == before
+                      && terminalClient.inserted.isEmpty && terminal.composer.draft.hasPrefix("@note " + lines),
+                      "⌘V in a terminal pastes into the note, nothing into the terminal (\(terminalClient.inserted))")
             }
             _ = escape(terminal, terminalClient)
             terminal.inputControllerWillClose()
@@ -1989,7 +1991,8 @@ enum SelfTest {
               && !SettingsPage.inputAndKeys.matches("横排") && !SettingsPage.advanced.matches("横排"),
               "searching for the candidate layout finds its row on Common, not in Input and keys or Advanced (\(layout))")
         // @agent's settings are with the command, in Commands.
-        let agents = ["kiro", "后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        // ("kiro" alone finds the AI page's Kiro CLI card first since every AI is a card there, #121.)
+        let agents = ["后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
         check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.common.matches("kiro"),
               "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")
     }
@@ -2410,8 +2413,9 @@ enum SelfTest {
         }
         testTypos(controller, client, clear: clear)
         (settings.typeOut, settings.typeOutMistakes) = (typedBefore, mistakesBefore)
-        controller.applySettings()
-        controller.typeOutSleep = sleepBefore
+        controller.applySettings(); controller.typeOutSleep = sleepBefore
+        // The settings applied again load the commands from them: Settings' example @py back in the list (#131).
+        controller.setCommands(catalog, recheck: true); _ = pump(timeout: 10) { offersPy() == python }
 
         if python {
             check(insertsResult("py", "2**100", "1267650600228229401496703205376"),
@@ -2435,7 +2439,7 @@ enum SelfTest {
             check(insertsResult("py", "print(1);print(2)", "1\n2"), "@py output keeps its lines in other apps (\(shown(client.inserted.last)))")
             if SecureInput.ownerPID() == nil {
                 client.bundleIDOverride = "com.mitchellh.ghostty"
-                controller.activateServer(client)
+                controller.activateServer(client); controller.setCommands(catalog, recheck: true); _ = pump(timeout: 10) { offersPy() == python }  // the settings applied again
                 check(insertsResult("py", "print(1);print(2)", "1 2"),
                       "…and goes in as one line in a terminal (\(shown(client.inserted.last)))")
                 let local = needing([.composing, .bedrock])  // a live @question
@@ -3318,7 +3322,8 @@ enum SelfTest {
         section("commitComposition, the input menu", needs: .composing)
         type("nihao", controller, client)
         controller.commitComposition(client)
-        check(client.inserted.last == "你好", "commitComposition converts pending pinyin")
+        // The field left with pinyin not picked yet leaves nothing of it (owner, 2026-11-15; #126): 你好 never goes in.
+        check(client.inserted.last != "你好" && !controller.composer.isComposing, "commitComposition drops pinyin not picked (\(client.inserted.last ?? "-"))")
 
         needing([])
         let menu = controller.menu()

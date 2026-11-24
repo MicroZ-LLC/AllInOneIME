@@ -1229,9 +1229,9 @@ public final class InputSession {
 
     /// The notice of `@translate` with no language to translate into: ⏎ on it opens the settings where they're added
     /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
-    /// settings name it (the Mac's General since Settings v2, Windows' Translate & Rewrite).
+    /// settings name it (the Mac's Common since 0.7.5, where "Translate to" is; Windows' Translate & Rewrite).
     var noTranslationTargetText: String {
-        let (enter, page) = (terms.enter, terms.device == .mac ? tr("AI", "AI") : tr("翻译与改写", "Translate & Rewrite"))
+        let (enter, page) = (terms.enter, terms.device == .mac ? tr("常用", "Common") : tr("翻译与改写", "Translate & Rewrite"))
         return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
     }
 

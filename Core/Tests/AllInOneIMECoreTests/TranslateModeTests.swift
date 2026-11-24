@@ -302,7 +302,7 @@ struct TranslateModeComposerTests {
         #expect(c.markedText == "nihao" && c.wantsPanel)  // the candidates
         let space = c.handleKeyDown(spaceKey)
         #expect(commits(space).isEmpty && c.draft == "你好" && c.phase == .drafting)
-        #expect(c.markedText == "你好" && c.inModeComposition && !c.wantsPanel)
+        #expect(c.markedText == "你好" && c.inModeComposition && c.wantsPanel)  // shown on the panel's input line, under the chip
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
         #expect(c.draft == "你好我" && c.markedText == "你好我")

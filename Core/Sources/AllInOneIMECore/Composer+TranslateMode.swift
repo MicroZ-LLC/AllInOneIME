@@ -56,11 +56,13 @@ extension Composer {
         return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
     }
 
-    /// The candidate panel in the mode: only for the engine's candidates (and dictation); never results to pick.
+    /// The candidate panel in the mode: never results to pick, but it shows the draft on its input line under the chip, as
+    /// nothing is marked in the field; the engine's candidates (and dictation) under it. Not while the draft is translated:
+    /// no list to choose from then (the mode's acceptance spec, TranslateModeAcceptanceTests).
     var modeWantsPanel: Bool? {
         guard inModeComposition else { return nil }
         if modeTranslating { return false }
-        if voice != .off { return true }
+        if !draft.isEmpty || voice != .off { return true }
         return engineState.isComposing && !engineState.candidates.isEmpty
     }
 
