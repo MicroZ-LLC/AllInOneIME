@@ -1,0 +1,27 @@
+# The core's tests that bound what they time in wall-clock time to a fraction of a second: GitHub's hosted macOS runner
+# misses such a bound even with the test run alone (spotlightIsAskedSoonAfterTheLastKey: under 100 ms, 120 to 200 ms
+# there), so running it again (retry-failed-tests.sh) doesn't help. With ALLINONEIME_CI_HOSTED=1 (quality.yml's
+# core-test (macOS)) Core/Scripts/test.sh skips them, and `make test-mac` runs them on the Mac mini (mac-test) instead:
+# the bounds stay as written (an acceptance test isn't loosened: AGENTS.md rule 11), checked on a machine as fast as a
+# user's. A bound of seconds isn't here (a busy runner's misses pass when run again alone), nor one on CPU time
+# (`Timing.cpuTime`), which waiting for a turn doesn't add to.
+# One test a line, as `swift test list` names it; hosted-runner-skips.sh --check fails on a line that names no test.
+
+# Spotlight asked under 100 ms after the last key (the quickest of three).
+AllInOneIMECoreTests.OpenAsYouTypeAcceptanceTests/spotlightIsAskedSoonAfterTheLastKey()
+# Six keys typed in under 400 ms while the suggestions' program sleeps 0.6 s.
+AllInOneIMECoreTests.CommandSuggestionsSessionTests/aKeyNeverWaitsForTheProgram()
+# A field made and two keys typed in under 500 ms while the disk is busy for 3 s.
+AllInOneIMECoreTests.SuggestionsSessionTests/theCachedListIsReadOffTheSessionsThread()
+# The median key over a list of 20,000 under 12 ms (a debug build), on the wall clock.
+AllInOneIMECoreTests.SuggestionsPerformanceTests/keysStayQuickWithTheLargestList()
+AllInOneIMECoreTests.SuggestionsPerformanceTests/aTemplateThatNeverFitsCostsAKeyLittle()
+# Handing a follow-up off returns in under 100 ms.
+AllInOneIMECoreTests.InputSessionTests/handingOffDoesNotWaitOnTheKeyThread()
+# Recording a question during a merge returns in under 50 ms.
+AllInOneIMECoreTests.ICloudSyncQuestionsRaceTests/recordingDoesNotWaitForAMergeInProgress()
+# An iCloud sync with nothing to do in under 250 ms a run.
+AllInOneIMECoreTests.ICloudSyncReviewTests/s11Timing()
+# The first row's result in under 4.5 s after it's picked, settled within 15 s: a bound of seconds, but the hosted runner
+# missed it with the test run again alone too (2026-11-23, #110's core-test).
+AllInOneIMECoreTests.OneAtTests/aListKeepsItsRowsAndReturnWaitsForItsRun()

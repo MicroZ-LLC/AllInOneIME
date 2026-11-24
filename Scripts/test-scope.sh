@@ -7,7 +7,8 @@
 #     own Markdown files and LICENSE);
 #   - core: the core's tests (Core/Tests/), but for what the shell's tests use too (AllInOneIMETestSupport, the host
 #     scenarios its replayer plays: HostScenarios) and a file of tests that runs the input method (it names PlugLangCLI: Scripts/core-tests-with-app.sh), or one deleted (it
-#     may have), which count for both;
+#     may have), which count for both; so does a file that declares a test GitHub's hosted runner is too slow for
+#     (Core/Scripts/hosted-runner-skips.txt): core-test skips it there and mac-test runs it;
 #   - mac: Sources/, Tests/, Scripts/ and Resources/, and the files the shell's tests read (README.md, CHANGELOG.md and
 #     their translations, THIRD_PARTY_NOTICES.md, LICENSE);
 #   - both: the rest of Core/, the scripts core-test runs too, and anything else (.github/, the Package files, the
@@ -17,13 +18,15 @@
 #   git diff --name-only --no-renames origin/<base>...HEAD | Scripts/test-scope.sh
 set -eu
 core=false mac=false
+# The declarations of the tests only mac-test runs on a pull request: "func name(".
+hosted="func ($("$(dirname "$0")/../Core/Scripts/hosted-runner-skips.sh" --functions | paste -sd'|' -))\\("
 while IFS= read -r path || [ -n "$path" ]; do
     case $path in
     '' | docs/* | site/* | AGENTS.md | CLAUDE.md | Core/docs/*) ;;
     Core/Tests/AllInOneIMETestSupport/* | Core/Tests/HostScenarios/*) core=true mac=true ;;
     Core/Tests/*)
         core=true
-        if [ ! -f "$path" ] || grep -q PlugLangCLI "$path"; then mac=true; fi ;;
+        if [ ! -f "$path" ] || grep -q PlugLangCLI "$path" || grep -Eq "$hosted" "$path"; then mac=true; fi ;;
     Core/*/*) core=true mac=true ;;
     Core/*.md | Core/LICENSE) ;;
     Scripts/test-scope.sh | Scripts/core-tests-with-app.sh | Scripts/check-split-paths.sh) core=true mac=true ;;

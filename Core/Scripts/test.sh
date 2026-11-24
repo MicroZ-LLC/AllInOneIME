@@ -14,6 +14,10 @@
 #     What the platform lacks otherwise (date detection, Apple's on-device model, a C compiler, language packs) the
 #     tests skip themselves. Run them as a user other than root: root reads whatever a file's mode says, and the tests
 #     of what can't be read need it kept out.
+#   - On a hosted CI runner (ALLINONEIME_CI_HOSTED=1: quality.yml's core-test (macOS)), the tests that bound what they
+#     time to a fraction of a second, which such a runner misses even with the test run alone, are skipped by name
+#     (hosted-runner-skips.txt; `make test-mac` runs them on the Mac mini), once `swift test list` shows the list names
+#     those tests and no others (hosted-runner-skips.sh --check).
 set -eu
 root=$(cd "$(dirname "$0")/.." && pwd)
 if [ "$(uname -s)" != Darwin ]; then
@@ -26,6 +30,13 @@ run=$(mktemp -d "${base%/}/allinoneime-tests.XXXXXX")
 trap 'rm -rf "$run"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+if [ "${ALLINONEIME_CI_HOSTED:-}" = 1 ]; then
+    built=""
+    for arg in "$@"; do [ "$arg" = --skip-build ] && built=--skip-build; done
+    hosted=$(TMPDIR="$run/" "$root/Scripts/hosted-runner-skips.sh" --check --package-path "$root" $built)
+    echo "On a hosted runner: skipping the tests in Scripts/hosted-runner-skips.txt (mac-test runs them on the Mac mini)."
+    set -- --skip "$hosted" "$@"
+fi
 status=0
 TMPDIR="$run/" "$root/Scripts/retry-failed-tests.sh" swift test --package-path "$root" "$@" || status=$?
 exit "$status"

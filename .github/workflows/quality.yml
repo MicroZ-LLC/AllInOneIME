@@ -128,6 +128,10 @@ jobs:
     timeout-minutes: 60
     env:
       SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH: "16"   # as on Linux: GitHub's machines have few cores
+      # This machine misses the bounds of the tests that time what they do to a fraction of a second, even with one run
+      # alone (spotlightIsAskedSoonAfterTheLastKey: under 100 ms, 120 to 200 ms here): Core/Scripts/test.sh skips those
+      # (Core/Scripts/hosted-runner-skips.txt) and mac-test runs them on the Mac mini, their bounds as written.
+      ALLINONEIME_CI_HOSTED: "1"
     steps:
       - uses: actions/checkout@v5
         with:
@@ -148,7 +152,8 @@ jobs:
     name: "Quality gate: mac-test"
     needs: changes
     if: needs.changes.outputs.mac == 'true'
-    # On the Mac mini: GitHub's macOS machines are too slow for the Mac tests' timings (78 failures there on 2026-11-14).
+    # On the Mac mini: GitHub's macOS machines are too slow for the Mac tests' timings (78 failures there on 2026-11-14),
+    # and for the core's in Core/Scripts/hosted-runner-skips.txt, which core-test skips and `make test-mac` runs here.
     runs-on: [self-hosted, macmini-agent]
     timeout-minutes: 120
     steps:
