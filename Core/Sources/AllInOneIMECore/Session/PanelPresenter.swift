@@ -556,7 +556,7 @@ public struct PanelPresenter {
                            PanelModel.Hint("Esc", words.cancel)]
         }
         // ⌥1 … picks a row by its place: said once in the keys at the bottom, not on each row (owner, 0.7.5).
-        if !model.rows.isEmpty { model.hints.append(PanelModel.Hint(terms.picks(model.rows.count), t.tr("直接选", "pick"))) }
+        if !model.rows.isEmpty { model.hints.append(PanelModel.Hint(terms.picks(model.rows.count), t.tr("直接选", "pick", key: "oneAt.pickByPlace"))) }
     }
 
     /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
