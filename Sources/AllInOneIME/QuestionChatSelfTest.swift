@@ -112,7 +112,7 @@ extension SelfTest {
         check(panel.transcript && panel.rows.map(\.text) == ["问：what is rust", "答：" + answers["what is rust"]!]
               && panel.rows.map(\.label) == ["", "1"] && panel.highlighted == 1,
               "round 1: the question and its answer, numbered (\(panel.rows.map(\.text)))")
-        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
+        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 关闭",
               "the next question's line on top, with its round; the footer's keys (\(panel.inputText ?? "-") | \(panel.footer))")
 
         type("who made", controller, client)
@@ -139,11 +139,11 @@ extension SelfTest {
         check(controller.composer.highlighted == 0 && copied.last == answers["what is rust"], "↑ selects round 1's answer, ⌘C copies it")
         _ = press(controller, client, "", code: VirtualKey.down)
 
-        // ⌘⏎ shows where it can go on, before the last round; Esc hides it.
+        // ⌘⏎ shows where it can go on, before the last round; ⌫ hides it (Esc closes the chat, #132).
         _ = command("\r", code: VirtualKey.returnKey)
         check(controller.composer.showsHandoff && (controller.panelModel().inputText ?? "").contains("⌥1 "), "⌘⏎ shows where to go on")
-        _ = escape(controller, client)
-        check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "Esc hides it again")
+        _ = press(controller, client, "", code: VirtualKey.delete)
+        check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "⌫ hides it again")
 
         // Round 3, the last here: the hand-off row in place of the next question.
         guard followUp("why is it safe") else { return }
@@ -161,13 +161,13 @@ extension SelfTest {
         check(kept?.thread.map(\.question) == ["what is rust", "who made it", "why is it safe"] && kept?.question == "what is rust",
               "the whole thread is kept under its first question (\(kept?.thread.count ?? 0) rounds)")
 
-        // ⌘ and the copy choice's number: the conversation on the clipboard, in Markdown; nothing inserted.
+        // ⌥ and the copy choice's number: the conversation on the clipboard, in Markdown; nothing inserted.
         if let copy = choices.firstIndex(of: .copy) {
             let inserted = client.inserted.count
-            _ = command(String(copy + 1), code: keyCodes[Character(String(copy + 1))] ?? 0)
+            _ = press(controller, client, "", code: keyCodes[Character(String(copy + 1))] ?? 0, flags: .option)  // ⌥digit since #99
             check(copied.last?.hasPrefix("**Q:** what is rust\n\n**A:** Rust is") == true && copied.last?.contains("**Q:** why is it safe") == true
                   && !controller.composer.isComposing && client.inserted.count == inserted,
-                  "⌘\(copy + 1) copies the conversation in Markdown, nothing inserted")
+                  "⌥\(copy + 1) copies the conversation in Markdown, nothing inserted")
         }
 
         // Picked again from the recent questions: the rounds, to go on with (or hand over).
@@ -214,13 +214,13 @@ extension SelfTest {
         controller.applySettings()
         controller.composer.setInputMode(.english)
 
-        // Esc goes back a round; ⏎ with nothing typed keeps the conversation; ⇧⏎ inserts the answer selected, dropping a
-        // half-typed question.
+        // ⌫ with nothing typed goes back a round (Esc closes the chat, #132); ⏎ with nothing typed keeps the conversation;
+        // ⇧⏎ inserts the answer selected, dropping a half-typed question.
         ask("what is rust")
         guard finishConversion(controller, "@question, from the cache") else { return }
         guard followUp("who made it") else { return }
-        _ = escape(controller, client)
-        check(controller.composer.chatRound == 1, "Esc with nothing typed goes back a round")
+        _ = press(controller, client, "", code: VirtualKey.delete)
+        check(controller.composer.isQuestionChat && controller.composer.chatRound == 1, "⌫ with nothing typed goes back a round")
         let before = client.inserted.count
         _ = enter(controller, client)
         check(client.inserted.count == before && controller.composer.isQuestionChat && controller.composer.chatRound == 1,

@@ -302,7 +302,7 @@ struct TranslateModeComposerTests {
         #expect(c.markedText == "nihao" && c.wantsPanel)  // the candidates
         let space = c.handleKeyDown(spaceKey)
         #expect(commits(space).isEmpty && c.draft == "你好" && c.phase == .drafting)
-        #expect(c.markedText == "你好" && c.inModeComposition && !c.wantsPanel)
+        #expect(c.markedText == "你好" && c.inModeComposition && c.wantsPanel)  // shown on the panel's input line, under the chip
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
         #expect(c.draft == "你好我" && c.markedText == "你好我")
@@ -314,7 +314,7 @@ struct TranslateModeComposerTests {
         let enter = c.handleKeyDown(enterKey)
         let sent = request(enter.effects)
         #expect(enter.handled && sent?.input == "你好" && sent?.session == english && commits(enter).isEmpty)
-        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && !c.wantsPanel)
+        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && c.wantsPanel)  // the input line says so, no rows
         // Partial results don't go in.
         #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "你好 · 翻译中…")
         let done = c.receive(hello, isFinal: true, id: sent!.id)
