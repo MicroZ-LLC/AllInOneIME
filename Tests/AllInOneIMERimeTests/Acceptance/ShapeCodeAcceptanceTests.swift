@@ -29,7 +29,7 @@ import Darwin
 private enum ShapeCodeAdapter {
     /// The tables Settings offers, by `Config.shapeCode`'s value (nil: off). A table left out of the app (its licence)
     /// comes out of this list; its `TableCase` is then skipped.
-    static let shipped = ["moqi", "flypy", "ziranma", "wubi86", "cangjie"]
+    static let shipped = ["moqi", "flypy", "wubi86", "cangjie"]  // ziranma: not shipped (no licence, "禁止商用")
 
     /// `config` with shape codes `table` (nil: off).
     static func setShapeCode(_ table: String?, in config: inout Config) {

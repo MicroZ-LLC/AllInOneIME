@@ -16,7 +16,7 @@ private enum ShapeCodeNames {
     static let key = "shapeCode"
     /// The tables offered, by the config's value, in the picker's order. A table left out of the app (its licence)
     /// comes out of this list.
-    static let tables = ["moqi", "flypy", "ziranma", "wubi86", "cangjie"]
+    static let tables = ["moqi", "flypy", "wubi86", "cangjie"]  // ziranma: not shipped (no licence, "禁止商用")
     static func get(_ config: Config) -> String? { config.shapeCode }
     static func set(_ table: String?, in config: inout Config) { config.shapeCode = table }
     /// The core's enum of the tables, by raw value; off is nil, not a case.
