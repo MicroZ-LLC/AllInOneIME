@@ -301,15 +301,6 @@ extension PanelModel {
         (model.footer, model.hints, model.candidatesHint) = ("", [], nil)
         return model
     }
-
-    /// `rows` each labelled with the key that picks it by its place (`key(1)`: "⌥1" …), up to the 9th; those after, none.
-    static func numbered(_ rows: [Row], by key: (Int) -> String) -> [Row] {
-        rows.enumerated().map { place, row in
-            var row = row
-            row.label = place < 9 ? key(place + 1) : ""
-            return row
-        }
-    }
 }
 
 /// What the panel shows, as text: as it is drawn (the Mac's `CandidateView`), and as the self-tests read it.
@@ -328,7 +319,7 @@ extension PanelModel {
     public var inputText: String? {
         var lines: [String] = []
         if let handoff {
-            let labels = handoff.choices.map { $0.shortcut + " " + $0.name }
+            let labels = handoff.choices.map { $0.shortcut.isEmpty ? $0.name : $0.shortcut + " " + $0.name }
             let perLine = labels.count <= 4 ? 4 : 3
             lines.append(handoff.title)
             lines.append(stride(from: 0, to: labels.count, by: perLine)

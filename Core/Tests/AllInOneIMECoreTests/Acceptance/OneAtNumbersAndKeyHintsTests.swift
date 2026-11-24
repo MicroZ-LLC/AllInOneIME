@@ -36,25 +36,33 @@ struct OneAtNumbersAndKeyHintsTests {
         PanelPresenter(config: config, language: "en", terms: terms).model(for: composer)
     }
 
-    @Test func oneAtRowsShowPlatformPickLabelsAndRestartAtOneAfterScrolling() throws {
+    /// 0.7.5: rows carry no "⌥1" labels; one key hint `terms.picks(rows shown)` "pick" says ⌥digit picks the n-th row.
+    @Test func oneAtRowsHaveNoLabelsAndOnePickHintCountsTheRowsShown() throws {
         let composer = composer()
         type("@", into: composer)
         try #require(composer.oneAtRows.count > Composer.oneAtRowsShown)
+        var noHints = Config.default
+        noHints.keyHints = false
         for (terms, roles) in [(PlatformTerms.mac, ModifierRoles.mac), (.windows, .windows)] {
             composer.modifierRoles = roles
             let first = model(composer, terms: terms)
             #expect(first.rows.count == Composer.oneAtRowsShown)
-            #expect(first.rows.map(\.label) == (1...first.rows.count).map(terms.pick))
-            #expect(first.rows.first?.label == (terms == .mac ? "⌥1" : "Alt+1"))
+            #expect(first.rows.allSatisfy { $0.label.isEmpty })
+            #expect(first.hints.contains(PanelModel.Hint(terms.picks(first.rows.count), "pick")))
             #expect(first.rows.map(\.choice) == first.rows.indices.map { Optional($0) })
+            let chinese = PanelPresenter(config: .default, language: "zh-Hans", terms: terms).model(for: composer)
+            #expect(chinese.hints.contains(PanelModel.Hint(terms.picks(chinese.rows.count), "直接选")))
+            let quiet = model(composer, config: noHints, terms: terms)
+            #expect(!quiet.hints.contains { $0.key == terms.picks(quiet.rows.count) })
+            #expect(quiet.rows.allSatisfy { $0.label.isEmpty })
         }
         for _ in 0..<Composer.oneAtRowsShown { _ = composer.handleKeyDown(downKey) }
         #expect(composer.oneAtFirstVisible == 1)
         for terms in [PlatformTerms.mac, .windows] {
             composer.modifierRoles = terms.roles
             let scrolled = model(composer, terms: terms)
-            #expect(scrolled.rows.first?.label == terms.pick(1))
-            #expect(scrolled.rows.last?.label == terms.pick(scrolled.rows.count))
+            #expect(scrolled.rows.allSatisfy { $0.label.isEmpty })
+            #expect(scrolled.hints.contains(PanelModel.Hint(terms.picks(scrolled.rows.count), "pick")))
             #expect(scrolled.rows.first?.choice == 0)
             #expect(scrolled.highlighted == scrolled.rows.count - 1)
         }
@@ -275,7 +283,9 @@ struct OneAtNumbersAndKeyHintsTests {
         let composer = composer()
         composer.modifierRoles = .windows
         type("@", into: composer)
-        #expect(model(composer, terms: .windows).rows.first?.label == "Alt+1")
+        let panel = model(composer, terms: .windows)
+        #expect(panel.rows.first?.label == "")
+        #expect(panel.hints.contains(PanelModel.Hint(PlatformTerms.windows.picks(panel.rows.count), "pick")))
         let first = composer.oneAtVisible.first?.command
         #expect(composer.handleKeyDown(shortcut(1)).handled)
         #expect(composer.draftCommand == first)

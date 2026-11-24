@@ -141,7 +141,7 @@ extension SelfTest {
 
         // ⌘⏎ shows where it can go on, before the last round; ⌫ hides it (Esc closes the chat, #132).
         _ = command("\r", code: VirtualKey.returnKey)
-        check(controller.composer.showsHandoff && (controller.panelModel().inputText ?? "").contains("⌥1 "), "⌘⏎ shows where to go on")
+        check(controller.composer.showsHandoff && (controller.panelModel().handoff?.choices.isEmpty == false), "⌘⏎ shows where to go on")
         _ = press(controller, client, "", code: VirtualKey.delete)
         check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "⌫ hides it again")
 
@@ -149,11 +149,11 @@ extension SelfTest {
         guard followUp("why is it safe") else { return }
         panel = controller.panelModel()
         let choices = controller.composer.handoffChoices
-        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌥1 ")
+        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\nClaude Code")
               && panel.footer.hasPrefix("⌥1–⌥\(choices.count) 接着聊"),
               "after round 3: where to go on (\(panel.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
-        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && (panel.inputText ?? "").contains("⌥1 Claude Code")
-              && (panel.inputText ?? "").contains("⌥2 Gemini CLI"),
+        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && panel.handoff?.choices.map(\.name).prefix(2) == ["Claude Code", "Gemini CLI"]
+              && panel.handoff?.choices.allSatisfy { $0.shortcut.isEmpty } == true,  // ⌥digit in the footer only (0.7.5)
               "the agent @agent hands to first, then the other agents installed, then the web and Copy (\(choices.map(\.rawValue)))")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
@@ -196,8 +196,8 @@ extension SelfTest {
         recall()
         let six = controller.panelModel()
         _ = press(controller, client, "£", code: 0x14, flags: .option)  // ⌥3
-        check(controller.composer.handoffChoices.count == 6 && (six.inputText ?? "").contains("⌥1 echo") && (six.inputText ?? "").contains("⌥2 Claude Code")
-              && (six.inputText ?? "").contains("⌥6 复制") && six.footer.hasPrefix("⌥1–⌥6 接着聊") && agentArguments.last == ["gemini", "-i"],
+        check(controller.composer.handoffChoices.count == 6 && six.handoff?.choices.map(\.name).prefix(2) == ["echo", "Claude Code"]
+              && six.handoff?.choices.last?.name == "复制" && six.footer.hasPrefix("⌥1–⌥6 接着聊") && agentArguments.last == ["gemini", "-i"],
               "another agent picked: ⌥1 is it, the others after it, ⌥3 starts Gemini CLI as `gemini -i` "
               + "(\(six.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
         recall()

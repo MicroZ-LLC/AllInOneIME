@@ -128,14 +128,14 @@ struct PanelLookTests {
         try #require(c.engineState.isComposing)
         let composing = zh.model(for: c)
         // Composing, → is the engine's: Esc gives the keys back; Space picks a word, said at the candidates' end.
-        #expect(composing.hints == hints([("Esc", "交还给 App")]))
+        #expect(composing.hints == hints([("Esc", "交还给 App"), (PlatformTerms.mac.picks(composing.rows.count), "直接选")]))
         #expect(composing.candidatesHint == PanelModel.Hint("空格", "选词"))
         #expect(en.model(for: c).candidatesHint == PanelModel.Hint("Space", "picks a word"))
         #expect(composing.rows.allSatisfy { $0.action != nil }, "\(composing.rows.map(\.text))")
         _ = c.handleKeyDown(spaceKey)
         try #require(!c.engineState.isComposing)
         let picked = en.model(for: c)
-        #expect(picked.hints == hints([("→", "back to the app")]) && picked.candidatesHint == nil)
+        #expect(picked.hints == hints([("→", "back to the app"), (PlatformTerms.mac.picks(picked.rows.count), "pick")]) && picked.candidatesHint == nil)
         #expect(picked.rows.contains { $0.action == "do it" }, "\(picked.rows.map(\.text))")
     }
 
@@ -146,7 +146,7 @@ struct PanelLookTests {
         let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.commentDescribes && improve.comment == "Polish in the same language, plus rewrites")
         #expect(improve.action == "choose")
-        #expect(model.hints == hints([("→", "back to the app")]))
+        #expect(model.hints == hints([("→", "back to the app"), (PlatformTerms.mac.picks(model.rows.count), "pick")]))
     }
 
     @Test func aSumsResultHasItsSumBeforeIt() throws {

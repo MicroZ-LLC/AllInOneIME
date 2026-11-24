@@ -986,8 +986,8 @@ struct QuestionChatAcceptanceTests {
         for terms in [PlatformTerms.mac, .windows] {
             let panel = PanelPresenter(config: rig.config, language: "en", terms: terms).model(for: rig.c)
             let shortcuts = try #require(panel.handoff?.choices.map(\.shortcut))
-            #expect(shortcuts == (1...rig.c.handoffChoices.count).map(terms.pick))
-            #expect(panel.footer.hasPrefix(terms.picks(rig.c.handoffChoices.count)))
+            #expect(shortcuts == Array(repeating: "", count: rig.c.handoffChoices.count))
+            #expect(panel.footer.hasPrefix(terms.picks(rig.c.handoffChoices.count) + " continue"))
         }
         let commandOne = KeyEvent(keyCode: 0x12, characters: "1", modifiers: .command)
         let commandResponse = await rig.key(commandOne)
