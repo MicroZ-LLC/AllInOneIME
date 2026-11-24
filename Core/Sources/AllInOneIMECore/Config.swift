@@ -52,24 +52,7 @@ public struct Config: Codable, Equatable, Sendable {
         return outputLanguages.contains { output in inputLanguages.contains { !$0.matches(output, chinese: chinese) } }
     }
 
-    /// The characters Chinese is typed in: the ones picked (`chineseCharacters`), else those of the system's preferred
-    /// languages (`Platform.userLanguages`, `ChineseCharacters.preferred`), read each time: a Mac whose language changes
-    /// follows it.
-    public var typedChinese: ChineseCharacters {
-        chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
-    }
-
-    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, or Zhuyin.
-    public var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
-
-    /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
-    public func typedLanguage(_ language: Language) -> OutputLanguage { OutputLanguage(language, chinese: typedChinese) }
-
-    /// The output language `text` is written in: Chinese by its own characters when they tell, else in the characters
-    /// typed (`OutputLanguage.of`). What decides whether it is translated into an output language or is in it already.
-    public func writtenLanguage(of text: String) -> OutputLanguage {
-        OutputLanguage.of(text, language: language(of: text), chinese: typedChinese)
-    }
+    // How Chinese is typed (`typedChinese`, `typedPinyin`, `typedShapeCode`…): Config+Typing.swift.
 
     /// The Code input (decision 22): the coding language whose pack its rows come from ("python",
     /// `CodingLanguagePack.offered`); nil: no Code input. It comes after the input languages, a tap of Shift away from the
@@ -186,6 +169,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// pinyin, else the scheme's id, librime's schema (Shuangpin's "double_pinyin_flypy", Zhuyin's "bopomofo").
     /// `typedPinyin` reads it.
     public var pinyinScheme: String?
+    /// Shape codes after "`" while typing pinyin (`ShapeCode`, Settings → Input → Chinese → Typing): the table's id
+    /// ("moqi"); nil: off. `typedShapeCode` reads it.
+    public var shapeCode: String?
     /// English words of the user's offered among pinyin's candidates (`EnglishWords`, `EnglishWordsEngine`), as they are
     /// written ("Bedrock"): added in Settings, or learned (`learnsEnglishWords`). Oldest first; none by default.
     public var englishWords: [String]
@@ -415,7 +401,7 @@ public struct Config: Codable, Equatable, Sendable {
         case awsProfile, region, modelId, maxTokens, temperature, timeoutSeconds, rewriteStyles
         case outputLanguage, outputLanguages, inputLanguages, defaultInput, codingLanguage, improveTranslates, voiceInput, jargonFile, actionKey, commandTrigger, uiLanguage, customCommands, claudeInBackground, agent, agentCommand, agentPageContext
         case extensionFolders, findRaycastScripts, hiddenExtensionFolders, disabledExtensions, hiddenFromCommandList, extensionPreferences
-        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, keyboardLayouts, candidateLayout, keyHints
+        case menuBarIcon, typeOut, typeOutRate, typeOutVaries, typeOutMistakes, typeOutSpeed, fuzzyPinyin, chineseCharacters, pinyinScheme, shapeCode, keyboardLayouts, candidateLayout, keyHints
         case switchKey
         case englishWords, addedEnglishWords, learnsEnglishWords, removedCandidates
         case checkForUpdates, notifiesUpdates, sendsInstallID, useSelection, appProfiles
@@ -509,8 +495,8 @@ public struct Config: Codable, Equatable, Sendable {
         // One this version doesn't know (a later one's) follows the system, not an error.
         chineseCharacters = (try? c.decodeIfPresent(String.self, forKey: .chineseCharacters)).flatMap { $0 }
             .flatMap(ChineseCharacters.init(rawValue:))
-        // Full pinyin for "full", and for a scheme this version doesn't know (a later one's), not an error.
-        pinyinScheme = PinyinScheme(setting: (try? c.decodeIfPresent(String.self, forKey: .pinyinScheme)).flatMap { $0 }).setting
+        // Full pinyin for a scheme this version doesn't know, shape codes off for a table it doesn't carry (`decodeTyping`).
+        (pinyinScheme, shapeCode) = Self.decodeTyping(c)
         // A list of the wrong type reads as none, not an error (the words are offered only as `EnglishWords.word` allows).
         englishWords = (try? c.decodeIfPresent([String].self, forKey: .englishWords)).flatMap { $0 } ?? d.englishWords
         addedEnglishWords = (try? c.decodeIfPresent([String].self, forKey: .addedEnglishWords)).flatMap { $0 } ?? d.addedEnglishWords
@@ -709,8 +695,8 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
         try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
-        // Only Shuangpin: a file from before the setting doesn't gain the key, nor one back on full pinyin.
-        try c.encodeIfPresent(typedPinyin.setting, forKey: .pinyinScheme)
+        // Only Shuangpin (or Zhuyin), and shape codes only on (`encodeTyping`).
+        try encodeTyping(into: &c)
         // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
         // doesn't gain the keys.
         if !englishWords.isEmpty { try c.encode(englishWords, forKey: .englishWords) }

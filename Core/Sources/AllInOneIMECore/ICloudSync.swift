@@ -45,7 +45,7 @@ public enum ICloudSync {
         "maxTokens", "temperature", "timeoutSeconds",
         "outputLanguages", "inputLanguages", "codingLanguage", "rewriteStyles", "improveTranslates", "voiceInput", "actionKey", "commandTrigger", "uiLanguage",
         "claudeInBackground", "rememberQuestions", "questionRounds", "questionContinueIn", "menuBarIcon",
-        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "keyboardLayouts", "candidateLayout", "keyHints",
+        "typeOut", "typeOutRate", "typeOutVaries", "typeOutMistakes", "fuzzyPinyin", "chineseCharacters", "pinyinScheme", "shapeCode", "keyboardLayouts", "candidateLayout", "keyHints",
         "switchKey", "checkForUpdates", "notifiesUpdates", "useSelection", "redaction", "learnsEnglishWords", "suggestionsInsert",
     ]
     /// One app's settings: "appProfiles.<bundle id>".
@@ -952,7 +952,7 @@ public enum ICloudSync {
         guard let value else {
             // Only what the config may leave out can be deleted.
             return key.hasPrefix(appPrefix)
-                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters", "pinyinScheme"].contains(key)
+                || ["questionRounds", "questionContinueIn", "codingLanguage", "suggestionsInsert", "chineseCharacters", "pinyinScheme", "shapeCode"].contains(key)
                 ? nil : .cannotDelete
         }
         func number(_ range: ClosedRange<Double>) -> Problem? {
@@ -1053,10 +1053,11 @@ public enum ICloudSync {
         case "chineseCharacters":
             guard case let .string(name) = value else { return .wrongType }
             return ChineseCharacters(rawValue: name) == nil ? .unknownValue : nil
-        case "pinyinScheme":
-            // Deleted, or "full": full pinyin. A scheme a newer version added is refused, this Mac's kept.
+        case "pinyinScheme", "shapeCode":
+            // Deleted, or "full": full pinyin; shape codes deleted: off. A scheme a newer version added, or shape codes this
+            // Mac doesn't carry, refused, this Mac's kept.
             guard case let .string(name) = value else { return .wrongType }
-            return PinyinScheme(rawValue: name) == nil ? .unknownValue : nil
+            return (key == "pinyinScheme" ? PinyinScheme(rawValue: name) != nil : ShapeCode(setting: name) != nil) ? nil : .unknownValue
         case "suggestionsInsert":
             return insertProblem(value)
         case "redaction":

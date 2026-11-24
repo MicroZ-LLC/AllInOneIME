@@ -177,9 +177,17 @@ enum RimeStartup {
         } catch {
             log.error("could not link Zhuyin's data: \(String(describing: error), privacy: .public)")
         }
+        // The shape codes' tables too (`ShapeCode`), before the patch is written (it has their filter only when they're there).
+        do {
+            try store.linkData(.chinesePinyin, from: RimeDirectories.auxCode, names: [ShapeCode.folder])
+        } catch {
+            log.error("could not link the shape codes' tables: \(String(describing: error), privacy: .public)")
+        }
         // Fuzzy pinyin's patch, with the characters, by the config file as it parses: while it doesn't, the patch stays
         // as it is (the defaults aren't the user's pairs or characters), and is written once it does (`RimeFuzzy.follow`).
-        let fuzzy = LiveConfig.currentIfValid.flatMap { RimeFuzzy.write($0.fuzzyPinyin, characters: $0.typedChinese, scheme: $0.typedPinyin) }
+        let fuzzy = LiveConfig.currentIfValid.flatMap {
+            RimeFuzzy.write($0.fuzzyPinyin, characters: $0.typedChinese, scheme: $0.typedPinyin, shapeCode: $0.typedShapeCode)
+        }
         // The Shuangpin scheme's schema listed anew (or no longer): compiled with the rest.
         let listed = fuzzy != nil && RimeFuzzy.schemaListWritten
         let record = store.installed(.chinesePinyin)
