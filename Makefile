@@ -503,21 +503,25 @@ test:
 # The core's half, nothing of `make deps` needed: its lint guards (platform-neutral, standalone: `portable`, below), its
 # build for iOS and in release, the String Catalog tool's check, Core/.split-paths' paths free in the root; then its
 # tests, offline (Core/Scripts/test.sh), but for those that run the input method's debug build as their child process
-# (Scripts/core-tests-with-app.sh), which `make test-mac` runs. CI runs it on an export of Core/ alone (CORE=../core).
+# (Scripts/core-tests-with-app.sh), which `make test-mac` runs, as it does those a hosted CI runner is too slow for
+# (Core/Scripts/hosted-runner-skips.txt, skipped there only: ALLINONEIME_CI_HOSTED=1). CI runs it on an export of Core/
+# alone (CORE=../core).
 test-core: check-ios portable
 	$(CORE)/Scripts/check-core-standalone.sh --release
 	$(CORE)/Scripts/strings-test.sh
 	$(CORE)/Scripts/retry-failed-tests-test.sh
 	with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) && $(CORE)/Scripts/test.sh --skip "$$with_app"
 
-# The macOS shell's half: the input method's debug build, the core's tests that run it as their child process, then this
-# package's tests (rime-ice's data is there after `make deps`: a Rime test without it fails, not skips). This package's
-# tests run even when the core's fail.
+# The macOS shell's half: the input method's debug build, the core's tests that run it as their child process and those
+# GitHub's hosted runner is too slow for (Core/Scripts/hosted-runner-skips.txt: core-test skips them there; checked to
+# name those tests and no others), then this package's tests (rime-ice's data is there after `make deps`: a Rime test
+# without it fails, not skips). This package's tests run even when the core's fail.
 test-mac: deps strings-check
 	python3 -B -m unittest Scripts/test_changelog.py
 	swift build --product $(APP_NAME)
-	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; status=0; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) $(TEST_RETRY) swift test --package-path $(CORE) --filter "$$with_app" || status=$$?; \
+	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; \
+	hosted=$$($(TEST_TMP) $(CORE)/Scripts/hosted-runner-skips.sh --check --package-path $(CORE)) || exit; status=0; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) $(TEST_RETRY) swift test --package-path $(CORE) --filter "$$with_app|$$hosted" || status=$$?; \
 	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) $(TEST_RETRY) swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
 	exit $$status
 
