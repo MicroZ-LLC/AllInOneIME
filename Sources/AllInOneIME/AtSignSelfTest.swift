@@ -96,7 +96,7 @@ extension SelfTest {
         magicKey(controller, field)
         let rows = controller.panelModel().rows, model = controller.panelModel()
         check(controller.preedit == t && rows.count == Composer.oneAtRowsShown && model.highlighted == 0
-              && rows.enumerated().allSatisfy { !$0.element.text.hasPrefix(t) && $0.element.icon != nil && $0.element.label == "⌥\($0.offset + 1)" },  // each its ⌥digit (#99)
+              && rows.allSatisfy { !$0.text.hasPrefix(t) && $0.icon != nil && $0.label.isEmpty } && model.hints.last?.key == "⌥1–⌥\(rows.count)",  // ⌥digit in the hints (0.7.5)
               "\(t) alone lists the commands by name, \(Composer.oneAtRowsShown) shown, the first highlighted (\(rows.map(\.text)))")
         _ = escape(controller, field)
         check(controller.preedit.isEmpty && field.inserted.isEmpty && controller.composer.draft.isEmpty, "…Esc gives the key up: nothing goes in")

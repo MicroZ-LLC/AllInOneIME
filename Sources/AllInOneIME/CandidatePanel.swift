@@ -1053,7 +1053,7 @@ final class CandidateView: NSView {
             } else if index > 0 {
                 x += Metrics.handoffGap
             }
-            let key = Self.smallKeycapWidth(choice.shortcut)
+            let key = choice.shortcut.isEmpty ? -5 : Self.smallKeycapWidth(choice.shortcut)  // no keycap: no room for it
             let target = NSRect(x: x, y: y, width: Metrics.handoffInsetX * 2 + key + 5 + ceil(Self.width(choice.name, font)), height: lineHeight)
             let keycap = NSRect(x: target.minX + Metrics.handoffInsetX, y: (target.midY - Metrics.smallKeycapHeight / 2).rounded(),
                                 width: key, height: Metrics.smallKeycapHeight)
@@ -1568,7 +1568,7 @@ final class CandidateView: NSView {
             Self.hoverFill(dark: dark).setFill()
             NSBezierPath(roundedRect: target.targetFrame, xRadius: Metrics.keycapRadius, yRadius: Metrics.keycapRadius).fill()
         }
-        Self.drawSmallKeycap(target.shortcut, in: target.keycapFrame, dark: dark)
+        if !target.shortcut.isEmpty { Self.drawSmallKeycap(target.shortcut, in: target.keycapFrame, dark: dark) }
         let name = NSAttributedString(string: target.name, attributes: [.font: Fonts.handoff, .foregroundColor: NSColor.labelColor])
         name.draw(at: NSPoint(x: target.keycapFrame.maxX + 5, y: target.targetFrame.midY - name.size().height / 2))
     }

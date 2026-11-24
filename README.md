@@ -63,7 +63,7 @@ In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII d
 | Key | What it does |
 |---|---|
 | Type pinyin, Space / digits | In Chinese mode: pick words, as in any pinyin input method |
-| The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. Each row shown has its number key: ⌥1 does the first row shown, ⌥2 the second … (as a click on it). Digits alone are text there; while pinyin is typed they pick its words |
+| The magic key (`@` by default), at the start of a sentence | Opens the list: with nothing typed, the commands, the most used lately (in this app first) on top, 7 at a time, scrolled with ↑↓, the wheel or the trackpad. Then type anything: a command's name (`@tr`) or what you want (`@saf`, `@3*7+2`, a sentence); the rows say what ⏎ does with it ([One @](#one--say-what-you-want-new)). ⏎ does the highlighted row (the first), Tab picks a command, ↑↓ choose, Esc or → leave what you typed as it is. ⌥1 does the first row shown, ⌥2 the second … (as a click on it); the key hints at the bottom say so ("⌥1–⌥7 pick"), the rows carry no label. Digits alone are text there; while pinyin is typed they pick its words |
 | ⏎, ⌘⏎ | Runs the command (⌘⏎ too, which chat apps use to send: the command is never sent as typed; on `@note` it saves the note). Works even if the pinyin isn't picked yet: it's picked first, as with Space |
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed, ⏎ and Space do nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
@@ -257,7 +257,7 @@ the field, even with a question half typed; the conversation stays in your recen
 bottom.
 
 After 5 rounds (`questionRounds` in the config, 2–10) the next question's line becomes "5 rounds in: continue in Claude
-or another AI", with the choices numbered ⌥1, ⌥2 …; ⌘⏎ shows them at any round (while an answer is still coming in it
+or another AI", picked with ⌥1, ⌥2 … in their order (the footer says so); ⌘⏎ shows them at any round (while an answer is still coming in it
 does nothing, and never reaches the app). What you type then is the first message there; only ⌥1, ⌥2 … send it (⏎
 asks nothing more, and opens nothing). A question about selected text or a screenshot takes that text along (a
 screenshot's as it was read), quoted as a block of its own. The choices:

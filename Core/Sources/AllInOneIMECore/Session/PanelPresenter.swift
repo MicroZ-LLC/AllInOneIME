@@ -518,11 +518,11 @@ public struct PanelPresenter {
     // MARK: - One @
 
     /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
-    /// found by name: the name, and what it does), each its ⌥digit (`Composer.handleNumberedPick`: digits alone are text
-    /// there); the first highlighted, ↑↓ move.
+    /// found by name: the name, and what it does); the first highlighted, ↑↓ move. ⌥digit picks a row by its place
+    /// (`Composer.handleNumberedPick`), not shown on it (owner, 0.7.5).
     private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
         let all = composer.oneAtRows, first = composer.oneAtFirstVisible
-        model.rows = PanelModel.numbered(composer.oneAtVisible.map { oneAtRow($0, composer) }, by: terms.pick)
+        model.rows = composer.oneAtVisible.map { oneAtRow($0, composer) }
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter, lone = composer.draft == composer.commandTrigger && !composer.engineState.isComposing
@@ -555,6 +555,8 @@ public struct PanelPresenter {
             model.hints = [PanelModel.Hint(enter, words.openStats), PanelModel.Hint(copy, words.copyImageHint),
                            PanelModel.Hint("Esc", words.cancel)]
         }
+        // ⌥1 … picks a row by its place: said once in the keys at the bottom, not on each row (owner, 0.7.5).
+        if !model.rows.isEmpty { model.hints.append(PanelModel.Hint(terms.picks(model.rows.count), t.tr("直接选", "pick", key: "oneAt.pickByPlace"))) }
     }
 
     /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
@@ -691,9 +693,9 @@ public struct PanelPresenter {
             let title = composer.chatAtLimit
                 ? t.tr("已经聊了 \(composer.chatRound) 轮：在 Claude 或别的 AI 里接着聊", "\(composer.chatRound) rounds in: continue in Claude or another AI")
                 : t.tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")
-            model.handoff = PanelModel.Handoff(title: title, choices: composer.handoffChoices.enumerated().map {
-                PanelModel.Handoff.Choice(shortcut: terms.pick($0.offset + 1),
-                                          name: SessionText.shortName($0.element, picked: agent, custom: agentCommand,
+            // ⌥digit picks one by its place, said in the footer, not on each (owner, 0.7.5).
+            model.handoff = PanelModel.Handoff(title: title, choices: composer.handoffChoices.map {
+                PanelModel.Handoff.Choice(shortcut: "", name: SessionText.shortName($0, picked: agent, custom: agentCommand,
                                                                       session: composer.questionSessionAgent, language: language))
             })
             model.input = composer.refineLine.map { PanelModel.Input(prompt: t.tr("接着说 › ", "then › "), text: $0, caret: $0.count) }
