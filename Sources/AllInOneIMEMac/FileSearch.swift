@@ -110,9 +110,10 @@ public enum FileSearch {
         let keywords = FileSearchRanking.keywords(in: query)
         let entries = index.map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) }
         let places = FileSearchRanking.scopingPlaces(entries)
-        let apps = entries.map { found in
-            FileSearchRanking.matches(found.path, names: found.names, keywords: keywords, places: places) ? dated(found) : found
-        }
+        // Those that match with their dates (Spotlight's, waited for a moment at most: `SpotlightDates`).
+        let matching = entries.indices.filter { FileSearchRanking.matches(entries[$0].path, names: entries[$0].names, keywords: keywords, places: places) }
+        var apps = entries
+        for (index, found) in zip(matching, SpotlightDates.shared.dated(matching.map { entries[$0] })) { apps[index] = found }
         let byPath = Dictionary(index.map { ($0.path, $0) }, uniquingKeysWith: { first, _ in first })
         func rows(_ listed: [(path: String, matchedContent: Bool)]) -> [SearchResult] {
             listed.map { result(for: $0.path, matchedContent: $0.matchedContent, app: byPath[$0.path]) }
@@ -185,17 +186,6 @@ public enum FileSearch {
     /// looked for, and counts as gone (one that doesn't answer would hold the search until the system gives up on it).
     static func isThere(_ path: String, mounts: Mounts) -> Bool {
         mounts.isLocal(path) && FileManager.default.fileExists(atPath: path)
-    }
-
-    /// `app` (or a place) with when it was last used and changed, as Spotlight keeps them. Its name search
-    /// knows an app by its file name and its name in the system language only: an app matched by another of
-    /// its names (计算器 on an English system) gets no dates from there.
-    static func dated(_ app: FileSearchRanking.Found) -> FileSearchRanking.Found {
-        guard let item = NSMetadataItem(url: URL(fileURLWithPath: app.path)) else { return app }
-        var app = app
-        app.lastUsed = item.value(forAttribute: "kMDItemLastUsedDate") as? Date
-        app.modified = item.value(forAttribute: "kMDItemContentModificationDate") as? Date
-        return app
     }
 
     /// Shown as Finder names it (`FileManager.displayName`, in the system language: Image Playground, not
