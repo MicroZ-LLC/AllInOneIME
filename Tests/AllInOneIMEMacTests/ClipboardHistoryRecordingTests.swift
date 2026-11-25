@@ -59,7 +59,7 @@ struct ClipboardHistoryRecordingTests {
     static func recorder(in folder: URL, secure: @escaping () -> Bool = { false },
                          frontmost: @escaping () -> String? = { "com.apple.TextEdit" }) -> (ClipboardRecorder, FakePasteboard) {
         let pasteboard = FakePasteboard()
-        let store = ClipboardHistoryStore(url: folder.appendingPathComponent("clipboard-history.json"))
+        let store = ClipboardHistoryStore.loaded(url: folder.appendingPathComponent("clipboard-history.json"))
         var clock = Date(timeIntervalSince1970: 1_800_000_000)
         let recorder = ClipboardRecorder(source: pasteboard, store: store, secureInput: secure, frontmostApp: frontmost, now: {
             clock += 1
@@ -89,7 +89,7 @@ struct ClipboardHistoryRecordingTests {
         pasteboard.copy("one")
         #expect(recorder.poll(limit: 20) == .same && recorder.store.items[0].copiedAt == copiedAt, "the newest again: as it was")
         // Kept across launches.
-        let again = ClipboardHistoryStore(url: recorder.store.url)
+        let again = ClipboardHistoryStore.loaded(url: recorder.store.url)
         #expect(again.items == recorder.store.items)
     }
 
@@ -104,7 +104,7 @@ struct ClipboardHistoryRecordingTests {
         #expect(Self.texts(recorder) == (3...7).reversed().map { "copy \($0)" })
         recorder.store.trim(to: 2)
         #expect(Self.texts(recorder) == ["copy 7", "copy 6"], "a lower limit: the oldest go at once")
-        #expect(ClipboardHistoryStore(url: recorder.store.url).items.map(\.text) == ["copy 7", "copy 6"], "and from the file")
+        #expect(ClipboardHistoryStore.loaded(url: recorder.store.url).items.map(\.text) == ["copy 7", "copy 6"], "and from the file")
     }
 
     /// Reading would ask (Ask, never asked yet, Deny): nothing of the clipboard is read, only its change count; once
@@ -209,7 +209,7 @@ struct ClipboardHistoryRecordingTests {
         #expect(try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
         recorder.store.clear()
         #expect(!FileManager.default.fileExists(atPath: url.path) && recorder.store.items.isEmpty)
-        #expect(ClipboardHistoryStore(url: url).items.isEmpty)
+        #expect(ClipboardHistoryStore.loaded(url: url).items.isEmpty)
         recorder.forget()
         pasteboard.copy("after")
         #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["after"] && FileManager.default.fileExists(atPath: url.path))
@@ -288,10 +288,10 @@ struct ClipboardHistoryRecordingTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("clipboard-history.json")
         try Data("not json".utf8).write(to: url)
-        let store = ClipboardHistoryStore(url: url)
+        let store = ClipboardHistoryStore.loaded(url: url)
         #expect(store.items.isEmpty)
         store.record("new", at: Date(), limit: 20)
-        #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["new"])
+        #expect(ClipboardHistoryStore.loaded(url: url).items.map(\.text) == ["new"])
     }
 
     /// One item the store can't read (a damaged file, one written by a later version) is skipped, the rest kept; the next
@@ -300,7 +300,7 @@ struct ClipboardHistoryRecordingTests {
         let folder = try Self.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("clipboard-history.json")
-        let first = ClipboardHistoryStore(url: url)
+        let first = ClipboardHistoryStore.loaded(url: url)
         let date = Date(timeIntervalSince1970: 1_800_000_000)
         first.recordImage(Self.png(10, 10, shade: 0.2), at: date, limit: 20)
         first.record("a text", at: date + 1, limit: 20)
@@ -318,11 +318,11 @@ struct ClipboardHistoryRecordingTests {
         json["items"] = items
         let written = try JSONSerialization.data(withJSONObject: json)
         try written.write(to: url)
-        let store = ClipboardHistoryStore(url: url)
+        let store = ClipboardHistoryStore.loaded(url: url)
         #expect(store.items.map(\.text) == ["", "a text", ""], "the items it can read")
         #expect(store.items.compactMap { $0.image?.id } == [ids[1], ids[2]])
         store.record("new", at: date + 4, limit: 20)
-        #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["new", "", "a text", ""])
+        #expect(ClipboardHistoryStore.loaded(url: url).items.map(\.text) == ["new", "", "a text", ""])
         for id in ids {
             #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path), "\(id)")
         }
@@ -330,7 +330,7 @@ struct ClipboardHistoryRecordingTests {
         #expect(aside.count == 1, "\(aside)")
         #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == written, "kept aside as it was")
         // Kept on the next launch too, and Clear History deletes it all.
-        ClipboardHistoryStore(url: url).record("newer", at: date + 5, limit: 20)
+        ClipboardHistoryStore.loaded(url: url).record("newer", at: date + 5, limit: 20)
         #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(ids[0]).png").path))
         store.clear()
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
@@ -339,7 +339,7 @@ struct ClipboardHistoryRecordingTests {
     /// A list's file with one item it can't read, beside the images of the three it can: the items' and images' ids, and
     /// the file as written.
     static func damagedFile(_ url: URL) throws -> (ids: [String], written: Data) {
-        let first = ClipboardHistoryStore(url: url)
+        let first = ClipboardHistoryStore.loaded(url: url)
         let date = Date(timeIntervalSince1970: 1_800_000_000)
         first.recordImage(Self.png(10, 10, shade: 0.2), at: date, limit: 20)
         first.record("a text", at: date + 1, limit: 20)
@@ -361,10 +361,10 @@ struct ClipboardHistoryRecordingTests {
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("clipboard-history.json")
         _ = try Self.damagedFile(url)
-        let store = ClipboardHistoryStore(url: url)
+        let store = ClipboardHistoryStore.loaded(url: url)
         #expect(store.items.map(\.text) == ["", "a text", ""])
         store.waitForWrites()
-        #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["", "a text", ""], "after a restart")
+        #expect(ClipboardHistoryStore.loaded(url: url).items.map(\.text) == ["", "a text", ""], "after a restart")
     }
 
     /// Where the damaged file can't be moved aside, nothing is written over it and no image is deleted, until it can be.
@@ -378,6 +378,7 @@ struct ClipboardHistoryRecordingTests {
             if fails { throw CocoaError(.fileWriteNoPermission) }
             try FileManager.default.moveItem(at: from, to: to)
         })
+        store.waitForWrites()  // its file read
         let date = Date(timeIntervalSince1970: 1_900_000_000)
         store.record("new", at: date, limit: 1)
         store.waitForWrites()
@@ -389,7 +390,7 @@ struct ClipboardHistoryRecordingTests {
         store.record("newer", at: date + 1, limit: 20)
         let aside = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("clipboard-history-unreadable-") }
         #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == written, "moved aside once it can be")
-        #expect(ClipboardHistoryStore(url: url).items.map(\.text) == ["newer", "new"])
+        #expect(ClipboardHistoryStore.loaded(url: url).items.map(\.text) == ["newer", "new"])
         for id in ids {
             #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path), "\(id)")
         }
@@ -400,12 +401,12 @@ struct ClipboardHistoryRecordingTests {
         let folder = try Self.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("clipboard-history.json")
-        let first = ClipboardHistoryStore(url: url)
+        let first = ClipboardHistoryStore.loaded(url: url)
         first.recordImage(Self.png(10, 10), at: Date(), limit: 20)
         let id = try #require(first.items.first?.image?.id)
         let damaged = Data(try Data(contentsOf: url).prefix(30))
         try damaged.write(to: url)
-        let store = ClipboardHistoryStore(url: url)
+        let store = ClipboardHistoryStore.loaded(url: url)
         #expect(store.items.isEmpty)
         store.record("new", at: Date(), limit: 20)
         #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path))
@@ -450,7 +451,7 @@ struct ClipboardHistoryRecordingTests {
         #expect(try recorder.store.imagesURL.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
         #expect(recorder.clipboardIsNewest, "the clipboard holds the newest copy still")
         // Read again from the file, as the next launch does.
-        let again = ClipboardHistoryStore(url: recorder.store.url)
+        let again = ClipboardHistoryStore.loaded(url: recorder.store.url)
         #expect(again.items.first?.image == image && again.items.count == 2)
     }
 
@@ -525,7 +526,7 @@ struct ClipboardHistoryRecordingTests {
         recorder.poll(limit: 20)
         let id = try #require(recorder.store.items.last?.image?.id)
         try FileManager.default.removeItem(at: recorder.store.imagesURL.appendingPathComponent("\(id).png"))
-        let again = ClipboardHistoryStore(url: recorder.store.url)
+        let again = ClipboardHistoryStore.loaded(url: recorder.store.url)
         #expect(again.items.map(\.text) == ["a text"], "read again at the next launch")
     }
 
@@ -572,5 +573,14 @@ struct ClipboardHistoryRecordingTests {
         #expect(recorder.store.items.isEmpty, "Clear History meanwhile: not added after it")
         let files = (try? FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)) ?? []
         #expect(files.isEmpty, "its files deleted: \(files)")
+    }
+}
+
+extension ClipboardHistoryStore {
+    /// A store over `url` with its file read (the store reads it off the thread that made it: `isLoading`).
+    static func loaded(url: URL) -> ClipboardHistoryStore {
+        let store = ClipboardHistoryStore(url: url)
+        store.waitForWrites()
+        return store
     }
 }
