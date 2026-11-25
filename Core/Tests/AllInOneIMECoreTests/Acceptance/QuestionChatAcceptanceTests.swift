@@ -967,7 +967,7 @@ struct QuestionChatAcceptanceTests {
 
     // MARK: Continuing elsewhere
 
-    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here); ⌥1–⌥9 pick one while they're shown; digits still
+    /// Coordinator: ⌘⏎ opens the choices at any round (round 1 here), numbered 1, 2 …; ⌥1–⌥9 pick one while they're shown; digits still
     /// pick answers; ⌫ hides them (owner 2026-11-15: Esc there closes the panel instead).
     @Test func handoff_commandReturnOpensTheChoicesAtAnyRound() async throws {
         let beforeChoices = QCRig()
@@ -983,11 +983,21 @@ struct QuestionChatAcceptanceTests {
         await rig.key(qcCommandReturn)
         #expect(rig.c.showsHandoff && rig.requestCount == 1 && rig.committed.isEmpty)
         #expect(rig.c.handoffChoices.contains(.copy))
-        for terms in [PlatformTerms.mac, .windows] {
+        // 0.7.5 (owner): each choice shows its plain number; the footer says "⌥+number continue" once. Key hints.
+        let numbers = rig.c.handoffChoices.indices.map { String($0 + 1) }
+        var noHints = rig.config
+        noHints.keyHints = false
+        for (terms, key, chineseKey) in [(PlatformTerms.mac, "⌥+number", "⌥+数字"), (.windows, "Alt+number", "Alt+数字")] {
             let panel = PanelPresenter(config: rig.config, language: "en", terms: terms).model(for: rig.c)
             let shortcuts = try #require(panel.handoff?.choices.map(\.shortcut))
-            #expect(shortcuts == Array(repeating: "", count: rig.c.handoffChoices.count))
-            #expect(panel.footer.hasPrefix(terms.picks(rig.c.handoffChoices.count) + " continue"))
+            #expect(shortcuts == numbers)
+            #expect(panel.footer.hasPrefix(key + " continue"))
+            let chinese = PanelPresenter(config: rig.config, language: "zh-Hans", terms: terms).model(for: rig.c)
+            #expect(chinese.handoff?.choices.map(\.shortcut) == numbers)
+            #expect(chinese.footer.hasPrefix(chineseKey + " 接着聊"))
+            let quiet = PanelPresenter(config: noHints, language: "en", terms: terms).model(for: rig.c)
+            #expect(quiet.handoff?.choices.map(\.shortcut) == Array(repeating: "", count: numbers.count))
+            #expect(!quiet.footer.contains(key))
         }
         let commandOne = KeyEvent(keyCode: 0x12, characters: "1", modifiers: .command)
         let commandResponse = await rig.key(commandOne)
