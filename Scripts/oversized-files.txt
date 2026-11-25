@@ -7,8 +7,8 @@
 929 Core/Sources/AllInOneIMECore/Autocomplete.swift
 440 Core/Sources/AllInOneIMECore/ClaudeSession.swift
 1128 Core/Sources/AllInOneIMECore/ClaudeSessionManager.swift
-587 Core/Sources/AllInOneIMECore/Command.swift
-2807 Core/Sources/AllInOneIMECore/Composer.swift
+554 Core/Sources/AllInOneIMECore/Command.swift
+2761 Core/Sources/AllInOneIMECore/Composer.swift
 611 Core/Sources/AllInOneIMECore/Config.swift
 729 Core/Sources/AllInOneIMECore/Doctor.swift
 483 Core/Sources/AllInOneIMECore/EnglishWords.swift
@@ -41,7 +41,7 @@
 655 Sources/AllInOneIME/AssistantPage.swift
 896 Sources/AllInOneIME/AssistantSelfTest.swift
 565 Sources/AllInOneIME/AutocompleteSelfTest.swift
-1476 Sources/AllInOneIME/CandidatePanel.swift
+1454 Sources/AllInOneIME/CandidatePanel.swift
 535 Sources/AllInOneIME/CommandEditor.swift
 939 Sources/AllInOneIME/ElectronSelfTest.swift
 573 Sources/AllInOneIME/ExtensionSourcesSelfTest.swift

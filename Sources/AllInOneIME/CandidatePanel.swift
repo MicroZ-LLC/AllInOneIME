@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import os
 import QuartzCore
@@ -623,6 +624,8 @@ final class CandidateView: NSView {
         /// The comment after a row's text ("黑话", jargon), and the numbers of the pinyin candidates' pills.
         var rowComment: NSColor
         var pillNumber: NSColor
+        /// The footer's words and its detail (what the keys do, a count): as the comments.
+        var footerColor: NSColor
         /// The highlighted row (and pill): its fill, its border (nil: none) and how wide.
         var selectedFill: NSColor
         var selectedBorder: NSColor?
@@ -645,12 +648,12 @@ final class CandidateView: NSView {
         }
         let tint = selectionTint(accent: accent, background: panel, dark: dark)
         guard increaseContrast else {
-            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor,
+            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor, footerColor: .secondaryLabelColor,
                            selectedFill: tint.color.withAlphaComponent(tint.alpha), selectedBorder: nil, selectedBorderWidth: 0,
                            selectedInk: ink)
         }
         let solid = panel.withAlphaComponent(1).blended(withFraction: min(tint.alpha + 0.15, 0.7), of: tint.color) ?? tint.color
-        return Palette(rowComment: .labelColor, pillNumber: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
+        return Palette(rowComment: .labelColor, pillNumber: .labelColor, footerColor: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
                        selectedBorderWidth: 1, selectedInk: .labelColor)
     }
 
@@ -713,6 +716,10 @@ final class CandidateView: NSView {
         var header = false
     }
 
+    /// VoiceOver's view of it (`PanelAccessibility`), and how what changes is said (a test's records it).
+    private lazy var accessibility = PanelAccessibility(view: self)
+    var announceAccessibility: (String) -> Void = { PanelAccessibility.announce($0) }
+
     /// Its own solid background: off in the panel, where the system's glass is behind it (`CandidatePanel`);
     /// on for an offscreen image, which has nothing behind it to blur.
     var drawsBackground = true
@@ -727,6 +734,7 @@ final class CandidateView: NSView {
             let from = slideStart(from: oldValue)
             relayout()
             if let from { slide(from: from) }
+            accessibility.changed(from: oldValue, to: model) { [weak self] in self?.announceAccessibility($0) }
         }
     }
 
@@ -1125,32 +1133,6 @@ final class CandidateView: NSView {
         return (top + (frames.map(\.maxY).max() ?? 0), (frames.map(\.maxX).max() ?? 0) + 2 * p)
     }
 
-    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
-    /// characters, so an emoji or a Hangul syllable isn't split).
-    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
-        guard text.length > 0, ceil(text.size().width) > width else { return text }
-        let string = text.string as NSString
-        var ends: [Int] = [0]  // where each character ends, in UTF-16
-        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
-            _, range, _, _ in ends.append(range.upperBound)
-        }
-        func cut(_ end: Int) -> NSAttributedString {
-            // Not "word …": the space before the "…" goes.
-            var end = end
-            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
-            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
-            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
-            return out
-        }
-        // The most characters that fit with the "…" (none at least).
-        var low = 0, high = ends.count - 1
-        while low < high {
-            let mid = (low + high + 1) / 2
-            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
-        }
-        return cut(ends[low])
-    }
-
     private static func measure(_ text: NSAttributedString, minHeight: CGFloat) -> NSSize {
         let rect = text.boundingRect(
             with: NSSize(width: Metrics.maxTextWidth, height: .greatestFiniteMagnitude),
@@ -1524,20 +1506,20 @@ final class CandidateView: NSView {
         let midY = footerY + 1 + Metrics.footerGap + Metrics.smallKeycapHeight / 2
         var right = bounds.width - inset
         if let detail = model.detail {
-            let text = NSAttributedString(string: detail, attributes: [.font: Fonts.detail, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: detail, attributes: [.font: Fonts.detail, .foregroundColor: palette.footerColor])
             let size = text.size()
             text.draw(at: NSPoint(x: right - size.width, y: midY - size.height / 2))
             right -= ceil(size.width) + 16
         }
         let parts = footerParts
         if let plain = parts.plain {
-            let text = NSAttributedString(string: plain, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: plain, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
             text.draw(at: NSPoint(x: inset, y: midY - text.size().height / 2))
             return
         }
         var x = inset
         if let note = parts.note {
-            let text = NSAttributedString(string: note, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: note, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
             text.draw(at: NSPoint(x: x, y: midY - text.size().height / 2))
             // Its keys on the right.
             x = right - (parts.hints.map(Self.hintWidth).reduce(0, +) + CGFloat(max(parts.hints.count - 1, 0)) * Metrics.hintGap)
@@ -1557,7 +1539,7 @@ final class CandidateView: NSView {
             Self.drawSmallKeycap(hint.key, in: key, dark: dark)
             x += width + 5
         }
-        let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+        let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
         text.draw(at: NSPoint(x: x, y: origin.y - text.size().height / 2))
     }
 
@@ -1875,6 +1857,42 @@ final class CandidateView: NSView {
 }
 
 extension CandidateView {
+    // A list for VoiceOver, a child for each row it shows (those scrolled out of view aside), its status and its footer.
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .list }
+    override func accessibilityLabel() -> String? { PanelAccessibility.listLabel }
+    override func accessibilityChildren() -> [Any]? {
+        let footer = NSRect(x: 0, y: footerY, width: bounds.width, height: max(bounds.height - footerY, 0))
+        return accessibility.children(model, rowFrame: { [self] in rowFrame($0).flatMap { rowsClip?.intersects($0) ?? true ? $0 : nil } },
+                                      statusFrame: statusFrame, footerFrame: footer)
+    }
+
+    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
+    /// characters, so an emoji or a Hangul syllable isn't split).
+    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
+        guard text.length > 0, ceil(text.size().width) > width else { return text }
+        let string = text.string as NSString
+        var ends: [Int] = [0]  // where each character ends, in UTF-16
+        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
+            _, range, _, _ in ends.append(range.upperBound)
+        }
+        func cut(_ end: Int) -> NSAttributedString {
+            // Not "word …": the space before the "…" goes.
+            var end = end
+            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
+            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
+            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
+            return out
+        }
+        // The most characters that fit with the "…" (none at least).
+        var low = 0, high = ends.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
+        }
+        return cut(ends[low])
+    }
+
     /// Rows one under another taller than `maxHeight`: shown between `rowsTop` and what is left above the status and
     /// footer (the title and the line of input stay on top), moved up. A conversation's to show the bottom of the last
     /// one, or the highlighted one when it is above (an earlier answer picked with ↑), or as far as the wheel moved them;
@@ -1915,50 +1933,5 @@ extension CandidateView {
             pills = pills.map { ($0.frame.offsetBy(dx: 0, dy: -overflow), $0.label, $0.text) }
         }
         footerY -= overflow
-    }
-}
-
-/// A light passing over the bars of rows on their way (`PanelModel.pending`), left to right, again and again: Core
-/// Animation's, so the main thread (the keys) isn't asked for it. Drawn over the bars, which the panel draws; nothing to
-/// click (clicks go to the panel), and nothing in an offscreen image.
-private final class ShimmerView: NSView {
-    private let gradient = CAGradientLayer()
-    private let mask = CAShapeLayer()
-
-    override init(frame frameRect: NSRect) {
-        super.init(frame: frameRect)
-        wantsLayer = true
-        gradient.startPoint = CGPoint(x: 0, y: 0.5)
-        gradient.endPoint = CGPoint(x: 1, y: 0.5)
-        gradient.mask = mask
-        layer?.addSublayer(gradient)
-        let sweep = CABasicAnimation(keyPath: "locations")
-        sweep.fromValue = [-0.6, -0.3, 0]
-        sweep.toValue = [1, 1.3, 1.6]
-        sweep.duration = 1.4
-        sweep.repeatCount = .infinity
-        gradient.add(sweep, forKey: "sweep")
-    }
-
-    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
-
-    override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-    /// The bars, in its own coordinates from its top left, and the light's color for the appearance.
-    func update(bars: [NSRect], dark: Bool) {
-        CATransaction.begin()
-        CATransaction.setDisableActions(true)
-        gradient.frame = bounds
-        let light = NSColor.white.withAlphaComponent(dark ? 0.1 : 0.55).cgColor, clear = NSColor.white.withAlphaComponent(0).cgColor
-        gradient.colors = [clear, light, clear]
-        let path = CGMutablePath()
-        let flipped = gradient.contentsAreFlipped()
-        for bar in bars {
-            // Unless the layers are flipped, their y goes up: the bar's from the bottom.
-            let rect = CGRect(x: bar.minX, y: flipped ? bar.minY : bounds.height - bar.maxY, width: bar.width, height: bar.height)
-            path.addRoundedRect(in: rect, cornerWidth: bar.height / 2, cornerHeight: bar.height / 2)
-        }
-        mask.path = path
-        CATransaction.commit()
     }
 }
