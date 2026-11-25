@@ -31,8 +31,8 @@ struct Settings161MacTests {
         for language in ["en", "zh"] {
             let count = try #require(report["COUNT\t\(language)"])
             let label = language == "en" ? "Other AIs (\(count))" : "其他 AI（\(count)）"
-            #expect(report["ROW_CLOSED\t\(language)"] == "\(label) ▸")
-            #expect(report["ROW_OPEN\t\(language)"] == "\(label) ▾")
+            #expect(report["ROW_CLOSED\t\(language)"] == label)
+            #expect(report["ROW_OPEN\t\(language)"] == label)
             #expect(report["ACCESS_CLOSED\t\(language)"] == "collapsed")
             #expect(report["ACCESS_OPEN\t\(language)"] == "expanded")
         }
@@ -160,7 +160,7 @@ MainActor.assumeIsolated {
         print("SEARCH_KIRO\t\(language)\t\(picker.isExpanded ? 1 : 0):\(picker.scrollTarget?.id ?? "")")
         picker.show(search: nil, target: .provider(.bedrock))
         print("POINT_BEDROCK\t\(language)\t\(picker.isExpanded ? 1 : 0):\(picker.scrollTarget?.id ?? "")")
-        picker.show(search: nil, target: .cli(.kiro))
+        picker.show(search: nil, target: chosen)
         print("POINT_CHOSEN\t\(language)\t\(picker.isExpanded ? 1 : 0):\(picker.scrollTarget?.id ?? "")")
     }
     fflush(stdout)
