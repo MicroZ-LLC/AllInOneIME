@@ -43,6 +43,8 @@ final class HostRun {
     /// The app's undo: the field before each change, with what the ledger held then.
     var undo: [(document: String, caret: Int, ledger: CommitLedger)] = []
     var failures: [HostFailure] = []
+    /// After every step, the stress runs' checks too (`checkStrictInvariants`), not only `checkInvariants`.
+    var strict = false
     /// The modifier changes the session was told (their copies dropped), in order.
     var modifierChanges: [ModifierChange] = []
     var line = 0
@@ -87,6 +89,7 @@ final class HostRun {
             if case .text = step.action {} else if !started { start() }
             perform(step.action)
             checkInvariants()
+            if strict { checkStrictInvariants() }
         }
         return failures
     }

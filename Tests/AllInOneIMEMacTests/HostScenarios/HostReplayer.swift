@@ -229,8 +229,10 @@ final class HostReplayer {
         return String(UnicodeScalar(ascii & 0x1F))
     }
 
-    /// A key down from the keyboard: to the input method when it is the input source, then to the app if it left it.
+    /// A key down from the keyboard: to the input method when it is the input source, then to the app if it left it. None
+    /// reaches a field that lost the focus (another field or app has the keys), as the core's runner has it.
     private func keyDown(code: UInt16, characters: String, ignoringModifiers: String, flags: NSEvent.ModifierFlags) {
+        guard client.focused else { return }
         guard let event = events.keyDown(keyCode: code, characters: characters, ignoringModifiers: ignoringModifiers, flags: flags) else {
             failures.append("couldn't make a key down for \(characters.debugDescription)")
             return
@@ -247,7 +249,7 @@ final class HostReplayer {
     }
 
     private func flagsChanged(code: UInt16, flags: NSEvent.ModifierFlags) {
-        guard active, let event = events.flagsChanged(keyCode: code, flags: flags) else { return }
+        guard active, client.focused, let event = events.flagsChanged(keyCode: code, flags: flags) else { return }
         handleFlagsChanged(event)
         events.sendsCopy(of: event)
     }
@@ -527,7 +529,8 @@ extension HostReplayer {
         }
     }
 
-    /// Text in, in place of the marked text (or `range`): what the session committed, for `EXPECT nolost`.
+    /// Text in, in place of the marked text (or `range`, or the selection): what the session committed, and what it took
+    /// out of the field's text (a selection typed over), for `EXPECT nolost`.
     private func insert(_ text: String, replacing range: NSRange? = nil) {
         committed += text
         if pageFinished == text {
@@ -535,10 +538,28 @@ extension HostReplayer {
         } else {
             for character in text { expectedCounts[character, default: 0] += 1 }
         }
+        for character in replacedText(by: range) { expectedCounts[character, default: 0] -= 1 }
         field.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
         note("committed \(text.debugDescription)")
     }
 
+
+    /// What of the field's own text an insertion takes out: `range` (where the field has it), else the selection; none
+    /// in place of marked text (it isn't the field's text) or where the field drops what comes (it lost the focus).
+    private func replacedText(by range: NSRange?) -> String {
+        let state = client.state, length = (state.text as NSString).length
+        guard client.focused else { return "" }
+        let target: NSRange
+        if let range, range.location != NSNotFound {
+            target = range
+        } else if state.marked != nil {
+            return ""
+        } else {
+            target = state.selection
+        }
+        guard NSMaxRange(target) <= length else { return "" }
+        return (state.text as NSString).substring(with: target)
+    }
 
     /// The controller's `showPanel` and `anchor`: shown under the rect the field tells (`FieldAnchor.place`), its window
     /// learned once, no Accessibility; asked again on the next turn where that wasn't one to trust.
