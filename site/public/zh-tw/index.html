@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AllInOneIME — 在哪裡打字，就在哪裡和 AI 對話</title>
+<meta name="description" content="macOS 輸入法：在任何 App 裡打 @，後面寫你想做的事：一個問題、要潤飾或翻譯的句子、一個算式、要開啟的 App，按 Enter 就行。用你自己的 AI 服務，免費，原始碼公開。也是完整的注音、拼音輸入法，直接出繁體字。">
+<link rel="icon" href="/favicon.png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="alternate" hreflang="en" href="https://allinoneime.com/">
+<link rel="alternate" hreflang="zh-Hans" href="https://allinoneime.com/zh/">
+<link rel="alternate" hreflang="zh-Hant-TW" href="https://allinoneime.com/zh-tw/">
+<meta property="og:title" content="AllInOneIME — 在哪裡打字，就在哪裡和 AI 對話">
+<meta property="og:description" content="在 Mac 的任何 App 裡打 @，後面寫你想做的事：問 AI、潤飾或翻譯、算算式、開啟 App。最可能要做的排在第一行。">
+<meta property="og:image" content="https://allinoneime.com/images/one-at-zh.png">
+<meta property="og:url" content="https://allinoneime.com/zh-tw/">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="brand" href="/zh-tw/"><img src="/images/icon.png" alt="">AllInOneIME</a>
+    <nav class="nav-links">
+      <a class="hide-small" href="#features">功能</a>
+      <a class="hide-small" href="#privacy">隱私</a>
+      <a class="hide-small" href="/docs">文件</a>
+      <a class="hide-small" href="https://github.com/MicroZ-LLC/AllInOneIME">GitHub</a>
+      <a href="/zh/" lang="zh-Hans">简体</a>
+      <a href="/" lang="en">English</a>
+      <a class="btn btn-primary btn-small" href="/download">下載</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="hero">
+    <div class="wrap">
+      <img class="hero-icon" src="/images/icon.png" alt="AllInOneIME">
+      <div class="eyebrow">macOS 輸入法</div>
+      <h1>在哪裡打字，<br>就在哪裡和 AI 對話。</h1>
+      <p class="lead">在 Mac 的任何 App 裡打 <code>@</code>，後面寫你想做的事：一個問題、要潤飾或翻譯的句子、一個算式、要開啟的 App。最可能要做的排在第一行，按 Enter 就行。</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/download">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.4 12.6c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.2 2.6 1.3-.1 1.8-.8 3.3-.8 1.6 0 2 .8 3.4.8 1.4 0 2.3-1.3 3.1-2.5 1-1.4 1.4-2.8 1.4-2.9 0 0-2.7-1-2.7-4.1zM13.9 4.9c.7-.9 1.2-2.1 1.1-3.3-1 0-2.3.7-3 1.6-.7.8-1.2 2-1.1 3.2 1.2.1 2.3-.6 3-1.5z"/></svg>
+          下載 macOS 版
+        </a>
+        <a class="btn btn-ghost" href="https://github.com/MicroZ-LLC/AllInOneIME">在 GitHub 上看</a>
+      </div>
+      <p class="fineprint">免費 · 支援注音、繁體 · macOS 14 以上 · Apple 晶片和 Intel 都能用 · 經過 Apple 公證</p>
+      <div class="shot fade"><img src="/images/one-at-zh.png" alt="@ 後面打算式、App 名的拼音首字母、帶時間的一句話或一個問題：最可能要做的排在第一行"></div>
+    </div>
+  </div>
+
+  <section id="features">
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>打 @，後面隨便寫。</h2>
+        <p>不用記命令名：每一行都寫著 Enter 會做什麼。選中一行之前，什麼都不發給 AI，什麼也不會執行。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#8b5cf6">@</span>命令</div><p>打命令名的開頭就能找到它：<code>@tr</code> 就是 <code>@translate</code>。單打一個 <code>@</code> 列出所有命令，常用的在前。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#64748b">=</span>算式</div><p><code>@3*7+2</code> 邊打邊顯示 23，Enter 就填進去。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">↗</span>App 和網址</div><p><code>@xtsz</code> 就是「系統設定」：App 的中文名，用拼音首字母也能找到。資料夾和網址也一樣，Enter 開啟。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#ef4444">◷</span>提醒</div><p><code>@明天下午3點開會</code>，Enter 就加到「提醒事項」裡，時間是明天 15:00。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">@improve</span>
+          <h3>寫在哪裡，就在哪裡改得更好。</h3>
+          <p>打 <code>@</code> 再寫一句話，第一行就是「改寫」。Enter 先給三種潤飾後的說法，再按你選的風格改寫：簡潔、正式、口語、委婉，還有大廠黑話。都用你寫的那種語言。</p>
+          <p>按數字選一個，或者直接 Enter 選第一個；<code>0</code> 保留原文。</p>
+        </div>
+        <div class="shot"><img src="/images/improve-zh.png" alt="@improve 加拼音，按 Enter：潤飾和改寫，每種風格一個彩色標籤" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split reverse fade">
+        <div class="split-text">
+          <span class="tag">@translate · @question</span>
+          <h3>翻譯成你要的語言，有問題直接問。</h3>
+          <p><code>@translate</code> 按你排的順序，每種語言出一行：英文、日語、法語、德語、西班牙語等等。寫的是別的語言，第一行就是翻譯。</p>
+          <p>寫的是問題，第一行就是「問 AI」，答案直接顯示在原地：可以送出，也可以 ⌘C 複製。</p>
+        </div>
+        <div class="shot"><img src="/images/demo-zh.png" alt="開頭打 @translate 再打拼音，按 Enter：三種地道的英文說法" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>能接著問，說一句就設定好。</h2>
+        <p>答案出來可以接著問。改設定說一句就行，整套設定也能一鍵查一遍。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">⇄</span>接著問</div><p>答案出來後，接著打下一個問題再按 ⇧Enter：候選框變成一段對話，預設最多 5 輪。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">↗</span>換個地方接著聊</div><p>按 ⌘Enter，把對話照你看到的樣子帶到你的程式設計 agent（Claude Code…）、Claude 或 ChatGPT 裡接著聊。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#a855f7">✦</span>一句話改設定</div><p>在設定的搜尋框裡寫「候選豎排」「用 Claude」：每項改動先列出原來 → 改成再應用，還能撤銷。不碰你的金鑰。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">✚</span>排查問題</div><p>設定 →「關於」→「排查問題」檢查輸入法、AI 服務、權限和語言包，能修的給你一個按鈕。也可以問它哪裡不對。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>能接著改，能保護隱私，能按你的習慣來。</h2>
+        <p>結果不太對？說一句怎麼改。有不想給 AI 看的內容？可以不發給它。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#3b82f6">↻</span>修改結果</div><p>結果出來後打「更短」「更正式」再按 ⇧Enter，新結果就地替換，想改幾次都行。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#14b8a6">▭</span>選中的文字</div><p>在任何 App 裡選中一段文字再打 <code>@</code>：翻譯、改寫，在聊天 App 裡還能回覆，或者就這段文字提問。選好的版本替換選中的文字。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f59e0b">▦</span>按 App 設定</div><p>每個 App 會記住你在那裡先用哪種輸入。也可以讓某些 App 裡乾脆不用 AI。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#334155">●</span>隱藏敏感資訊</div><p>開啟後，郵箱、電話、卡號、金鑰和你自己加的詞，發給 AI 前先換成佔位符，結果裡再換回來。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">◎</span>Apple Intelligence</div><p>Mac 支援 Apple Intelligence（macOS 26）時，可以用 macOS 自帶的模型：不用 key，不花錢，不離開這臺 Mac。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#22c55e">↓</span>應用內更新</div><p>有新版本時會發通知，點「更新」一下就裝好；裝之前先和簽名的更新資訊核對。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>不只是寫字，整臺 Mac 都能用。</h2>
+        <p>在任何輸入框裡，<code>@</code> 後面打命令名就行。</p>
+      </div>
+      <div class="grid fade">
+        <div class="card"><div class="cmd"><span class="dot" style="background:#f97316">✦</span>@agent</div><p>把任務交給你的程式設計 agent（Claude Code、Gemini CLI、Kiro CLI…）；Claude Code 可以在後臺做，做完通知你。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#eab308">✎</span>@note</div><p>把文字存進「備忘錄」，換行都保留。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#0ea5e9">›_</span>@py · @js</div><p>執行一行 Python 或 JavaScript，把結果送出。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#10b981">✉</span>@imessage</div><p>不離開當前 App 就能發 iMessage。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#64748b">⌃V</span>剪貼簿歷史</div><p>按 ⌃V 列出複製過的文字和圖片；指著圖片那一行就能看大圖。</p></div>
+        <div class="card"><div class="cmd"><span class="dot" style="background:#8b5cf6">＋</span>自己加</div><p>自己的 AI 指令、程式、網頁連結，還有簽過名的外掛庫裡的 <code>@stock</code>、<code>@calculator</code> 等外掛。</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split reverse fade">
+        <div class="split-text">
+          <span class="tag">腳本擴充功能</span>
+          <h3>用腳本寫你自己的 @ 命令。</h3>
+          <p>任何語言的腳本，加幾行中繼資料，就是一個 @ 命令：可以送出輸出、顯示進度、邊打字邊給出 Alfred 那樣的列表來選，或者在後臺執行，完成後通知你。</p>
+          <p>也可以從 Git 倉庫安裝擴充功能包：啟用前先看它會執行什麼，之後點「更新」時從那裡更新。</p>
+          <p>Raycast 腳本命令拿來就能用。寫法見 <a href="https://github.com/MicroZ-LLC/AllInOneIME/blob/mainline/docs/extensions.md">擴充功能協議</a>。</p>
+        </div>
+        <div class="shot"><img src="/images/extensions-zh.png" alt="設定：腳本擴充功能，擴充功能包和它們的命令" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">選單欄</span>
+          <h3>筆記、提醒、Claude 任務，點一下就在。</h3>
+          <p>點選單欄的 ∞，下拉出用 <code>@note</code> 存的筆記、加的提醒，和 Claude Code 正在做的任務。往左滑一行就能移除。</p>
+          <p>和 macOS 一樣的玻璃效果，跟著系統設定走。</p>
+        </div>
+        <div class="shot plain"><img src="/images/panel-swipe-zh.jpg" alt="選單欄面板：筆記、提醒和 Claude 任務" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <div class="section-head fade">
+        <h2>你的 AI，你的金鑰，你的 Mac。</h2>
+        <p>一開始用 AllInOneIME Cloud，每天 20 次免費，不用設金鑰；也可以填自己的金鑰，用你選的 AI 服務。不論哪種，都只在你讓它做事的時候才連 AI。</p>
+      </div>
+      <div class="pillars fade">
+        <div class="card pillar"><h4>選中之前什麼都不發</h4><p><code>@</code> 後面打的字，在你選中 AI 那一行之前都留在本機；開啟「續寫」的話，停頓時會發出去。安全輸入時（比如密碼框）沒有 AI 那幾行。</p></div>
+        <div class="card pillar"><h4>金鑰在鑰匙串裡</h4><p>API 金鑰存在 macOS 鑰匙串裡，每個只發給儲存時的那個服務。</p></div>
+        <div class="card pillar"><h4>能在本機的都在本機</h4><p><code>@</code> 後面那幾行都在本機算出來；算式、App、資料夾和 <code>@reminder</code> 都不離開你的 Mac。</p></div>
+        <div class="card pillar"><h4>敏感內容先隱藏</h4><p>可以開啟：郵箱、號碼、金鑰和你列出的詞，請求發出前先在本機換成佔位符。</p></div>
+        <div class="card pillar"><h4>也可以完全不上雲</h4><p>macOS 26 上選 Apple Intelligence，由 Mac 自帶的模型回答。你指定的 App 裡，乾脆不用 AI。</p></div>
+        <div class="card pillar"><h4>簽名並經過公證</h4><p>用 Developer ID 簽名，經過 Apple 公證。更新先和簽名的更新資訊核對，才會安裝。</p></div>
+      </div>
+      <div class="providers fade">
+        <span>AllInOneIME Cloud（免金鑰）</span><span>Amazon Bedrock</span><span>Claude API</span><span>Gemini</span><span>OpenAI</span><span>DeepSeek</span><span>Ollama（本機）</span><span>Apple Intelligence（本機）</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="tight">
+    <div class="wrap">
+      <div class="split fade">
+        <div class="split-text">
+          <span class="tag">輸入語言</span>
+          <h3>英文、中文、法語、韓語、印地語。</h3>
+          <p>中文可以用注音（標準／大千鍵盤，和 macOS 內建注音同樣的按鍵）或拼音（基於 Rime 和霧凇拼音，也有雙拼），打出繁體（台灣或香港）或簡體；法語用它自己的鍵盤佈局，韓語打諺文，印地語用拉丁字母拼出天城文。單按 Shift 切到下一種。</p>
+          <p>不想再看到的候選詞，右鍵一下就永久刪掉；想找回來，在設定裡恢復。</p>
+          <p>中文、韓語和印地語是語言包，新增時下載。</p>
+        </div>
+        <div class="shot"><img src="/images/settings-chinese-zh.png" alt="設定 → 輸入：中文拼音打繁體（台灣），開著模糊音" loading="lazy"></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="final">
+    <div class="wrap fade">
+      <img class="hero-icon" src="/images/icon.png" alt="">
+      <h2>下一句話就試試。</h2>
+      <p class="lead">免費，原始碼在 GitHub 上公開。</p>
+      <div class="cta">
+        <a class="btn btn-primary" href="/download">下載 macOS 版</a>
+        <a class="btn btn-ghost" href="/docs">看使用說明</a>
+      </div>
+      <p class="fineprint">用 Developer ID 簽名並經過 Apple 公證：和別的下載的 App 一樣安裝。</p>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>© 2026 MicroZ LLC</span>
+    <nav>
+      <a href="/docs">文件</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME/releases">版本</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME-plugins">外掛庫</a>
+      <a href="/zh/privacy/">隱私</a>
+      <a href="https://github.com/MicroZ-LLC/AllInOneIME">GitHub</a>
+      <a href="/zh/" lang="zh-Hans">简体</a>
+      <a href="/" lang="en">English</a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+  // Sections fade in as they come into view.
+  const seen = new IntersectionObserver((entries) => {
+    for (const entry of entries) if (entry.isIntersecting) { entry.target.classList.add("in"); seen.unobserve(entry.target); }
+  }, { threshold: 0.12 });
+  document.querySelectorAll(".fade").forEach((el) => seen.observe(el));
+</script>
+</body>
+</html>
