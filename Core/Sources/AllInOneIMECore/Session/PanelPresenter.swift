@@ -236,7 +236,8 @@ public struct PanelPresenter {
             let command = composer.activeCommand
             switch composer.phase {
             case .translating:
-                let polishing = config.writtenLanguage(of: composer.selectionInUse ?? composer.sentText).isSame(as: config.outputLanguage)
+                // Translate as You Type translates into its own target, whatever the config's output language is.
+                let polishing = !composer.modeTranslating && config.writtenLanguage(of: composer.selectionInUse ?? composer.sentText).isSame(as: config.outputLanguage)
                 let loading = command?.kind == .generate ? t.tr("AI 回答中…", "Answering…")
                     : command?.script.map { t.tr("正在运行 \($0.title)…", "Running \($0.title)…") }
                     ?? (command?.kind == .run ? t.tr("运行中…", "Running…")
@@ -257,7 +258,7 @@ public struct PanelPresenter {
                     model.note = t.tr("\(modelName) 在写…", "\(modelName) is writing…")
                     model.hints = [PanelModel.Hint("Esc", t.tr("取消", "cancel"))]
                 }
-                model.footer = command == .open ? t.tr("搜索中… · Esc 返回", "Searching… · Esc back")
+                model.footer = composer.modeTranslating ? modeTranslatingFooter : command == .open ? t.tr("搜索中… · Esc 返回", "Searching… · Esc back")
                     : command?.kind == .link ? t.tr("完成后在浏览器打开 · Esc 返回", "Opens in the browser when done · Esc back")
                     : command?.script?.output == .show
                     ? t.tr("运行中… · \(copy) 复制 · Esc 停止 · 离开输入框后在后台继续",
