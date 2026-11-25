@@ -1,4 +1,4 @@
-import AllInOneIMECore
+#if canImport(AppKit)
 import AppKit
 
 /// The candidate panel for VoiceOver (the input method's `CandidateView`, which draws every row itself): a list, named,
@@ -82,3 +82,4 @@ public final class PanelAccessibility {
                              userInfo: [.announcement: text, .priority: NSAccessibilityPriorityLevel.high.rawValue])
     }
 }
+#endif

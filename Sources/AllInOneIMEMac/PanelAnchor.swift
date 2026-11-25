@@ -1,3 +1,4 @@
+import AllInOneIMECore
 import CoreGraphics
 
 /// Where a panel of ours at the caret goes (the candidate panel, a notice, Translate as You Type's chip): under the rect
@@ -87,6 +88,14 @@ public enum PanelAnchor {
         return ![window, page].contains { $0.map { atTopLeft(rect, of: $0) } == true }
     }
 
+    /// Whether `rect` is on one of `screens` (all of them unknown: taken to be). A rect remembered from before the
+    /// displays changed (one detached, GitHub #61) may be on none, and isn't gone by then.
+    public static func onScreen(_ rect: CGRect, screens: [CGRect]) -> Bool {
+        screens.isEmpty || screens.contains { $0.intersects(rect.insetBy(dx: -2, dy: -2)) }
+    }
+
+    static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
+
     /// Whether `rect`'s top-left corner is `frame`'s (two points either way).
     static func atTopLeft(_ rect: CGRect, of frame: CGRect) -> Bool {
         abs(rect.minX - frame.minX) <= 2 && abs(rect.maxY - frame.maxY) <= 2
@@ -168,7 +177,11 @@ public enum PanelAnchor {
                     return Placement(rect: caret, source: .accessibility)
                 }
             }
-            if let last { return Placement(rect: last, source: .last) }
+            if let last {
+                if onScreen(last, screens: screens) { return Placement(rect: last, source: .last) }
+                log.notice("panel anchor: the field's last rect is on no screen now (\(screens.count) screens), dropped")
+                self.last = nil
+            }
             return Placement(rect: told, source: .told)
         }
 

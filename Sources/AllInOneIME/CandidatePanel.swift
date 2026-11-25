@@ -1,5 +1,4 @@
 import AllInOneIMECore
-import AllInOneIMEMac
 import AppKit
 import os
 import QuartzCore
@@ -93,7 +92,7 @@ final class CandidatePanel: NSPanel {
         view.drawsBackground = false
         view.removeFromSuperview()
         contentView = Self.glass(around: view)
-        screenEvents = ScreenEvents { [weak self] in self?.resurface() }
+        screenEvents = ScreenEvents({ [weak self] in self?.resurface() }, returned: { Self.displayReturned($0) })
     }
 
     /// The system's own material behind the rows, so the panel looks like the system's menus and follows
@@ -300,6 +299,7 @@ final class CandidatePanel: NSPanel {
 
     private func presence(_ step: PresenceStep) {
         guard isShowing, !Self.invisible, Date() >= Self.presenceIgnoredUntil else {
+            if isShowing, !Self.invisible { Self.log.notice("candidate box presence check skipped: given up on it a moment ago") }
             checkingPresence = false
             return
         }
@@ -341,6 +341,15 @@ final class CandidatePanel: NSPanel {
         }
     }
 
+    /// A display back (the Mac or its displays woke, the displays changed: `ScreenEvents.returns`): the window server's
+    /// answers are gone by again, however recently a fresh window didn't help (GitHub #61: after the lid was opened the
+    /// box stayed missing until a restart), as the panel is put back (`resurface`).
+    static func displayReturned(_ event: Notification.Name) {
+        guard presenceIgnoredUntil > Date() else { return }
+        presenceIgnoredUntil = .distantPast
+        log.notice("candidate box: \(event.rawValue, privacy: .public), its presence checked again")
+    }
+
     /// A fresh window in this one's place, as the shared panel (`shared`), showing what this one shows where it shows it,
     /// with everything attached to it: the view itself (its rows, the pointer's owner and handlers, `onHover`),
     /// `onPresent`, `onReplace`. This one is put away for good. What restarting the app did (GitHub #61), the session kept.
@@ -364,8 +373,10 @@ final class CandidatePanel: NSPanel {
     }
 
     /// Why a panel that shows can't be seen, from what the app and the window server say of it (`alpha`, `frame`: the
-    /// panel's own); nil: it can, or the window server tells nothing of it to go by.
-    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect) -> Absence? {
+    /// panel's own); nil: it can, or the window server tells nothing of it to go by. On none of `screens` (the displays
+    /// changed under it) it can't, wherever the window server has it.
+    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect,
+                        screens: [NSRect] = NSScreen.screens.map(\.frame)) -> Absence? {
         if appHidden { return .hiddenApp }
         if alpha == 0 { return .transparent }
         switch server {
@@ -376,6 +387,7 @@ final class CandidatePanel: NSPanel {
             if serverAlpha < 0.01 { return .transparent }
             // Somewhere else altogether (where a display was, off every screen). Its frame there can be a little off ours
             // (a move on its way to it; the whole desktop drawn smaller behind a locked screen), never nowhere near it.
+            if !screens.isEmpty, !screens.contains(where: { $0.intersects(serverFrame) }) { return .frame }
             return serverFrame.intersects(frame) ? nil : .frame
         }
     }
@@ -473,30 +485,6 @@ final class CandidatePanel: NSPanel {
     static func screen(for anchor: NSRect) -> NSScreen? {
         let anchor = usable(anchor)
         return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
-    }
-}
-
-/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
-/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
-/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
-/// while it shows: `handler`, on the main thread, as long as this is kept.
-final class ScreenEvents {
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
-
-    init(_ handler: @escaping @MainActor () -> Void) {
-        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
-        let events: [(NotificationCenter, Notification.Name)] = [
-            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
-            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
-            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
-        ]
-        observers = events.map { center, name in
-            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
-        }
-    }
-
-    deinit {
-        for (center, observer) in observers { center.removeObserver(observer) }
     }
 }
 
@@ -671,7 +659,7 @@ final class CandidateView: NSView {
         search: for shade in stride(from: CGFloat(0), through: 0.9, by: 0.1) {
             let color = shade == 0 ? accent : accent.blended(withFraction: shade, of: dark ? .white : .black) ?? accent
             for alpha in stride(from: dark ? CGFloat(0.28) : 0.14, through: 0.5, by: 0.01)
-            where contrast(color.withAlphaComponent(alpha), over: background) >= 1.6 {
+            where color.withAlphaComponent(alpha).contrastRatio(over: background) >= 1.6 {
                 tint = (color, alpha)
                 break search
             }
@@ -685,21 +673,6 @@ final class CandidateView: NSView {
         var dark: Bool
     }
     private static var tints: [TintKey: (color: NSColor, alpha: CGFloat)] = [:]
-
-    /// WCAG's contrast ratio of `color` (its alpha over `background`) against `background`, both in sRGB.
-    static func contrast(_ color: NSColor, over background: NSColor) -> CGFloat {
-        guard let color = color.usingColorSpace(.sRGB), let background = background.usingColorSpace(.sRGB) else { return 1 }
-        func luminance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGFloat {
-            func linear(_ v: CGFloat) -> CGFloat { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
-            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-        }
-        let a = color.alphaComponent
-        func over(_ c: CGFloat, _ b: CGFloat) -> CGFloat { c * a + b * (1 - a) }
-        let front = luminance(over(color.redComponent, background.redComponent), over(color.greenComponent, background.greenComponent),
-                              over(color.blueComponent, background.blueComponent))
-        let back = luminance(background.redComponent, background.greenComponent, background.blueComponent)
-        return (max(front, back) + 0.05) / (min(front, back) + 0.05)
-    }
 
     private struct RowLayout {
         var frame: NSRect
@@ -1933,5 +1906,50 @@ extension CandidateView {
             pills = pills.map { ($0.frame.offsetBy(dx: 0, dy: -overflow), $0.label, $0.text) }
         }
         footerY -= overflow
+    }
+}
+
+/// A light passing over the bars of rows on their way (`PanelModel.pending`), left to right, again and again: Core
+/// Animation's, so the main thread (the keys) isn't asked for it. Drawn over the bars, which the panel draws; nothing to
+/// click (clicks go to the panel), and nothing in an offscreen image.
+private final class ShimmerView: NSView {
+    private let gradient = CAGradientLayer()
+    private let mask = CAShapeLayer()
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        wantsLayer = true
+        gradient.startPoint = CGPoint(x: 0, y: 0.5)
+        gradient.endPoint = CGPoint(x: 1, y: 0.5)
+        gradient.mask = mask
+        layer?.addSublayer(gradient)
+        let sweep = CABasicAnimation(keyPath: "locations")
+        sweep.fromValue = [-0.6, -0.3, 0]
+        sweep.toValue = [1, 1.3, 1.6]
+        sweep.duration = 1.4
+        sweep.repeatCount = .infinity
+        gradient.add(sweep, forKey: "sweep")
+    }
+
+    required init?(coder: NSCoder) { fatalError("init(coder:) is not supported") }
+
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    /// The bars, in its own coordinates from its top left, and the light's color for the appearance.
+    func update(bars: [NSRect], dark: Bool) {
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        gradient.frame = bounds
+        let light = NSColor.white.withAlphaComponent(dark ? 0.1 : 0.55).cgColor, clear = NSColor.white.withAlphaComponent(0).cgColor
+        gradient.colors = [clear, light, clear]
+        let path = CGMutablePath()
+        let flipped = gradient.contentsAreFlipped()
+        for bar in bars {
+            // Unless the layers are flipped, their y goes up: the bar's from the bottom.
+            let rect = CGRect(x: bar.minX, y: flipped ? bar.minY : bounds.height - bar.maxY, width: bar.width, height: bar.height)
+            path.addRoundedRect(in: rect, cornerWidth: bar.height / 2, cornerHeight: bar.height / 2)
+        }
+        mask.path = path
+        CATransaction.commit()
     }
 }

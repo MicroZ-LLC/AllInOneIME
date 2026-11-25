@@ -41,7 +41,7 @@
 655 Sources/AllInOneIME/AssistantPage.swift
 896 Sources/AllInOneIME/AssistantSelfTest.swift
 565 Sources/AllInOneIME/AutocompleteSelfTest.swift
-1454 Sources/AllInOneIME/CandidatePanel.swift
+1466 Sources/AllInOneIME/CandidatePanel.swift
 535 Sources/AllInOneIME/CommandEditor.swift
 939 Sources/AllInOneIME/ElectronSelfTest.swift
 573 Sources/AllInOneIME/ExtensionSourcesSelfTest.swift

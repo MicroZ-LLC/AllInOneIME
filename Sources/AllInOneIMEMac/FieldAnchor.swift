@@ -40,6 +40,11 @@ public enum FieldAnchor {
         // Read before `place`, which has `memory` borrowed while it asks Accessibility (reading it in there crashed).
         let needsPage = memory.page == nil
         var placement = memory.place(told, screens: screens, edges: edges) { accessibility(needsPage) }
+        if placement.source == .told, let previous = lastByApp[app ?? ""], !PanelAnchor.onScreen(previous, screens: screens) {
+            // Remembered on a display that is gone (GitHub #61): not gone by.
+            PanelAnchor.log.notice("panel anchor: the app's last rect is on no screen now (\(screens.count) screens), dropped")
+            lastByApp[app ?? ""] = nil
+        }
         if placement.source == .field {
             lastByApp[app ?? ""] = placement.rect
         } else if placement.source == .told, let previous = lastByApp[app ?? ""] {
