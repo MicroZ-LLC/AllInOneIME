@@ -72,10 +72,11 @@ public struct QuestionConversation: Hashable, Sendable {
     public var id: String
     /// What the session's web tools may reach in it (`SessionWeb`).
     public var web: SessionWeb
+    /// The screenshots asked about, by round (`Attachment`, Composer+QuestionScreenshot.swift).
+    public var attachments: [Int: Attachment] = [:]
 
     public init(id: String = UUID().uuidString, web: SessionWeb = .open) {
-        self.id = id
-        self.web = web
+        (self.id, self.web) = (id, web)
     }
 
     /// A conversation of one request, a writing task (`Converter.sessionStream`): an id of its own, so it never goes into
@@ -209,12 +210,22 @@ public enum ClaudeSession {
 
     /// The arguments after `claude` that start (or resume) the session's process; `settings`: the provider settings
     /// file (`providerSettings`), nil when there is none; `web`: what its web tools may reach (`toolArguments`).
-    public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil, web: SessionWeb = .open) -> [String] {
-        ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
+    /// `mcp`: the MCP servers it gets (`SessionMCP`), in `mcpConfig`, their read-only tools allowed (dontAsk denies any
+    /// other), only with the web open; none: `--strict-mcp-config` alone, no server at all.
+    public static func arguments(sessionID: String, resume: Bool, settings: URL? = nil, web: SessionWeb = .open,
+                                 mcp: SessionMCP = .none, mcpConfig: URL? = nil) -> [String] {
+        let servers = web == .open && !mcp.isEmpty ? mcpConfig : nil
+        var tools = toolArguments(web)
+        if servers != nil, let allowed = tools.firstIndex(of: "--allowedTools") { tools[allowed + 1] += "," + mcp.claudeTools.joined(separator: ",") }
+        return ["-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose", "--include-partial-messages"]
             + (resume ? ["--resume", sessionID] : ["--session-id", sessionID]) + ["--name", SessionAgent.sessionName]
-            + toolArguments(web) + ["--permission-mode", "dontAsk",
+            + tools + ["--permission-mode", "dontAsk",
                "--setting-sources", "project"] + settingsArguments(settings) + ["--strict-mcp-config"]
+            + (servers.map { ["--mcp-config", $0.path] } ?? [])
     }
+
+    /// The file of the MCP servers the session gets (`SessionMCP.claudeConfig`), in its folder.
+    public static let mcpFile = "allinoneime-mcp.json"
 
     /// The tools for `web` (checked with Claude Code 2.1.303: its `system` "init" line lists them): `tools`, allowed;
     /// kept to some addresses, WebFetch only, allowed for their sites only (`WebFetch(domain:…)`; with dontAsk any other
@@ -249,16 +260,6 @@ public enum ClaudeSession {
         "env", "apiKeyHelper", "proxyAuthHelper", "awsCredentialExport", "awsAuthRefresh", "gcpAuthRefresh",
         "model", "modelOverrides", "forceLoginMethod", "forceLoginOrgUUID", "forceLoginGatewayUrl",
     ]
-
-    /// The user's Claude Code settings file: settings.json in `CLAUDE_CONFIG_DIR` when the environment the session runs
-    /// with sets it, else in ~/.claude.
-    public static func userSettingsFile(environment: [String: String] = ProcessInfo.processInfo.environment,
-                                        home: URL = CorePaths.home) -> URL {
-        let configured = environment["CLAUDE_CONFIG_DIR"].map { ($0 as NSString).expandingTildeInPath } ?? ""
-        let directory = configured.isEmpty ? home.appendingPathComponent(".claude", isDirectory: true)
-            : URL(fileURLWithPath: configured, isDirectory: true)
-        return directory.appendingPathComponent("settings.json")
-    }
 
     /// `settings` (a settings.json's content) with only `providerSettingKeys`, as JSON; nil when it isn't a JSON
     /// object or holds none of them (an empty `env` counts as none).

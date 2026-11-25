@@ -16,8 +16,9 @@ What it found: $reproduction
 ## What to do
 
 1. Find the cause. Fix it there, with the smallest change that is right, not by special-casing the test.
-2. Make the reproduction tests pass, and keep `make test` and `swift build` passing.
-3. Add a Fixed / 修复 entry to both changelogs if a user would notice the difference.
+2. Make the reproduction tests pass, and keep `swift build`, `make lint` and `make test` passing.
+3. If a user would notice the difference, write a `section: Fixed` changelog fragment, in English and Chinese,
+   as `changes/issue-$number.md` (not in the changelogs themselves).
 $feedback
 ## Reply
 

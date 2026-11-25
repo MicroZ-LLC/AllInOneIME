@@ -437,22 +437,6 @@ final class ICloudSyncController: ObservableObject {
         }
     }
 
-    /// "Remove from iCloud…" for the hidden words or the recent questions (Settings turns its switch off first): only
-    /// those taken out of iCloud; this Mac keeps its own. `done` gets the outcome (`.waiting`: settings.json isn't
-    /// downloaded yet; the next runs finish it), or the error.
-    func removeFromICloud(_ category: ICloudSync.Category, done: @escaping @MainActor (Result<ICloudSyncEngine.Removal, Error>) -> Void) {
-        let engine = self.engine
-        queue.async {
-            let result = Result { try engine.removeFromICloud(category) }
-            DispatchQueue.main.async {
-                MainActor.assumeIsolated {
-                    if case .success(.waiting) = result { ICloudSyncController.shared.changed() }
-                    done(result)
-                }
-            }
-        }
-    }
-
     /// "Clear" of the recent questions in Settings: every Mac drops the questions asked before now.
     func questionsCleared() {
         let engine = self.engine, now = Date()
@@ -550,15 +534,15 @@ final class ICloudSyncController: ObservableObject {
     // MARK: Applying
 
     /// What reading the config again doesn't do by itself: Settings and the input method told, the menu bar icon,
-    /// fuzzy pinyin, the characters and the way of typing pinyin (Rime deployed again), the interface language, a language pack for an input language
+    /// fuzzy pinyin, the characters, the way of typing pinyin and the shape codes (Rime deployed again), the interface language, a language pack for an input language
     /// added.
     static func applyLive(_ report: ICloudSyncEngine.Report) {
         let config = LiveConfig.current
         NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
         if report.configKeys.contains("menuBarIcon") { MenuBarIcon.shared.apply(config.menuBarIcon) }
-        if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters")
-            || report.configKeys.contains("pinyinScheme"), let valid = LiveConfig.currentIfValid {
-            RimeFuzzy.apply(valid.fuzzyPinyin, characters: valid.typedChinese, scheme: valid.typedPinyin)
+        if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters") || report.configKeys.contains("pinyinScheme")
+            || report.configKeys.contains("shapeCode"), let valid = LiveConfig.currentIfValid {
+            RimeFuzzy.apply(valid.fuzzyPinyin, characters: valid.typedChinese, scheme: valid.typedPinyin, shapeCode: valid.typedShapeCode)
         }
         if report.configKeys.contains("uiLanguage") {
             UIText.choice = config.uiLanguage

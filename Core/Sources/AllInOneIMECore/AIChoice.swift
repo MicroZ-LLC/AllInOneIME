@@ -278,11 +278,11 @@ extension AIChoice {
         let note: String
         if let fast {
             let name = AIChoice.provider(fast).name
-            note = tr("CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；改写、翻译、续写这些要快的，自动用「\(name)」。",
-                      "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; what has to be fast (rewriting, translating, autocomplete) uses \(name).")
+            note = tr("@question 走 CLI（要 1 秒以上）；改写、翻译、续写这些要快的，自动用「\(name)」。",
+                      "@question goes to the CLI (a second or more); what has to be fast (rewriting, translating, autocomplete) uses \(name).")
         } else {
-            note = tr("CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；没有更快的 AI 可用，续写关闭，改写、翻译也交给它，会慢一些。",
-                      "A CLI takes a second or more to answer. Questions (@question) go to it, and it remembers what you talked about; with no faster AI here, autocomplete is off, and rewriting and translating go to it too, more slowly.")
+            note = tr("@question 走 CLI（要 1 秒以上）；没有更快的 AI，续写关闭，改写、翻译也走它，会慢一些。",
+                      "@question goes to the CLI (a second or more); with no faster AI, autocomplete is off, and rewriting and translating go to it too, more slowly.")
         }
         return UIText.triggered(note)
     }

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -6,7 +7,7 @@ import Testing
 /// to one too) is `.userFile`, whatever the dictionaries' files are like; and the file written with dictionaries is still
 /// 0.6.6's own, so that its fuzzy pinyin switch works after a downgrade.
 struct FuzzyPinyinCompatibilityTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("fuzzy-compatibility-\(UUID().uuidString)")
+    let root = TestScratch.temporary("fuzzy-compatibility-\(UUID().uuidString)")
     var user: URL { root.appendingPathComponent("Rime") }
     var schema: URL { root.appendingPathComponent("rime_ice.schema.yaml") }
     var patch: URL { user.appendingPathComponent(FuzzyPinyin.fileName) }

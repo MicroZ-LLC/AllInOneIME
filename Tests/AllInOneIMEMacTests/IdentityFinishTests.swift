@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import AllInOneIMEMac
 import Foundation
@@ -103,7 +104,7 @@ struct IdentityFinishTests {
     final class Mac {
         let actions = FakeActions()
         let keys = Keys()
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("identity-finish-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("identity-finish-\(UUID().uuidString)", isDirectory: true)
         var record: URL { folder.appendingPathComponent(CleanupRecord.fileName) }
         var available = true
         var now = Date()
@@ -386,7 +387,7 @@ struct IdentityFinishTests {
     /// Apps and launch agents in a folder of the test's own (Launch Services and launchd only asked about them), and a
     /// defaults domain of the test's own.
     @Test func theMacsStepsOnFilesOfTheTestsOwn() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("identity-cleanup-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("identity-cleanup-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let system = SystemIdentityCleanup()
         let app = folder.appendingPathComponent("Old.app")

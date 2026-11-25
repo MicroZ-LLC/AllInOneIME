@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -11,7 +12,7 @@ import Testing
 /// Without AllInOneIME's filter (the user's own patch), an emoji is not deleted either. In a process of its own each
 /// (`RimeWorker`): librime starts once per process, and these start it on shared data and a user folder of their own.
 struct RemovedDerivedCandidatesRimeTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-derived-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-derived-\(UUID().uuidString)")
 
     @Test(.enabled(if: RemovedCandidatesFilterRimeTests.runs, "no rime-ice data in ThirdParty (make deps)"))
     func anEmojiOrARadicalRemovedLeavesItsWordAsItWas() throws {

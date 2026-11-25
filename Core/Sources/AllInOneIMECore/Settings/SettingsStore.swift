@@ -21,7 +21,7 @@ public final class SettingsStore {
         public static let keys = Change(rawValue: 4)
     }
 
-    /// A Test button's state: Test Connection, the web search's, the Notion link's.
+    /// A Test button's state: Test Connection, the Notion link's.
     public enum TestStatus: Equatable, Sendable {
         case idle
         case running
@@ -510,17 +510,6 @@ public final class SettingsStore {
             try APIKeys.remove(provider)
             Self.log.notice("Settings: the \(provider.rawValue) key removed (Remove Key…, confirmed)")
         }
-    }
-
-    /// Saves the web search key (`WebSearch`).
-    public func saveSearchKey(_ key: String) -> String? {
-        guard persists, !key.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-        return changingSecret(failing: Self.couldntSaveKey) { try WebSearch.saveKey(key) }
-    }
-
-    public func removeSearchKey() -> String? {
-        guard persists else { return nil }
-        return changingSecret(failing: Self.couldntRemoveKey) { try WebSearch.removeKey() }
     }
 
     /// Saves the Notion token, sent to api.notion.com only.

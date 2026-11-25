@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
@@ -57,39 +58,20 @@ extension AllInOneIMEInputController {
     nonisolated(unsafe) static var warmedFor = -1
 
     /// The text around the caret (`Composer.readFieldText`), without the draft: up to 1,500 characters before it and after
-    /// it as the field tells them (IMK), past the selection or the marked text. None during secure input, nor in a
-    /// terminal (its text isn't being edited).
+    /// it as the field tells them (IMK), past the selection or the marked text. None during secure input, nor where the
+    /// field's text stays here (`FieldInfo.textStaysHere`): a terminal (its text isn't being edited), a password manager.
     @MainActor
     func readFieldText(from target: IMKTextInput?) -> FieldText? {
-        readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter, purpose: "@reply")
+        guard !Self.fieldInfo(target).textStaysHere else { return nil }
+        return readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter, purpose: "@reply")
     }
 
-    /// The text around the caret, up to `before` characters before it and `after` after it, for `purpose` (the log's).
+    /// The text around the caret, up to `before` characters before it and `after` after it, for `purpose` (the log's):
+    /// `FieldTextReading`, with this Mac's secure input as the session's services tell it.
     @MainActor
     func readFieldText(from target: IMKTextInput?, before beforeLimit: Int, after afterLimit: Int, purpose: String) -> FieldText? {
-        guard !services.secureInputActive(), let target, !Self.isTerminal(target) else { return nil }
-        let length = target.length()
-        guard length > 0, length != NSNotFound else { return nil }
-        let marked = target.markedRange(), selected = target.selectedRange()
-        let around: NSRange
-        if marked.location != NSNotFound, marked.length > 0 {
-            around = marked
-        } else if selected.location != NSNotFound, selected.length != NSNotFound {
-            around = selected
-        } else {
-            return nil
-        }
-        // UTF-16 units, twice the characters kept: an emoji or a rare character takes two.
-        let (span, afterSpan) = (beforeLimit * 2, afterLimit * 2)
-        let start = min(around.location, length)
-        let end = min(NSMaxRange(around), length)
-        let beforeRange = NSRange(location: max(0, start - span), length: start - max(0, start - span))
-        let afterRange = NSRange(location: end, length: min(afterSpan, length - end))
-        let before = beforeRange.length > 0 ? target.attributedSubstring(from: beforeRange)?.string ?? "" : ""
-        let after = afterRange.length > 0 ? target.attributedSubstring(from: afterRange)?.string ?? "" : ""
-        guard !before.isEmpty || !after.isEmpty else { return nil }
-        log.notice("field text read for \(purpose, privacy: .public) (\(before.count) + \(after.count) characters)")
-        return FieldText(before: before, after: after)
+        FieldTextReading.read(from: target, before: beforeLimit, after: afterLimit, purpose: purpose,
+                              secureInputActive: services.secureInputActive, isTerminal: Self.isTerminal(app:))
     }
 }
 

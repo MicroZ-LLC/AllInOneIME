@@ -1,0 +1,58 @@
+# An independent review of every PR into mainline or a release branch, on the Mac mini: Codex CLI (else Claude Code)
+# reads the diff against AGENTS.md with the fixed prompt in .github/review/prompt.md, then .github/review/review.py
+# posts one comment on the PR and sets the commit status `review` (failure only for a high-confidence correctness or
+# privacy finding; error when no reviewer could run: run this again). Never for a PR from a fork: the runner and its
+# sign-ins aren't for code nobody here has read. The reviewer runs read-only and without the GitHub token; nothing here
+# pushes. The agent pipeline starts it itself on its PRs (workflow_dispatch): a PR made with the job's token starts no
+# workflow.
+name: Review
+
+on:
+  pull_request:
+    branches: [mainline, "release-*"]
+    types: [opened, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: The PR to review (its number)
+        required: true
+
+concurrency:
+  group: review-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write   # its one comment
+  statuses: write        # the status `review`
+
+jobs:
+  review:
+    # Not `review`: that's the status this sets, and a check run of the same name would stand beside it.
+    name: Independent review
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.pull_request.head.repo.full_name == github.repository && !github.event.pull_request.draft)
+    runs-on: [self-hosted, macmini-agent]
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false            # keeps the quality gate's .build
+          fetch-depth: 0          # the base and the PR's head
+          persist-credentials: false
+      - name: The reviewers' CLIs
+        # Codex and Claude Code install into ~/.local/bin, which the runner's service doesn't have on its PATH.
+        run: echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: git clean -ffdx -e .build/
+      - name: Review
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+        run: |
+          case $PR in ''|*[!0-9]*) echo "::error::not a PR number: $PR"; exit 1 ;; esac
+          # The base branch's script, as its prompt: a PR can't change how it is reviewed.
+          base=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$PR" --jq .base.ref)
+          script=$RUNNER_TEMP/review.py
+          git show "origin/$base:.github/review/review.py" > "$script" 2>/dev/null || cp .github/review/review.py "$script"
+          python3 "$script" "$PR"

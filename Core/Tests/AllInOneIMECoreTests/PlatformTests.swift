@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -37,7 +38,6 @@ struct PlatformTests {
 
     @Test func withoutTheSystemsHelpers() throws {
         #expect(RulesOnlyDateDetector().dates(in: "明天下午3点开会").isEmpty)
-        #expect(UnsupportedPDFTextExtractor().text(ofPDF: Data("%PDF-1.4".utf8)) == nil)
         #expect(throws: InlineCodeError("JavaScript is not available")) {
             try InlineCode.runJavaScript("1 + 1", print: { _ in }, warn: { _ in }, engine: UnsupportedScriptEngine())
         }
@@ -58,14 +58,15 @@ struct PlatformTests {
         #expect(throws: ProcessLaunchError.unsupported) { try none.launch(LaunchSpec(executable: URL(fileURLWithPath: "/bin/sh"))) }
         // The commands that run a program are the ones left out there (`Command.catalog`).
         let commands = Command.catalog([CustomCommand(name: "upper", type: .run, argv: ["tr", "a-z", "A-Z"]),
-                                        CustomCommand(name: "tweet", type: .prompt, prompt: "Rewrite this as a tweet.")])
+                                        CustomCommand(name: "tweet", type: .prompt, prompt: "Rewrite this as a tweet."),
+                                        CommandExamples.python])
         let needing = Set(commands.filter(\.needsChildProcess).map(\.name))
         #expect(needing.isSuperset(of: ["py", "js", "upper"]) && !needing.contains("tweet") && !needing.contains("read"))
     }
 
     @Test func swapsAndPrivateWrites() throws {
         let files = SystemFileOps()
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("platform-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("platform-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         func folderHolding(_ name: String, _ text: String) throws -> URL {

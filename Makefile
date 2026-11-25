@@ -83,6 +83,20 @@ RIME_ESSAY_COMMIT        := 054920de4f54c9e5994276a96a4fc2a35cb51aa3
 RIME_ESSAY_SHA256        := 3339b40aae91b0216d393aeccc6a8f7daad56a1f3a5e1ffcf464c80690d1b6ce
 ZHUYIN_FILES := bopomofo.schema.yaml zhuyin.yaml terra_pinyin.dict.yaml stroke.schema.yaml stroke.dict.yaml essay.txt
 
+# Shape codes (辅助码, Settings → Input → Chinese → Typing: `ShapeCode`): HowcanoeWang/rime-lua-aux-code (MIT) at a pinned
+# commit, its filter (lua/aux_code.lua; never its updater, which downloads) and the tables of it the app may carry: 墨奇
+# (from gaboolic/moqima-tables, MIT), 鹤形 (the repository's own, MIT), 五笔 86 and 仓颉 (from rime/rime-wubi and
+# rime/rime-cangjie, LGPL-3.0). Not its 自然码 table (copperay/ZRM_Aux-code: no license, "禁止商用"). The app carries them,
+# not the pack: the filter with its other Lua (Contents/SharedSupport/rime-lua), the tables in
+# Contents/SharedSupport/rime-aux-code/aux_code, linked into the Chinese pack (`LanguagePackStore.linkData`), each
+# source's license beside them (rime-aux-code/LICENSE, rime-aux-code/<repository>/), fetched at a pinned commit.
+AUX_CODE_COMMIT := f9780033396f8998697c2a004d40bd543c46308b
+AUX_CODE_SHA256 := 863cda2fe0266af8af3d66a06ebd00a1d65f3bf6a3945ae386d29ba5cf40b762
+AUX_CODE_TABLES := moqi_aux_code.txt flypy_full.txt wubi86-code.txt cangjie5_quick_code.txt
+MOQIMA_TABLES_COMMIT := 6d8ba8f1c57466f358e682baefe11bbd0fe389ab
+RIME_WUBI_COMMIT     := 152a0d3f3efe40cae216d1e3b338242446848d07
+RIME_CANGJIE_COMMIT  := fcb3d7dd94ac1304663d575727d24d8107f6b082
+
 # Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
 # say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
 # Scripts/make-dmg.sh read the same variable, in the environment or on make's command line (make passes it on). DEPS is
@@ -97,6 +111,9 @@ OPENCC_DATA := $(DEPS)/opencc
 OPENCC_BUILT := $(OPENCC_DATA)/$(lastword $(OPENCC_FILES))
 ZHUYIN_DATA  := $(DEPS)/rime-zhuyin
 ZHUYIN_BUILT := $(RIME_DATA)/bopomofo.schema.yaml
+# The shape codes' (its sources' licenses last).
+AUX_CODE_DATA  := $(DEPS)/rime-aux-code
+AUX_CODE_BUILT := $(AUX_CODE_DATA)/rime-cangjie/AUTHORS
 
 # The Chinese language pack (Core/Sources/AllInOneIMECore/LanguagePack.swift): rime-ice's data, prebuilt, without
 # its Lua (the app carries that). The app ships English only; users download the pack in Settings → Input.
@@ -112,11 +129,11 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test check-ios icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable changelog-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
-deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT) $(ZHUYIN_BUILT)
+deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT) $(ZHUYIN_BUILT) $(AUX_CODE_BUILT)
 
 $(RIME_LIB):
 	mkdir -p $(DEPS)
@@ -160,6 +177,32 @@ $(ZHUYIN_BUILT): $(RIME_BUILT)
 	$(call zhuyin-repo,rime-stroke,$(RIME_STROKE_COMMIT),$(RIME_STROKE_SHA256),stroke.schema.yaml stroke.dict.yaml)
 	$(call zhuyin-repo,rime-essay,$(RIME_ESSAY_COMMIT),$(RIME_ESSAY_SHA256),essay.txt)
 	cp $(addprefix $(ZHUYIN_DATA)/,$(ZHUYIN_FILES)) $(RIME_DATA)/
+
+# $(call aux-code-license,OWNER/NAME,COMMIT,FILE,SHA256): FILE of the repository at COMMIT, checked, into
+# AUX_CODE_DATA/NAME.
+define aux-code-license
+	mkdir -p $(AUX_CODE_DATA)/$(notdir $(1))
+	[ -f $(DEPS)/$(notdir $(1))-$(2)-$(3) ] || curl -fsSL -o $(DEPS)/$(notdir $(1))-$(2)-$(3) \
+		https://raw.githubusercontent.com/$(1)/$(2)/$(3)
+	echo "$(4)  $(DEPS)/$(notdir $(1))-$(2)-$(3)" | shasum -a 256 -c -
+	cp $(DEPS)/$(notdir $(1))-$(2)-$(3) $(AUX_CODE_DATA)/$(notdir $(1))/$(3)
+endef
+
+# The shape codes' filter and tables in AUX_CODE_DATA (lua/aux_code.lua, aux_code/*.txt), as the app carries them; the
+# Rime tests link them as the app does. Its sources' licenses last (AUX_CODE_BUILT).
+$(AUX_CODE_BUILT):
+	mkdir -p $(DEPS)
+	[ -f $(DEPS)/rime-lua-aux-code-$(AUX_CODE_COMMIT).tar.gz ] || curl -fsSL -o $(DEPS)/rime-lua-aux-code-$(AUX_CODE_COMMIT).tar.gz \
+		https://github.com/HowcanoeWang/rime-lua-aux-code/archive/$(AUX_CODE_COMMIT).tar.gz
+	echo "$(AUX_CODE_SHA256)  $(DEPS)/rime-lua-aux-code-$(AUX_CODE_COMMIT).tar.gz" | shasum -a 256 -c -
+	rm -rf $(AUX_CODE_DATA) && mkdir -p $(AUX_CODE_DATA)
+	tar xzf $(DEPS)/rime-lua-aux-code-$(AUX_CODE_COMMIT).tar.gz -C $(AUX_CODE_DATA) --strip-components 1 \
+		$(addprefix rime-lua-aux-code-$(AUX_CODE_COMMIT)/,LICENSE lua/aux_code.lua $(addprefix aux_code/,$(AUX_CODE_TABLES)))
+	$(call aux-code-license,gaboolic/moqima-tables,$(MOQIMA_TABLES_COMMIT),LICENSE,38df95976ee2af13c6782bbddbb6048d5a4ac0496505591a1e3abfcac3a430cc)
+	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),LICENSE,da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768)
+	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),AUTHORS,4e4ca0e3ae6763a7cd5913f92c3b28091a7ec97d5cf4fc96c8f1a294e43f2839)
+	$(call aux-code-license,rime/rime-cangjie,$(RIME_CANGJIE_COMMIT),LICENSE,da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768)
+	$(call aux-code-license,rime/rime-cangjie,$(RIME_CANGJIE_COMMIT),AUTHORS,fdc15be409ae8776d516385da6f9e021b49f98fa58d3c610c11227f0d8ba35bb)
 
 # Only the OpenCC files the app uses (ChineseCharacters.openCCFiles in the core), out of the asset's share/opencc.
 $(OPENCC_BUILT):
@@ -233,6 +276,12 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	cp -R $(RIME_DATA)/lua "$(APP)/Contents/SharedSupport/rime-lua"
 	cp $(RIME_DATA)/LICENSE "$(APP)/Contents/SharedSupport/rime-lua/LICENSE"
 	cp Resources/rime/lua/allinoneime_removed.lua "$(APP)/Contents/SharedSupport/rime-lua/"
+	# The shape codes' filter (MIT) with them, unmodified; its tables in rime-aux-code (linked into the Chinese pack,
+	# `LanguagePackStore.linkData`), with each source's license; the notices are in THIRD_PARTY_NOTICES.md.
+	cp $(AUX_CODE_DATA)/lua/aux_code.lua "$(APP)/Contents/SharedSupport/rime-lua/"
+	for item in aux_code LICENSE moqima-tables rime-wubi rime-cangjie; do \
+		ditto "$(AUX_CODE_DATA)/$$item" "$(APP)/Contents/SharedSupport/rime-aux-code/$$item" || exit 1; \
+	done
 	# OpenCC's data for Traditional characters, with librime (its .ocd2 format is the linked OpenCC's), not in the pack;
 	# its Apache-2.0 notice is in THIRD_PARTY_NOTICES.md.
 	mkdir -p "$(APP)/Contents/SharedSupport/opencc"
@@ -424,10 +473,10 @@ update-manifest:
 		--notes "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v$(VERSION)" \
 		--summary-en "$(UPDATE_SUMMARY_EN)" --summary-zh "$(UPDATE_SUMMARY_ZH)"
 
-# The core's lint guards (platform-neutral, standalone), its products' release build and the String Catalog tool's
-# check, Core/.split-paths' paths free in the root; then the core's tests (Core/, a package of its own) with the input
-# method's debug build as the child process the end-to-end ones run, then this package's tests (rime-ice's data is there
-# after `make deps`: a Rime test without it fails, not skips). Both packages' tests run even when the core's fail.
+# The tests, in two halves: `make test-core`, the core's (Core/, a package of its own), and `make test-mac`, the macOS
+# shell's. CI runs them side by side, the core's on GitHub's Linux and macOS machines and the shell's on the Mac mini,
+# each only when the change can affect it (quality.yml, Scripts/test-scope.sh). `make test` runs both, the second even
+# when the first fails.
 # The tests never read this Mac's AWS files: a test whose settings pick Bedrock (the default provider, which autocomplete
 # now asks) without stubbing the credentials would otherwise send a real, billed request.
 TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
@@ -435,20 +484,81 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # adds none when one waits, and many tests wait on theirs: for a session's work (`FakeHost.settle`), for a child process,
 # for the input method compiled into one (this package's issue suites, eight of them, each for the whole compile), so the
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
-# thread when one waits.
+# thread when one waits. (Core/Scripts/test.sh, which runs the core's tests, sets both too.)
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
-test: deps strings-check check-ios
+# The login shell is read once per test process (ShellEnvironment.login): on a loaded Mac (two CI runners on one) it
+# can take past the input method's 10 s, which left the tests that read it with nothing. `swift test` gives it 60 s;
+# selftest, screenshots and install run the input method's binary with its own 10 s.
+TEST_THREADS += ALLINONEIME_LOGIN_SHELL_TIMEOUT=60
+# Each `swift test` with a TMPDIR of its own, removed when it ends (Scripts/test-tmpdir.sh), for what reads it (swiftc,
+# the shell's children); the tests remove what they put in FileManager's temporary directory (TestScratch).
+TEST_TMP := Scripts/test-tmpdir.sh
+# A test that failed is run again once, alone and one at a time (Core/Scripts/retry-failed-tests.sh): one that passes
+# then failed under the machine's load (CI's timeouts), and is named as flaky (a GitHub warning) instead of failing.
+TEST_RETRY := $(CORE)/Scripts/retry-failed-tests.sh
+
+test:
+	@status=0; $(MAKE) test-core || status=$$?; $(MAKE) test-mac || exit; exit $$status
+
+# The core's half, nothing of `make deps` needed: its lint guards (platform-neutral, standalone: `portable`, below), its
+# build for iOS and in release, the String Catalog tool's check, Core/.split-paths' paths free in the root; then its
+# tests, offline (Core/Scripts/test.sh), but for those that run the input method's debug build as their child process
+# (Scripts/core-tests-with-app.sh), which `make test-mac` runs, as it does those a hosted CI runner is too slow for
+# (Core/Scripts/hosted-runner-skips.txt, skipped there only: ALLINONEIME_CI_HOSTED=1). CI runs it on an export of Core/
+# alone (CORE=../core).
+test-core: check-ios portable
+	$(CORE)/Scripts/check-core-standalone.sh --release
+	$(CORE)/Scripts/strings-test.sh
+	$(CORE)/Scripts/retry-failed-tests-test.sh
+	with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) && $(CORE)/Scripts/test.sh --skip "$$with_app"
+
+# The macOS shell's half: the input method's debug build, the core's tests that run it as their child process and those
+# GitHub's hosted runner is too slow for (Core/Scripts/hosted-runner-skips.txt: core-test skips them there; checked to
+# name those tests and no others), then this package's tests (rime-ice's data is there after `make deps`: a Rime test
+# without it fails, not skips). This package's tests run even when the core's fail.
+test-mac: deps strings-check
+	python3 -B -m unittest Scripts/test_changelog.py
+	swift build --product $(APP_NAME)
+	@with_app=$$(Scripts/core-tests-with-app.sh $(CORE)) || exit; \
+	hosted=$$($(TEST_TMP) $(CORE)/Scripts/hosted-runner-skips.sh --check --package-path $(CORE)) || exit; status=0; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" $(TEST_TMP) $(TEST_RETRY) swift test --package-path $(CORE) --filter "$$with_app|$$hosted" || status=$$?; \
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) $(TEST_RETRY) swift test $(if $(TEST_SKIP),--skip "$(TEST_SKIP)") || exit; \
+	exit $$status
+
+# The tests that need windows really drawn on screen (Scripts/on-screen-tests.txt), alone: on an unlocked Mac, when CI
+# skipped them because the Mac mini's screen was locked (TEST_SKIP, a regular expression of test names).
+test-screen: deps
+	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 $(TEST_TMP) swift test --filter "$$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+
+# The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
+# SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so
+# that only new problems fail; the core's portability and standalone guards and the split paths; the string tables;
+# the changelog's fragments (changes/, Scripts/changelog.py).
+# LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it, or a changelog's unreleased
+# section was edited by hand. `make lint-baseline` lowers the baselines after a fix. `make check` is everything a PR
+# has to pass: lint, then test.
+lint: swiftlint ratchet portable strings-check changelog-check
+
+swiftlint:
+	Scripts/swiftlint.sh
+
+ratchet:
+	Scripts/check-ratchet.sh $(if $(LINT_BASE),--base $(LINT_BASE))
+
+portable:
 	$(CORE)/Scripts/check-core-portable-test.sh
 	$(CORE)/Scripts/check-core-portable.sh
 	$(CORE)/Scripts/check-core-standalone.sh
-	$(CORE)/Scripts/check-core-standalone.sh --release
-	$(CORE)/Scripts/strings-test.sh
 	Scripts/check-split-paths.sh
-	swift build --product $(APP_NAME)
-	@status=0; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_TEST_BINARY="$$(swift build --show-bin-path)/$(APP_NAME)" swift test --package-path $(CORE) || status=$$?; \
-	$(TEST_AWS) $(TEST_THREADS) ALLINONEIME_REQUIRE_RIME_DATA=1 swift test || exit; \
-	exit $$status
+
+changelog-check:
+	python3 Scripts/changelog.py check $(if $(LINT_BASE),--base $(LINT_BASE))
+
+lint-baseline:
+	Scripts/swiftlint.sh --write-baseline
+	Scripts/check-ratchet.sh --update
+
+check: lint test
 
 # The core compiled for iOS, where there is no Process, Carbon or home folder: what keeps it from leaning on the Mac
 # (Core/Scripts/check-core-portable.sh checks its imports). Needs Xcode's iOS SDK; built in Core/.build/ios.

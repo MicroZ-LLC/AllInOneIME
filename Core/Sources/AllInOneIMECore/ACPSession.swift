@@ -134,6 +134,39 @@ public struct ACPBackend: SessionBackend {
                   permissionFiles: files.filter(\.enforced))
     }
 
+    /// Kiro's: an agent config of its own for the MCP servers (`kiroMCPAgent`), its mode then; any other ACP agent's
+    /// session has none.
+    public func mcpFiles(_ mcp: SessionMCP) -> [SessionFile] {
+        guard agent == .kiro else { return [] }
+        return [SessionFile(path: ".kiro/agents/\(Self.kiroMCPMode).json", content: mcp.isEmpty ? "" : Self.kiroMCPAgent(mcp))]
+    }
+
+    public func driver(sessionID: String, agentSessionID: String?, resume: Bool, directory: URL, web: SessionWeb,
+                       mcp: SessionMCP) -> any SessionDriver {
+        let files = mcpFiles(mcp).filter { !$0.content.isEmpty }
+        guard web == .open, !files.isEmpty else {
+            return driver(sessionID: sessionID, agentSessionID: agentSessionID, resume: resume, directory: directory, web: web)
+        }
+        return ACPDriver(directory: directory, agentSessionID: agentSessionID, mode: Self.kiroMCPMode,
+                         permissionFiles: self.files.filter(\.enforced) + files)
+    }
+
+    /// The mode of Kiro's session with MCP servers (`kiroMCPAgent`).
+    public static let kiroMCPMode = "allinoneime-mcp"
+
+    /// Kiro's agent config with `mcp`'s servers: the web tools and the servers' read-only tools, allowed without asking,
+    /// nothing else (`kiroAgent`'s otherwise).
+    static func kiroMCPAgent(_ mcp: SessionMCP) -> String {
+        let tools = ["web_search", "web_fetch"] + mcp.kiroTools
+        return SessionMCP.json([
+            "name": kiroMCPMode,
+            "description": "The input method's own session: answers questions, may read the web and the MCP servers checked in its settings.",
+            "tools": tools, "allowedTools": tools, "resources": ["file://.kiro/steering/**/*.md"],
+            "mcpServers": mcp.kiroServers, "includeMcpJson": false,
+            "permissions": ["rules": [["capability": "web_fetch", "effect": "allow"], ["capability": "web_search", "effect": "allow"]]],
+        ])
+    }
+
     /// Its web tools off (any `only`) in its offline mode or launch; one with neither can't have them off.
     public func effective(_ web: SessionWeb) -> SessionWeb? {
         guard case .only = web else { return .open }
@@ -162,7 +195,7 @@ final class ACPDriver: SessionDriver {
     }
 
     private let directory: URL
-    private let mode: String?
+    let mode: String?
     private let permissionFiles: [SessionFile]
     /// The agent's id of the session: the one to load, then the one open.
     private var agentSessionID: String?
@@ -172,6 +205,9 @@ final class ACPDriver: SessionDriver {
     private var requests: [Int: Request] = [:]
     /// A message waiting for the session to open, and whether it was stopped meanwhile.
     private var queued: String?
+    private var queuedImages: [PromptImage] = []
+    /// The agent takes images in a prompt (`initialize`'s `promptCapabilities.image`: Kiro CLI 3.3 and agy 1.5.8 do).
+    private var takesImages = false
     private var queuedCancelled = false
     /// The prompt being answered.
     private var prompting = false
@@ -190,12 +226,12 @@ final class ACPDriver: SessionDriver {
                                              "clientCapabilities": ["fs": ["readTextFile": false, "writeTextFile": false]]])]
     }
 
-    func message(_ text: String) -> [Data] {
+    func message(_ text: String, images: [PromptImage]) -> [Data] {
         guard ready else {
-            (queued, queuedCancelled) = (text, false)
+            (queued, queuedImages, queuedCancelled) = (text, images, false)
             return []
         }
-        return [prompt(text)]
+        return [prompt(text, images: images)]
     }
 
     func newConversation() -> [Data]? {
@@ -257,6 +293,7 @@ final class ACPDriver: SessionDriver {
         case .initialize:
             if let failure { return ([.failed(failure, endsProcess: true)], []) }
             let capabilities = result?["agentCapabilities"] as? [String: Any]
+            takesImages = (capabilities?["promptCapabilities"] as? [String: Any])?["image"] as? Bool == true
             if let agentSessionID, capabilities?["loadSession"] as? Bool == true {
                 return ([], [request(.load, "session/load", ["sessionId": agentSessionID, "cwd": directory.path, "mcpServers": []])])
             }
@@ -305,18 +342,22 @@ final class ACPDriver: SessionDriver {
     private func becameReady() -> (events: [ClaudeSession.Event], replies: [Data]) {
         ready = true
         guard let text = queued else { return ([.started], []) }
-        queued = nil
+        let images = queuedImages
+        (queued, queuedImages) = (nil, [])
         if queuedCancelled { return ([.started, .result(error: false, interrupted: true, text: "", status: nil)], []) }
-        return ([.started], [prompt(text)])
+        return ([.started], [prompt(text, images: images)])
     }
 
     private func newSession() -> Data {
         request(.new, "session/new", ["cwd": directory.path, "mcpServers": []])
     }
 
-    private func prompt(_ text: String) -> Data {
+    private func prompt(_ text: String, images: [PromptImage]) -> Data {
         prompting = true
-        return request(.prompt, "session/prompt", ["sessionId": agentSessionID ?? "", "prompt": [["type": "text", "text": text]]])
+        // A screenshot as an ACP image block before the text, where the agent takes one; else the text alone (it has
+        // the screenshot's text).
+        let blocks: [[String: Any]] = takesImages ? images.map { ["type": "image", "mimeType": $0.mediaType, "data": $0.base64] } : []
+        return request(.prompt, "session/prompt", ["sessionId": agentSessionID ?? "", "prompt": blocks + [["type": "text", "text": text]]])
     }
 
     private func request(_ kind: Request, _ method: String, _ params: [String: Any]) -> Data {

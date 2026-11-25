@@ -7,7 +7,8 @@ import Testing
 //
 //   r1  `config` and `doctor` are no longer built-in commands: not in `Command.builtins` or the catalog, not found by
 //       name (`parse`, `matching`, `palette`), not offered when "@" is typed.
-//   r2  Nothing else is removed: the other built-ins are still there, in the same order, and still run.
+//   r2  Nothing else is removed: the other built-ins are still there, in the same order, and still run (but `read`,
+//       `search` and `py`, which the owner deleted in 0.7.5: `deletedLater`).
 //   r3  Typing `@config …` or `@doctor` (with no command of that name of the user's own) behaves like any other unknown
 //       name: compared with `@zzqx` through the same composer, and through `CommandPlan` inside a text.
 //   r4  The names are free: a custom command named `config` or `doctor` is valid (`CustomCommand.problem(among:)` is
@@ -26,6 +27,9 @@ struct SettingsAssistantAcceptanceTests {
     /// The built-ins before the change, in order (0.6.5/calculator's `Command.builtins`).
     static let before = ["improve", "translate", "question", "agent", "open", "read", "note", "reminder", "py", "js", "search",
                          "tasks", "settings", "config", "doctor", "imessage", "reportissue"]
+    /// The built-ins deleted since, by the owner (0.7.5 settings, items 6 and 7: `@read`, `@search`; 0.7.5: `@py`, now one
+    /// of Settings' examples, `CommandExamples.python`): no longer looked for.
+    static let deletedLater = ["read", "search", "py"]
     static let refusal = "AI is off in this app"
 
     // MARK: Helpers
@@ -175,7 +179,7 @@ struct SettingsAssistantAcceptanceTests {
 
     @Test func r2_theOtherBuiltInsStayInOrder() {
         let names = Command.builtins.map(\.name)
-        let kept = Self.before.filter { !Self.removed.contains($0) }
+        let kept = Self.before.filter { !Self.removed.contains($0) && !Self.deletedLater.contains($0) }
         // Every other built-in is still there, in the order it had.
         #expect(names.filter { kept.contains($0) } == kept, "\(names)")
         for name in kept {
@@ -183,23 +187,25 @@ struct SettingsAssistantAcceptanceTests {
         }
         #expect(Command.builtins.contains(.improve) && Command.builtins.contains(.translate) && Command.builtins.contains(.question))
         #expect(Command.builtins.contains(.agent) && Command.builtins.contains(.open) && Command.builtins.contains(.settings))
-        #expect(Command.builtins.contains(.py) && Command.builtins.contains(.js) && Command.builtins.contains(.note))
+        #expect(Command.builtins.contains(.js) && Command.builtins.contains(.note))
         #expect(Command.builtins.contains(.reminder) && Command.builtins.contains(.tasks) && Command.builtins.contains(.imessage))
         #expect(Command.builtins.contains(.reportIssue))
         // The catalog offers what it did, less the two.
         let catalog = Command.catalog([]).map(\.name)
-        let offeredBefore = Self.before.filter { $0 != "read" && $0 != "search" }
+        let offeredBefore = Self.before.filter { !Self.deletedLater.contains($0) }
         #expect(catalog.filter { offeredBefore.contains($0) } == offeredBefore.filter { !Self.removed.contains($0) }, "\(catalog)")
         // Their names are still taken.
-        for name in ["improve", "translate", "question", "py", "settings", "note"] {
+        for name in ["improve", "translate", "question", "js", "settings", "note"] {
             #expect(CustomCommand(name: name, type: .prompt, prompt: "x").problem(among: []) == .nameTaken, "@\(name)")
         }
+        // `py`'s isn't any more: a command of the user's own may have it (0.7.5: `CommandExamples.python`).
+        #expect(CustomCommand(name: "py", type: .prompt, prompt: "x").problem(among: []) == nil)
     }
 
     @Test func r2_theOtherBuiltInsStillParseAndRun() throws {
         let catalog = Command.catalog([])
         for (typed, command, content) in [("@translate 你好", Command.translate, "你好"), ("@improve hi there", .improve, "hi there"),
-                                          ("@question what is it", .question, "what is it"), ("@py 2**10", .py, "2**10"),
+                                          ("@question what is it", .question, "what is it"), ("@js 2**10", .js, "2**10"),
                                           ("@settings x", .settings, "x"), ("@agent fix it", .agent, "fix it")] {
             let parsed = try #require(Command.parse(typed, in: catalog), "\(typed)")
             #expect(parsed.command == command && parsed.content == content, "\(typed)")
@@ -208,8 +214,8 @@ struct SettingsAssistantAcceptanceTests {
         let question = run("@question what is it", field())
         #expect(question.contains { if case let .startCommand(c, input, _) = $0 { return c == .question && input == "what is it" }
                                     else { return false } }, "\(question)")
-        let py = run("@py 23*17", field())
-        #expect(py.first == .startRun(.py, input: "23*17", id: 1), "\(py)")
+        let js = run("@js 23*17", field())
+        #expect(js.first == .startRun(.js, input: "23*17", id: 1), "\(js)")
         // @settings is still the command that opens Settings (where the Assistant page now is).
         #expect(Command.settings.name == "settings" && Command.settings.kind == .settings)
     }
@@ -288,7 +294,7 @@ struct SettingsAssistantAcceptanceTests {
         // In a text with commands inside it, `@config …` is text, as `@zzqx …` is.
         let catalog = Command.catalog([])
         for name in Self.removed {
-            for text in ["总结一下 @\(name) abc", "@\(name) 「a b」 then @py 1+1", "x @\(name)"] {
+            for text in ["总结一下 @\(name) abc", "@\(name) 「a b」 then @js 1+1", "x @\(name)"] {
                 let plan = CommandPlan.make(text, commands: catalog)
                 let control = CommandPlan.make(text.replacingOccurrences(of: name, with: Self.unknown), commands: catalog)
                 #expect(!plan.inner.contains { $0.command.name == name }, "\(text)")

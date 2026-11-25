@@ -106,6 +106,8 @@ final class ProgressWindow {
 final class InstallerDelegate: NSObject, NSApplicationDelegate {
     /// While installing or uninstalling: quitting then could leave half the apps in place.
     var busy = false
+    /// Nothing was installed before (`ask`): the last button opens the start, not Settings (#122).
+    var fresh = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.activate()
@@ -124,6 +126,7 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
 
     func ask() {
         let isInstalled = Installer.isInstalled
+        fresh = !isInstalled
         let installed = Installer.installedVersion() ?? ""
         // Another system identity's (a version before this one's): one too old to move itself to it is told first.
         let identity = Installer.installedIdentity()
@@ -264,14 +267,14 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
             }
             return
         }
+        // A new install starts on AllInOneIME Cloud (`Config.fresh`); Apple Intelligence needs no account. An update says
+        // the magic key the settings have. A fresh install's button opens the start (#122), an update's Settings.
         finish(tr("AllInOneIME \(newVersion) 装好了", "AllInOneIME \(newVersion) is installed"),
-               // A new install starts on AllInOneIME Cloud (`Config.fresh`); Apple Intelligence needs no account. An update
-               // names the command with the trigger the settings have.
-               UIText.triggered(tr("按 Ctrl+空格 切换到它，然后在任意输入框里打 @improve。第一次用时登录 AllInOneIME 云（每天 20 次免费）；在支持 Apple 智能的 Mac 上也可以用它，不用账号。",
-                                   "Press Ctrl+Space to switch to it, then type @improve in any text field. The first time, sign in to AllInOneIME Cloud (20 free requests a day); or, on a Mac with Apple Intelligence, use it with no account."),
-                                trigger: (try? Config.load())?.commandTrigger ?? "@"),
+               Installer.installedDetails(trigger: (try? Config.load())?.commandTrigger ?? "@"),
                button: tr("打开 AllInOneIME 设置", "Open AllInOneIME Settings")) {
-            NSWorkspace.shared.openApplication(at: Installer.settingsApp, configuration: .init()) { _, _ in
+            let configuration = NSWorkspace.OpenConfiguration()
+            configuration.arguments = Installer.settingsAppArguments(fresh: self.fresh)
+            NSWorkspace.shared.openApplication(at: Installer.settingsApp, configuration: configuration) { _, _ in
                 DispatchQueue.main.async { NSApp.terminate(nil) }
             }
         }

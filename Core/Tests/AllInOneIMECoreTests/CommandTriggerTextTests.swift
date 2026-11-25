@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -16,9 +17,8 @@ struct CommandTriggerTextTests {
             #expect(UIText.summary(.translate) == "Translate into your languages; with ~improve, both")
             #expect(UIText.describe(ScriptCommand.Problem.nameTaken("improve", by: .builtIn), file: URL(fileURLWithPath: "/x"))
                 == "~improve is a built-in command")
-            #expect(UIText.describe(CommandPipelineError.inner("read", "timed out")) == "~read: timed out")
+            #expect(UIText.describe(CommandPipelineError.inner("py", "timed out")) == "~py: timed out")
             #expect(CommandPipelineError.inner("stock", "no such symbol").errorDescription == "~stock: no such symbol")
-            #expect(UIText.describe(WebSearch.SearchError.emptyQuery) == "Type what to search for after ~search")
             #expect(SessionText.shortName(.atAgent, picked: .claude, language: "en").hasPrefix("~agent's agent"))
             for key in [ActionKey.enter, .optionTap, .optionSpace, .space] {
                 for terms in [PlatformTerms.mac, .windows] {
@@ -54,7 +54,7 @@ struct CommandTriggerTextTests {
     /// Every text of the settings document (both platforms') that names a command names it with the config's trigger.
     @Test(arguments: [SettingsPlatform.mac, .windows])
     func theSettingsDocumentNamesCommandsWithIt(_ platform: SettingsPlatform) throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("trigger-text-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("trigger-text-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("config.json")

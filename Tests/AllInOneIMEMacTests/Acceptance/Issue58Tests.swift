@@ -155,29 +155,10 @@ enum Issue58Child {
         let clang = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), ["clang", "-c", stubs.path, "-o", stubsObject.path], timeout: 60)
         guard clang.status == 0 else { throw Failure(description: clang.output) }
         // The Mac library, the core and librime's wrapper, as `swift test` built them.
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMEMac", "AllInOneIMECore", "AllInOneIMERime", "AllInOneIMEText", "AllInOneIMEScriptEngine",
-                       "CQuickJS", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else if let files = try? fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil) {
-                objects += files.filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
         let executable = scratch.appendingPathComponent("issue58")
-        let arguments = ["swiftc", "-swift-version", "5", "-j", "\(max(2, ProcessInfo.processInfo.activeProcessorCount))",
-                         "-I", modules.path, "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                         "-framework", "AppKit", "-framework", "InputMethodKit", "-framework", "Carbon", "-framework", "AVFoundation",
-                         "-framework", "Speech", "-framework", "EventKit", "-framework", "SwiftUI",
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                         mainFile.path] + others + [stubsObject.path] + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 900)
+        let swift = try SourceCompiler.compile(repository: repository, sources: [mainFile.path] + others,
+            extraObjects: [stubsObject.path], executable: executable,
+            timeout: 900)
         guard swift.status == 0 else { throw Failure(description: "compiling Sources/AllInOneIME with the harness:\n\(swift.output)") }
         return executable
     }

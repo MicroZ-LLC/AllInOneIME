@@ -493,11 +493,12 @@ public struct ICloudSyncEngine: @unchecked Sendable {  // used from one queue at
         }
         let allCleared = [cleared, icloud?.cleared].compactMap { $0 }.max()
         let entries = (history.entries + (icloud?.history.entries ?? [])).filter { entry in allCleared.map { entry.date > $0 } ?? true }
-        let merged = QuestionHistory(entries: entries.sorted { $0.date > $1.date })
+        var merged = QuestionHistory(entries: entries.sorted { $0.date > $1.date })
         var changed = false
         if merged != history {
             do {
-                try merged.write(to: questionsURL)
+                // Written over what the file has now, not what it had: a question recorded meanwhile stays (`keeping`).
+                merged = try QuestionHistory.update(at: questionsURL) { [merged] in $0 = merged.keeping($0, readAs: history) }.history
                 changed = true
             } catch {
                 return .failed(error)

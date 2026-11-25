@@ -1,7 +1,7 @@
 import Foundation
 
 /// The API keys of the Claude, Gemini and OpenAI-compatible providers, and of other services the
-/// user brings a key for (the web search, `WebSearch`). They are kept in the keychain (never in the config file); a key
+/// user brings a key for (Notion's token, `NotionAPI`). They are kept in the keychain (never in the config file); a key
 /// set in the user's shell (`ANTHROPIC_API_KEY`, …) is used when the keychain has none, and goes only to its provider's
 /// own service and to this computer (`shellKeyGoes`). Which keychain is the platform's
 /// (`Platform.secrets`): on the Mac the login keychain, as in 0.6.4, and while key sync is on (in a build entitled to

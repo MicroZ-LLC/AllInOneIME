@@ -361,7 +361,7 @@ extension SelfTest {
         press(controller, client, "@", code: 0x13, flags: .shift)  // ⇧2
         type("i", controller, client)
         replay(optionTap, controller, client, after: 0.2)
-        check(controller.composer.draft == "@improve " && client.marked == "improve › ",
+        check(controller.composer.draft == "@improve " && controller.preedit == "improve › ",
               "\(from): a tap of ⌥ (the action key) takes the command offered (\(controller.composer.draft))")
         _ = escape(controller, client)
         controller.commitComposition(client)
@@ -946,21 +946,6 @@ extension SelfTest {
         check(owners.handled && owners.calls == again + again + again + again && owners.page.text == "#17 tail"
               && owners.page.selectedRange() == NSRange(location: 3, length: 0) && owners.rows,
               "…↓ ↓ ↑ ↑ (the owner's): each key so (\(owners.calls.count) calls), the text and the caret as they were")
-        // Code's word held as marked text (the page has the key as the input method's already): nothing more is marked.
-        let held = PageFieldClient()
-        held.bundleIDOverride = slack
-        controller.activateServer(held)
-        controller.apply([.marked("pr", cursor: 2, converted: false)], client: held)
-        let heldBefore = held.calls.count
-        held.duringKey = true
-        controller.apply([.rowsTookKey], client: held)
-        held.duringKey = false
-        _ = pump(timeout: 0.1) { false }
-        let heldCalls = Array(held.calls.dropFirst(heldBefore))
-        check(heldCalls.isEmpty && held.text == "pr" && held.hasMarked,
-              "…with Code's word held as marked text: nothing more marked, the word as it was (\(heldCalls.isEmpty ? "no call" : said(heldCalls)))")
-        controller.apply([.marked("", cursor: 0, converted: false)], client: held)
-        controller.deactivateServer(held)
 
         // A field of an app not built on Chromium (Messages' kind): what 0.6.7.1 put in, during the key; nothing for ↓ ↑ →
         // Esc (such a field never acts on a key the input method took).

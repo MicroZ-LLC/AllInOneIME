@@ -12,6 +12,7 @@ let usage = """
       --disable         disable, and remove it from your input sources
       --status          show registration, process and configuration status
       --settings        run as the input method and open the settings window
+      --start           …and open the start once (a fresh install), else the settings window
       --selftest [DIR] [--rime-data DATA] [--typing-lag-only | --autocomplete-only | --settings-only |
                  --suggestions-only | --clipboard-only]
                         drive the input controller (real Rime engine on DATA, else the installed
@@ -82,6 +83,11 @@ enum RimeDirectories {
     static var zhuyin: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-zhuyin")
     }
+    /// The app's tables of shape codes (`ShapeCode`, the folder `aux_code` in it), linked into the pack
+    /// (`LanguagePackStore.linkData`); their filter is with the scripts (`code`).
+    static var auxCode: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-aux-code")
+    }
     /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
     static var openCC: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
@@ -95,89 +101,7 @@ enum RimeDirectories {
     }
 }
 
-/// Fuzzy pinyin (`FuzzyPinyin`) in the Rime user folder: the patch for the pairs the config turns on, for the
-/// characters Chinese is typed in (`ChineseCharacters`, Traditional ones through OpenCC), and for the filter of the
-/// candidates removed that the app's Lua has (`RemovedCandidates.luaFilter`), so written with no pairs too; for full
-/// pinyin's schema and the Shuangpin scheme or Zhuyin typed with (`PinyinScheme`), whose schema is deployed beside it
-/// (the schema list, `default.custom.yaml`).
-enum RimeFuzzy {
-    /// The characters the patch was last written for (`follow`).
-    static let written = ChineseCharacters.Written()
-    /// The way of typing pinyin the patch and the schema list were last written for (`follow`); nil: not written yet.
-    static var writtenScheme: PinyinScheme?
-
-    /// Writes (or removes) the patch, and the schema list; nil when it couldn't. `.written` and `.removed` need a
-    /// deployment, and so does a schema list written (`schemaListWritten`).
-    @discardableResult
-    static func write(_ ids: [String], characters: ChineseCharacters, scheme: PinyinScheme) -> FuzzyPinyin.Outcome? {
-        schemaListWritten = false
-        guard let shared = RimeDirectories.shared else { return nil }
-        // Whatever came of it: tried once for these characters, not again at every check (`follow`).
-        defer {
-            written.wrote(characters)
-            writtenScheme = scheme
-        }
-        schemaListWritten = writeSchemaList(scheme)
-        do {
-            let outcome = try FuzzyPinyin.apply(ids, characters: characters, scheme: scheme,
-                                                schema: shared.appendingPathComponent("rime_ice.schema.yaml"), userDir: RimeDirectories.user)
-            if outcome == .userFile { log.notice("fuzzy pinyin not applied: the Rime folder has the user's own \(FuzzyPinyin.fileName, privacy: .public)") }
-            return outcome
-        } catch {
-            log.error("could not write the fuzzy pinyin patch: \(String(describing: error), privacy: .public)")
-            return nil
-        }
-    }
-
-    /// The last `write` wrote the schema list anew (another scheme picked): librime deploys it.
-    private(set) static var schemaListWritten = false
-
-    /// The schemas deployed (`PinyinScheme.applySchemaList`): full pinyin's, and the Shuangpin scheme's or Zhuyin's.
-    /// Whether it was written anew.
-    private static func writeSchemaList(_ scheme: PinyinScheme) -> Bool {
-        do {
-            switch try PinyinScheme.applySchemaList(scheme, userDir: RimeDirectories.user) {
-            case .written: return true
-            case .unchanged: return false
-            case .userFile:
-                log.notice("the schemas deployed are the user's own default.custom.yaml's: \(scheme.rawValue, privacy: .public) types only if it lists it")
-                return false
-            }
-        } catch {
-            log.error("could not write the schema list: \(String(describing: error), privacy: .public)")
-            return false
-        }
-    }
-
-    /// Changed in the settings: written, and Rime deployed again when it changed (about a second; a Shuangpin scheme
-    /// deployed for the first time, its spellings too, a moment more; Zhuyin, its dictionaries, a couple of seconds).
-    @discardableResult
-    static func apply(_ ids: [String], characters: ChineseCharacters, scheme: PinyinScheme) -> FuzzyPinyin.Outcome? {
-        let outcome = write(ids, characters: characters, scheme: scheme)
-        if outcome == .written || outcome == .removed || schemaListWritten { RimeService.shared.redeploy() }
-        return outcome
-    }
-
-    /// The settings read again (a text field focused) or the system's languages changed: with no characters picked they
-    /// follow the system's (`Config.typedChinese`), so the candidates do too once they differ from the patch's
-    /// (`ChineseCharacters.Written`): written again and deployed again, as a change in the settings is. So is another way
-    /// of typing pinyin than the one written (`Config.pinyinScheme` changed in the file, or by the settings of another
-    /// shell), which the next key types with once it is deployed. Nothing while the config file doesn't parse (nil): its
-    /// defaults aren't the user's fuzzy pinyin. Nothing in the self-test either (`Config.selfTestURL`): its Rime has a user
-    /// folder of its own, and the patch is the user's.
-    @MainActor
-    static func follow(_ config: Config?) {
-        guard let config, Config.selfTestURL == nil, RimeService.shared.isStarted else { return }
-        let characters = written.changed(config)
-        let scheme = config.typedPinyin
-        guard characters != nil || scheme != writtenScheme else { return }
-        if let characters {
-            log.notice("the system's languages changed the characters Chinese is typed in: \(characters.rawValue, privacy: .public)")
-        }
-        if scheme != writtenScheme { log.notice("pinyin is typed another way: \(scheme.rawValue, privacy: .public)") }
-        apply(config.fuzzyPinyin, characters: characters ?? config.typedChinese, scheme: scheme)
-    }
-}
+// Fuzzy pinyin's patch and the schema list (`RimeFuzzy`): RimeFuzzy.swift.
 
 /// Opens the settings window when the input method is "opened" again (the AllInOneIME Settings app does
 /// that). The text input system never sends reopen events, so typing is unaffected.
@@ -185,7 +109,11 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
     static let shared = IMEAppDelegate()
 
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
-        MainActor.assumeIsolated { SettingsWindow.shared.show() }
+        MainActor.assumeIsolated {
+            // The Settings app's reopen after it asked for the start (`StartWindow.showNotification`): not Settings over it.
+            if let shown = StartWindow.shownAt, Date().timeIntervalSince(shown) < 5 { return }
+            SettingsWindow.shared.show()
+        }
         return false
     }
 
@@ -226,7 +154,7 @@ private let terminationSignal: DispatchSourceSignal = {
     return source
 }()
 
-func runServer(showSettings: Bool = false) -> Never {
+func runServer(showSettings: Bool = false, showStart: Bool = false) -> Never {
     let app = NSApplication.shared
     app.delegate = IMEAppDelegate.shared
     guard let name = Bundle.main.object(forInfoDictionaryKey: "InputMethodConnectionName") as? String,
@@ -238,8 +166,9 @@ func runServer(showSettings: Bool = false) -> Never {
     }
     log.info("IMKServer started: \(name, privacy: .public)")
     terminationSignal.resume()
-    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it.
-    DispatchQueue.global(qos: .utility).async { _ = ShellEnvironment.current }
+    // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it, and the
+    // main thread never does (the fallback PATH until then: `ShellEnvironment.path`).
+    ShellEnvironment.warmUp()
     // A custom command a built-in now has the name of (a custom @reply): renamed in the config, said once in the next
     // text field (`BuiltinRenames`).
     BuiltinRenames.apply()
@@ -259,15 +188,8 @@ func runServer(showSettings: Bool = false) -> Never {
             MenuBarIcon.shared.apply(LiveConfig.current.menuBarIcon)
         }
     }
-    if showSettings {
-        // On About instead when the move to this identity shows the step to add the input source first (decided by
-        // `UpdateController.start` below, before this runs).
-        DispatchQueue.main.async {
-            MainActor.assumeIsolated {
-                if UpdateController.shared.firstShown != .inputSourceStep { SettingsWindow.shared.show() }
-            }
-        }
-    }
+    // The window the AllInOneIME Settings app asked for: the start a fresh install opens (once), or Settings.
+    MainActor.assumeIsolated { StartWindow.launched(start: showStart, settings: showSettings) }
     // librime on the Chinese pack if it's installed; an upgraded user who had Chinese gets it downloaded.
     MainActor.assumeIsolated { LanguagePackManager.shared.launch() }
     // Whether the input source is enabled (the user adds a new one in System Settings): About shows the step until it is.
@@ -593,6 +515,7 @@ case "--selftest":
         RimeDirectories.override = URL(fileURLWithPath: arguments[index + 1])
     }
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
+    _ = ShellEnvironment.current  // the login shell's answer, as the input method has it once it has warmed up
     exit(MainActor.assumeIsolated {
         SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
                      autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"),
@@ -603,6 +526,7 @@ case "--showcase":
     MainActor.assumeIsolated { PanelShowcase.run(output: directory, dark: arguments.contains("dark"), chinese: arguments.contains("zh")) }
 case "--settings-image":
     let directory = URL(fileURLWithPath: arguments.count > 1 ? arguments[1] : "/tmp/allinoneime-settings")
+    _ = ShellEnvironment.current  // the agents installed as the window shows them once the login shell has answered
     MainActor.assumeIsolated {
         // `extensions=<folder>[,<found folder>…]`: the Custom Commands page shows those folders' extensions instead of
         // the user's (the first as added, the others as found by Spotlight).
@@ -664,6 +588,9 @@ case "--apply-update":
 case "--settings":
     // Started by the AllInOneIME Settings app: serve as the input method and show the settings window.
     runServer(showSettings: true)
+case "--start":
+    // Started by the AllInOneIME Settings app after a fresh install: the start (#122), once; else Settings.
+    runServer(showStart: true)
 case "-h", "--help":
     print(usage)
     exit(0)

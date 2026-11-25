@@ -71,8 +71,6 @@ final class AllInOneIMEInputController: IMKInputController {
     var activeApp: String? { session.field.app }
     /// The bundle id of the app being typed in, as the client says it.
     var appID: String? { (clientOverride ?? client())?.bundleIdentifier() }
-    /// Whether the app still has the text being typed (Slack may take it into a mention on its own).
-    private var markedWatch = MarkedTextWatch()
     /// Whether this text session has delivered a key yet (logged once, without the key).
     private var receivedKeys = false
     /// Whether the selection may be read with Accessibility when the field doesn't say (`SelectedText`). False in the
@@ -81,6 +79,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Only set by the self-test: IMK refuses to create a controller for anything but its own
     /// client proxies, so the test injects its fake text field here.
     var clientOverride: IMKTextInput?
+    /// Set for one `apply`: its outputs answer a key the session took that composes (see `apply`).
+    private var keyComposes = false
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
     /// Opens an `@open` result: a web address in the default browser, anything else as a file (the self-test opens
@@ -139,10 +139,9 @@ final class AllInOneIMEInputController: IMKInputController {
     var voiceFile: (url: URL, speed: Double)?
     /// False in the self-test: the microphone (and its permission prompt) is never touched.
     static var microphoneAllowed = true
-    /// Whether marked text this controller set may be in the document. Empty marked text is only sent
-    /// to clear it: with nothing marked, NSTextView puts (empty) marked text in place of the selection,
-    /// deleting the selected text (a Shift tap, a focus change).
-    private var hasMarkedText = false
+    /// Whether marked text of ours is in the document: only a row marked during its key (`markRow`). What is being typed
+    /// is never marked there (`InputSession+Preedit.swift`): the panel's input line shows it.
+    var hasMarkedText: Bool { markedRow != nil }
     /// What a key the rows took put in as marked text in a Chromium or Electron app (a row, or the token's last character
     /// again), to commit once the key is done (`markRow`).
     private var markedRow: MarkedRow?
@@ -184,12 +183,12 @@ final class AllInOneIMEInputController: IMKInputController {
     var fieldFrame: (@MainActor () -> NSRect?)?
     /// What a panel's anchor goes by in this field (`PanelAnchor.Memory`: the last rect to trust it told), and a count
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
-    private(set) var panelAnchor = PanelAnchor.Memory()
-    private var anchorToken = 0
-    /// Each app's last panel rect to trust, whatever its field (`anchor`: the fallback where a field has none yet).
-    @MainActor private static var lastAnchorByApp: [String: NSRect] = [:]
+    var panelAnchor = PanelAnchor.Memory()
+    var anchorToken = 0
+    /// How many times the panel was placed (`anchor`): one placed while the field was asked holds what's newer.
+    var placements = 0
     /// What the log said last of a panel's anchor not trusted (`anchor`).
-    private var anchorSaid: String?
+    var anchorSaid: String?
 
     static let notFound = NSRange(location: NSNotFound, length: NSNotFound)
 
@@ -317,8 +316,6 @@ final class AllInOneIMEInputController: IMKInputController {
         super.activateServer(sender)
         MainActor.assumeIsolated {
             commitRow()  // in the field it went into, while that one's session is on
-            markedWatch.reset()  // another text field, maybe another app
-            hasMarkedText = false
             appliedLayout = nil  // the layout is told to each text field
             fieldSession += 1
             Self.activeController = self
@@ -344,11 +341,8 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     override func commitComposition(_ sender: Any!) {
-        MainActor.assumeIsolated {
-            commitRow()
-            stopTyping(insertingRest: true)  // the app wants everything in now (a click elsewhere in it)
-            apply(session.handle(.commit).outputs, client: sender as? IMKTextInput)
-        }
+        // The app wants everything in now (a click elsewhere in it): what is typed out goes in, the pinyin doesn't.
+        MainActor.assumeIsolated { leaveField(.commit, client: sender as? IMKTextInput, insertingRest: true) }
     }
 
     // MARK: - Typing a result out
@@ -422,7 +416,6 @@ final class AllInOneIMEInputController: IMKInputController {
             }
         } else {
             client?.insertText(text, replacementRange: range)
-            hasMarkedText = false  // the inserted text took the marked text's place
             insertedDuringKey = true
         }
     }
@@ -447,6 +440,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the text input protocol has fields honor; one that ignores it still has the text selected, and an insert replaces
     /// what is selected. A result that starts with the selection (`@reply`'s, after the message selected) only has the
     /// rest inserted after it (`afterSelection`): the selection is never rewritten, its formatting, links and images kept.
+    /// A field that doesn't take the result in its place is remembered (`rememberIfNotReplaced`).
     @MainActor
     func replaceSelection(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput?) {
         guard let client else { return }
@@ -458,6 +452,34 @@ final class AllInOneIMEInputController: IMKInputController {
         let range = selection.range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound
         client.insertText(text, replacementRange: range)
         log.notice("selection replaced (\(selection.range == nil ? "what is selected" : "its range", privacy: .public), \(text.count) characters)")
+        rememberIfNotReplaced(text, selection, in: client)
+    }
+
+    /// How long after a result went in place of the selection its field is read back, and again: a browser tells its text
+    /// late, so only what it says both times counts.
+    static let replacementChecks: [TimeInterval] = [0.3, 1]
+
+    /// Remembers the app (`LearnedShared`) when its field didn't take `text` in place of `selection`, read back at each of
+    /// `replacementChecks` (`SessionText.selectionNotReplaced`: the selection's text still where it was, not the result):
+    /// its selection isn't used again, as an app that can't take a typo back gets none (Privacy → Learned… lists it).
+    /// Nothing is learned where it can't be told (no range, the field doesn't say).
+    @MainActor
+    private func rememberIfNotReplaced(_ text: String, _ selection: Composer.Selection, in client: IMKTextInput) {
+        let app = client.bundleIdentifier() ?? ""
+        guard !app.isEmpty, selection.range != nil else { return }
+        Task { @MainActor in
+            var waited: TimeInterval = 0
+            for check in Self.replacementChecks {
+                try? await Task.sleep(nanoseconds: UInt64((check - waited) * 1_000_000_000))
+                waited = check
+                let notReplaced = SessionText.selectionNotReplaced(selection, by: text) { range in
+                    client.attributedSubstring(from: NSRange(location: range.lowerBound, length: range.count))?.string
+                }
+                guard notReplaced == true else { return }
+            }
+            guard LearnedShared.store.turnSelectionOff(in: app) else { return }
+            log.error("\(app, privacy: .public) didn't take a result in place of the selection; its selection isn't used there again")
+        }
     }
 
     /// What of `text` goes in after `selection` and where (an empty range at its end): `SessionText.afterSelection`.
@@ -583,21 +605,21 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func deactivateServer(_ sender: Any!) {
         MainActor.assumeIsolated {
-            commitRow()  // still this field's session
-            stopTyping(insertingRest: false)  // another field has the focus now: the rest isn't typed anywhere
-            apply(session.handle(.blur).outputs, client: sender as? IMKTextInput)
+            // Still this field's session; another field has the focus now: the rest of a result isn't typed anywhere.
+            leaveField(.blur, client: sender as? IMKTextInput, insertingRest: false)
             fieldSession += 1
             panelAnchor.forget()  // the last rect to trust was this field's
             (anchorToken, anchorSaid) = (anchorToken + 1, nil)
             if Self.activeController === self { Self.activeController = nil }
             KeyGuard.shared.detach(self)
+            if Self.pointerOwner === self { Self.pointerOwner = nil }
             hideTranslateChip()  // Translate as You Type's chip is for the field being typed in
         }
         super.deactivateServer(sender)
     }
 
     override func composedString(_ sender: Any!) -> Any! {
-        composer.draftInPanel ? "" : composer.markedText  // a command on the selection is in the panel, not the field
+        ""  // what is being typed is in the panel, never in the field
     }
 
     override func inputControllerWillClose() {
@@ -660,8 +682,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // The same key down handed over a second time (the owner's "#17" had the session's token one "1" longer than
         // the field): answered as the first was, before anything sees it (the session, typing out, Translate as You
         // Type's long press).
-        let key = KeyEchoes.Key(keyCode: event.keyCode, characters: event.characters ?? "", modifiers: event.modifierFlags.rawValue,
-                                isRepeat: event.isARepeat, timestamp: event.timestamp)
+        let key = MacKeyEvents.echoKey(event)
         let now = ProcessInfo.processInfo.systemUptime
         if let handled = Self.keyEchoes.copy(of: key, now: now) {
             // `log stream --level debug --predicate 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage
@@ -681,15 +702,18 @@ final class AllInOneIMEInputController: IMKInputController {
     /// is the field being typed in, nothing of ours is marked in it (marked text keeps keys from any app already), and a
     /// panel shows (suggestion rows, clipboard history's), this field's autocomplete suggestion shows after the caret
     /// (`GhostOverlay`: its Esc and Tab, which a Chromium page acted on too), or the key is ⌃V (which opens clipboard
-    /// history's). The tap's event is made an NSEvent only then: the tap has every key of every app.
+    /// history's); and ⌘V into a command not run yet, with its text marked. The tap's event is made an NSEvent only then:
+    /// the tap has every key of every app.
     @MainActor
     func keyAtTap(_ event: CGEvent) -> Bool? {
-        guard !hasMarkedText, let client = client() else { return nil }
-        // ⌃ alone of the four (a key posted by another program carries other bits besides).
-        let controlV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
-            && event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]) == .maskControl
-        let ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
-        guard CandidatePanel.shared.isShowing || ghost || controlV, let key = NSEvent(cgEvent: event) else { return nil }
+        // ⌃ (or ⌘) alone of the four (a key posted by another program carries other bits besides).
+        let flags = event.flags.intersection([.maskCommand, .maskAlternate, .maskControl, .maskShift]), isV = event.getIntegerValueField(.keyboardEventKeycode) == 0x09
+        // ⌘V in a command not run yet pastes into it in every app (`Composer.pastesIntoCommand`): taken here, marked text
+        // or not, before a terminal or Notes, which paste on ⌘V whatever the input method says, have it.
+        let commandV = isV && flags == .maskCommand && composer.pastesIntoCommand
+        guard !hasMarkedText || commandV, let client = client() else { return nil }
+        let controlV = isV && flags == .maskControl, ghost = GhostOverlay.shared.isVisible && GhostOverlay.shared.owner === self
+        guard CandidatePanel.shared.isShowing || ghost || controlV || commandV, let key = NSEvent(cgEvent: event) else { return nil }
         atTap = true
         defer { atTap = false }
         return handleKeyDown(key, client: client)
@@ -700,11 +724,12 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     private func attachKeyGuard() {
         KeyGuard.shared.attach(self) { [weak self] event in self?.keyAtTap(event) ?? nil }
+        watchPointerDowns()  // the clicks that leave what is being typed
     }
 
     /// The key being answered came from the key tap (`keyAtTap`): no app will have it, so nothing is marked to keep it
     /// from one (`marksRow`, `keepFromTerminal`).
-    private var atTap = false
+    private(set) var atTap = false
 
     /// A key down handed over for the first time.
     @MainActor
@@ -728,9 +753,7 @@ final class AllInOneIMEInputController: IMKInputController {
             log.notice("receiving keys (engine ready: \(RimeService.shared.isReady))")
         }
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        let key = KeyEvent(keyCode: event.keyCode, usage: MacKeyboard.usage(event.keyCode), characters: event.characters ?? "",
-                           charactersIgnoringModifiers: event.charactersIgnoringModifiers ?? "",
-                           modifiers: Self.modifiers(event.modifierFlags), isRepeat: event.isARepeat)
+        let key = MacKeyEvents.key(event)
         let context = fieldContext(in: target) { session.fieldWants(for: key, given: $0) }
         // Translate as You Type's target removed from the settings: the first output language typed text is translated
         // into (else off), before the key.
@@ -738,117 +761,55 @@ final class AllInOneIMEInputController: IMKInputController {
         if !session.clipboardShown { pastedOver = nil }
         // ⌃V's panel only where the keys it takes can be kept from the app.
         if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
+        let composing = composer.isComposing
         let response = session.handle(.key(key, context))
+        keyComposes = response.handled && (composing || composer.isComposing)
         apply(response.outputs, client: client)
         if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
         return response.handled
     }
 
-    /// The latest time of each modifier change handed over, whatever the text field (a copy may reach another one).
-    @MainActor private static var modifierEchoes = ModifierEchoes()
-
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
         commitRow()  // a row the key before put in, if this change came first
-        // Chromium and Electron apps (Slack, VS Code, Chrome) hand every modifier change over twice, the same event,
-        // after the next change too when the page is busy: the copy changes nothing, for the session's composer (a tap
-        // of Shift or ⌥) and its long press of Shift (Translate as You Type) alike.
-        guard !Self.modifierEchoes.isEcho(keyCode: event.keyCode, flags: event.modifierFlags.rawValue,
-                                          timestamp: event.timestamp, now: ProcessInfo.processInfo.systemUptime) else {
-            // Each copy dropped, how long after the event's time it came (`log stream --level debug --predicate
-            // 'subsystem == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "modifier copy"'`): what
-            // shows a real app hands the copy over with the event's own time.
-            let late = (ProcessInfo.processInfo.systemUptime - event.timestamp) * 1000
-            log.debug("""
-                modifier copy dropped: key \(event.keyCode, privacy: .public), flags \
-                \(event.modifierFlags.rawValue, format: .hex(includePrefix: true), privacy: .public), \
-                \(late, format: .fixed(precision: 1), privacy: .public) ms after its time
-                """)
-            return
-        }
+        guard !Self.isModifierCopy(event) else { return }  // Chromium's and Electron's second copy
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
         // is no long press of it (only the session's long press minds fn).
-        var modifiers = Self.flagsChangedModifiers(event.modifierFlags)
-        if event.modifierFlags.contains(.function) { modifiers.insert(.function) }
-        let change = ModifierChange(key: MacKeyCodes.key(event.keyCode), modifiers: modifiers,
-                                    timestamp: event.timestamp, late: max(ProcessInfo.processInfo.systemUptime - event.timestamp, 0))
+        let change = MacKeyEvents.modifierChange(event, now: ProcessInfo.processInfo.systemUptime)
         let context = fieldContext(in: target) { session.fieldWants(forModifiers: change, given: $0) }
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
         apply(session.handle(.modifiers(change, context)).outputs, client: client)
     }
 
-    /// What the field says around the caret as a key goes down or a modifier changes: what the session wants of it
-    /// (`wants`, its `fieldWants` given what was read so far), asked again until it wants nothing more.
+    /// What the field says around the caret as a key goes down or a modifier changes (`FieldReading.context`).
     @MainActor
     private func fieldContext(in target: IMKTextInput?, wants: (FieldContext) -> FieldContext.Parts) -> FieldContext {
-        var context = FieldContext(field: Self.fieldInfo(target))
-        while true {
-            let missing = wants(context).subtracting(context.read)
-            if missing.isEmpty { return context }
-            read(missing, of: target, into: &context)
-        }
+        fieldReading.context(in: target, wants: wants)
+    }
+
+    /// How this controller reads the field (`FieldReading`): secure input as the session's services and this Mac tell it,
+    /// a password field as Accessibility does (`passwordFieldByAccessibility`), the selection Accessibility may tell after
+    /// the key (`SelectedText`, not in the self-test: `selectionByAccessibility`).
+    @MainActor
+    var fieldReading: FieldReading {
+        FieldReading(isTerminal: Self.isTerminal(app:), secureInputActive: services.secureInputActive,
+                     blocksComposing: SecureInput.blocksComposing,
+                     passwordField: { [weak self] in self?.passwordFieldByAccessibility() ?? nil },
+                     selectionMayBeUntold: selectionByAccessibility ? { SelectedText.mayBeUntold(in: $0, chromium: $1) } : nil,
+                     chromiumApp: chromiumApp)
     }
 
     /// The field a key or a modifier change comes from (its app asked of the client once).
     static func fieldInfo(_ client: IMKTextInput?) -> FieldInfo {
-        let app = client?.bundleIdentifier()
-        return FieldInfo(app: app, terminal: isTerminal(app: app))
-    }
-
-    /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
-    /// session composes nothing in the app that turned it on. A password field that doesn't is told by Accessibility
-    /// (`passwordFieldByAccessibility`, unknown where it can't tell), asked only when the session wants it: once a field,
-    /// where suggestions may show (for the English words learned it's asked off the key, `readPasswordField`). The selection is read with Accessibility where the field doesn't tell it (only how
-    /// it was read and how long it is are logged); the character before the caret, where "@" is typed; the text around the
-    /// caret for `@reply`, or a snippet of more than one line put in (`readFieldText`), never in a field told to be a
-    /// password field (the session doesn't ask for it in one it knows: `InputSession.nothingLeavesDevice`).
-    @MainActor
-    private func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
-        if parts.contains(.secure) { context.secure = SecureInput.blocksComposing(target) }
-        if parts.contains(.passwordField), !context.secure {
-            let told = passwordFieldByAccessibility()
-            context.field?.secure = told == true
-            context.passwordFieldUnknown = told == nil
-        }
-        if parts.contains(.markedText), let target {
-            context.markedTextTaken = markedWatch.appTookText(expected: composer.markedText, reportedLength: Self.markedLength(target))
-        }
-        if parts.contains(.selectedRange) { context.selectedRange = target.flatMap { Self.range($0.selectedRange()) } }
-        if parts.contains(.selection) {
-            // What the field tells, at once; what only Accessibility can tell is read after the key, off this thread
-            // (`readSelectionAfterKey`): the "@" list shows on the key meanwhile.
-            if let read = SelectedText.read(from: target, accessibility: false) {
-                log.notice("selection read (\(read.source.rawValue, privacy: .public), \(read.text.count) characters)")
-                context.selection = Composer.Selection(text: read.text, range: read.range.map { $0.location..<NSMaxRange($0) })
-            } else if selectionByAccessibility {
-                context.selectionFollows = SelectedText.mayBeUntold(in: target, chromium: chromiumApp(context.field?.app))
-            }
-        }
-        if parts.contains(.beforeCaret) { context.beforeCaret = Self.beforeCaret(in: target) }
-        if parts.contains(.text), context.field?.secure != true {
-            context.text = readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
-                                         purpose: "a key (@reply, a snippet's indentation)")
-        }
-        context.read.formUnion(parts)
+        FieldReading.fieldInfo(client, isTerminal: isTerminal(app:))
     }
 
     /// `range` as UTF-16 offsets; nil for a field that tells none.
-    static func range(_ range: NSRange) -> Range<Int>? {
-        range.location == NSNotFound || range.length == NSNotFound ? nil : range.location..<NSMaxRange(range)
-    }
+    static func range(_ range: NSRange) -> Range<Int>? { FieldReading.range(range) }
 
     /// What is right before the caret, as `target` tells it (`FieldContext.BeforeCaret`).
-    static func beforeCaret(in target: IMKTextInput?) -> FieldContext.BeforeCaret {
-        guard let target else { return .unknown }
-        let caret = target.selectedRange()
-        guard caret.location != NSNotFound else { return .unknown }  // a field that tells no caret
-        guard caret.length == 0, caret.location > 0 else { return .nothing }  // a selection (a command may work on it), the start
-        guard let before = target.attributedSubstring(from: NSRange(location: caret.location - 1, length: 1))?.string else {
-            return .unknown  // a field that reads nothing back
-        }
-        return .text(before)
-    }
+    static func beforeCaret(in target: IMKTextInput?) -> FieldContext.BeforeCaret { FieldReading.beforeCaret(in: target) }
 
     /// Types with the keyboard layout of the input language in effect: French with its own (AZERTY by
     /// default, `Config.keyboardLayouts`), the others with the one the user picked in the system (or for
@@ -868,47 +829,35 @@ final class AllInOneIMEInputController: IMKInputController {
         TISCopyCurrentASCIICapableKeyboardLayoutInputSource().flatMap { KeyboardLayout(source: $0.takeRetainedValue())?.id }
     }
 
-    static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
-        var result: KeyModifiers = []
-        if flags.contains(.shift) { result.insert(.shift) }
-        if flags.contains(.control) { result.insert(.control) }
-        if flags.contains(.option) { result.insert(.option) }
-        if flags.contains(.command) { result.insert(.command) }
-        if flags.contains(.capsLock) { result.insert(.capsLock) }
-        return result
-    }
+    static func modifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers { MacKeyEvents.modifiers(flags) }
 
-    /// Device-dependent bits of NSEvent.modifierFlags (NX_DEVICELALTKEYMASK / NX_DEVICERALTKEYMASK).
-    static let leftOptionBit: UInt = 0x20, rightOptionBit: UInt = 0x40
-    /// All eight (IOKit's NX_DEVICE…KEYMASK): which side's key of each kind is down.
-    static let sideBits: [(bit: UInt, side: KeyModifiers)] = [
-        (0x01, .leftControl), (0x02, .leftShift), (0x04, .rightShift), (0x08, .leftCommand), (0x10, .rightCommand),
-        (leftOptionBit, .leftOption), (rightOptionBit, .rightOption), (0x2000, .rightControl),
-    ]
-
-    /// Modifiers of a modifier-change event, including which side's keys are down.
-    static func flagsChangedModifiers(_ flags: NSEvent.ModifierFlags) -> KeyModifiers {
-        var result = modifiers(flags)
-        for (bit, side) in sideBits where flags.rawValue & bit != 0 { result.insert(side) }
-        return result
-    }
+    /// Device-dependent bits of NSEvent.modifierFlags (`MacKeyEvents`).
+    static let leftOptionBit = MacKeyEvents.leftOptionBit, rightOptionBit = MacKeyEvents.rightOptionBit
 
 
     // MARK: - Outputs
 
     /// Does what the session answered, in order, in `client` (the field of the key; nil: the one being typed in).
+    /// The session's outputs, done in `client`. `keyComposes`: they answer a key the session took that types what is being
+    /// written, or ends it (a letter of pinyin, ⌫ in it, Space or a digit picking a candidate, a key of a command's draft).
+    /// Nothing is marked in the field for it (`InputSession+Preedit.swift`), so the key is kept from apps that act on a
+    /// key the input method took when nothing is marked during it, as a key the rows take is (`rowByKey`): Chromium's
+    /// pages and Electron's apps (`marksRow`), terminals (`keepFromTerminal`).
     @MainActor
     func apply(_ outputs: [SessionOutput], client: IMKTextInput?) {
+        let keyComposes = self.keyComposes
+        self.keyComposes = false
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // What the next `replace` must take out (`checkNextReplace`): a row in the token's place.
         var check: ReplacementCheck?
-        // A row the key being answered put in (`rowByKey`), until what puts it in: whether it goes in as marked text.
-        var rowByKey: Bool?
+        // A row the key being answered put in (`rowByKey`), or what a key that composes puts in (`keyComposes`), until what
+        // puts it in: whether it goes in as marked text.
+        var rowByKey: Bool? = keyComposes ? composingKeyMarks(in: target) : nil
         // The rows took the key and put nothing in (`rowsTookKey`): whether the key is kept from the app (`markBeforeCaret`).
         var keepKey = false
-        // The rows (suggestions', clipboard history's) took the key, whatever it puts in: in a terminal it is kept from the
-        // shell below (`keepFromTerminal`).
-        var tookKey = false
+        // The rows (suggestions', clipboard history's) took the key, or it composes, whatever it puts in: in a terminal it
+        // is kept from the shell below (`keepFromTerminal`).
+        var tookKey = keyComposes
         insertedDuringKey = false
         // ⌃V opening clipboard history's panel (its read of the clipboard), and whether the panel changed yet: a row of it
         // goes in before it hides; a key that hides it and goes on puts its text in after.
@@ -937,7 +886,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     markRow(text, replacing: nil, in: target, for: "a row put in by a key")
                 } else {
                     if rowByKey == true {
-                        log.notice("a row put in by a key in a Chromium or Electron app: inserted during the key (\(text.utf16.count, privacy: .public) UTF-16 units: the page has the key as the input method's)")
+                        log.notice("what a key put in, in a Chromium or Electron app: inserted during the key (\(text.utf16.count, privacy: .public) UTF-16 units: the page has the key as the input method's)")
                     }
                     insert(text, into: target)
                 }
@@ -958,8 +907,6 @@ final class AllInOneIMEInputController: IMKInputController {
                     target?.insertText(text, replacementRange: range.map { NSRange(location: $0.lowerBound, length: $0.count) } ?? Self.notFound)
                 }
                 (check, rowByKey) = (nil, nil)
-            case let .marked(text, cursor, converted):
-                setMarkedText(text, cursor: cursor, converted: converted, in: target)
             case let .typeOut(text):
                 if let target { typeOut(text, into: target) }
             case let .moveCaret(back, inserted):
@@ -980,7 +927,7 @@ final class AllInOneIMEInputController: IMKInputController {
                     // The wheel over it is this field's: no pointer use in it (GitHub #66).
                     let panel = CandidatePanel.shared
                     panel.take(by: self, .session({ [weak self] in self?.received($0) }))
-                    panel.show(.notice(text), anchor: anchor(target))
+                    show(.notice(text), anchoredIn: target)
                 }
             case let .noticeElsewhere(text, long, progress):
                 // In the field being typed in now, else near the pointer; the progress notice here goes.
@@ -993,7 +940,7 @@ final class AllInOneIMEInputController: IMKInputController {
                 openAgent(id)  // in Terminal
             case let .openSettings(place):
                 switch place {
-                case .translationLanguages?: openSettings(.general, .outputLanguages)  // its Add… outlined
+                case .translationLanguages?: openSettings(SettingsSpot.outputLanguages.page, .outputLanguages)  // its Add… outlined
                 case .weekStats?: openSettings(.week, nil)  // `@stats`
                 case nil: SettingsWindow.shared.show()
                 }
@@ -1060,7 +1007,7 @@ final class AllInOneIMEInputController: IMKInputController {
         }
         // A row the key put in that adds nothing, a key the rows took that puts nothing in (↓ ↑ → Esc): the key is still the
         // input method's.
-        if rowByKey == true, let target { markBeforeCaret(in: target, for: "a row put in by a key, adding nothing") }
+        if rowByKey == true, !keepKey, let target { markKeyAddingNothing(in: target, composes: keyComposes) }
         if keepKey, let target, case let .selection(range, text)? = markBeforeCaret(in: target, for: "a key the rows took"),
            opensHistory {
             pastedOver = (range, text, fieldSession)
@@ -1094,22 +1041,6 @@ final class AllInOneIMEInputController: IMKInputController {
         log.notice("a row didn't take the token's place: other text in its range now (\(range.count, privacy: .public) UTF-16 units); \(instead, privacy: .public) put in instead")
     }
 
-    /// Whether what a key the rows took puts in (`SessionOutput.rowByKey`: a row), or nothing (`rowsTookKey`: ↓ ↑ → Esc),
-    /// goes in as marked text during the key in `client` (`markRow`): only in an app built on Chromium or Electron
-    /// (`chromiumApp`), whose page would get the key as well; not in a terminal (its keys go to a shell, and it takes no
-    /// marked text in place of a range), nor where marked text of ours is in the field before the key (Code's word: the
-    /// page has the key as the input method's already). Everywhere else (AppKit's fields, WebKit's: Messages, Notes, Mail,
-    /// Safari) what the key puts in goes in as 0.6.7.1 put it, a row in the token's place with its range: those never act
-    /// on a key the input method took. The same keys and rows everywhere; only how they go in differs.
-    @MainActor
-    private func marksRow(in client: IMKTextInput?) -> Bool {
-        guard !atTap, let client, !hasMarkedText else { return false }
-        let app = client.bundleIdentifier()
-        guard !Self.isTerminal(app: app), chromiumApp(app) else { return false }
-        KeyGuard.shared.markedInstead()
-        return true
-    }
-
     /// What a key the rows took puts in, in an app built on Chromium or Electron (`marksRow`): a row in place of `range`
     /// (nil: at the caret), or the token's last character again in its own place (`markBeforeCaret`), as marked text
     /// during the key, committed once it's done (`commitRow`). Chromium's view (Slack, Chrome, Google Docs, every Electron
@@ -1122,10 +1053,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// asked, and 0.6.7.2, which took it out again for that and put the row in with its range, had Slack send the
     /// message. Nothing is taken out during the key. `what` the log says it is; only lengths are logged, never the text.
     @MainActor
-    private func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String, takenOut: Bool = false) {
+    func markRow(_ text: String, replacing range: NSRange?, in client: IMKTextInput, for what: String, takenOut: Bool = false) {
         let length = (text as NSString).length
         client.setMarkedText(text, selectionRange: NSRange(location: length, length: 0), replacementRange: range ?? Self.notFound)
-        hasMarkedText = true
         markedRow = MarkedRow(text: text, client: client, fieldSession: fieldSession, takenOut: takenOut)
         DispatchQueue.main.async { [weak self] in self?.commitRow() }
         let place = range.map { " in place of \($0.length)" } ?? " at the caret"
@@ -1137,7 +1067,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// session's work, the app wanting everything in, another field). Only in the field session it went into, as
     /// `commitAfterKey`; each way out of it commits the row first, so nothing of it is left marked there.
     @MainActor
-    private func commitRow() {
+    func commitRow() {
         guard let row = markedRow else { return }
         markedRow = nil
         guard row.fieldSession == fieldSession else { return }
@@ -1146,7 +1076,6 @@ final class AllInOneIMEInputController: IMKInputController {
         } else {
             row.client.insertText(row.text, replacementRange: Self.notFound)
         }
-        hasMarkedText = false
         if let caret = row.caret { moveCaret(back: caret.back, after: caret.after, in: row.client) }
     }
 
@@ -1161,7 +1090,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// the field tells no caret or reads nothing back, nothing (said in the log, `what` the key): ⌃V doesn't open the panel
     /// there (`clipboardPanelFits`).
     @MainActor @discardableResult
-    private func markBeforeCaret(in client: IMKTextInput, for what: String) -> ChromiumApps.KeyMark? {
+    func markBeforeCaret(in client: IMKTextInput, for what: String) -> ChromiumApps.KeyMark? {
         let mark = Self.keyMark(in: client)
         switch mark {
         case let .selection(range, text)?:
@@ -1209,30 +1138,6 @@ final class AllInOneIMEInputController: IMKInputController {
             return nil
         }
         return over.range
-    }
-
-    /// The marked text in `client`: nothing of ours (empty) leaves the document, and any selection in it, alone.
-    @MainActor
-    private func setMarkedText(_ text: String, cursor: Int, converted: Bool, in client: IMKTextInput?) {
-        guard let client else { return }
-        // A row marked during the key (`markRow`) is the field's marked text, none of the composer's: none to clear; new
-        // marked text goes after it.
-        guard markedRow == nil || !text.isEmpty else { return }
-        commitRow()
-        guard !text.isEmpty else {
-            guard hasMarkedText || (Self.markedLength(client) ?? 0) > 0 else { return }
-            client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: Self.notFound)
-            hasMarkedText = false
-            return
-        }
-        let length = (text as NSString).length
-        let style = converted ? kTSMHiliteSelectedConvertedText : kTSMHiliteRawText
-        let attributed = NSAttributedString(
-            string: text, attributes: markAttributes(style: style, range: NSRange(location: 0, length: length)))
-        client.setMarkedText(
-            attributed, selectionRange: NSRange(location: cursor, length: 0), replacementRange: Self.notFound)
-        hasMarkedText = true
-        markedWatch.didSet(expected: text, reportedLength: Self.markedLength(client))
     }
 
     // MARK: - Voice
@@ -1340,25 +1245,7 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// The length of the app's marked text, or nil when it reports none.
-    static func markedLength(_ client: IMKTextInput) -> Int? {
-        let range = client.markedRange()
-        return range.location == NSNotFound ? nil : range.length
-    }
-
-    private func markAttributes(style: Int, range: NSRange) -> [NSAttributedString.Key: Any] {
-        var attributes: [NSAttributedString.Key: Any] = [:]
-        for (key, value) in mark(forStyle: style, at: range) ?? [:] {
-            if let name = key as? String {
-                attributes[NSAttributedString.Key(name)] = value
-            } else if let name = key as? NSAttributedString.Key {
-                attributes[name] = value
-            }
-        }
-        if attributes.isEmpty {
-            attributes[.underlineStyle] = NSUnderlineStyle.single.rawValue
-        }
-        return attributes
-    }
+    static func markedLength(_ client: IMKTextInput) -> Int? { FieldReading.markedLength(client) }
 
     /// Whether `client` is a terminal, which runs every line it is given.
     static func isTerminal(_ client: IMKTextInput?) -> Bool {
@@ -1378,53 +1265,44 @@ final class AllInOneIMEInputController: IMKInputController {
     /// == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`).
     @MainActor
     func anchor(_ client: IMKTextInput) -> NSRect {
-        anchorToken += 1
+        (anchorToken, placements) = (anchorToken + 1, placements + 1)
+        let placing = placements
         // The field's app, asked of the client once.
         let app = client.bundleIdentifier()
+        // Copies: asking the field (and Accessibility) below waits on the app, running the run loop, and a key handled
+        // meanwhile places the panel too, writing these; an access held open across that crashed the input method.
+        var (memory, lastByApp) = (panelAnchor, Self.lastAnchorByApp)
         // The field by this controller and its focus session: the client object handed over may be another proxy each time.
-        panelAnchor.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
+        memory.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
         // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
         if clientOverride == nil, !session.secureInputActive(), let app {
-            panelAnchor.learnWindow { FocusedField.listedWindowFrame(in: app).map { ($0, false) } ?? FocusedField.windowFrame(in: app) }
-        }
-        var told = toldAnchor(client)
-        let screens = NSScreen.screens.map(\.frame)
-        // The left edges distrust a rect only where the field tells nothing of its marked text (`PanelAnchor.trusted`).
-        let marked = Self.markedAnchor(client)
-        let edges = marked == nil
-        if !PanelAnchor.trusted(told, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: edges),
-           let marked,
-           PanelAnchor.trusted(marked, screens: screens, window: panelAnchor.window, page: panelAnchor.page, edges: false) {
-            told = marked  // the line's rect not one to trust, the marked text's own is
+            memory.learnWindow { FocusedField.listedWindowFrame(in: app).map { ($0, false) } ?? FocusedField.windowFrame(in: app) }
         }
         var asked = "Accessibility not asked"
-        // Read before `place`, which has `panelAnchor` borrowed while it asks Accessibility (reading it in there crashed).
-        let needsPage = panelAnchor.page == nil
-        var placement = panelAnchor.place(told, screens: screens, edges: edges) {
+        // Where the field puts it (`FieldAnchor.place`): the rect it tells, else Accessibility's caret, the last rect to
+        // trust in the field or the app, the pointer, the rect as told.
+        let placed = FieldAnchor.place(in: client, app: app, selection: composer.selection?.range, memory: &memory,
+                                       lastByApp: &lastByApp, screens: NSScreen.screens.map(\.frame),
+                                       pointer: { NSEvent.mouseLocation }) { needsPage in
             let start = ProcessInfo.processInfo.systemUptime
             let read = caretByAccessibility(in: app, page: needsPage)
             asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
                 + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
             return read
         }
-        // Nothing better in this field yet (its first panel since the app came back, the field telling the page's corner):
-        // the app's last rect to trust, from another field or focus session of it, where it was typed in last.
-        if placement.source == .field {
-            Self.lastAnchorByApp[app ?? ""] = placement.rect
-        } else if placement.source == .told, let previous = Self.lastAnchorByApp[app ?? ""] {
-            placement = PanelAnchor.Placement(rect: previous, source: .last)
-        } else if placement.source == .told, let pointer = Self.pointerAnchor(in: panelAnchor.window, screens: screens) {
-            // Nothing known of the caret at all (Google Docs telling only its page's corner): by the pointer, where the
-            // field was clicked last, as a line under it; a pointer outside the window or over its toolbar isn't.
-            placement = PanelAnchor.Placement(rect: pointer, source: .last)
-        }
+        let (told, placement) = (placed.told, placed.placement)
+        // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
+        guard placements == placing else { return placement.rect }
+        // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then):
+        // the dictionary is every controller's, and another may have written it meanwhile.
+        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""])
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
             // "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
             log.debug("""
                 panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
-                marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
+                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
                 page \(Self.describe(self.panelAnchor.page), privacy: .public), screen \(Self.describe(NSScreen.screens.first?.frame), privacy: .public)
                 """)
             return placement.rect
@@ -1435,97 +1313,13 @@ final class AllInOneIMEInputController: IMKInputController {
             anchorSaid = said
             log.notice("""
                 panel anchor not trusted in \(app ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
-                marked \(Self.describe(Self.markedRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
+                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
                 \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public)), \
                 pointer \(Self.describe(NSRect(origin: NSEvent.mouseLocation, size: .zero)), privacy: .public)
                 """)
         }
         reaskAnchor(client)
         return placement.rect
-    }
-
-    /// The rect `client` tells for a panel: its marked text's line; for a command on the selection, the selection's last
-    /// character (nothing is marked to go by).
-    @MainActor
-    private func toldAnchor(_ client: IMKTextInput) -> NSRect {
-        if let range = composer.selection?.range, !range.isEmpty {
-            let rect = client.firstRect(forCharacterRange: NSRange(location: range.upperBound - 1, length: 1), actualRange: nil)
-            if rect != .zero { return rect }
-        }
-        var lineRect = NSRect.zero
-        _ = client.attributes(forCharacterIndex: 0, lineHeightRectangle: &lineRect)
-        return lineRect
-    }
-
-    /// A line's rect at the pointer (`anchor`'s last resort), where it is inside `window` below its toolbar band and isn't
-    /// itself a rect not to trust. Nil: no window known, the pointer outside it.
-    @MainActor
-    private static func pointerAnchor(in window: CGRect?, screens: [CGRect]) -> NSRect? {
-        guard let window else { return nil }
-        let pointer = NSEvent.mouseLocation
-        let rect = NSRect(x: pointer.x, y: pointer.y - 9, width: 1, height: 18)
-        guard window.insetBy(dx: 8, dy: 8).contains(pointer), pointer.y < window.maxY - 120,
-              PanelAnchor.trusted(rect, screens: screens, window: window) else { return nil }
-        return rect
-    }
-
-    /// Where the panel goes by the marked text's own rect (`markedRect`): a line under it, as the line's rect
-    /// (`attributes(forCharacterIndex:lineHeightRectangle:)`) is placed, the owner's log showing it one character's height
-    /// under the character's rect. Asked of the field every time (`firstRect` isn't kept by InputMethodKit).
-    @MainActor
-    private static func markedAnchor(_ client: IMKTextInput) -> NSRect? {
-        guard let marked = markedRect(client), marked.height > 1 else { return nil }
-        return NSRect(x: marked.minX, y: marked.minY - marked.height, width: 1, height: marked.height)
-    }
-
-    /// The rect `client` tells for its marked text's first character: where its line's rect isn't one to trust, the field
-    /// may still tell this one right (and the log says it, to see what else Chromium tells).
-    @MainActor
-    private static func markedRect(_ client: IMKTextInput) -> NSRect? {
-        let marked = client.markedRange()
-        guard marked.location != NSNotFound, marked.length > 0 else { return nil }
-        let rect = client.firstRect(forCharacterRange: NSRange(location: marked.location, length: 1), actualRange: nil)
-        return rect == .zero ? nil : rect
-    }
-
-    /// What Accessibility tells of the caret in `app`, the field's app (`FocusedField.caret`; the page's frame till it is
-    /// known): never during secure input or in a password field, never for the self-test's fields (it would read the
-    /// user's own frontmost app).
-    @MainActor
-    private func caretByAccessibility(in app: String?, page: Bool) -> PanelAnchor.Accessibility? {
-        guard clientOverride == nil, !session.secureInputActive(), let app else { return nil }
-        return FocusedField.caret(in: app, page: page)
-    }
-
-    /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel
-    /// moves there once it tells one. Not after a key, the panel placed anew or hidden, the field left.
-    @MainActor
-    private func reaskAnchor(_ client: IMKTextInput) {
-        let token = anchorToken
-        for (index, delay) in PanelAnchor.reaskDelays.enumerated() {
-            DispatchQueue.main.asyncAfter(deadline: .now() + delay) { [weak self] in
-                guard let self, token == self.anchorToken else { return }
-                let panel = CandidatePanel.shared
-                guard panel.isShowing, panel.owner === self else { return }
-                // The marked text's rect, which the field is really asked for each time: InputMethodKit keeps the first
-                // `attributes(forCharacterIndex: 0, …)` answer for the whole composition (caretresearch, 0.6.7), so
-                // asking that again would only ever get the page's corner back.
-                let marked = Self.markedAnchor(client)
-                let told = marked ?? self.toldAnchor(client)
-                guard let rect = self.panelAnchor.reasked(told, screens: NSScreen.screens.map(\.frame), edges: marked == nil) else {
-                    if index == PanelAnchor.reaskDelays.count - 1 {
-                        log.debug("panel anchor: still not trusted \(Int(delay * 1000)) ms later, told \(Self.describe(told), privacy: .public)")
-                    }
-                    return
-                }
-                self.anchorToken += 1  // found: not asked again
-                self.anchorSaid = nil
-                log.notice("panel anchor: trusted \(Int(delay * 1000)) ms later, \(Self.describe(rect), privacy: .public); the panel moved there")
-                let model = panel.view.model
-                if !panel.shows(model, anchor: rect) { panel.show(model, anchor: rect) }
-                self.hideGhostBehindRows()
-            }
-        }
     }
 
     @MainActor
@@ -1538,18 +1332,8 @@ final class AllInOneIMEInputController: IMKInputController {
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }, rows: true,
                                       chip: { [weak self] part in self?.translateChipClicked(part) }))
-        panel.show(model, anchor: anchor(client))
+        show(model, anchoredIn: client)
         hideGhostBehindRows()
-    }
-
-    /// Rows hold the caret (spec 0): autocomplete's gray text, still up where they are now (its placing waits a moment),
-    /// goes, as the session ends it. Never a window of ours behind the rows.
-    @MainActor
-    private func hideGhostBehindRows() {
-        let panel = CandidatePanel.shared
-        if !panel.view.model.rows.isEmpty, GhostOverlay.shared.isVisible, GhostOverlay.shared.frame.intersects(panel.frame) {
-            GhostOverlay.shared.hide()
-        }
     }
 
     /// The panel as the composer has it now, in `client`.
@@ -1608,40 +1392,4 @@ final class AllInOneIMEInputController: IMKInputController {
             if panel.owner === looseNoticeOwner { panel.hide() }
         }
     }
-}
-
-/// The text field a result is typed into, for `TypeOut.Typist`. Into a terminal, line breaks, tabs and other control
-/// characters (`Composer.actsInTerminal`) are kept for pasting (`TerminalPaste`), in order, not typed.
-final class TypingField: TypeOut.Field {
-    let client: IMKTextInput
-    let pastesControls: Bool
-    /// What is to be pasted before typing goes on: a line break as "\n" (the Mac pastes by "\n"), the others as they are.
-    var toPaste: [String] = []
-
-    init(_ client: IMKTextInput, pastesControls: Bool) {
-        self.client = client
-        self.pastesControls = pastesControls
-    }
-
-    var caret: Int? {
-        let range = client.selectedRange()
-        return range.location != NSNotFound && range.length == 0 ? range.location : nil
-    }
-
-    var length: Int? {
-        let length = client.length()
-        return length >= 0 && length != NSNotFound ? length : nil
-    }
-
-    func read(_ range: NSRange) -> String? { client.attributedSubstring(from: range)?.string }
-
-    func type(_ text: String) {
-        if pastesControls, let character = text.first, text.count == 1, Composer.actsInTerminal(text) {
-            toPaste.append(character.isNewline ? "\n" : text)
-        } else {
-            client.insertText(text, replacementRange: AllInOneIMEInputController.notFound)
-        }
-    }
-
-    func replace(_ range: NSRange, with text: String) { client.insertText(text, replacementRange: range) }
 }

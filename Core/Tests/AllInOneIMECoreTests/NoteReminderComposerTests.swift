@@ -35,7 +35,7 @@ extension ComposerTests {
     }
 
     @Test func theyAreOfferedOnceTheirLettersAreTyped() {
-        // Five rows are shown at a time and they come after @read: the list scrolls to them, or their
+        // Five rows are shown at a time and they come after @reply: the list scrolls to them, or their
         // letters bring them up.
         let all = palette().0
         #expect(Array(all.paletteVisible) == [.improve, .translate, .question, .agent, .open])
@@ -43,7 +43,7 @@ extension ComposerTests {
         #expect(palette("n").0.paletteMatches == [.note, .translate, .question, .agent, .open, .reminder, .settings])  // then names containing "n"
         #expect(palette("no").0.paletteMatches == [.note])
         #expect(palette("rem").0.paletteMatches == [.reminder])
-        #expect(palette("r").0.paletteMatches == [.reply, .read, .reminder, .reportIssue, .improve, .translate, .webSearch])  // starting with "r" first
+        #expect(palette("r").0.paletteMatches == [.reply, .reminder, .reportIssue, .improve, .translate])  // starting with "r" first
         #expect(command("n").draft == "@note " && command("rem").draft == "@reminder ")
         #expect(!command("n").engineState.isAsciiMode && !command("rem").engineState.isAsciiMode)  // Chinese, as typed
     }
@@ -63,8 +63,8 @@ extension ComposerTests {
         #expect(s.handleKeyDown(enterKey).effects.contains(.saveNote(text: "你好")))
         // Typed as a sentence with commands in it: saved as typed, nothing runs first.
         let p = command("n")
-        _ = paste("看 @read https://example.com", into: p)
-        #expect(p.handleKeyDown(enterKey).effects.contains(.saveNote(text: "看 @read https://example.com")))
+        _ = paste("看 @py 2**10", into: p)
+        #expect(p.handleKeyDown(enterKey).effects.contains(.saveNote(text: "看 @py 2**10")))
     }
 
     @Test func noteWithNothingAfterItOnlyHints() {
@@ -98,6 +98,22 @@ extension ComposerTests {
         let question = command("q")
         _ = paste("牛奶\n鸡蛋", into: question)
         #expect(question.draft == "@question 牛奶鸡蛋")
+    }
+
+    @Test func theCaretBeforeAPastedLineBreakShowsWhereItIs() {
+        // Each line break shows as 「 ↵ 」: the caret, and pinyin typed there, show before it, not after.
+        let c = command("n")
+        _ = paste("a\nb\nc", into: c)
+        _ = c.handleKeyDown(arrow(VirtualKey.left))
+        _ = c.handleKeyDown(arrow(VirtualKey.left))
+        #expect(c.markedCursor == "note › a ↵ b".count)
+        for _ in 0..<2 { _ = c.handleKeyDown(arrow(VirtualKey.left)) }
+        #expect(c.markedCursor == "note › a".count)
+        type("nihao", c)
+        #expect(c.markedText.hasPrefix("note › a") && c.markedText.hasSuffix(" ↵ b ↵ c"))
+        #expect(c.markedCursor == c.markedText.count - " ↵ b ↵ c".count)
+        _ = c.handleKeyDown(spaceKey)
+        #expect(c.draft == "@note a你好\nb\nc" && c.markedText == "note › a你好 ↵ b ↵ c" && c.markedCursor == "note › a你好".count)
     }
 
     @Test func aNoteThatCouldNotBeSavedComesBack() {
@@ -159,13 +175,14 @@ extension ComposerTests {
         let back = composer().0
         _ = back.restoreDraft(.note, text: "牛奶\n鸡蛋")
         #expect(back.commitAll() == [.hidePanel, .updateMarkedText, .copy("牛奶\n鸡蛋"), .notice("笔记还没存，原文已复制到剪贴板")])
-        // A shortcut on it (⌘A; ⌘V in a terminal, which pastes on its own) doesn't insert it as typed: the note
-        // stays, the key is the app's (the clipboard isn't replaced right before a terminal pastes it).
+        // A shortcut on it (⌘A) doesn't insert it as typed: the note stays, the key is the app's. ⌘V pastes into it, in a
+        // terminal too (which pastes on its own: the Mac's key tap keeps the key from it).
         let shortcut = noteWithLines()
         shortcut.pastesIntoDraft = false
-        for key in [k("a", mods: .command), KeyEvent(keyCode: 0x09, characters: "v", modifiers: .command)] {
-            #expect(shortcut.handleKeyDown(key) == .passThrough && shortcut.draft == "@note " + lines, "\(key.characters)")
-        }
+        #expect(shortcut.handleKeyDown(k("a", mods: .command)) == .passThrough && shortcut.draft == "@note " + lines)
+        let paste = shortcut.handleKeyDown(KeyEvent(keyCode: 0x09, characters: "v", modifiers: .command))
+        let readsClipboard = paste.effects.contains { if case .readClipboard = $0 { true } else { false } }
+        #expect(paste.handled && readsClipboard && shortcut.draft == "@note " + lines)
         // A note on one line goes in as typed, like any draft (also on a shortcut, in English).
         let one = command("n")
         type("nihao", one)
@@ -184,17 +201,17 @@ extension ComposerTests {
     }
 
     @Test func noCommandListInsideANoteAReminderOrASearch() {
-        // They take their text as typed (no command inside runs first), so "@" there is just text: "@r" offered
-        // @read, and picked, the note got "@read …" as its text.
+        // They take their text as typed (no command inside runs first), so "@" there is just text: "@p" offered
+        // @py, and picked, the note got "@py …" as its text.
         for (letters, name) in [("n", "note"), ("rem", "reminder")] {
             let c = command(letters)
             _ = paste("看", into: c)
             #expect(c.handleKeyDown(at).effects == [.updateMarkedText, .showPanel] && c.draft == "@\(name) 看@")
             #expect(c.paletteQuery == nil && c.paletteMatches.isEmpty, "\(name)")
-            type("r", c)  // pinyin, as anywhere else in the text
-            #expect(c.paletteQuery == nil && c.markedText == "\(name) › 看＠r", "\(name): \(c.markedText)")
-            let sent = c.handleKeyDown(enterKey).effects  // ⏎ converts the "r" and sends it all, as typed
-            #expect(name == "note" ? sent.contains(.saveNote(text: "看@r")) : sent.first == .previewReminder(input: "看@r", id: 1),
+            type("p", c)  // pinyin, as anywhere else in the text
+            #expect(c.paletteQuery == nil && c.markedText == "\(name) › 看＠p", "\(name): \(c.markedText)")
+            let sent = c.handleKeyDown(enterKey).effects  // ⏎ converts the "p" and sends it all, as typed
+            #expect(name == "note" ? sent.contains(.saveNote(text: "看@p")) : sent.first == .previewReminder(input: "看@p", id: 1),
                     "\(name): \(sent)")
         }
         let open = command("o")
@@ -205,18 +222,18 @@ extension ComposerTests {
         #expect(open.handleKeyDown(enterKey).effects.first == .search(query: "报告@r", id: 1))
         // A command written in their text isn't shown as one either; where commands do run inside, the list is there.
         let pasted = command("n")
-        _ = paste("看 @read https://example.com", into: pasted)
-        #expect(pasted.markedText == "note › 看 ＠read https://example.com")
+        _ = paste("看 @js 2**10", into: pasted)
+        #expect(pasted.markedText == "note › 看 ＠js 2**10")
         let question = command("q")
         type("nihao", question)
         _ = question.handleKeyDown(spaceKey)
         _ = question.handleKeyDown(at)
-        #expect(question.paletteQuery == "" && question.paletteMatches == [.read, .py, .js, .webSearch])
+        #expect(question.paletteQuery == "" && question.paletteMatches == [.js])
     }
 
     @Test func noCommandListInsideATerminalCommand() {
         // @agent and a custom terminal command get their text as typed (nothing inside runs first): "@agent 你好@"
-        // listed @read …, the draft showed 「agent › 你好read › …」, and Claude Code got "你好@read https://…" anyway.
+        // listed @py …, the draft showed 「agent › 你好py › …」, and Claude Code got "你好@py 2**10" anyway.
         let sh = CustomCommand(name: "sh", type: .terminal, argv: ["zsh", "-c", "{input}"])
         let catalog = Command.catalog([sh])
         func start(_ letters: String) -> Composer {
@@ -240,13 +257,13 @@ extension ComposerTests {
         _ = shell.handleKeyDown(spaceKey)
         _ = shell.handleKeyDown(at)
         #expect(shell.paletteQuery == nil && shell.paletteMatches.isEmpty)
-        type("read", shell)  // letters, as a terminal command types them
-        #expect(shell.draft == "@sh ls @read" && shell.paletteQuery == nil && shell.markedText == "sh › ls ＠read", "\(shell.markedText)")
-        #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @read"])))
+        type("py", shell)  // letters, as a terminal command types them
+        #expect(shell.draft == "@sh ls @py" && shell.paletteQuery == nil && shell.markedText == "sh › ls ＠py", "\(shell.markedText)")
+        #expect(shell.handleKeyDown(enterKey).effects.contains(.launchInTerminal(argv: ["zsh", "-c", "ls @py"])))
         // A command written in the text isn't shown as one either.
         let pasted = start("ag")
-        _ = paste("你好@read https://example.com", into: pasted)
-        #expect(pasted.markedText == "agent › 你好＠read https://example.com")
+        _ = paste("你好@py 2**10", into: pasted)
+        #expect(pasted.markedText == "agent › 你好＠py 2**10")
     }
 
     @Test func reminderIsShownToConfirmThenAdded() {
@@ -299,8 +316,8 @@ extension ComposerTests {
         let c = command("rem")
         c.secureInputActive = { true }
         #expect(c.handleKeyDown(enterKey).effects == [.notice("在命令后面写上内容")])  // nothing after it: a hint
-        _ = paste("明天看 @read https://example.com", into: c)
-        #expect(c.handleKeyDown(enterKey).effects.first == .previewReminder(input: "明天看 @read https://example.com", id: 1))
+        _ = paste("明天看 @py 2**10", into: c)
+        #expect(c.handleKeyDown(enterKey).effects.first == .previewReminder(input: "明天看 @py 2**10", id: 1))
     }
 
     @Test func reminderWithOnlyATimeAsksWhatFor() {

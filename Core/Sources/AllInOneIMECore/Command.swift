@@ -90,27 +90,17 @@ public struct Command: Hashable, Sendable {
     /// Find files and apps by name (Spotlight) or path, as you type, and open the one picked.
     public static let open = Command(name: "open", kind: .search)
 
-    /// A web page's title and text (`WebReader`), mostly inside another command's text as context:
-    /// `@question 总结一下 @read https://…`.
-    public static let read = Command(name: "read", kind: .run)
     /// Save the text to Apple Notes (a folder named "AllInOneIME").
     public static let note = Command(name: "note", kind: .note)
     /// Add a reminder to Apple Reminders (a list named "AllInOneIME"), with the time written in the text:
     /// `@reminder 明天下午3点给张三打电话`.
     public static let reminder = Command(name: "reminder", kind: .reminder)
 
-    /// Python code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
-    /// `@py 2**100`. It runs with the user's `python3`.
-    public static let py = Command(name: "py", kind: .run)
-    /// JavaScript code, the same way: `@js [1, 2, 3].map(x => x * 2)`. It runs in the platform's JavaScript
+    /// JavaScript code (`InlineCode`): the value of its last expression, or what it prints, can be inserted:
+    /// `@js [1, 2, 3].map(x => x * 2)`. It runs in the platform's JavaScript
     /// (JavaScriptCore on the Mac, QuickJS-ng off Apple platforms), in this app's own child process (no files,
     /// programs or network).
     public static let js = Command(name: "js", kind: .run)
-
-    /// `@search`: a web search with the user's own key (`WebSearch`). On its own, a list of the top
-    /// results to insert; inside another command's text, their titles, snippets and addresses as context:
-    /// `@question 用一句话总结 @search 苹果发布会`.
-    public static let webSearch = Command(name: "search", kind: .run)
 
     /// The background tasks `@agent` started (Claude Code's): how they're doing and what they replied.
     public static let tasks = Command(name: "tasks", kind: .agents)
@@ -136,39 +126,34 @@ public struct Command: Hashable, Sendable {
     public static let edit = Command(name: "edit", kind: .generate)
 
     /// `@reply` after the first five: the list opens on the ones it always had.
-    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .read, .note, .reminder,
-                                             .py, .js, .webSearch, .tasks, .settings, .imessage, .reportIssue, .stats]
+    public static let builtins: [Command] = [.improve, .translate, .question, .agent, .open, .reply, .note, .reminder,
+                                             .js, .tasks, .settings, .imessage, .reportIssue, .stats]
 
     /// Built-ins that are off for now: left out of `catalog` (what the input method offers), their names
-    /// still taken; their code and tests stay. `@search` (Brave Search with the user's own key) and
-    /// `@read` (a web page's text): `@open` opens web addresses, which is enough. Take one out of here to
-    /// bring it back (with `@search`, its settings come back too).
-    public static let off: [Command] = [.webSearch, .read]
+    /// still taken. None at the moment.
+    public static let off: [Command] = []
 
-    public static var webSearchOffered: Bool { !off.contains(.webSearch) }
-
-    /// `@py`, `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
+    /// `@js`: the text is code to run (`InlineCode`), used exactly as typed: other commands in it
     /// don't run, so nothing they return (a web page, a program's output) is ever executed.
-    public var isCode: Bool { self == .py || self == .js }
+    public var isCode: Bool { self == .js }
 
-    /// Its text goes to code or a program the user wrote: `@py`, `@js`, a custom `run` command, a script
-    /// extension. None of it runs inside another command's text unless typed there (`Composer`: not from a paste,
+    /// Its text goes to code or a program the user wrote: `@js`, a custom `run` command (Settings' example `@py`), a
+    /// script extension. None of it runs inside another command's text unless typed there (`Composer`: not from a paste,
     /// dictation or a restored draft), and other commands don't run inside its text.
     public var runsCode: Bool { isCode || (custom != nil || script != nil) && kind == .run }
 
     /// The text after the command is typed as Latin letters (file names, paths, code): picking the
     /// command switches the engine to English, and Chinese comes back when the command is done.
-    public var typesLatin: Bool { self == .open || self == .read || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
+    public var typesLatin: Bool { self == .open || isCode || custom?.typesLatin == true || plugin?.manifest.typesLatin == true }
 
     /// `program(agent:)` with Claude Code as the agent.
     public var program: String? { program(agent: .claude) }
 
     /// The program this command needs on the Mac: the agent's for `@agent` (`AgentKind.program`; `agentCommand` is a
-    /// custom agent's), `python3` for `@py`, `argv[0]` for a custom `run` or `terminal` command, the app that sends for a
+    /// custom agent's), `argv[0]` for a custom `run` or `terminal` command, the app that sends for a
     /// send command (an absolute ".app" path); nil when it needs none.
     public func program(agent: AgentKind, custom agentCommand: [String] = []) -> String? {
         if self == .agent { return agent.program(custom: agentCommand) }
-        if self == .py { return InlineCode.python }
         if self == .imessage { return "/System/Applications/Messages.app" }
         guard let custom, custom.type == .run || custom.type == .terminal else { return nil }
         return custom.argv?.first
@@ -269,7 +254,7 @@ public struct Command: Hashable, Sendable {
         return bundled.map(Extension.script) + snippets.map(Extension.snippet) + scripts.dropFirst(bundled.count).map(Extension.script)
     }
 
-    /// It runs a program in a child process (`ProcessLauncher`): `@py`, `@js`, a custom `run` command, a script
+    /// It runs a program in a child process (`ProcessLauncher`): `@js`, a custom `run` command, a script
     /// extension, a plugin's script.
     public var needsChildProcess: Bool {
         isCode || kind == .run && (custom != nil || script != nil || plugin != nil)
@@ -880,11 +865,21 @@ public struct SearchResult: Equatable, Sendable {
            let host = url.host?.lowercased(), host == "localhost" || isIPv4(host) {
             return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
         }
-        guard let url = WebReader.url(from: text), let host = url.host?.lowercased() else { return nil }
+        guard let url = webAddress(text), let host = url.host?.lowercased() else { return nil }
         if !explicit {
             guard let tld = host.split(separator: ".").last, commonDomains.contains(String(tld)) else { return nil }
         }
         return SearchResult(name: name(of: url, host: host), path: url.absoluteString)
+    }
+
+    /// The address as typed, made a URL: `example.com/a` → `https://example.com/a`. Nil unless http(s) with a host that
+    /// has a dot in it (or localhost).
+    static func webAddress(_ text: String) -> URL? {
+        var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !s.contains("://") { s = "https://" + s }
+        guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
+              let host = url.host, host.contains(".") || host == "localhost" else { return nil }
+        return url
     }
 
     /// How a web address is listed: its host, port and path ("github.com/…", "localhost:3000").

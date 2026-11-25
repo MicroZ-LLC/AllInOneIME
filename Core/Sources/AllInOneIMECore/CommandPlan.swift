@@ -6,8 +6,7 @@ import Foundation
 ///
 /// An inner command is `@name` (a known command, not after a letter or digit, so `a@b.com` stays text)
 /// followed by a space and its argument (`argument(_:from:)`): `@stock AAPL TSLA 哪个涨得多` → `AAPL TSLA`,
-/// `@stock SNDK is good to buy` → `SNDK`, `@stock「aapl tsla」` → `aapl tsla`. A search takes the rest
-/// of the sentence (`phrase(_:from:commands:)`): `总结 @search 苹果发布会，重点说新品` → `苹果发布会`.
+/// `@stock SNDK is good to buy` → `SNDK`, `@stock「aapl tsla」` → `aapl tsla`.
 /// A snippet that takes no `{input}` takes no argument either: `@zoom` before a space, punctuation or the end of
 /// the text (`链接是 @zoom。`). Anything else is plain text.
 public struct CommandPlan: Equatable, Sendable {
@@ -41,10 +40,6 @@ public struct CommandPlan: Equatable, Sendable {
         command.kind == .snippet && command.snippet?.needs.contains(.input) != true
     }
 
-    /// Commands whose argument inside a text is a phrase (`phrase(_:from:commands:)`), not a symbol:
-    /// what to search for is words, often Chinese (`@search 苹果发布会`).
-    public static func takesPhrase(_ command: Command) -> Bool { command == .webSearch }
-
     public static func make(_ text: String, commands: [Command], trigger: Character = "@") -> CommandPlan {
         let inners = Dictionary(commands.filter(canBeInner).map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
         var parts: [Part] = []
@@ -74,8 +69,7 @@ public struct CommandPlan: Equatable, Sendable {
                 // A space before the argument, or a quote right after the name (`@stock「aapl tsla」`).
                 let start = j < chars.count && chars[j] == " " ? j + 1 : j
                 if let command = inners[name], !takesNoArgument(command), j < chars.count, chars[j] == " " || "「“\"".contains(chars[j]),
-                   let (argument, end) = takesPhrase(command) ? Self.phrase(chars, from: start, commands: inners, trigger: trigger)
-                       : Self.argument(chars, from: start, trigger: trigger) {
+                   let (argument, end) = Self.argument(chars, from: start, trigger: trigger) {
                     if !argument.isEmpty {
                         if !literal.isEmpty { parts.append(.text(literal)) }
                         literal = ""
@@ -121,32 +115,6 @@ public struct CommandPlan: Equatable, Sendable {
         }
         while end > start, ",.;:!?".contains(chars[end - 1]) { end -= 1 }
         return end > start ? (String(chars[start..<end]), end) : nil
-    }
-
-    /// The argument of a command that takes a phrase (`takesPhrase`), starting at `start`, and where it
-    /// ends: the text in 「…」 or "…", or else the rest of the sentence, up to a line break, ，。！？；,
-    /// ? ! ; before a space or the end, or the next command inside the text (`commands`, by name).
-    /// Spaces and sentence punctuation at its end stay in the text. Nil when there is none.
-    static func phrase(_ chars: [Character], from start: Int, commands: [String: Command], trigger: Character = "@") -> (String, Int)? {
-        guard start < chars.count else { return nil }
-        if "「\"“".contains(chars[start]) { return argument(chars, from: start, trigger: trigger) }
-        var end = start
-        while end < chars.count, !endsPhrase(chars, at: end, commands: commands, trigger: trigger) { end += 1 }
-        while end > start, " ,.;:!?".contains(chars[end - 1]) { end -= 1 }
-        return end > start ? (String(chars[start..<end]), end) : nil
-    }
-
-    /// Whether a phrase ends before `chars[i]`: a line break, sentence punctuation, or a known command
-    /// (`@name` not after a letter or digit, then a space or a quote).
-    private static func endsPhrase(_ chars: [Character], at i: Int, commands: [String: Command], trigger: Character) -> Bool {
-        let c = chars[i]
-        if c.isNewline || "，。！？；".contains(c) { return true }
-        if "?!;".contains(c), i + 1 == chars.count || chars[i + 1] == " " { return true }
-        guard c == trigger, i == 0 || !(chars[i - 1].isASCII && (chars[i - 1].isLetter || chars[i - 1].isNumber)) else { return false }
-        var j = i + 1
-        while j < chars.count, chars[j].isASCII, chars[j].isLetter || j > i + 1 && chars[j].isNumber { j += 1 }
-        return commands[String(chars[(i + 1)..<j]).lowercased()] != nil && j < chars.count
-            && (chars[j] == " " || "「“\"".contains(chars[j]))
     }
 
     /// The text with each inner command replaced by its output.

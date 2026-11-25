@@ -183,8 +183,8 @@ extension SelfTest {
         var clipboardReads = 0
         controller.readClipboard = { clipboardReads += 1; return .image(image) }
         startReply()
-        check(client.marked == "reply › " && controller.panelModel().status == .hint("回复对方：⌃V 粘贴消息或截图"),
-              "@reply says what it takes (\(client.marked) | \(controller.panelModel().status))")
+        check(controller.preedit == "reply › " && controller.panelModel().status == .hint("回复对方：⌃V 粘贴消息或截图"),
+              "@reply says what it takes (\(controller.preedit) | \(controller.panelModel().status))")
         ReplySelfTestEndpoint.reset()
         controlV()
         let ready = pump(timeout: 15) { if case .screenshot(.ready)? = controller.composer.attachment { return true } else { return false } }
@@ -244,6 +244,10 @@ extension SelfTest {
         terminal.document = "ls -la"
         terminal.bundleIDOverride = "com.apple.Terminal"
         check(controller.readFieldText(from: terminal) == nil, "none in a terminal")
+        let vault = FakeTextClient()
+        vault.document = "Wi-Fi: hunter2"
+        vault.bundleIDOverride = "com.1password.1password"
+        check(controller.readFieldText(from: vault) == nil, "none in a password manager, as in a terminal")
 
         section("@reply in Chrome takes the page", needs: .composing)
         // A process that doesn't exist: the page tree is asked of no one (the page is the stand-in's).

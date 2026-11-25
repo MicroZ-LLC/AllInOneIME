@@ -43,7 +43,6 @@ enum CommandIcons {
     /// Settings → Agent: `@agent`'s own.
     static var agent: CandidateView.Icon { icon(for: .agent) }
     static let advanced = CandidateView.Icon(symbol: "gearshape.2.fill", color: .systemGray)
-    static let webSearch = CandidateView.Icon(symbol: "globe", color: .systemCyan)
 
     /// A background task's state in `@tasks`.
     static func icon(for progress: AgentSession.Progress) -> CandidateView.Icon { CandidateView.Icon(IconToken.progress(progress)) }

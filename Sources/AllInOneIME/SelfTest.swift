@@ -236,7 +236,7 @@ enum SelfTest {
         press(c, client, "@", code: 0x13, flags: .shift)  // ⇧2
         type("i", c, client)
         press(c, client, "\t", code: VirtualKey.tab)
-        return client.marked == "improve › "
+        return c.preedit == "improve › "
     }
 
     /// The hint shown under a draft in `input`, for the current action key and interface language.
@@ -275,11 +275,12 @@ enum SelfTest {
         controller.services.pointerUsedWithin = { _ in false }
         check(controller.composer.engineState.isAsciiMode == latin && client.document == "hello world",
               "a Shift-click doesn't switch Chinese and English")
-        // Typing still replaces it, as typing over a selection does.
+        // Typing still replaces it, as typing over a selection does: the word picked goes in its place (the pinyin is on
+        // the panel's input line meanwhile, nothing marked in the field, since 0.7.5).
         type("ni", controller, client)
-        check(!client.document.contains("world") && client.selection == nil,
-              "typing replaces the selection (\(client.document)|\(client.marked))")
-        _ = escape(controller, client)
+        check(client.document == "hello world" && client.marked.isEmpty, "the pinyin isn't put in the field (\(client.document)|\(controller.preedit))")
+        _ = space(controller, client)
+        check(!client.document.contains("world") && client.document.hasPrefix("hello ") && client.selection == nil, "the word picked replaces the selection (\(client.document))")
     }
 
     /// Commands on the selected text (`Composer.selection`). The fake field models a selection as NSTextView does
@@ -304,6 +305,7 @@ enum SelfTest {
         }
         /// The field as it was, its selection still selected, nothing marked.
         func untouched(_ document: String = text, _ selected: NSRange? = nil) -> Bool {
+            // Nothing marked in the field (what is typed is on the panel's input line, `preedit`, since 0.7.5).
             client.document == document && client.selection == (selected ?? range) && client.marked.isEmpty
         }
         func command(_ letters: String) {
@@ -323,7 +325,7 @@ enum SelfTest {
         command("i")
         let model = controller.panelModel()
         check(controller.composer.draft == "@improve " && controller.composer.draftInPanel && untouched(),
-              "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(client.marked)')")
+              "\"@improve\" on the selection: nothing marked, the text and its selection untouched ('\(client.document)', marked '\(controller.preedit)')")
         check(model.inputText == "improve › ▏" && (model.headerText ?? "").contains(part) && (model.headerText ?? "").contains("27"),
               "the panel shows the command as typed, then the selection (\(model.inputText ?? "-") / \(model.headerText ?? "-"))")
         // Pinyin in the command's text: in the panel's input line, its candidates below; Space picks.
@@ -350,7 +352,7 @@ enum SelfTest {
         check(untouched() && client.inserted.count == insertedBefore, "the field left: nothing goes in")
         select()
         command("i")
-        controller.perform(controller.composer.commitAsTyped(), client: client)
+        controller.perform(controller.composer.passwordFieldTakesOver(), client: client)
         check(untouched() && client.inserted.count == insertedBefore, "secure input turning on: nothing goes in")
 
         // The selection moved meanwhile (a click): the command is given up, and the key acts as usual (pinyin).
@@ -358,23 +360,31 @@ enum SelfTest {
         command("i")
         client.selection = NSRange(location: 0, length: 4)
         type("a", controller, client)
-        check(!controller.composer.draftInPanel && controller.composer.draft.isEmpty && client.marked == "a",
-              "a selection moved meanwhile gives the command up; the key then types as usual (marked '\(client.marked)')")
+        check(!controller.composer.draftInPanel && controller.composer.draft.isEmpty && controller.preedit == "a",
+              "a selection moved meanwhile gives the command up; the key then types as usual (marked '\(controller.preedit)')")
         _ = escape(controller, client)
 
         // Never read during secure input, nor with the setting off: "@" is marked over it as before.
         select()
         controller.services.secureInputActive = { true }
         press(controller, client, "@", code: 0x13, flags: .shift)
-        check(controller.composer.selection == nil && client.marked == "@", "not read while secure input is on (marked '\(client.marked)')")
+        check(controller.composer.selection == nil && controller.preedit == "@", "not read while secure input is on (marked '\(controller.preedit)')")
         controller.services.secureInputActive = secureBefore
         _ = escape(controller, client)
         select()
         settings.useSelection = false
         press(controller, client, "@", code: 0x13, flags: .shift)
-        check(controller.composer.selection == nil && client.marked == "@", "not read with \"Use the selected text\" off")
+        check(controller.composer.selection == nil && controller.preedit == "@", "not read with \"Use the selected text\" off")
         settings.useSelection = true
         _ = escape(controller, client)
+        // Nor in a password manager, whatever its field says: "@" starts as in a terminal (`FieldInfo.textStaysHere`).
+        select()
+        let bundleBefore = client.bundleIDOverride
+        client.bundleIDOverride = "com.1password.1password"
+        press(controller, client, "@", code: 0x13, flags: .shift)
+        check(controller.composer.selection == nil && controller.preedit == "@", "not read in a password manager (marked '\(controller.preedit)')")
+        _ = escape(controller, client)
+        client.bundleIDOverride = bundleBefore
 
         // A result replaces exactly the selection: by its range, and where the field ignores ranges, as the selected text.
         for ignores in [false, true] {
@@ -386,7 +396,7 @@ enum SelfTest {
             _ = enter(controller, client)
             _ = pump(timeout: 5) { controller.composer.phase == .choosing }
             _ = enter(controller, client)
-            check(client.document == "Total: 42 apples" && client.marked.isEmpty
+            check(client.document == "Total: 42 apples" && controller.preedit.isEmpty
                   && (client.replacements > replacementsBefore) == !ignores,
                   "@js on \"6*7\" selected: 42 replaces it \(ignores ? "where the field ignores ranges" : "by its range") ('\(client.document)')")
             client.ignoresRanges = false
@@ -401,7 +411,7 @@ enum SelfTest {
             check(controller.composer.choices.first?.text == part && untouched(), "row 0 is the selection; the field still untouched")
             let picked = controller.composer.choices[controller.composer.highlighted].text
             _ = enter(controller, client)
-            check(client.document == "Dear team, " + picked + " Thanks!" && picked != part && client.marked.isEmpty,
+            check(client.document == "Dear team, " + picked + " Thanks!" && picked != part && controller.preedit.isEmpty,
                   "the version picked replaces the selection, the rest unchanged ('\(client.document)')")
         }
         // Esc in level two goes back to the command, Esc again gives it up: the field as it was.
@@ -443,7 +453,7 @@ enum SelfTest {
         UIText.choice = "zh"
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config.actionKey = .enter
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .inputAndKeys))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -476,7 +486,7 @@ enum SelfTest {
               "…and with ~ once the trigger is ~: \(model.triggered(agent))")
         let tilde = SettingsSpot.search("~agent", trigger: "~", config: model.config)
         check(tilde.first == .agent && SettingsSpot.search("@agent", trigger: "~", config: model.config).first == .agent
-              && !SettingsPage.general.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
+              && !SettingsPage.common.matches("~agent", trigger: "~") && !SettingsPage.commands.matches("~agent"),
               "the search finds ~agent's row (Commands) with ~ the trigger (\(tilde.map(\.rawValue)))")
         // The action key's note with the trigger picked in the menu, the process's still the one before (~ → #).
         let triggerBefore = UIText.commandTrigger
@@ -497,7 +507,7 @@ enum SelfTest {
         config.candidateLayout = .vertical
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .input))
+        let host = NSHostingView(rootView: SettingsView(model: model, page: .common))
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -554,15 +564,16 @@ enum SelfTest {
     }
 
     /// The interface languages the app ships besides Simplified Chinese and English, each with its name in itself, and
-    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and "General".
+    /// some of its text (the catalog's, compiled into `<code>.lproj`): "Interface language" and the first page's title
+    /// (`general`: Common since #120).
     static let interfaceLanguages: [(code: String, name: String, interfaceLanguage: String, general: String)] = [
-        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Allgemein"),
-        ("es", "Español", "Idioma de la interfaz", "General"),
-        ("fr", "Français", "Langue de l’interface", "Général"),
-        ("ja", "日本語", "表示言語", "一般"),
-        ("ko", "한국어", "인터페이스 언어", "일반"),
-        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Geral"),
-        ("zh-Hant", "繁體中文", "介面語言", "一般"),
+        ("de", "Deutsch", "Sprache der Benutzeroberfläche", "Häufig"),
+        ("es", "Español", "Idioma de la interfaz", "Frecuentes"),
+        ("fr", "Français", "Langue de l’interface", "Courants"),
+        ("ja", "日本語", "表示言語", "よく使う項目"),
+        ("ko", "한국어", "인터페이스 언어", "자주 쓰는 항목"),
+        ("pt-BR", "Português (Brasil)", "Idioma da interface", "Frequentes"),
+        ("zh-Hant", "繁體中文", "介面語言", "常用"),
     ]
 
     /// Each interface language besides Simplified Chinese and English, picked in the settings: its text from its
@@ -575,13 +586,13 @@ enum SelfTest {
         defer { UIText.choice = pickedBefore }
         for language in interfaceLanguages {
             UIText.choice = InterfaceLanguage.setting(for: language.code)
-            let label = tr("界面语言", "Interface language"), general = SettingsPage.general.title
+            let label = tr("界面语言", "Interface language"), common = SettingsPage.common.title
             // The core's text through the same lookup ("Vertical" is Spanish and Portuguese too: compared with the .lproj).
             let core = AIConfig.Text(language: UIText.language).layout(.vertical)
             let lproj = InterfaceText.bundle(language.code, app: .main).flatMap { InterfaceText.translate("Vertical", in: $0) }
-            check(UIText.language == language.code && label == language.interfaceLanguage && general == language.general
+            check(UIText.language == language.code && label == language.interfaceLanguage && common == language.general
                   && lproj != nil && core == lproj && core != "竖排",
-                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(general), \(core))")
+                  "\(language.name): picked in the settings, its text from \(language.code).lproj (\(label), \(common), \(core))")
             if language.code == "zh-Hant" {
                 let key = UIText.name(ActionKey.optionTap), french = UIText.name(Language.french)
                 check(key == "單按 ⌥" && french == "法文" && UIText.chineseOnly("插件库的索引没有签名") == "插件庫的索引沒有簽名",
@@ -589,15 +600,15 @@ enum SelfTest {
             }
             let folder = shots.appendingPathComponent(language.code)
             try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            for page in [SettingsPage.general, .privacy] {
+            for page in [SettingsPage.common, .privacy] {
                 let preview = SettingsModel(configURL: Config.defaultURL, persists: false)
                 preview.profileShownAs = "default"  // never the user's own profile name in a picture
                 SettingsImage.render(preview, page: page, to: folder.appendingPathComponent("\(page.rawValue).png")) { seconds in
                     _ = pump(timeout: seconds) { false }
                 }
             }
-            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("general.png").path),
-                  "\(language.name): Settings → General drawn in it (\(folder.path))")
+            check(FileManager.default.fileExists(atPath: folder.appendingPathComponent("common.png").path),
+                  "\(language.name): Settings → Common drawn in it (\(folder.path))")
             // The custom command editor: its "What it does" picker whole, segmented or a menu.
             let editor = folder.appendingPathComponent("command-editor.png")
             renderLight(CommandEditor(edit: CommandEdit(index: nil, command: CustomCommand(name: "sig", type: .snippet, text: "{name?}\n{date}")),
@@ -609,14 +620,15 @@ enum SelfTest {
 
     static func testLanguageDrag() {
         var config = (try? Config.load()) ?? .default
-        // The translate languages are dragged into order (General: under the input languages' chips).
+        // The translate languages are dragged into order (Common since 0.7.5, #120: "Translate to", after the input languages).
         let japanese = OutputLanguage("ja")
         config.setOrder([OutputLanguage.english, japanese])
+        config.rewriteStyles = []
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
         model.config = config
         config.setOrder([Language.english])  // one input chip above them
         model.config = config
-        let host = NSHostingView(rootView: SettingsView(model: model, page: .general))  // its chips' page
+        let host = NSHostingView(rootView: SettingsView(model: model, page: SettingsSpot.outputLanguages.page))  // its chips' page
         let window = NSWindow(contentRect: NSRect(x: -20000, y: -20000, width: 880, height: 900),
                               styleMask: [.titled], backing: .buffered, defer: false)
         window.alphaValue = 0
@@ -627,8 +639,8 @@ enum SelfTest {
         func handles(in view: NSView) -> [NSView] {
             (String(describing: Swift.type(of: view)).contains("HandleView") ? [view] : []) + view.subviews.flatMap(handles)
         }
-        // The translate languages' row is the first from the top with two handles (the input languages' one chip is
-        // above it): its two handles, left to right.
+        // The translate languages' row is the first from the top with two handles (no rewrite style's chip above it):
+        // its two handles, left to right.
         let all = handles(in: host).map { ($0, $0.convert($0.bounds, to: nil)) }
         let rows = Dictionary(grouping: all) { Int(($0.1.midY / 4).rounded()) }.sorted { $0.key > $1.key }.map(\.value)
         guard !rows.isEmpty else { return check(false, "language chips have drag handles") }
@@ -762,8 +774,8 @@ enum SelfTest {
             defer { rig.restore() }
             let fine = sampleAssistant(rig, fine: true)
             fine.dismissPreview()
-            // General, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
-            SettingsImage.render(preview, page: .general, assistant: fine,
+            // Common, the page the window opens on: what the README's setup shows. Nothing is asked of the AI.
+            SettingsImage.render(preview, page: .common, assistant: fine,
                                  to: snapshotDirectory.appendingPathComponent("\(name).png")) { seconds in
                 _ = pump(timeout: seconds) { false }
             }
@@ -870,7 +882,7 @@ enum SelfTest {
             _ = escape(controller, client)  // clears the line
             let first = controller.composer.choices[controller.composer.highlighted].text
             _ = press(controller, client, "1", code: 0x12)
-            check(client.inserted.last == first && client.marked.isEmpty && !controller.composer.isComposing,
+            check(client.inserted.last == first && controller.preedit.isEmpty && !controller.composer.isComposing,
                   "1 inserts the refined version: \(client.inserted.last ?? "")")
         }
         controller.commitComposition(client)
@@ -890,8 +902,8 @@ enum SelfTest {
         let sentence = "this is a blocker bug your team need fix it asap"
         improve(controller, client)
         type(sentence, controller, client)
-        check(client.marked == "improve › " + sentence && controller.composer.isLatinDraft,
-              "English collects into the @improve draft (\(client.marked))")
+        check(controller.preedit == "improve › " + sentence && controller.composer.isLatinDraft,
+              "English collects into the @improve draft (\(controller.preedit))")
         check(space(controller, client) && controller.composer.draft.hasSuffix(" ") && !controller.composer.isLevelTwo,
               "Space after a word is a space")
         check(controller.panelModel().status == draftHint(controller, input: .english),
@@ -900,7 +912,7 @@ enum SelfTest {
         // ← moves the cursor in the command's text, and the app's caret with it; End back to the end.
         let end = client.markedSelection.location
         for _ in 0..<4 { _ = press(controller, client, "", code: VirtualKey.left) }
-        check(client.markedSelection.location == end - 4 && client.marked == "improve › " + sentence + " ",
+        check(client.markedSelection.location == end - 4 && controller.preedit == "improve › " + sentence + " ",
               "← moves the caret in the command's text (\(client.markedSelection.location) of \(end))")
         _ = press(controller, client, "", code: VirtualKey.end)
         check(client.markedSelection.location == end, "End puts it back at the end")
@@ -1078,7 +1090,7 @@ enum SelfTest {
 
         // Without a command, what was said goes straight into the text.
         if dictate(chineseAudio) {
-            check(client.inserted.last?.wordingKey.contains("不舒服") == true && client.marked.isEmpty
+            check(client.inserted.last?.wordingKey.contains("不舒服") == true && controller.preedit.isEmpty
                   && !controller.composer.isComposing, "without a command the transcript is inserted: \(client.inserted.last ?? "")")
         }
 
@@ -1089,7 +1101,7 @@ enum SelfTest {
         if dictate(chineseAudio, snapshotName: "8-voice") {
             let draft = controller.composer.draft
             check(draft.hasPrefix(before) && draft.wordingKey.contains("不舒服"), "transcript continues the draft: \(draft)")
-            check(client.marked == draft.replacingOccurrences(of: "@improve ", with: "improve › "), "draft shown inline")
+            check(controller.preedit == draft.replacingOccurrences(of: "@improve ", with: "improve › "), "draft shown inline")
             act(controller, client)
             if finishConversion(controller, "voice → translation") {
                 check(controller.composer.choices.filter { $0.kind == .version }.count >= 2, "polished versions of the spoken sentence")
@@ -1112,7 +1124,7 @@ enum SelfTest {
             }
         }
         _ = enter(controller, client)
-        check(client.marked.isEmpty && !controller.composer.isComposing, "Return inserts the highlighted line")
+        check(controller.preedit.isEmpty && !controller.composer.isComposing, "Return inserts the highlighted line")
         tapShift(controller, client)
         settings.actionKey = .enter
         controller.applySettings()
@@ -1129,7 +1141,7 @@ enum SelfTest {
         optionKey(down: true)
         _ = pump(timeout: 1) { if case .listening = controller.composer.voice { return true } else { return false } }
         _ = escape(controller, client)
-        check(controller.composer.voice == .off && client.marked.isEmpty, "Esc while holding right ⌥ cancels the recording")
+        check(controller.composer.voice == .off && controller.preedit.isEmpty, "Esc while holding right ⌥ cancels the recording")
         optionKey(down: false)
         controller.voiceFile = nil
         controller.commitComposition(client)
@@ -1168,12 +1180,12 @@ enum SelfTest {
         at()
         let commands = controller.panelModel().rows.map(\.text)
         // One @'s list for the key alone: the commands by name alone (the trigger was just typed), seven shown.
-        check(client.marked == "@" && commands == ["improve", "translate", "question", "agent", "open", "reply", "note"],
+        check(controller.preedit == "@" && commands == ["improve", "translate", "question", "agent", "open", "reply", "note"],
               "@ opens one @'s list, the commands first (\(commands))")
         readmeSnapshot("10-palette", controller, client, in: snapshotDirectory)
         type("q", controller, client)
         _ = enter(controller, client)
-        check(client.marked == "question › ", "⏎ picks @question ('\(client.marked)')")
+        check(controller.preedit == "question › ", "⏎ picks @question ('\(controller.preedit)')")
         type("shenmeshiliangzijisuan", controller, client)  // 什么是量子计算: what is quantum computing
         needing([.composing, .bedrock])
         _ = enter(controller, client)  // converts the pinyin and asks
@@ -1185,7 +1197,7 @@ enum SelfTest {
             copy()
             check(copied == [answer?.text ?? ""] && controller.composer.phase == .choosing, "⌘C copies the answer and keeps it up")
             _ = shiftEnter(controller, client)
-            check(client.inserted.last == answer?.text && client.marked.isEmpty, "⇧⏎ inserts the answer")
+            check(client.inserted.last == answer?.text && controller.preedit.isEmpty, "⇧⏎ inserts the answer")
         }
         controller.commitComposition(client)
         needing(.composing)
@@ -1198,7 +1210,7 @@ enum SelfTest {
         let insertedBefore = client.inserted
         _ = enter(controller, client)
         check(terminal.count == 1 && terminal.first?.hasPrefix("帮我写") == true && client.inserted == insertedBefore
-              && client.marked.isEmpty && !controller.composer.isComposing,
+              && controller.preedit.isEmpty && !controller.composer.isComposing,
               "@agent starts a Claude Code session with the text, inserts nothing (\(terminal) | \(controller.panelModel().detail ?? "-"))")
         check(agentArguments.first == ["claude", "--"], "…as `claude -- <text>` (\(agentArguments))")
         // While secure input is on it doesn't start: the text stays in the draft until it is off.
@@ -1210,11 +1222,11 @@ enum SelfTest {
         _ = space(controller, client)
         type("nihao", controller, client)
         _ = enter(controller, client)
-        check(terminal.count == 1 && client.marked == "agent › 你好",
-              "@agent doesn't start Claude Code while secure input is on (\(client.marked))")
+        check(terminal.count == 1 && controller.preedit == "agent › 你好",
+              "@agent doesn't start Claude Code while secure input is on (\(controller.preedit))")
         controller.services.secureInputActive = secureInput
         _ = enter(controller, client)
-        check(terminal.count == 2 && terminal.last == "你好" && client.marked.isEmpty,
+        check(terminal.count == 2 && terminal.last == "你好" && controller.preedit.isEmpty,
               "…and starts it once secure input is off (\(terminal))")
         // Another agent picked in Settings whose program isn't on this Mac: @agent goes with the next key, without the
         // text field becoming active again; picked back, it's there again.
@@ -1251,7 +1263,7 @@ enum SelfTest {
         readmeSnapshot("12-open", controller, client, in: snapshotDirectory)
         let userHistory = UserDefaults.standard.data(forKey: OpenHistoryStore.key)  // only read
         _ = enter(controller, client)
-        check(opened == ["/System/Applications/Calculator.app"] && client.marked.isEmpty
+        check(opened == ["/System/Applications/Calculator.app"] && controller.preedit.isEmpty
               && !controller.composer.engineState.isAsciiMode, "⏎ opens it, inserts nothing, and Chinese is back")
         check(controller.services.loadOpenHistory().entries.map(\.path) == ["/System/Applications/Calculator.app"]
               && UserDefaults.standard.data(forKey: OpenHistoryStore.key) == userHistory,
@@ -1359,7 +1371,7 @@ enum SelfTest {
               "…⏎ searches it, its rows drawn as when typing (\(searched), \(listedRows))")
         _ = escape(controller, client)
         _ = escape(controller, client)
-        check(client.marked.isEmpty, "Esc twice: back to the draft, then nothing")
+        check(controller.preedit.isEmpty, "Esc twice: back to the draft, then nothing")
         // Only content matches as you type: ⏎ doesn't open the first, it lists them to pick from.
         at()
         type("o", controller, client)
@@ -1375,7 +1387,7 @@ enum SelfTest {
         _ = escape(controller, client)
         _ = escape(controller, client)
         (controller.services.searchFiles, controller.services.instantResults) = (searchFiles, instantResults)
-        check(client.marked.isEmpty, "…Esc twice: nothing left")
+        check(controller.preedit.isEmpty, "…Esc twice: nothing left")
 
         // "@" with a letter no command starts with is one @'s text (a mention, say): Esc puts it in as typed.
         at()
@@ -1384,7 +1396,7 @@ enum SelfTest {
         check(client.inserted == insertedBeforeMention && controller.composer.draft == "@" && controller.composer.engineState.isComposing,
               "@z: z is pinyin after the '@', nothing goes in yet (\(client.inserted.suffix(2)))")
         _ = escape(controller, client)
-        check(client.inserted.last == "@z" && client.marked.isEmpty && !controller.composer.isComposing,
+        check(client.inserted.last == "@z" && controller.preedit.isEmpty && !controller.composer.isComposing,
               "…Esc puts '@z' in as typed (\(client.inserted.suffix(2)))")
         controller.commitComposition(client)
     }
@@ -1455,10 +1467,10 @@ enum SelfTest {
         tab()
         type("nihao", controller, client)
         _ = space(controller, client)
-        check(client.marked == "note › 你好" && controller.panelModel().status == .hint("⏎ → 存到备忘录"),
+        check(controller.preedit == "note › 你好" && controller.panelModel().status == .hint("⏎ → 存到备忘录"),
               "the hint says ⏎ saves it to Notes (\(controller.panelModel().status))")
         _ = enter(controller, client)
-        check(client.marked.isEmpty && client.inserted == insertedBefore && !controller.composer.isComposing
+        check(controller.preedit.isEmpty && client.inserted == insertedBefore && !controller.composer.isComposing
               && notice() == "正在存到备忘录…",
               "⏎ inserts nothing, clears the draft and says 「正在存到备忘录…」 at once (\(notice() ?? "no notice"))")
         check(pump(timeout: 2) { notice() == "已存到备忘录" } && notes == ["你好"],
@@ -1472,8 +1484,8 @@ enum SelfTest {
         // ⌃V takes the clipboard's text, its lines too, shown with 「 ↵ 」; ⏎ saves it as it was.
         controller.readClipboard = { .text("牛奶\n鸡蛋\n面包") }
         note("", in: controller, client)
-        check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { client.marked == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
-              "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(client.marked))")
+        check(press(controller, client, "v", code: 0x09, flags: .control) && pump(timeout: 1) { controller.preedit == "note › 牛奶 ↵ 鸡蛋 ↵ 面包" } && notes.count == 2,
+              "⌃V in an empty @note shows the clipboard's text in it, a line per 「↵」 (\(controller.preedit))")
         controller.readClipboard = saved.4
         _ = enter(controller, client)
         check(pump(timeout: 2) { notes.count == 3 } && notes.last == "牛奶\n鸡蛋\n面包",
@@ -1498,8 +1510,7 @@ enum SelfTest {
         at()
         type("r", controller, client)
         let both = controller.panelModel().rows.map(\.text)
-        // @read is off for now (`Command.off`): @reply, then @reminder.
-        check(both.prefix(2) == ["reply", "reminder"] && !both.contains("read"), "@r offers @reply and @reminder first, not @read (\(both))")
+        check(both.prefix(2) == ["reply", "reminder"], "@r offers @reply and @reminder first (\(both))")
         type("em", controller, client)
         let rows = controller.panelModel().rows
         // The command its letters start comes first; one @'s other rows for the text follow it.
@@ -1509,8 +1520,8 @@ enum SelfTest {
         tab()
         controller.readClipboard = { .text("明天下午3点给张三打电话") }
         check(press(controller, client, "v", code: 0x09, flags: .command)
-              && pump(timeout: 1) { client.marked == "reminder › 明天下午3点给张三打电话" },
-              "⌘V puts the text in (\(client.marked))")
+              && pump(timeout: 1) { controller.preedit == "reminder › 明天下午3点给张三打电话" },
+              "⌘V puts the text in (\(controller.preedit))")
         controller.readClipboard = saved.4
         check(controller.panelModel().status == .hint("⏎ → 看一下再加到提醒事项"),
               "the hint says it is checked first (\(controller.panelModel().status))")
@@ -1526,8 +1537,8 @@ enum SelfTest {
         _ = press(controller, client, "c", code: 0x08, flags: .command)
         check(copied == ["给张三打电话"] && controller.composer.phase == .choosing, "⌘C copies the title (\(copied))")
         _ = escape(controller, client)
-        check(controller.composer.phase == .drafting && client.marked == "reminder › 明天下午3点给张三打电话",
-              "Esc goes back to the text (\(client.marked))")
+        check(controller.composer.phase == .drafting && controller.preedit == "reminder › 明天下午3点给张三打电话",
+              "Esc goes back to the text (\(controller.preedit))")
         _ = enter(controller, client)
         _ = enter(controller, client)
         check(notice() == "正在加到提醒事项…", "⏎ says 「正在加到提醒事项…」 at once (\(notice() ?? "no notice"))")
@@ -1537,7 +1548,7 @@ enum SelfTest {
         let threePM = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: threePMDate)
         check(pump(timeout: 2) { !reminders.isEmpty }
               && reminders == [ReminderDraft(title: "给张三打电话", due: threePM, hasTime: true, date: threePMDate)]
-              && client.marked.isEmpty && !controller.composer.isComposing,
+              && controller.preedit.isEmpty && !controller.composer.isComposing,
               "⏎ adds it, due tomorrow 15:00 (\(reminders.map { "\($0.title) · \(UIText.when($0))" }))")
         check(pump(timeout: 2) { notice() == "已加到提醒事项：" + tomorrowAt3 }, "notice: \(notice() ?? "none")")
         // The clock override: the README images' 24-hour times on any Mac; unpinned (nil), the Mac's own setting
@@ -1593,8 +1604,8 @@ enum SelfTest {
               && controller.panelModel().footer == "Esc 返回修改",
               "only a time asks what for (\(controller.composer.phase))")
         _ = enter(controller, client)
-        check(controller.composer.phase == .drafting && client.marked == "reminder › 你好" && client.inserted == insertedBefore,
-              "⏎ goes back to the text (\(client.marked))")
+        check(controller.composer.phase == .drafting && controller.preedit == "reminder › 你好" && client.inserted == insertedBefore,
+              "⏎ goes back to the text (\(controller.preedit))")
         _ = enter(controller, client)  // read again: still only a time
         _ = space(controller, client)
         check(controller.composer.phase == .drafting && client.inserted == insertedBefore, "so does Space")
@@ -1611,21 +1622,21 @@ enum SelfTest {
         note("nihao", in: controller, client)
         _ = enter(controller, client)
         let notAllowed = "没有权限控制「备忘录」：在 系统设置 → 隐私与安全性 → 自动化 里允许 AllInOneIME"
-        check(pump(timeout: 2) { client.marked == "note › 你好" && notice() == "原文也复制到了剪贴板。" + notAllowed } && notes.count == 3
+        check(pump(timeout: 2) { controller.preedit == "note › 你好" && notice() == "原文也复制到了剪贴板。" + notAllowed } && notes.count == 3
               && controller.composer.draft == "@note 你好" && copied.count == copies + 1 && copied.last == "你好",
-              "without permission the note comes back into the draft, and onto the clipboard: \(client.marked) | \(notice() ?? "no notice")")
+              "without permission the note comes back into the draft, and onto the clipboard: \(controller.preedit) | \(notice() ?? "no notice")")
         failure = nil
         _ = enter(controller, client)
-        check(pump(timeout: 2) { notes.count == 4 } && notes.last == "你好" && client.marked.isEmpty, "…and ⏎ saves it then")
+        check(pump(timeout: 2) { notes.count == 4 } && notes.last == "你好" && controller.preedit.isEmpty, "…and ⏎ saves it then")
         // Not allowed to use Reminders: the text it was read from comes back, and goes onto the clipboard.
         failure = RemindersBridge.RemindersError.notPermitted
         copies = copied.count
         _ = confirmRow(day)
         _ = enter(controller, client)
         let remindersNotAllowed = "没有权限使用「提醒事项」：在 系统设置 → 隐私与安全性 → 提醒事项 里允许 AllInOneIME"
-        check(pump(timeout: 2) { client.marked == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + remindersNotAllowed }
+        check(pump(timeout: 2) { controller.preedit == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + remindersNotAllowed }
               && reminders.count == 4 && copied.count == copies + 1 && copied.last == "你好",
-              "without permission the reminder's text comes back, and onto the clipboard: \(client.marked) | \(notice() ?? "-")")
+              "without permission the reminder's text comes back, and onto the clipboard: \(controller.preedit) | \(notice() ?? "-")")
         _ = escape(controller, client)
         // No account for reminders (the Reminders app has to set one up first): the same.
         failure = RemindersBridge.RemindersError.noAccount
@@ -1633,7 +1644,7 @@ enum SelfTest {
         _ = confirmRow(day)
         _ = enter(controller, client)
         let noAccount = "没有能放提醒事项的账户：先打开「提醒事项」App 看看"
-        check(pump(timeout: 2) { client.marked == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + noAccount }
+        check(pump(timeout: 2) { controller.preedit == "reminder › 你好" && notice() == "原文也复制到了剪贴板。" + noAccount }
               && reminders.count == 4 && copied.count == copies + 1 && copied.last == "你好",
               "no account: the reminder's text comes back, and onto the clipboard (\(notice() ?? "-"))")
         _ = escape(controller, client)
@@ -1642,7 +1653,7 @@ enum SelfTest {
         copies = copied.count
         note("nihao", in: controller, client)
         _ = enter(controller, client)
-        check(pump(timeout: 2) { client.marked == "note › 你好" && notice() == "没有存到备忘录（错误 -1743）" } && copied.count == copies,
+        check(pump(timeout: 2) { controller.preedit == "note › 你好" && notice() == "没有存到备忘录（错误 -1743）" } && copied.count == copies,
               "a script error: back in the draft, not on the clipboard (\(notice() ?? "no notice"))")
         _ = escape(controller, client)
         // Something else is being typed when it fails: the text goes to the clipboard, and the notice says so.
@@ -1654,8 +1665,8 @@ enum SelfTest {
         type("wo", controller, client)
         held = false
         let onClipboard = "没有存上，原文已复制到剪贴板。没有存到备忘录（错误 -1728）"
-        check(pump(timeout: 2) { copied.count == copies + 1 && copied.last == "你好" && notice() == onClipboard } && client.marked == "wo",
-              "while something else is typed, it goes to the clipboard: \(notice() ?? "no notice") (typing: \(client.marked))")
+        check(pump(timeout: 2) { copied.count == copies + 1 && copied.last == "你好" && notice() == onClipboard } && controller.preedit == "wo",
+              "while something else is typed, it goes to the clipboard: \(notice() ?? "no notice") (typing: \(controller.preedit))")
         _ = escape(controller, client)
         // Its text field went away meanwhile (IMK closed that controller): the clipboard too, the notice near the
         // pointer, and nothing kept the controller alive.
@@ -1676,7 +1687,7 @@ enum SelfTest {
             field.applySettings()
             note("", in: field, otherClient)
             _ = press(field, otherClient, "v", code: 0x09, flags: .control)  // ⌃V: the clipboard's text in
-            _ = pump(timeout: 1) { otherClient.marked == "note › 买牛奶" }
+            _ = pump(timeout: 1) { field.preedit == "note › 买牛奶" }
             _ = enter(field, otherClient)
             field.inputControllerWillClose()
         }
@@ -1707,14 +1718,14 @@ enum SelfTest {
             func pending() -> Bool {
                 note("", in: terminal, terminalClient)
                 _ = press(terminal, terminalClient, "v", code: 0x09, flags: .control)
-                return pump(timeout: 1) { terminalClient.marked == "note › cd ~/project ↵ rm -rf build ↵ make install" }
+                return pump(timeout: 1) { terminal.preedit == "note › cd ~/project ↵ rm -rf build ↵ make install" }
             }
             let unsaved = "笔记还没存，原文已复制到剪贴板"
             func keptOnClipboard(_ how: String, _ end: () -> Void) {
                 let before = copied.count
-                guard pending() else { return check(false, "\(how): the note's lines didn't come in (\(terminalClient.marked))") }
+                guard pending() else { return check(false, "\(how): the note's lines didn't come in (\(terminal.preedit))") }
                 end()
-                check(terminalClient.inserted.isEmpty && terminalClient.marked.isEmpty && !terminal.composer.isComposing
+                check(terminalClient.inserted.isEmpty && terminal.preedit.isEmpty && !terminal.composer.isComposing
                       && copied.count == before + 1 && copied.last == lines
                       && terminal.panelModel().detail == unsaved && CandidatePanel.shared.view.model.status == .hint(unsaved),
                       "\(how): the note's lines aren't typed in, its text goes to the clipboard (\(terminalClient.inserted), "
@@ -1724,12 +1735,12 @@ enum SelfTest {
             keptOnClipboard("the field loses focus") { terminal.deactivateServer(terminalClient) }
             terminal.activateServer(terminalClient)
             keptOnClipboard("⇧⏎") { _ = shiftEnter(terminal, terminalClient) }
-            // ⌘V there is the terminal's: it pastes the clipboard as it is (no note put there first); the note stays.
+            // ⌘V pastes into the note there too, as in every app (#125, f0e4c60e): the terminal gets nothing; the note stays.
             let before = copied.count
             if pending() {
-                check(!press(terminal, terminalClient, "v", code: 0x09, flags: .command) && copied.count == before
-                      && terminalClient.inserted.isEmpty && terminal.composer.draft == "@note " + lines,
-                      "⌘V in a terminal is the terminal's; the note stays (\(terminalClient.inserted))")
+                check(press(terminal, terminalClient, "v", code: 0x09, flags: .command) && copied.count == before
+                      && terminalClient.inserted.isEmpty && terminal.composer.draft.hasPrefix("@note " + lines),
+                      "⌘V in a terminal pastes into the note, nothing into the terminal (\(terminalClient.inserted))")
             }
             _ = escape(terminal, terminalClient)
             terminal.inputControllerWillClose()
@@ -1792,7 +1803,7 @@ enum SelfTest {
         type("reporti", controller, client)
         press(controller, client, "\t", code: VirtualKey.tab)
         type("panel stuck", controller, client)
-        check(client.marked == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(client.marked))")
+        check(controller.preedit == "reportissue › panel stuck", "@reporti Tab picks @reportissue, the title after it (\(controller.preedit))")
         _ = enter(controller, client)
         let model = controller.panelModel()
         // What it fills in besides the title, as the panel says it (a list under the hint).
@@ -1805,13 +1816,13 @@ enum SelfTest {
         check(shown.contains("Hide sensitive info: on") || shown.contains("Hide sensitive info: off"), "it says whether sensitive info is hidden, nothing more")
         snapshot("report-issue", in: snapshotDirectory)
         _ = escape(controller, client)
-        check(client.marked == "reportissue › panel stuck" && opened.isEmpty, "Esc goes back to the title (\(client.marked))")
+        check(controller.preedit == "reportissue › panel stuck" && opened.isEmpty, "Esc goes back to the title (\(controller.preedit))")
         _ = enter(controller, client)
         _ = enter(controller, client)
         let url = opened.first ?? ""
         check(opened.count == 1 && url.hasPrefix(IssueReport.newIssueAddress + "?title=panel%20stuck&body=") && url.count <= IssueReport.maxURLLength,
               "⏎ ⏎ opens GitHub's new-issue page with the title (\(url.prefix(90))…, \(url.count) characters)")
-        check(client.inserted.count == inserted && client.marked.isEmpty, "nothing is typed into the text field")
+        check(client.inserted.count == inserted && controller.preedit.isEmpty, "nothing is typed into the text field")
     }
 
     static func testIMessage(_ controller: AllInOneIMEInputController, _ client: FakeTextClient) {
@@ -1846,15 +1857,15 @@ enum SelfTest {
         let insertedBefore = client.inserted
 
         start()
-        check(client.marked == "imessage › " && controller.composer.engineState.isAsciiMode, "@imessage: the recipient is typed as letters ('\(client.marked)')")
+        check(controller.preedit == "imessage › " && controller.composer.engineState.isAsciiMode, "@imessage: the recipient is typed as letters ('\(controller.preedit)')")
         type("zs", controller, client)
         let rows = found()
         check(rows.map(\.handle) == ["+1 555 0100", "zhangsan@example.com"]
               && controller.panelModel().rows.first?.text == "张三" && controller.panelModel().rows.first?.comment == "+1 555 0100",
               "zs finds 张三, one row per handle (\(controller.panelModel().rows.map(\.text)))")
         _ = enter(controller, client)
-        check(client.marked == "imessage › 张三 › " && !controller.composer.engineState.isAsciiMode && sender.sent.isEmpty,
-              "⏎ picks the recipient, Chinese is back, nothing sent ('\(client.marked)')")
+        check(controller.preedit == "imessage › 张三 › " && !controller.composer.engineState.isAsciiMode && sender.sent.isEmpty,
+              "⏎ picks the recipient, Chinese is back, nothing sent ('\(controller.preedit)')")
         type("nihao", controller, client)
         _ = space(controller, client)
         _ = enter(controller, client)
@@ -1864,12 +1875,12 @@ enum SelfTest {
         _ = space(controller, client)
         check(sender.sent.isEmpty && controller.composer.phase == .choosing, "Space doesn't send it")
         _ = escape(controller, client)
-        check(controller.composer.phase == .drafting && client.marked == "imessage › 张三 › 你好", "Esc goes back to editing")
+        check(controller.composer.phase == .drafting && controller.preedit == "imessage › 张三 › 你好", "Esc goes back to editing")
         _ = enter(controller, client)
         _ = enter(controller, client)
         _ = pump(timeout: 3) { !sender.sent.isEmpty && !recent.isEmpty && controller.panelModel().detail != nil }
         check(sender.sent.map(\.text) == ["你好"] && sender.sent.first?.to.handle == "+1 555 0100", "⏎ again sends it (stand-in)")
-        check(client.inserted == insertedBefore && client.marked.isEmpty && !controller.composer.isComposing,
+        check(client.inserted == insertedBefore && controller.preedit.isEmpty && !controller.composer.isComposing,
               "nothing is inserted, the draft is gone")
         check(recent == ["+1 555 0100"], "the handle is remembered for next time")
         _ = pump(timeout: 6) { controller.panelModel().detail == nil }
@@ -1958,8 +1969,8 @@ enum SelfTest {
               "↓ turns the page (page \(controller.composer.engineState.pageNumber + 1))")
         arrow(VirtualKey.up)
         check(controller.composer.engineState.pageNumber == 0, "↑ turns it back (page \(controller.composer.engineState.pageNumber + 1))")
-        check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao" && client.inserted.last != first,
-              "nothing was picked on the way (\(client.marked))")
+        check(controller.preedit.replacingOccurrences(of: " ", with: "") == "nihao" && client.inserted.last != first,
+              "nothing was picked on the way (\(controller.preedit))")
 
         // A long candidate is cut with "…", its cell no wider than what's left of it.
         let long = String(repeating: "这是一个很长很长的句子", count: 6)
@@ -1974,14 +1985,15 @@ enum SelfTest {
             PanelModel.Row(label: "\($0.offset + 1)", text: $0.element, kind: .candidate)
         }, highlighted: 1, footer: "空格 选词 · 开头打 @ 用命令", horizontal: true), anchor: client.caretRect)
         snapshot("1c-pinyin-horizontal-long", in: snapshotDirectory)
-        // The setting is in Input, with the input languages (owner, 0.7.4), and the search finds it there.
+        // The setting is on Common, with the input languages (#120), and the search finds it there.
         let layout = ["candidate layout", "横排"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
-        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .input
-              && !SettingsPage.general.matches("横排") && !SettingsPage.advanced.matches("横排"),
-              "searching for the candidate layout finds its row in Input, not General or Advanced (\(layout))")
+        check(layout.allSatisfy { $0 == .candidateLayout } && SettingsSpot.candidateLayout.page == .common
+              && !SettingsPage.inputAndKeys.matches("横排") && !SettingsPage.advanced.matches("横排"),
+              "searching for the candidate layout finds its row on Common, not in Input and keys or Advanced (\(layout))")
         // @agent's settings are with the command, in Commands.
-        let agents = ["kiro", "后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
-        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.general.matches("kiro"),
+        // ("kiro" alone finds the AI page's Kiro CLI card first since every AI is a card there, #121.)
+        let agents = ["后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
+        check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.common.matches("kiro"),
               "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")
     }
 
@@ -2049,7 +2061,7 @@ enum SelfTest {
         press(controller, client, "\t", code: VirtualKey.tab)
         let late = "running 10 minutes late, start without me"
         type(late, controller, client)
-        check(client.marked == "translate › " + late, "English README: an English @translate draft (\(client.marked))")
+        check(controller.preedit == "translate › " + late, "English README: an English @translate draft (\(controller.preedit))")
         snapshot("en-translate-draft", in: snapshotDirectory)
         _ = enter(controller, client)
         if finishConversion(controller, "English README @translate") {
@@ -2118,16 +2130,14 @@ enum SelfTest {
         showAfresh(model)
         snapshot(name + "-en", in: directory, appearance: appearance)
         // The text line above the panel, for the README image (a transcript isn't known beforehand).
-        try? Data(client.marked.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
+        try? Data(controller.preedit.utf8).write(to: directory.appendingPathComponent("\(name).marked.txt"))
         settings.uiLanguage = language
         controller.applySettings()
         showAfresh(controller.panelModel())
     }
 
-    /// @py, @js and @search through the controller, with ⏎ as the action key: results come back as
-    /// candidates (@py and @js from their child processes), output with several lines goes in as printed
-    /// (in a terminal as one line), and @search without a key says where to add one (nothing is sent). The
-    /// search key is a stand-in: the user's keychain is never read here.
+    /// @py and @js through the controller, with ⏎ as the action key: results come back as candidates (from their
+    /// child processes), output with several lines goes in as printed (in a terminal as one line).
     /// Typed out with typos fixed on the way (`Config.typeOutMistakes`): the field ends up with exactly the text,
     /// each typo taken back by its range. Esc or another key while a typo is in the field leaves none behind. No
     /// typos in a terminal, nor in a field that tells no caret. Seeded "random" numbers, short pauses.
@@ -2250,7 +2260,7 @@ enum SelfTest {
             controller.pasteInTerminal = { _ in true }
         }
         func ask() -> String? {
-            guard start("question") else { check(false, "@question is picked from the list ('\(client.marked)')"); return nil }
+            guard start("question") else { check(false, "@question is picked from the list ('\(controller.preedit)')"); return nil }
             typeText("yongpythonxiekuaisupaixu")  // 用 python 写快速排序: code, several lines
             _ = act(controller, client)
             guard finishConversion(controller, "@question in a terminal") else { clear(); return nil }
@@ -2287,39 +2297,37 @@ enum SelfTest {
 
     static func testToolCommands(_ controller: AllInOneIMEInputController, _ client: FakeTextClient,
                                  snapshotDirectory: URL) {
-        section("@py, @js, @search", needs: .composing)
+        section("@py, @js", needs: .composing)
         // These commands run nothing while secure input is on, and a locked screen holds it. Nothing typed
         // here is secret, and the secure input refusal has its own checks, so this section runs without it.
-        let (secureInput, installed, commands, searchKey) =
-            (controller.services.secureInputActive, controller.services.programInstalled, controller.composer.commands, controller.services.loadSearchKey)
+        let (secureInput, installed, commands) =
+            (controller.services.secureInputActive, controller.services.programInstalled, controller.composer.commands)
         controller.services.secureInputActive = { false }
         controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
-        controller.services.loadSearchKey = { nil }
         defer {
             controller.services.secureInputActive = secureInput
             controller.services.programInstalled = installed
-            controller.services.loadSearchKey = searchKey
             controller.setCommands(commands)
         }
-        // Only the built-in commands, so the user's own can't come first in the list.
-        controller.setCommands(Command.catalog([]), recheck: true)
+        // The built-ins and Settings' example @py, so the user's own commands can't come first in the list.
+        let catalog = Command.catalog([CommandExamples.python])
+        func offersPy() -> Bool { controller.composer.commands.contains { $0.name == "py" } }
+        controller.setCommands(catalog, recheck: true)
         let python = CommandRunner.isInstalled("python3", path: ShellEnvironment.current["PATH"])
-        check(pump(timeout: 10) { controller.composer.commands.contains(.py) == python },
-              "@py is offered only with python3 installed (python3: \(python))")
+        check(pump(timeout: 10) { offersPy() == python }, "@py is offered only with python3 installed (python3: \(python))")
         // A check of the programs that ends while a command is being written applies once that's done.
-        controller.services.programInstalled = { $0 != Command.py.program }
+        controller.services.programInstalled = { $0 != "python3" }
         press(controller, client, "@", code: 0x13, flags: .shift)  // composing: the list is up
-        controller.setCommands(Command.catalog([]), recheck: true)
+        controller.setCommands(catalog, recheck: true)
         _ = pump(timeout: 1) { false }  // the check runs in the background meanwhile
-        let keptWhileComposing = controller.composer.commands.contains(.py) == python
+        let keptWhileComposing = offersPy() == python
         _ = escape(controller, client)
         press(controller, client, "@", code: 0x13, flags: .shift)  // the next key outside a command applies it
-        check(keptWhileComposing && !controller.composer.commands.contains(.py),
-              "a program check that ended while a command was written hides @py once it's done")
+        check(keptWhileComposing && !offersPy(), "a program check that ended while a command was written hides @py once it's done")
         _ = escape(controller, client)
         controller.services.programInstalled = { CommandRunner.isInstalled($0, path: ShellEnvironment.current["PATH"]) }
-        controller.setCommands(Command.catalog([]), recheck: true)
-        _ = pump(timeout: 10) { controller.composer.commands.contains(.py) == python }
+        controller.setCommands(catalog, recheck: true)
+        _ = pump(timeout: 10) { offersPy() == python }
 
         // Symbols with their US-layout keys (`type` sends key code 0 for anything not in `keyCodes`).
         let symbols: [Character: (UInt16, NSEvent.ModifierFlags)] = [
@@ -2330,7 +2338,7 @@ enum SelfTest {
             press(controller, client, "@", code: 0x13, flags: .shift)  // ⇧2
             type(name, controller, client)
             press(controller, client, "\t", code: VirtualKey.tab)
-            return client.marked == name + " › "
+            return controller.preedit == name + " › "
         }
         func typeText(_ text: String) {
             for ch in text {
@@ -2350,7 +2358,7 @@ enum SelfTest {
         /// Runs `@name text` and inserts its result; true if `expected` was inserted.
         func insertsResult(_ name: String, _ text: String, _ expected: String) -> Bool {
             guard start(name) else {
-                check(false, "@\(name) is picked from the list ('\(client.marked)')")
+                check(false, "@\(name) is picked from the list ('\(controller.preedit)')")
                 return false
             }
             typeText(text)
@@ -2359,7 +2367,7 @@ enum SelfTest {
             let answer = controller.composer.choices.last
             _ = enter(controller, client)
             return answer?.kind == .answer && answer?.text == expected && client.inserted.last == expected
-                && client.marked.isEmpty && !controller.composer.isComposing
+                && controller.preedit.isEmpty && !controller.composer.isComposing
         }
 
         // Typed out (`Config.typeOut`): the result goes in one character at a time; Esc stops it there,
@@ -2405,8 +2413,9 @@ enum SelfTest {
         }
         testTypos(controller, client, clear: clear)
         (settings.typeOut, settings.typeOutMistakes) = (typedBefore, mistakesBefore)
-        controller.applySettings()
-        controller.typeOutSleep = sleepBefore
+        controller.applySettings(); controller.typeOutSleep = sleepBefore
+        // The settings applied again load the commands from them: Settings' example @py back in the list (#131).
+        controller.setCommands(catalog, recheck: true); _ = pump(timeout: 10) { offersPy() == python }
 
         if python {
             check(insertsResult("py", "2**100", "1267650600228229401496703205376"),
@@ -2430,7 +2439,7 @@ enum SelfTest {
             check(insertsResult("py", "print(1);print(2)", "1\n2"), "@py output keeps its lines in other apps (\(shown(client.inserted.last)))")
             if SecureInput.ownerPID() == nil {
                 client.bundleIDOverride = "com.mitchellh.ghostty"
-                controller.activateServer(client)
+                controller.activateServer(client); controller.setCommands(catalog, recheck: true); _ = pump(timeout: 10) { offersPy() == python }  // the settings applied again
                 check(insertsResult("py", "print(1);print(2)", "1 2"),
                       "…and goes in as one line in a terminal (\(shown(client.inserted.last)))")
                 let local = needing([.composing, .bedrock])  // a live @question
@@ -2448,24 +2457,8 @@ enum SelfTest {
 
         testExtensions(controller, client, start: start, typeText: typeText, waitForEnd: waitForEnd, clear: clear)
 
-        // Without a key nothing is sent: the error says where to add one. (No live search here.) @search is
-        // off for now (`Command.webSearchOffered`): then it isn't in the list at all.
-        if !Command.webSearchOffered {
-            press(controller, client, "@", code: 0x13, flags: .shift)
-            type("sea", controller, client)
-            check(!controller.composer.paletteMatches.contains(.webSearch), "@search isn't offered (off for now)")
-            clear()
-        } else if start("search") {
-            type("pingguo", controller, client)  // 苹果: apple
-            _ = act(controller, client)
-            waitForEnd()
-            let expected = UIText.describe(WebSearch.SearchError.missingKey(variable: WebSearch.backend.keyVariables[0]))
-            check(failure() == expected, "@search without a key says where to add one (\(failure() ?? "no error"))")
-        } else {
-            check(false, "@search is picked from the list ('\(client.marked)')")
-        }
         clear()
-        check(!controller.composer.isComposing && client.marked.isEmpty, "nothing left composing")
+        check(!controller.composer.isComposing && controller.preedit.isEmpty, "nothing left composing")
     }
 
     /// Script extensions, made in a temporary folder (never the user's own): one that takes no input completes
@@ -2539,20 +2532,20 @@ enum SelfTest {
             check(answer?.text == expected && client.inserted.last == expected && !controller.composer.isComposing,
                   "…the action key runs it; its output goes in, with the folder and the language it was told (\(client.inserted.last ?? ""))")
         } else {
-            check(false, "@sthello is picked from the list ('\(client.marked)')")
+            check(false, "@sthello is picked from the list ('\(controller.preedit)')")
         }
         clear()
         let count = client.inserted.count
         if start("stquiet") {
             _ = act(controller, client)
             _ = pump(timeout: 5) { !controller.composer.isComposing }
-            check(client.inserted.count == count && client.marked.isEmpty && !controller.composer.isComposing,
+            check(client.inserted.count == count && controller.preedit.isEmpty && !controller.composer.isComposing,
                   "a Raycast silent script inserts nothing")
         }
         clear()
         if start("stneeds") {
             _ = act(controller, client)
-            check(!controller.composer.isLevelTwo && client.marked == "stneeds › ", "a script missing its argument doesn't run (\(client.marked))")
+            check(!controller.composer.isLevelTwo && controller.preedit == "stneeds › ", "a script missing its argument doesn't run (\(controller.preedit))")
         }
         clear()
         if start("stlist") {
@@ -2578,7 +2571,7 @@ enum SelfTest {
         clear()
         if start("stwait") {
             _ = act(controller, client)
-            check(!controller.composer.isComposing && client.marked.isEmpty, "a background command starts and the draft is done")
+            check(!controller.composer.isComposing && controller.preedit.isEmpty, "a background command starts and the draft is done")
             _ = pump(timeout: 5) { !notified.isEmpty }
             check(notified.first?.hasSuffix("| waited\n0.3 s") == true && controller.scriptTasks.background.first?.outcome == .done,
                   "…it notifies with its summary and detail when done, and the menu bar panel lists it (\(notified))")
@@ -2887,7 +2880,7 @@ enum SelfTest {
             print("  secure input is \(SecureInput.ownerDescription()); checking it doesn't block other apps")
             if SecureInput.ownerPID() == -1 { skipping = secureInputOn }
             type("ni", controller, client)
-            check(client.marked == "ni" || client.marked == "n i", "composing still works (\(client.marked))")
+            check(controller.preedit == "ni" || controller.preedit == "n i", "composing still works (\(controller.preedit))")
             _ = escape(controller, client)
             skipping = nil
         } else {
@@ -2901,12 +2894,12 @@ enum SelfTest {
                 }
             } else {
                 check(!press(controller, client, "a", code: 0x00), "letters pass through in the app holding secure input")
-                check(client.marked.isEmpty && !controller.composer.isComposing, "nothing is composed")
+                check(controller.preedit.isEmpty && !controller.composer.isComposing, "nothing is composed")
                 _ = DisableSecureEventInput()
                 type("ni", controller, client)
                 _ = EnableSecureEventInput()
                 check(!press(controller, client, "d", code: 0x02), "key passes through when secure input turns on mid-composition")
-                check(client.inserted.last == "ni" && client.marked.isEmpty, "pending letters committed as typed")
+                check(client.inserted.last == "ni" && controller.preedit.isEmpty, "pending letters committed as typed")
             }
             _ = DisableSecureEventInput()
         }
@@ -2925,15 +2918,15 @@ enum SelfTest {
         section("regular input method, @improve (live Bedrock)", needs: .composing)
         type("nihao", controller, client)
         _ = space(controller, client)
-        check(client.inserted.last == "你好" && client.marked.isEmpty, "Space inserts 你好 straight into the text")
+        check(client.inserted.last == "你好" && controller.preedit.isEmpty, "Space inserts 你好 straight into the text")
         type("nihao", controller, client)
         _ = enter(controller, client)
-        check(client.inserted.last == "nihao" && client.marked.isEmpty, "⏎ while composing inserts the letters, no AI")
+        check(client.inserted.last == "nihao" && controller.preedit.isEmpty, "⏎ while composing inserts the letters, no AI")
         check(!enter(controller, client), "⏎ with nothing pending is the app's")
         press(controller, client, "@", code: 0x13, flags: .shift)
         type("i", controller, client)
         _ = enter(controller, client)
-        check(client.marked == "improve › ", "@i ⏎ picks @improve ('\(client.marked)')")
+        check(controller.preedit == "improve › ", "@i ⏎ picks @improve ('\(controller.preedit)')")
         type("wojintianyoudianbushufu", controller, client)
         check(controller.panelModel().footer == "空格 选词 · ⏎ 润色 / 改写", "the footer names the command (\(controller.panelModel().footer))")
         readmeSnapshot("1b-sentence-pinyin", controller, client, in: snapshotDirectory)
@@ -2961,9 +2954,9 @@ enum SelfTest {
         _ = enter(controller, client)
         let insertedBefore = client.inserted.count
         check(press(controller, client, "v", code: 0x09, flags: .command), "⌘V in the command is the input method's (the app doesn't paste)")
-        _ = pump(timeout: 1) { client.marked != "improve › " }  // the clipboard is read once the key is answered
-        check(client.marked == "improve › 这个项目的进度太慢了我们需要尽快想办法" && client.inserted.count == insertedBefore,
-              "the clipboard's text goes into the command, as one line ('\(client.marked)')")
+        _ = pump(timeout: 1) { controller.preedit != "improve › " }  // the clipboard is read once the key is answered
+        check(controller.preedit == "improve › 这个项目的进度太慢了我们需要尽快想办法" && client.inserted.count == insertedBefore,
+              "the clipboard's text goes into the command, as one line ('\(controller.preedit)')")
         needing([.composing, .bedrock])
         _ = enter(controller, client)
         if finishConversion(controller, "@improve on pasted text") {
@@ -2988,11 +2981,11 @@ enum SelfTest {
         check(controller.panelModel().status == .hint("写点内容，或按 ⌃V 粘贴"), "the hint says to write or paste (\(controller.panelModel().status))")
         _ = enter(controller, client)
         _ = pump(timeout: 0.5) { false }
-        check(clipboardReads == 0 && client.marked == "improve › " && !controller.composer.isLevelTwo
+        check(clipboardReads == 0 && controller.preedit == "improve › " && !controller.composer.isLevelTwo
               && controller.panelModel().detail == "在命令后面写上内容",
-              "⏎ on the empty command only hints; the clipboard isn't read (\(client.marked))")
-        check(!press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last == "@improve ",
-              "in a terminal ⌘V reaches the terminal (no second copy in the command)")
+              "⏎ on the empty command only hints; the clipboard isn't read (\(controller.preedit))")
+        check(press(controller, client, "v", code: 0x09, flags: .command) && client.inserted.last != "@improve ",
+              "in a terminal too ⌘V pastes into the command not run yet: the terminal doesn't get it, nothing is typed in")
         controller.commitComposition(client)
         // ⌃V works in a terminal too (it doesn't paste on ⌃V itself), also after text already typed.
         press(controller, client, "@", code: 0x13, flags: .shift)
@@ -3002,9 +2995,9 @@ enum SelfTest {
         type("nihao", controller, client)
         let insertedBeforeControlV = client.inserted.count
         check(press(controller, client, "v", code: 0x09, flags: .control)
-              && pump(timeout: 1) { client.marked.hasSuffix("想办法") }
-              && client.marked == "improve › 你好这个项目的进度太慢了我们需要尽快想办法" && client.inserted.count == insertedBeforeControlV,
-              "in a terminal ⌃V adds the clipboard's text after what was typed (\(client.marked))")
+              && pump(timeout: 1) { controller.preedit.hasSuffix("想办法") }
+              && controller.preedit == "improve › 你好这个项目的进度太慢了我们需要尽快想办法" && client.inserted.count == insertedBeforeControlV,
+              "in a terminal ⌃V adds the clipboard's text after what was typed (\(controller.preedit))")
         _ = escape(controller, client)
         client.bundleIDOverride = nil
         controller.activateServer(client)
@@ -3033,17 +3026,17 @@ enum SelfTest {
         type("nihao", controller, client)
         let state = controller.composer.engineState
         check(state.candidates.first?.text == "你好", "first candidate for 'nihao' is 你好 (\(state.candidates.prefix(5).map(\.text)))")
-        check(client.marked.replacingOccurrences(of: " ", with: "") == "nihao", "pinyin is marked inline (\(client.marked))")
+        check(controller.preedit.replacingOccurrences(of: " ", with: "") == "nihao", "pinyin is marked inline (\(controller.preedit))")
         check(panel.isShowing, "candidate panel is visible")
         snapshot("1-pinyin", in: snapshotDirectory)
-        check(escape(controller, client) && client.marked.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
+        check(escape(controller, client) && controller.preedit.isEmpty && !controller.composer.isComposing, "Esc cancels the pinyin")
 
         // A click on a row (the panel's own handler, as its mouseDown calls it) picks it, as its digit would. On
         // today's date ("rq", rime-ice's Lua): a word picked would be learned, and move up in the checks below.
         type("rq", controller, client)
         let clicked = controller.composer.engineState.candidates.dropFirst().first?.text ?? "-"
         panel.view.pointer.clicked(1)
-        check(client.inserted.last == clicked && client.marked.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
+        check(client.inserted.last == clicked && controller.preedit.isEmpty, "a click on the second row inserts \(clicked) (\(client.inserted.last ?? "-"))")
         testHorizontalCandidates(controller, client, snapshotDirectory: snapshotDirectory)
 
         type("rq", controller, client)
@@ -3052,21 +3045,21 @@ enum SelfTest {
         check(dates.contains { $0.contains(year) }, "Lua plugin works: 'rq' offers today's date (\(dates.prefix(3)))")
         _ = escape(controller, client)
 
-        check(improve(controller, client), "@i Tab starts an @improve draft ('\(client.marked)')")
+        check(improve(controller, client), "@i Tab starts an @improve draft ('\(controller.preedit)')")
         type("nihao", controller, client)
         _ = space(controller, client)
-        check(client.marked == "improve › 你好" && controller.composer.draft == "@improve 你好",
+        check(controller.preedit == "improve › 你好" && controller.composer.draft == "@improve 你好",
               "Space confirms 你好 into the command (not inserted yet)")
         check(controller.panelModel().status == draftHint(controller, input: .chinese),
               "the hint names the action key (\(controller.panelModel().status))")
         snapshot("2-draft-hint", in: snapshotDirectory)
-        check(shiftEnter(controller, client) && client.inserted.last == "@improve 你好" && client.marked.isEmpty,
+        check(shiftEnter(controller, client) && client.inserted.last == "@improve 你好" && controller.preedit.isEmpty,
               "⇧⏎ inserts the command as typed")
 
         section("⇧Space is Space", needs: .composing)
         func shiftSpace() -> Bool { press(controller, client, " ", code: VirtualKey.space, flags: .shift) }
         type("nihao", controller, client)
-        check(shiftSpace() && client.inserted.last == "你好" && client.marked.isEmpty, "⇧Space picks 你好, like Space")
+        check(shiftSpace() && client.inserted.last == "你好" && controller.preedit.isEmpty, "⇧Space picks 你好, like Space")
         check(!shiftSpace() && controller.panelModel().detail == nil,
               "with nothing pending ⇧Space is the app's (it types the space) and switches nothing")
         improve(controller, client)
@@ -3085,13 +3078,13 @@ enum SelfTest {
         check(!press(controller, client, "a", code: 0x00), "letters go straight to the app")
         improve(controller, client)
         type("ok", controller, client)
-        check(client.marked == "improve › ok" && controller.composer.isLatinDraft, "after @improve, letters go into the command")
-        check(shiftEnter(controller, client) && client.inserted.last == "@improve ok" && client.marked.isEmpty,
+        check(controller.preedit == "improve › ok" && controller.composer.isLatinDraft, "after @improve, letters go into the command")
+        check(shiftEnter(controller, client) && client.inserted.last == "@improve ok" && controller.preedit.isEmpty,
               "⇧⏎ inserts the English command as typed")
         improve(controller, client)
         type("hi", controller, client)
-        check(!press(controller, client, "a", code: 0x00, flags: .command) && client.inserted.last == "@improve hi",
-              "⌘A inserts the English command first, then reaches the app")
+        check(!press(controller, client, "a", code: 0x00, flags: .command) && client.inserted.last == "@improve ok" && client.marked.isEmpty,
+              "⌘A drops the English command not run yet (nothing typed in), then reaches the app")
         tapShift(controller, client)
         check(!controller.composer.engineState.isAsciiMode, "Shift alone switches back to Chinese")
 
@@ -3120,7 +3113,7 @@ enum SelfTest {
         snapshot("2b-sentence-draft", in: snapshotDirectory)
         let started = Date()
         check(act(controller, client), "the action key starts the translation")
-        check(panel.isShowing && client.marked == "improve › " + sentence, "panel visible, the command stays marked")
+        check(panel.isShowing && controller.preedit == "improve › " + sentence, "panel visible, the command stays marked")
         var streamingSnapshotTaken = false
         let finished = pump(timeout: 20) {
             if !streamingSnapshotTaken, case .translating = controller.composer.phase,
@@ -3149,7 +3142,7 @@ enum SelfTest {
         let second = choices.count > 2 ? choices[2].text : ""
         check(press(controller, client, "2", code: 0x13), "digit 2 consumed")
         check(client.inserted.last == second && !second.isEmpty, "digit 2 commits '\(second)'")
-        check(client.marked.isEmpty && !panel.isShowing, "marked text cleared and panel hidden")
+        check(controller.preedit.isEmpty && !panel.isShowing, "marked text cleared and panel hidden")
 
         section("cache hit + Space commits", needs: [.composing, .bedrock])
         improve(controller, client)
@@ -3169,7 +3162,7 @@ enum SelfTest {
         _ = space(controller, client)
         act(controller, client)  // translation starts
         type("ma", controller, client)  // keep typing instead of choosing
-        check(controller.composer.phase == .drafting && client.marked.hasPrefix("improve › 你好"), "back to the draft (\(client.marked))")
+        check(controller.composer.phase == .drafting && controller.preedit.hasPrefix("improve › 你好"), "back to the draft (\(controller.preedit))")
         _ = space(controller, client)
         check(controller.composer.draft == "@improve 你好吗", "sentence is now 你好吗 (\(controller.composer.draft))")
         _ = shiftEnter(controller, client)
@@ -3322,14 +3315,15 @@ enum SelfTest {
         // Space asks again (the model is still invalid, so it fails again).
         check(space(controller, client) && !failed() && pump(timeout: 15) { failed() }, "Space retries")
         _ = escape(controller, client)
-        check(controller.composer.phase == .drafting && client.marked == "improve › 测试", "Esc returns to the draft")
+        check(controller.composer.phase == .drafting && controller.preedit == "improve › 测试", "Esc returns to the draft")
         controller.commitComposition(client)
         check(client.inserted.last == "@improve 测试" && controller.composer.phase == .idle, "commitComposition inserts the draft")
 
         section("commitComposition, the input menu", needs: .composing)
         type("nihao", controller, client)
         controller.commitComposition(client)
-        check(client.inserted.last == "你好", "commitComposition converts pending pinyin")
+        // The field left with pinyin not picked yet leaves nothing of it (owner, 2026-11-15; #126): 你好 never goes in.
+        check(client.inserted.last != "你好" && !controller.composer.isComposing, "commitComposition drops pinyin not picked (\(client.inserted.last ?? "-"))")
 
         needing([])
         let menu = controller.menu()

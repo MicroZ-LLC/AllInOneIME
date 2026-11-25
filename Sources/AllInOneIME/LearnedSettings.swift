@@ -15,7 +15,7 @@ struct LearnedRow: View {
                 Text(SettingsSpot.learned.title)
                 Text(SettingsSpot.learned.note ?? "").font(.callout).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
-                Text(Self.count(model.learned.count)).font(.caption).foregroundStyle(.secondary)
+                Text(Self.count(model.learnedCount)).font(.caption).foregroundStyle(.secondary)
             }
         }
         .settingsRow(.learned, shown: model.spot)
@@ -37,7 +37,8 @@ struct LearnedRow: View {
 
 /// Privacy → Learned…, the list (`LearnedStore.items`): a row for each thing learned on this Mac (an app's starting
 /// input, where autocomplete stopped, where typos couldn't be fixed, the suggestion rows picked, the models that don't
-/// take a temperature), each with Forget, and Forget All. Nothing of it is in the config file or synced.
+/// take a temperature; then the apps whose selection isn't used, `selectionOffApps`), each with Forget, and Forget All.
+/// Nothing of it is in the config file or synced.
 struct LearnedSheet: View {
     @ObservedObject var model: SettingsModel
     let done: () -> Void
@@ -48,7 +49,7 @@ struct LearnedSheet: View {
         VStack(spacing: 0) {
             Form {
                 Section {
-                    if model.learned.isEmpty && !model.weekStatsKept {
+                    if model.learnedCount == 0 && !model.weekStatsKept {
                         Text(Self.nothing).foregroundStyle(.secondary)
                     }
                     ForEach(Array(model.learned.enumerated()), id: \.offset) { _, item in
@@ -56,6 +57,13 @@ struct LearnedSheet: View {
                             Button(tr("忘掉", "Forget")) { model.forget(item) }
                         } label: {
                             Text(item.text).fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    ForEach(model.selectionOffApps, id: \.self) { app in
+                        LabeledContent {
+                            Button(tr("忘掉", "Forget")) { model.forgetSelectionOff(app) }
+                        } label: {
+                            Text(LearnedStore.selectionOffText(app) { AppNames.name(for: $0) ?? $0 }).fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     // This week's stats (Settings → This Week): counts and command names, on this Mac.
@@ -79,7 +87,7 @@ struct LearnedSheet: View {
             .scrollContentBackground(.hidden)
             HStack {
                 Button(tr("全部忘掉", "Forget All")) { model.forgetAllLearned() }
-                    .disabled(model.learned.isEmpty && !model.weekStatsKept)
+                    .disabled(model.learnedCount == 0 && !model.weekStatsKept)
                 Spacer()
                 Button(tr("完成", "Done"), action: done).keyboardShortcut(.defaultAction)
             }

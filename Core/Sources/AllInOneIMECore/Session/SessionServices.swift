@@ -190,8 +190,6 @@ public struct SessionServices {
     public var uptime: () -> TimeInterval
     /// An app's name as the user knows it, from its id (the Mac: its bundle id; nil: none known), for what is said of it.
     public var appName: (String) -> String?
-    /// `@search`'s key.
-    public var loadSearchKey: @Sendable () -> String?
     /// The notice of the custom commands renamed for the built-in ones, once (`Config.freeBuiltinNames`).
     public var takeRenameNotice: (Composer.ReplyMessages) -> String?
 
@@ -286,7 +284,6 @@ public struct SessionServices {
         cancelScript = { _ in }
         detachScript = { _ in }
         startScriptInBackground = { _, _, _, say in say(UIText.describe(SessionServicesError.unsupported)) }
-        loadSearchKey = { nil }
         takeRenameNotice = { _ in nil }
         noteDestination = { _ in NoDestination() }
         parseReminder = { ReminderParser().parse($0, now: Platform.current.clock.now) }

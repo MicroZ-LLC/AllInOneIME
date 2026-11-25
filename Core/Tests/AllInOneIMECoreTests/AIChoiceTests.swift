@@ -8,7 +8,7 @@ import Testing
 /// they always worked (the provider and 0.7.4's `questionBackend`), keys and settings untouched; and with a CLI chosen,
 /// where what has to be fast goes (`Config.fastProvider`): through the converter too (`FastRoute`).
 struct AIChoiceTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ai-choice-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("ai-choice-\(UUID().uuidString)")
 
     // MARK: - The choices and their groups
 
@@ -235,7 +235,7 @@ struct AIChoiceTests {
 
     @Test func theNoteUnderACLISaysWhereWhatIsFastGoes() async {
         await withInterfaceLanguage("zh") {
-            #expect(AIChoice.fallbackNote(.apple) == "CLI 回答要 1 秒以上。提问（@question）走它，记得聊过的内容；改写、翻译、续写这些要快的，自动用「Apple 本机」。")
+            #expect(AIChoice.fallbackNote(.apple) == "@question 走 CLI（要 1 秒以上）；改写、翻译、续写这些要快的，自动用「Apple 本机」。")
             #expect(AIChoice.fallbackNote(nil).contains("续写关闭"))
         }
         await withInterfaceLanguage("en") {
@@ -326,7 +326,7 @@ struct AIChoiceTests {
         #expect(process.arguments[tools + 1] == "" && !process.arguments.contains("--allowedTools"))
     }
 
-    @Test func aQuestionTheCLICantAnswerGoesToTheFallbackOrFails() async throws {
+    @Test(TaskLanguage("en")) func aQuestionTheCLICantAnswerGoesToTheFallbackOrFails() async throws {
         var config = Config.default
         config.ai = .provider(.bedrock)
         config.ai = .cli(.claude)

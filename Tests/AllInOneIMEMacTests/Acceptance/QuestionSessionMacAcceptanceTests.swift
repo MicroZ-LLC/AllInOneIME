@@ -29,6 +29,42 @@ struct QuestionSessionMacAcceptanceTests {
         return try files.map { ($0, try code("Sources/AllInOneIME/" + $0)) }
     }
 
+    /// The `{ … }` that starts first at or after `start` in `code`, braces balanced.
+    func braces(in code: String, from start: String.Index) -> String? {
+        guard let open = code[start...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        for index in code[open...].indices {
+            if code[index] == "{" { depth += 1 }
+            if code[index] == "}" {
+                depth -= 1
+                if depth == 0 { return String(code[open...index]) }
+            }
+        }
+        return nil
+    }
+
+    /// The body of `func name(` in `code`.
+    func body(of name: String, in code: String) -> String? {
+        code.range(of: "func \(name)(").flatMap { braces(in: code, from: $0.upperBound) }
+    }
+
+    /// `text` and the bodies of the functions of `code` it calls, and those they call: what runs when `text` does, as far
+    /// as `code` says.
+    func reached(from text: String, in code: String) -> String {
+        var all = text
+        var seen: Set<String> = []
+        var waiting = [text]
+        while let next = waiting.popLast() {
+            for piece in next.split(separator: "(", omittingEmptySubsequences: false).dropLast() {
+                let name = String(piece.reversed().prefix { $0.isLetter || $0.isNumber || $0 == "_" }.reversed())
+                guard !name.isEmpty, seen.insert(name).inserted, let body = body(of: name, in: code) else { continue }
+                all += "\n" + body
+                waiting.append(body)
+            }
+        }
+        return all
+    }
+
     // MARK: - 4. The README tells how to open each session
 
     @Test func theReadmeTellsHowToOpenEachSession() throws {
@@ -70,28 +106,25 @@ struct QuestionSessionMacAcceptanceTests {
         #expect(!main.contains("ClaudeSessionMac"), "launch touches the sessions")
     }
 
-    /// Settings → AI looks at a CLI's sign-in as last found (`ClaudeSessionManager.checkAvailability()`, cached: signed in
-    /// for the launch, anything else for a minute), never forced, and only there: the page opening looks at the CLI chosen
-    /// alone; the cards opened (Change ▾) look at every CLI; with a provider chosen and the cards closed, at none; never at
-    /// launch (`nothingLooksAtTheSignInAtLaunch`).
-    @Test func openingTheAIPageLooksAtTheChosenCLIAsLastFound() throws {
+    /// Settings → AI shows every AI as a card, always (#121), so the page being shown looks at every CLI's sign-in, whatever
+    /// is chosen (a provider too), as last found (`ClaudeSessionManager.checkAvailability()`, cached: signed in until quit,
+    /// anything else for a minute; shown again within that, nothing runs), never forced, by the page or anything else;
+    /// never at launch (`nothingLooksAtTheSignInAtLaunch`).
+    @Test func showingTheAIPageLooksAtEveryCLIAsLastFound() throws {
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        // The page opening: a provider chosen (no CLI) and the cards closed, nothing; else the CLI chosen alone (every CLI
-        // only with the cards open), not forced.
-        let appear = try #require(settings.range(of: ".onAppear").map { String(settings[$0.lowerBound...].prefix(600)) })
-        let appearBody = appear[..<(appear.range(of: ".onChange")?.lowerBound ?? appear.endIndex)]
-        let look = try #require(appearBody.range(of: "ClaudeSessionMac.checkAvailability("))
-        let before = appearBody[..<look.lowerBound]
-        #expect(before.contains("guard") && before.contains("choosing") && before.contains("ai.agent != nil"), "\(before)")
-        #expect(before.contains("choosing ? SessionAgent.allCases : [model.config.ai.agent]"), "the page opening looks at more than the CLI chosen: \(before)")
-        let call = appearBody[look.lowerBound...].prefix { $0 != "\n" }
-        #expect(!call.contains("force"), "the page opening forces a look: \(call)")
-        // The cards opened: every CLI, as last found.
-        let change = try #require(settings.range(of: ".onChange(of: choosing)").map { String(settings[$0.lowerBound...].prefix(120)) })
-        #expect(change.contains("if choosing") && change.contains("refreshSessions()") && !change.contains("force: true"), "\(change)")
-        let refresh = try #require(settings.range(of: "func refreshSessions(").map { String(settings[$0.lowerBound...].prefix(400)) })
-        #expect(refresh.contains("force: Bool = false") && refresh.contains("checkAvailability(SessionAgent.allCases, force: force)"),
-                "\(refresh)")
+        // The page shown: every CLI, whatever is chosen, not forced.
+        let appear = try #require(settings.range(of: ".onAppear").flatMap { braces(in: settings, from: $0.upperBound) },
+                                  "the AI page looks at nothing as it shows")
+        let shown = reached(from: appear, in: settings)
+        #expect(shown.contains("ClaudeSessionMac.checkAvailability(SessionAgent.allCases"),
+                "the page being shown doesn't look at every CLI: \(shown)")
+        #expect(!shown.contains("choosing") && !shown.contains(".agent"),
+                "the page being shown looks at the CLIs only for some choices: \(shown)")
+        #expect(!shown.contains("force: true"), "the page being shown forces a look: \(shown)")
+        for line in shown.split(separator: "\n") where line.contains("checkAvailability(") && line.contains("force:") {
+            // Passed on from its function's own parameter, false unless set, which nothing sets (below).
+            #expect(line.contains("force: force") && settings.contains("(force: Bool = false)"), "\(line)")
+        }
         // Nothing asks for a forced look at a sign-in.
         for (name, code) in try inputMethodSources() {
             #expect(!code.contains("refreshSessions(force: true)"), "\(name) forces a look at the sign-ins")
@@ -99,7 +132,7 @@ struct QuestionSessionMacAcceptanceTests {
                 #expect(!line.contains("force: true"), "\(name) forces a look at a sign-in: \(line)")
             }
         }
-        // The Mac's look: as last found unless forced.
+        // The Mac's look: as last found (the cache decides) unless forced.
         let mac = try code("Sources/AllInOneIME/ClaudeSessionMac.swift")
         let check = try #require(mac.range(of: "static func checkAvailability").map { String(mac[$0.lowerBound...].prefix(900)) })
         #expect(check.contains("force: Bool = false") && check.contains("managers"), "\(check)")
@@ -131,6 +164,8 @@ struct QuestionSessionMacAcceptanceTests {
     }
 
     /// The user's own Gemini CLI and Codex settings are never written: nothing in the sources names them as a file to write.
+    /// Reading them is allowed (Gemini CLI's sign-in; Codex's config.toml, in CODEX_HOME or ~/.codex, for the user's MCP
+    /// servers listed in Settings → AI), writing is not.
     @Test func theUsersGeminiAndCodexSettingsAreNeverWritten() throws {
         var sources = try inputMethodSources().map(\.code)
         let core = Self.root.appendingPathComponent("Core/Sources/AllInOneIMECore")
@@ -138,8 +173,12 @@ struct QuestionSessionMacAcceptanceTests {
             sources.append(try code("Core/Sources/AllInOneIMECore/" + name))
         }
         for code in sources {
-            #expect(!code.contains("config.toml"))
-            #expect(!code.contains(#"".codex""#))
+            // Codex's config (config.toml in CODEX_HOME or ~/.codex) is read (the user's MCP servers), never written.
+            for line in code.split(separator: "\n")
+            where line.contains("config.toml") || line.contains(".codex") || line.contains("CODEX_HOME") {
+                #expect(!line.contains(".write(") && !line.contains("createFile") && !line.contains("copyItem")
+                        && !line.contains("moveItem") && !line.contains("removeItem"), "\(line)")
+            }
             // Gemini CLI's settings are read (the sign-in), never written.
             for line in code.split(separator: "\n") where line.contains(".gemini") || line.contains("GeminiCli") {
                 #expect(!line.contains(".write(") && !line.contains("createFile") && !line.contains("copyItem"), "\(line)")
@@ -171,29 +210,31 @@ struct QuestionSessionMacAcceptanceTests {
         }
     }
 
-    /// A CLI's sign-in is looked at only by Settings → AI: as it shows with a CLI chosen, as its cards open, and as a CLI is
-    /// picked; never with a provider chosen and the cards closed, never as a provider is picked, never at launch (see
-    /// `nothingLooksAtTheSignInAtLaunch`).
-    @Test func theSignInIsLookedAtOnlyOnTheAIPageForACLIOrTheCards() throws {
+    /// A CLI's sign-in is looked at only by Settings → AI (#121: its cards are always shown, so there is nothing to open):
+    /// as the page shows (`showingTheAIPageLooksAtEveryCLIAsLastFound`) and as a CLI is picked; never as a provider is
+    /// picked, never at launch (see `nothingLooksAtTheSignInAtLaunch`) or while typing.
+    @Test func theSignInIsLookedAtOnlyOnTheAIPageAndAsACLIIsPicked() throws {
         for (name, code) in try inputMethodSources() where code.contains("refreshSessions(") || code.contains("checkAvailability(") {
             #expect(["ClaudeSessionMac.swift", "ClaudeSessionSettings.swift"].contains(name), "\(name) looks at a sign-in")
         }
+        let main = try code("Sources/AllInOneIME/main.swift")
+        #expect(!main.contains("refreshSessions(") && !main.contains("checkAvailability(") && !main.contains("aiPageShown("),
+                "launch looks at a sign-in")
+        // No cards to open: no Change ▾'s state, nothing looked at as it changes.
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        // Shown: only with the cards open or a CLI chosen.
-        let appear = try #require(settings.range(of: ".onAppear").map { String(settings[$0.lowerBound...].prefix(400)) })
-        let look = try #require(appear.range(of: "ClaudeSessionMac.checkAvailability"))
-        let before = appear[..<look.lowerBound]
-        #expect(before.contains("guard") && before.contains("choosing") && before.contains(".agent != nil"), "\(before)")
-        // The cards opened: looked at; closed: not.
-        let change = try #require(settings.range(of: ".onChange(of: choosing)").map { String(settings[$0.lowerBound...].prefix(120)) })
-        #expect(change.contains("if choosing") && change.contains("refreshSessions()"), "\(change)")
+        let picker = try code("Sources/AllInOneIME/AIPicker.swift")
+        #expect(!settings.contains("choosing") && !picker.contains("choosing"), "Settings → AI still opens and closes its cards")
+        for (name, code) in try inputMethodSources() {
+            #expect(!code.contains(".onChange(of: choosing)") && !code.contains("var choosing") && !code.contains("$choosing"),
+                    "\(name) still opens and closes the AI cards")
+        }
         // Picking: a provider looks at nothing itself; a CLI (another than before) is looked at.
-        let choose = try #require(settings.range(of: "func choose(").map { String(settings[$0.lowerBound...].prefix(300)) })
-        let chooseBody = choose[..<(choose.range(of: "\n    }")?.lowerBound ?? choose.endIndex)]
+        let chooseBody = try #require(body(of: "choose", in: settings))
         #expect(!chooseBody.contains("refreshSessions") && !chooseBody.contains("checkAvailability"), "\(chooseBody)")
-        let set = try #require(settings.range(of: "set: { backend in").map { String(settings[$0.lowerBound...].prefix(500)) })
-        let refresh = try #require(set.range(of: "refreshSessions()"))
+        let set = try #require(settings.range(of: "set: { backend in").flatMap { braces(in: settings, from: $0.lowerBound) })
+        let refresh = try #require(set.range(of: "refreshSessions()"), "a CLI picked isn't looked at: \(set)")
         #expect(set[..<refresh.lowerBound].contains("if backend != nil"), "a provider picked looks at the CLIs: \(set)")
+        #expect(set[..<refresh.lowerBound].contains("questionSessionAgent != before"), "the same CLI picked again is looked at: \(set)")
     }
 
     /// A CLI found only inside a desktop app counts as installed: the ChatGPT app's codex (bundle com.openai.codex since the

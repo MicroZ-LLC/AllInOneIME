@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMEMac
 import Foundation
 import Testing
@@ -18,7 +19,7 @@ struct ChromiumAppsTests {
     }
 
     static func folder() throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("chromium-apps-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("chromium-apps-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }

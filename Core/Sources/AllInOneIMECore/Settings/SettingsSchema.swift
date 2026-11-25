@@ -84,12 +84,10 @@ struct SettingsSchema {
             SettingsDocument.Section(id: "apps", title: tr("按 App 设置", "Apps"), fields: apps()),
             SettingsDocument.Section(id: "plugins", title: tr("插件", "Plugins"), fields: plugins()),
             SettingsDocument.Section(id: "extensions", title: tr("脚本扩展", "Script Extensions"),
-                                     footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp）。参数写在命令后面，多个用逗号隔开：@flights beijing, new york。脚本可以上屏结果、显示进度、给出列表来选，或在后台运行，完成后通知你。写法见 docs/extensions.md。",
-                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp). Write its arguments after it, with commas between: @flights beijing, new york. A script can insert its result, show progress, offer a list to pick from, or run in the background and notify you. See docs/extensions.md for how to write one.")
+                                     footer: tr("每个脚本是一个 @ 命令，名字取自文件名（convert-timestamp.sh → @converttimestamp），写法见 docs/extensions.md。",
+                                                "Each script is an @ command named after its file (convert-timestamp.sh → @converttimestamp); see docs/extensions.md.")
                                                 .replacingOccurrences(of: "@", with: config.commandTrigger),
                                      fields: scriptExtensions()),
-            SettingsDocument.Section(id: "search", title: tr("网页搜索（@search）", "Web Search (@search)")
-                                        .replacingOccurrences(of: "@", with: config.commandTrigger), fields: search()),
             SettingsDocument.Section(id: "notes", title: tr("笔记（@note）", "Notes (@note)")
                                         .replacingOccurrences(of: "@", with: config.commandTrigger), fields: notes()),
             SettingsDocument.Section(id: "commands", title: tr("自定义 @ 命令", "Custom @ Commands")
@@ -254,14 +252,13 @@ struct SettingsSchema {
                           "Now and then a neighboring key or a doubled letter, fixed at once and never in a terminal: the text ends up exactly the result."),
                        config.typeOutMistakes), to: &fields) { store.config.typeOutMistakes = Self.bool($0) }
         }
+        // Windows' switch: the Mac has none (owner, 0.7.5), it learns the apps whose field doesn't take a result in place
+        // of the selection (`LearnedStore.selectionOff`); its `useSelection` off in the config still turns it off.
         add(toggle("useSelection", tr("使用选中的文字", "Use the selected text"),
-                   terms.device == .mac
-                       ? tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。",
-                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.")
-                       : tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。",
-                            "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.",
-                            key: "useSelection.help.windows"),
-                   config.useSelection), to: &fields) { store.config.useSelection = Self.bool($0) }
+                   tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个应用里不正常就关掉。",
+                      "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.",
+                      key: "useSelection.help.windows"),
+                   config.useSelection, platforms: [.windows]), to: &fields) { store.config.useSelection = Self.bool($0) }
         add(toggle("rememberQuestions", tr("记住最近的问题", "Remember recent questions"), nil, config.rememberQuestions),
             to: &fields) { store.setRememberQuestions(Self.bool($0)) }
         add(suggestionsSwitch(), to: &fields) { store.config.suggestions = Self.bool($0) ? nil : false }
@@ -334,37 +331,11 @@ struct SettingsSchema {
             to: &fields) { value in
             store.config.switchKey = value.string.flatMap(SwitchKey.init(rawValue:)) ?? store.config.switchKey
         }
-        add(choice("candidateLayout", tr("候选排列", "Candidate layout"),
-                   config.candidateLayout == .horizontal
-                       ? tr("选词（拼音、印地语）的候选并排，像系统自带的输入法：← → 选词，↑↓ 或 - = 翻页。",
-                            "Word candidates (pinyin, Hindi) side by side, like the system's own input methods: ← → choose, ↑↓ or - = turn the page.")
-                       : tr("选词（拼音、印地语）的候选一个一个往下排：↑↓ 选词，← → 或 - = 翻页。",
-                            "Word candidates (pinyin, Hindi) one under the other: ↑↓ choose, ← → or - = turn the page."),
-                   value: .string(config.candidateLayout.rawValue),
-                   choices: [(Choice("vertical", tr("竖排", "Vertical")), nil), (Choice("horizontal", tr("横排", "Horizontal")), nil)]),
-            to: &fields) { value in
-            store.config.candidateLayout = value.string.flatMap(CandidateArrangement.init(rawValue:)) ?? store.config.candidateLayout
-        }
+        // How the candidate panel looks (SettingsSchema+Panel.swift).
+        panel(&fields)
         if config.inputLanguages.contains(.chinese) {
-            // Full pinyin, a Shuangpin scheme or Zhuyin, beside the characters (`PinyinScheme`): the Mac deploys it (Windows
-            // not yet). Zhuyin picked first picks Taiwan's characters (`SettingsStore.setPinyinScheme`).
-            add(choice("pinyinScheme", UIText.pinyinSchemeLabel, UIText.pinyinSchemeHelp, value: .string(config.typedPinyin.rawValue),
-                       choices: PinyinScheme.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }, platforms: [.mac]),
-                to: &fields) { value in
-                store.setPinyinScheme(PinyinScheme(setting: value.string))
-            }
-            // As the system's languages say until one is picked (`Config.typedChinese`).
-            add(choice("chineseCharacters", UIText.chineseCharactersLabel, UIText.chineseCharactersHelp,
-                       value: .string(chinese.rawValue),
-                       choices: ChineseCharacters.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }),
-                to: &fields) { value in
-                store.setChineseCharacters(value.string.flatMap(ChineseCharacters.init(rawValue:)) ?? store.config.typedChinese)
-            }
-            var fuzzy = Field(id: "fuzzyPinyin", kind: .choices, label: tr("模糊音", "Fuzzy pinyin"),
-                              help: tr("分不清的音两种拼法都能打出来，比如 zh 和 z：打 zi 也有「之」", "Sounds you don't tell apart typed either way, e.g. zh and z: zi also offers 之"),
-                              value: .array(config.fuzzyPinyin.map(JSON.string)))
-            fuzzy.choices = FuzzyPinyin.pairs.map { Choice($0.id, $0.label) }
-            add(fuzzy, to: &fields) { store.setFuzzyPinyin(Self.strings($0)) }
+            // How it is typed, its characters, its shape codes, fuzzy pinyin (SettingsSchema+Chinese.swift).
+            chineseTyping(&fields, characters: chinese)
             englishWords(&fields)
         }
         if Features.voiceInput {  // off for now: no field, the setting kept as it is
@@ -383,8 +354,8 @@ struct SettingsSchema {
         let store = store
         add(toggle("learnsEnglishWords", tr("学习英文词", "Learn English words"),
                    terms.device == .mac
-                       ? tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
-                            "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
+                       ? tr("同一个英文词打两次，以后就出现在拼音的候选里；需要辅助功能权限，用来避开密码框。",
+                            "An English word you type twice comes up among pinyin's candidates; it needs Accessibility, to skip password fields.")
                        : tr("打拼音时原样上屏两次的字母，以后会出现在候选里；密码框、终端和不用 AI 的应用里不学。",
                             "A word put in as typed twice while typing pinyin comes up among the candidates; never in password fields, terminals or apps without AI."),
                    config.learnsEnglishWords), to: &fields) { store.config.learnsEnglishWords = Self.bool($0) }
@@ -500,7 +471,9 @@ struct SettingsSchema {
                                  (Choice("high", "high"), nil), (Choice("", tr("不设置（模型不支持时选）", "Not set (for models without it)")), nil)]),
                 to: &fields) { store.setProviderField(provider, \.effort, to: $0.string ?? "", empty: "") }
         case .bedrock:
-            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), value: .string(config.modelId))
+            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
+            // Under it, the ID sent where it isn't this one (a "us." profile to a region in Europe goes as "eu.").
+            var model = Field(id: "bedrock.modelId", kind: .text, label: tr("模型", "Model"), help: UIText.bedrockModelSent(config, profileRegion: region), value: .string(config.modelId))
             model.choices = SuggestedModel.all.map { Choice($0.id, $0.title, note: $0.note) }
             add(model, to: &fields) { value in
                 let id = SettingsStore.typed(value.string ?? "")
@@ -515,7 +488,6 @@ struct SettingsSchema {
                        choices: profiles.map { (Choice($0, $0), nil) }), to: &fields) { value in
                 store.config.awsProfile = value.string ?? store.config.awsProfile
             }
-            let region = AWSSharedConfig.region(profile: config.awsProfile) ?? "us-east-1"
             add(text("bedrock.region", tr("区域", "Region"), value: config.region,
                      placeholder: tr("留空用 profile 的区域（\(region)）", "Empty: the profile's region (\(region))")), to: &fields) { value in
                 store.setBedrockRegion(value.string ?? "")
@@ -676,26 +648,6 @@ struct SettingsSchema {
             }
         }
         add(browse, to: &fields)
-        return fields
-    }
-
-    // MARK: Web search
-
-    mutating func search() -> [Field] {
-        var fields: [Field] = []
-        guard Command.webSearchOffered else { return fields }
-        let source = WebSearch.keySource()
-        let state = KeyState(source, ending: APIKeys.keyEnding(account: WebSearch.backend.keyAccount))
-        var key = secret("search.key", "API key",
-                         UIText.triggered(tr("@search 用 Brave Search 搜网页，用你自己的 API key：Brave 每月送一些免费额度（目前约 1000 次搜索），注册时要绑信用卡。"
-                                + "要搜的内容会发给 Brave。key 存在钥匙串里；也可以在 shell 里设置 BRAVE_API_KEY。",
-                            "@search searches the web with Brave Search, using your own API key: Brave gives some free credit each month "
-                                + "(about 1,000 searches for now); signing up needs a credit card. What you search for is sent to Brave. "
-                                + "The key is kept in the keychain; you can also set BRAVE_API_KEY in your shell.")),
-                         state: state, missing: tr("还没有 API key", "No API key yet"), removable: source == .keychain)
-        if state.isSet { key.actions?.append(SettingsAction.test) }
-        key.status = [key.status, outcome("search.key")].compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: "\n")
-        add(key, to: &fields)
         return fields
     }
 

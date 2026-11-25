@@ -3,7 +3,7 @@ import Foundation
 /// The characters Chinese typed in pinyin comes out in (`Config.chineseCharacters`, Settings → Input → Chinese →
 /// Characters): Simplified, or Traditional as Taiwan or Hong Kong write it. Rime converts its candidates (rime-ice's
 /// `traditionalization` switch, with OpenCC's data: `patch`), and whatever reasons about the language typed takes Chinese
-/// for this one (`language`): the AI's prompts, Translate as You Type, `@reply`, screen text, web search, dictation.
+/// for this one (`language`): the AI's prompts, Translate as You Type, `@reply`, screen text, dictation.
 public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
     case simplified
     /// Taiwan's characters and words (软件 → 軟體, 网络 → 網路).
@@ -316,7 +316,9 @@ extension OutputLanguage {
     /// For text the user didn't just type, which may be in either (a selection, the clipboard, a page from the mainland):
     /// a Taiwan user's Simplified text is translated into Traditional Chinese, a Simplified user's Traditional text into
     /// Simplified Chinese.
+    /// Japanese (`Language.isJapanese`: kana in it) is "ja", whatever `language` says.
     public static func of(_ text: String, language: Language, chinese: ChineseCharacters) -> OutputLanguage {
+        if Language.isJapanese(text) { return .japanese }
         guard language == .chinese, let traditional = ChineseCharacters.writtenTraditional(text, chinese: chinese) else {
             return OutputLanguage(language, chinese: chinese)
         }

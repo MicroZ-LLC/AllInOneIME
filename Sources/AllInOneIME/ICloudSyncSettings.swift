@@ -4,7 +4,8 @@ import SwiftUI
 
 /// Settings → General → Sync through iCloud (「通过 iCloud 同步」, `ICloudSyncController`): off by default; on only with
 /// iCloud Drive there (else how to turn it on, and a button to that pane). One status row, its switch with the last sync
-/// under it and a ⋯ menu (Sync Now, API keys and passwords through iCloud Keychain, Remove from iCloud…); one switch for
+/// under it and a ⋯ menu (Sync Now, API keys and passwords through iCloud Keychain, and one Remove from iCloud… that
+/// takes all of it out of iCloud, owner 0.7.5); one switch for
 /// the hidden words and the recent questions (off until chosen here). What else syncs (the settings, the jargon list and
 /// custom commands, and the learned words, whose switch went in 0.7.4) is on unless the config says otherwise, then
 /// shown with Restore Default. All of it is this Mac's own: never synced.
@@ -14,8 +15,6 @@ struct ICloudSyncSection: View {
     /// Turning it on found no iCloud Drive.
     @State private var driveMissing = false
     @State private var confirmingRemove = false
-    /// The hidden words or the recent questions about to be taken out of iCloud (asked first).
-    @State private var categoryToRemove: ICloudSync.Category?
     @State private var removeError: String?
 
     var body: some View {
@@ -81,34 +80,27 @@ struct ICloudSyncSection: View {
             SectionTitle("iCloud", icon: CandidateView.Icon(symbol: "icloud.fill", color: .systemBlue))
         }
         .disabled(!model.canSave)
+        // Everything synced at once: what it takes out of iCloud said first.
         .confirmationDialog(tr("从 iCloud 移除同步的数据？", "Remove the synced data from iCloud?"), isPresented: $confirmingRemove) {
             Button(tr("移除", "Remove"), role: .destructive, action: remove)
             Button(tr("取消", "Cancel"), role: .cancel) {}
         } message: {
-            Text(tr("iCloud 云盘里的 AllInOneIME 文件夹会移到废纸篓，这台 Mac 也不再同步；这台 Mac 上的设置保持不变。还在同步的 Mac 会把它们的设置再放回去：先在那些 Mac 上关掉。",
-                    "The AllInOneIME folder in iCloud Drive goes to the Trash, and this Mac stops syncing; your settings on this Mac stay as they are. Macs that still sync put theirs back: turn it off there first.")
-                 + (syncsKeys ? " " + tr("API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。",
-                                         "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on.") : ""))
-        }
-        .confirmationDialog(categoryToRemove == .recentQuestions ? tr("从 iCloud 移除最近的问题？", "Remove the recent questions from iCloud?")
-                                : tr("从 iCloud 移除隐藏的词？", "Remove the hidden words from iCloud?"),
-                            isPresented: Binding(get: { categoryToRemove != nil }, set: { if !$0 { categoryToRemove = nil } })) {
-            Button(tr("移除", "Remove"), role: .destructive) {
-                if let category = categoryToRemove { remove(category) }
-                categoryToRemove = nil
-            }
-            Button(tr("取消", "Cancel"), role: .cancel) { categoryToRemove = nil }
-        } message: {
-            Text(categoryToRemove == .recentQuestions
-                 ? tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的问题保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
-                      "They're deleted from iCloud Drive and this Mac stops syncing them; the questions on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back.")
-                 : tr("它们会从 iCloud 云盘删掉，这台 Mac 也不再同步它们；这台 Mac 上的词保留。同步它们的其他 Mac 不会再从 iCloud 收到；还开着的 Mac 会把自己的再放回去。",
-                      "They're deleted from iCloud Drive and this Mac stops syncing them; the words on this Mac stay. Other Macs syncing them stop getting them from iCloud; one that still has the switch on puts its own back."))
+            Text(Self.removeMessage(keysStay: syncsKeys))
         }
     }
 
+    /// What Remove from iCloud… takes out of iCloud, as its confirmation says it: everything synced (the AllInOneIME folder
+    /// in iCloud Drive, to the Trash), this Mac no longer syncing, what is on this Mac kept; with keys synced, that they
+    /// stay in iCloud Keychain (`keysStay`).
+    static func removeMessage(keysStay: Bool) -> String {
+        tr("这些会从 iCloud 云盘移除：设置、自定义命令和黑话库、学到的词、隐藏的词和最近的问题（AllInOneIME 文件夹移到废纸篓），这台 Mac 也不再同步；这台 Mac 上的都保留。还在同步的 Mac 会把它们的再放回去：先在那些 Mac 上关掉。",
+           "Removed from iCloud Drive: your settings, custom commands and jargon, learned words, hidden words and recent questions (the AllInOneIME folder goes to the Trash), and this Mac stops syncing; everything on this Mac stays. Macs that still sync put theirs back: turn it off there first.")
+            + (keysStay ? " " + tr("API 密钥和密码留在 iCloud 钥匙串里，给你别的 Mac 用（也复制到这台 Mac 上）；要从所有 Mac 上删除一个 key，在同步开着时点它的「删除…」。",
+                                   "API keys and passwords stay in iCloud Keychain for your other Macs (and are copied to this Mac); to remove a key from all your Macs, use its Remove… while sync is on.") : "")
+    }
+
     /// The status row's ⋯: Sync Now, API keys and passwords (through iCloud Keychain, off until chosen; a build without
-    /// the provisioning profile can't), and taking things out of iCloud (each asked first).
+    /// the provisioning profile can't), and taking all of it out of iCloud (asked first).
     private var moreMenu: some View {
         Menu {
             if model.config.iCloudSync.enabled {
@@ -123,8 +115,6 @@ struct ICloudSyncSection: View {
             }
             if sync.folderExists {
                 Divider()
-                Button(tr("从 iCloud 移除隐藏的词…", "Remove Hidden Words from iCloud…")) { categoryToRemove = .hiddenWords }
-                Button(tr("从 iCloud 移除最近的问题…", "Remove Recent Questions from iCloud…")) { categoryToRemove = .recentQuestions }
                 Button(tr("从 iCloud 移除…", "Remove from iCloud…")) { confirmingRemove = true }
             }
         } label: {
@@ -160,8 +150,8 @@ struct ICloudSyncSection: View {
     /// protection keychain (signed with the provisioning profile); elsewhere off and greyed, saying why.
     static func keysRow(entitled: Bool) -> (enabled: Bool, note: String) {
         entitled
-            ? (true, tr("经过 iCloud 钥匙串，端到端加密。默认关：打开这一项时，这台 Mac 的密钥才移进 iCloud 钥匙串。需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。AllInOneIME Cloud 的登录每台 Mac 各自登录。",
-                        "Through iCloud Keychain, end-to-end encrypted. Off by default: this Mac's keys move into iCloud Keychain only when you turn this on. Needs Passwords & Keychain on in System Settings → Apple Account → iCloud. Each Mac signs in to AllInOneIME Cloud itself."))
+            ? (true, tr("经过 iCloud 钥匙串，端到端加密；需要在 系统设置 → Apple 账户 → iCloud 里打开「密码与钥匙串」。",
+                        "End-to-end encrypted through iCloud Keychain, which needs Passwords & Keychain on in System Settings → Apple Account → iCloud."))
             : (false, tr("这个版本不能同步密钥（没有描述文件）", "This build can't sync keys (no provisioning profile)"))
     }
 
@@ -192,21 +182,6 @@ struct ICloudSyncSection: View {
             model.save()
         }
         sync.removeFromICloud { error in removeError = error.map { tr("没能移除：", "Couldn't remove it: ") + $0 } }
-    }
-
-    /// The hidden words or the recent questions out of iCloud: the switch off here first, so they don't go back up.
-    private func remove(_ category: ICloudSync.Category) {
-        if category == .hiddenWords { model.config.iCloudSync.hiddenWords = false } else { model.config.iCloudSync.recentQuestions = false }
-        model.save()
-        sync.removeFromICloud(category) { result in
-            switch result {
-            case .success(.removed): removeError = nil
-            case .success(.waiting):
-                removeError = tr("正在等 iCloud…：settings.json 下载下来后就移除。", "Waiting for iCloud…: removed once settings.json is downloaded.")
-            case let .failure(error):
-                removeError = tr("没能移除：", "Couldn't remove it: ") + ((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
-            }
-        }
     }
 
     private func statusLine(now: Date) -> String {

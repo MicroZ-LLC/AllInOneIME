@@ -23,7 +23,7 @@ import Foundation
 enum ClaudeSessionMac {
     static let manager = ClaudeSessionManager(
         launcher: launcher(ClaudeCodeBackend(), executable: { claudeURL }),
-        userSettings: { ClaudeSession.userSettingsFile(environment: environment(.claude)) })
+        userSettings: { ClaudeSession.userSettingsFile(environment: environment(.claude)) }, mcp: { mcp(.claude) })
 
     static let codex = session(CodexBackend())
     static let antigravity = session(AntigravityBackend())
@@ -33,7 +33,17 @@ enum ClaudeSessionMac {
     static var managers: [SessionAgent: ClaudeSessionManager] { [.claude: manager, .codex: codex, .antigravity: antigravity, .kiro: kiro] }
 
     private static func session(_ backend: any SessionBackend) -> ClaudeSessionManager {
-        ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }))
+        ClaudeSessionManager(backend: backend, launcher: launcher(backend, executable: { program(backend.agent) }),
+                             mcp: { mcp(backend.agent) })
+    }
+
+    /// The MCP servers checked for `agent` in Settings → AI (`Config.sessionMCP`), as its own config has them now
+    /// (`MCPServers.found`), read as its process starts (on the session's queue, not the main thread).
+    static func mcp(_ agent: SessionAgent) -> SessionMCP {
+        guard MCPServers.supports(agent), let checked = (try? Config.load())?.sessionMCP[agent.rawValue], !checked.isEmpty else {
+            return .none
+        }
+        return SessionMCP.of(agent, checked: checked, found: MCPServers.found(agent, environment: environment(agent)))
     }
 
     /// Starts the agent with the login shell's environment and what the agent needs in it.
@@ -44,21 +54,22 @@ enum ClaudeSessionMac {
     }
 
     /// The login shell's environment with what of it `agent` needs (`SessionAgent.environmentVariables`).
-    private static func environment(_ agent: SessionAgent) -> [String: String] {
+    static func environment(_ agent: SessionAgent) -> [String: String] {
         ShellEnvironment.current(with: agent.environmentVariables)
     }
 
-    /// Where `claude` is, nil when it isn't installed.
+    /// Where `claude` is, nil when it isn't installed. On the login shell's PATH (`ShellEnvironment.path`: on the main
+    /// thread, the fallback until the shell has answered), as every lookup here.
     static var claudeURL: URL? {
         TerminalLauncher.claudePath.map { URL(fileURLWithPath: $0) }
-            ?? CommandRunner.resolve("claude", path: ShellEnvironment.current["PATH"])
+            ?? CommandRunner.resolve("claude", path: ShellEnvironment.path)
             ?? desktopBundled(.claude)
     }
 
     /// Where `agent`'s program is, nil when it isn't installed.
     static func program(_ agent: SessionAgent) -> URL? {
         agent == .claude ? claudeURL
-            : CommandRunner.resolve(agent.program, path: ShellEnvironment.current["PATH"]) ?? desktopBundled(agent)
+            : CommandRunner.resolve(agent.program, path: ShellEnvironment.path) ?? desktopBundled(agent)
     }
 
     /// The agent whose program `program` is (`claude`, `codex`, `agy`, `kiro-cli`: `@agent`'s, a custom agent's
@@ -73,7 +84,7 @@ enum ClaudeSessionMac {
     /// and runnable (`CommandRunner.isInstalled`).
     static func isInstalled(_ program: String) -> Bool {
         guard let agent = agent(program: program) else {
-            return CommandRunner.isInstalled(program, path: ShellEnvironment.current["PATH"])
+            return CommandRunner.isInstalled(program, path: ShellEnvironment.path)
         }
         return self.program(agent) != nil
     }

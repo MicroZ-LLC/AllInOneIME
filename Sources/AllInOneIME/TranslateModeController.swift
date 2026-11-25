@@ -215,7 +215,7 @@ extension AllInOneIMEInputController {
     /// Nothing to translate into but the languages typed (`Config.hasLanguageToTranslateInto`): where one is added, the
     /// page named as the settings' sidebar names it.
     private var noTargetText: String {
-        let page = SettingsPage.general.title
+        let page = SettingsSpot.outputLanguages.page.title
         return tr("没有要翻译成的语言：在设置 →「\(page)」里加一种", "No language to translate into: add one in Settings → \(page)")
     }
 
@@ -251,8 +251,7 @@ extension AllInOneIMEInputController {
             scroll: { [weak self] steps in self?.received(.scroll(steps)) },  // this field's: no pointer use in it
             chip: { [weak self] part in self?.translateChipClicked(part) },
             handoff: nil))  // no conversation
-        let anchor = anchor(client)
-        if !panel.shows(model, anchor: anchor) { panel.show(model, anchor: anchor) }  // nothing changed, nothing moved: as it is
+        show(model, anchoredIn: client, keepingUnchanged: true)  // nothing changed, nothing moved: as it is
         return true
     }
 

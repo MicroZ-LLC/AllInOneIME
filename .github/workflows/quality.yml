@@ -1,0 +1,227 @@
+# The gate every change passes before it merges into mainline or a release branch (AGENTS.md): `make lint` (the static
+# checks, against their baselines) on GitHub's xcode-27 macOS runner, and the tests, offline (no keys, no AWS files, no
+# live tests), in two halves side by side: `make test-core`, the core's, on GitHub's machines (core-test: Linux, on an
+# export of Core/ alone with Core/Scripts/test.sh, and macOS, where the core uses Apple's frameworks, `make test-core`
+# on the export), and `make test-mac`, the macOS shell's, on the Mac mini (mac-test). A pull request runs only the
+# halves its change can affect (the `changes` job, Scripts/test-scope.sh: docs/ or site/ alone need neither, the
+# core's tests alone only the core's); a push to mainline or a release branch runs both. Require the check
+# "Quality gate" (Scripts/protect-branches.sh): it passes only when lint passed and each test job passed or wasn't
+# needed, so a PR from a fork, which never runs here (its code isn't trusted there), fails it instead of skipping it; a
+# maintainer who has read such a change pushes it to a branch here to have it checked. The agent pipeline starts this
+# workflow itself on its PRs' branches (workflow_dispatch): a PR made with the job's token starts no workflow.
+name: Quality
+
+on:
+  pull_request:
+    branches: [mainline, "release-*"]
+  push:
+    branches: [mainline, "release-*"]
+  workflow_dispatch:
+    inputs:
+      base:
+        description: The branch the change goes into, whose baselines it may only lower (empty for none)
+        required: false
+
+concurrency:
+  group: quality-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # The base whose baselines a change may only lower, and that the tests a change needs are worked out against: the
+  # PR's, or the pipeline's (none for a push).
+  BASE: ${{ github.base_ref || inputs.base }}
+
+jobs:
+  lint:
+    name: "Quality gate: lint"
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: xcode-27
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false            # keeps .build (below) for an incremental build
+          fetch-depth: 0          # every branch, the base's baselines among them
+          persist-credentials: false
+      - name: Only this change's files
+        run: git clean -ffdx -e .build/
+      - name: make lint
+        run: make -k lint ${BASE:+LINT_BASE=origin/$BASE}
+
+  changes:
+    # Which test jobs the change needs. On GitHub's machine: it only reads the paths the change touched.
+    name: "Quality gate: changes"
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      core: ${{ steps.scope.outputs.core }}
+      mac: ${{ steps.scope.outputs.mac }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0          # the base, to compare with
+          filter: blob:none       # the history's trees only: the paths are all it reads of them
+          persist-credentials: false
+      - id: scope
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = push ] || [ -z "$BASE" ]; then
+            echo "A push to $GITHUB_REF_NAME, or no base to compare with: every test runs."
+            printf 'core=true\nmac=true\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git diff --name-only --no-renames "origin/$BASE...HEAD" > "$RUNNER_TEMP/changed"
+          echo "Changed since $BASE:"
+          sed 's/^/  /' "$RUNNER_TEMP/changed"
+          Scripts/test-scope.sh < "$RUNNER_TEMP/changed" | tee -a "$GITHUB_OUTPUT"
+
+  core-test-linux:
+    # The core's tests on Linux, where it uses no Apple framework (QuickJS for JavaScript, Tests/LinuxShims for what the
+    # tests import of Apple's), on an export of Core/ alone, as the core's own repository will run them. As a user of
+    # their own, not root (Core/Scripts/test.sh says why): the export is that user's, and so are SwiftPM's locks of the
+    # build folder, in /tmp (root's from the build, which that user can't open, are removed first).
+    name: "Quality gate: core-test (Linux)"
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: ubuntu-latest
+    container: swift:6.4
+    timeout-minutes: 60
+    env:
+      # At most 16 tests at once: all at once on the runner's 4 cores, the first minute of a run held a test up past
+      # what acceptance tests wait for (3 to 10 s).
+      SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH: "16"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Export the core alone
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - uses: actions/cache@v4
+        with:
+          path: ../core/.build
+          key: core-test-linux-swift-6.4-${{ hashFiles('Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: core-test-linux-swift-6.4-${{ hashFiles('Core/Package.resolved') }}-
+      - name: Build the core's tests
+        run: swift build --build-tests
+        working-directory: ../core
+      - name: The core's tests, offline
+        run: |
+          useradd --create-home tests
+          chown -R tests:tests .
+          rm -f /tmp/*_core_.build*.lock
+          su tests -c "Scripts/test.sh --skip-build"
+        working-directory: ../core
+
+  core-test-macos:
+    # The core's tests on macOS, where it uses Apple's frameworks (JavaScriptCore, FoundationModels, the keychain), with
+    # the rest of `make test-core` (its build for iOS and in release, its guards), on an export of Core/ alone: the core
+    # and its tests use nothing above it. The macOS 27 SDK (Xcode 27): macos-26 ships Xcode 26.x.
+    name: "Quality gate: core-test (macOS)"
+    needs: changes
+    if: needs.changes.outputs.core == 'true'
+    runs-on: xcode-27
+    timeout-minutes: 60
+    env:
+      SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH: "16"   # as on Linux: GitHub's machines have few cores
+      # This machine misses the bounds of the tests that time what they do to a fraction of a second, even with one run
+      # alone (spotlightIsAskedSoonAfterTheLastKey: under 100 ms, 120 to 200 ms here): Core/Scripts/test.sh skips those
+      # (Core/Scripts/hosted-runner-skips.txt) and mac-test runs them on the Mac mini, their bounds as written.
+      ALLINONEIME_CI_HOSTED: "1"
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Export the core alone
+        run: mkdir ../core && git archive HEAD:Core | tar -x -C ../core
+      - uses: actions/cache@v4
+        with:
+          path: ../core/.build
+          key: core-test-macos-${{ hashFiles('Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: core-test-macos-${{ hashFiles('Core/Package.resolved') }}-
+      # Offline: GitHub's machine has no key or account of ours (no secret is given to this job), and
+      # Core/Scripts/test.sh points AWS's files at nothing.
+      - name: make test-core, offline
+        run: make test-core CORE=../core
+
+  mac-test:
+    name: "Quality gate: mac-test"
+    needs: changes
+    if: needs.changes.outputs.mac == 'true'
+    # On the Mac mini: GitHub's macOS machines are too slow for the Mac tests' timings (78 failures there on 2026-11-14),
+    # and for the core's in Core/Scripts/hosted-runner-skips.txt, which core-test skips and `make test-mac` runs here.
+    runs-on: [self-hosted, macmini-agent]
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          clean: false
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Only this change's files
+        run: git clean -ffdx -e .build/
+      - name: What earlier test runs left in TMPDIR, over 6 hours old
+        # A run killed midway leaves its TMPDIR folder (Scripts/test-tmpdir.sh); older runs left one per test, and
+        # 246,000 of them filled this disk (2026-11-16). Only names the tests make (Scripts/sweep-test-tmp.sh).
+        run: Scripts/sweep-test-tmp.sh
+      - name: Where the dependencies go (kept between runs, per their pinned versions)
+        run: |
+          pins=$(grep -E '^[A-Z_]+_(VERSION|TAG|TARBALL|ZIP|SHA256|COMMIT) +:=' Makefile | shasum | cut -c1-12)
+          echo "ALLINONEIME_THIRDPARTY=$RUNNER_TOOL_CACHE/allinoneime/thirdparty-$pins" >> "$GITHUB_ENV"
+      - name: make test-mac, offline
+        run: |
+          # No key or account reaches the tests: every provider's key, AWS's (make test-mac also points its files at
+          # nothing), the live tests' switches and GitHub's tokens are unset.
+          for name in ANTHROPIC_API_KEY ANTHROPIC_FOUNDRY_API_KEY OPENAI_API_KEY AZURE_OPENAI_API_KEY GEMINI_API_KEY \
+              GOOGLE_API_KEY CODEX_API_KEY KIRO_API_KEY BRAVE_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY \
+              AWS_SESSION_TOKEN AWS_PROFILE ALLINONEIME_CLAUDE_LIVE ALLINONEIME_CODEX_LIVE ALLINONEIME_AGY_LIVE \
+              ALLINONEIME_KIRO_LIVE ALLINONEIME_ELECTRON_HARNESS GH_TOKEN GITHUB_TOKEN; do
+            unset "$name"
+          done
+          export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+          # A few tests need windows really drawn on screen; with the Mac mini's screen locked (no one there) they
+          # can't pass. Skip only those then, and say so: `make test-screen` runs them on an unlocked Mac.
+          if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
+            echo "::warning::The Mac mini's screen is locked: the on-screen tests were skipped; run make test-screen on an unlocked Mac."
+            TEST_SKIP="$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
+            export TEST_SKIP
+          fi
+          make test-mac
+
+  gate:
+    # The one check to require. On GitHub's machine: it only reads the other jobs' results. A test job counts when it
+    # passed, or was skipped because the change doesn't need it (and only then); anything else, a failure or a
+    # cancellation among them, fails the gate.
+    name: Quality gate
+    needs: [changes, lint, core-test-linux, core-test-macos, mac-test]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          FORK: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository }}
+          CHANGES: ${{ needs.changes.result }}
+          LINT: ${{ needs.lint.result }}
+          CORE_LINUX: ${{ needs.core-test-linux.result }}
+          CORE_MACOS: ${{ needs.core-test-macos.result }}
+          MAC: ${{ needs.mac-test.result }}
+          NEEDS_CORE: ${{ needs.changes.outputs.core }}
+          NEEDS_MAC: ${{ needs.changes.outputs.mac }}
+        run: |
+          if [ "$FORK" = true ]; then
+            echo "::error::A PR from a fork doesn't run on the Mac mini. A maintainer who has read it pushes it to a branch here."
+            exit 1
+          fi
+          echo "changes: $CHANGES (core tests needed: ${NEEDS_CORE:-?}, Mac tests needed: ${NEEDS_MAC:-?})"
+          echo "make lint: $LINT; core-test: Linux $CORE_LINUX, macOS $CORE_MACOS; mac-test: $MAC"
+          passed() {  # RESULT NEEDED
+            [ "$1" = success ] || { [ "$1" = skipped ] && [ "$2" = false ]; }
+          }
+          # Linux is advisory for now: the core is kept portable, but the IME ships on macOS only (owner, 2026-11-14), and
+          # its Linux job was dropped once for flakiness. A Linux failure warns; it doesn't block the merge.
+          passed "$CORE_LINUX" "$NEEDS_CORE" || echo "::warning::core-test (Linux): $CORE_LINUX. It doesn't block; look at it."
+          [ "$CHANGES" = success ] && [ "$LINT" = success ] &&
+            passed "$CORE_MACOS" "$NEEDS_CORE" && passed "$MAC" "$NEEDS_MAC"

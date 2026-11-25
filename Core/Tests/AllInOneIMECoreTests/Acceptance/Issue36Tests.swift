@@ -5,9 +5,11 @@ import Testing
 // Issue #36: a bundle snippet (or alias) whose name has a digit in it, such as `addr2` (letters and digits, a letter
 // first: `ScriptCommand.isValidName`, docs/extensions.md), is sent as the literal "@addr2" when used inside another
 // command's text. In `@question 把地址 @addr2 翻译` the draft shows addr2 as chosen, but the AI receives "@addr2"
-// instead of the snippet's text; in `@search 苹果 @addr2 …` the name doesn't end the search phrase. Expected: the
-// snippet's text is filled in, as it is for a name of letters only. The text is planned as the composer plans it
-// (`CommandPlan.make`, then `fillingSnippets`) and typed into the composer key by key, as a user does.
+// instead of the snippet's text; in `@search 苹果 @addr2 …` the name didn't end the search phrase (`@search` is deleted
+// in 0.7.5, its phrase with it: after another command inside the text, `@stock AAPL @addr2 …`, the name is still checked
+// to end that command's argument and be filled in). Expected: the snippet's text is filled in, as it is for a name of
+// letters only. The text is planned as the composer plans it (`CommandPlan.make`, then `fillingSnippets`) and typed into
+// the composer key by key, as a user does.
 
 private let issue36At = KeyEvent(keyCode: 0x13, characters: "@", charactersIgnoringModifiers: "@", modifiers: .shift)
 
@@ -75,18 +77,19 @@ private func issue36Starts(_ effects: [Composer.Effect]) -> [(Command, String)] 
         #expect(sent("署名用 @sig2 吧", catalog) == "署名用 Team Wei 吧")
     }
 
-    @Test func aSnippetWithADigitInItsNameEndsASearchPhrase() {
-        // @search is off in what the input method offers (`Command.webSearchOffered`): added, as its own tests do.
-        let catalog = Command.builtins + Command.catalog([], snippets: [addr, addr2]).filter { $0.bundle != nil }
+    @Test func aSnippetWithADigitInItsNameAfterAnInnerCommandIsFilledIn() {
+        // A command that fetches something inside the text (a custom program), its argument symbols, then the snippet.
+        let stock = CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])
+        let catalog = Command.catalog([stock], snippets: [addr, addr2])
         func inner(_ text: String) -> [String] {
             CommandPlan.make(text, commands: catalog).inner.map { "@\($0.command.name) \($0.argument)" }
         }
-        // A name of letters only ends what to search for today…
-        #expect(inner("总结 @search 苹果 @addr 附近的店") == ["@search 苹果", "@addr "])
-        #expect(sent("总结 @search 苹果 @addr 附近的店", catalog, outputs: ["X"]) == "总结 X 9 Elm Rd 附近的店")
-        // …and one with a digit after its letters does too: it isn't searched for, it's filled in.
-        #expect(inner("总结 @search 苹果 @addr2 附近的店") == ["@search 苹果", "@addr2 "])
-        #expect(sent("总结 @search 苹果 @addr2 附近的店", catalog, outputs: ["X"]) == "总结 X 1 Main St 附近的店")
+        // A name of letters only ends the argument and is a command of its own today…
+        #expect(inner("总结 @stock AAPL TSLA @addr 附近的店") == ["@stock AAPL TSLA", "@addr "])
+        #expect(sent("总结 @stock AAPL TSLA @addr 附近的店", catalog, outputs: ["X"]) == "总结 X 9 Elm Rd 附近的店")
+        // …and one with a digit after its letters does too: it isn't the program's argument, it's filled in.
+        #expect(inner("总结 @stock AAPL TSLA @addr2 附近的店") == ["@stock AAPL TSLA", "@addr2 "])
+        #expect(sent("总结 @stock AAPL TSLA @addr2 附近的店", catalog, outputs: ["X"]) == "总结 X 1 Main St 附近的店")
     }
 
     @Test func theQuestionReceivesTheSnippetsText() throws {

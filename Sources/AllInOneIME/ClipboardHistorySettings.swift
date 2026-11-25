@@ -2,12 +2,14 @@ import AllInOneIMECore
 import AllInOneIMEMac
 import SwiftUI
 
-/// Settings → General → Clipboard history: its switch (no input-menu item: on by default, off here), why it isn't
+/// Settings → Common → Clipboard history: its switch (no input-menu item: on by default, off here), why it isn't
 /// recording when macOS doesn't let it (Privacy & Security → Paste from Other Apps, with a button to that page), and
 /// Clear History. How many it keeps has no row of its own (owner, 0.7.4): set otherwise than 20 (by hand, an earlier
 /// version), it shows with Restore Default. Both keys are this Mac's own (never synced), as the history is.
 struct ClipboardHistorySection: View {
     @ObservedObject var model: SettingsModel
+    /// Its own section title: none on Common, where it is one of the commands and features (#120).
+    var showsTitle = true
     /// Whether it may read the clipboard without asking, as macOS says now (told again as the window comes back from
     /// System Settings).
     @State private var access = ClipboardHistoryShared.access
@@ -41,7 +43,7 @@ struct ClipboardHistorySection: View {
                 }
             }
         } header: {
-            SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.general.icon)
+            if showsTitle { SectionTitle(tr("剪贴板历史", "Clipboard History"), icon: SettingsPage.common.icon) }
         }
         .disabled(!model.canSave)
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -53,8 +55,8 @@ struct ClipboardHistorySection: View {
     /// a read has asked: ⌃V in a text field).
     private var permission: some View {
         HStack(alignment: .firstTextBaseline) {
-            Label(tr("没在记录：macOS 每次读剪贴板都要问。在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」；还没列出它的话，先在输入框里按一次 \(Platform.current.terms.paste)，macOS 问的时候允许。",
-                     "Not recording: macOS asks before each read of the clipboard. In Privacy & Security → Paste from Other Apps, set AllInOneIME to Allow; if it isn't listed yet, press \(Platform.current.terms.paste) in a text field once and allow it when macOS asks."),
+            Label(tr("没在记录：在「隐私与安全性」→「从其他App粘贴」里把 AllInOneIME 设成「允许」（没列出的话，先在输入框里按一次 \(Platform.current.terms.paste)）。",
+                     "Not recording: set AllInOneIME to Allow in Privacy & Security → Paste from Other Apps (not listed yet? press \(Platform.current.terms.paste) in a text field once)."),
                   systemImage: "exclamationmark.triangle")
                 .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
             Spacer()

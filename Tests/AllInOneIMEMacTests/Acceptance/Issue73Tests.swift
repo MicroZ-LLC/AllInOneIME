@@ -2,26 +2,27 @@ import AllInOneIMECore
 import Foundation
 import Testing
 
-// Issue #73: the French keyboard layout picked in Settings isn't saved or applied. Settings → Input → French's Keyboard
-// layout picker sets only the window's settings (`model.config.keyboardLayouts`), and no save follows it (the window's
-// save hooks have none for `keyboardLayouts`). The input method reads config.json for each field (`LiveConfig`, then
-// `applyKeyboardLayout`), so French keeps typing AZERTY (`qwerty` comes out as `azerty`) until something else saves,
-// the window closes or the input method quits; and if config.json is rewritten first (the Assistant's Apply, iCloud
-// sync, a learned word), the window reads it again and the pick is gone: the picker shows AZERTY again. Expected: the
-// pick is written at once and used from the next field, as every other picker's (SettingsModel: "Every change is written
-// to the config file right away"; README: "after a change, the next translation uses the new settings").
+// Issue #73: the French keyboard layout picked in Settings isn't saved or applied. Settings → More Settings → Input and
+// keys → French's Keyboard layout picker sets only the window's settings (`model.config.keyboardLayouts`), and no save
+// follows it (the window's save hooks have none for `keyboardLayouts`). The input method reads config.json for each
+// field (`LiveConfig`, then `applyKeyboardLayout`), so French keeps typing AZERTY (`qwerty` comes out as `azerty`)
+// until something else saves, the window closes or the input method quits; and if config.json is rewritten first (the
+// Assistant's Apply, iCloud sync, a learned word), the window reads it again and the pick is gone: the picker shows
+// AZERTY again. Expected: the pick is written at once and used from the next field, as every other picker's
+// (SettingsModel: "Every change is written to the config file right away"; README: "after a change, the next
+// translation uses the new settings").
 //
 // The input method's own code can't be imported here (it is an executable target): as Issue51Tests does it, all of
 // Sources/AllInOneIME is compiled into a child process, with the Mac library, the core and librime, as the input method
-// is built. Only main.swift's dispatch (what follows `let arguments = …`) is replaced: the child shows the real Settings
-// window on the Input page, with French among the input languages and no layout picked for it (AZERTY, its default),
-// opens French's Keyboard layout picker as VoiceOver presses it (SwiftUI draws it without an NSPopUpButton) and chooses
-// ABC from the menu it shows, as TranslateTargetSelfTest chooses from Translate to's. Settings stays open. The child
-// then reads the settings as the input method does for the next field (`LiveConfig.current`); or something else
-// rewrites config.json first (another setting changed in it, as the Assistant's Apply does, which then tells the window
-// to read it again) and the child says what the picker shows after. The child's home is a folder of the test's (the
-// config file is never the user's), its keychain an in-memory one and the window looks up no keys
-// (`SettingsModel.looksUpKeys`): nothing asks the user's keychain or the network.
+// is built. Only main.swift's dispatch (what follows `let arguments = …`) is replaced: the child shows the real
+// Settings window on the Input and keys page (More Settings), with French among the input languages and no layout
+// picked for it (AZERTY, its default), opens French's Keyboard layout picker as VoiceOver presses it (SwiftUI draws it
+// without an NSPopUpButton) and chooses ABC from the menu it shows, as TranslateTargetSelfTest chooses from Translate
+// to's. Settings stays open. The child then reads the settings as the input method does for the next field
+// (`LiveConfig.current`); or something else rewrites config.json first (another setting changed in it, as the
+// Assistant's Apply does, which then tells the window to read it again) and the child says what the picker shows after.
+// The child's home is a folder of the test's (the config file is never the user's), its keychain an in-memory one and
+// the window looks up no keys (`SettingsModel.looksUpKeys`): nothing asks the user's keychain or the network.
 
 @Suite(.serialized)
 struct Issue73Tests {
@@ -141,29 +142,10 @@ enum Issue73Child {
         let others = try fm.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" && $0.lastPathComponent != "main.swift" }.map(\.path).sorted()
         // The Mac library, the core and librime's wrapper, as `swift test` built them.
-        let products = repository.appendingPathComponent(".build/debug")
-        let modules = fm.fileExists(atPath: products.appendingPathComponent("Modules").path)
-            ? products.appendingPathComponent("Modules") : products
-        var objects: [String] = []
-        for module in ["AllInOneIMEMac", "AllInOneIMECore", "AllInOneIMERime", "AllInOneIMEText", "AllInOneIMEScriptEngine",
-                       "CQuickJS", "Crypto"] {
-            let aggregate = products.appendingPathComponent(module + ".o")
-            if fm.fileExists(atPath: aggregate.path) {
-                objects.append(aggregate.path)
-            } else if let files = try? fm.contentsOfDirectory(at: products.appendingPathComponent(module + ".build"), includingPropertiesForKeys: nil) {
-                objects += files.filter { $0.pathExtension == "o" }.map(\.path)
-            }
-        }
-        let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
         let executable = scratch.appendingPathComponent("issue73")
-        let arguments = ["swiftc", "-swift-version", "5", "-j", "\(max(2, ProcessInfo.processInfo.activeProcessorCount))",
-                         "-I", modules.path, "-I", repository.appendingPathComponent("Core/Sources/CRime").path,
-                         "-L", rimeLib.path, "-lrime", "-Xlinker", "-rpath", "-Xlinker", rimeLib.path,
-                         "-framework", "AppKit", "-framework", "InputMethodKit", "-framework", "Carbon", "-framework", "AVFoundation",
-                         "-framework", "Speech", "-framework", "EventKit", "-framework", "SwiftUI",
-                         "-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels",
-                         mainFile.path] + others + objects + ["-o", executable.path]
-        let swift = try command(URL(fileURLWithPath: "/usr/bin/xcrun"), arguments, timeout: 900)
+        let swift = try SourceCompiler.compile(repository: repository, sources: [mainFile.path] + others,
+            executable: executable,
+            timeout: 900)
         guard swift.status == 0 else { throw Failure(description: "compiling Sources/AllInOneIME with the harness:\n\(swift.output)") }
         return executable
     }
@@ -199,8 +181,8 @@ enum Issue73Child {
     }
 }
 
-/// What follows main.swift's `let arguments = …` in the child: the Settings window on the Input page, ABC picked from
-/// French's Keyboard layout menu, then what the mode says.
+/// What follows main.swift's `let arguments = …` in the child: the Settings window on the Input and keys page, ABC
+/// picked from French's Keyboard layout menu, then what the mode says.
 private enum Issue73Harness {
     static let swift = #"""
 
@@ -245,7 +227,7 @@ enum Issue73Child {
         // SwiftUI builds the views' accessibility (their pop-up buttons) for an assistive app only, which says so with
         // `AXEnhancedUserInterface` on the app: set on this process's own, as AssistantSelfTest does.
         _ = NSApp.perform(Selector(("accessibilitySetValue:forAttribute:")), with: true as NSNumber, with: "AXEnhancedUserInterface")
-        SettingsWindow.shared.show(page: .input)
+        SettingsWindow.shared.show(page: .inputAndKeys)
         find(until: Date().addingTimeInterval(20))
     }
 
@@ -282,7 +264,7 @@ enum Issue73Child {
         }
         guard Date() < deadline else {
             let found = NSApp.windows.filter(\.isVisible).flatMap { nodes($0) }.compactMap { node in role(node).map { "\($0) \(value(node) ?? "")" } }
-            fail("no Keyboard layout picker on the Input page: \(found)")
+            fail("no Keyboard layout picker on the Input and keys page: \(found)")
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { MainActor.assumeIsolated { find(until: deadline) } }
     }

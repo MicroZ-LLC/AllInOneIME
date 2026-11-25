@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -8,7 +9,7 @@ import Testing
 /// stayed false for good, with nothing to start it but a thread waiting in `waitUntilReady`. In a process of its own
 /// (`RimeWorker`): librime starts once per process.
 struct RedeployTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-redeploy-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-redeploy-\(UUID().uuidString)")
 
     @Test(.enabled(if: RimeWorker.scenario == nil && (RimeWorker.dataAvailable || RimeWorker.required)))
     func aRedeployAskedForWhileOneStartsRunsAfterIt() throws {

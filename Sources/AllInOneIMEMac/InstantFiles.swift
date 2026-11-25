@@ -42,6 +42,8 @@ public final class InstantFiles: @unchecked Sendable {
     static let listingRows = 40
 
     private let index: AppIndex
+    /// The apps' and places' dates, waited for a moment at most.
+    private let dates: SpotlightDates
     private let recheckInterval: TimeInterval
     /// Reads a path's folder (`FileSearch.complete`): only ever off the key's thread (`list`).
     private let lister: @Sendable (_ query: String, _ limit: Int) -> [SearchResult]
@@ -67,9 +69,10 @@ public final class InstantFiles: @unchecked Sendable {
         set { lock.withLock { keptHook = newValue } }
     }
 
-    public init(index: AppIndex = .shared, recheckInterval: TimeInterval = 30,
+    public init(index: AppIndex = .shared, recheckInterval: TimeInterval = 30, dates: SpotlightDates = .shared,
                 list: @escaping @Sendable (_ query: String, _ limit: Int) -> [SearchResult] = { FileSearch.complete($0, limit: $1) }) {
         self.index = index
+        self.dates = dates
         self.recheckInterval = recheckInterval
         lister = list
     }
@@ -145,9 +148,9 @@ public final class InstantFiles: @unchecked Sendable {
     public func make(history: OpenHistory, now: Date = Date()) {
         let index = self.index.apps(now: now)
         let known = lock.withLock { opened }
-        let apps = index.map { app in
-            Kept(found: FileSearch.dated(FileSearchRanking.Found(path: app.path, names: app.names, isPlace: app.isPlace)),
-                 result: FileSearch.result(for: app.path, app: app), spelled: app.spelled)
+        let dated = dates.dated(index.map { FileSearchRanking.Found(path: $0.path, names: $0.names, isPlace: $0.isPlace) })
+        let apps = zip(index, dated).map { app, found in
+            Kept(found: found, result: FileSearch.result(for: app.path, app: app), spelled: app.spelled)
         }
         let indexed = Set(index.map(\.path))
         var opened: [String: Kept] = [:]

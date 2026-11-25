@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -20,7 +21,7 @@ struct SettingsStoreTests {
         """
 
     func folder() throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("settings-store-\(UUID().uuidString)", isDirectory: true)
+        let url = TestScratch.temporary("settings-store-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }
@@ -381,8 +382,6 @@ struct SettingsStoreTests {
             #expect(KeyState(states.sources[.anthropic], ending: states.endings[.anthropic]) == .saved(ending: "a1b2"))
             #expect(KeyState(states.sources[.openai], ending: states.endings[.openai]) == .missing)
             #expect(store.removeKey(.anthropic) == nil && !APIKeys.hasKeychainKey(account: "anthropic"))
-            #expect(store.saveSearchKey("search-test-key-9999") == nil && APIKeys.keyEnding(account: WebSearch.backend.keyAccount) == "9999")
-            #expect(store.removeSearchKey() == nil && !APIKeys.hasKeychainKey(account: WebSearch.backend.keyAccount))
             #expect(store.saveNotionToken("ntn_test_token_0000") == nil && APIKeys.hasKeychainKey(account: NotionAPI.keyAccount))
             #expect(store.removeNotionToken() == nil && !APIKeys.hasKeychainKey(account: NotionAPI.keyAccount))
         }

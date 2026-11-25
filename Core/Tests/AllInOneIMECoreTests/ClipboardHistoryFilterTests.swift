@@ -49,6 +49,15 @@ struct ClipboardHistoryFilterTests {
         #expect(ClipboardFilter.key(.permission, language: "en") == nil)
     }
 
+    @Test func üIsTypedVAndFullWidthIsFolded() {
+        // ü as rime users type it (lv, nv), and as before (lu); full-width letters and digits as their ASCII forms.
+        #expect(ClipboardFilter.matches(key("绿色"), "lvse") && ClipboardFilter.matches(key("绿色"), "luse"))
+        #expect(ClipboardFilter.matches(key("女儿"), "nver") && ClipboardFilter.matches(key("女儿"), "nv"))
+        #expect(ClipboardFilter.matches(key("订单１２３４５"), "12345") && ClipboardFilter.matches(key("订单１２３４５"), "dingdan12345"))
+        #expect(ClipboardFilter.matches(key("ＡＢＣ　ｄｅｆ"), "abc def") && ClipboardFilter.matches(key("abc"), "ＡＢＣ"))
+        #expect(!ClipboardFilter.matches(key("绿色"), "lvx") && !ClipboardFilter.matches(key("vue 文档"), "uuewendang"))
+    }
+
     @Test func aLongTextIsFoundByItsPinyinInItsStartAndByItsTextAnywhere() {
         let long = String(repeating: "a", count: ClipboardFilter.pinyinLength) + "你好"
         #expect(!ClipboardFilter.matches(key(long), "nihao"))
@@ -271,8 +280,8 @@ struct ClipboardHistoryFilterTests {
             chinese.type("ni")
             #expect(chinese.document.isEmpty && !chinese.composer.engineState.isComposing)
             #expect(chinese.settle { !chinese.document.isEmpty })
-            #expect(chinese.document == "memo 1" && chinese.composer.engineState.isComposing && chinese.marked == "ni",
-                    "\(chinese.document) \(chinese.marked)")
+            #expect(chinese.document == "memo 1" && chinese.composer.engineState.isComposing && chinese.preedit == "ni",
+                    "\(chinese.document) \(chinese.preedit)")
 
             // No row for the filter: nothing goes in, the panel stays, and what was typed after ⏎ filters.
             let none = host(texts)

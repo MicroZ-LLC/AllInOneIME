@@ -1,12 +1,14 @@
 import Foundation
 
 /// What is learned on this device (Settings v2 §3.2), in one local store: the starting input each app learned and the
-/// streaks toward one, the apps where typos couldn't be fixed and the suggestion rows picked (both kept here now), and
-/// what `AutocompleteStore` and `TemperatureSupport` learned, reached through it. App identifiers, inputs, counts and
+/// streaks toward one, the apps where typos couldn't be fixed and the suggestion rows picked (both kept here now), the
+/// apps whose field didn't take a result in place of the selection, and what `AutocompleteStore` and
+/// `TemperatureSupport` learned, reached through it. App identifiers, inputs, counts and
 /// times only, never text; never in the config file, never synced. Safe from any thread.
 ///
-/// Privacy → Learned… lists it (`items`), each row forgotten on its own (`forget`) or all at once (`forgetAll`). What is
-/// changed is written to its file a moment later, off the caller's thread (`flush` writes it at once).
+/// Privacy → Learned… lists it (`items`, and the apps whose selection isn't used: `selectionOffApps`), each row forgotten
+/// on its own (`forget`, `forgetSelectionOff`) or all at once (`forgetAll`). What is changed is written to its file a
+/// moment later, off the caller's thread (`flush` writes it at once).
 public final class LearnedStore: @unchecked Sendable {
     /// Where a shell keeps it: a file in the app's data folder (`CorePaths.dataDir`, Application Support).
     public static var defaultURL: URL { CorePaths.dataDir.appendingPathComponent("learned.json") }
@@ -107,6 +109,47 @@ public final class LearnedStore: @unchecked Sendable {
     public func recordPick(_ pick: SuggestionPick) {
         contents.withLock { $0.picks.append(pick, keepingLast: Self.picksKept) }
         keepSoon()
+    }
+
+    // MARK: Commands on the selection
+
+    /// Remembers `app` as one whose field didn't take a command's result in place of the selection (`Composer.selection`,
+    /// the shell's check: `SessionText.selectionNotReplaced`): true if it wasn't yet. Its selection isn't used again
+    /// (`selectionOff`), as `Config.useSelection` off would have it there; never an app without an id.
+    @discardableResult
+    public func turnSelectionOff(in app: String, at date: Date = Date()) -> Bool {
+        guard !app.isEmpty else { return false }
+        let added = contents.withLock { contents -> Bool in
+            guard contents.selectionOff[app.lowercased()] == nil else { return false }
+            contents.selectionOff[app.lowercased()] = SelectionOff(app: app, since: date)
+            return true
+        }
+        if added { keepSoon() }
+        return added
+    }
+
+    /// Whether `app`'s selection isn't used (its field didn't take a result in place of it).
+    public func selectionOff(in app: String) -> Bool {
+        contents.withLock { $0.selectionOff[app.lowercased()] != nil }
+    }
+
+    /// The apps whose selection isn't used, as they were told, in the order they were (those of one time by id): Privacy →
+    /// Learned… lists them beside `items`, each a row of its own (`selectionOffText`).
+    public var selectionOffApps: [String] {
+        contents.withLock {
+            $0.selectionOff.values.sorted { ($0.since, $0.app.lowercased()) < ($1.since, $1.app.lowercased()) }.map(\.app)
+        }
+    }
+
+    /// Forget on one of them: its selection is used again (`forgetAll` forgets them all).
+    public func forgetSelectionOff(in app: String) {
+        contents.withLock { _ = $0.selectionOff.removeValue(forKey: app.lowercased()) }
+        keepSoon()
+    }
+
+    /// The row Privacy → Learned… shows for `app` (named by `name`), in the interface language.
+    public static func selectionOffText(_ app: String, name: (String) -> String) -> String {
+        tr("「\(name(app))」里不用选中的文字", "Selection not used in \(name(app))")
     }
 
     // MARK: What was learned before
@@ -240,11 +283,12 @@ public final class LearnedStore: @unchecked Sendable {
         var streaks: [String: Streak] = [:]
         var typosOff: [String: TyposOff] = [:]
         var picks: [SuggestionPick] = []
+        var selectionOff: [String: SelectionOff] = [:]
 
         init() {}
 
         private enum CodingKeys: String, CodingKey {
-            case startingInputs, streaks, typosOff, picks
+            case startingInputs, streaks, typosOff, picks, selectionOff
         }
 
         /// Each part on its own, each entry on its own: one this version can't read (an input it doesn't know) is left
@@ -258,6 +302,7 @@ public final class LearnedStore: @unchecked Sendable {
             startingInputs = entries(.startingInputs)
             streaks = entries(.streaks)
             typosOff = entries(.typosOff)
+            selectionOff = entries(.selectionOff)
             picks = ((try? c.decodeIfPresent([Lenient<SuggestionPick>].self, forKey: .picks)).flatMap { $0 } ?? []).compactMap(\.value)
         }
     }
@@ -324,6 +369,12 @@ public final class LearnedStore: @unchecked Sendable {
 
     /// An app where typos couldn't be fixed, as it was told, since when.
     struct TyposOff: Codable, Equatable {
+        var app: String
+        var since: Date
+    }
+
+    /// An app whose field didn't take a result in place of the selection, as it was told, since when.
+    struct SelectionOff: Codable, Equatable {
         var app: String
         var since: Date
     }

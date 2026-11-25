@@ -138,8 +138,8 @@ extension SelfTest {
             let model = SettingsModel(configURL: configURL, persists: false)
             let image = snapshotDirectory.appendingPathComponent("settings-general-icloud\(chinese ? "-zh" : "").png")
             try? fm.removeItem(at: image)
-            SettingsImage.render(model, page: .general, to: image) { _ = pump(timeout: $0) { false } }
-            check(fm.fileExists(atPath: image.path), "Settings → General with sync on: \(image.lastPathComponent)")
+            SettingsImage.render(model, page: .interface, to: image) { _ = pump(timeout: $0) { false } }
+            check(fm.fileExists(atPath: image.path), "Settings → More Settings → Interface and sync with sync on: \(image.lastPathComponent)")
         }
 
         // Off: nothing more is synced, and the folder stays.

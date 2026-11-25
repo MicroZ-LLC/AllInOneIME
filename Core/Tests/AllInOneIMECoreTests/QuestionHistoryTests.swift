@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -35,7 +36,7 @@ struct QuestionHistoryTests {
     }
 
     @Test func keptInAFileOnlyTheUserReads() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)/AllInOneIME")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)/AllInOneIME")
         defer { try? FileManager.default.removeItem(at: folder.deletingLastPathComponent()) }
         let url = folder.appendingPathComponent("recent-questions.json")
         #expect(QuestionHistory.load(from: url).entries.isEmpty)  // none yet
@@ -79,7 +80,7 @@ struct QuestionHistoryTests {
     }
 
     @Test func aFileReadableByOthersIsReplacedNeverWidened() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("recent-questions.json")
@@ -99,7 +100,7 @@ struct QuestionHistoryTests {
 
     /// #59: a file that can't be read is set aside and marked for the sync, never written over; a readable one is neither.
     @Test func anUnreadableFileIsSetAsideNotWrittenOver() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let url = folder.appendingPathComponent("recent-questions.json")
@@ -120,7 +121,7 @@ struct QuestionHistoryTests {
     /// #59: a mark that can't be written (a full disk) leaves the unreadable file where it is, for the sync to set aside:
     /// moved unmarked, with the new file not written either, the sync would take its questions for a Clear.
     @Test func anUnreadableFileIsNotSetAsideUnmarked() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("qhistory-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("qhistory-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let url = folder.appendingPathComponent("recent-questions.json")
         let mark = QuestionHistory.setAsideMark(of: url)
@@ -271,14 +272,23 @@ extension ComposerTests {
         let d = questionDraft()
         _ = d.handleKeyDown(upKey)
         #expect(d.questionHighlight == 2)
-        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc clears it, then goes back to the
-        // list.
+        // Typing on a saved answer starts the conversation's next question (0.6.4); Esc goes back to the list at once,
+        // what's typed with it (owner 2026-11-15).
         _ = d.handleKeyDown(enterKey)
         _ = d.handleKeyDown(k("s"))
         #expect(d.isLevelTwo && d.isQuestionChat && d.refineText == "s" && d.showsSavedAnswer)
         _ = d.handleKeyDown(escKey)
-        _ = d.handleKeyDown(escKey)
         #expect(d.draft == "@question " && !d.isLevelTwo && d.questionHighlight == 2)
+    }
+
+    @Test func aSavedAnswersFooterSaysEscGoesBack() {
+        // Esc goes back to the list on a saved answer, what's typed or not (the conversation's own footer says close).
+        let c = questionDraft()
+        _ = c.handleKeyDown(upKey)
+        _ = c.handleKeyDown(enterKey)
+        _ = c.handleKeyDown(k("s"))
+        #expect(c.showsSavedAnswer && c.refineText == "s")
+        #expect(PanelPresenter(config: .default, language: "en").model(for: c).footer.hasSuffix("Esc back"))
     }
 
     @Test func aClickShowsTheSavedAnswer() {

@@ -1,5 +1,7 @@
-# Starts the oldest agent:queued issue again (it ran out of the Max plan's usage, or had no open release branch to
-# build on), once an hour, when the Agent workflow isn't already running or waiting.
+# Every hour: merges the agent pipeline's PRs whose required checks passed and closes their issues
+# (`pipeline.py --finish`: every agent:merging issue; a failed check is said once on the issue), then starts the oldest
+# agent:queued issue again (it ran out of the Max plan's usage, or had no open release branch to build on) when the
+# Agent workflow isn't already running or waiting.
 name: Agent queue
 
 on:
@@ -8,11 +10,29 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: write
-  issues: read
+  actions: write          # starts a PR's checks again, and the Agent workflow
+  checks: read
+  contents: write         # merges a PR, deletes its branch
+  issues: write
+  pull-requests: write
+  statuses: read
 
 jobs:
+  finish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+          sparse-checkout: .github
+      - name: Merge what passed its checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 .github/agent/pipeline.py --finish
+
   dispatch:
+    needs: finish
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - env:

@@ -8,50 +8,52 @@ import SwiftUI
 enum SettingsSpot: String, CaseIterable {
     // Input
     case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
-    case switchKey, candidateLayout
+    case switchKey, candidateLayout, keyHints
     // General
-    case outputLanguages, rewriteStyles, improveTranslates, jargonList
     case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
     case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
-    // AI
+    // AI: the AI, then the AI commands' options (@improve's, @translate's, @question's)
     case provider, model, apiKey, awsProfile, baseURL, testConnection
+    case rewriteStyles, improveTranslates, jargonList, outputLanguages, questionContinueIn, rememberQuestions
     // Privacy
-    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, rememberQuestions, learnEnglishWords, learned, installID
+    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, learnEnglishWords, learned, installID
     // Commands
-    case customCommands, agent, questionContinueIn, notes, webSearch, plugins, scriptExtensions, extensionSources
+    case customCommands, agent, notes, plugins, scriptExtensions, extensionSources
     // Advanced
     case typeOut, useSelection, previousAppSettings, configFile, rimeFolder
     // About
     case updates, troubleshoot, reportIssue
 
-    /// The page it's on.
+    /// The page or More Settings' group it lives in (owner, 0.7.5, #120): the ten most people need on Common, the AI's
+    /// on AI, the rest in More Settings' groups.
     var page: SettingsPage {
         switch self {
-        case .inputLanguages, .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords,
-             .codingLanguage, .switchKey, .candidateLayout: return .input
-        case .outputLanguages, .rewriteStyles,
-             .improveTranslates, .jargonList, .autocomplete, .suggestions, .suggestionsInsert, .appInserts, .clipboardHistory, .magicKey, .actionKey,
-             .menuBarIcon, .interfaceLanguage, .iCloudSync:
-            return .general
-        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection: return .ai
-        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .rememberQuestions, .learnEnglishWords, .learned, .installID:
+        case .inputLanguages, .pinyinScheme, .chineseCharacters, .switchKey, .candidateLayout,
+             .magicKey, .outputLanguages, .clipboardHistory, .autocomplete:
+            return .common
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates, .englishWords, .codingLanguage, .actionKey: return .inputAndKeys
+        case .suggestions, .suggestionsInsert, .appInserts: return .suggestions
+        case .hideSensitive, .wordsToHide, .appsWithoutAI, .pageContext, .learnEnglishWords, .learned, .installID:
             return .privacy
-        case .customCommands, .agent, .questionContinueIn, .notes, .webSearch, .plugins, .scriptExtensions, .extensionSources:
-            return .commands
+        // Key hints came after the plan (#99): how the panel looks, with the interface.
+        case .menuBarIcon, .interfaceLanguage, .iCloudSync, .keyHints: return .interface
         case .typeOut, .useSelection, .previousAppSettings, .configFile, .rimeFolder: return .advanced
+        case .provider, .model, .apiKey, .awsProfile, .baseURL, .testConnection,
+             .rewriteStyles, .improveTranslates, .jargonList, .questionContinueIn, .rememberQuestions:
+            return .ai
+        case .customCommands, .agent, .notes, .plugins, .scriptExtensions, .extensionSources:
+            return .commands
         case .updates, .troubleshoot, .reportIssue: return .about
         }
     }
 
-    /// The row outlined for it: its own, or the input languages' for what is in a chip.
-    var row: SettingsSpot {
-        chip == nil ? self : .inputLanguages
-    }
+    /// The row outlined for it: its own (each has a row of its own since #120; the input chips no longer hold any).
+    var row: SettingsSpot { self }
 
-    /// The input whose chip holds it.
+    /// The input whose options section (Input and keys) holds it.
     var chip: Input? {
         switch self {
-        case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
+        case .fuzzyPinyin, .personalDictionaries, .removedCandidates: return .language(.chinese)
         case .englishWords: return .language(.english)
         case .codingLanguage: return .code
         default: return nil
@@ -62,7 +64,8 @@ enum SettingsSpot: String, CaseIterable {
     var title: String {
         switch self {
         case .inputLanguages: return tr("输入语言", "Input languages")
-        case .pinyinScheme: return UIText.pinyinSchemeLabel
+        // A row of its own on Common since #120, no longer under Chinese's name: Chinese said.
+        case .pinyinScheme: return tr("中文输入方式", "Chinese typing")
         case .chineseCharacters: return UIText.chineseCharactersLabel
         case .fuzzyPinyin: return tr("模糊音", "Fuzzy pinyin")
         case .personalDictionaries: return tr("个人词库", "Personal Dictionaries")
@@ -102,12 +105,12 @@ enum SettingsSpot: String, CaseIterable {
         case .agent: return UIText.triggered(tr("@agent 交给", "@agent hands it to"))
         case .questionContinueIn: return tr("对话接着在哪里聊", "Continue a conversation in")
         case .notes: return UIText.triggered(tr("笔记（@note）", "Notes (@note)"))
-        case .webSearch: return UIText.triggered(tr("网页搜索（@search）", "Web Search (@search)"))
         case .plugins: return tr("插件", "Plugins")
         case .scriptExtensions: return tr("脚本扩展", "Script Extensions")
         case .extensionSources: return tr("扩展来源", "Extension Sources")
         case .typeOut: return tr("逐字上屏", "Type results out")
         case .candidateLayout: return tr("候选排列", "Candidate layout")
+        case .keyHints: return tr("显示按键提示", "Show key hints")
         case .switchKey: return UIText.switchKeyLabel
         case .useSelection: return tr("使用选中的文字", "Use the selected text")
         case .configFile: return tr("配置文件", "Config file")
@@ -154,6 +157,7 @@ enum SettingsSpot: String, CaseIterable {
             return tr("一个本机随机生成的编号，只用于统计安装数，不含其他信息。",
                       "A random number made on this Mac, so we can count installs. Nothing else is sent.")
         case .typeOut: return Self.typeOutNote
+        case .keyHints: return UIText.keyHintsHelp()
         case .useSelection: return Self.useSelectionNote
         case .rimeFolder: return tr("学到的词和你自己的 Rime 设置", "Learned words and your own Rime settings")
         case .troubleshoot:
@@ -167,11 +171,13 @@ enum SettingsSpot: String, CaseIterable {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
         // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them; Zhuyin by its
-        // other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ).
+        // other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ). The shape codes (`ShapeCode`, no row of the search's own) the same.
         case .pinyinScheme:
             return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
                 + "zhuyin bopomofo daqian taiwan 注音 注音符號 注音符号 大千 標準 标准 ㄅㄆㄇ 台灣 台湾 "
                 + PinyinScheme.others.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
+                + " shape codes aux code 辅助码 辅码 形码 " + UIText.shapeCodeLabel + " "
+                + ShapeCode.allCases.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
         case .chineseCharacters: return "simplified traditional taiwan hong kong characters chinese pinyin 简体 繁体 繁體 台湾 台灣 香港 字形 中文 拼音"
         case .fuzzyPinyin: return "zh ch sh z c s 拼音 pinyin"
         case .personalDictionaries: return "dictionary import dict yaml vocabulary 词库 导入 个人"
@@ -180,8 +186,8 @@ enum SettingsSpot: String, CaseIterable {
         // after this chip in a Chinese interface.
         case .englishWords: return "english words dictionary bedrock 英文词 词典"
         case .codingLanguage: return "code coding languages programming packs python java go typescript javascript c++ keywords snippets 代码 编程语言 语言包 关键字 代码片段"
-        case .outputLanguages: return "@translate translate languages 翻译 语言"
-        case .rewriteStyles: return "@improve rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 风格"
+        case .outputLanguages: return "@translate ai commands translate languages 翻译 语言 AI 命令"
+        case .rewriteStyles: return "@improve ai commands rewrite styles polish concise formal casual tactful jargon 改写 润色 简洁 正式 口语 委婉 黑话 风格 AI 命令"
         case .improveTranslates: return "improve translate 润色 翻译"
         case .jargonList: return "jargon terms team 黑话 术语 团队"
         case .autocomplete: return "autocomplete continue ghost gray tab 续写 灰字"
@@ -193,7 +199,7 @@ enum SettingsSpot: String, CaseIterable {
         case .actionKey: return "action key return enter run 执行键 回车"
         case .menuBarIcon: return "menu bar panel 菜单栏 面板"
         case .interfaceLanguage: return "interface language 界面语言 english chinese"
-        case .iCloudSync: return "icloud drive sync macs learned words hidden words recent questions sync now remove 同步 云盘 多台 学到的词 隐藏的词 最近的问题 立即同步 移除"
+        case .iCloudSync: return "icloud drive sync macs learned words hidden words sync now remove 同步 云盘 多台 学到的词 隐藏的词 立即同步 移除"
         case .previousAppSettings: return "per-app app profiles starts in translate as you type autocomplete type out rewrite styles 按 App 开始 边打边译 续写 逐字上屏 改写 移除"
         case .provider: return "ai provider change claude code codex antigravity agy google kiro cli subscription session sign in login @question api key anthropic claude api openai compatible deepseek ollama gemini api amazon bedrock aws allinoneime cloud apple intelligence on-device local 更换 订阅 会话 登录 提问 服务 本机 苹果 云"
         case .model: return "model id 模型"
@@ -205,22 +211,22 @@ enum SettingsSpot: String, CaseIterable {
         case .wordsToHide: return "words codename names hide 词 代号 名字"
         case .appsWithoutAI: return "no ai apps off 不用 AI 关掉"
         case .pageContext: return "@agent @reply chrome page context accessibility 网页 辅助功能"
-        case .rememberQuestions: return "@question recent questions history forget 最近的问题 提问 记录 历史 忘掉"
+        case .rememberQuestions: return "@question ai commands recent questions history forget 最近的问题 提问 记录 历史 忘掉 AI 命令"
         case .learnEnglishWords: return "learn english words 学习 英文词"
         case .installID: return "install id anonymous count installs statistics update check user agent 安装 编号 匿名 统计 安装数 检查更新"
         case .learned: return "learned forget starts in starting input autocomplete stopped typos picked rows suggestions temperature models 学到的内容 忘掉 开始 输入 续写 停下 打错 选过的行 建议 模型"
         case .customCommands: return "custom commands prompt program terminal link snippet 自定义 命令 程序 终端 网页"
         case .agent: return "@agent coding agent claude code gemini cli kiro custom command terminal installed background notify tasks @tasks claude tasks 编程 交给 终端 已安装 后台 通知 任务"
-        case .questionContinueIn: return "@question continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制"
+        case .questionContinueIn: return "@question ai commands continue conversation claude code chatgpt gemini copy 接着聊 对话 追问 复制 AI 命令"
         case .notes: return "@note note notes save to notion obsidian folder markdown vault token integration 笔记 备忘录 存到 文件夹 令牌 集成"
-        case .webSearch: return "@search search web brave api key 搜索 网页"
         case .plugins: return "plugins library stock xe completions preferences password 插件 插件库 补全 偏好 密码"
         case .scriptExtensions: return "raycast script commands scripts extensions bundles preferences folder spotlight 脚本 扩展 扩展包 偏好 文件夹 聚焦"
         case .extensionSources: return "extension sources git repository link clone update pin ssh trust its updates suggestions 扩展来源 仓库 链接 克隆 更新 固定 信任 建议"
         case .typeOut: return "type out typing speed typos mistakes 打字速度 打错"
         case .candidateLayout: return "candidate layout horizontal vertical 候选 排列 横排 竖排"
+        case .keyHints: return "key hints shortcuts footer keys bottom hide smaller 按键 提示 快捷键 底部 隐藏 候选框"
         case .switchKey: return "switch key shift caps lock capslock capitals chinese english input language 切换 中英文 大写锁定 大写 输入语言"
-        case .useSelection: return "selection selected text 选中 文字"
+        case .useSelection: return "selection selected text restore default 选中 文字 恢复默认"
         case .configFile: return "config file json 配置文件"
         case .rimeFolder: return "rime folder 目录"
         case .updates: return "updates version check automatically notify notification 更新 版本 自动检查 通知"
@@ -275,11 +281,12 @@ enum SettingsSpot: String, CaseIterable {
         case .model: return config.ai.provider.map { $0 != .hosted && $0 != .apple } ?? false
         case .testConnection: return config.ai.provider != nil
         case .jargonList: return SettingsView.showsJargon(config)
+        // No switch: learned per app; off in the config, its Restore Default row (Advanced).
+        case .useSelection: return !config.useSelection
         case .previousAppSettings: return config.appProfiles.values.contains { !$0.previousFields.isEmpty }
         case .pinyinScheme, .chineseCharacters, .fuzzyPinyin, .personalDictionaries, .removedCandidates:
             return config.inputLanguages.contains(.chinese)
         case .englishWords: return config.inputLanguages.contains { SettingsView.showsEnglishWords(under: $0, config) }
-        case .webSearch: return Command.webSearchOffered
         default: return true
         }
     }
@@ -297,13 +304,13 @@ enum SettingsSpot: String, CaseIterable {
     }
 
     static var pageContextNote: String {
-        UIText.triggered(tr("在 Chrome 里，@agent 和 @reply（没有选中消息时）也会带上网址、你所在的输入框和屏幕上看得到的内容，不读密码框；需要「辅助功能」权限。",
-                            "In Chrome, @agent and @reply (with no message selected) also send the address, your field and what's visible on screen, never a password field; needs Accessibility."))
+        UIText.triggered(tr("网址和屏幕上看得到的内容也一起带上，不读密码框；需要「辅助功能」权限。",
+                            "The address and what's on screen go along, never a password field; needs Accessibility."))
     }
 
     static var learnEnglishWordsNote: String {
-        tr("打拼音时原样上屏两次的字母，或英文模式下打了两次的词，以后会出现在拼音的候选里；密码框、终端和不用 AI 的 App 里不学。需要辅助功能权限，用来认出密码框。",
-           "A word put in as typed twice while typing pinyin, or typed twice in English mode, comes up among pinyin's candidates; never in password fields, terminals or apps without AI. It needs Accessibility, which tells password fields apart.")
+        tr("同一个英文词打两次，以后就出现在拼音的候选里；需要辅助功能权限，用来避开密码框。",
+           "An English word you type twice comes up among pinyin's candidates; it needs Accessibility, to skip password fields.")
     }
 
     static var typeOutNote: String {
@@ -312,8 +319,8 @@ enum SettingsSpot: String, CaseIterable {
     }
 
     static var useSelectionNote: String {
-        tr("选中文字后打命令就处理选中的文字，选好的结果替换它；哪个 App 里不正常就关掉。",
-           "Commands typed with text selected work on it, and the result you pick replaces it; turn it off if it misbehaves in an app.")
+        tr("选中文字后打的命令处理选中的文字；结果放不回去的 App 会被记住。",
+           "Commands typed with text selected work on it; an app that can't take the result back is learned.")
     }
 }
 

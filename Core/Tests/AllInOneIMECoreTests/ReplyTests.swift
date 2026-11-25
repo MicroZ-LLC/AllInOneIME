@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CoreGraphics
 import Foundation
 import Testing
@@ -215,7 +216,7 @@ struct ReplyTests {
         _ = c.handleKeyDown(k("1"))
         #expect(c.showsSavedAnswer)
         _ = c.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
-        let effects = c.handleKeyDown(KeyEvent(keyCode: 0, characters: "1", charactersIgnoringModifiers: "1", modifiers: .command)).effects
+        let effects = c.handleKeyDown(KeyEvent(keyCode: 0x12, characters: "¡", charactersIgnoringModifiers: "1", modifiers: .option)).effects
         // The saved question wasn't about the screenshot: it isn't taken along.
         #expect(effects.contains(.copy("**Q:** what is rust\n\n**A:** A language.")), "\(effects)")
     }
@@ -340,7 +341,7 @@ struct ReplyTests {
     /// nothing else differs afterwards only in that command's name. No key it didn't have is added (`agent`,
     /// `agentCommand`, `agentPageContext` … with their defaults, as writing the whole config would).
     @Test func theRenameWritesOnlyTheCommandsName() throws {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("rename-\(UUID().uuidString)")
+        let dir = TestScratch.temporary("rename-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: dir) }
         let url = dir.appendingPathComponent("config.json")
@@ -378,13 +379,9 @@ struct ReplyTests {
         #expect(try String(contentsOf: url, encoding: .utf8) == text)
     }
 
-    @Test func theRenameNoticeSaysWhatWasRenamedAndWhyOnlyForABuiltInOffered() {
+    @Test func theRenameNoticeSaysWhatWasRenamedAndWhy() {
         #expect(Composer.ReplyMessages.english.renamed(old: "reply", new: "myreply") == "Your own @reply is now @myreply: @reply is built in")
         #expect(Composer.ReplyMessages.chinese.renamed(old: "Note", new: "mynote") == "你自己的 @note 改名为 @mynote：@note 现在是内置命令")
-        // @read is built in but off (not offered): nothing is said about it being built in.
-        #expect(Command.off.contains(.read))
-        #expect(Composer.ReplyMessages.english.renamed(old: "read", new: "myread") == "Your own @read is now @myread")
-        #expect(Composer.ReplyMessages.chinese.renamed(old: "read", new: "myownread") == "你自己的 @read 改名为 @myownread")
     }
 
     @Test func theIntentWithTheCommandsOutputsIsCappedToo() {

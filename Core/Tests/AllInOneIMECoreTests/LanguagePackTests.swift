@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import CryptoKit
 import Foundation
 import os
@@ -9,7 +10,7 @@ import Testing
 struct TestPackLibrary {
     let host = "packs-\(UUID().uuidString.prefix(8).lowercased()).test"
     let key = Curve25519.Signing.PrivateKey()
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("packs-\(UUID().uuidString)", isDirectory: true)
+    let root = TestScratch.temporary("packs-\(UUID().uuidString)", isDirectory: true)
     var base: String { "https://\(host)/lib/" }
     var store: LanguagePackStore { LanguagePackStore(directory: root.appendingPathComponent("packs", isDirectory: true)) }
 

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import AllInOneIMEMac
 import AppKit
@@ -229,7 +230,7 @@ struct ImagePreviewTests {
     }
 
     static func folder() throws -> URL {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("image-preview-\(UUID().uuidString)", isDirectory: true)
+        let folder = TestScratch.temporary("image-preview-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         return folder
     }

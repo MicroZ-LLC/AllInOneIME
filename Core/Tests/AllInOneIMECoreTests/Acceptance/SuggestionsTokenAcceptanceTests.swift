@@ -42,7 +42,7 @@ struct SuggestionsTokenAcceptanceTests {
             try world.github()
             let field = world.field()
             field.type("nihao")
-            #expect(field.host.marked == "nihao", "pinyin is composed (\(field.host.marked))")
+            #expect(field.host.composes("nihao"), "pinyin is composed, in the panel (\(field.host.composing))")
             field.type("#")
             #expect(field.document == "你好#" && field.host.marked.isEmpty, "the composition ended (\(field.document))")
             field.type("7")

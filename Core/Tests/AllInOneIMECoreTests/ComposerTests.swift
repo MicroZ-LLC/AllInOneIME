@@ -420,7 +420,8 @@ struct ComposerTests {
         type("wo", c)
         _ = c.handleKeyDown(spaceKey)
         type("nihao", c)
-        #expect(commits(c.commitAll()) == ["@improve 我你好"])
+        // A command not run yet goes, nothing typed in (the owner, 2026-11-15: CommandDraftKeysTests).
+        #expect(commits(c.commitAll()).isEmpty && c.draft.isEmpty)
         #expect(c.phase == .idle)
         #expect(!c.engineState.isComposing)
 
@@ -428,11 +429,12 @@ struct ComposerTests {
         type("wo", d)
         _ = d.handleKeyDown(spaceKey)
         type("ni", d)
-        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])
+        #expect(commits(d.commitAsTyped()) == ["@improve 我ni"])  // a request refused in a known password field
         #expect(d.markedText.isEmpty)
 
+        // A command that ran stops, nothing typed in (the integrator, 2026-11-15).
         let (t, _) = translating()
-        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .commit("@improve 你好")])
+        #expect(t.commitAll() == [.cancelConversion, .hidePanel, .updateMarkedText])
         let (p, _) = composer()  // pinyin alone: converted
         type("nihao", p)
         #expect(commits(p.commitAll()) == ["你好"])
@@ -482,19 +484,18 @@ struct ComposerTests {
         #expect(c.handleKeyDown(spaceKey).effects.first == .startConversion(input: "ok go", id: 1))
     }
 
-    @Test func shortcutsInsertAnEnglishCommandAsTypedAndReachTheApp() {
-        let shortcuts = [
-            KeyEvent(keyCode: 0x00, characters: "a", modifiers: .command),  // ⌘A
-            KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command),  // ⌘⏎
-        ]
-        for key in shortcuts {
-            let (c, _) = improveDraft(english: true)
-            type("ok", c)
-            let r = c.handleKeyDown(key)
-            #expect(!r.handled, "\(key)")
-            #expect(commits(r) == ["@improve ok"], "\(key)")
-            #expect(c.phase == .idle && c.draft.isEmpty, "\(key)")
-        }
+    @Test func shortcutsDropAnEnglishCommandAndReachTheApp() {
+        // A command not run yet isn't typed in (the owner, 2026-11-15: CommandDraftKeysTests): ⌘A drops it and is the
+        // app's; ⌘⏎ runs it, as ⏎.
+        let (c, _) = improveDraft(english: true)
+        type("ok", c)
+        let r = c.handleKeyDown(KeyEvent(keyCode: 0x00, characters: "a", modifiers: .command))
+        #expect(!r.handled && commits(r).isEmpty)
+        #expect(c.phase == .idle && c.draft.isEmpty)
+        let (d, _) = improveDraft(english: true)
+        type("ok", d)
+        let run = d.handleKeyDown(KeyEvent(keyCode: VirtualKey.returnKey, characters: "\r", modifiers: .command))
+        #expect(run.handled && commits(run).isEmpty && d.isLevelTwo)
         // Editing keys stay with the command (Return runs it, Esc clears it); ← moves the cursor in its text.
         let editingKeys = [upKey, downKey, KeyEvent(keyCode: VirtualKey.tab, characters: "\t"),
                            KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")]
@@ -540,8 +541,6 @@ struct ComposerTests {
         type("nihao", c)
         _ = c.handleKeyDown(spaceKey)
         #expect(c.draft == "@improve ok你好" && !c.isLatinDraft)
-        // Shortcuts no longer insert it as typed: they reach the app with the draft still pending.
-        #expect(c.handleKeyDown(k("a", mods: .command)) == .passThrough && c.draft == "@improve ok你好")
         #expect(c.handleKeyDown(enterKey).effects.first == .startConversion(input: "ok你好", id: 1))
     }
 
@@ -741,16 +740,22 @@ struct ComposerTests {
     }
 
     @Test func focusLossKeepsWhatWasHeardAndShiftIsIgnoredWhileListening() {
-        let (c, e) = improveDraft()
-        type("wo", c)
-        _ = c.handleKeyDown(spaceKey)
+        let (c, e) = composer()
         _ = startDictation(c)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [.shift, .option, .rightOption], timestamp: 10.1)
         _ = c.handleFlagsChanged(keyCode: VirtualKey.leftShift, modifiers: [.option, .rightOption], timestamp: 10.2)
         #expect(!e.ascii && c.voice == .listening(id: 1, text: ""))
         _ = c.voiceText("今天", id: 1)
-        #expect(c.commitAll() == [.cancelVoice(id: 1), .hidePanel, .commit("@improve 我今天")])
+        #expect(c.commitAll() == [.cancelVoice(id: 1), .hidePanel, .commit("今天")])
         #expect(c.voice == .off && c.phase == .idle)
+        // Heard into a command not run yet: it goes with the command, nothing typed in (the owner, 2026-11-15).
+        let (d, _) = improveDraft()
+        type("wo", d)
+        _ = d.handleKeyDown(spaceKey)
+        _ = startDictation(d)
+        _ = d.voiceText("今天", id: 1)
+        #expect(d.commitAll() == [.cancelVoice(id: 1), .hidePanel, .updateMarkedText])
+        #expect(d.voice == .off && d.phase == .idle && d.draft.isEmpty)
     }
 
     @Test func shiftSpaceInAnEnglishDraftIsASpace() {
@@ -1226,7 +1231,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         #expect(c.handleKeyDown(at) == .consumed([.updateMarkedText, .showPanel]))
         #expect(c.draft == "@" && c.markedText == "@" && c.paletteQuery == "" && c.wantsPanel)
-        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 17)
+        #expect(Array(c.paletteVisible) == [.improve, .translate, .question, .agent, .open] && c.paletteMatches.count == 14)
         // One @: the letters right after the key are composed as pinyin and searched as names at once.
         type("q", c)
         #expect(c.paletteMatches == [.question] && c.markedText == "q" && c.draft == "@" && c.engineState.preedit == "q")
@@ -1252,7 +1257,7 @@ struct ComposerTests {
         #expect(a.oneAtHighlighted == 1)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
-        #expect(a.oneAtHighlighted == 16 && a.oneAtFirstVisible == 10)  // around to the last, scrolled to it
+        #expect(a.oneAtHighlighted == 13 && a.oneAtFirstVisible == 7)  // around to the last, scrolled to it
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
         _ = a.handleKeyDown(upKey)
@@ -1292,7 +1297,7 @@ struct ComposerTests {
         _ = b.handleKeyDown(backspaceKey)
         #expect(b.draft == "@")
         #expect(b.handleKeyDown(backspaceKey).effects == [.updateMarkedText, .hidePanel] && b.phase == .idle)
-        // "@" inside a command offers the commands that run in a text (@read); a letter none of them
+        // "@" inside a command offers the commands that run in a text (@js); a letter none of them
         // starts with leaves the "@" as text (a mention). After words already inserted it opens the commands.
         let (m, me) = improveDraft(key: .optionTap)
         type("nihao", m)
@@ -1364,7 +1369,7 @@ struct ComposerTests {
         // At most five: the first built-in ones (nothing used yet).
         #expect(p.paletteVisible.map(\.name) == ["improve", "translate", "question", "agent", "open"])
         // @python: code is typed as letters, the program runs, and Chinese comes back after.
-        let py = start("pyt")  // "py" alone is the built-in @py
+        let py = start("pyt")
         #expect(py.draft == "@python " && py.engineState.isAsciiMode)
         type("print(1)", py)
         let run = tapOption(py, at: 5)
@@ -1378,7 +1383,7 @@ struct ComposerTests {
         type("nihao", r)
         #expect(tapOption(r, at: 5).first == .startCommand(catalog.first { $0.name == "respond" }!, input: "你好", id: 1))
         // A terminal command starts its window with the text as one argument; nothing is inserted.
-        let t = start("sh")  // "s" alone is @search first
+        let t = start("sh")  // "s" alone is @settings first
         type("ls", t)
         let terminal = tapOption(t, at: 5)
         #expect(terminal.contains(.launchInTerminal(argv: ["zsh", "-c", "ls"])) && commits(terminal).isEmpty && !t.isLevelTwo)
@@ -1392,29 +1397,29 @@ struct ComposerTests {
         let python = CustomCommand(name: "python", type: .run, argv: ["python3", "-c", "{input}"])
         let respond = CustomCommand(name: "respond", type: .prompt, prompt: "Write a reply.")
         #expect(Command.catalog([python, respond]).map(\.program)
-            == [nil, nil, nil, "claude", nil, nil, nil, nil, "python3", nil, nil, nil, "/System/Applications/Messages.app", nil,
-                nil, "python3", nil])  // @py needs python3 too
+            == [nil, nil, nil, "claude", nil, nil, nil, nil, nil, nil, nil, "/System/Applications/Messages.app", nil, nil,
+                "python3", nil])  // a run command needs its argv[0] (Settings' example @py: python3)
     }
 
     @Test func theListPutsWhatIsRunMostFirst() {
         let catalog = Command.catalog(["respond", "sh"].map { CustomCommand(name: $0, type: .prompt, prompt: "x") })
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
-        // Running @py counts it, and says so to the controller (which keeps it).
+        // Running @js counts it, and says so to the controller (which keeps it).
         _ = c.handleKeyDown(at)
-        type("py", c)
+        type("js", c)
         _ = c.handleKeyDown(tab)
         type("nihao", c)
-        #expect(tapOption(c, at: 5).contains(.commandUsed("py")))
-        #expect(c.commandUsage.score("py") > 0)
+        #expect(tapOption(c, at: 5).contains(.commandUsed("js")))
+        #expect(c.commandUsage.score("js") > 0)
         // Next time "@" lists it first, highlighted: Tab picks it.
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         d.commandUsage = c.commandUsage
         _ = d.handleKeyDown(at)
-        #expect(d.oneAtVisible.prefix(5).map { $0.command?.name } == ["py", "improve", "translate", "question", "agent"])
+        #expect(d.oneAtVisible.prefix(5).map { $0.command?.name } == ["js", "improve", "translate", "question", "agent"])
         _ = d.handleKeyDown(tab)
-        #expect(d.draft == "@py ")
+        #expect(d.draft == "@js ")
         // A command beyond the five is found by its letters.
         let (e, _) = composer(key: .optionTap)
         e.commands = catalog
@@ -1443,7 +1448,7 @@ struct ComposerTests {
         }
         let (c, e) = started()
         #expect(c.draft == "@respond 你好@" && c.paletteQuery == "")
-        #expect(c.paletteMatches.map(\.name) == ["py", "js", "stock"])  // only what runs inside a text
+        #expect(c.paletteMatches.map(\.name) == ["js", "stock"])  // only what runs inside a text
         type("st", c)
         #expect(c.draft == "@respond 你好@st" && c.paletteMatches.map(\.name) == ["stock"])
         _ = c.handleKeyDown(tab)
@@ -1497,19 +1502,8 @@ struct ComposerTests {
         #expect(c.markedText == "improve › 你好stock › AAPL ＠bob")
     }
 
-    @Test func aTakenCompositionStartsOver() {
-        // An app that reports its marked text: taken when it reports none while a draft is pending.
-        var watch = MarkedTextWatch()
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: nil))  // never seen it report: unknown
-        watch.didSet(expected: "improve › 你好", reportedLength: 12)
-        #expect(watch.appReportsMarkedText)
-        #expect(!watch.appTookText(expected: "improve › 你好", reportedLength: 12))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: 0))
-        #expect(watch.appTookText(expected: "improve › 你好", reportedLength: nil))
-        #expect(!watch.appTookText(expected: "", reportedLength: nil))  // nothing pending
-        watch.reset()
-        #expect(!watch.appTookText(expected: "x", reportedLength: nil))
-        // The composer then forgets the draft: nothing inserted, nothing sent, the panel hidden.
+    @Test func aCancelledCompositionStartsOver() {
+        // The app cancelled the composition: the composer forgets the draft, nothing inserted, nothing sent, the panel hidden.
         let (c, e) = composer(key: .enter)
         _ = c.handleKeyDown(at)
         type("q", c)
@@ -1530,7 +1524,7 @@ struct ComposerTests {
         let (c, _) = composer(key: .optionTap)
         c.commands = catalog
         _ = c.handleKeyDown(at)
-        #expect(c.oneAtRows.count == 18 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
+        #expect(c.oneAtRows.count == 17 && c.oneAtVisible.count == 7 && c.oneAtFirstVisible == 0)
         for _ in 0..<7 { _ = c.handleKeyDown(downKey) }  // past the seventh: scrolls by one
         #expect(c.oneAtHighlighted == 7 && c.oneAtFirstVisible == 1)
         #expect(names(c.oneAtVisible) == ["translate", "question", "agent", "open", "reply", "note", "reminder"])
@@ -1540,10 +1534,10 @@ struct ComposerTests {
         let (d, _) = composer(key: .optionTap)
         d.commands = catalog
         _ = d.handleKeyDown(at)
-        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 17 && d.oneAtFirstVisible == 11)
+        #expect(d.scrollPalette(by: 100) == [.showPanel] && d.oneAtHighlighted == 16 && d.oneAtFirstVisible == 10)
         #expect(names(d.oneAtVisible) == ["settings", "imessage", "reportissue", "stats", "alpha", "bravo", "charlie"])
         _ = d.scrollPalette(by: -2)
-        #expect(d.oneAtHighlighted == 15 && d.oneAtFirstVisible == 11)  // still in view: no scrolling
+        #expect(d.oneAtHighlighted == 14 && d.oneAtFirstVisible == 10)  // still in view: no scrolling
         _ = d.choose(index: 4)
         #expect(d.draft == "@alpha ")
         // Typing letters starts again at the top.
@@ -1577,7 +1571,8 @@ struct ComposerTests {
         // An @question conversation (0.6.4): one row per round's answer, the latest selected; no row 0.
         #expect(c.choices.map(\.kind) == [.answer] && c.highlighted == 0)
         _ = c.receive(ConversionResult(versions: [CandidateLine("你好的意思", isComplete: false)]), isFinal: false, id: 1)
-        #expect(c.handleKeyDown(enterKey) == .consumed())  // still streaming
+        // Still streaming: nothing inserted, the answer goes on (as at any round).
+        #expect(commits(c.handleKeyDown(enterKey)).isEmpty && c.phase == .translating(id: 1))
         _ = c.receive(ConversionResult(versions: [CandidateLine("“你好”是问候语。")]), isFinal: true, id: 1)
         #expect(c.phase == .choosing && c.choices.map(\.kind) == [.answer])
         #expect(c.chatRounds.first?.question == "你好")  // the question, without "@question"
@@ -1590,6 +1585,27 @@ struct ComposerTests {
         _ = d.receive(.empty, isFinal: true, id: 1)
         #expect(d.phase == .failed("没有得到结果"))
         #expect(commits(d.handleKeyDown(enterKey)) == ["你好"])
+    }
+
+    /// The next question typed while the first answer comes in goes with that answer when it fails (or brings nothing):
+    /// the failure shows as before, with no line and no pinyin left composing.
+    @Test func aFirstAnswerFailingTakesTheQuestionTypedMeanwhile() {
+        for failure in [true, false] {
+            let (c, _) = palette("q")
+            _ = c.handleKeyDown(tab)
+            type("nihao", c)
+            _ = tapOption(c)
+            _ = c.receive(ConversionResult(versions: [CandidateLine("你好的", isComplete: false)]), isFinal: false, id: 1)
+            type("wo", c)
+            _ = c.handleKeyDown(spaceKey)
+            type("shi", c)
+            #expect(c.refineText == "我" && c.engineState.isComposing && c.refineLine == "我shi")
+            _ = failure ? c.fail("出错了", id: 1) : c.receive(.empty, isFinal: true, id: 1)
+            #expect(c.phase == .failed(failure ? "出错了" : "没有得到结果"))
+            #expect(c.refineText.isEmpty && !c.engineState.isComposing && c.refineLine == nil)
+            // ⏎ then inserts the question as before.
+            #expect(commits(c.handleKeyDown(enterKey)) == ["你好"])
+        }
     }
 
     @Test func openPicksAFileWithoutInsertingText() {

@@ -21,7 +21,7 @@ struct CommandTests {
         #expect(Command.matching("Q") == [.question])
         #expect(Command.matching("ag") == [.agent])
         #expect(Command.matching("x").isEmpty)
-        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .generate, .run, .note, .reminder, .run, .run, .run,
+        #expect(Command.builtins.map(\.kind) == [.convert, .convert, .generate, .terminal, .search, .generate, .note, .reminder, .run,
                                                       .agents, .settings, .message, .report, .settings])
     }
 
@@ -67,10 +67,10 @@ struct CommandTests {
             CustomCommand(name: "empty", type: .prompt, prompt: "  "),     // nothing to tell the model
             CustomCommand(name: "noargv", type: .run),
         ])
-        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "reply", "note", "reminder", "py", "js",
+        #expect(catalog.map(\.name) == ["improve", "translate", "question", "agent", "open", "reply", "note", "reminder", "js",
                                         "tasks", "settings", "imessage", "reportissue", "stats", "python", "respond", "sh"])
         #expect(catalog.suffix(3).map(\.kind) == [.run, .generate, .terminal])
-        #expect(Command.matching("p", in: catalog).map(\.name) == ["py", "python"])
+        #expect(Command.matching("p", in: catalog).map(\.name) == ["python"])
         #expect(Command.parse("@python print(1)", in: catalog)?.command.custom == python)
         #expect(Command.parse("@python print(1)") == nil)  // without the catalog it's not a command
     }
@@ -247,10 +247,10 @@ struct CommandTests {
 
     @Test func paletteShowsFiveByUse() {
         let now = Date(timeIntervalSince1970: 1_800_000_000)
-        let custom = ["calculate", "sh", "respond", "python", "japanese"].map {
+        let custom = ["calculate", "sh", "respond", "python", "japanese", "py"].map {
             CustomCommand(name: $0, type: .run, argv: ["x"])
         }
-        let catalog = Command.catalog(custom)  // 16 built-in + 5 ("calculate" is no built-in's name)
+        let catalog = Command.catalog(custom)  // 14 built-in + 6 ("calculate" is no built-in's name)
         // Nothing used yet: the first five in catalog order.
         #expect(Command.palette("", in: catalog, usage: CommandUsage(), now: now).map(\.name)
             == ["improve", "translate", "question", "agent", "open"])

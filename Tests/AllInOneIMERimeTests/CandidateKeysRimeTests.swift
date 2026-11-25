@@ -227,7 +227,7 @@ extension RimeEngineTests {
 /// Shuangpin (Xiaohe) and Zhuyin, deployed as the app sets them up (`ShuangpinSchemaTests`, `ZhuyinSchemaTests`), each in a
 /// process of its own (`RimeWorker`): the same keys as full pinyin's. Zhuyin's "-" is ㄦ (its key) until a page was turned on.
 struct CandidateKeysSchemeTests {
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("rime-candidate-keys-\(UUID().uuidString)")
+    let root = TestScratch.temporary("rime-candidate-keys-\(UUID().uuidString)")
 
     @Test(.enabled(if: ShuangpinSchemaTests.runs, "needs rime-ice and OpenCC's data (make deps)"))
     func shuangpin() throws {

@@ -3,8 +3,7 @@ import Foundation
 private struct SessionSendableBox<Value>: @unchecked Sendable { let value: Value }
 
 /// One text field's input session, the same on every platform: the `Composer`, and what goes on around it. Before a key:
-/// secure input (nothing composed, keys go straight in), the app taking the marked text on its own, the settings and the
-/// commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
+/// secure input (nothing composed, keys go straight in), the settings and the commands read again, dead keys, a selection moved under a command. Then what the composer asks for (`Composer.Effect`)
 /// becomes what the shell does (`SessionOutput`) or work the session starts (`SessionTasks`): level two's requests,
 /// refused during secure input; script extensions and lists; `@open`'s searches; notes, reminders, messages, agents, the
 /// web page; the notices and the candidate panel (`PanelPresenter`).
@@ -26,6 +25,8 @@ public final class InputSession {
     public private(set) var field = FieldInfo()
     /// The notice up now ("已复制" …), on the panel's footer or on its own; it expires (`SessionOutput.startTimer`).
     public var notice: String?
+    /// What was being typed when the panel was last told (`followPreedit`).
+    var preeditShown: PanelModel.Input?
     /// How long the last result took, whether it came from the cache, how many values its request hid from the AI
     /// (`Redaction`), whether an `@question` conversation was shortened to fit the model: the panel says so.
     public private(set) var lastElapsed: TimeInterval?
@@ -124,7 +125,8 @@ public final class InputSession {
     /// (`refusedForSecureInput`): the key then goes on to the field, as where secure input is on in it (`key`).
     private var passwordFieldRefusal: String?
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
-    private var keyContext: FieldContext?
+    var keyContext: FieldContext?
+    var keyBeingHandled: KeyEvent?
     private var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
     /// app's own keys) gives the command up (`Composer.selectionMoved`).
@@ -192,7 +194,7 @@ public final class InputSession {
         composer.characterBeforeCaret = { [weak self] in self?.characterBeforeCaret() }
         composer.aiRefusal = { [weak self] in self?.aiRefusal() }
         composer.readFieldText = { [weak self] in self?.readFieldText() }
-        composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.services.page($0.app) != nil } ?? false }
+        composer.pageContextApplies = { [weak self] in self.map { $0.agentPageContext && $0.pageSource() != nil } ?? false }
         composer.finishesSuggestionPrefix = { [weak self] typed in self?.suggestionsPrefixFinished(by: typed) ?? false }
         // This week's stats: the characters typed, as a number (InputSession+WeekStats.swift).
         composer.typedIntoField = { [weak self] typed in self?.countTyped(typed) }
@@ -238,7 +240,7 @@ public final class InputSession {
                 autocompleteLeft(.ignored)
                 clipboardLeft()
                 suggestionsLeft()
-                perform(composer.commitAll())
+                perform(composer.leaveField())
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
                 let unwritten = services.unwrittenRemovals?()
@@ -246,25 +248,26 @@ public final class InputSession {
                 releasePage()  // `@agent` asked for a page it didn't send
                 fieldSession += 1
                 fieldText = nil
-            case .commit:
-                autocompleteLeft(.ignored)  // a click in the field: the caret may be elsewhere
-                clipboardLeft()
-                perform(composer.commitAll())
-                suggestionsClicked()
+                lastTyped.forget()
+            case .commit, .cancel, .pointerDown:
+                left(event)
+                lastTyped.forget()
             case let .pick(row):
                 // Clipboard history's rows and suggestions' put in what a click picks.
-                if clipboardPick(row) || suggestionsPick(row) { return }
+                if clipboardPick(row) || suggestionsPick(row) { lastTyped.forget(); return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
                 // round, nothing for a question; a result while a follow-up's pinyin is composed (`pickClicked`).
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.pickClicked(choice))
+                lastTyped.forget()
             case let .delete(row):
                 // Clipboard history's rows and suggestions' are none of the engine's.
                 guard !clipboard.shown, !suggesting.shown else { return }
                 let rows = panelModel().rows
                 guard rows.indices.contains(row), let choice = rows[row].choice else { return }
                 perform(composer.deleteClicked(choice))
+                lastTyped.forget()
             case let .handoff(digit):
                 perform(composer.handOff(digit: digit))
             case let .scroll(steps):
@@ -273,11 +276,11 @@ public final class InputSession {
                 guard steps != 0 else { return }
                 // Clipboard history's and suggestions' rows: the wheel moves the choice, as the command list's does (0.6.7.3).
                 if clipboardScroll(steps) || suggestionsScroll(steps) { return }
-                perform(composer.scrollPalette(by: steps))
+                perform(composer.wheel(by: steps))  // a row in the command list, a page in a paged list
             case let .clipboard(content, id):
                 // Nothing is read during secure input (the shell doesn't read it then either). Below 0: clipboard history's.
                 let content = secureInputActive() ? ClipboardContent.none : content
-                if id < 0 { clipboardRead(content, id: id) } else { perform(composer.pasted(content, id: id)) }
+                if id < 0 { clipboardRead(content, id: id) } else { perform(composer.pasted(content, id: id)); lastTyped.forget() }
             case let .field(context, id):
                 takePasswordField(context)
                 // Below 0: Code's read of the field's words; else autocomplete's.
@@ -339,11 +342,17 @@ public final class InputSession {
         body()
         depth -= 1
         guard depth == 0 else { return [] }
+        followPreedit()
         defer { outputs = [] }
         return outputs
     }
 
     func emit(_ output: SessionOutput) {
+        var output = output
+        if case let .panel(model) = output {
+            output = .panel(withPreedit(model))
+            preeditShown = SessionText.panelInput(composer)
+        }
         outputs.append(output)
         autocompleteFollow(output)  // what goes into the field, for a kept suggestion on the key
     }
@@ -351,6 +360,9 @@ public final class InputSession {
     /// The app of the key being handled, else the field's.
     var app: String? { keyContext?.field?.app ?? field.app }
     var terminal: Bool { keyContext?.field?.terminal ?? field.terminal }
+    /// Whether the text of the field of the key being handled (else the focused one's) stays on this device: a terminal, a
+    /// password manager (`FieldInfo.textStaysHere`). No command reads its selection, its text or its page.
+    var fieldTextStaysHere: Bool { (keyContext?.field ?? field).textStaysHere }
 
     /// `text` as it goes into the field: into a terminal, line breaks, tabs and other control characters only as a paste
     /// (`Composer.actsInTerminal`: a line break typed there is Return, the shell runs the line; a tab is completion, ^D
@@ -673,7 +685,8 @@ public final class InputSession {
         if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
         composer.chineseCharacters = config.typedChinese
-        composer.provider = config.provider  // the on-device model gets less of a screenshot (`ReplyContext.Limits`)
+        // The on-device model gets less of a screenshot (`ReplyContext.Limits`); an AI that can see one gets its image.
+        (composer.provider, composer.aiSeesImages) = (config.provider, { [seesImages = config.questionsSeeImages] in seesImages })
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
         let fallback = services
         composer.issueDiagnostics = { [weak self] in
@@ -918,44 +931,48 @@ public final class InputSession {
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
     /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
     /// field all the same; the selection, unless that "@" comes right after a word or the field is known as a password
-    /// field). A shell where reading is cheap reads it all.
+    /// field). Nothing of the field's text for a command where it stays here (`FieldInfo.textStaysHere`: a terminal, a
+    /// password manager). A shell where reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
         guard context.read.contains(.secure), !context.secure, !field.secure else { return wants }
         if suggestionsWantPasswordField() { wants.insert(.passwordField) }
-        if composer.isComposing, !composer.draftInPanel { wants.insert(.markedText) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
         // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
-        // as a password field (`selectionMayBeRead`).
+        // as a password field (`selectionMayBeRead`). Where the field's text stays here (a terminal, a password manager)
+        // neither the character before the caret nor the selection is read: the command starts as in a terminal.
         let config = services.loadSettings()
         if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
-            let terminal = (context.field ?? field).terminal
-            if lastTyped.character != nil, !terminal { wants.insert(.beforeCaret) }
+            let staysHere = (context.field ?? field).textStaysHere
+            if lastTyped.character != nil, !staysHere { wants.insert(.beforeCaret) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
-            if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !terminal,
-               config.useSelection, !nothingLeavesDevice() {
+            if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !staysHere,
+               usesSelection(in: (context.field ?? field).app, config: config), !nothingLeavesDevice() {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
-        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device).
-        if composer.draftCommand == .reply, !nothingLeavesDevice(),
+        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device,
+        // nor where the field's text stays here).
+        if composer.draftCommand == .reply, !nothingLeavesDevice(), !(context.field ?? field).textStaysHere,
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
             wants.insert(.text)
         }
+        wants.formUnion(digitPunctuationWants(for: key, context: context))
         // Suggestions: the selection where rows show, the field's words in Code (its word held too).
         if !composesBesidesCodeWord { wants.formUnion(suggestionsFieldWants(for: key)) }
         return wants
     }
 
     /// What of the field a modifier change may need, given what was read of it so far: `@reply`'s text, where a tap of
-    /// Option runs it.
+    /// Option runs it (not where the field's text stays here: `FieldInfo.textStaysHere`).
     public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
         guard context.read.contains(.secure), !context.secure, !field.secure else { return [.secure] }
-        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice() ? [.secure, .text] : [.secure]
+        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice()
+            && !(context.field ?? field).textStaysHere ? [.secure, .text] : [.secure]
     }
 
     /// A key held back and handed on late, as if typed now (clipboard history's, typed while ⏎ waited for its rows:
@@ -970,6 +987,7 @@ public final class InputSession {
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
+        if event.printableText == nil || context.selectedRange?.isEmpty == false { lastTyped.forget() }
         takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
@@ -982,7 +1000,7 @@ public final class InputSession {
             perform(composer.selectionRead(nil))
             autocompleteLeft(.unseen)
             if composer.isComposing {
-                let ended = composer.commitAsTyped()
+                let ended = composer.passwordFieldTakesOver()
                 perform(ended)
                 // A note that couldn't go in as typed says its text is on the clipboard: that notice stays up.
                 if ended.contains(where: { if case .notice = $0 { return true } else { return false } }) { secureNoticeShown = true }
@@ -1004,23 +1022,13 @@ public final class InputSession {
             passwordFieldAsked = fieldSession
             emit(.readPasswordField(focus: fieldSession))
         }
-        // The app took the text being typed without saying so (Slack, on an "@…"): start over rather than show the draft
-        // again, doubled. This key is dropped, so ⏎ doesn't send half a sentence. (A command on the selection marks
-        // nothing in the field: there's nothing for the app to take.)
-        if composer.isComposing, !composer.draftInPanel, context.markedTextTaken {
-            log.notice("the app took the marked text: starting over")
-            autocomplete.known = nil  // the field has text the session didn't put in
-            perform(composer.appTookMarkedText())
-            lastTyped.forget()
-            return true
-        }
         // One @ while the selection after the "@" key is read: a key that neither edits the draft nor is parked for the read
         // settles it as none first (`Composer.whileSelectionIsRead`), whatever takes it then.
         perform(composer.settleSelectionRead(before: event))
         // Autocomplete's suggestion: Tab puts it in, Esc takes it down; any key ends its pause and stops its request.
         if let taken = autocompleteBeforeKey(event) { return taken }
         // ⌃V shows clipboard history, in place of suggestions' rows; while it shows, its keys (the same in every app).
-        if let taken = clipboardBeforeKey(event, context) { return taken }
+        if let taken = clipboardBeforeKey(event, context) { lastTyped.forget(); return taken }
         // Suggestions' rows take their keys (the arrows, Tab, Return, →, Esc: the same in every app).
         if let taken = suggestionsBeforeKey(event, context) { return taken }
         ensureLevelOne()
@@ -1061,11 +1069,13 @@ public final class InputSession {
         // The field's first key that types: a switch with Shift before it may teach the app its starting input.
         let learned = learningTyped(event)
         keyContext = context
+        keyBeingHandled = key
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
         let pending = composer.selectionPending
         var response = composer.handleKeyDown(key)
         keyContext = nil
+        keyBeingHandled = nil
         // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
         if composer.selectionPending, !pending {
             selectionReads += 1
@@ -1109,7 +1119,7 @@ public final class InputSession {
         guard !(context.secure || field.secure) else {
             // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
             // here: no switch, its lock left alone.
-            if composer.voice != .off { perform(composer.commitAsTyped()) }
+            if composer.voice != .off { perform(composer.passwordFieldTakesOver()) }
             suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
             return
         }
@@ -1157,12 +1167,20 @@ public final class InputSession {
 
     // MARK: - What the composer asks of the field
 
-    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`), never during
-    /// secure input, nor in a field known as a password field where it isn't on (`passwordField`: unknown is read as
-    /// before, no key waiting to tell it), nor in a terminal (its selection is no text being edited: what goes back would
-    /// be typed at the prompt).
+    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`) and the app not
+    /// learned as one whose field doesn't take a result in its place (`usesSelection`), never during secure input, nor in
+    /// a field known as a password field where it isn't on (`passwordField`: unknown is read as before, no key waiting to
+    /// tell it), nor in a terminal (its selection is no text being edited: what goes back would be typed at the prompt),
+    /// nor in a password manager, whatever its field says (`FieldInfo.textStaysHere`: a command starts there as in a
+    /// terminal).
     private func selectionMayBeRead() -> Bool {
-        services.loadSettings().useSelection && !nothingLeavesDevice() && !terminal
+        usesSelection(in: app, config: services.loadSettings()) && !nothingLeavesDevice() && !fieldTextStaysHere
+    }
+
+    /// Commands work on the selection in `app`: `useSelection` on (the config's: off, nowhere), and `app` not one whose
+    /// field didn't take a result in place of its selection (`LearnedStore.selectionOff`, learned per app).
+    private func usesSelection(in app: String?, config: Config) -> Bool {
+        config.useSelection && !(app.map(services.learned.selectionOff) ?? false)
     }
 
     /// The selection a draft starts on (`Composer.readSelection`), as the field said it with the key, where it may be read
@@ -1185,30 +1203,11 @@ public final class InputSession {
         return selected
     }
 
-    /// The character right before the caret where "@" is typed (`Composer.characterBeforeCaret`): the last one the user
-    /// typed into the field (`lastTyped`), unless the pointer was used since (a click may have moved the caret). A field
-    /// that tells its text (not a terminal) must have that character there, with nothing selected: what the app did with
-    /// its text meanwhile (cleared it, moved the caret) the input method doesn't see.
-    private func characterBeforeCaret() -> Character? {
-        keyContext.flatMap { characterBeforeCaret(in: $0) }
-    }
-
-    private func characterBeforeCaret(in context: FieldContext) -> Character? {
-        guard let typed = lastTyped.character,
-              !caretMayHaveMoved(within: ProcessInfo.processInfo.systemUptime - lastTyped.time) else { return nil }
-        guard !(context.field ?? field).terminal, context.read.contains(.beforeCaret) else { return typed }
-        switch context.beforeCaret {
-        case .unknown: return typed  // a field that tells no caret, or reads nothing back
-        case .nothing: return nil  // a selection (a command may work on it), the start
-        case let .text(before): return before == String(typed) ? typed : nil
-        }
-    }
-
     /// The text around the caret, for `@reply` (`Composer.readFieldText`): as the field told it with the key that runs it
     /// (or last: after dictation). None during secure input or in a field known as a password field
-    /// (`nothingLeavesDevice`), nor in a terminal.
+    /// (`nothingLeavesDevice`), nor in a terminal or a password manager (`FieldInfo.textStaysHere`).
     private func readFieldText() -> FieldText? {
-        guard !nothingLeavesDevice(), !terminal else { return nil }
+        guard !nothingLeavesDevice(), !fieldTextStaysHere else { return nil }
         if let context = keyContext, context.read.contains(.text) { return context.text }
         return fieldText
     }
@@ -1224,15 +1223,15 @@ public final class InputSession {
     /// Privacy (Settings v2), Windows' Apps.
     public static var aiRefusal: String {
         Platform.current.terms.device == .mac
-            ? tr("这个 App 里关了 AI，没有发给 AI（设置 → 隐私）", "AI is off in this app: nothing was sent (Settings → Privacy)")
+            ? tr("这个 App 里关了 AI，没有发给 AI（设置 →「更多设置」→「隐私」）", "AI is off in this app: nothing was sent (Settings → More Settings → Privacy)")
             : tr("这个 App 里关了 AI，没有发给 AI（设置 → 按 App 设置）", "AI is off in this app: nothing was sent (Settings → Apps)")
     }
 
     /// The notice of `@translate` with no language to translate into: ⏎ on it opens the settings where they're added
     /// (`Composer.failureFixedIn`, `SessionOutput.openSettings`), the key as this platform names it and the page as the
-    /// settings name it (the Mac's General since Settings v2, Windows' Translate & Rewrite).
+    /// settings name it (the Mac's Common since 0.7.5, where "Translate to" is; Windows' Translate & Rewrite).
     var noTranslationTargetText: String {
-        let (enter, page) = (terms.enter, terms.device == .mac ? tr("通用", "General") : tr("翻译与改写", "Translate & Rewrite"))
+        let (enter, page) = (terms.enter, terms.device == .mac ? tr("常用", "Common") : tr("翻译与改写", "Translate & Rewrite"))
         return tr("还没有要翻译成的语言：按 \(enter) 打开设置 →「\(page)」加一种", "No language to translate into yet: \(enter) opens Settings → \(page) to add one")
     }
 
@@ -1249,10 +1248,7 @@ public final class InputSession {
         for effect in effects {
             switch effect {
             case .updateMarkedText:
-                // A command on the selection is written in the panel: the field keeps its selection, nothing marked over it.
-                guard !composer.draftInPanel else { break }
-                let text = composer.markedText
-                emit(.marked(text, cursor: String(text.prefix(composer.markedCursor)).utf16.count, converted: composer.isLevelTwo))
+                break  // nothing is marked in the field: the panel's input line follows it (`followPreedit`)
             case let .inputLanguageChanged(language):
                 emit(.keyboardLayout)
                 if language != .english || composer.coding, englishWords != nil {
@@ -1266,13 +1262,13 @@ public final class InputSession {
                 let text = intoField(text)
                 emit(.commit(text))
                 lastInserted = text
-                lastTyped.forget()  // a key that typed it says so (`key`)
+                lastTyped.committed(text, at: ProcessInfo.processInfo.systemUptime)
                 followEnglishInserted(text)
             case let .commitAfterKey(text):
                 // Once this key is done: a terminal would send what is inserted during it in the key's place.
                 let text = intoField(text)
                 emit(.commitAfterKey(text))
-                lastTyped.forget()
+                lastTyped.committed(text, at: ProcessInfo.processInfo.systemUptime)
                 followEnglishInserted(text)
             case let .replaceSelection(text, selection):
                 if let (rest, end) = SessionText.afterSelection(text, selection).map({ ($0.text, $0.at) }) {
@@ -1289,10 +1285,11 @@ public final class InputSession {
                 let text = intoField(text)
                 emit(.typeOut(text))
                 lastInserted = nil
-                lastTyped.forget()
+                lastTyped.committed(text, at: ProcessInfo.processInfo.systemUptime)
                 followEnglishInserted(text)
             case let .moveCaret(back):
                 emit(.moveCaret(back: back, after: lastInserted))
+                lastTyped.forget()
             case let .startConversion(input, id):
                 if refusedForSecureInput(id: id) { break }
                 // @improve / @translate: the mode (and a second one written inside) comes from the command.
@@ -1583,7 +1580,7 @@ public final class InputSession {
         let config = services.loadSettings()
         return SessionTasks.Place(app: app, terminal: terminal, pastesInTerminal: terminal && generates && services.pastesInTerminal(),
                                   improveTranslates: config.improveTranslates, pluginLanguage: UIText.pluginLanguage,
-                                  commandTrigger: config.commandTrigger, chinese: config.typedChinese)
+                                  commandTrigger: config.commandTrigger)
     }
 
     /// Asks again for the results shown, revised as the refinement's last instruction says ("shorter"; `SessionTasks.refine`).
@@ -1678,8 +1675,8 @@ public final class InputSession {
             say(tr("已发送给 ", "Sent to ") + recipient.displayName)
         case let .saved(outcome):
             saved(outcome)
-        case let .recognized(text, request):
-            perform(composer.recognized(text, id: request))
+        case let .recognized(text, image, request):
+            perform(composer.recognized(text, image: image, id: request))
         case let .recognitionFailed(error, request):
             perform(composer.recognitionFailed(composer.messages.reply.describe(failure: error), id: request))
         case let .programs(missing, check):
@@ -1690,8 +1687,8 @@ public final class InputSession {
         case .statusEnded:
             guard composer.paletteQuery != nil else { return }
             perform([.showPanel])
-        case let .suggested(result, request):
-            autocompleteAnswered(result, request: request)
+        case let .suggested(update):
+            autocompleteUpdate(update)
         case .completionsAnswered:
             suggestionsAnswered()
         case let .warmDue(head, target, focus):
@@ -1858,7 +1855,7 @@ public final class InputSession {
         if wokenPage != nil, !writingAgent { return releasePage() }
         guard agentPageContext, wokenPage == nil, pageLookedFor != fieldSession, writingAgent else { return }
         pageLookedFor = fieldSession
-        guard let page = services.page(app) else { return }
+        guard let page = pageSource() else { return }
         wokenPage = page
         page.wake()
     }
@@ -1888,6 +1885,12 @@ public final class InputSession {
         }
     }
 
+    /// The web page the field is in (`SessionServices.page`), never where the field's text stays here
+    /// (`FieldInfo.textStaysHere`: a terminal, a password manager).
+    private func pageSource() -> PageSource? {
+        fieldTextStaysHere ? nil : services.page(app)
+    }
+
     /// The page given back, if `@agent` asked for it.
     private func releasePage() {
         wokenPage?.release()
@@ -1906,7 +1909,7 @@ public final class InputSession {
     /// at once). Until the page is in, the session waits (`waitsForPage`): the request starts even if the field is gone.
     private func withPage(_ prompt: String, render: @escaping @Sendable (PageContext, String) -> String = { $0.prompt(request: $1) },
                           _ start: @escaping (String, String?) -> Void) {
-        guard agentPageContext, let page = wokenPage ?? services.page(app) else { return start(prompt, nil) }
+        guard agentPageContext, let page = wokenPage ?? pageSource() else { return start(prompt, nil) }
         if wokenPage == nil { page.wake() }  // typed fast (or pasted): asked for now
         wokenPage = nil  // given back once read
         pageLookedFor = -1  // another `@agent` in this field asks again
@@ -1995,8 +1998,10 @@ public final class InputSession {
     // MARK: - The candidate panel and notices
 
     /// The candidate panel as it is now: clipboard history's while it shows, suggestions' rows where they show, else the
-    /// composer's (`PanelPresenter`).
-    public func panelModel() -> PanelModel { clipboardPanel() ?? suggestionsShownPanel() ?? panelPresenter().model(for: composer) }
+    /// composer's (`PanelPresenter`); with the input line while something is being typed (`withPreedit`).
+    public func panelModel() -> PanelModel {
+        withPreedit(clipboardPanel() ?? suggestionsShownPanel() ?? panelPresenter().model(for: composer)) ?? PanelModel()
+    }
 
     /// Suggestions' panel, where it is the one shown: the rows with nothing composed.
     private func suggestionsShownPanel() -> PanelModel? {
@@ -2016,13 +2021,14 @@ public final class InputSession {
                               chip: services.translateChip, weekStats: { [weekStats = services.weekStats] in weekStats.snapshot(for: .current) })
     }
 
-    private func showPanel() {
+    func showPanel() {
         emit(.panel(shownPanel()))
     }
 
     /// The panel to show now: `panelModel` where the composer wants one or clipboard history shows, else suggestions'
-    /// rows where they are the one shown (what `panelModel` would be then); nil: none.
-    private func shownPanel() -> PanelModel? {
+    /// rows where they are the one shown (what `panelModel` would be then); nil: none (the input line alone while
+    /// something is being typed: `withPreedit`).
+    func shownPanel() -> PanelModel? {
         composer.wantsPanel || clipboard.shown ? panelModel() : suggestionsShownPanel()
     }
 

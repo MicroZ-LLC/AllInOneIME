@@ -9,7 +9,7 @@ import Foundation
 /// be picked (digits 1–5, ↑↓ then ⇧⏎, a click; the latest is selected), ⇧⏎ dropping a question half typed. Esc with
 /// nothing typed goes back a round. After the last round, or with ⌘⏎ at any round, the panel offers to go on in the
 /// coding agents installed (the one `@agent` hands to first), Claude, ChatGPT or Gemini, or to copy the conversation
-/// (`handoffChoices`, ⌘1–⌘9; `ChatHandoff`).
+/// (`handoffChoices`, ⌥1–⌥9; `ChatHandoff`).
 extension Composer {
     /// What a hand-off says near the caret, in the interface language.
     public struct ChatMessages: Equatable, Sendable {
@@ -49,6 +49,26 @@ extension Composer {
         case .choosing, .translating: return true
         case .idle, .drafting, .failed: return false
         }
+    }
+
+    /// An @question conversation's answer is coming in, the first one too: the next question can be typed meanwhile
+    /// (`typesRefine`), and the answer goes on.
+    var chatIsAnswering: Bool {
+        guard isQuestionChat, case .translating = phase else { return false }
+        return true
+    }
+
+    /// The failure of the request running (not a refine's: `refineFailed`). An @question's first answer failing takes the
+    /// next question typed meanwhile with it, its pinyin too: there is no answer to follow up, and the failure shows as before.
+    func failing(_ message: String) -> Phase {
+        if chatIsAnswering {
+            if let engine, engine.snapshot().isComposing {
+                engine.clearComposition()
+                engineState = engine.snapshot()
+            }
+            refineText = ""
+        }
+        return .failed(message)
     }
 
     /// The conversation's rounds, oldest first, as the panel shows them: the first question as typed (the selection,
@@ -121,6 +141,39 @@ extension Composer {
         questionConversation = QuestionConversation(web: .only([]))
     }
 
+    /// Keys of an @question conversation before the refine line's (`handleRefineKey`). Esc, at any round: the panel
+    /// closes and nothing goes into the field, whatever is typed on the line (pinyin too), and while an answer comes in;
+    /// it never steps back a round, and the rounds answered stay in the recent questions (`rememberQuestion`), where the
+    /// conversation goes on. A saved answer picked from them (`showsSavedAnswer`) isn't one yet: Esc goes back to the
+    /// list at once, at any of its rounds (`backToDraft`). Space with nothing typed on the line does nothing: only ⇧⏎ inserts the answer (owner
+    /// 2026-11-15). ⏎ and ⇧⏎: `handleChatReturn`. Nil: not a conversation, or another key.
+    func handleChatKey(_ event: KeyEvent) -> Response? {
+        guard isQuestionChat else { return nil }
+        // ⌘V, ⌃V: the clipboard for the follow-up (a screenshot attached to it); ⏎ while it's read, ⌫ to take it away.
+        if let response = followUpPasteKey(event) ?? followUpAttachmentKey(event) { return response }
+        let modifiers = event.modifiers.subtracting(.capsLock)
+        // Esc with any modifier held closes as well (never the round back the line's Esc would take).
+        if event.key == .escape {
+            return .consumed(showsSavedAnswer ? backToDraft() : finish(committing: "", selection: .kept))
+        }
+        let plain = modifiers.isEmpty
+        if !plain { return handleChatReturn(event) }
+        // Space on an empty line (with something typed or pinyin, `handleRefineKey` has it).
+        if event.key == .space, refineText.isEmpty, !(engine?.snapshot().isComposing ?? false) { return .consumed() }
+        return handleChatReturn(event)
+    }
+
+    /// ⏎ and ⇧⏎ in an @question conversation: ⏎ goes on with it (`continueChat`), ⇧⏎ inserts the answer selected, a
+    /// question half typed (its pinyin too) dropped. Nil: not a conversation, or another key.
+    private func handleChatReturn(_ event: KeyEvent) -> Response? {
+        guard isQuestionChat, event.key == .enter || event.key == .keypadEnter else { return nil }
+        switch event.modifiers.subtracting(.capsLock) {
+        case []: return .consumed(continueChat())
+        case .shift: return .consumed(commitChoice(at: highlighted))
+        default: return nil
+        }
+    }
+
     /// ⏎ in the conversation, and the action key: it goes on. The question typed (its pinyin converted first) is asked
     /// as the next round (`runRefine`: at the last round, or with where it can go on shown, these are shown and it stays
     /// for the hand-off); with nothing typed nothing is inserted and the panel stays. While an answer comes in, the
@@ -129,8 +182,8 @@ extension Composer {
         typesRefine ? runRefine() : []
     }
 
-    /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌘1, ⌘2 … pick
-    /// one. ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
+    /// ⌘⏎ shows where the conversation can go on (at any round, once an answer is in); while it's shown ⌥1, ⌥2 … pick
+    /// one (`handleNumberedPick`). ⌘R on a saved answer asks it again (`reaskSaved`). Nil: the key acts as usual.
     func handleHandoffKey(_ event: KeyEvent) -> Response? {
         let modifiers = event.modifiers.subtracting(.capsLock), primary = Modifiers.kind(modifierRoles.primary)
         // ⌘R (⌘⇧R too) on a saved answer: asked again.
@@ -144,18 +197,13 @@ extension Composer {
         if isReturn, modifiers == primary, isLevelTwo, activeCommand == .question, !(isQuestionChat && phase == .choosing) {
             return .consumed()
         }
-        guard isQuestionChat, phase == .choosing, modifiers == primary else { return nil }
-        if isReturn {
-            // At the last round they're up anyway: nothing to hide later with Esc.
-            if !chatAtLimit { handoffRequested = true }
-            return .consumed([.showPanel])
-        }
-        guard showsHandoff, let digit = event.charactersIgnoringModifiers.first?.wholeNumberValue,
-              event.charactersIgnoringModifiers.count == 1, digit >= 1 else { return nil }
-        return .consumed(handOff(digit: digit))
+        guard isQuestionChat, phase == .choosing, modifiers == primary, isReturn else { return nil }
+        // At the last round they're up anyway: nothing to hide later with Esc.
+        if !chatAtLimit { handoffRequested = true }
+        return .consumed([.showPanel])
     }
 
-    /// Goes on where the choice `digit` (one-based: ⌘1, ⌘2 …) of those shown is: what its ⌘digit does, and a click on it
+    /// Goes on where the choice `digit` (one-based: ⌥1, ⌥2 …) of those shown is: what its ⌥digit does, and a click on it
     /// in the panel (`SessionEvent.handoff`). Nothing while they aren't shown, or past them.
     public func handOff(digit: Int) -> [Effect] {
         guard showsHandoff, handoffChoices.indices.contains(digit - 1) else { return [] }

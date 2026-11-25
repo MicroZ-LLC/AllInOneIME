@@ -11,7 +11,8 @@ import AppKit
 enum ClipboardHistoryShared {
     /// The recorder, over the general pasteboard and the user's file (the self-test's never touches either: it gives its
     /// sessions a history of its own).
-    static let recorder = ClipboardRecorder(source: SystemClipboard(), store: ClipboardHistoryStore(), secureInput: { SecureInput.isOn })
+    static let recorder = ClipboardRecorder(source: SystemClipboard(), store: ClipboardHistoryStore(), secureInput: { SecureInput.isOn },
+                                            frontmostApp: { NSWorkspace.shared.frontmostApplication?.bundleIdentifier })
     /// Where the first showing's note is remembered (the input method's defaults).
     static let noteShownKey = "clipboardHistoryNoteShown"
     /// System Settings → Privacy & Security → Paste from Other Apps.

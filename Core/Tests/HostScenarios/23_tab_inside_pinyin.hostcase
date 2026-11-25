@@ -1,0 +1,24 @@
+# Contract v1.3: the composition shows only in the panel's input line (pinyin with syllable spaces, a draft as
+# "improve › ok"), never as marked text in the field; the field gets text only on commit.
+# Tab while pinyin is typed belongs to the input method: rime-ice's key_binder sends it on as Shift+Right (the cursor
+# to the next syllable; rime-ice's default.yaml, fetched into ThirdParty/rime-data: "Tab / Shift+Tab 切换光标至下/上一个拼音"), and the Rime
+# wrapper lists Tab among the keys that edit the composition and never commit it (RimeSession.editingKeys). Nothing goes
+# in, the focus stays, the pinyin stays in the panel's input line (contract v1.3: never marked in the field) and its
+# candidates stay up. (Tab inserting a row is the other panels':
+# the command list, suggestions, clipboard history, the user guide's "Every panel works the same way".) Seen on a real
+# Mac 2026-11-15: the marked text stayed "nihao" (then still shown inline).
+# QUESTION: `EXPECT preedit` can pin the input line's caret with a `|`, but where librime leaves it after Tab at the
+# end of "ni hao" (rime-ice: Shift+Right, "to the next syllable") isn't verified on a real Mac, so it isn't pinned.
+NAME Tab during pinyin stays with the input method: nothing goes in and the pinyin stays in the panel
+PROFILES all
+LANG chinese
+TEXT "Hi |"
+TYPE nihao
+EXPECT marked none
+EXPECT preedit "ni hao"
+EXPECT panel shown
+KEY tab
+EXPECT doc "Hi "
+EXPECT marked none
+EXPECT preedit "ni hao"
+EXPECT panel shown

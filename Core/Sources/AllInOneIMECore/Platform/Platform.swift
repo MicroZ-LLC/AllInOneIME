@@ -10,8 +10,8 @@ import AllInOneIMEQuickJS
 /// own calls on Windows (`Platform/Windows/`: the Credential Manager, programs in job objects, the Recycle Bin, the
 /// user's languages),
 /// QuickJS-ng for JavaScript off Apple platforms (AllInOneIMEQuickJS), and elsewhere neutral stand-ins: a heuristic
-/// language guess, the date rules alone, values kept in memory only, and no on-device model, PDF text, text recognition
-/// or secret store ("not supported on this platform").
+/// language guess, the date rules alone, values kept in memory only, and no on-device model, text recognition or secret
+/// store ("not supported on this platform").
 public struct Platform: Sendable {
     /// API keys and the like (`APIKeys`).
     public var secrets: SecretStore
@@ -23,8 +23,6 @@ public struct Platform: Sendable {
     public var languages: any LanguageIdentifier
     /// Dates and times written in a text (`ReminderParser.detect`).
     public var dates: any DateDetector
-    /// A PDF's text (`WebReader`).
-    public var pdf: any PDFTextExtractor
     /// The text in an image, read on the device (`ScreenText`: a screenshot pasted into a draft).
     public var text: any TextRecognizer
     /// Programs: commands, scripts, plugins, `@py`, `@js`, AWS `credential_process`, a language pack's archive.
@@ -43,7 +41,7 @@ public struct Platform: Sendable {
     public init(secrets: SecretStore = Platform.systemSecrets, scripts: any ScriptEngine = Platform.systemScripts,
                 onDeviceModel: any OnDeviceModel = Platform.systemOnDeviceModel,
                 languages: any LanguageIdentifier = Platform.systemLanguages, dates: any DateDetector = Platform.systemDates,
-                pdf: any PDFTextExtractor = Platform.systemPDF, text: any TextRecognizer = Platform.systemText,
+                text: any TextRecognizer = Platform.systemText,
                 processes: any ProcessLauncher = Platform.systemProcesses, files: any FileOps = SystemFileOps(),
                 defaults: any KeyValueStore = Platform.systemDefaults, clock: any WallClock = SystemWallClock(),
                 terms: PlatformTerms = Platform.systemTerms,
@@ -53,7 +51,6 @@ public struct Platform: Sendable {
         self.onDeviceModel = onDeviceModel
         self.languages = languages
         self.dates = dates
-        self.pdf = pdf
         self.text = text
         self.processes = processes
         self.files = files
@@ -134,15 +131,6 @@ extension Platform {
         return DataDetectorDates()
         #else
         return RulesOnlyDateDetector()
-        #endif
-    }
-
-    /// PDFKit where there is one.
-    public static var systemPDF: any PDFTextExtractor {
-        #if canImport(PDFKit)
-        return PDFKitTextExtractor()
-        #else
-        return UnsupportedPDFTextExtractor()
         #endif
     }
 

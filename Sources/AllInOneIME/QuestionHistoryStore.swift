@@ -10,8 +10,11 @@ enum QuestionHistoryStore {
         didSet { loaded = nil }
     }
     private static var loaded: (date: Date?, history: QuestionHistory)?
+    /// Changes handed to the file's queue and not written yet (`save`): the list as changed here stands meanwhile.
+    private static var pending = 0
 
     static var history: QuestionHistory {
+        if pending > 0, let loaded { return loaded.history }
         let date = modificationDate()
         if let loaded, loaded.date == date { return loaded.history }
         let history = date == nil ? QuestionHistory() : QuestionHistory.load(from: url)
@@ -21,25 +24,37 @@ enum QuestionHistoryStore {
 
     /// `entry` was answered just now.
     static func record(_ entry: QuestionHistory.Entry) {
-        var history = history
-        history.record(entry)
-        save(history)
+        save { $0.record(entry) }
     }
 
     /// Forgets them all: the file goes.
     static func clear() {
-        save(QuestionHistory())
+        save { $0 = QuestionHistory() }
     }
 
-    private static func save(_ history: QuestionHistory) {
-        do {
-            if let aside = try history.write(to: url) {
-                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
+    /// `change` made at once to the list shown, and to the file as it is then off the main thread, under the lock the iCloud
+    /// sync's merge takes too (`QuestionHistory.updateLater`): a merge going on meanwhile never writes over the question,
+    /// nor this over the merge, and typing never waits for it. Once all are written, the file is read again (with what a
+    /// merge brought).
+    private static func save(_ change: @escaping @Sendable (inout QuestionHistory) -> Void) {
+        var shown = history
+        change(&shown)
+        loaded = (modificationDate(), shown)
+        pending += 1
+        QuestionHistory.updateLater(at: url, change) { outcome in
+            DispatchQueue.main.async {
+                pending -= 1
+                if pending == 0 { loaded = nil }
             }
-        } catch {
-            log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
+            switch outcome {
+            case let .success((_, aside?)):
+                log.error("recent questions: the file couldn't be read; set aside as \(aside, privacy: .public)")
+            case .success:
+                break  // written
+            case let .failure(error):
+                log.error("recent questions: could not save them: \(String(describing: error), privacy: .public)")
+            }
         }
-        loaded = (modificationDate(), history)
     }
 
     /// By `lstat` (a microsecond; the file manager's attributes take some forty): the history is asked for with each key.

@@ -55,7 +55,7 @@ extension SelfTest {
     /// An @question conversation through the controller, with canned answers (`CannedChatModel`): typing after the
     /// answer is the next question, ⏎ asks it as user and assistant turns, the panel grows into 问/答 rows with the next
     /// question's line on top and its round, every answer can be picked (↑, ⌘C), Esc goes back a round, the third
-    /// round (`questionRounds` 3 here) offers where to go on (⌘1 the agent `@agent` hands to, then the other agents
+    /// round (`questionRounds` 3 here) offers where to go on (⌥1 the agent `@agent` hands to, then the other agents
     /// "installed", the web and copying; nothing is started or opened here), a long conversation is shortened for a small
     /// context and the panel scrolls within half the screen, and the thread is kept whole. Images: question-chat*.png,
     /// question-chat-handoff*.png.
@@ -112,7 +112,7 @@ extension SelfTest {
         check(panel.transcript && panel.rows.map(\.text) == ["问：what is rust", "答：" + answers["what is rust"]!]
               && panel.rows.map(\.label) == ["", "1"] && panel.highlighted == 1,
               "round 1: the question and its answer, numbered (\(panel.rows.map(\.text)))")
-        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 返回",
+        check(panel.inputText == "追问 2/3 › ▏" && panel.footer == "⏎ 追问 · ⇧⏎ 上屏 · 1–3 选 · ⌘C 复制 · Esc 关闭",
               "the next question's line on top, with its round; the footer's keys (\(panel.inputText ?? "-") | \(panel.footer))")
 
         type("who made", controller, client)
@@ -139,21 +139,21 @@ extension SelfTest {
         check(controller.composer.highlighted == 0 && copied.last == answers["what is rust"], "↑ selects round 1's answer, ⌘C copies it")
         _ = press(controller, client, "", code: VirtualKey.down)
 
-        // ⌘⏎ shows where it can go on, before the last round; Esc hides it.
+        // ⌘⏎ shows where it can go on, before the last round; ⌫ hides it (Esc closes the chat, #132).
         _ = command("\r", code: VirtualKey.returnKey)
-        check(controller.composer.showsHandoff && (controller.panelModel().inputText ?? "").contains("⌘1 "), "⌘⏎ shows where to go on")
-        _ = escape(controller, client)
-        check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "Esc hides it again")
+        check(controller.composer.showsHandoff && (controller.panelModel().handoff?.choices.isEmpty == false), "⌘⏎ shows where to go on")
+        _ = press(controller, client, "", code: VirtualKey.delete)
+        check(!controller.composer.showsHandoff && controller.composer.chatRound == 2, "⌫ hides it again")
 
         // Round 3, the last here: the hand-off row in place of the next question.
         guard followUp("why is it safe") else { return }
         panel = controller.panelModel()
         let choices = controller.composer.handoffChoices
-        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n⌘1 ")
-              && panel.footer.hasPrefix("⌘1–⌘\(choices.count) 接着聊"),
+        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n1 Claude Code")
+              && panel.footer.hasPrefix("⌥+数字 接着聊"),
               "after round 3: where to go on (\(panel.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
-        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && (panel.inputText ?? "").contains("⌘1 Claude Code")
-              && (panel.inputText ?? "").contains("⌘2 Gemini CLI"),
+        check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && panel.handoff?.choices.map(\.name).prefix(2) == ["Claude Code", "Gemini CLI"]
+              && panel.handoff?.choices.map(\.shortcut) == choices.indices.map { String($0 + 1) },  // numbers, ⌥ in the footer (0.7.5)
               "the agent @agent hands to first, then the other agents installed, then the web and Copy (\(choices.map(\.rawValue)))")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
@@ -161,13 +161,13 @@ extension SelfTest {
         check(kept?.thread.map(\.question) == ["what is rust", "who made it", "why is it safe"] && kept?.question == "what is rust",
               "the whole thread is kept under its first question (\(kept?.thread.count ?? 0) rounds)")
 
-        // ⌘ and the copy choice's number: the conversation on the clipboard, in Markdown; nothing inserted.
+        // ⌥ and the copy choice's number: the conversation on the clipboard, in Markdown; nothing inserted.
         if let copy = choices.firstIndex(of: .copy) {
             let inserted = client.inserted.count
-            _ = command(String(copy + 1), code: keyCodes[Character(String(copy + 1))] ?? 0)
+            _ = press(controller, client, "", code: keyCodes[Character(String(copy + 1))] ?? 0, flags: .option)  // ⌥digit since #99
             check(copied.last?.hasPrefix("**Q:** what is rust\n\n**A:** Rust is") == true && copied.last?.contains("**Q:** why is it safe") == true
                   && !controller.composer.isComposing && client.inserted.count == inserted,
-                  "⌘\(copy + 1) copies the conversation in Markdown, nothing inserted")
+                  "⌥\(copy + 1) copies the conversation in Markdown, nothing inserted")
         }
 
         // Picked again from the recent questions: the rounds, to go on with (or hand over).
@@ -178,11 +178,11 @@ extension SelfTest {
         check(controller.composer.showsSavedAnswer && controller.composer.chatRounds.count == 3 && controller.composer.showsHandoff,
               "the saved thread shows its 3 rounds and where to go on")
         type("go deeper", controller, client)
-        _ = command("1", code: 0x12)
+        _ = press(controller, client, "¡", code: 0x12, flags: .option)  // ⌥1 (U.S. types ¡)
         check(started.count == 1 && started[0].hasPrefix("**Q:** what is rust") && started[0].hasSuffix("Let's continue this discussion.\n\ngo deeper"),
-              "⌘1 hands it to Claude Code with the follow-up as its first message (nothing started here)")
+              "⌥1 hands it to Claude Code with the follow-up as its first message (nothing started here)")
         check(agentArguments == [["claude", "--"]], "…started as @agent starts it, `claude -- <conversation>` (\(agentArguments))")
-        // Another agent picked for @agent (a custom one, `/bin/echo --`): it's ⌘1, by its name; the others follow, more
+        // Another agent picked for @agent (a custom one, `/bin/echo --`): it's ⌥1, by its name; the others follow, more
         // than 5 choices now, each started as @agent starts it.
         (settings.agent, settings.agentCommand) = (.custom, ["/bin/echo", "--"])
         controller.applySettings()
@@ -195,15 +195,15 @@ extension SelfTest {
         }
         recall()
         let six = controller.panelModel()
-        _ = command("3", code: 0x14)
-        check(controller.composer.handoffChoices.count == 6 && (six.inputText ?? "").contains("⌘1 echo") && (six.inputText ?? "").contains("⌘2 Claude Code")
-              && (six.inputText ?? "").contains("⌘6 复制") && six.footer.hasPrefix("⌘1–⌘6 接着聊") && agentArguments.last == ["gemini", "-i"],
-              "another agent picked: ⌘1 is it, the others after it, ⌘3 starts Gemini CLI as `gemini -i` "
+        _ = press(controller, client, "£", code: 0x14, flags: .option)  // ⌥3
+        check(controller.composer.handoffChoices.count == 6 && six.handoff?.choices.map(\.name).prefix(2) == ["echo", "Claude Code"]
+              && six.handoff?.choices.last?.name == "复制" && six.footer.hasPrefix("⌥+数字 接着聊") && agentArguments.last == ["gemini", "-i"],
+              "another agent picked: ⌥1 is it, the others after it, ⌥3 starts Gemini CLI as `gemini -i` "
               + "(\(six.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
         recall()
-        _ = command("1", code: 0x12)
+        _ = press(controller, client, "¡", code: 0x12, flags: .option)  // ⌥1 (U.S. types ¡)
         check(agentArguments.last == ["/bin/echo", "--"] && started.last?.hasSuffix("Let's continue this discussion.") == true,
-              "…and ⌘1 gives the custom agent the conversation as its last argument (\(agentArguments.last ?? []))")
+              "…and ⌥1 gives the custom agent the conversation as its last argument (\(agentArguments.last ?? []))")
         // A configured list with "@agent's agent" follows the agent picked: the custom one here, in its place.
         settings.questionContinueIn = [.chatgpt, .atAgent, .copy]
         controller.applySettings()
@@ -214,13 +214,13 @@ extension SelfTest {
         controller.applySettings()
         controller.composer.setInputMode(.english)
 
-        // Esc goes back a round; ⏎ with nothing typed keeps the conversation; ⇧⏎ inserts the answer selected, dropping a
-        // half-typed question.
+        // ⌫ with nothing typed goes back a round (Esc closes the chat, #132); ⏎ with nothing typed keeps the conversation;
+        // ⇧⏎ inserts the answer selected, dropping a half-typed question.
         ask("what is rust")
         guard finishConversion(controller, "@question, from the cache") else { return }
         guard followUp("who made it") else { return }
-        _ = escape(controller, client)
-        check(controller.composer.chatRound == 1, "Esc with nothing typed goes back a round")
+        _ = press(controller, client, "", code: VirtualKey.delete)
+        check(controller.composer.isQuestionChat && controller.composer.chatRound == 1, "⌫ with nothing typed goes back a round")
         let before = client.inserted.count
         _ = enter(controller, client)
         check(client.inserted.count == before && controller.composer.isQuestionChat && controller.composer.chatRound == 1,

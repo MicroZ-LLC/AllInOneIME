@@ -256,6 +256,9 @@ struct AutocompleteTests {
         // The field tells nothing: what was typed into it stands in.
         #expect(Autocomplete.context(nil, typed: "我们明天") == Autocomplete.Context(before: "我们明天"))
         #expect(Autocomplete.context(nil, typed: "") == nil)
+        // A field read as empty (a chat app's, cleared once its message was sent) is empty: what was typed before it was
+        // cleared doesn't stand in (nil is a field that can't be read, `FieldContext.text`).
+        #expect(Autocomplete.context(FieldText(before: "", after: ""), typed: "hello wor") == nil)
     }
 
     @Test func atMost1500CharactersBeforeAnd200After() {
@@ -1178,7 +1181,7 @@ struct AutocompleteTests {
             #expect(metrics.accepted == 0 && metrics.undone == 1 && metrics.dismissed == 1 && metrics.acceptedCharacters == 0)
             #expect(store.learning.apps["com.example.editor"]?.outcomes.contains(true) == false)
             #expect(store.stopped(in: "com.example.editor") && metrics.stoppedApps == 1)
-            #expect(r.host.noticeAlone == "Autocomplete wasn't used in Editor, so it stopped there (Settings → Privacy → Learned… can undo it)")
+            #expect(r.host.noticeAlone == "Autocomplete wasn't used in Editor, so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)")
             // Too late, or not the next key: the user's own ⌘Z, the Tab taken.
             for (wait, key) in [(6.0, nil), (0.5, FakeHost.space)] as [(TimeInterval, KeyEvent?)] {
                 let later = rig()
@@ -1521,7 +1524,7 @@ struct AutocompleteTests {
             r.pauseEnds(expecting: "x")
             #expect(r.host.press(FakeHost.escape))
             #expect(store.stopped(in: "com.example.editor") && store.metrics.stoppedApps == 1)
-            #expect(r.host.noticeAlone == "Autocomplete wasn't used in Editor, so it stopped there (Settings → Privacy → Learned… can undo it)")
+            #expect(r.host.noticeAlone == "Autocomplete wasn't used in Editor, so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)")
             r.host.type("l")
             #expect(r.pauses.isEmpty)
             // The app set to autocomplete always: on again there.

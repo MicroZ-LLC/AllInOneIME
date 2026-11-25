@@ -53,6 +53,11 @@ struct AutocompleteField {
     /// A key was begun (`autocompleteBeforeKey`) and not yet followed to its end (`autocompleteAfterKey`): one that never
     /// is (another of the session's panels took it, or gave it to the app) leaves `known` unknown.
     var keyOpen = false
+    /// With a CLI chosen as the AI: the model its fast fallback gives autocomplete here (`InputSession.autocompleteRoute`),
+    /// looked up off the main thread; `.some(nil)`: none, autocomplete is off. Nil: not looked up yet. `routeLookup` counts
+    /// the lookups: an older one's answer does nothing.
+    var fastRoute: Autocomplete.Route??
+    var routeLookup = 0
 }
 
 /// What autocomplete says, in the interface language.
@@ -63,8 +68,8 @@ struct AutocompleteMessages {
 
     /// It stopped in `app` (its name) for want of use: Forget in Privacy → Learned… starts it there again.
     func stopped(in app: String) -> String {
-        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 → 隐私 →「学到的内容…」里撤销）",
-                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → Privacy → Learned… can undo it)")
+        words.tr("续写在「\(app)」里没用上，已在这个 App 里停下（可以在设置 →「更多设置」→「隐私」→「学到的内容…」里撤销）",
+                 "Autocomplete wasn't used in \(app), so it stopped there (Settings → More Settings → Privacy → Learned… can undo it)")
     }
 
     /// The on-device model can't run (`reason`): nothing is shown, and nothing goes to the cloud.
@@ -100,7 +105,8 @@ extension InputSession {
         // Suggestions' rows hold the caret, and Code has no AI continuation (spec 0, decision 22).
         guard !suggestionsHoldTheCaret else { return false }
         let config = services.loadSettings()
-        guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)) else { return false }
+        guard Autocomplete.isOn(in: app, config: config, stopped: services.autocomplete.stopped(in: app)),
+              autocompleteRoute(config) != nil else { return false }
         // A password field where secure input isn't on as if it were (`fieldIsPrivate`: one not told yet may run, its
         // read once the pause is over tells it; one the shell couldn't tell runs, as it always did).
         let info = FieldInfo(app: app, terminal: terminal, secure: field.secure)
@@ -112,13 +118,13 @@ extension InputSession {
     /// minute at most).
     func autocompleteFocused() {
         autocompleteEnded(.unseen)
-        let pause = autocomplete.pause + 1
+        let (pause, lookup) = (autocomplete.pause + 1, autocomplete.routeLookup)
         autocomplete = AutocompleteField()
-        autocomplete.pause = pause
+        (autocomplete.pause, autocomplete.routeLookup) = (pause, lookup)
         tasks.cancel(.autocomplete)
         let config = services.loadSettings()
         autocompleteTakeSettings(config)
-        guard autocompleteMayRun(), Autocomplete.route(config) == .onDevice,
+        guard autocompleteMayRun(), autocompleteRoute(config) == .onDevice,
               services.autocomplete.prewarmDue(at: services.uptime()) else { return }
         services.converter.prewarmOnDevice()
     }
@@ -129,6 +135,7 @@ extension InputSession {
         autocomplete.active = Autocomplete.isOn(in: app, config: config, stopped: false)
             && Autocomplete.blocker(in: info, secureInput: false, config: config, composing: false, translating: false) == nil
         if !autocomplete.active { autocomplete.known = nil }  // its keys aren't followed while it's off
+        autocompleteLookUpRoute(config)
     }
 
     /// The field was left or clicked in (`ignored`), or is in secure input (`unseen`): the suggestion goes, the pause and
@@ -248,7 +255,7 @@ extension InputSession {
         // The field's first key that typed: a cloud provider's connection opened by the time the pause is over.
         if !autocomplete.warmed {
             autocomplete.warmed = true
-            if case .cloud = Autocomplete.route(services.loadSettings()) { warmModel() }
+            if case .cloud = autocompleteRoute(services.loadSettings()) { warmModel() }
         }
         // A suggestion kept for the text as it is now, known for sure: up at once, no pause, no read, no request.
         if let kept = autocompleteKeptAtOnce() {
@@ -323,7 +330,7 @@ extension InputSession {
     /// slowly (`Autocomplete.Rhythm`), longer in an app where suggestions are waved away
     /// (`Autocomplete.Learning.pause`).
     func autocompleteSchedulePause() {
-        let base = Autocomplete.route(services.loadSettings()).pause
+        let base = (autocompleteRoute(services.loadSettings()) ?? .onDevice).pause
         autocomplete.pause += 1
         autocomplete.pauseStarted = services.uptime()
         emit(.startTimer(.autocomplete(autocomplete.pause), after: services.autocomplete.pause(base, in: app)))
@@ -333,7 +340,7 @@ extension InputSession {
     /// on-device one and it can't run, nothing would answer: the field isn't read, and that is said once.
     func autocompletePaused(_ token: Int) {
         guard token == autocomplete.pause, autocomplete.suggestion == nil, autocompleteMayRun() else { return }
-        if Autocomplete.route(services.loadSettings()) == .onDevice {
+        if autocompleteRoute(services.loadSettings()) == .onDevice {
             let availability = services.converter.onDeviceAvailability
             guard availability == .available else {
                 if services.autocomplete.once("unavailable") {
@@ -371,6 +378,8 @@ extension InputSession {
         // What was typed stands in only where the field tells nothing, and not past a click.
         let typed = caretMayHaveMoved(within: services.uptime() - autocomplete.typedAt) ? "" : autocomplete.typed.text
         guard let request = Autocomplete.context(text, selection: selection, typed: typed) else { return }
+        // Which it went by: a field whose text can't be read (an empty one is read as empty, and asks nothing).
+        if text == nil { log.notice("autocomplete \(id): the field told no text; what was typed since the focus stands in") }
         if let kept = services.autocomplete.kept(for: request, in: app) {
             autocompleteShow(kept.rest, kept: kept.entry, fromCache: true)
             return
@@ -397,7 +406,7 @@ extension InputSession {
             let messages = AutocompleteMessages(language: UIText.language)
             if case AppleModelError.unavailable = error {
                 if services.autocomplete.once("unavailable") { say(messages.unavailable(UIText.describe(error)), long: true) }
-            } else if case let .cloud(provider) = Autocomplete.route(services.loadSettings()), !autocomplete.failureSaid {
+            } else if case let .cloud(provider) = autocompleteRoute(services.loadSettings()), !autocomplete.failureSaid {
                 autocomplete.failureSaid = true
                 say(messages.noAnswer(from: provider.displayName, UIText.describe(error)), long: true)
             }

@@ -49,8 +49,8 @@ struct ExtensionSourcesSection: View {
             .disclosureGroupStyle(RowDisclosureStyle())
         } footer: {
             if open {
-                Text(tr("支持 ssh://、git@主机:路径、https:// 和 file:// 地址。不会自动更新：每天检查一次，有新提交时在这里提示。更新只做快进，不运行任何钩子；固定（pin）到标签或提交的来源不检查。",
-                        "ssh://, git@host:path, https:// and file:// addresses. Nothing updates by itself: sources are checked once a day and new commits are shown here. Update only fast-forwards and runs no hooks; a source pinned to a tag or commit isn't checked."))
+                Text(tr("不会自动更新：每天检查一次，新提交在这里提示；「更新」只做快进，不运行钩子。",
+                        "Nothing updates by itself: new commits show here once a day, and Update only fast-forwards, running no hooks."))
                     .font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.leading).frame(maxWidth: .infinity, alignment: .leading)
             }

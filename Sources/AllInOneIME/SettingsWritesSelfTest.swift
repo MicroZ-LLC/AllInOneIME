@@ -138,7 +138,7 @@ extension SelfTest {
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
             _ = pump(timeout: 0.5) { false }
             // The page left, then the window closed.
-            NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": SettingsPage.general.rawValue])
+            NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": SettingsPage.common.rawValue])
             _ = pump(timeout: 0.5) { false }
             window.close()
             model.save()  // as the settings window's close does
@@ -208,7 +208,7 @@ extension SelfTest {
         config.redaction = RedactionSettings(enabled: true, phones: false)
         try? config.write(to: url)
         let model = SettingsModel(configURL: url)
-        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .general)))
+        let window = NSWindow(contentViewController: NSHostingController(rootView: SettingsView(model: model, page: .common)))
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         _ = pump(timeout: 0.6) { false }
@@ -299,9 +299,9 @@ extension SelfTest {
             let preview = SettingsModel(configURL: url, persists: false)
             preview.config.appProfiles = [mail: AppProfile(suggestionsInsert: .titleAndLink), terminal: AppProfile(suggestions: false)]
             let image = snapshotDirectory.appendingPathComponent("\(name).png")
-            SettingsImage.render(preview, page: .general, to: image) { seconds in _ = pump(timeout: seconds) { false } }
+            SettingsImage.render(preview, page: .suggestions, to: image) { seconds in _ = pump(timeout: seconds) { false } }
             check(FileManager.default.fileExists(atPath: image.path) && AppInsertChoice.off.label == tr("关闭", "Off"),
-                  "General drawn with Terminal at Off in these apps (\(language))")
+                  "Suggestions drawn with Terminal at Off in these apps (\(language))")
         }
     }
 }

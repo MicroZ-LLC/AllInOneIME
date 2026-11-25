@@ -238,6 +238,7 @@ public enum Output: Equatable, Sendable {
     /// Our composition's text, caret (UTF-16) and styled stretches; empty text ends it. `typed`: the draft as the user
     /// typed it, when that isn't what is shown ("@improve helo", shown `improve › helo`): what the client leaves in the
     /// document if it ends the composition on its own (a key it gave up on, a lost engine, §2.5, §5.4).
+    /// The engine sends none (0.7.5): what is typed shows only in its panel's input line, never in the document.
     case composition(text: String, caret: Int = 0, segments: [Segment] = [], typed: String? = nil)
     /// The engine is (or no longer is) showing UI anchored at the caret: report `caret` while it is.
     case panel(shown: Bool)

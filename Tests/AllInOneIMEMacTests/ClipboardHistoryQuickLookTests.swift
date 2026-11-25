@@ -44,7 +44,7 @@ struct ClipboardHistoryQuickLookTests {
     /// A recorder making its images ready as the input method's does: off the main thread, handed back to it after.
     static func recorderOffTheMainThread(in folder: URL) -> (ClipboardRecorder, Recording.FakePasteboard) {
         let (recorder, pasteboard) = Recording.recorder(in: folder)
-        recorder.imageWork = ClipboardRecorder(source: pasteboard, store: recorder.store, secureInput: { false }).imageWork
+        recorder.imageWork = ClipboardRecorder(source: pasteboard, store: recorder.store, secureInput: { false }, frontmostApp: { nil }).imageWork
         return (recorder, pasteboard)
     }
 

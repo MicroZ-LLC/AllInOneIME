@@ -157,9 +157,9 @@ func convert(_ input: String, with converter: Converter, mode: WritingMode, raw:
 
 func dumpRawResponse(_ input: String, config: Config, to path: String) async throws {
     let resolved = try await AWSCredentialResolver.shared.resolve(profile: config.awsProfile)
-    let region = config.region ?? resolved.region ?? "us-east-1"
+    let region = config.bedrockRegion(profileRegion: resolved.region)
     let request = try BedrockClient.makeRequest(
-        Prompt.request(for: input, config: config), modelId: config.modelId, region: region,
+        Prompt.request(for: input, config: config), modelId: config.bedrockModelId(in: region), region: region,
         credentials: resolved.credentials, timeout: config.timeoutSeconds)
     let (bytes, response) = try await HTTPStream.bytes(for: request, session: BedrockClient.makeSession())
     var data = Data()

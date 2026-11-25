@@ -91,7 +91,7 @@ extension ComposerTests {
         #expect(pasted("see https://example.com/\nthanks") == "see https://example.com/ thanks")  // the URL stays whole
         #expect(pasted("(a)\n(b)\n50%\nof users") == "(a) (b) 50% of users")
         #expect(pasted("One.\nTwo\u{1B}[31m\n") == "One. Two [31m")  // control characters become spaces
-        #expect(pasted("日本語\nの文\n한국어\n문장") == "日本語の文한국어문장")
+        #expect(pasted("日本語\nの文\n한국어\n문장") == "日本語の文 한국어 문장")  // Korean lines get a space (owner, 2026-11-14)
     }
 
     @Test func withoutADraftTheAppPastesAndWithoutTextANoticeSaysSo() {
@@ -134,12 +134,13 @@ extension ComposerTests {
         #expect(f.draft == "@improve second")
     }
 
-    @Test func terminalsKeepCommandVForThemselves() {
-        // Terminals paste on ⌘V themselves: the input method stays out (no second copy in the draft).
+    @Test func commandVPastesIntoACommandWhereTheAppPastesItself() {
+        // Terminals paste on ⌘V themselves (the Mac's key tap keeps it from them then): in a command not run yet it is
+        // the same paste as in any other app (the integrator, 2026-11-15: one behaviour everywhere).
         let (c, _) = improveDraft(key: .enter)
         c.pastesIntoDraft = false
         let (ref, _) = improveDraft(key: .enter)
-        #expect(c.handleKeyDown(pasteKey) == ref.handleKeyDown(k("a", mods: .command)))  // as before the paste feature
+        #expect(c.handleKeyDown(pasteKey) == ref.handleKeyDown(pasteKey))
     }
 
     var controlV: KeyEvent { KeyEvent(keyCode: 0x09, characters: "\u{16}", charactersIgnoringModifiers: "v", modifiers: .control) }
@@ -242,9 +243,9 @@ extension ComposerTests {
     }
 
     @Test func pastedCodeCommandsStayText() {
-        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])],
+        let catalog = Command.catalog([CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"]), CommandExamples.python],
                                       plugins: [calculatorPlugin])
-        // "@py …" in a paste: no plan, the text goes to @improve as it is, and the user is told.
+        // "@py …" (Settings' example) in a paste: no plan, the text goes to @improve as it is, and the user is told.
         let (c, _) = improveDraft(key: .enter)
         c.commands = catalog
         paste("Bonjour @py「print(1)」 merci", into: c)
@@ -270,15 +271,18 @@ extension ComposerTests {
     }
 
     @Test func aCustomRunCommandsTextRunsNoCommands() {
-        // Its text goes to the user's program exactly as typed, like @py's.
+        // Its text goes to the user's program exactly as typed, like @js's: "@" in it opens no command list.
         let catalog = Command.catalog([CustomCommand(name: "lint", type: .run, argv: ["lint", "{input}"]),
                                        CustomCommand(name: "stock", type: .run, argv: ["stock", "{input}"])])
         let c = Composer(engine: FakeEngine())
         c.commands = catalog
         c.setInputMode(.english)
-        for ch in "@lint x @stock AAPL" {
-            _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch)))
+        func type(_ text: String) {
+            for ch in text { _ = c.handleKeyDown(ch == "@" ? at : ch == " " ? spaceKey : k(String(ch))) }
         }
+        type("@lint x @")
+        #expect(c.draft == "@lint x @" && c.paletteQuery == nil)
+        type("stock AAPL")
         let effects = c.handleKeyDown(enterKey).effects
         guard case let .startRun(command, input, _)? = effects.first else {
             Issue.record("expected the command to run, got \(effects)")

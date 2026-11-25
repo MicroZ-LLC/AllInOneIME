@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -286,7 +287,7 @@ struct DoctorTests {
     // MARK: - What must never show or go out
 
     @Test func repeatsAreRemovedKeepingUnknownKeys() throws {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("doctor-\(UUID().uuidString).json")
+        let url = TestScratch.temporary("doctor-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
         let text = #"{"futureKey": {"keep": [1, 2]}, "inputLanguages": ["zh", "en", "zh"], "outputLanguages": ["en", "fr", "en"], "temperature": 0.3}"#
         try Data(text.utf8).write(to: url)

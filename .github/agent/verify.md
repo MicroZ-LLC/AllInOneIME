@@ -12,7 +12,8 @@ $issue
 - Tests by a separate agent: $acceptance
 - Files the pipeline put back because the implementer may not change them: $put_back
 
-The pipeline has run `swift build` and `make test`: they pass, apart from tests that already failed on `$base`.
+The pipeline has run `swift build`, `make lint` and `make test`: they pass, apart from tests that already failed on
+`$base`.
 
 ## Check
 
@@ -21,8 +22,10 @@ The pipeline has run `swift build` and `make test`: they pass, apart from tests 
 - It is correct: read the code for edge cases, errors, concurrency, and what happens to existing users' settings and
   data.
 - The tests test the issue's behaviour and would catch it breaking; none were weakened or removed to pass.
-- Both changelogs (and the READMEs where they describe it) say what changed; English docs are English only.
-- It reads like the code around it; no debugging leftovers, secrets, or files that don't belong.
+- Its changelog fragment, `changes/issue-$number.md` in English and Chinese (and the READMEs where they describe it),
+  says what changed, and CHANGELOG.md and CHANGELOG.zh-CN.md weren't edited; English docs are English only.
+- It follows AGENTS.md (the repository's rules), reads like the code around it, and has no debugging leftovers,
+  secrets, or files that don't belong.
 
 Run whatever helps you judge: tests, `--settings-image` renders, small programs in `$AGENT_SCRATCH`. Don't change the
 repository's files.

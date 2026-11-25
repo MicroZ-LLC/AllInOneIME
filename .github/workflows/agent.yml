@@ -1,6 +1,8 @@
 # Builds or fixes an issue with Claude Code agents on the Mac mini (.github/agent/pipeline.py), when a maintainer
-# labels it agent:build (a feature) or agent:fix (a bug); what the verifier passes merges into the open release
-# branch by itself. agent-queue.yml starts queued issues again, and it can be started by hand for one issue.
+# labels it agent:build (a feature) or agent:fix (a bug); what the verifier passes goes into a PR to the open release
+# branch, whose required checks (quality.yml, review.yml) this starts; the PR merges once they pass (agent-queue.yml's
+# hourly `pipeline.py --finish`, or GitHub's auto-merge). agent-queue.yml starts queued issues again, and it can be
+# started by hand for one issue.
 # The agents run on the Max plan through the Mac mini's Claude Code sign-in: no API key.
 name: Agent
 
@@ -17,6 +19,7 @@ on:
         required: false
 
 permissions:
+  actions: write          # starts the PR's required checks (a PR made with this token starts none by itself)
   contents: write
   issues: write
   pull-requests: write

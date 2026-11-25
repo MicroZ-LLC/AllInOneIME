@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import Foundation
 import Testing
@@ -21,8 +22,7 @@ enum RimeFixture {
     static var dataRequired: Bool { ProcessInfo.processInfo.environment["ALLINONEIME_REQUIRE_RIME_DATA"] == "1" }
     /// librime's user folder: one per test process, so that runs in two checkouts at once don't use (and
     /// delete) the same one. Removed when the process exits.
-    static let userData = FileManager.default.temporaryDirectory
-        .appendingPathComponent("allinoneime-rime-tests-\(ProcessInfo.processInfo.processIdentifier)")
+    static let userData = TestScratch.temporary("allinoneime-rime-tests-\(ProcessInfo.processInfo.processIdentifier)")
 
     /// Starts librime once per test process; returns the deployment time.
     static let startup: Result<TimeInterval, Error> = {
@@ -142,7 +142,7 @@ struct RimeEngineTests {
     }
 
     @Test func lunarDatabaseKeepsTheUsersOwnData() throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-lunar-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("allinoneime-lunar-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let user = folder.appendingPathComponent("user")
         try RimeService.prepareLunarDatabase(sharedDataDir: RimeFixture.sharedData, userDataDir: user)
@@ -231,7 +231,7 @@ struct RimeEngineTests {
         _ = composer.handleKeyDown(space)
         _ = composer.handleKeyDown(at)
         #expect(composer.draft == "@question 你好@")
-        #expect(composer.paletteMatches.map(\.name) == ["py", "js", "stock"])
+        #expect(composer.paletteMatches.map(\.name) == ["js", "stock"])
         for ch in "st" { _ = composer.handleKeyDown(key(ch)) }
         _ = composer.handleKeyDown(KeyEvent(keyCode: VirtualKey.tab, characters: "\t"))
         #expect(composer.draft == "@question 你好@stock " && composer.engineState.isAsciiMode)

@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -26,7 +27,7 @@ struct SessionBackendsLiveTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ALLINONEIME_CODEX_LIVE"] == "1"))
     func codexAnswersOneQuestionInANamedThread() async throws {
         let codex = try #require(CommandRunner.resolve("codex", path: Self.path), "no codex on PATH")
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent("codex-live-\(UUID().uuidString)")
+        let base = TestScratch.temporary("codex-live-\(UUID().uuidString)")
         let session = manager(CodexBackend(base: base), program: codex)
         let started = ContinuousClock.now
         let availability = await session.checkAvailability()
@@ -85,7 +86,7 @@ struct SessionBackendsLiveTests {
     @Test(.enabled(if: ProcessInfo.processInfo.environment["ALLINONEIME_CODEX_LIVE"] == "1"))
     func codexReadsTheWebNotThisMacsFiles() async throws {
         let codex = try #require(CommandRunner.resolve("codex", path: Self.path), "no codex on PATH")
-        let base = FileManager.default.temporaryDirectory.appendingPathComponent("codex-live-\(UUID().uuidString)")
+        let base = TestScratch.temporary("codex-live-\(UUID().uuidString)")
         let backend = CodexBackend(base: base)
         let environment = Self.environment.merging(backend.environment) { $1 }.merging(["PATH": Self.path]) { $1 }
         let recording = Recording(ProcessClaudeSessionLauncher(executable: { codex }, environment: { environment }))

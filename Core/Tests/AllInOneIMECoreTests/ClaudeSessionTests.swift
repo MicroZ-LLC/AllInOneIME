@@ -96,7 +96,7 @@ final class FakeClaude: ClaudeSessionLauncher, @unchecked Sendable {
 /// it reads, and the process kept running: started ahead (prewarm), resumed, ended when idle, started again after a
 /// crash, a turn interrupted, handed to Terminal; and `@question` going to it, or to the provider when it can't answer.
 struct ClaudeSessionTests {
-    let folder = FileManager.default.temporaryDirectory.appendingPathComponent("claude-session-\(UUID().uuidString)")
+    let folder = TestScratch.temporary("claude-session-\(UUID().uuidString)")
     var store: ClaudeSessionStore { ClaudeSessionStore(directory: folder) }
 
     func manager(_ fake: FakeClaude, clock: any Clock<Duration> = ContinuousClock()) -> ClaudeSessionManager {
@@ -502,7 +502,7 @@ struct ClaudeSessionTests {
         #expect(apple.requests.isEmpty)
     }
 
-    @Test func withoutClaudeTheProviderAnswersAndThePanelSaysWhy() async throws {
+    @Test(TaskLanguage("en")) func withoutClaudeTheProviderAnswersAndThePanelSaysWhy() async throws {
         let fake = FakeClaude()
         fake.missing = true
         let session = manager(fake)

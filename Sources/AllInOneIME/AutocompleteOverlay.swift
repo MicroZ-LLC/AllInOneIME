@@ -322,8 +322,7 @@ extension AllInOneIMEInputController {
         // The wheel over the line is this field's: no pointer use in it, so Tab and Esc stay the line's (GitHub #66).
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }))
-        panel.show(.autocomplete(text, language: UIText.language), anchor: anchor(client))
-        ghostInPanel = true
+        if show(.autocomplete(text, language: UIText.language), anchoredIn: client) { ghostInPanel = true }  // superseded: as the newer one left it
     }
 
     @MainActor
@@ -427,24 +426,9 @@ extension AllInOneIMEInputController {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let target = client ?? self.clientOverride ?? self.client()
-            var context = FieldContext(read: [.secure], field: Self.fieldInfo(target))
-            context.secure = SecureInput.blocksComposing(target) || self.services.secureInputActive()
-            if !context.secure {
-                // Told for suggestions too (`FieldContext.Parts.passwordField`): both go by the same answer.
-                let told = self.passwordFieldByAccessibility()
-                context.field?.secure = told == true
-                context.passwordFieldUnknown = told == nil
-                context.read.insert(.passwordField)
-            }
-            if !context.secure, context.field?.secure != true {
-                context.selectedRange = target.flatMap { Self.range($0.selectedRange()) }
-                context.text = id < 0
-                    ? self.readFieldText(from: target, before: ReplyContext.Limits.fieldBefore, after: ReplyContext.Limits.fieldAfter,
-                                         purpose: "Code's words")
-                    : self.readFieldText(from: target, before: Autocomplete.beforeLimit, after: Autocomplete.afterLimit,
-                                         purpose: "autocomplete")
-                context.read.formUnion([.selectedRange, .text])
-            }
+            // Secure input, a password field (told for suggestions too: both go by the same answer), the selection and the
+            // text around the caret (`FieldReading.contextAfterPause`).
+            let context = self.fieldReading.contextAfterPause(in: target, id: id)
             self.received(.field(context, id: id))
         }
     }

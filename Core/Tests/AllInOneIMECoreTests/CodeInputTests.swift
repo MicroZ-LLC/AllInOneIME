@@ -47,14 +47,14 @@ struct CodeInputTests {
                 if field.host.composer.coding {
                     #expect(field.host.composer.inputLanguage == .english, "Code types English's letters")
                     field.type("de")
-                    #expect(field.host.marked == "de" && field.document.isEmpty, "the word held: \(field.host.marked)")
+                    #expect(field.host.preedit == "de" && field.document.isEmpty, "the word held: \(field.host.preedit)")
                 }
             }
             #expect(seen == [.language(.english), .code, .language(.chinese)], "\(seen)")
             #expect(notices == [["English"], ["Code (Python)"], ["Chinese"]], "\(notices)")
-            #expect(field.document == "de" && field.host.marked.isEmpty, "in as typed with the tap: \(field.document)")
+            #expect(field.document == "de" && field.host.preedit.isEmpty, "in as typed with the tap: \(field.document)")
             field.type("nihao")
-            #expect(field.host.marked == "nihao", "pinyin again: \(field.host.marked)")
+            #expect(field.host.preedit == "nihao", "pinyin again: \(field.host.preedit)")
         }
     }
 
@@ -132,7 +132,7 @@ struct CodeInputTests {
             #expect(code.host.composer.coding && code.host.composer.translateModeChip() == nil)
             code.type("print")
             #expect(code.host.composer.codeWord == "print" && !code.host.composer.inModeComposition, "Code's word, no draft to translate")
-            #expect(!code.press(SuggestionKeys.space) && code.document == "print " && code.host.marked.isEmpty, "\(code)")
+            #expect(!code.press(SuggestionKeys.space) && code.document == "print " && code.host.preedit.isEmpty, "\(code)")
         }
     }
 
@@ -276,7 +276,7 @@ struct CodeInputTests {
     /// of Code's language removes Code too. An app may start in Code there. Windows says its engine doesn't type in Code
     /// yet.
     @Test func theSettingsDocumentHasCodeInInput() async throws {
-        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("code-input-\(UUID().uuidString)")
+        let folder = TestScratch.temporary("code-input-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let plugins = folder.appendingPathComponent("plugins", isDirectory: true)
         try FileManager.default.createDirectory(at: plugins, withIntermediateDirectories: true)

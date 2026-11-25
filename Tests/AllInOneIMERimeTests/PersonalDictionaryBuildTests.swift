@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AllInOneIMECore
 import Foundation
 import Testing
@@ -9,7 +10,7 @@ import Testing
 struct PersonalDictionaryBuildTests {
     @Test(.enabled(if: RimeWorker.scenario == nil && (RimeWorker.dataAvailable || RimeWorker.required)))
     func whatRimeBuiltGoesWithTheLastDictionary() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-dictionary-build-\(UUID().uuidString)")
+        let root = TestScratch.temporary("allinoneime-dictionary-build-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: root) }
         try RimeWorker.run("dictionary-build", root: root)
     }

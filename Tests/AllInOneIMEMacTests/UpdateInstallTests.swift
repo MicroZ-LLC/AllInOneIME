@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Security
 import Testing
@@ -26,7 +27,7 @@ struct UpdateInstallTests {
     // MARK: Unpacking
 
     @Test func onlyTheManifestsAppsAreUnpackedAndAccepted() throws {
-        let work = FileManager.default.temporaryDirectory.appendingPathComponent("update-unpack-\(UUID().uuidString)", isDirectory: true)
+        let work = TestScratch.temporary("update-unpack-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: work) }
         let manifest = try Self.manifest(version: "0.7.0", build: "9")
         // The test's apps are ad-hoc signed, as a developer's build is: no team to check them by (`CodeSignature.ownTeamID`).
@@ -69,7 +70,7 @@ struct UpdateInstallTests {
     // MARK: Swapping and rolling back
 
     @Test func theSwapKeepsThePreviousAppsUntilCommitted() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("swap-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("swap-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let installed = root.appendingPathComponent("Input Methods/AllInOneIME.app"), settings = root.appendingPathComponent("Applications/AllInOneIME Settings.app")
         let newIME = root.appendingPathComponent("new/AllInOneIME.app"), newSettings = root.appendingPathComponent("new/AllInOneIME Settings.app")
@@ -116,7 +117,7 @@ struct UpdateInstallTests {
     /// Input.app (0.7.1.1's move and new installs), or another; never an app with another bundle ID (the earlier
     /// identity's, at AllInOneIME.app). With several: the running one, else AllInOneIME Input.app.
     @Test func theInstalledInputMethodIsFoundByItsBundleIDAtEitherPath() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("installed-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("installed-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let inputMethods = root.appendingPathComponent("Input Methods", isDirectory: true)
         let earlier = inputMethods.appendingPathComponent("AllInOneIME.app"), own = inputMethods.appendingPathComponent("AllInOneIME Input.app")
@@ -152,7 +153,7 @@ struct UpdateInstallTests {
     }
 
     @Test func aRollBackThatCantPutAnAppBackSaysWhereItIs() throws {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("swap-\(UUID().uuidString)", isDirectory: true)
+        let root = TestScratch.temporary("swap-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let installed = root.appendingPathComponent("Input Methods/AllInOneIME.app"), new = root.appendingPathComponent("new/AllInOneIME.app")
         for app in [installed, new] { try FileManager.default.createDirectory(at: app, withIntermediateDirectories: true) }

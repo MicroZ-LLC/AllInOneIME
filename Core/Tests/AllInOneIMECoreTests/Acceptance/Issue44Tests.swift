@@ -3,7 +3,8 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// #44: what a run command or `@py` prints goes in as printed, its first line's indentation too (a table's header over
+/// #44: what a run command or `@py` (since 0.7.5 a run command of the user's own, from Settings' examples:
+/// `CommandExamples.python`) prints goes in as printed, its first line's indentation too (a table's header over
 /// its columns, right-aligned numbers, an indented block); only the blank lines after it are dropped. The first line's
 /// leading spaces and tabs were trimmed with them, so the header of a pandas DataFrame no longer sat over its columns.
 /// Through `CommandRunner.run`, as the input method runs them (the result, the "all of it" candidate; a script
@@ -121,9 +122,9 @@ struct Issue44Tests {
         return path.split(separator: ":").map(String.init).first { CommandRunner.isInstalled("python3", path: $0) }
     }()
 
-    /// `code` through `@py`'s program, as the input method runs it.
+    /// `code` through `@py`'s program (the example's, as the user adds it), as the input method runs it.
     func python(_ code: String, in folder: String) async -> Result<String, Error> {
-        guard var definition = InlineCode.definition(for: .py) else { return .failure(CommandRunner.RunError.notFound("python3")) }
+        var definition = CommandExamples.python
         // A limit no busy test run reaches (`Timing`; a Python started for the first time on a runner takes seconds).
         definition.timeoutSeconds = Double(Timing.longSleep)
         return await run(definition, code, environment: ["PATH": folder, "HOME": NSHomeDirectory()])
@@ -147,7 +148,10 @@ struct Issue44Tests {
     @Test(.enabled(if: Issue44Tests.pythonFolder != nil)) func pythonsOutputGoesInIndented() async throws {
         let folder = try #require(Self.pythonFolder)
         await withInterfaceLanguage("en") {
-            let host = host(Settings(), environment: ["PATH": folder, "HOME": NSHomeDirectory()])
+            // `@py` as the user has it once added from Settings' examples.
+            let settings = Settings()
+            settings.config.customCommands = [CommandExamples.python]
+            let host = host(settings, environment: ["PATH": folder, "HOME": NSHomeDirectory()])
             #expect(run("py", #"print("  x\n  y")"#, in: host), "\(host.composer.phase)")
             #expect(host.composer.choices.contains { $0.text == "  x\n  y" }, "\(host.composer.choices.map(\.text))")
             host.press(FakeHost.enter)

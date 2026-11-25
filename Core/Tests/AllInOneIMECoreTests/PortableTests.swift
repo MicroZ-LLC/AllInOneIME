@@ -28,17 +28,6 @@ struct PortableTests {
         #expect(AIConfig.JSONValue(try JSONSerialization.jsonObject(with: Data("[1]".utf8))) != .array([.bool(true)]))
     }
 
-    @Test func chineseEncodingsAreFoundations() {
-        let hello = "你好"
-        #expect(String(data: Data([0xC4, 0xE3, 0xBA, 0xC3]), encoding: WebReader.gb18030) == hello)
-        #expect(String(data: Data([0xA7, 0x41, 0xA6, 0x6E]), encoding: WebReader.big5) == hello)
-        #if canImport(Darwin)
-        #expect(WebReader.gb18030.rawValue
-            == CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
-        #expect(WebReader.big5.rawValue == CFStringConvertEncodingToNSStringEncoding(CFStringEncoding(CFStringEncodings.big5.rawValue)))
-        #endif
-    }
-
     #if os(macOS)
     @Test func theMacsFoldersAreTheSameAsEver() {
         let home = FileManager.default.homeDirectoryForCurrentUser.path

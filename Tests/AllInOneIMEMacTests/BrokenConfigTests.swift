@@ -26,12 +26,12 @@ struct BrokenConfigTests {
         #expect(body.contains("services.settingsValid = { MainActor.assumeIsolated { LiveConfig.currentIfValid != nil } }"))
     }
 
-    /// What iCloud sync brought in, fuzzy pinyin, the characters or the way of typing pinyin (Shuangpin), is applied to
-    /// Rime from the file as it parses too.
+    /// What iCloud sync brought in, fuzzy pinyin, the characters, the way of typing pinyin (Shuangpin) or the shape codes,
+    /// is applied to Rime from the file as it parses too.
     @Test func syncsFuzzyPinyinGoesByTheFileAsItParses() throws {
         let body = try #require(InputMenuWritesTests.body(of: "applyLive", in: try InputMenuWritesTests.source("ICloudSyncController.swift")))
         let code = body.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        #expect(code.contains(#"if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters") || report.configKeys.contains("pinyinScheme"), let valid = LiveConfig.currentIfValid { RimeFuzzy.apply(valid.fuzzyPinyin, characters: valid.typedChinese, scheme: valid.typedPinyin) }"#))
+        #expect(code.contains(#"if report.configKeys.contains("fuzzyPinyin") || report.configKeys.contains("chineseCharacters") || report.configKeys.contains("pinyinScheme") || report.configKeys.contains("shapeCode"), let valid = LiveConfig.currentIfValid { RimeFuzzy.apply(valid.fuzzyPinyin, characters: valid.typedChinese, scheme: valid.typedPinyin, shapeCode: valid.typedShapeCode) }"#))
     }
 
     /// The characters following the system's languages (`RimeFuzzy.follow`, as a field is focused or the languages

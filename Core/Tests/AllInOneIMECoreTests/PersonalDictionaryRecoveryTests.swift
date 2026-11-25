@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import Foundation
 import Testing
 @testable import AllInOneIMECore
@@ -8,7 +9,7 @@ import Testing
 struct PersonalDictionaryRecoveryTests {
     struct Stop: Error {}
 
-    let root = FileManager.default.temporaryDirectory.appendingPathComponent("personal-dictionary-recovery-\(UUID().uuidString)")
+    let root = TestScratch.temporary("personal-dictionary-recovery-\(UUID().uuidString)")
     var user: URL { root.appendingPathComponent("Rime") }
     var schema: URL { root.appendingPathComponent("rime_ice.schema.yaml") }
     var folder: URL { user.appendingPathComponent("allinoneime_personal") }
