@@ -314,9 +314,9 @@ struct TranslateModeComposerTests {
         let enter = c.handleKeyDown(enterKey)
         let sent = request(enter.effects)
         #expect(enter.handled && sent?.input == "你好" && sent?.session == english && commits(enter).isEmpty)
-        #expect(c.markedText == "你好 · 翻译中…" && c.choices.isEmpty && !c.wantsPanel)
+        #expect(c.markedText == "你好" && c.choices.isEmpty && c.wantsPanel)  // the panel says it is translating (0.7.5)
         // Partial results don't go in.
-        #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "你好 · 翻译中…")
+        #expect(commits(c.receive(hello, isFinal: false, id: sent!.id)).isEmpty && c.markedText == "你好" && c.wantsPanel)
         let done = c.receive(hello, isFinal: true, id: sent!.id)
         #expect(commits(done) == ["Hello"] && c.phase == .idle && c.draft.isEmpty && c.markedText.isEmpty && c.choices.isEmpty)
         // Not sent: the next ⏎ is the app's.

@@ -591,14 +591,25 @@ struct TranslateModeAcceptanceTypingTests {
         #expect(TMAccRig.starts(enter.effects).map(\.input) == ["你好"])
         #expect(TMAccRig.starts(enter.effects).map(\.target) == [.english])
         #expect(rig.inserted.isEmpty, "nothing in the field until the translation is in")
-        // No list to choose from, while it comes or once it's in: the panel isn't shown.
-        #expect(!rig.c.wantsPanel)
-        #expect(!enter.effects.contains(.showPanel), "\(enter.effects)")
+        // While it comes the panel shows the wait, as other commands do: the chip, the draft, "Translating…", no rows.
+        #expect(rig.c.wantsPanel)
+        #expect(enter.effects.contains(.showPanel), "\(enter.effects)")
+        func waiting(_ language: String, says text: String) {
+            let model = PanelPresenter(config: .default, language: language).model(for: rig.c)
+            if case let .loading(status) = model.status {
+                #expect(status.contains(text), "\(language): \(status)")
+            } else {
+                Issue.record("\(language): not a loading status: \(model.status)")
+            }
+            #expect(model.rows.isEmpty, "\(language): no rows to choose from: \(model.rows.map(\.text))")
+        }
+        waiting("en", says: "Translating")
+        waiting("zh-Hans", says: "翻译中")
         let id = try #require(rig.lastStart?.id)
         let partial = rig.deliver("Hel", id: id, isFinal: false, complete: false)
         #expect(rig.inserted.isEmpty, "a partial translation isn't inserted")
-        #expect(!rig.c.wantsPanel)
-        #expect(!partial.contains(.showPanel), "\(partial)")
+        #expect(rig.c.wantsPanel)
+        waiting("en", says: "Translating")
         let done = rig.deliver("Hello", id: id)
         #expect(rig.inserted == ["Hello"], "\(rig.inserted)")
         #expect(!done.contains(.showPanel))
@@ -648,19 +659,24 @@ struct TranslateModeAcceptanceTypingTests {
         #expect(rig.c.choices.isEmpty)
     }
 
+    /// While it translates the panel's loading status says so (as other commands); the input line is just the draft.
     @Test func keys_translatingMarkerFollowsTheDraft() {
+        func loading(_ rig: TMAccRig, _ language: String) -> String? {
+            if case let .loading(text) = PanelPresenter(config: .default, language: language).model(for: rig.c).status { text } else { nil }
+        }
         let rig = drafted()
         #expect(!rig.c.markedText.contains("翻译中"))
         rig.key(enterKey)
-        #expect(rig.c.markedText.hasPrefix("你好"), "\(rig.c.markedText)")
-        #expect(rig.c.markedText.hasSuffix("· 翻译中…"), "\(rig.c.markedText)")
+        #expect(rig.c.markedText == "你好", "\(rig.c.markedText)")
+        #expect(loading(rig, "zh-Hans")?.contains("翻译中") == true, "\(String(describing: loading(rig, "zh-Hans")))")
         rig.deliver("Hello", id: rig.lastID)
-        #expect(!rig.c.markedText.contains("翻译中"))
+        #expect(rig.c.markedText.isEmpty, "\(rig.c.markedText)")
         // English UI.
         let english = drafted(messages: .english)
         english.key(enterKey)
-        #expect(english.c.markedText.hasPrefix("你好"), "\(english.c.markedText)")
-        #expect(english.c.markedText.hasSuffix("· Translating…"), "\(english.c.markedText)")
+        #expect(english.c.markedText == "你好", "\(english.c.markedText)")
+        #expect(!english.c.markedText.contains("Translating"))
+        #expect(loading(english, "en")?.contains("Translating") == true, "\(String(describing: loading(english, "en")))")
     }
 
     @Test func keys_shiftEnterInsertsTheDraftAsTyped() {

@@ -48,21 +48,20 @@ extension Composer {
         return TranslateMode.Chip(source: inputLanguage, target: session.target, choices: choices, chinese: chineseCharacters)
     }
 
-    /// The draft as marked in the field: any "@" full-width (an app may take "@…" for a mention), and while it's
-    /// translating, saying so. Which languages is the chip's to show (「中 → 英」), not the field's.
+    /// The draft as shown on the panel's input line: any "@" full-width (an app may take "@…" for a mention). While it's
+    /// translated the panel's status says so; which languages, the chip (「中 → 英」).
     var modeShownDraft: String? {
         guard inModeComposition else { return nil }
         let text = draft.replacingOccurrences(of: commandTrigger, with: hiddenTrigger).replacingOccurrences(of: "\n", with: Self.lineBreak)
-        return text + (modeTranslating ? " · " + translateModeMessages.translating : "")
+        return text
     }
 
     /// The candidate panel in the mode: never results to pick, but it shows the draft on its input line under the chip, as
-    /// nothing is marked in the field; the engine's candidates (and dictation) under it. Not while the draft is translated:
-    /// no list to choose from then (the mode's acceptance spec, TranslateModeAcceptanceTests).
+    /// nothing is marked in the field; the engine's candidates (and dictation) under it; while the draft is translated, that
+    /// it is ("Translating…", as other commands show their wait: `PanelPresenter`), no rows.
     var modeWantsPanel: Bool? {
         guard inModeComposition else { return nil }
-        if modeTranslating { return false }
-        if !draft.isEmpty || voice != .off { return true }
+        if modeTranslating || !draft.isEmpty || voice != .off { return true }
         return engineState.isComposing && !engineState.candidates.isEmpty
     }
 
@@ -121,7 +120,7 @@ extension Composer {
         result = .empty
         activeCommand = nil
         highlightOverride = nil
-        return effects + [.startTranslateMode(input: text, session: session, id: requestCounter), .updateMarkedText, .hidePanel]
+        return effects + [.startTranslateMode(input: text, session: session, id: requestCounter), .updateMarkedText, .showPanel]
     }
 
     /// ⇧⏎: the draft goes in as typed, not translated (pinyin still being typed picked first, as ⏎ does).
