@@ -229,7 +229,10 @@ STRINGS        := Resources/Localizable.xcstrings
 CORE_STRINGS   := $(CORE)/Resources/Localizable.xcstrings
 STRINGS_MERGED := $(BUILD_DIR)/Localizable.xcstrings
 STRINGS_BUILD  := $(BUILD_DIR)/strings
-STRINGS_TOOL   := swift package --allow-writing-to-package-directory strings
+# Outside SwiftPM's plugin sandbox: in it, the tool's first file lookup can wait for good on CoreServices when that daemon
+# is stuck (the Mac mini runner, 2026-11-24: `strings --check` hung in mac-test). The plugin is ours, reads the sources
+# and writes the catalogs, which `--allow-writing-to-package-directory` allowed anyway.
+STRINGS_TOOL   := swift package --disable-sandbox --allow-writing-to-package-directory strings
 
 $(STRINGS_BUILD): $(STRINGS) $(CORE_STRINGS)
 	rm -rf $@ && mkdir -p $@
@@ -238,11 +241,11 @@ $(STRINGS_BUILD): $(STRINGS) $(CORE_STRINGS)
 	touch $@
 
 strings:
-	swift package --package-path $(CORE) --allow-writing-to-package-directory strings
+	swift package --disable-sandbox --package-path $(CORE) --allow-writing-to-package-directory strings
 	$(STRINGS_TOOL)
 
 strings-check:
-	swift package --package-path $(CORE) --allow-writing-to-package-directory strings --check
+	swift package --disable-sandbox --package-path $(CORE) --allow-writing-to-package-directory strings --check
 	$(STRINGS_TOOL) --check
 
 # Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy

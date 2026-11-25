@@ -363,12 +363,9 @@ func scan(_ tokens: [Located], file: String) {
     }
 }
 
-/// The Swift files of every source folder, each as `shown` names it, and where it is. Walked by path (fts), not by URL:
-/// the URL walk asks CoreServices about the volume, and in SwiftPM's plugin sandbox that can wait for good when its
-/// daemon is stuck (the Mac mini runner, 2026-11-24, `strings --check` hung there).
+/// The Swift files of every source folder, each as `shown` names it, and where it is.
 let files = arguments.sources.flatMap { folder in
-    let root = url(folder)
-    return (FileManager.default.enumerator(atPath: root.path)?.compactMap { ($0 as? String).map { root.appendingPathComponent($0) } } ?? [])
+    (FileManager.default.enumerator(at: url(folder), includingPropertiesForKeys: nil)?.compactMap { $0 as? URL } ?? [])
         .filter { $0.pathExtension == "swift" && !$0.lastPathComponent.hasSuffix("SelfTest.swift") }
         .map { (shown($0), $0) }
 }.sorted { $0.0 < $1.0 }
