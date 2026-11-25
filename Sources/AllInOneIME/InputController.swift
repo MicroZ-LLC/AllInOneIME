@@ -83,10 +83,10 @@ final class AllInOneIMEInputController: IMKInputController {
     private var keyComposes = false
     /// Keeps the app a text field became active in, for Settings → Apps' "Add App…" (the self-test keeps none).
     var recordApp: (String) -> Void = { app in MainActor.assumeIsolated { RecentApps.record(app) } }
-    /// Opens an `@open` result: a web address in the default browser, anything else as a file (the self-test opens
-    /// nothing).
-    var openItem: (String) -> Void = {
-        NSWorkspace.shared.open(SearchResult(name: "", path: $0).webURL ?? URL(fileURLWithPath: $0))
+    /// Opens an `@open` result: a web address in the default browser, anything else as a file, or shown in Finder where
+    /// opening would run it (`FileOpenPolicy`; the self-test opens nothing).
+    var openItem: (String) -> Void = { path in
+        MainActor.assumeIsolated { FileOpenPolicy.open(path) }
     }
     /// Opens a background `@agent` task (Claude Code's) in Terminal.
     var openAgent: (String) -> Void = { id in MainActor.assumeIsolated { AgentMonitor.shared.open(id) } }

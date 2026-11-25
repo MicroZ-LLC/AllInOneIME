@@ -1664,13 +1664,18 @@ struct ComposerTests {
         _ = c.handleKeyDown(upKey)
         // Tab: the highlighted path replaces what was typed; a folder's ends in "/", which lists it.
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
-        #expect(c.draft == "@open /Users/me/Documents/" && c.currentLiveResults.isEmpty)
+        // The folder itself first, its entries below it as the search lists them.
+        #expect(c.draft == "@open /Users/me/Documents/" && c.currentLiveResults == [documents])
         _ = c.receiveLive([report], for: "/Users/me/Documents/")
-        // ⌘C copies the path and keeps everything; ⏎ (the action key) opens it.
+        #expect(c.currentLiveResults == [documents, report])
+        // ⌘C copies the highlighted path and keeps everything; ⏎ (the action key) opens it: the folder, as nothing moved.
         let copy = c.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command))
-        #expect(copy.effects.first == .copy(report.path) && copy.handled && c.draft == "@open /Users/me/Documents/")
+        #expect(copy.effects.first == .copy(documents.path) && copy.handled && c.draft == "@open /Users/me/Documents/")
+        _ = c.handleKeyDown(downKey)
+        #expect(c.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command)).effects.first == .copy(report.path))
+        _ = c.handleKeyDown(upKey)
         let open = c.handleKeyDown(enterKey)
-        #expect(open.effects.last == .open(path: report.path) && commits(open).isEmpty && c.phase == .idle)
+        #expect(open.effects.last == .open(path: documents.path) && commits(open).isEmpty && c.phase == .idle)
         #expect(!c.engineState.isAsciiMode)  // back to Chinese once @open is done
         // Esc on the way also brings Chinese back.
         let (d, _) = palette("o")

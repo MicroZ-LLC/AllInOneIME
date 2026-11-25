@@ -96,7 +96,8 @@ public enum FileSearch {
         return first.map { entry in
             let path = path(entry.name)
             return SearchResult(name: asked(path) ? FileManager.default.displayName(atPath: path) : entry.name, path: path,
-                                isFolder: entry.isFolder)
+                                isFolder: entry.isFolder,
+                                reveals: !entry.isFolder && FileOpenPolicy.action(for: URL(fileURLWithPath: path), readsMetadata: asked(path)) == .reveal)
         }
     }
 
@@ -192,8 +193,10 @@ public enum FileSearch {
     /// its bundle's English "Playground"); an app or place of the index under its Chinese name in a Chinese
     /// interface (`SearchResult.chineseName`).
     static func result(for path: String, matchedContent: Bool = false, app: AppIndex.App? = nil) -> SearchResult {
-        SearchResult(name: FileManager.default.displayName(atPath: path), path: path,
-                     isFolder: isFolder(path) && !path.hasSuffix(".app"), matchedContent: matchedContent, chineseName: app?.chinese)
+        let folder = isFolder(path)
+        return SearchResult(name: FileManager.default.displayName(atPath: path), path: path, isFolder: folder && !path.hasSuffix(".app"),
+                            matchedContent: matchedContent, chineseName: app?.chinese,
+                            reveals: !folder && FileOpenPolicy.action(for: URL(fileURLWithPath: path)) == .reveal)
     }
 
     static func isFolder(_ path: String) -> Bool {

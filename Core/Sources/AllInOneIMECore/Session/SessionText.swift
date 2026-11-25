@@ -22,17 +22,31 @@ public enum SessionText {
 
     /// An `@open` result's row, as you type and after ⏎: its name in the interface language (计算器 in a
     /// Chinese one), and where it is: 「应用」 (an app, as `terms` tells them), or its folder (a folder's ends in "/"),
-    /// after 「内容 · 」 when it was found by what is in it. A web address says it opens in the browser.
+    /// after 「内容 · 」 when it was found by what is in it, and that ⏎ shows it in the file manager where it does
+    /// (`SearchResult.reveals`). A web address says it opens in the browser. Names without control or bidi characters
+    /// (`CandidateParser.stripControls`): a file's name can't pass for another.
     public static func openRow(_ result: SearchResult, language: String,
                                terms: PlatformTerms = Platform.current.terms) -> (text: String, comment: String) {
         let t = InterfaceWords(language: language)
-        if result.webURL != nil { return (result.name, t.tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
+        func shown(_ text: String) -> String { CandidateParser.stripControls(text, removing: true) }
+        if result.webURL != nil { return (shown(result.name), t.tr("在浏览器中打开", "open in the browser", key: "openRow.inBrowser")) }
         let folder = abbreviatingHome((result.path as NSString).deletingLastPathComponent)
-        let place = terms.isApp(result.path) ? t.tr("应用", "app")
+        var place = terms.isApp(result.path) ? t.tr("应用", "app")
             : result.isFolder && !folder.hasSuffix("/") ? folder + "/" : folder
+        if result.reveals { place += " · " + revealWord(t, terms: terms) }
         // The Chinese name is the simplified one: Traditional Chinese has Finder's name, as the other languages.
-        return (InterfaceLanguage.isSimplifiedChinese(language) ? result.chineseName ?? result.name : result.name,
-                result.matchedContent ? t.tr("内容", "content") + " · " + place : place)
+        return (shown(InterfaceLanguage.isSimplifiedChinese(language) ? result.chineseName ?? result.name : result.name),
+                shown(result.matchedContent ? t.tr("内容", "content") + " · " + place : place))
+    }
+
+    /// What ⏎ does to a result: opens it, or shows it in the file manager (`SearchResult.reveals`).
+    static func openAction(_ result: SearchResult, _ t: InterfaceWords, terms: PlatformTerms) -> String {
+        result.reveals ? revealWord(t, terms: terms) : t.tr("打开", "open")
+    }
+
+    /// What ⏎ does to a result it shows in the file manager rather than opens (`SearchResult.reveals`).
+    static func revealWord(_ t: InterfaceWords, terms: PlatformTerms) -> String {
+        terms.device == .mac ? t.tr("在访达中显示", "Show in Finder") : t.tr("在文件资源管理器中显示", "Show in File Explorer")
     }
 
     /// `path` with the home folder written "~".
