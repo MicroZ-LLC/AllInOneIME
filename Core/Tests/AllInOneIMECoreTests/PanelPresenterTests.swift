@@ -60,7 +60,7 @@ struct PanelPresenterTests {
         #expect(model.rows.count <= Composer.oneAtRowsShown)
         #expect(model.rows.allSatisfy { !$0.text.hasPrefix("@") && $0.icon != nil })  // the name alone
         // One @: no label on the rows; ⌥digit is said once in the key hints (owner, 0.7.5).
-        #expect(model.rows.allSatisfy { $0.label.isEmpty })
+        #expect(model.rows.map(\.label) == model.rows.indices.map { String($0 + 1) })  // plain numbers; ⌥ in the hints
         let improve = try #require(model.rows.first { $0.text == "improve" })
         #expect(improve.icon == IconToken(.improve, color: .purple))
         #expect(improve.comment == "Polish in the same language, plus rewrites")
@@ -89,7 +89,7 @@ struct PanelPresenterTests {
             // clicked by its own index.
             try #require(!model.rows.isEmpty)
             #expect(!model.rows.contains { ["你好", "拟好"].contains($0.text) }, "\(model.rows.map(\.text))")
-            #expect(model.rows.allSatisfy(\.pickable) && model.rows.allSatisfy { $0.label.isEmpty })
+            #expect(model.rows.allSatisfy(\.pickable) && model.rows.map(\.label) == model.rows.indices.map { String($0 + 1) })
             #expect(model.highlighted == 0 && model.rows.map(\.choice) == model.rows.indices.map { Optional($0) })
         }
         #expect(en.model(for: c).footer == "Space picks a word · ⏎ do the highlighted row · ↑↓ choose")
@@ -382,26 +382,26 @@ struct PanelPresenterTests {
         let model = en.model(for: c)
         let handoff = try #require(model.handoff)
         #expect(handoff.title == "2 rounds in: continue in Claude or another AI")
-        #expect(handoff.choices.allSatisfy { $0.shortcut.isEmpty })  // ⌥digit said in the footer only (owner, 0.7.5)
+        #expect(handoff.choices.map(\.shortcut) == ["1", "2", "3", "4", "5"])  // ⌥ said in the footer (owner, 0.7.5)
         #expect(handoff.choices.map(\.name) == ["Claude Code", "Claude", "ChatGPT", "Gemini", "Copy"])
         #expect(model.input == nil, "nothing typed to take along")
-        #expect(model.footer == "⌥1–⌥5 continue · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
+        #expect(model.footer == "⌥+number continue · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
         // What is typed goes along: its line under the choices.
         for ch in "and" { _ = c.handleKeyDown(k(String(ch))) }
         let typed = en.model(for: c)
         #expect(typed.input == PanelModel.Input(prompt: "then › ", text: "and", caret: 3))
-        #expect(typed.footer == "⌥1–⌥5 continue, with what you typed · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
+        #expect(typed.footer == "⌥+number continue, with what you typed · ⇧⏎ insert · 1–2 pick · ⌘C copy · Esc close")
         // On Windows, picked with Ctrl.
         let onWindows = windows(c)
-        #expect(onWindows.handoff?.choices.allSatisfy { $0.shortcut.isEmpty } == true)
-        #expect(onWindows.footer == "Alt+1–5 continue, with what you typed · Shift+Enter insert · 1–2 pick · Ctrl+C copy · Esc close")
+        #expect(onWindows.handoff?.choices.map(\.shortcut) == ["1", "2", "3", "4", "5"])
+        #expect(onWindows.footer == "Alt+number continue, with what you typed · Shift+Enter insert · 1–2 pick · Ctrl+C copy · Esc close")
         // Before the last round, ⌘⏎ shows them.
         let early = conversation(handoff: [.copy])
         #expect(en.model(for: early).handoff == nil)
         _ = early.handleKeyDown(commandReturn)
         #expect(en.model(for: early).handoff == PanelModel.Handoff(title: "Continue in Claude or another AI",
-                                                                   choices: [.init(shortcut: "", name: "Copy")]))
-        #expect(en.model(for: early).footer.hasPrefix("⌥1 continue · "))
+                                                                   choices: [.init(shortcut: "1", name: "Copy")]))
+        #expect(en.model(for: early).footer.hasPrefix("⌥+number continue · "))
     }
 
     /// An answer whose placeholder the model changed past telling is marked on its row; the detail says what was hidden.

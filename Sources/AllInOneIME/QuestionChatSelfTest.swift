@@ -149,11 +149,11 @@ extension SelfTest {
         guard followUp("why is it safe") else { return }
         panel = controller.panelModel()
         let choices = controller.composer.handoffChoices
-        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\nClaude Code")
-              && panel.footer.hasPrefix("⌥1–⌥\(choices.count) 接着聊"),
+        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n1 Claude Code")
+              && panel.footer.hasPrefix("⌥+数字 接着聊"),
               "after round 3: where to go on (\(panel.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
         check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && panel.handoff?.choices.map(\.name).prefix(2) == ["Claude Code", "Gemini CLI"]
-              && panel.handoff?.choices.allSatisfy { $0.shortcut.isEmpty } == true,  // ⌥digit in the footer only (0.7.5)
+              && panel.handoff?.choices.map(\.shortcut) == choices.indices.map { String($0 + 1) },  // numbers, ⌥ in the footer (0.7.5)
               "the agent @agent hands to first, then the other agents installed, then the web and Copy (\(choices.map(\.rawValue)))")
         _ = pump(timeout: 3) { controller.panelModel().detail == nil }  // the image without round 2's "copied"
         readmeSnapshot("question-chat-handoff", controller, client, in: snapshotDirectory)
@@ -197,7 +197,7 @@ extension SelfTest {
         let six = controller.panelModel()
         _ = press(controller, client, "£", code: 0x14, flags: .option)  // ⌥3
         check(controller.composer.handoffChoices.count == 6 && six.handoff?.choices.map(\.name).prefix(2) == ["echo", "Claude Code"]
-              && six.handoff?.choices.last?.name == "复制" && six.footer.hasPrefix("⌥1–⌥6 接着聊") && agentArguments.last == ["gemini", "-i"],
+              && six.handoff?.choices.last?.name == "复制" && six.footer.hasPrefix("⌥+数字 接着聊") && agentArguments.last == ["gemini", "-i"],
               "another agent picked: ⌥1 is it, the others after it, ⌥3 starts Gemini CLI as `gemini -i` "
               + "(\(six.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(six.footer) | \(agentArguments.last ?? []))")
         recall()

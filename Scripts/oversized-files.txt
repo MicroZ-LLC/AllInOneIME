@@ -24,7 +24,7 @@
 478 Core/Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift
 796 Core/Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift
 1464 Core/Sources/AllInOneIMECore/Session/InputSession.swift
-635 Core/Sources/AllInOneIMECore/Session/PanelPresenter.swift
+634 Core/Sources/AllInOneIMECore/Session/PanelPresenter.swift
 535 Core/Sources/AllInOneIMECore/Session/SessionTasks.swift
 716 Core/Sources/AllInOneIMECore/Settings/SettingsSchema.swift
 699 Core/Sources/AllInOneIMECore/Settings/SettingsService.swift

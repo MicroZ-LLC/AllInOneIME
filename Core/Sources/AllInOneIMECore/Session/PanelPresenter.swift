@@ -519,11 +519,10 @@ public struct PanelPresenter {
     // MARK: - One @
 
     /// The one @ list (`Composer.oneAtRows`): each row says what ⏎ does, its command's name dimmed on the right (a command
-    /// found by name: the name, and what it does); the first highlighted, ↑↓ move. ⌥digit picks a row by its place
-    /// (`Composer.handleNumberedPick`), not shown on it (owner, 0.7.5).
+    /// found by name: the name, and what it does), each its number (`numbered`); the first highlighted, ↑↓ move.
     private func oneAtPanel(_ composer: Composer, into model: inout PanelModel) {
         let all = composer.oneAtRows, first = composer.oneAtFirstVisible
-        model.rows = composer.oneAtVisible.map { oneAtRow($0, composer) }
+        model.rows = numbered(composer.oneAtVisible.map { oneAtRow($0, composer) })
         model.highlighted = all.isEmpty ? nil : composer.oneAtHighlighted - first
         if all.count > Composer.oneAtRowsShown { model.detail = "\(first + 1)–\(first + model.rows.count) / \(all.count)" }
         let enter = terms.enter, lone = composer.draft == composer.commandTrigger && !composer.engineState.isComposing
@@ -556,8 +555,8 @@ public struct PanelPresenter {
             model.hints = [PanelModel.Hint(enter, words.openStats), PanelModel.Hint(copy, words.copyImageHint),
                            PanelModel.Hint("Esc", words.cancel)]
         }
-        // ⌥1 … picks a row by its place: said once in the keys at the bottom, not on each row (owner, 0.7.5).
-        if !model.rows.isEmpty { model.hints.append(PanelModel.Hint(terms.picks(model.rows.count), t.tr("直接选", "pick", key: "oneAt.pickByPlace"))) }
+        // ⌥ and a row's number picks it: said once in the keys at the bottom (owner, 0.7.5).
+        if !model.rows.isEmpty { model.hints.append(PanelModel.Hint(pickByNumber, t.tr("直接选", "pick", key: "oneAt.pickByPlace"))) }
     }
 
     /// A row of the one @ list: what ⏎ does, in the interface language, and the command's name with the magic key.
@@ -694,11 +693,11 @@ public struct PanelPresenter {
             let title = composer.chatAtLimit
                 ? t.tr("已经聊了 \(composer.chatRound) 轮：在 Claude 或别的 AI 里接着聊", "\(composer.chatRound) rounds in: continue in Claude or another AI")
                 : t.tr("在 Claude 或别的 AI 里接着聊", "Continue in Claude or another AI")
-            // ⌥digit picks one by its place, said in the footer, not on each (owner, 0.7.5).
-            model.handoff = PanelModel.Handoff(title: title, choices: composer.handoffChoices.map {
+            // Each its number, ⌥ and it picks it, said in the footer (owner, 0.7.5).
+            model.handoff = PanelModel.Handoff(title: title, choices: numbered(composer.handoffChoices.map {
                 PanelModel.Handoff.Choice(shortcut: "", name: SessionText.shortName($0, picked: agent, custom: agentCommand,
                                                                       session: composer.questionSessionAgent, language: language))
-            })
+            }))
             model.input = composer.refineLine.map { PanelModel.Input(prompt: t.tr("接着说 › ", "then › "), text: $0, caret: $0.count) }
         } else if composer.typesRefine, composer.questionSession {
             // The Claude session: no last round.
@@ -713,7 +712,6 @@ public struct PanelPresenter {
         model.header = [SessionText.selectionHeader(composer, language: language)].compactMap { $0 } + SessionText.followUpHeader(composer, language: language)
         if let error = composer.refineError { model.status = .error(error) }
         if answering, rounds.last?.answer.isEmpty ?? true { model.status = .loading(t.tr("AI 回答中…", "Answering…")) }
-        let count = composer.handoffChoices.count
         let copy = terms.copy, again = terms.again, enter = terms.enter, shiftEnter = terms.shiftEnter
         // The digits that pick an answer: up to the round limit (none with a question session), 9 at most (no digit after it).
         let pick = "1–\(composer.questionSession ? 9 : min(QuestionChat.rounds(composer.questionRounds), 9))"
@@ -725,7 +723,7 @@ public struct PanelPresenter {
         } else if answering {
             model.footer = t.tr("回答中… · 可以接着打下一个问题 · Esc 关闭", "Answering… · type the next question meanwhile · Esc close")
         } else if composer.showsHandoff {
-            model.footer = terms.picks(count) + " " + t.tr("接着聊", "continue")
+            model.footer = pickByNumber + " " + t.tr("接着聊", "continue")
                 + (composer.refineLine == nil ? "" : t.tr("，打的字一起带过去", ", with what you typed"))
                 + footers.handoff
         } else if composer.showsSavedAnswer, composer.refineLine == nil {
