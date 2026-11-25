@@ -855,19 +855,23 @@ struct AIConfigTests {
         var changed = fresh
         changed.typeOut = true
         let saved = changed  // a constant: the save below runs on another thread
-        // The learner holds the lock (its write does): Settings' save starts meanwhile, on another thread, and has looked
-        // for the file by the time the learner makes it, if it looks without the lock.
+        // The learner holds the lock (its write does): Settings' save starts meanwhile, on a thread of its own (not the
+        // shared pool, which the waits of the tests alongside can keep it from for longer than this test waits), and
+        // has looked for the file by the time the learner makes it, if it looks without the lock.
         AIConfig.fileLock.lock()
-        let done = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async { [saved] in
+        let started = DispatchSemaphore(value: 0), done = DispatchSemaphore(value: 0)
+        Thread { [saved] in
+            started.signal()
             try? AIConfig.writing(saved, from: fresh, keys: AIConfig.changedKeys(fresh, saved), at: url)
             done.signal()
-        }
+        }.start()
+        #expect(started.wait(timeout: .now() + 60) == .success)
         Thread.sleep(forTimeInterval: 0.2)
         #expect(!FileManager.default.fileExists(atPath: url.path), "the save waits for the lock")
         try EnglishWords.learn("frobnicate", at: url)
         AIConfig.fileLock.unlock()
-        #expect(done.wait(timeout: .now() + 10) == .success)
+        // Done at once once the lock is let go; the bound is a deadlock's only.
+        #expect(done.wait(timeout: .now() + 60) == .success)
         let file = try Config.load(from: url)
         #expect(file.englishWords == ["frobnicate"] && file.typeOut, "\(file.englishWords) \(file.typeOut)")
 
