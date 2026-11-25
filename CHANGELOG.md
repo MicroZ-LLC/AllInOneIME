@@ -9,7 +9,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 - Settings → AI → **MCP Servers** (with Claude Code, Codex or Kiro CLI as the AI): the MCP servers in that CLI's own config are listed, none checked at first. Check one and the AI chat may use its read-only tools (search, read), never one that sends, writes or changes anything; only checked servers start, and a question with text you didn't type gets none. Saved as `sessionMCP` in the config, this Mac's own.
 
 - A question about a screenshot: ⌃V in `@question`, after one @'s text (Ask AI goes first) or while typing a follow-up attaches it, and the image itself (made smaller) goes with its text to an AI that can see images (the Claude API, Gemini, OpenAI, Bedrock's Claude and Nova, Claude Code, Codex, Antigravity, Kiro CLI); others get its text as before. A screenshot without text can be asked about when the AI sees images.
-- Each row of the list after the magic key has its number key: ⌥1 does the first row shown, ⌥2 the second, and so on (as a click on the row, or ⏎ on it), with the key on the row. It goes by the key, whatever your keyboard layout types with ⌥ (¡, ™ …), and only while the list is up: elsewhere ⌥ and a digit type as before. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌥1 is the top row shown. On Windows, Alt+1 ….
+- Each row of the list after the magic key is numbered (1, 2 …), and ⌥ with the number does it: ⌥1 the first row shown, ⌥2 the second, and so on (as a click on the row, or ⏎ on it); the key hints at the bottom say it once ("⌥+number pick"), and the numbers go with Show key hints. It goes by the key, whatever your keyboard layout types with ⌥ (¡, ™ …), and only while the list is up: elsewhere ⌥ and a digit type as before. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌥1 is the top row shown. On Windows, Alt+1 ….
 - Settings → More Settings → Interface and sync → **Show key hints**: turn it off and the candidate box leaves out the keys explained at its bottom (⏎ inserts, Esc cancels…) and "Space picks a word" after the pinyin line, a smaller box once you know them. What is going on ("… is writing"), the page and the time a result took still show, and so do the rows' own keys. On by default; `"keyHints": false` in the config, synced through iCloud with the other settings.
 
 - Shape codes (辅助码) for pinyin: in Settings → Common, under Shape codes (below Characters), pick Moqi (墨奇码),
@@ -28,7 +28,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - Settings opens on **Common**, with the settings most people need: the input languages, Chinese typing and Characters, Switch input language, the candidate layout, the magic key, Translate to, Clipboard history and Autocomplete, and at the top a field to say what to change (⏎ asks the AI, as the search's Change: … does). The rest is in **More Settings**, in five groups, each a short page of its own with a back button: Input and keys (fuzzy pinyin, personal dictionaries, removed candidates, your English words, Code, the action key), Suggestions, Privacy, Interface and sync (Show in Menu Bar, the interface language, Show key hints, Sync through iCloud) and Advanced. The sidebar is Common, AI, This Week, Commands, More Settings and About; General and Input are gone. Every setting works and is saved as before, the search finds each where it is now, and the texts that named a page name the new one.
 
-- Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). ⌘⏎ still shows the choices.
+- Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). The choices are numbered (1, 2 …) and the footer says "⌥+number continue". ⌘⏎ still shows the choices.
 
 - What you're typing (pinyin, a command such as `@improve …` or `@question …`, an `@note`, Code's word) shows only on the top line of the candidate box, with its cursor, in every app, as Squirrel's `inline_preedit: false` does; nothing is shown in the text field until you pick, insert or run it. The candidate box sits at the cursor.
 
@@ -45,10 +45,6 @@ English | [中文](CHANGELOG.zh-CN.md)
 - `@py` is no longer built in. To keep it, add it in Settings → Commands → Your Commands → Add Command… → Start from an Example → `@py`: your own command, working as before (inside other commands' text too, not offered without `python3`); an error shows Python's last line, without "(line N)". Until then `@py` is text, and your own command may be named `py`. In your own run commands' text, "@" no longer opens the command list: nothing in it ran anyway.
 - AllInOneIME Cloud gives 200 free requests a day (was 20); the installer and Settings → AI say so.
 - The website's privacy policy now says, as the README does, that Autocomplete (off by default) sends the text around the caret at a pause, and that Settings sends what you type into the search's Change: … or Troubleshoot's question; the site's home page says 200 free requests a day.
-
-- The list after the magic key numbers its rows plainly (1, 2 …), and so do the places a conversation can go on: ⌥ and
-  the number picks one, as before, and the key hints at the bottom say it once ("⌥+number pick", "⌥+number continue")
-  instead of "⌥1", "⌥2" … on every row. The numbers and that hint go with Show key hints. On Windows, Alt.
 
 ### Fixed
 
