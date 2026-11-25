@@ -20,4 +20,11 @@ extension PanelPresenter {
                 t.tr("\(enter) 追问 · \(shiftEnter) 上屏 · \(pick) 选 · \(copy) 复制 · Esc 返回",
                      "\(enter) ask · \(shiftEnter) insert · \(pick) pick · \(copy) copy · Esc back"))
     }
+
+    /// Translate as You Type's draft being translated: the keys that work then (`Composer.handleModeTranslatingKey`), no
+    /// original to pick: ⇧⏎ inserts the draft as typed, Esc stops it with the draft kept.
+    var modeTranslatingFooter: String {
+        let shiftEnter = terms.shiftEnter
+        return t.tr("翻译中… · \(shiftEnter) 原样上屏 · Esc 停止，草稿保留", "Translating… · \(shiftEnter) insert as typed · Esc stop, draft kept")
+    }
 }

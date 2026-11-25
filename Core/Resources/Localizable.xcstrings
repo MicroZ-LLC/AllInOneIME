@@ -59320,6 +59320,53 @@
         }
       }
     },
+    "Translating… · %@ insert as typed · Esc stop, draft kept" : {
+      "comment" : "翻译中… · %@ 原样上屏 · Esc 停止，草稿保留",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Übersetzt… · %@ wie getippt einfügen · Esc stoppen, Entwurf bleibt"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduciendo… · %@ insertar tal cual · Esc detener, el borrador se conserva"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduction… · %@ insérer tel quel · Esc arrêter, le brouillon reste"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻訳中… · %@ そのまま入力 · Esc 停止（下書きは残る）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "번역 중… · %@ 입력한 대로 넣기 · Esc 중지, 초안 유지"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Traduzindo… · %@ inserir como digitado · Esc parar, o rascunho fica"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯中… · %@ 原樣上屏 · Esc 停止，草稿保留"
+          }
+        }
+      }
+    },
     "Translation languages" : {
       "comment" : "翻译语言",
       "localizations" : {
