@@ -195,8 +195,8 @@ extension SelfTest {
         check(controller.preedit == "你好" && client.inserted.isEmpty, "the words picked collect into the draft: '\(controller.preedit)'")
         model.delay = 0.3
         _ = enter(controller, client)
-        check(controller.preedit == "你好 · \(translating)" && controller.panelModel().rows.isEmpty,
-              "⏎: '\(controller.preedit)', no candidates")
+        check(controller.preedit == "你好" && controller.panelModel().rows.isEmpty && controller.panelModel().status == .loading("AI " + translating),
+              "⏎: the panel says it is translating (\(controller.panelModel().status)), no candidates")
         let inserted = pump(timeout: 5) { client.inserted.last == "Hello" }
         check(inserted && controller.preedit.isEmpty && !controller.composer.isComposing, "…and the translation goes in at once (\(client.inserted))")
         check(!enter(controller, client), "…not sent: the next ⏎ is the app's")

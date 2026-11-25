@@ -437,11 +437,13 @@ extension Composer {
         parkedForSelection = nil
         parkedOnRow = nil
         guard draft.hasPrefix(commandTrigger) else { return [] }
+        // A selection: the list is for it, worked out again. Nothing selected: the list as it is, the highlight on the row
+        // ↑↓ moved it to meanwhile.
         if let selected, !selected.text.isEmpty {
             selection = selected
             selectionFits = selected.text.count <= Self.maxSelectionLength
+            oneAtCache = nil
         }
-        oneAtCache = nil
         let effects = forField([.updateMarkedText, .showPanel])
         switch parked {
         case let .key(event)?:

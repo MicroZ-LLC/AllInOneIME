@@ -29,12 +29,15 @@ struct TranslateModeDraftPanelTests {
         #expect(model.chip != nil && model.rows.isEmpty)
     }
 
-    /// ⏎: no list to choose from while it comes, the panel not shown (TranslateModeAcceptanceTests' spec).
-    @Test func whileItTranslatesNoPanel() {
+    /// ⏎: while it comes the panel says so, the draft on its input line under the chip, no rows (owner, 0.7.5).
+    @Test func whileItTranslatesThePanelSaysSo() {
         let c = composer()
         type("nihao", c)
         _ = c.handleKeyDown(spaceKey)
         _ = c.handleKeyDown(enterKey)
-        #expect(c.markedText == "你好 · 翻译中…" && !c.wantsPanel)
+        #expect(c.markedText == "你好" && c.wantsPanel)
+        let model = presenter.model(for: c)
+        #expect(model.input?.text == "你好" && model.chip != nil && model.rows.isEmpty)
+        if case let .loading(text) = model.status { #expect(text.contains("Translating")) } else { Issue.record("\(model.status)") }
     }
 }
