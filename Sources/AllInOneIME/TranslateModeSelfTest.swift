@@ -118,7 +118,6 @@ extension SelfTest {
         controller.activateServer(client)
         controller.composer.setInputMode(.chinese)
         client.inserted.removeAll()
-        let translating = tr("翻译中…", "Translating…", key: "translateMode.translating")
         func shift(_ down: Bool) {
             _ = controller.handle(event("", code: VirtualKey.leftShift, flags: down ? .shift : [], type: .flagsChanged), client: client)
         }
@@ -195,7 +194,7 @@ extension SelfTest {
         check(controller.preedit == "你好" && client.inserted.isEmpty, "the words picked collect into the draft: '\(controller.preedit)'")
         model.delay = 0.3
         _ = enter(controller, client)
-        check(controller.preedit == "你好" && controller.panelModel().rows.isEmpty && controller.panelModel().status == .loading("AI " + translating),
+        check(controller.preedit == "你好" && controller.panelModel().rows.isEmpty && controller.panelModel().status == .loading(tr("AI 翻译中…", "Translating…")),
               "⏎: the panel says it is translating (\(controller.panelModel().status)), no candidates")
         let inserted = pump(timeout: 5) { client.inserted.last == "Hello" }
         check(inserted && controller.preedit.isEmpty && !controller.composer.isComposing, "…and the translation goes in at once (\(client.inserted))")
