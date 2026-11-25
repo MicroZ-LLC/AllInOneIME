@@ -78,7 +78,12 @@ public struct HostCallRecording: Sendable {
         } else {
             fields["key"] = .name(key.key.name)
             fields["code"] = .int(Int(key.keyCode))
-            if shortcut, key.key == .character { fields["chars"] = .name(key.charactersIgnoringModifiers) }
+            // A shortcut's one ASCII character ("v" of ⌘V) by name; anything longer (a layout's or a made-up event's) as text.
+            if shortcut, key.key == .character {
+                let chars = key.charactersIgnoringModifiers
+                let plain = chars.unicodeScalars.count == 1 && chars.unicodeScalars.allSatisfy(\.isASCII)
+                fields["chars"] = plain ? .name(chars) : .text(chars)
+            }
         }
         return fields
     }

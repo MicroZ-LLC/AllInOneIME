@@ -50,6 +50,11 @@ struct HostCallRecordingTests {
         let capital = KeyEvent(keyCode: 0x00, characters: "A", modifiers: [.shift, .leftShift])
         let shifted = try #require(HostCallRecording.parse(redacted.event("keyDown", at: 0, redacted.key(capital))))
         #expect(shifted.string("key") == "text" && shifted.string("mods") == "shift" && shifted.string("chars") == nil)
+        // A shortcut with more than one character (a layout's, a made-up event's): its length, never the text.
+        let odd = KeyEvent(keyCode: 0x09, characters: "pin", charactersIgnoringModifiers: "pin", modifiers: .control)
+        let oddLine = redacted.event("keyDown", at: 0, redacted.key(odd))
+        let oddRead = try #require(HostCallRecording.parse(oddLine))
+        #expect(oddRead.string("chars") == nil && oddRead.length("chars") == 3 && !oddLine.contains("pin"), "\(oddLine)")
     }
 
     @Test func rectsPointsAndNamesAsTold() throws {

@@ -52,9 +52,9 @@ struct QuestionSessionCompactionTests {
         process.started()
         process.say(["type": "system", "subtype": "status", "status": "compacting"])
         let update = try await task.value
-        // Not the first-answer timeout's ten minutes (its note would be another, below); how soon is the machine's (more
-        // than 10 s with two full core suites on the Mac mini).
-        #expect(ContinuousClock.now - started < .seconds(300))
+        // Well inside the first-answer timeout's ten minutes (its note would be another, below); not 10 s: more than that
+        // with two full core suites on the Mac mini.
+        #expect(ContinuousClock.now - started < .seconds(60))
         #expect(update?.result.versions.first?.text == "From the provider.")
         let note = try #require(update?.note)
         #expect(note == ClaudeSessionError.compacting.fallbackNote(for: .claude), "\(note)")
