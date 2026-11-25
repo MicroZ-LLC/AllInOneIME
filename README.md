@@ -1655,8 +1655,7 @@ host tests (`Core/Tests/HostScenarios`): start the input method with `ALLINONEIM
 ALLINONEIME_IMK_RECORD 1`, then `killall AllInOneIME`; `launchctl unsetenv` and the same to stop), and every call it makes
 of the field (IMK's), with the field's answer and the key it came in, goes to
 `~/Library/Logs/AllInOneIME/imk-recording.jsonl` (or the absolute path given instead of `1`), one JSON object a line,
-until the file is 50 MB. What you type isn't in it, only its length; `ALLINONEIME_IMK_RECORD_TEXT=1` keeps the text
-too, for a recording of test text only. It stays on this Mac, and no setting turns it on.
+until the file is 50 MB. What you type is never in it, only its length. It stays on this Mac, and no setting turns it on.
 
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
 from the String Catalogs, `Core/Resources/Localizable.xcstrings` for the core's text and `Resources/Localizable.xcstrings`

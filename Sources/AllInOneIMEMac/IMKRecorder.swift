@@ -11,16 +11,15 @@ import os
 /// Off unless the input method's process starts with `ALLINONEIME_IMK_RECORD` set: an absolute path to write to, or
 /// `1` for ~/Library/Logs/AllInOneIME/imk-recording.jsonl (a developer's, e.g. `launchctl setenv ALLINONEIME_IMK_RECORD 1`
 /// and the input method started again: `killall AllInOneIME`). No setting turns it on. Off, it does nothing at all: the
-/// controller's client is IMK's own. Typed text is never written unless `ALLINONEIME_IMK_RECORD_TEXT=1` is set too: what
-/// a field holds or is given is recorded as its length, a key that types as "text" and its length (`HostCallRecording`).
+/// controller's client is IMK's own. Typed text is never written (AGENTS.md rule 4, nothing typed is logged): what a field
+/// holds or is given is recorded as its length, a key that types as "text" and its length (`HostCallRecording`).
 /// The file is written off the main thread, appended to, and left alone once it is `maxBytes` long.
 public final class IMKRecorder: @unchecked Sendable {
     /// The input method's: as its process was started.
     public static let shared = IMKRecorder(environment: ProcessInfo.processInfo.environment)
 
-    /// The variables that turn it on, and that keep the typed text in what it writes.
+    /// The variable that turns it on.
     public static let switchVariable = "ALLINONEIME_IMK_RECORD"
-    public static let textVariable = "ALLINONEIME_IMK_RECORD_TEXT"
     /// Where `1` writes.
     public static var defaultFile: URL {
         FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/AllInOneIME/imk-recording.jsonl")
@@ -43,7 +42,7 @@ public final class IMKRecorder: @unchecked Sendable {
     public init(environment: [String: String], sink: ((String) -> Void)? = nil) {
         let value = environment[Self.switchVariable] ?? ""
         isOn = !value.isEmpty && value != "0"
-        format = HostCallRecording(keepsText: environment[Self.textVariable] == "1")
+        format = HostCallRecording(keepsText: false)
         guard isOn else {
             (file, self.sink) = (nil, { _ in })
             return
@@ -54,7 +53,7 @@ public final class IMKRecorder: @unchecked Sendable {
             let file = value.hasPrefix("/") ? URL(fileURLWithPath: value) : Self.defaultFile
             self.file = file
             self.sink = Self.appending(to: file)
-            fieldLog.notice("IMK calls recorded to \(file.path, privacy: .public) (typed text: \(self.format.keepsText ? "kept" : "lengths only", privacy: .public))")
+            fieldLog.notice("IMK calls recorded to \(file.path, privacy: .public) (lengths only, no typed text)")
         }
         self.sink(format.header())
     }

@@ -59,14 +59,15 @@ struct IMKRecorderTests {
         #expect(calls.first { $0.name == "selectedRange" }?.range("answer") == 9..<9)
     }
 
-    /// With the text variable set too, the text is kept: a session to turn into a scenario by hand.
-    @Test func textOnlyWhenAskedFor() throws {
-        let (recorder, lines) = recorder([IMKRecorder.switchVariable: "/dev/null", IMKRecorder.textVariable: "1"])
+    /// No variable keeps the text: a field's answer is its length, whatever else is set (rule 4).
+    @Test func neverTheText() throws {
+        let (recorder, lines) = recorder([IMKRecorder.switchVariable: "/dev/null", "ALLINONEIME_IMK_RECORD_TEXT": "1"])
         let client = try field(.nstextview, "Hi Bob|")
         let recording = try #require(recorder.recording(client))
         _ = recording.attributedSubstring(from: NSRange(location: 0, length: 2))
         let call = try #require(lines.all.compactMap(HostCallRecording.parse).first { $0.name == "attributedSubstring" })
-        #expect(call.string("answer") == "Hi")
+        #expect(call.string("answer") == nil && call.length("answer") == 2)
+        #expect(!lines.all.contains { $0.contains("Hi") })
     }
 
     /// A key down is recorded by kind and length, then whether it was taken; a named key by name.

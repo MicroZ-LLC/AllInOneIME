@@ -1257,8 +1257,8 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 真实 App 的文本框怎么回答输入法可以录下来，再做成宿主测试（`Core/Tests/HostScenarios`）的宿主配置或场景：启动输入法时设好
 `ALLINONEIME_IMK_RECORD`（`launchctl setenv ALLINONEIME_IMK_RECORD 1`，然后 `killall AllInOneIME`；停止就 `launchctl
 unsetenv` 再同样重启），它对文本框的每次调用（IMK 的）、文本框的回答和当时的按键都写进
-`~/Library/Logs/AllInOneIME/imk-recording.jsonl`（或用绝对路径代替 `1`），每行一个 JSON 对象，到 50 MB 为止。你打的字不在里面，
-只有长度；设 `ALLINONEIME_IMK_RECORD_TEXT=1` 才连文字一起记，只用于录测试文字。录下的只留在这台 Mac 上，也没有设置能打开它。
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl`（或用绝对路径代替 `1`），每行一个 JSON 对象，到 50 MB 为止。你打的字不会在里面，
+只有长度。录下的只留在这台 Mac 上，也没有设置能打开它。
 
 界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog：核心的文字在
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的
