@@ -1650,6 +1650,14 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 
 `make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, anything typed while secure input is on (a password field), Apple Intelligence's checks where the on-device model isn't available, and the Electron harness's without `ELECTRON_HARNESS`; a locked screen ends the self-test at once. The summary counts passed, failed and skipped checks, with why each was skipped, and the exit status says how the run went: 0 (PASSED) when every check ran and passed, 1 (FAILED) when one failed, 2 when none failed but some were skipped or couldn't run (INCOMPLETE, or SKIPPED when nothing that types ran; BLOCKED: the real-app test started on a locked screen). 2 isn't a pass: `make selftest` and `make realtest` fail on it too. The self-test's `--…-only` subsets exit the same way, and its last line says the same for scripts: `SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`.
 
+How a real app's field answers the input method can be recorded, to turn into a host profile or a scenario for the
+host tests (`Core/Tests/HostScenarios`): start the input method with `ALLINONEIME_IMK_RECORD` set (`launchctl setenv
+ALLINONEIME_IMK_RECORD 1`, then `killall AllInOneIME`; `launchctl unsetenv` and the same to stop), and every call it makes
+of the field (IMK's), with the field's answer and the key it came in, goes to
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl` (or the absolute path given instead of `1`), one JSON object a line,
+until the file is 50 MB. What you type isn't in it, only its length; `ALLINONEIME_IMK_RECORD_TEXT=1` keeps the text
+too, for a recording of test text only. It stays on this Mac, and no setting turns it on.
+
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
 from the String Catalogs, `Core/Resources/Localizable.xcstrings` for the core's text and `Resources/Localizable.xcstrings`
 for the app's own (merged and compiled into each app by the Makefile with Xcode's `xcstringstool`), keyed by the

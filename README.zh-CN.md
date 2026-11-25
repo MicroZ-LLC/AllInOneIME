@@ -1254,6 +1254,12 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 
 `make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，安全输入开着时（正在输密码）要打字的检查，本机端侧模型用不了时 Apple Intelligence 的检查，以及没给 `ELECTRON_HARNESS` 时 Electron 测试窗口的检查；屏幕锁着时自测立刻结束。结尾列出通过、失败和跳过的数目和每类跳过的原因，退出码说明结果：0（PASSED）所有检查都跑了而且都通过；1（FAILED）有检查失败；2 没有失败，但有检查跳过了或没法跑（INCOMPLETE；什么打字的都没跑时是 SKIPPED；屏幕锁着时开始的真实 App 测试是 BLOCKED）。2 不算通过：`make selftest` 和 `make realtest` 遇到它也会失败。自测的 `--…-only` 子集退出码一样；最后一行是给脚本读的同样结果：`SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`。
 
+真实 App 的文本框怎么回答输入法可以录下来，再做成宿主测试（`Core/Tests/HostScenarios`）的宿主配置或场景：启动输入法时设好
+`ALLINONEIME_IMK_RECORD`（`launchctl setenv ALLINONEIME_IMK_RECORD 1`，然后 `killall AllInOneIME`；停止就 `launchctl
+unsetenv` 再同样重启），它对文本框的每次调用（IMK 的）、文本框的回答和当时的按键都写进
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl`（或用绝对路径代替 `1`），每行一个 JSON 对象，到 50 MB 为止。你打的字不在里面，
+只有长度；设 `ALLINONEIME_IMK_RECORD_TEXT=1` 才连文字一起记，只用于录测试文字。录下的只留在这台 Mac 上，也没有设置能打开它。
+
 界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog：核心的文字在
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的
 `xcstringstool` 编译进每个 App），以英文（插值写成 `%@`）为 key。加了或改了文字后运行 `make strings`（否则 `make test` 不通过；自测 `*SelfTest.swift` 里的文字不拿去翻译）。同一句英文有两种意思时（`make strings` 会列出来，`make strings-check` 会不通过），给其中一个单独的

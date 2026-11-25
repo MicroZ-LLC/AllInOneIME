@@ -24,6 +24,8 @@ final class HostReplayer {
     let scenario: HostCase
     let profile: HostProfile
     let client: ProfiledTextClient
+    /// The client as the input method asks it: `client`, or a recorder's proxy of it (`IMKRecorder`).
+    let field: IMKTextInput
     let session: InputSession
     private var events: HostEvents
     /// The session's clock (`SessionServices.uptime`): the events' (`HostEvents.now`).
@@ -64,11 +66,13 @@ final class HostReplayer {
     /// same text committed then is that text, in once (the page's insert dropped or not).
     private var pageFinished: String?
 
-    init(_ scenario: HostCase, profile: HostProfile) {
+    init(_ scenario: HostCase, profile: HostProfile, recorder: IMKRecorder? = nil) {
         self.scenario = scenario
         self.profile = profile
-        let field = scenario.field
-        client = ProfiledTextClient(profile, text: field.text, selection: field.selection, marked: field.marked)
+        let text = scenario.field
+        let client = ProfiledTextClient(profile, text: text.text, selection: text.selection, marked: text.marked)
+        self.client = client
+        field = recorder?.recording(client) ?? client
         events = HostEvents(profile: profile, seed: scenario.source + "/" + scenario.name)
         let clock = Locked(initialState: events.now)
         self.clock = clock
@@ -259,7 +263,7 @@ final class HostReplayer {
         }
         beginTurn()
         let keyEvent = MacKeyEvents.key(event)
-        let context = reading.context(in: client) { session.fieldWants(for: keyEvent, given: $0) }
+        let context = reading.context(in: field) { session.fieldWants(for: keyEvent, given: $0) }
         let response = session.handle(.key(keyEvent, context))
         apply(response.outputs)
         keyEchoes.answered(key, now: events.now, handled: response.handled)
@@ -277,7 +281,7 @@ final class HostReplayer {
         }
         beginTurn()
         let change = MacKeyEvents.modifierChange(event, now: events.now)
-        let context = reading.context(in: client) { session.fieldWants(forModifiers: change, given: $0) }
+        let context = reading.context(in: field) { session.fieldWants(forModifiers: change, given: $0) }
         apply(session.handle(.modifiers(change, context)).outputs)
         note("modifiers \(change.key) \(change.modifiers.rawValue)")
         endTurn()
@@ -491,7 +495,7 @@ extension HostReplayer {
             case let .replace(text, range):
                 if let next = check, let range {
                     _ = next.apply(text, range: range,
-                                   read: { self.client.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
+                                   read: { self.field.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
                                    replace: { self.insert($0, replacing: NSRange(location: $1.lowerBound, length: $1.count)) },
                                    insert: { self.insert($0) })
                 } else {
@@ -507,7 +511,7 @@ extension HostReplayer {
             case let .readField(id):
                 nextTurn.append { [weak self] in
                     guard let self else { return }
-                    self.received(.field(self.reading.contextAfterPause(in: self.client, id: id), id: id))
+                    self.received(.field(self.reading.contextAfterPause(in: self.field, id: id), id: id))
                 }
             case let .readPasswordField(focus):
                 nextTurn.append { [weak self] in self?.received(.passwordField(false, focus: focus)) }
@@ -531,7 +535,7 @@ extension HostReplayer {
         } else {
             for character in text { expectedCounts[character, default: 0] += 1 }
         }
-        client.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
+        field.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
         note("committed \(text.debugDescription)")
     }
 
@@ -546,7 +550,7 @@ extension HostReplayer {
         let app = client.bundleIdentifier()
         anchorMemory.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
         anchorMemory.learnWindow { (ProfiledTextClient.window, false) }
-        let placed = FieldAnchor.place(in: client, app: app, selection: session.composer.selection?.range, memory: &anchorMemory,
+        let placed = FieldAnchor.place(in: field, app: app, selection: session.composer.selection?.range, memory: &anchorMemory,
                                        lastByApp: &lastAnchorByApp, screens: [ProfiledTextClient.screen],
                                        pointer: { CGPoint(x: 700, y: 500) }, accessibility: { _ in nil })
         (panel, anchor, reasksAnchor) = (model, placed, placed.placement.reasks)
@@ -555,7 +559,7 @@ extension HostReplayer {
     private func reaskAnchor() {
         reasksAnchor = false
         guard panel != nil else { return }
-        let (found, _) = FieldAnchor.reasked(in: client, selection: session.composer.selection?.range, memory: &anchorMemory,
+        let (found, _) = FieldAnchor.reasked(in: field, selection: session.composer.selection?.range, memory: &anchorMemory,
                                              screens: [ProfiledTextClient.screen])
         if let found { anchor = FieldAnchor.Placed(told: found, placement: PanelAnchor.Placement(rect: found, source: .field)) }
     }
@@ -563,11 +567,11 @@ extension HostReplayer {
     /// The controller's `typeOut`, at once: `TypeOut.Typist` into the field (`TypingField`), no typos, a turn for a field
     /// that tells its caret late.
     private func typeOut(_ text: String) {
-        let field = TypingField(client, pastesControls: false)
+        let typing = TypingField(field, pastesControls: false)
         let plan = TypeOut.plan(for: text, rate: session.typeOutRate, varies: false, mistakes: false)
-        var typist = TypeOut.Typist(plan, start: field.caret ?? 0, length: field.length)
+        var typist = TypeOut.Typist(plan, start: typing.caret ?? 0, length: typing.length)
         for _ in 0..<(text.count * 4 + 16) {
-            let progress = typist.step(in: field)
+            let progress = typist.step(in: typing)
             if progress == .done { break }
             if progress == .waiting { client.endTurn() }
         }
