@@ -149,7 +149,7 @@ extension SelfTest {
         guard followUp("why is it safe") else { return }
         panel = controller.panelModel()
         let choices = controller.composer.handoffChoices
-        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\nClaude Code")
+        check(controller.composer.showsHandoff && (panel.inputText ?? "").hasPrefix("已经聊了 3 轮：在 Claude 或别的 AI 里接着聊\n1 Claude Code")
               && panel.footer.hasPrefix("⌥+数字 接着聊"),
               "after round 3: where to go on (\(panel.inputText?.replacingOccurrences(of: "\n", with: " / ") ?? "-") | \(panel.footer))")
         check(choices == [.claudeCode, .geminiCLI, .claudeWeb, .chatgpt, .copy] && panel.handoff?.choices.map(\.name).prefix(2) == ["Claude Code", "Gemini CLI"]
