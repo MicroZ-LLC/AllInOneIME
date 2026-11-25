@@ -45,6 +45,8 @@ final class HostReplayer {
     private var reasksAnchor = false
 
     // The host's.
+    /// What the clipboard holds (⌘V in a command's draft reads it).
+    var clipboard = ClipboardContent.none
     /// AllInOneIME is the input source (`SWITCH abc`: ABC is, and the keys go to the app as they are).
     private var active = true
     private var capsLockOn = false
@@ -528,7 +530,10 @@ extension HostReplayer {
             case let .readSelection(id):
                 nextTurn.append { [weak self] in self?.received(.selection(nil, id: id)) }
             case let .readClipboard(id):
-                nextTurn.append { [weak self] in self?.received(.clipboard(.none, id: id)) }
+                nextTurn.append { [weak self] in
+                    guard let self else { return }
+                    self.received(.clipboard(self.clipboard, id: id))
+                }
             case let .platform(.setCapsLock(on)):
                 capsLockOn = on
             default:

@@ -158,6 +158,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func insertText(_ string: Any!, replacementRange: NSRange) {
         count("insertText")
+        inserts.append(Self.plain(string))
         leftoverMarked = nil
         guard focused else { return }
         let text = Self.plain(string)
@@ -179,8 +180,14 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
         }
     }
 
+    /// Every text the input method asked to mark, in order (an empty one takes marked text out).
+    private(set) var marks: [String] = []
+    /// Every text the input method put in, in order.
+    private(set) var inserts: [String] = []
+
     func setMarkedText(_ string: Any!, selectionRange: NSRange, replacementRange: NSRange) {
         count("setMarkedText")
+        marks.append(Self.plain(string))
         leftoverMarked = nil
         guard focused else { return }
         let text = Self.plain(string)
