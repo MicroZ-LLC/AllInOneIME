@@ -1,15 +1,15 @@
 {
-  "build" : "32",
-  "generated" : "2026-11-14T08:39:26Z",
+  "build" : "33",
+  "generated" : "2026-11-25T12:38:25Z",
   "minimumSystemVersion" : "14.0",
-  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.4",
+  "notesURL" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/tag/v0.7.5",
   "schema" : 1,
-  "sha256" : "99e8d12396d1797f63bb2dc69563f6f55210fb034b7763dca1f5bc642cda5af5",
-  "size" : 37071479,
+  "sha256" : "3eb54faf4f9c05f9fecc7578d72c9b0c316070e8005e710ea6b9eeb8d5c7d116",
+  "size" : 38212195,
   "summary" : {
-    "en" : "Answer @question with the Claude Code, Codex, Antigravity or Kiro subscription you already have, from one AI picker in Settings → AI. Settings → Input can make Caps Lock switch Chinese and English instead of Shift (Shift stays the default). Lighter settings: less-used options folded away.",
-    "zh" : "@question 可以用你已有的 Claude Code、Codex、Antigravity 或 Kiro 订阅回答，设置 →「AI」里一个选择器管所有 AI。设置 →「输入」里可以改用大写锁定键切换中英文（默认仍是 Shift）。设置更清爽：不常用的选项收起来了。"
+    "en" : "Settings opens on Common and shows every AI as a card; the AI chat can use your agent's MCP servers (read-only) and look at screenshots; shape codes for pinyin; what you type now shows only in the candidate box.",
+    "zh" : "设置打开就是「常用」，AI 都列成卡片；AI 对话可以用你的 agent 里 MCP 服务器的只读工具，也能看截图；拼音可用辅助码；正在打的内容只显示在候选框里。"
   },
-  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.4/AllInOneIME-0.7.4-update.zip",
-  "version" : "0.7.4"
+  "url" : "https://github.com/MicroZ-LLC/AllInOneIME/releases/download/v0.7.5/AllInOneIME-0.7.5-update.zip",
+  "version" : "0.7.5"
 }
