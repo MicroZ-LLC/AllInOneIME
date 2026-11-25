@@ -76,6 +76,11 @@ final class HostField {
     /// `substring`'s answer, not counted (the reads a replacement makes are its own).
     func text(in range: Range<Int>) -> String? {
         let text = shown
+        if profile.substringClips {
+            let caret = (turn?.selected ?? selectedNow).lowerBound, reach = profile.substringReach ?? text.length
+            let part = range.clamped(to: max(caret - reach, 0)..<max(min(caret + reach, text.length), 0))
+            return part.isEmpty ? nil : text.substring(with: NSRange(location: part.lowerBound, length: part.count))
+        }
         guard range.lowerBound >= 0, range.upperBound <= text.length else { return nil }
         if let reach = profile.substringReach {
             let caret = (turn?.selected ?? selectedNow).lowerBound

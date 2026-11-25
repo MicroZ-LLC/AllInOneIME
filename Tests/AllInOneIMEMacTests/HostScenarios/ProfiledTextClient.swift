@@ -2,7 +2,9 @@ import AppKit
 import InputMethodKit
 
 /// A host's kind of text field, as the host scenario contract (v1) has them: what each tells the input method through
-/// IMK, and what it does with the marked text on a click or when it loses the focus.
+/// IMK, and what it does with the marked text on a click or when it loses the focus. The core's runner has the same
+/// profiles (Core/Tests/AllInOneIMEHostTests/HostProfile.swift, with the sources each one's behaviour comes from); a
+/// terminal's is the core's only (the Mac's terminal rules are its controller's, not its library's).
 enum HostProfile: String, CaseIterable, Sendable, CustomStringConvertible {
     /// NSTextView: the real length, document-wide offsets, a real caret rectangle; a click outside the marked text gets
     /// commitComposition.
@@ -15,6 +17,24 @@ enum HostProfile: String, CaseIterable, Sendable, CustomStringConvertible {
     case electron
     /// A terminal or WeChat: no selection (NotFound), length 0, no text, a fixed caret rectangle.
     case tellsnothing
+    /// Safari, a WKWebView's contenteditable (Mail's compose, Notes' web views): WebKit's `WebViewImpl` runs the commands
+    /// a key queued (`insertText:`) before it answers a text-input call, so its ranges are current during a key, not
+    /// stale; no `attributedString`, so length() 0 (not measured on a real Mac); a substring anywhere in the editable
+    /// element, nil past its end; a real rect for a range (`firstRectForCharacterRange:`); a replacement range honoured.
+    /// Keys and modifier changes come once. A mouse down goes to the input context first, so a click outside the marked
+    /// text gets commitComposition, as NSTextView's; losing first responder, the page confirms the composition itself
+    /// (`confirmCompositionAsync`) and drops what the input method puts in after (the harsher case, unverified).
+    case webkit
+    /// A Qt widget (Telegram Desktop's QTextEdit, a QLineEdit) through `QNSView`: no `attributedString`, so length() 0
+    /// (seen on a real Mac, 2026-11-14); the selection document-wide (`ImAbsolutePosition`) and current (Qt answers at
+    /// once); a substring only within what `ImTextBeforeCursor` / `ImTextAfterCursor` give (1024 each way), cut to it:
+    /// Qt 6's `attributedSubstringForProposedRange:actualRange:` answers the part of the range it has
+    /// (`NSIntersectionRange`), nil only where none of it is (from Qt 6's qnsview_complextext.mm as recalled, not run on a
+    /// real Mac: Qt 5 differed); `firstRectForCharacterRange:` the cursor's rectangle whatever the range (Qt ignores it);
+    /// a replacement range honoured where Qt can place it relative to the cursor (Qt 6; Qt 5 ignored it). A click commits
+    /// the marked text itself (`commitPreedit`, then `discardMarkedText`, taken here as IMK's cancelComposition:
+    /// unverified); keys come once.
+    case qt
 
     var description: String { rawValue }
 
@@ -25,10 +45,22 @@ enum HostProfile: String, CaseIterable, Sendable, CustomStringConvertible {
         case .chromium: "com.google.Chrome"
         case .electron: "com.tinyspeck.slackmacgap"
         case .tellsnothing: "com.tencent.xinWeChat"
+        case .webkit: "com.apple.Safari"
+        case .qt: "com.tdesktop.Telegram"
         }
     }
 
     var isChromium: Bool { self == .chromium || self == .electron }
+    /// length() is the text's (else 0).
+    var tellsLength: Bool { self == .nstextview }
+    /// A click commits the marked text itself (else the input method is asked to, for a click outside it).
+    var clickCommitsMarkedText: Bool { isChromium || self == .qt }
+    /// Losing the focus commits the marked text as shown, then drops what the input method puts in.
+    var blurDropsComposition: Bool { isChromium || self == .webkit }
+    /// The app emptying the field tells the input method (an AppKit text view, 2026-11-15; WebKit's
+    /// `notifyInputContextAboutDiscardedComposition` and Qt's `QInputMethod::reset` as their sources have it): not a
+    /// Chromium page (#115), nor a field that tells nothing.
+    var tellsWhenEmptied: Bool { self == .nstextview || self == .webkit || self == .qt }
 }
 
 /// A text field as `HostProfile`'s host has it, at the IMK level (`IMKTextInput`), for the input method's reading and
@@ -112,7 +144,10 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
         guard focused else { return }
         let text = Self.plain(string)
         let range: NSRange
-        if replacementRange.location != NSNotFound {
+        if replacementRange.location != NSNotFound, NSMaxRange(replacementRange) > length(of: state), profile == .qt {
+            // Qt can't place the range: it commits at the cursor ("Failed to compute valid replacement range").
+            range = state.marked ?? state.selection
+        } else if replacementRange.location != NSNotFound {
             // A range of the text in place: the marked text there or not, it is plain text now.
             guard NSMaxRange(replacementRange) <= length(of: state) else { return }
             range = replacementRange
@@ -175,7 +210,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func length() -> Int {
         count("length")
-        return profile == .nstextview ? length(of: told) : 0
+        return profile.tellsLength ? length(of: told) : 0
     }
 
     func characterIndex(for point: NSPoint, tracking mappingMode: IMKLocationToOffsetMappingMode,
@@ -184,7 +219,8 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
     func attributes(forCharacterIndex index: Int, lineHeightRectangle lineRect: UnsafeMutablePointer<NSRect>!) -> [AnyHashable: Any]! {
         count("attributes")
         // The line the marked text (else the caret) is on, a line under it as InputMethodKit's own panels go.
-        let at = told.marked?.location ?? told.selection.location
+        // Qt's is its cursor's, whatever is marked (its `firstRectForCharacterRange:` ignores the range).
+        let at = profile == .qt ? told.selection.location : told.marked?.location ?? told.selection.location
         let rect = caretRect(at: at)
         lineRect?.pointee = rect == .zero ? rect : CGRect(x: rect.minX, y: rect.minY - rect.height, width: 1, height: rect.height)
         return [:]
@@ -193,6 +229,8 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
     func firstRect(forCharacterRange aRange: NSRange, actualRange: NSRangePointer!) -> NSRect {
         count("firstRect")
         guard aRange.location != NSNotFound else { return .zero }
+        // Qt answers the cursor's rectangle, whatever the range (`QNSView firstRectForCharacterRange:`).
+        if profile == .qt { return caretRect(at: told.selection.location) }
         let rect = caretRect(at: aRange.location)
         return rect == .zero ? rect : CGRect(x: rect.minX, y: rect.minY, width: Self.characterWidth * CGFloat(max(aRange.length, 0)),
                                              height: rect.height)
@@ -215,20 +253,30 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
     // MARK: What each profile tells
 
     /// The text in `range` as the field tells it: NSTextView's within its text (cut at its end), Chromium's only within
-    /// ±100 UTF-16 units of its caret (none past the end), none from a terminal or WeChat.
+    /// ±100 UTF-16 units of its caret (none past the end), WebKit's anywhere in it (none past the end), Qt's the part of
+    /// the range within 1024 of its caret (none where no part is), none from a terminal or WeChat.
     private func substring(_ range: NSRange) -> String? {
         guard range.location != NSNotFound, range.length != NSNotFound, range.location >= 0, range.length >= 0 else { return nil }
         let view = told, total = length(of: view)
+        let text = view.text as NSString
         switch profile {
         case .nstextview:
             guard range.location <= total else { return nil }
             let cut = NSRange(location: range.location, length: min(range.length, total - range.location))
-            return (view.text as NSString).substring(with: cut)
+            return text.substring(with: cut)
         case .chromium, .electron:
             let caret = view.selection.location
             let window = NSRange(location: max(0, caret - 100), length: min(total, caret + 100) - max(0, caret - 100))
             guard range.location >= window.location, NSMaxRange(range) <= NSMaxRange(window) else { return nil }
-            return (view.text as NSString).substring(with: range)
+            return text.substring(with: range)
+        case .webkit:
+            guard NSMaxRange(range) <= total else { return nil }
+            return text.substring(with: range)
+        case .qt:
+            let caret = view.selection.location
+            let window = NSRange(location: max(0, caret - 1024), length: min(total, caret + 1024) - max(0, caret - 1024))
+            let part = NSIntersectionRange(range, window)
+            return part.length > 0 ? text.substring(with: part) : nil
         case .tellsnothing:
             return nil
         }
@@ -276,12 +324,13 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
         }
     }
 
-    /// The field loses the focus: Chromium's page commits the marked text on blur (`finishComposingText`) and then drops
-    /// what the input method sends; NSTextView, a terminal and WeChat take what the input method sends while it lets the
-    /// field go, and lose the focus once it has (`deactivated`).
+    /// The field loses the focus: Chromium's page (and WebKit's) commits the marked text on blur
+    /// (`finishComposingText`, `confirmCompositionAsync`) and then drops what the input method sends; NSTextView, Qt, a
+    /// terminal and WeChat take what the input method sends while it lets the field go, and lose the focus once it has
+    /// (`deactivated`).
     func resign() {
-        if profile.isChromium { finishComposingText() }
-        focused = !profile.isChromium
+        if profile.blurDropsComposition { finishComposingText() }
+        focused = !profile.blurDropsComposition
     }
 
     /// The input method let the field go (`deactivateServer`): it has no focus now, whatever the host.

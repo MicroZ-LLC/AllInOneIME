@@ -135,9 +135,9 @@ final class HostReplayer {
             note("the app empties the field")
             let marked = client.markedText != nil
             client.clear()
-            // An AppKit text view tells the input method (a real NSTextField and NSTextView, 2026-11-15); a Chromium page
-            // tells it nothing (#115).
-            if marked, profile == .nstextview, active { commitComposition() }
+            // An AppKit text view tells the input method (a real NSTextField and NSTextView, 2026-11-15), and so do WebKit
+            // and Qt (`HostProfile.tellsWhenEmptied`); a Chromium page tells it nothing (#115).
+            if marked, profile.tellsWhenEmptied, active { commitComposition() }
             (committed, expectedCounts, pageFinished) = ("", [:], nil)
         case let .wait(seconds):
             advance(by: seconds)
@@ -308,18 +308,19 @@ final class HostReplayer {
         mouseDown()
         if let offset {
             note("a click at \(offset)")
-            if profile.isChromium {
-                // The page commits the marked text, then tells the input method (IMK's commitComposition: a real Brave).
+            if profile.clickCommitsMarkedText {
+                // The page commits the marked text, then tells the input method (IMK's commitComposition: a real Brave; Qt's
+                // `discardMarkedText`, taken as cancelComposition).
                 let marked = client.markedText != nil
                 pageFinishes { client.finishComposingText() }
-                if marked { commitComposition() }
+                if marked, profile == .qt { cancelComposition() } else if marked { commitComposition() }
             } else if !client.isInsideMarkedText(offset), client.markedText != nil {
                 commitComposition()
             }
             client.moveCaret(to: offset)
         } else {
             note("a click outside the field")
-            if !profile.isChromium, client.markedText != nil { commitComposition() }
+            if !profile.clickCommitsMarkedText, client.markedText != nil { commitComposition() }
             loseFocus()
         }
     }
@@ -383,6 +384,12 @@ final class HostReplayer {
     /// `commitComposition`: the app wants everything in now (a click elsewhere in it).
     private func commitComposition() {
         apply(session.handle(.commit).outputs)
+        settle()
+    }
+
+    /// `cancelComposition`: the app ended the composition itself (the controller's: `.cancel`).
+    private func cancelComposition() {
+        apply(session.handle(.cancel).outputs)
         settle()
     }
 
