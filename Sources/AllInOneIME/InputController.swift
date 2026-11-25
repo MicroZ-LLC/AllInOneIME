@@ -292,28 +292,11 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    // MARK: - IMK entry points
-
-    override func recognizedEvents(_ sender: Any!) -> Int {
-        Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
-    }
-
-    override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event else { return false }
-        let client = sender as? IMKTextInput
-        switch event.type {
-        case .keyDown:
-            return MainActor.assumeIsolated { handleKeyDown(event, client: client) }
-        case .flagsChanged:
-            MainActor.assumeIsolated { handleFlagsChanged(event, client: client) }
-            return false  // the application must see modifier changes too
-        default:
-            return false
-        }
-    }
+    // MARK: - IMK entry points (the keys': InputController+Recording.swift)
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        IMKRecorder.shared.event("activate", client: sender)
         MainActor.assumeIsolated {
             commitRow()  // in the field it went into, while that one's session is on
             appliedLayout = nil  // the layout is told to each text field
@@ -342,6 +325,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func commitComposition(_ sender: Any!) {
         // The app wants everything in now (a click elsewhere in it): what is typed out goes in, the pinyin doesn't.
+        IMKRecorder.shared.event("commitComposition", client: sender)
         MainActor.assumeIsolated { leaveField(.commit, client: sender as? IMKTextInput, insertingRest: true) }
     }
 
@@ -604,6 +588,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var isTypingOut: Bool { typingTask != nil }
 
     override func deactivateServer(_ sender: Any!) {
+        IMKRecorder.shared.event("deactivate", client: sender)
         MainActor.assumeIsolated {
             // Still this field's session; another field has the focus now: the rest of a result isn't typed anywhere.
             leaveField(.blur, client: sender as? IMKTextInput, insertingRest: false)

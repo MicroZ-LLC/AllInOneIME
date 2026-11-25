@@ -127,6 +127,11 @@ public final class FakeHost: @unchecked Sendable {
 
     private let inbox = Locked<[SessionEvent]>(initialState: [])
     private let arrived = DispatchSemaphore(value: 0)
+    /// The interface language and command trigger the session sets as it reads its settings, and its texts read
+    /// (`UIText.scopedInterface`): the test's own where it has one (`withInterfaceLanguage`), else this host's. Never the
+    /// process's, which the tests running alongside read (one in its turn at the interface language, off its task): a
+    /// session that set it switched it under them (to its language, to its "~" as the command trigger).
+    private let interface: UIText.ScopedInterface
     /// What goes in once the key being answered is done (`commitAfterKey`), and the clipboard read then.
     private var afterKey: [() -> Void] = []
 
@@ -144,10 +149,18 @@ public final class FakeHost: @unchecked Sendable {
             }
         }
         let (inbox, arrived) = (inbox, arrived)
-        session = InputSession(composer: composer, services: services, deliver: { event in
-            inbox.withLock { $0.append(event) }
-            arrived.signal()
-        })
+        interface = UIText.scopedInterface ?? UIText.ScopedInterface(choice: nil)
+        session = UIText.$scopedInterface.withValue(interface) {
+            InputSession(composer: composer, services: services, deliver: { event in
+                inbox.withLock { $0.append(event) }
+                arrived.signal()
+            })
+        }
+    }
+
+    /// `body`, which calls into the session, in its interface (`interface`).
+    private func inInterface<T>(_ body: () throws -> T) rethrows -> T {
+        try UIText.$scopedInterface.withValue(interface, operation: body)
     }
 
     public var composer: Composer { session.composer }
@@ -201,7 +214,7 @@ public final class FakeHost: @unchecked Sendable {
         let full = context
         var told = FieldContext()
         while true {
-            let missing = session.fieldWants(for: key, given: told).subtracting(told.read)
+            let missing = inInterface { session.fieldWants(for: key, given: told) }.subtracting(told.read)
             if missing.isEmpty { return told }
             told.read.formUnion(missing)
             if missing.contains(.secure) { told.secure = full.secure }
@@ -220,8 +233,8 @@ public final class FakeHost: @unchecked Sendable {
 
     /// The field takes the focus; a rename to tell is said then (`InputSession.tellBuiltinRenames`).
     public func focus() {
-        apply(session.handle(.focus(FieldInfo(app: app, terminal: terminal))).outputs)
-        apply(session.tellBuiltinRenames())
+        apply(inInterface { session.handle(.focus(FieldInfo(app: app, terminal: terminal))).outputs })
+        apply(inInterface { session.tellBuiltinRenames() })
     }
 
     /// A key goes down: whether the session took it.
@@ -234,7 +247,7 @@ public final class FakeHost: @unchecked Sendable {
     /// took it.
     @discardableResult
     public func press(_ key: KeyEvent, with context: FieldContext) -> Bool {
-        let response = session.handle(.key(key, context))
+        let response = inInterface { session.handle(.key(key, context)) }
         apply(response.outputs)
         if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
         let after = afterKey
@@ -252,18 +265,18 @@ public final class FakeHost: @unchecked Sendable {
 
     /// The modifier keys changed.
     public func modifiers(_ change: ModifierChange) {
-        apply(session.handle(.modifiers(change, context)).outputs)
+        apply(inInterface { session.handle(.modifiers(change, context)).outputs })
     }
 
     /// The shell says `text` in the field (`InputSession.showNotice`), as the Mac says what it tells there (Autocomplete
     /// turned on in the input menu, a save's outcome).
     public func showNotice(_ text: String) {
-        apply(session.showNotice(text))
+        apply(inInterface { session.showNotice(text) })
     }
 
     /// Hands `event` to the session, as the shell does what isn't a key.
     public func send(_ event: SessionEvent) {
-        apply(session.handle(event).outputs)
+        apply(inInterface { session.handle(event).outputs })
     }
 
     /// Hands the session its work's answers as they come, on this thread, until `condition` holds (true) or `timeout`

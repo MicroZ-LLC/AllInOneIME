@@ -5,21 +5,28 @@ import AllInOneIMETestSupport
 
 /// Runs `body` in the interface language `choice` ("zh", "en"), then puts the one before back. In an interface of the
 /// task's own (`UIText.scopedInterface`, with @ as its command trigger): what `body`, the tasks it starts and the
-/// sessions it makes read and set (a session sets them as it reads its settings), whatever the sessions of the tests
-/// running alongside set the process's to meanwhile. The process's language is set with it, for what is read off the
-/// task: the tests that set it take turns, whichever suite they are in, waiting for theirs suspended (`TestTurn`): in
-/// its turn a test may wait for its session's work (`FakeHost.settle`), which needs a thread.
+/// sessions it makes read and set (a session sets them as it reads its settings), and only there: no session of a test
+/// sets the process's (`FakeHost` gives one an interface of its own). The process's language is set too, for what is
+/// read off the task (a queue's work, a process's callback): the tests that set it take turns, whichever suite they
+/// are in, waiting for theirs suspended (`TestTurn`): in its turn a test may wait for its session's work
+/// (`FakeHost.settle`), which needs a thread.
 func withInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) async rethrows -> T {
     try await interfaceLanguageTurn.run { try inInterfaceLanguage(choice, body) }
 }
 
-/// In `withInterfaceLanguage`'s body (its turn): `body` in the interface language `choice`, then the one before back.
+/// In `withInterfaceLanguage`'s body (its turn): `body` in the interface language `choice`, then the one before back,
+/// the process's and the task's own.
 func inInterfaceLanguage<T>(_ choice: String, _ body: () throws -> T) rethrows -> T {
     if !interfaceLanguageTurn.isHeld { Issue.record("the interface language set outside its turn (withInterfaceLanguage)") }
-    let before = UIText.choice
-    UIText.choice = choice
-    defer { UIText.choice = before }
-    guard UIText.scopedInterface == nil else { return try body() }  // the task's own already: set above
+    let process = UIText.$scopedInterface.withValue(nil) { UIText.choice }
+    UIText.$scopedInterface.withValue(nil) { UIText.choice = choice }
+    defer { UIText.$scopedInterface.withValue(nil) { UIText.choice = process } }
+    if let scoped = UIText.scopedInterface {  // the task's own already
+        let before = scoped.choice
+        scoped.choice = choice
+        defer { scoped.choice = before }
+        return try body()
+    }
     return try UIText.$scopedInterface.withValue(UIText.ScopedInterface(choice: choice, commandTrigger: "@"), operation: body)
 }
 
