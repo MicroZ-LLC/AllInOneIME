@@ -436,7 +436,8 @@ struct ACPSessionTests {
         // Kiro picked: the question goes to its process, none to Claude's.
         _ = config(.claude, .kiroSession)
         let stream = converter.generate(.question, input: "what is rust")
-        #expect(await Timing.eventually { kiroFake.last != nil })
+        // Its handshake's first request sent (the process is listed as it starts, before it is sent anything).
+        #expect(await Timing.eventually { !(kiroFake.last.map { requests($0, "initialize") } ?? []).isEmpty })
         let process = try #require(kiroFake.last)
         try open(process)
         chunk(process, "A systems language.")
