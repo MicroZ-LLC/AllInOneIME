@@ -1,3 +1,4 @@
+import AllInOneIMETestSupport
 import AppKit
 import InputMethodKit
 
@@ -91,6 +92,14 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
     private var leftoverMarked: NSRange?
     /// The calls through IMK since `resetCalls`, by name.
     private(set) var calls: [String: Int] = [:]
+    /// How long each call takes, by name (a host that answers late: the run's own time, nothing sleeps), and how long
+    /// the calls since `resetCalls` took.
+    var latency: [String: TimeInterval] = [:]
+    private(set) var spent: TimeInterval = 0
+    /// Garbage one answer in `garbageEvery` (0: never): a range past the text, a length of 2147483647, a substring of
+    /// another length than asked, nil.
+    var garbageEvery = 0
+    var random = HostStress.SplitMix(seed: 1)
 
     /// One screen, a window on it, the field's first line in it, a character 8 points wide.
     static let screen = CGRect(x: 0, y: 0, width: 1440, height: 900)
@@ -119,9 +128,18 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
         state.marked.map { (state.text as NSString).substring(with: $0) }
     }
 
-    func resetCalls() { calls = [:] }
+    func resetCalls() { (calls, spent) = ([:], 0) }
 
-    private func count(_ name: String) { calls[name, default: 0] += 1 }
+    private func count(_ name: String) {
+        calls[name, default: 0] += 1
+        spent += latency[name] ?? 0
+    }
+
+    /// `told`, or one of `garbage`'s answers where this call is one to garble.
+    private func garbled<T>(_ told: T, _ garbage: [T]) -> T {
+        guard garbageEvery > 0, random.next(below: garbageEvery) == 0 else { return told }
+        return random.pick(garbage)
+    }
 
     // MARK: Turns (Chromium's stale ranges)
 
@@ -189,18 +207,24 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func selectedRange() -> NSRange {
         count("selectedRange")
-        return profile == .tellsnothing ? NSRange(location: NSNotFound, length: NSNotFound) : told.selection
+        let answer = profile == .tellsnothing ? NSRange(location: NSNotFound, length: NSNotFound) : told.selection
+        let end = length(of: told)
+        return garbled(answer, [NSRange(location: end + 10, length: 2), NSRange(location: 0, length: end + 100),
+                                NSRange(location: NSNotFound, length: 0), NSRange(location: Int(Int32.max), length: 0)])
     }
 
     func markedRange() -> NSRange {
         count("markedRange")
-        guard profile != .tellsnothing, let marked = told.marked ?? leftoverMarked else { return NSRange(location: NSNotFound, length: 0) }
-        return marked
+        guard profile != .tellsnothing, let marked = told.marked ?? leftoverMarked else {
+            return garbled(NSRange(location: NSNotFound, length: 0), [NSRange(location: 0, length: 5)])
+        }
+        return garbled(marked, [NSRange(location: NSNotFound, length: 0), NSRange(location: length(of: told), length: 3)])
     }
 
     func attributedSubstring(from range: NSRange) -> NSAttributedString! {
         count("substring")
-        return substring(range).map { NSAttributedString(string: $0) }
+        let text = garbled(substring(range), [nil, "", "garbage 😀", String(repeating: "x", count: max(range.length, 0) % 1000 + 7)])
+        return text.map { NSAttributedString(string: $0) }
     }
 
     func string(from range: NSRange, actualRange: NSRangePointer!) -> String! {
@@ -210,7 +234,7 @@ final class ProfiledTextClient: NSObject, IMKTextInput {
 
     func length() -> Int {
         count("length")
-        return profile.tellsLength ? length(of: told) : 0
+        return garbled(profile.tellsLength ? length(of: told) : 0, [length(of: told) + 50, Int(Int32.max), 0])
     }
 
     func characterIndex(for point: NSPoint, tracking mappingMode: IMKLocationToOffsetMappingMode,

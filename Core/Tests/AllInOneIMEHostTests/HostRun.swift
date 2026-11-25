@@ -40,6 +40,8 @@ final class HostRun {
     var language: Language?
     /// The host calls each key made since the last `EXPECT calls`.
     var keyCalls: [(line: Int, key: String, calls: HostCallCount)] = []
+    /// Every key's, modifier change's and timer's host calls in the run, and how long they took (`HostField.answers`).
+    var everyTurn: [HostTurnCalls] = []
     /// The app's undo: the field before each change, with what the ledger held then.
     var undo: [(document: String, caret: Int, ledger: CommitLedger)] = []
     var failures: [HostFailure] = []
@@ -154,7 +156,9 @@ final class HostRun {
         host.fireTimers { $0 == timer }
         field.endTurn()
         followOutputs(from: start)
-        _ = field.takeCalls()  // a timer's reads aren't a key's
+        // A timer's reads aren't a key's, but they are on the main thread all the same.
+        everyTurn.append(HostTurnCalls(line: line, what: "timer", calls: field.calls, spent: field.spent))
+        _ = field.takeCalls()
     }
 
     // MARK: Keys
@@ -272,7 +276,9 @@ final class HostRun {
         if handled, !copy, terminalSends(composing: composing, outputs: host.outputs[start...]) {
             appActs(on: key, typing: true)
         }
-        keyCalls.append((line, Self.describe(key), field.takeCalls()))
+        let spent = field.spent, calls = field.takeCalls()
+        keyCalls.append((line, Self.describe(key), calls))
+        everyTurn.append(HostTurnCalls(line: line, what: Self.describe(key), calls: calls, spent: spent))
     }
 
     /// Whether a terminal sends a key the session took to its shell as well (`HostProfile.actsOnTakenKeys`): it does
@@ -310,6 +316,7 @@ final class HostRun {
         clock.clicked = false
         if !copy, let delay = profile.copyDelay { agenda.add(.copy(.modifiers(change, code: code)), at: now + delay) }
         followOutputs(from: start)
+        everyTurn.append(HostTurnCalls(line: line, what: "modifiers \(change.key.name)", calls: field.calls, spent: field.spent))
         _ = field.takeCalls()
     }
 

@@ -58,6 +58,9 @@ final class HostReplayer {
     private var switches = 0
     /// Each key's calls through IMK since the last `EXPECT calls`.
     private var keyCalls: [[String: Int]] = []
+    /// Every key's, modifier change's and read after a pause's calls in the run (`what`: "key", "modifiers", "pause"),
+    /// and how long they took (`ProfiledTextClient.latency`).
+    private(set) var everyTurn: [(what: String, calls: [String: Int], spent: TimeInterval)] = []
     /// What the session committed since the field was last emptied, and how many of each character the field should have:
     /// what it had, what the session committed, what the app typed or took out (`EXPECT nolost`).
     private var committed = ""
@@ -270,6 +273,7 @@ final class HostReplayer {
         apply(response.outputs)
         keyEchoes.answered(key, now: events.now, handled: response.handled)
         note("key \(keyEvent.characters.debugDescription) \(response.handled ? "taken" : "left to the app")")
+        everyTurn.append(("key", client.calls, client.spent))
         endTurn()
         return response.handled
     }
@@ -286,6 +290,7 @@ final class HostReplayer {
         let context = reading.context(in: field) { session.fieldWants(forModifiers: change, given: $0) }
         apply(session.handle(.modifiers(change, context)).outputs)
         note("modifiers \(change.key) \(change.modifiers.rawValue)")
+        everyTurn.append(("modifiers", client.calls, client.spent))
         endTurn()
     }
 
@@ -513,7 +518,10 @@ extension HostReplayer {
             case let .readField(id):
                 nextTurn.append { [weak self] in
                     guard let self else { return }
-                    self.received(.field(self.reading.contextAfterPause(in: self.field, id: id), id: id))
+                    self.client.resetCalls()
+                    let read = self.reading.contextAfterPause(in: self.field, id: id)
+                    self.everyTurn.append(("pause", self.client.calls, self.client.spent))
+                    self.received(.field(read, id: id))
                 }
             case let .readPasswordField(focus):
                 nextTurn.append { [weak self] in self?.received(.passwordField(false, focus: focus)) }
