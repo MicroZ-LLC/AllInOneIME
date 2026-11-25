@@ -2,15 +2,23 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
-## 0.7.5 (unreleased)
+## 0.7.5 (2026-11-25)
 
 ### Added
 
 - Settings → AI → **MCP Servers** (with Claude Code, Codex or Kiro CLI as the AI): the MCP servers in that CLI's own config are listed, none checked at first. Check one and the AI chat may use its read-only tools (search, read), never one that sends, writes or changes anything; only checked servers start, and a question with text you didn't type gets none. Saved as `sessionMCP` in the config, this Mac's own.
 
 - A question about a screenshot: ⌃V in `@question`, after one @'s text (Ask AI goes first) or while typing a follow-up attaches it, and the image itself (made smaller) goes with its text to an AI that can see images (the Claude API, Gemini, OpenAI, Bedrock's Claude and Nova, Claude Code, Codex, Antigravity, Kiro CLI); others get its text as before. A screenshot without text can be asked about when the AI sees images.
-- Each row of the list after the magic key has its number key: ⌥1 does the first row shown, ⌥2 the second, and so on (as a click on the row, or ⏎ on it), with the key on the row. It goes by the key, whatever your keyboard layout types with ⌥ (¡, ™ …), and only while the list is up: elsewhere ⌥ and a digit type as before. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌥1 is the top row shown. On Windows, Alt+1 ….
+- Each row of the list after the magic key is numbered (1, 2 …), and ⌥ with the number does it: ⌥1 the first row shown, ⌥2 the second, and so on (as a click on the row, or ⏎ on it); the key hints at the bottom say it once ("⌥+number pick"), and the numbers go with Show key hints. It goes by the key, whatever your keyboard layout types with ⌥ (¡, ™ …), and only while the list is up: elsewhere ⌥ and a digit type as before. Digits alone are still text there (`@3*7+2`, `@base64`) or pick a pinyin word, whatever the magic key; after scrolling, ⌥1 is the top row shown. On Windows, Alt+1 ….
 - Settings → More Settings → Interface and sync → **Show key hints**: turn it off and the candidate box leaves out the keys explained at its bottom (⏎ inserts, Esc cancels…) and "Space picks a word" after the pinyin line, a smaller box once you know them. What is going on ("… is writing"), the page and the time a result took still show, and so do the rows' own keys. On by default; `"keyHints": false` in the config, synced through iCloud with the other settings.
+
+- Shape codes (辅助码) for pinyin: in Settings → Common, under Shape codes (below Characters), pick Moqi (墨奇码),
+  Xiaohe shape (鹤形), Wubi 86 or Cangjie (Off by default). Then type the pinyin, `` ` `` and the first one or two
+  letters of a character's shape code to list only the candidates with it (`` yu`da `` → 鱼 with Moqi); words with the
+  character stay, those it starts first. Picking puts in the candidate alone; Backspace takes back the letters, then the `` ` ``. Full pinyin and
+  every Shuangpin scheme, not Zhuyin. While it is on, `` ` `` is the shape codes' instead of rime-ice's radical lookup.
+  The filter and its tables come with the app (HowcanoeWang/rime-lua-aux-code); nothing is downloaded. Config:
+  `shapeCode`.
 
 ### Changed
 
@@ -20,7 +28,7 @@ English | [中文](CHANGELOG.zh-CN.md)
 
 - Settings opens on **Common**, with the settings most people need: the input languages, Chinese typing and Characters, Switch input language, the candidate layout, the magic key, Translate to, Clipboard history and Autocomplete, and at the top a field to say what to change (⏎ asks the AI, as the search's Change: … does). The rest is in **More Settings**, in five groups, each a short page of its own with a back button: Input and keys (fuzzy pinyin, personal dictionaries, removed candidates, your English words, Code, the action key), Suggestions, Privacy, Interface and sync (Show in Menu Bar, the interface language, Show key hints, Sync through iCloud) and Advanced. The sidebar is Common, AI, This Week, Commands, More Settings and About; General and Input are gone. Every setting works and is saved as before, the search finds each where it is now, and the texts that named a page name the new one.
 
-- Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). ⌘⏎ still shows the choices.
+- Where an `@question` conversation can go on is picked with ⌥1, ⌥2 … (Alt+1 … on Windows), as the list's rows are: ⌘1 … reached an app's own menus first in some apps (a browser's first tab). The choices are numbered (1, 2 …) and the footer says "⌥+number continue". ⌘⏎ still shows the choices.
 
 - What you're typing (pinyin, a command such as `@improve …` or `@question …`, an `@note`, Code's word) shows only on the top line of the candidate box, with its cursor, in every app, as Squirrel's `inline_preedit: false` does; nothing is shown in the text field until you pick, insert or run it. The candidate box sits at the cursor.
 
@@ -82,6 +90,21 @@ English | [中文](CHANGELOG.zh-CN.md)
 - In `@note` with pasted lines, the caret and the pinyin being typed show where they are when you move back before a line break; they showed two characters later for each line break after the caret.
 
 - Snippet placeholders written with Chinese punctuation work: `{名字？}` is a blank and `{date：MM月dd日}` a date, like `{名字?}` and `{date:MM月dd日}`; before, they were inserted as written.
+
+- Translate as You Type: the words picked show on the candidate box's input line under the 「中 → 英」 chip. Since what
+  is typed is no longer shown in the field, the draft was shown nowhere once its pinyin was picked.
+
+- `@translate` with no language to translate into says ⏎ opens Settings → Common, where "Translate to" is now (it said AI).
+
+- After the magic key, a row moved to with ↓ while the input method was still reading the selected text stays
+  highlighted when nothing turns out to be selected; it went back to the first row.
+
+- Translate as You Type: after ⏎, the candidate box says "Translating…" under the 「中 → 英」 chip, with the draft on its
+  input line, until the translation goes in, as other commands show their wait; its footer says ⇧⏎ inserts the draft as
+  typed and Esc stops, the draft kept. Nothing showed meanwhile.
+
+- After the magic key, apps and files no longer fail to show when Spotlight stops answering: their last-used dates are
+  waited for a moment at most, and without them the list is ranked as if Spotlight knew none.
 
 ## 0.7.4 (2026-11-14)
 
