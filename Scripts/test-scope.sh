@@ -18,7 +18,11 @@
 # And for update (with mac): what the updater's test runs (the updater's code, the input method's command line that
 # starts it, the apps' code-signature checks and bundle swap, the version, the Settings app it updates too, the
 # installer, the update manifest's tool) and what makes and signs the apps it updates (the Makefile, the Package files,
-# the scripts `make app` runs, the apps' Info.plist files, entitlements and provisioning profile).
+# the scripts `make app` runs, and Resources/ with the core's resources: the apps' Info.plist files, entitlements and
+# provisioning profile, and what `make app` and `make settings-app` put in them or make from, the interface text's
+# catalogs, the user guide, the icons and AI logos, the Info.plist's strings, the Lua filter, the core's resource
+# bundle), what every tool the updater and the installer start runs through (ProcessOutput), and the workflow that runs
+# the updater's test and decides when (quality.yml).
 # A push to mainline or a release branch, or a run with no base to compare with, runs both without asking this (and the
 # updater's test on a release branch).
 #
@@ -46,11 +50,13 @@ while IFS= read -r path || [ -n "$path" ]; do
     case $path in
     Sources/AllInOneIMEInstaller/* | Sources/*/Update*.swift | Core/Sources/AllInOneIMECore/Update*.swift \
         | Sources/AllInOneIME/main.swift | Sources/AllInOneIMEMac/AppBundles.swift | Sources/AllInOneIMESettings/* \
-        | Core/Sources/AllInOneIMECore/AppVersion.swift \
+        | Core/Sources/AllInOneIMECore/AppVersion.swift | Core/Sources/AllInOneIMECore/Platform/ProcessOutput.swift \
+        | Core/Sources/AllInOneIMECore/Resources/* | Core/Resources/Localizable.xcstrings \
+        | .github/workflows/quality.yml \
         | Scripts/test-update.sh | Scripts/build-update-manifest.swift | Scripts/installed-input-method.sh \
         | Scripts/strip-rpaths.sh | Scripts/check-weak-links.sh | Scripts/sign-identity.sh | Scripts/profile-entitlements.sh \
         | Makefile | Package.swift | Package.resolved | Core/Package.swift | Core/Package.resolved \
-        | Resources/*Info.plist | Resources/*.entitlements | Resources/Signing/*) update=true mac=true ;;
+        | Resources/*) update=true mac=true ;;
     esac
 done
 echo "core=$core"
