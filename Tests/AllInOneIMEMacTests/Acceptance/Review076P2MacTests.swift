@@ -13,7 +13,15 @@ struct Review076P2MacTests {
     @Test func leavingAFieldDoesNotInsertThePendingTypeOutRemainder() throws {
         let report = try Review076P2Child.run("leave")
         #expect(report["caught"] == "true", "the pending type-out was not reached: \(report)")
-        #expect(report["typed"] == report["before"], "leaving inserted the rest into the old field: \(report)")
+        let before = try #require(report["before"]), intended = try #require(report["intended"])
+        let atOnce = try #require(report["atOnce"]), typed = try #require(report["typed"])
+        #expect(before.count < intended.count, "the type-out had no rest left to insert: \(report)")
+        #expect(atOnce == before, "leaving put something into the old field at that moment: \(report)")
+        // The stop settles by itself about 3 s later, the field left long since: it may still take its typo out where it
+        // was typed (the field then holds less, or as much), but none of the type-out's rest goes in.
+        #expect(report["settled"] == "true", "the stop never settled after the field was left: \(report)")
+        #expect(typed != intended, "the settled stop inserted the rest into the field that was left: \(report)")
+        #expect(typed.count <= before.count, "the settled stop put more of the type-out into the field that was left: \(report)")
     }
 
     @Test func replayedKeysClearChromiumsTemporaryMarkedText() throws {
@@ -26,6 +34,7 @@ struct Review076P2MacTests {
 
     @Test func pointingAtAnAICardDoesNotReadConfigOnTheMainThread() throws {
         let report = try Review076P2Child.run("config-read")
+        #expect(report["shown"] == "true", "Settings was not opened on the settings built before: \(report)")
         #expect(report["reloaded"] == "true", "the changed config was not reloaded: \(report)")
         let marker = try #require(report.opened.firstIndex(where: { $0.path == report["mark"] }), "the phase marker was not opened")
         let reads = report.opened.suffix(from: marker + 1).filter { $0.path == report["config"] }

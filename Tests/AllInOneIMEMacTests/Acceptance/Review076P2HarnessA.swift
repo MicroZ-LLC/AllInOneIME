@@ -210,7 +210,8 @@ extension Review076P2Harness {
 
         /// A type-out with a typo in a field that tells its text late; a click outside (`pointerDown`: the rest to go in)
         /// while the field doesn't tell the typo yet, so the stop settles later; the field tells it, and is left
-        /// (`deactivateServer`) before the stop has settled.
+        /// (`deactivateServer`) before the stop has settled; then the stop is waited for (3 s on, the field left long
+        /// since) and what the field holds once it has settled is told.
         static func leave() {
             make()
             let field = P2Field()
@@ -226,8 +227,13 @@ extension Review076P2Harness {
             pump(0.3)
             say("caught", caught && settling && told)
             say("before", before)
+            say("atOnce", field.document)
+            say("settlingWhenLeft", controller.isTypingOut)
+            let settled = pump(8) { !controller.isTypingOut }
+            pump(0.5)
+            say("settled", settled)
             say("typed", field.document)
-            say("typingOut", controller.isTypingOut)
+            say("intended", intended)
         }
 
         // MARK: Item 15

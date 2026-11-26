@@ -24,8 +24,11 @@ extension Review076P2Harness {
 
         // MARK: Item 17
 
-        /// Settings pointed at an AI's card (`SettingsModel.point(at:card:)`, the start's "Use My Own AI…" and the
-        /// Doctor's) after the config file changed elsewhere: the hook tells which thread reads the file.
+        /// Settings opened on an AI's card (`SettingsWindow.show(page:spot:card:)`, the start's "Use My Own AI…" and the
+        /// Doctor's: the window opened on the settings the start built, the card pointed at) after the config file
+        /// changed elsewhere: the hook tells which thread reads the file. The input method's own read of a changed
+        /// config (`LiveConfig`, as its next key makes it wherever Settings is) is made before the mark: what is read
+        /// after it is the window's and the pointing's.
         static func configRead() {
             _ = NSApplication.shared
             SettingsModel.looksUpKeys = false
@@ -33,21 +36,26 @@ extension Review076P2Harness {
             var config = Config.default
             config.uiLanguage = "en"
             write(config, to: url)
-            let model = SettingsModel(configURL: url, persists: true)
+            let model = SettingsWindow.shared.settings
             pump(0.3)
             say("marker", "made")
             // Changed elsewhere (the Assistant, another Mac through iCloud): the model hasn't read it.
             config.ai = .provider(.openai)
             write(config, to: url)
+            _ = LiveConfig.current
             let mark = home.appendingPathComponent("mark", isDirectory: true)
             try? FileManager.default.createDirectory(at: mark, withIntermediateDirectories: true)
-            // A line of the hook's own between what was read before and what the pointing reads.
+            // A line of the hook's own between what was read before and what opening on the card reads.
             _ = try? Data(contentsOf: mark.appendingPathComponent("config.json"))
-            model.point(at: nil, card: .provider(.anthropic))
-            pump(1.5) { model.config.ai == .provider(.openai) }
-            say("reloaded", model.config.ai == .provider(.openai))
+            SettingsWindow.shared.show(page: .ai, spot: nil, card: .provider(.anthropic))
+            say("shown", SettingsWindow.shared.isVisible && SettingsWindow.shared.settings === model)
+            let reloaded = pump(3) { model.config.ai == .provider(.openai) }
+            pump(0.5)  // the window's own reads (opened, become key) made too
+            say("reloaded", reloaded)
+            say("spot", SettingsWindow.shared.spot?.rawValue ?? "none")
             say("mark", mark.appendingPathComponent("config.json").path)
             say("config", url.path)
+            NSApp.windows.filter { $0.isVisible && $0.styleMask.contains(.titled) }.forEach { $0.close() }
         }
 
         // MARK: Item 19
