@@ -36,14 +36,17 @@ public enum UIText {
     /// Picked in the settings (config `uiLanguage`: "zh", "en" or a shipped code; applied from the config when a
     /// text field or the window opens); nil follows the system. A change posts `.allInOneIMEInterfaceLanguageChanged` on
     /// the main queue: at once when it is changed there, else soon after. In a task with an interface of its own
-    /// (`scopedInterface`), its choice, set with the process's.
+    /// (`scopedInterface`), its choice only: the process's stays as it is.
     public static var choice: String? {
         get {
             if let scoped = scopedInterface { return scoped.choice }
             return state.withLock { $0.choice }
         }
         set {
-            scopedInterface?.choice = newValue
+            if let scoped = scopedInterface {
+                scoped.choice = newValue
+                return
+            }
             let changed = state.withLock { state -> Bool in
                 guard state.choice != newValue else { return false }
                 state.choice = newValue
@@ -101,10 +104,10 @@ public enum UIText {
 
     /// An interface of its own for what one task does and the tasks it starts (or one synchronous scope:
     /// `$scopedInterface.withValue`): its language as chosen, read and set there as `choice` (`language` and `chinese`
-    /// follow it, a `scopedLanguage` before it), and its command trigger (`commandTrigger`); the process's are set with
-    /// them, for what is read off the task. A test's (`withInterfaceLanguage`): what it and the sessions it makes set, as
-    /// they read their settings, stays its own, whatever the sessions of the tests running alongside set the process's
-    /// to meanwhile. Nil: the process's.
+    /// follow it, a `scopedLanguage` before it), and its command trigger (`commandTrigger`); the process's are left as
+    /// they are (what is read off the task reads those). A test's (`withInterfaceLanguage`, a test host's session:
+    /// `FakeHost`): what it and the sessions it makes set, as they read their settings, stays its own, and never reaches
+    /// the tests running alongside. Nil: the process's.
     @TaskLocal public static var scopedInterface: ScopedInterface?
 
     /// The interface one task has of its own, apart from the process's (`scopedInterface`).

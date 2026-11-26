@@ -92,7 +92,7 @@ final class CandidatePanel: NSPanel {
         view.drawsBackground = false
         view.removeFromSuperview()
         contentView = Self.glass(around: view)
-        screenEvents = ScreenEvents { [weak self] in self?.resurface() }
+        screenEvents = ScreenEvents({ [weak self] in self?.resurface() }, returned: { Self.displayReturned($0) })
     }
 
     /// The system's own material behind the rows, so the panel looks like the system's menus and follows
@@ -225,6 +225,7 @@ final class CandidatePanel: NSPanel {
         guard isShowing else { return }
         placed = nil
         view.minimumWidth = 0
+        view.panelHidden()
         contentView?.layer?.removeAnimation(forKey: "appear")
         // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
         // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
@@ -272,8 +273,18 @@ final class CandidatePanel: NSPanel {
         // here, made by hand with the window server's tags cleared, put back by this at once).
         collectionBehavior = []
         collectionBehavior = Self.behavior
+        moveOntoScreen()
         if reorder { orderOut(nil) }
         orderFrontRegardless()
+    }
+
+    /// On no screen now (the display it was on gone, GitHub #61): placed again for its caret, on a screen that is there.
+    private func moveOntoScreen() {
+        guard let anchor = placed?.anchor, !NSScreen.screens.isEmpty, !NSScreen.screens.contains(where: { $0.frame.intersects(frame) }) else { return }
+        Self.log.notice("candidate box on no screen: placed again for its caret")
+        let next = placement(at: anchor)
+        view.side = next.side
+        setFrame(next.frame, display: true)
     }
 
     /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`: the displays changed or
@@ -299,6 +310,7 @@ final class CandidatePanel: NSPanel {
 
     private func presence(_ step: PresenceStep) {
         guard isShowing, !Self.invisible, Date() >= Self.presenceIgnoredUntil else {
+            if isShowing, !Self.invisible { Self.log.notice("candidate box presence check skipped: given up on it a moment ago") }
             checkingPresence = false
             return
         }
@@ -340,6 +352,15 @@ final class CandidatePanel: NSPanel {
         }
     }
 
+    /// A display back (the Mac or its displays woke, the displays changed: `ScreenEvents.returns`): the window server's
+    /// answers are gone by again, however recently a fresh window didn't help (GitHub #61: after the lid was opened the
+    /// box stayed missing until a restart), as the panel is put back (`resurface`).
+    static func displayReturned(_ event: Notification.Name) {
+        guard presenceIgnoredUntil > Date() else { return }
+        presenceIgnoredUntil = .distantPast
+        log.notice("candidate box: \(event.rawValue, privacy: .public), its presence checked again")
+    }
+
     /// A fresh window in this one's place, as the shared panel (`shared`), showing what this one shows where it shows it,
     /// with everything attached to it: the view itself (its rows, the pointer's owner and handlers, `onHover`),
     /// `onPresent`, `onReplace`. This one is put away for good. What restarting the app did (GitHub #61), the session kept.
@@ -363,8 +384,10 @@ final class CandidatePanel: NSPanel {
     }
 
     /// Why a panel that shows can't be seen, from what the app and the window server say of it (`alpha`, `frame`: the
-    /// panel's own); nil: it can, or the window server tells nothing of it to go by.
-    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect) -> Absence? {
+    /// panel's own); nil: it can, or the window server tells nothing of it to go by. On none of `screens` (the displays
+    /// changed under it) it can't, wherever the window server has it.
+    static func absence(appHidden: Bool, server: WindowServerView, alpha: CGFloat, frame: NSRect,
+                        screens: [NSRect] = NSScreen.screens.map(\.frame)) -> Absence? {
         if appHidden { return .hiddenApp }
         if alpha == 0 { return .transparent }
         switch server {
@@ -375,6 +398,7 @@ final class CandidatePanel: NSPanel {
             if serverAlpha < 0.01 { return .transparent }
             // Somewhere else altogether (where a display was, off every screen). Its frame there can be a little off ours
             // (a move on its way to it; the whole desktop drawn smaller behind a locked screen), never nowhere near it.
+            if !screens.isEmpty, !screens.contains(where: { $0.intersects(serverFrame) }) { return .frame }
             return serverFrame.intersects(frame) ? nil : .frame
         }
     }
@@ -472,30 +496,6 @@ final class CandidatePanel: NSPanel {
     static func screen(for anchor: NSRect) -> NSScreen? {
         let anchor = usable(anchor)
         return NSScreen.screens.first { $0.frame.contains(anchor.origin) } ?? NSScreen.main
-    }
-}
-
-/// What can take one of our windows off the screen with AppKit none the wiser (GitHub #61): the displays changed or woke,
-/// the Mac woke, another Space, the app hidden (Hide Others hides an agent app too). Each window that shows while typing
-/// (the candidate panel, the image preview beside it, autocomplete's suggestion, the menu bar's panel) is put back on each
-/// while it shows: `handler`, on the main thread, as long as this is kept.
-final class ScreenEvents {
-    private var observers: [(NotificationCenter, NSObjectProtocol)] = []
-
-    init(_ handler: @escaping @MainActor () -> Void) {
-        let app = NotificationCenter.default, workspace = NSWorkspace.shared.notificationCenter
-        let events: [(NotificationCenter, Notification.Name)] = [
-            (app, NSApplication.didChangeScreenParametersNotification), (app, NSApplication.didHideNotification),
-            (workspace, NSWorkspace.screensDidWakeNotification), (workspace, NSWorkspace.didWakeNotification),
-            (workspace, NSWorkspace.activeSpaceDidChangeNotification),
-        ]
-        observers = events.map { center, name in
-            (center, center.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { handler() } })
-        }
-    }
-
-    deinit {
-        for (center, observer) in observers { center.removeObserver(observer) }
     }
 }
 
@@ -623,6 +623,8 @@ final class CandidateView: NSView {
         /// The comment after a row's text ("黑话", jargon), and the numbers of the pinyin candidates' pills.
         var rowComment: NSColor
         var pillNumber: NSColor
+        /// The footer's words and its detail (what the keys do, a count): as the comments.
+        var footerColor: NSColor
         /// The highlighted row (and pill): its fill, its border (nil: none) and how wide.
         var selectedFill: NSColor
         var selectedBorder: NSColor?
@@ -645,12 +647,12 @@ final class CandidateView: NSView {
         }
         let tint = selectionTint(accent: accent, background: panel, dark: dark)
         guard increaseContrast else {
-            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor,
+            return Palette(rowComment: .secondaryLabelColor, pillNumber: .secondaryLabelColor, footerColor: .secondaryLabelColor,
                            selectedFill: tint.color.withAlphaComponent(tint.alpha), selectedBorder: nil, selectedBorderWidth: 0,
                            selectedInk: ink)
         }
         let solid = panel.withAlphaComponent(1).blended(withFraction: min(tint.alpha + 0.15, 0.7), of: tint.color) ?? tint.color
-        return Palette(rowComment: .labelColor, pillNumber: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
+        return Palette(rowComment: .labelColor, pillNumber: .labelColor, footerColor: .labelColor, selectedFill: solid, selectedBorder: .controlAccentColor,
                        selectedBorderWidth: 1, selectedInk: .labelColor)
     }
 
@@ -668,7 +670,7 @@ final class CandidateView: NSView {
         search: for shade in stride(from: CGFloat(0), through: 0.9, by: 0.1) {
             let color = shade == 0 ? accent : accent.blended(withFraction: shade, of: dark ? .white : .black) ?? accent
             for alpha in stride(from: dark ? CGFloat(0.28) : 0.14, through: 0.5, by: 0.01)
-            where contrast(color.withAlphaComponent(alpha), over: background) >= 1.6 {
+            where color.withAlphaComponent(alpha).contrastRatio(over: background) >= 1.6 {
                 tint = (color, alpha)
                 break search
             }
@@ -682,21 +684,6 @@ final class CandidateView: NSView {
         var dark: Bool
     }
     private static var tints: [TintKey: (color: NSColor, alpha: CGFloat)] = [:]
-
-    /// WCAG's contrast ratio of `color` (its alpha over `background`) against `background`, both in sRGB.
-    static func contrast(_ color: NSColor, over background: NSColor) -> CGFloat {
-        guard let color = color.usingColorSpace(.sRGB), let background = background.usingColorSpace(.sRGB) else { return 1 }
-        func luminance(_ r: CGFloat, _ g: CGFloat, _ b: CGFloat) -> CGFloat {
-            func linear(_ v: CGFloat) -> CGFloat { v <= 0.04045 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
-            return 0.2126 * linear(r) + 0.7152 * linear(g) + 0.0722 * linear(b)
-        }
-        let a = color.alphaComponent
-        func over(_ c: CGFloat, _ b: CGFloat) -> CGFloat { c * a + b * (1 - a) }
-        let front = luminance(over(color.redComponent, background.redComponent), over(color.greenComponent, background.greenComponent),
-                              over(color.blueComponent, background.blueComponent))
-        let back = luminance(background.redComponent, background.greenComponent, background.blueComponent)
-        return (max(front, back) + 0.05) / (min(front, back) + 0.05)
-    }
 
     private struct RowLayout {
         var frame: NSRect
@@ -713,6 +700,10 @@ final class CandidateView: NSView {
         var header = false
     }
 
+    /// VoiceOver's view of it (`PanelAccessibility`), and how what changes is said (a test's records it).
+    private lazy var accessibility = PanelAccessibility(view: self)
+    var announceAccessibility: (String) -> Void = { PanelAccessibility.announce($0) }
+
     /// Its own solid background: off in the panel, where the system's glass is behind it (`CandidatePanel`);
     /// on for an offscreen image, which has nothing behind it to blur.
     var drawsBackground = true
@@ -727,6 +718,7 @@ final class CandidateView: NSView {
             let from = slideStart(from: oldValue)
             relayout()
             if let from { slide(from: from) }
+            accessibility.changed(from: oldValue, to: model) { [weak self] in self?.announceAccessibility($0) }
         }
     }
 
@@ -1125,32 +1117,6 @@ final class CandidateView: NSView {
         return (top + (frames.map(\.maxY).max() ?? 0), (frames.map(\.maxX).max() ?? 0) + 2 * p)
     }
 
-    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
-    /// characters, so an emoji or a Hangul syllable isn't split).
-    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
-        guard text.length > 0, ceil(text.size().width) > width else { return text }
-        let string = text.string as NSString
-        var ends: [Int] = [0]  // where each character ends, in UTF-16
-        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
-            _, range, _, _ in ends.append(range.upperBound)
-        }
-        func cut(_ end: Int) -> NSAttributedString {
-            // Not "word …": the space before the "…" goes.
-            var end = end
-            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
-            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
-            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
-            return out
-        }
-        // The most characters that fit with the "…" (none at least).
-        var low = 0, high = ends.count - 1
-        while low < high {
-            let mid = (low + high + 1) / 2
-            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
-        }
-        return cut(ends[low])
-    }
-
     private static func measure(_ text: NSAttributedString, minHeight: CGFloat) -> NSSize {
         let rect = text.boundingRect(
             with: NSSize(width: Metrics.maxTextWidth, height: .greatestFiniteMagnitude),
@@ -1524,20 +1490,20 @@ final class CandidateView: NSView {
         let midY = footerY + 1 + Metrics.footerGap + Metrics.smallKeycapHeight / 2
         var right = bounds.width - inset
         if let detail = model.detail {
-            let text = NSAttributedString(string: detail, attributes: [.font: Fonts.detail, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: detail, attributes: [.font: Fonts.detail, .foregroundColor: palette.footerColor])
             let size = text.size()
             text.draw(at: NSPoint(x: right - size.width, y: midY - size.height / 2))
             right -= ceil(size.width) + 16
         }
         let parts = footerParts
         if let plain = parts.plain {
-            let text = NSAttributedString(string: plain, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: plain, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
             text.draw(at: NSPoint(x: inset, y: midY - text.size().height / 2))
             return
         }
         var x = inset
         if let note = parts.note {
-            let text = NSAttributedString(string: note, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+            let text = NSAttributedString(string: note, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
             text.draw(at: NSPoint(x: x, y: midY - text.size().height / 2))
             // Its keys on the right.
             x = right - (parts.hints.map(Self.hintWidth).reduce(0, +) + CGFloat(max(parts.hints.count - 1, 0)) * Metrics.hintGap)
@@ -1557,7 +1523,7 @@ final class CandidateView: NSView {
             Self.drawSmallKeycap(hint.key, in: key, dark: dark)
             x += width + 5
         }
-        let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: NSColor.secondaryLabelColor])
+        let text = NSAttributedString(string: hint.text, attributes: [.font: Fonts.footer, .foregroundColor: palette.footerColor])
         text.draw(at: NSPoint(x: x, y: origin.y - text.size().height / 2))
     }
 
@@ -1875,6 +1841,45 @@ final class CandidateView: NSView {
 }
 
 extension CandidateView {
+    /// The panel hid: what it showed isn't said any more.
+    func panelHidden() { accessibility.cancel() }
+
+    // A list for VoiceOver, a child for each row it shows (those scrolled out of view aside), its status and its footer.
+    override func isAccessibilityElement() -> Bool { true }
+    override func accessibilityRole() -> NSAccessibility.Role? { .list }
+    override func accessibilityLabel() -> String? { PanelAccessibility.listLabel }
+    override func accessibilityChildren() -> [Any]? {
+        let footer = NSRect(x: 0, y: footerY, width: bounds.width, height: max(bounds.height - footerY, 0))
+        return accessibility.children(model, rowFrame: { [self] in rowFrame($0).flatMap { rowsClip?.intersects($0) ?? true ? $0 : nil } },
+                                      statusFrame: statusFrame, footerFrame: footer)
+    }
+
+    /// `text` on one line no wider than `width`: as it is, or its longest start that fits with "…" after it (whole
+    /// characters, so an emoji or a Hangul syllable isn't split).
+    static func fitted(_ text: NSAttributedString, width: CGFloat) -> NSAttributedString {
+        guard text.length > 0, ceil(text.size().width) > width else { return text }
+        let string = text.string as NSString
+        var ends: [Int] = [0]  // where each character ends, in UTF-16
+        string.enumerateSubstrings(in: NSRange(location: 0, length: text.length), options: .byComposedCharacterSequences) {
+            _, range, _, _ in ends.append(range.upperBound)
+        }
+        func cut(_ end: Int) -> NSAttributedString {
+            // Not "word …": the space before the "…" goes.
+            var end = end
+            while end > 0, let scalar = Unicode.Scalar(string.character(at: end - 1)), CharacterSet.whitespaces.contains(scalar) { end -= 1 }
+            let out = NSMutableAttributedString(attributedString: text.attributedSubstring(from: NSRange(location: 0, length: end)))
+            out.append(NSAttributedString(string: "…", attributes: text.attributes(at: max(end - 1, 0), effectiveRange: nil)))
+            return out
+        }
+        // The most characters that fit with the "…" (none at least).
+        var low = 0, high = ends.count - 1
+        while low < high {
+            let mid = (low + high + 1) / 2
+            if ceil(cut(ends[mid]).size().width) <= width { low = mid } else { high = mid - 1 }
+        }
+        return cut(ends[low])
+    }
+
     /// Rows one under another taller than `maxHeight`: shown between `rowsTop` and what is left above the status and
     /// footer (the title and the line of input stay on top), moved up. A conversation's to show the bottom of the last
     /// one, or the highlighted one when it is above (an earlier answer picked with ↑), or as far as the wheel moved them;

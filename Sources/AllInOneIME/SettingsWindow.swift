@@ -112,9 +112,11 @@ final class SettingsModel: ObservableObject {
     typealias TestStatus = SettingsStore.TestStatus
 
     var configURL: URL { store.configURL }
-    /// The control the window was opened to point at (`SettingsWindow.show(page:spot:)`), outlined on its page until it's
-    /// used or another page is shown.
+    /// The control the window was opened to point at (`SettingsWindow.show(page:spot:)`, `point(at:search:card:)`),
+    /// outlined on its page until it's used or another page is shown.
     @Published var spot: SettingsSpot?
+    /// Settings → AI's other cards, folded or not, and the one pointed at (`aiCards`, `AIChoiceSettings`).
+    @Published var aiPicker = AIPickerState(chosen: .provider(.hosted), groups: [])
     /// False for previews/screenshots: nothing is ever written.
     var persists: Bool { store.persists }
     private var testTask: Task<Void, Never>?
@@ -434,31 +436,11 @@ final class SettingsModel: ObservableObject {
 
     // MARK: The AI (Settings → AI)
 
-    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: the CLI chosen as the AI page shows,
-    /// every CLI as its choices open, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
+    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: each CLI as its card shows on the AI
+    /// page, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
     @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
 
-    /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,
-    /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions and kinds, Apple's model.
-    var aiFacts: AIFacts {
-        let keyed: [Provider] = [.anthropic, .gemini, .openai]
-        return AIFacts(sessions: sessionAvailability,
-                       keys: Dictionary(uniqueKeysWithValues: keyed.map { ($0, keyState($0)) }),
-                       hostedSignedIn: account != nil || keyState(.hosted).isSet,
-                       // As read in the background (`AWSProfileModel.refresh`); until then Bedrock's card says "Checking…".
-                       awsProfiles: aws.requestProfiles,
-                       apple: AppleModel.system.availability)
-    }
-
-    /// The settings as what has to be fast goes with them (autocomplete's row): with a CLI chosen, its fast fallback by
-    /// `aiFacts` as the provider (`Config.fastProvider`); nil: there is none.
-    var fastConfig: Config? {
-        guard config.ai.agent != nil else { return config }
-        guard let fast = config.fastProvider(aiFacts) else { return nil }
-        var shown = config
-        shown.provider = fast
-        return shown
-    }
+    // What this Mac has for each choice (`aiFacts`), and the cards: ClaudeSessionSettings.swift.
 
     // MARK: Notes (@note)
 
@@ -1884,9 +1866,9 @@ struct SettingsView: View {
     }
 
     /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice (a CLI answers `@question`, what has to be fast going to
-    /// `Config.fastProvider`). The one chosen (its logo, name and status) with its own settings under it, then every choice
-    /// as a card by how it connects (`AIChoicesGrid`, #121), the chosen one outlined; the settings search's AI row points at
-    /// the cards.
+    /// `Config.fastProvider`). The one chosen (its logo, name and status) with its own settings under it, then its card,
+    /// outlined, and the other choices' cards by how they connect folded under one row (`AIChoiceSettings`, #121, #161);
+    /// the settings search's AI row points at the cards.
     @ViewBuilder var providerSection: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
@@ -1917,7 +1899,7 @@ struct SettingsView: View {
             SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
         }
         .disabled(!model.canSave)
-        // Every choice as a card, always shown (#121): one click chooses.
+        // The one in use as a card, the others folded under one row (#161): one click chooses.
         Section {
             AIChoiceSettings(model: model)
         } header: {
@@ -2235,7 +2217,7 @@ struct SettingsView: View {
 
     private func show(_ spot: SettingsSpot) {
         page = spot.page
-        model.spot = spot
+        model.point(at: spot, search: typed)
     }
 
     /// What an input's chip opens: a language's pack, its own settings (Chinese's fuzzy pinyin, personal dictionaries and
@@ -2470,7 +2452,7 @@ struct SettingsView: View {
                 .background(Color(nsColor: .textBackgroundColor))
                 // The row pointed at (the search's, `SettingsWindow.show(page:spot:)`), scrolled to.
                 .onAppear { scroll(proxy) }
-                .onChange(of: model.spot) { scroll(proxy) }
+                .onChange(of: model.spotIDs) { scroll(proxy) }
                 // A page starts at its top, and is drawn anew in the other interface language: controls of their
                 // own (the action key's recorder, the language chips) don't redraw by themselves when it changes.
                 .id("\(page.rawValue)-\(UIText.language)"))
@@ -2598,7 +2580,8 @@ struct SettingsView: View {
             page = .ai
             model.reloadIfChanged()  // what the Assistant just set
             guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
-            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page).
+            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page; its
+            // card is pointed at, `AIConfigSession.openKeyField`).
             if provider == model.config.provider {
                 DispatchQueue.main.async { editingKey = provider }
             } else if provider.needsKey {
@@ -2614,10 +2597,11 @@ struct SettingsView: View {
         .onDisappear { model.save() }
     }
 
-    /// The row pointed at, in the middle of the page (once it is laid out).
+    /// The row pointed at, in the middle of the page (once it is laid out); on Settings → AI's choices, then the card
+    /// pointed at in it (`SettingsModel.spotIDs`).
     private func scroll(_ proxy: ScrollViewProxy) {
         guard let spot = model.spot, spot.page == page else { return }
-        DispatchQueue.main.async { withAnimation { proxy.scrollTo(spot.row, anchor: .center) } }
+        DispatchQueue.main.async { withAnimation { for id in model.spotIDs { proxy.scrollTo(id, anchor: .center) } } }
     }
 
     /// The input method's version (Info.plist), shown at the bottom of the window.
@@ -3133,10 +3117,11 @@ final class SettingsWindow {
     /// too: before the input method ends (it quits for an update, SIGTERM). Nothing is written when nothing changed.
     func save() { model?.save() }
 
-    /// Shows the window on `page` (already open: it turns to it), and outlines `spot` there if given (`SettingsModel.spot`).
-    func show(page: SettingsPage, spot: SettingsSpot? = nil) {
+    /// Shows the window on `page` (already open: it turns to it), and outlines `spot` there if given (`SettingsModel.spot`);
+    /// `card`, one of Settings → AI's choices, is pointed at among them (`SettingsModel.point`).
+    func show(page: SettingsPage, spot: SettingsSpot? = nil, card: AIChoice? = nil) {
         show(opening: page)
-        model?.spot = spot
+        model?.point(at: spot, card: card)
         NotificationCenter.default.post(name: .allInOneIMEShowSettingsPage, object: nil, userInfo: ["page": page.rawValue])
     }
 

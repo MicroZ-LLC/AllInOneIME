@@ -126,9 +126,10 @@ struct StartView: View {
         }
     }
 
-    /// "Already have your own AI?": Settings → AI, where each is chosen.
+    /// "Already have your own AI?": Settings → AI, where each is chosen, pointed at its first card (`AIChoice.all`'s), so
+    /// that the other cards show unfolded from the top (#161), unless that one is the AI in use.
     private func ownAI(_ name: String) -> some View {
-        Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider) }
+        Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider, card: AIChoice.all.first) }
     }
 
     // MARK: 3. Try one @

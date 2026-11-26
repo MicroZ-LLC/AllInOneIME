@@ -79,7 +79,7 @@ extension PanelPresenter {
             let row = SessionText.openRow(result, language: language, terms: terms)
             // An app, a folder or a file with its own icon; a web address with `@open`'s.
             return Row(label: "", text: t.tr("打开 \(row.text)", "Open \(row.text)"), comment: row.comment + " · " + named(.open),
-                       kind: .candidate, icon: IconToken.item(result) ?? IconToken.command(.open), action: t.tr("打开", "open"))
+                       kind: .candidate, icon: IconToken.item(result) ?? IconToken.command(.open), action: SessionText.openAction(result, t, terms: terms))
         case let .reminder(reminder):
             // When as read, as the system shows times (「明天 15:00」 or 「明天 下午3:00」), as `@reminder`'s row says it.
             let when = t.when(reminder)

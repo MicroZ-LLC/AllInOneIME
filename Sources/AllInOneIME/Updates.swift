@@ -124,7 +124,7 @@ enum UpdateStaging {
     /// `app`'s input method runs (`--version`) and says it's `version`.
     static func launchCheck(_ app: URL, version: String) throws {
         let executable = app.appendingPathComponent("Contents/MacOS/AllInOneIME")
-        let result = UpdateProcess.run(executable.path, ["--version"], timeout: 30)
+        let result = ProcessOutput.tool(executable.path, ["--version"], timeout: 30)
         guard result.status == 0, result.output == version else {
             throw UpdateError.invalidApp("\(app.lastPathComponent) doesn't start (\(result.status): \(result.output.prefix(200)))")
         }
@@ -161,38 +161,17 @@ enum UpdateStaging {
     }
 }
 
-/// Runs a tool to its end (or kills it after `timeout`); stdout and stderr together, trimmed.
-enum UpdateProcess {
-    struct Result {
-        var status: Int32
-        var output: String
-    }
-
-    static func run(_ path: String, _ arguments: [String], timeout: TimeInterval) -> Result {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        let output = FileManager.default.temporaryDirectory.appendingPathComponent("allinoneime-update-\(UUID().uuidString).out")
-        FileManager.default.createFile(atPath: output.path, contents: nil)
-        defer { try? FileManager.default.removeItem(at: output) }
-        guard let handle = try? FileHandle(forWritingTo: output) else { return Result(status: -1, output: "can't write its output") }
-        defer { try? handle.close() }
-        process.standardOutput = handle
-        process.standardError = handle
-        process.standardInput = FileHandle.nullDevice
-        do { try process.run() } catch { return Result(status: -1, output: error.localizedDescription) }
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
-        if process.isRunning {
-            process.terminate()
-            Thread.sleep(forTimeInterval: 1)
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
-            return Result(status: -1, output: "timed out after \(Int(timeout)) s")
+extension ProcessOutput {
+    /// One of the updater's tools run to its end (stopped after `timeout`): its status and what it printed, standard
+    /// output then standard error, trimmed; -1 and why when it couldn't start or was stopped.
+    static func tool(_ path: String, _ arguments: [String], timeout: TimeInterval) -> (status: Int32, output: String) {
+        do {
+            let result = try run(URL(fileURLWithPath: path), arguments, timeout: timeout)
+            let text = String(decoding: result.output + result.errors, as: UTF8.self)
+            return (result.status, text.trimmingCharacters(in: .whitespacesAndNewlines))
+        } catch {
+            return (-1, error.localizedDescription)
         }
-        let text = (try? String(contentsOf: output, encoding: .utf8)) ?? ""
-        let status = process.terminationReason == .uncaughtSignal ? -process.terminationStatus : process.terminationStatus
-        return Result(status: status, output: text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }
 
@@ -259,7 +238,7 @@ enum UpdateHelper {
             if !locations.isTest, BundleSwap.exists(locations.inputMethod), reopenSettings || !running {
                 let executable = locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME")
                 if let failure = UpdateRelaunch.start(locations.inputMethod, newInstance: !running, settings: reopenSettings,
-                                                      open: { let run = UpdateProcess.run("/usr/bin/open", $0, timeout: 30); return (run.status, run.output) },
+                                                      open: { ProcessOutput.tool("/usr/bin/open", $0, timeout: 30) },
                                                       running: { !UpdateRelaunch.processes(running: executable).isEmpty }) {
                     say("✗ the input method didn't start again: \(failure); it starts once it is chosen in the input menu or "
                         + "AllInOneIME Settings is opened")
@@ -335,10 +314,10 @@ enum UpdateHelper {
 
     /// The apps installed now registered with Launch Services, and the input method with the text input system by its own
     /// `--register`: what that said.
-    static func registerInstalled(_ locations: UpdateLocations) -> UpdateProcess.Result {
-        _ = UpdateProcess.run(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
-        return UpdateProcess.run(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
-                                 ["--register"], timeout: 300)
+    static func registerInstalled(_ locations: UpdateLocations) -> (status: Int32, output: String) {
+        _ = ProcessOutput.tool(lsregister, ["-f", locations.inputMethod.path, locations.settingsApp.path], timeout: 60)
+        return ProcessOutput.tool(locations.inputMethod.appendingPathComponent("Contents/MacOS/AllInOneIME").path,
+                                  ["--register"], timeout: 300)
     }
 
     /// Waits for the input method that started this helper to quit (it does once the helper runs); ends it

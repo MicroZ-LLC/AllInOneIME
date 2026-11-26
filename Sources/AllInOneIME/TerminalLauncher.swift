@@ -126,19 +126,11 @@ enum TerminalLauncher {
         return true
     }
 
-    /// Runs AppleScript lines with osascript; its output, or nil when it failed.
+    /// Runs AppleScript lines with osascript (`Osascript`: a tab's long scrollback read whole, stopped after its
+    /// timeout); its output, or nil when it failed or was stopped.
     private static func osascript(_ lines: [String]) -> String? {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = lines.flatMap { ["-e", $0] }
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return nil }
-        process.waitUntilExit()
-        guard process.terminationStatus == 0 else { return nil }
-        return String(decoding: out.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let result = try? Osascript.run(lines.flatMap { ["-e", $0] }), result.status == 0 else { return nil }
+        return String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// `text` as one single-quoted shell word.

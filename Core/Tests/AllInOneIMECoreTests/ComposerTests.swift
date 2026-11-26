@@ -1664,19 +1664,47 @@ struct ComposerTests {
         _ = c.handleKeyDown(upKey)
         // Tab: the highlighted path replaces what was typed; a folder's ends in "/", which lists it.
         #expect(c.handleKeyDown(tab).effects == [.updateMarkedText, .showPanel])
-        #expect(c.draft == "@open /Users/me/Documents/" && c.currentLiveResults.isEmpty)
+        // The folder itself first, its entries below it as the search lists them.
+        #expect(c.draft == "@open /Users/me/Documents/" && c.currentLiveResults == [documents])
         _ = c.receiveLive([report], for: "/Users/me/Documents/")
-        // ⌘C copies the path and keeps everything; ⏎ (the action key) opens it.
+        #expect(c.currentLiveResults == [documents, report])
+        // ⌘C copies the highlighted path and keeps everything; ⏎ (the action key) opens it: the folder, as nothing moved.
         let copy = c.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command))
-        #expect(copy.effects.first == .copy(report.path) && copy.handled && c.draft == "@open /Users/me/Documents/")
+        #expect(copy.effects.first == .copy(documents.path) && copy.handled && c.draft == "@open /Users/me/Documents/")
+        _ = c.handleKeyDown(downKey)
+        #expect(c.handleKeyDown(KeyEvent(keyCode: 0x08, characters: "c", modifiers: .command)).effects.first == .copy(report.path))
+        _ = c.handleKeyDown(upKey)
         let open = c.handleKeyDown(enterKey)
-        #expect(open.effects.last == .open(path: report.path) && commits(open).isEmpty && c.phase == .idle)
+        #expect(open.effects.last == .open(path: documents.path) && commits(open).isEmpty && c.phase == .idle)
         #expect(!c.engineState.isAsciiMode)  // back to Chinese once @open is done
         // Esc on the way also brings Chinese back.
         let (d, _) = palette("o")
         _ = d.handleKeyDown(tab)
         _ = d.handleKeyDown(escKey)
         #expect(!d.engineState.isAsciiMode && d.draft.isEmpty)
+    }
+
+    /// The folder Tab went into is first for that text only while that draft lasts (review of PR #162): Esc and a new
+    /// `@open` with the same path typed lists what the search finds, no folder row left over.
+    @Test func theFolderTabWentIntoIsForgottenWithItsDraft() {
+        let documents = SearchResult(name: "Documents", path: "/Users/me/Documents", isFolder: true)
+        let report = SearchResult(name: "report.pdf", path: "/Users/me/Documents/report.pdf")
+        let (c, _) = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("~/Doc", c)
+        _ = c.receiveLive([documents], for: "~/Doc")
+        _ = c.handleKeyDown(tab)
+        #expect(c.currentLiveResults == [documents])
+        _ = c.handleKeyDown(escKey)
+        #expect(c.draft.isEmpty)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("/Users/me/Documents/", c)
+        _ = c.receiveLive([report], for: "/Users/me/Documents/")
+        #expect(c.currentLiveResults == [report], "no folder row left from the draft before: \(c.currentLiveResults.map(\.name))")
     }
 
     @Test func onlyContentMatchesAsYouTypeAreListedToPickFrom() {

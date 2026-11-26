@@ -28,6 +28,12 @@ struct CandidatePanelPresenceTests {
     @Test func nothingMoreIsDoneOnAKeyWhileTheBoxIsUp() throws {
         try PresenceChild.run("steady")
     }
+
+    /// GitHub #61, review of PR #162: a box left on no screen (the display it was on gone) is placed again on one as it is
+    /// put back, not left there while a fresh window takes its place where it was.
+    @Test func aBoxOnNoScreenIsPlacedOnOneAgain() throws {
+        try PresenceChild.run("detached")
+    }
 }
 
 private enum PresenceChild {
@@ -419,6 +425,28 @@ private enum PresenceChild {
         }
     }
 
+    extension Presence {
+        /// The display the box was on gone: the window server has it where it is, on no screen. The displays changed: put
+        /// back on a screen, for its caret, the same window, seen there.
+        static func detached() {
+            World.install()
+            World.answer = { number, _ in World.seen(number) }
+            let panel = CandidatePanel.shared
+            panel.show(words, anchor: high)
+            pump(0.3)
+            let screens = NSScreen.screens.map(\.frame)
+            let far = screens.reduce(NSRect.zero) { $0.union($1) }.maxX + 5000
+            panel.setFrameOrigin(NSPoint(x: far, y: 300))
+            expect(!screens.contains { $0.intersects(panel.frame) }, "set up: on no screen (\(panel.frame))")
+            NotificationCenter.default.post(name: NSApplication.didChangeScreenParametersNotification, object: NSApp)
+            pump(2) { CandidatePanel.shared !== panel }
+            let shown = CandidatePanel.shared
+            expect(screens.contains { $0.intersects(shown.frame) }, "on a screen again: \(shown.frame)")
+            expect(shown === panel, "put back, not replaced by a fresh window where it was")
+            shown.hide()
+        }
+    }
+
     @main struct PresenceMain {
         @MainActor static func main() {
             let scenario = CommandLine.arguments.dropFirst().first ?? ""
@@ -430,6 +458,7 @@ private enum PresenceChild {
             case "offscreen": Presence.offscreen()
             case "alpha": Presence.alpha()
             case "steady": Presence.steady()
+            case "detached": Presence.detached()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)
