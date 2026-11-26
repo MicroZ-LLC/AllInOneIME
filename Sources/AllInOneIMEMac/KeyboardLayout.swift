@@ -1,5 +1,6 @@
 import Carbon
 import AllInOneIMECore
+import Foundation
 
 /// A keyboard layout's key table (`uchr`), dead keys included.
 public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
@@ -29,6 +30,58 @@ public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
         guard let source = (TISCreateInputSourceList(filter, true)?.takeRetainedValue() as? [TISInputSource])?.first
         else { return nil }
         self.init(source: source)
+    }
+
+    /// `init(id:)` kept by ID (`Cache`): a layout set for a language that is neither the current one nor the current ASCII
+    /// one is asked for with every key, and listing the installed layouts takes a millisecond or two. Looked up again
+    /// once the selected or the enabled input sources change. Any thread.
+    public static func cached(id: String) -> KeyboardLayout? { Cache.shared.layout(id) }
+
+    /// The layouts `cached(id:)` found (nil: not installed), until the system says the selected or the enabled input
+    /// sources changed (`forget`, from its notifications, watched from the first lookup on).
+    public final class Cache: @unchecked Sendable {
+        public static let shared = Cache()
+        private let lock = NSLock()
+        private var found: [String: KeyboardLayout?] = [:]
+        private var watching = false
+        private var observers: [NSObjectProtocol] = []
+        private var look: @Sendable (String) -> KeyboardLayout? = { KeyboardLayout(id: $0) }
+
+        /// How a layout not kept is looked up (`KeyboardLayout(id:)`; a test's counts its lookups).
+        public var lookUp: @Sendable (String) -> KeyboardLayout? {
+            get { lock.withLock { look } }
+            set { lock.withLock { (look, found) = (newValue, [:]) } }
+        }
+
+        public func layout(_ id: String) -> KeyboardLayout? {
+            let (kept, look) = lock.withLock { (found[id], self.look) }
+            if let kept { return kept }
+            watch()
+            let layout = look(id)
+            lock.withLock { found[id] = .some(layout) }
+            return layout
+        }
+
+        /// Every layout looked up again (the selected or the enabled input sources changed).
+        public func forget() {
+            lock.withLock { found = [:] }
+        }
+
+        private func watch() {
+            guard lock.withLock({ () -> Bool in
+                defer { watching = true }
+                return !watching
+            }) else { return }
+            // On the main thread, whose run loop the system's notifications come in on.
+            let register = { @Sendable [weak self] in
+                let observers = [kTISNotifySelectedKeyboardInputSourceChanged, kTISNotifyEnabledKeyboardInputSourcesChanged].map {
+                    DistributedNotificationCenter.default().addObserver(forName: Notification.Name($0 as String), object: nil,
+                                                                        queue: nil) { _ in self?.forget() }
+                }
+                self?.lock.withLock { self?.observers = observers }
+            }
+            if Thread.isMainThread { register() } else { DispatchQueue.main.async(execute: register) }
+        }
     }
 
     /// The layout the keys come from. Under an input method macOS uses the last ASCII-capable one the

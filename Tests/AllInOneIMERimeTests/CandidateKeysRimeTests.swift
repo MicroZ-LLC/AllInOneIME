@@ -108,7 +108,7 @@ extension RimeEngineTests {
     @Test(arguments: [true, false])
     func candidateKeysInFullPinyin(horizontal: Bool) throws {
         _ = try RimeFixture.startup.get()
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         for typed in ["nihao", "shi"] {
             try CandidateKeys.check("librime \(typed)", horizontal: horizontal, typed: typed) {
                 CandidateKeys.typing(try RimeFixture.session(), horizontal: horizontal)
@@ -127,7 +127,7 @@ extension RimeEngineTests {
     @Test(arguments: [true, false])
     func candidateKeysOnAPageWithEnglishWords(horizontal: Bool) throws {
         _ = try RimeFixture.startup.get()
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         let (move, back) = horizontal ? (CandidateKeys.right, CandidateKeys.left) : (CandidateKeys.down, CandidateKeys.up)
         for typed in ["bedrock", "bedro"] {
             let engine = EnglishWordsEngine(base: try RimeFixture.session(), dictionary: dictionary,
@@ -159,7 +159,7 @@ extension RimeEngineTests {
     @Test(arguments: [CandidateArrangement.horizontal, .vertical])
     func candidateKeysThroughASession(layout: CandidateArrangement) throws {
         _ = try RimeFixture.startup.get()
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         for typed in ["nihao", "shi"] {
             try CandidateKeys.check("session \(typed)", horizontal: layout == .horizontal, typed: typed) {
                 let host = try Self.host(layout: layout, dictionary: dictionary)
@@ -177,7 +177,7 @@ extension RimeEngineTests {
     @Test(arguments: [CandidateArrangement.horizontal, .vertical])
     func candidateKeysInOneAtsLine(layout: CandidateArrangement) throws {
         _ = try RimeFixture.startup.get()
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         let host = try Self.host(layout: layout, dictionary: dictionary)
         host.press(FakeHost.at)
         host.type("shi")
@@ -243,7 +243,7 @@ struct CandidateKeysSchemeTests {
 
     /// Each key in both layouts on `typed` (one syllable, pages of candidates; and two), librime alone and with English words.
     static func checkScheme(_ scheme: PinyinScheme, typed: [String], minusOnFirstPage: Bool) throws {
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         for horizontal in [true, false] {
             for typed in typed {
                 for english in [false, true] {

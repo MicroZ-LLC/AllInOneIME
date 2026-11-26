@@ -30,18 +30,23 @@ enum FocusedField {
         }
     }
 
-    /// Its frame on the screen, in AppKit's coordinates (Accessibility's start at the main screen's top left, y down).
-    static func frame() -> NSRect? {
-        element().flatMap(frame(of:))
+    /// The main screen's top in AppKit's coordinates, where Accessibility's start (y down): asked on the main thread, for
+    /// the reads made off it (`top`).
+    @MainActor
+    static var screenTop: CGFloat { NSScreen.screens.first?.frame.maxY ?? 0 }
+
+    /// Its frame on the screen, in AppKit's coordinates (`top`: `screenTop`). Any thread.
+    static func frame(top: CGFloat) -> NSRect? {
+        element().flatMap { frame(of: $0, top: top) }
     }
 
     /// `element`'s frame (its position and size, a call each), in AppKit's coordinates. Nil: either not told, or no size.
-    private static func frame(of element: AXUIElement) -> CGRect? {
+    private static func frame(of element: AXUIElement, top: CGFloat) -> CGRect? {
         var position: CFTypeRef?, size: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXPositionAttribute as CFString, &position) == .success,
               AXUIElementCopyAttributeValue(element, kAXSizeAttribute as CFString, &size) == .success,
               let position, let size else { return nil }
-        return appKitFrame(position: position, size: size, top: NSScreen.screens.first?.frame.maxY ?? 0)
+        return appKitFrame(position: position, size: size, top: top)
     }
 
     /// The frame an element's `position` and `size` tell (AXValues), in AppKit's coordinates (`top`: the main screen's
@@ -72,10 +77,12 @@ enum FocusedField {
         return nil
     }
 
-    /// The frame of `app`'s focused window, in AppKit's coordinates (`PanelAnchor.Memory.learnWindow`): two calls, each
-    /// waiting `timeout` at most. Nil: Accessibility not allowed (never asked for here), `app` not running, no window told.
-    static func windowFrame(in app: String, timeout: Float = 0.05) -> (frame: CGRect?, timedOut: Bool)? {
-        guard AXIsProcessTrusted(), let pid = PageContextReader.runningPID(app) else { return nil }
+    /// The frame of the focused window of the app `pid` runs (the one in front: `PageContextReader.runningPID`), in
+    /// AppKit's coordinates (`top`: `screenTop`; `PanelAnchor.Memory.learnWindow`): two calls, each waiting `timeout` at
+    /// most. Nil: Accessibility not allowed (never asked for here), no window told. Any thread (the panel's anchor reads
+    /// it off the main one).
+    static func windowFrame(pid: pid_t, top: CGFloat, timeout: Float = 0.05) -> (frame: CGRect?, timedOut: Bool)? {
+        guard AXIsProcessTrusted() else { return nil }
         let application = AXUIElementCreateApplication(pid)
         AXUIElementSetMessagingTimeout(application, timeout)
         var found: CFTypeRef?
@@ -85,27 +92,26 @@ enum FocusedField {
         }
         let window = found as! AXUIElement  // checked just above
         AXUIElementSetMessagingTimeout(window, timeout)
-        return (frame(of: window), false)
+        return (frame(of: window, top: top), false)
     }
 
-    /// What Accessibility tells of the caret in `app`'s focused element, where its field told the panel no rect to trust
+    /// What Accessibility tells of the caret in the focused element of the app `pid` runs (the one in front:
+    /// `PageContextReader.runningPID`), where its field told the panel no rect to trust
     /// (`PanelAnchor`): its bounds (`AXSelectedTextRange` and `AXBoundsForRange`: the caret, the selection's last
     /// character where there is one), the focused window's frame and, with `page`, the frame of the outermost web area
     /// above it (the page: a walk up to the window). In AppKit's coordinates. Each call waits `timeout` at most and
     /// all of them `budget`: one that gets no answer in time ends the read (`timedOut`). Nil: Accessibility not allowed
-    /// (never asked for here), `app` not the one in front, nothing focused, a password field. Never during secure input
-    /// (the caller's to check).
-    static func caret(in app: String, page: Bool, timeout: Float = 0.05, budget: TimeInterval = 0.1) -> PanelAnchor.Accessibility? {
-        guard AXIsProcessTrusted(), let pid = PageContextReader.runningPID(app) else { return nil }
+    /// (never asked for here), nothing focused, a password field. Never during secure input (the caller's to check).
+    /// `top`: `screenTop`. Any thread (the panel's anchor reads it off the main one).
+    static func caret(pid: pid_t, page: Bool, top: CGFloat, timeout: Float = 0.05,
+                      budget: TimeInterval = 0.1) -> PanelAnchor.Accessibility? {
+        guard AXIsProcessTrusted() else { return nil }
         let deadline = ProcessInfo.processInfo.systemUptime + budget
         var read = PanelAnchor.Accessibility()
         // Every element asked waits `timeout` at most (set on each: the system-wide element's would be every call's).
         func value(_ element: AXUIElement, _ name: String, _ parameter: CFTypeRef? = nil) -> CFTypeRef? {
+            if !read.timedOut, ProcessInfo.processInfo.systemUptime >= deadline { read.timedOut = true }
             guard !read.timedOut else { return nil }
-            guard ProcessInfo.processInfo.systemUptime < deadline else {
-                read.timedOut = true
-                return nil
-            }
             AXUIElementSetMessagingTimeout(element, timeout)
             var value: CFTypeRef?
             let error = parameter.map { AXUIElementCopyParameterizedAttributeValue(element, name as CFString, $0, &value) }
@@ -117,7 +123,6 @@ enum FocusedField {
             guard let found = value(element, name), CFGetTypeID(found) == AXUIElementGetTypeID() else { return nil }
             return (found as! AXUIElement)  // checked just above
         }
-        let top = NSScreen.screens.first?.frame.maxY ?? 0
         func rect(_ found: CFTypeRef?) -> CGRect? {
             guard let found, CFGetTypeID(found) == AXValueGetTypeID() else { return nil }
             var told = CGRect.zero

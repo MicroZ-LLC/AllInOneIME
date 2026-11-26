@@ -62,45 +62,7 @@ func option(_ name: String, in arguments: [String]) -> String? {
     arguments.firstIndex(of: name).flatMap { arguments.indices.contains($0 + 1) ? arguments[$0 + 1] : nil }
 }
 
-/// Where level one keeps its data: the Chinese language pack's dictionaries, learned words per user,
-/// and the Lua scripts the pack's schemas use (in the bundle: packs are data only).
-enum RimeDirectories {
-    /// The self-test's data folder instead of the pack (`--rime-data`).
-    static var override: URL?
-
-    /// The installed Chinese pack's folder; nil until it is downloaded.
-    static var shared: URL? {
-        if let override { return override }
-        let store = LanguagePackStore()
-        return store.installed(.chinesePinyin) == nil ? nil : store.folder(.chinesePinyin)
-    }
-    /// The app's copy of rime-ice's Lua scripts, linked into the pack (`LanguagePackStore.linkCode`).
-    static var code: URL? {
-        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-lua")
-    }
-    /// The app's Zhuyin data (rime-bopomofo's schema and what it needs: `PinyinScheme.zhuyinData`), linked into the pack
-    /// (`LanguagePackStore.linkData`); compiled only where Zhuyin is picked (the schema list).
-    static var zhuyin: URL? {
-        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-zhuyin")
-    }
-    /// The app's tables of shape codes (`ShapeCode`, the folder `aux_code` in it), linked into the pack
-    /// (`LanguagePackStore.linkData`); their filter is with the scripts (`code`).
-    static var auxCode: URL? {
-        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-aux-code")
-    }
-    /// The app's OpenCC data for Traditional characters, copied into the user folder (`RimeService.prepareOpenCC`).
-    static var openCC: URL? {
-        Bundle.main.sharedSupportURL?.appendingPathComponent("opencc")
-    }
-    static var user: URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent("Library/Application Support/AllInOneIME/Rime")
-    }
-    static var logs: URL {
-        FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Logs/AllInOneIME")
-    }
-}
-
+// Where level one keeps its data (`RimeDirectories`): RimeDirectories.swift.
 // Fuzzy pinyin's patch and the schema list (`RimeFuzzy`): RimeFuzzy.swift.
 
 /// Opens the settings window when the input method is "opened" again (the AllInOneIME Settings app does
@@ -166,6 +128,8 @@ func runServer(showSettings: Bool = false, showStart: Bool = false) -> Never {
     }
     log.info("IMKServer started: \(name, privacy: .public)")
     terminationSignal.resume()
+    // What every field's panel shares, wired once (`SessionServices.wireUI`), before the first field's session.
+    MainActor.assumeIsolated { SessionServices.wireUI() }
     // The login shell's PATH, read once in the background: a script extension's first run doesn't wait for it, and the
     // main thread never does (the fallback PATH until then: `ShellEnvironment.path`).
     ShellEnvironment.warmUp()
@@ -516,6 +480,9 @@ case "--selftest":
     }
     let directory = URL(fileURLWithPath: arguments.count > 1 && !arguments[1].hasPrefix("--") ? arguments[1] : "/tmp/allinoneime-selftest")
     _ = ShellEnvironment.current  // the login shell's answer, as the input method has it once it has warmed up
+    // As at launch: the app, then the panels' shared wiring (`SessionServices.wireUI`).
+    _ = NSApplication.shared
+    MainActor.assumeIsolated { SessionServices.wireUI() }
     exit(MainActor.assumeIsolated {
         SelfTest.run(snapshotDirectory: directory, typingLagOnly: arguments.contains("--typing-lag-only"),
                      autocompleteOnly: arguments.contains("--autocomplete-only"), settingsOnly: arguments.contains("--settings-only"),

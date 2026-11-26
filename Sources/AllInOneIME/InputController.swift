@@ -132,7 +132,7 @@ final class AllInOneIMEInputController: IMKInputController {
     /// self-test: it would look at the real clipboard's types).
     var warmsUpVision = true
     /// The keyboard layout this text field was last told to type with (`applyKeyboardLayout`).
-    private var appliedLayout: String?
+    private(set) var appliedLayout: String?
     /// The recording in progress (a `DictationSession`, which needs macOS 26).
     private var voiceSession: AnyObject?
     /// Self-test only: recognize this audio file instead of the microphone.
@@ -185,6 +185,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
     var panelAnchor = PanelAnchor.Memory()
     var anchorToken = 0
+    /// What Accessibility told of the caret off the main thread, for the panel's anchor (`accessibilityCaret`).
+    var anchorReads = AnchorReads()
     /// How many times the panel was placed (`anchor`): one placed while the field was asked holds what's newer.
     var placements = 0
     /// What the log said last of a panel's anchor not trusted (`anchor`).
@@ -200,7 +202,7 @@ final class AllInOneIMEInputController: IMKInputController {
         var services = MainActor.assumeIsolated { MainThreadBox(SessionServices.mac) }.value
         services.pastesInTerminal = { MainActor.assumeIsolated { box.value?.canPasteInTerminal() ?? false } }
         services.keyTranslator = {
-            MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current() }
+            MainActor.assumeIsolated { box.value?.appliedLayout.flatMap(KeyboardLayout.cached(id:)) ?? KeyboardLayout.current() }
         }
         services.translateChip = { MainActor.assumeIsolated { box.value?.translateChip() } }
         // Autocomplete: what it learns and counts, one for every field; an app's name for what it says of the app.
@@ -351,14 +353,16 @@ final class AllInOneIMEInputController: IMKInputController {
     /// with typos fixed on the way is the session's (`Config.typeOutRate`, `typeOutVaries`, `typeOutMistakes`).
     var typeOutSleep: @Sendable (Double) async -> Void = { try? await Task.sleep(nanoseconds: UInt64($0 * 1_000_000_000)) }
     var typeOutRandom: (() -> Double)?
-    private var typingTask: Task<Void, Never>?
+    var typingTask: Task<Void, Never>?
     /// The plan being typed, and the field it goes into (`TypeOut.Typist`: it keeps the field right while a typo is in it).
-    private var typist = TypeOut.Typist([], start: 0)
-    private var typingField: TypingField?
+    var typist = TypeOut.Typist([], start: 0)
+    /// Typing out stopped, the field looked at again a little later (`settleStop`): whether the rest goes in then.
+    var stopsInsertingRest: Bool?
+    var typingField: TypingField?
     /// Line breaks, tabs and other control characters go in as a paste (a terminal; `TerminalPaste`).
-    private var typingPastes = false
+    var typingPastes = false
     /// A snippet being typed out: where its caret goes once it's all in (`moveCaret`).
-    private var caretAfterTyping: Int?
+    var caretAfterTyping: Int?
 
     /// Whether line breaks can go into a terminal as a paste, and pasting there: false where it wasn't pasted after all,
     /// nil where it was stopped and nothing goes in (another app frontmost now: `TerminalPaste.paste`; the self-test
@@ -487,117 +491,30 @@ final class AllInOneIMEInputController: IMKInputController {
         SessionText.afterSelection(text, selection).map { ($0.text, NSRange(location: $0.at, length: 0)) }
     }
 
-    /// Types `text` into `client` character by character, like a person typing (`TypeOut.plan`), with an
-    /// occasional typo fixed on the way (`typeOutMistakes`) where the field can take one back.
-    ///
-    /// A typo is taken back by replacing its range: `insertText` with a `replacementRange`, which the text input
-    /// protocol has every text field honor (NSTextView, WebKit, Chromium and Electron do). Only in a field that
-    /// says where its caret is, right where the text typed so far ends, and reads that text back as typed
-    /// (`attributedSubstring`); while a typo is in the field, and after each fix, that's checked before every step
-    /// (`TypeOut.Typist`). Never in a terminal (keys go to a shell). An app that doesn't keep a fix as asked is
-    /// remembered (`LearnedShared`) and gets no typos again. (A ⌫ posted as a key would need the Accessibility
-    /// permission and could reach the app after the next character: never here.)
-    @MainActor
-    private func typeOut(_ text: String, into client: IMKTextInput) {
-        stopTyping(insertingRest: true)
-        let field = TypingField(client, pastesControls: Composer.actsInTerminal(text) && Self.isTerminal(client) && canPasteInTerminal())
-        typingField = field
-        typingPastes = field.pastesControls
-        let caret = field.caret
-        let app = client.bundleIdentifier() ?? ""
-        let mistakes = session.typeOutMistakes && !Self.isTerminal(client) && !LearnedShared.store.typosOff(in: app) && caret != nil
-        // Wrong letters from the keys next to the right one on the keyboard the keys come from (AZERTY, QWERTZ …).
-        let layout = appliedLayout.flatMap(KeyboardLayout.init(id:)) ?? KeyboardLayout.current()
-        let keyboard = layout.map(TypeOut.Keyboard.init(layout:)) ?? .qwerty
-        let random = typeOutRandom ?? { Double.random(in: 0..<1) }
-        typist = TypeOut.Typist(TypeOut.plan(for: text, rate: session.typeOutRate, varies: session.typeOutVaries, mistakes: mistakes,
-                                             keyboard: keyboard, random: random), start: caret ?? 0, length: field.length)
-        let sleep = typeOutSleep
-        log.notice("typing out \(text.count) characters (\(self.typist.typing.runs.filter(\.isSlip).count) typos to fix)")
-        typingTask = Task { @MainActor [weak self] in
-            var waited = false
-            while true {
-                if !waited, let delay = self?.typist.nextDelay { await sleep(delay) }
-                guard let self, !Task.isCancelled, let field = self.typingField else { return }
-                let progress = self.typist.step(in: field)
-                self.rememberFailure(app)
-                if progress == .done { break }
-                waited = progress == .waiting
-                if waited { await sleep(0.05) }  // the field catching up (Chromium tells its caret late)
-                while !field.toPaste.isEmpty {
-                    let control = field.toPaste.removeFirst()
-                    // Not pasted (what is on the clipboard couldn't be kept): a space, as on one line. Typing stopped
-                    // meanwhile: nothing more, no space either (a ⌘V not posted by then never is: `TerminalPaste.paste`).
-                    // Another app frontmost now (⌘-Tab): the rest isn't typed, as once the field is left.
-                    let pasted = await self.pasteInTerminal(control)
-                    guard !Task.isCancelled else { return }
-                    guard let pasted else {
-                        self.stopTyping(insertingRest: false)
-                        return
-                    }
-                    if !pasted { field.type(" ") }
-                }
-            }
-            guard let self, !Task.isCancelled else { return }
-            let typedInto = self.typingField?.client
-            self.typingTask = nil
-            self.typingField = nil
-            if let back = self.caretAfterTyping {
-                self.caretAfterTyping = nil
-                self.moveCaret(back: back, after: text, in: typedInto)
-            }
-        }
-    }
-
-    /// A snippet's `{cursor}` (`Composer.Effect.moveCaret`): the caret goes `back` UTF-16 units into the text just put in.
-    /// Only in a field that says where its caret is and has that text right before it; not in a terminal (keys there go
-    /// to a shell). Elsewhere the caret stays at the end, as after any result.
-    ///
-    /// A text view keeps its caret where it is when a range is replaced (`insertText` with a range), so the caret is
-    /// moved with marked text, which puts it where it says: empty marked text at the place. Nothing else is tried: where
-    /// that doesn't arrive or isn't taken (the input method connection may drop empty text with a range; a browser may
-    /// report its caret late), the caret stays at the end, which is harmless. Marking a character of the text instead
-    /// could lose or double it where the field's ranges lag behind.
-    @MainActor
-    func moveCaret(back: Int, after inserted: String?, in client: IMKTextInput?) {
-        guard back > 0, let inserted, let client, !Self.isTerminal(client) else { return }
-        let caret = client.selectedRange()
-        let length = inserted.utf16.count
-        guard caret.location != NSNotFound, caret.length == 0, back <= length, caret.location >= length else { return }
-        // The end of what was inserted, before the caret (no more than a line or two of it is read back).
-        let checked = min(length, 200)
-        let expected = String(decoding: inserted.utf16.suffix(checked), as: UTF16.self)
-        guard client.attributedSubstring(from: NSRange(location: caret.location - checked, length: checked))?.string == expected else {
-            log.notice("caret not moved: the field doesn't have the snippet before its caret")
-            return
-        }
-        let target = caret.location - back
-        client.setMarkedText("", selectionRange: NSRange(location: 0, length: 0), replacementRange: NSRange(location: target, length: 0))
-        if client.selectedRange().location != target { log.notice("caret not moved: the field didn't take it; it stays at the end") }
-    }
-
-    /// Remembers `app` when its field didn't take a typo's fix (`LearnedShared`): no typos there again.
-    @MainActor
-    private func rememberFailure(_ app: String) {
-        guard typist.fieldFailed, LearnedShared.store.turnTyposOff(in: app) else { return }
-        log.error("typing out: \(app, privacy: .public) didn't take a typo's fix (\(self.typist.failure ?? "", privacy: .public)); no typos there again")
-    }
+    // Typing a result out (`typeOut`), a snippet's caret after it (`moveCaret`), a stop that settles later
+    // (`settleStop`): InputController+TypeOut.swift.
 
     /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
-    /// in the field is taken out first, where it was typed, so it holds the text, or its start.
-    @MainActor
-    func stopTyping(insertingRest: Bool) {
-        guard let task = typingTask else { return }
+    /// in the field is taken out first, where it was typed, so it holds the text, or its start. Checked like any fix: a
+    /// field that tells its text late is looked at again a little later, never waited for here (`settleStop`), the rest as
+    /// the first stop asked; `waiting` false: done now, with the field as it looks. Whether it stopped now.
+    @MainActor @discardableResult
+    func stopTyping(insertingRest: Bool, waiting: Bool = true) -> Bool {
+        guard let task = typingTask else { return true }
         task.cancel()
+        let insertingRest = stopsInsertingRest ?? insertingRest
         if let field = typingField {
-            // Checked like any fix, waiting a little in between for a field that tells its text late.
-            let rest = typist.stop(insertingRest: insertingRest, in: field, wait: { usleep(20_000) })
+            guard let rest = typist.stopping(insertingRest: insertingRest, in: field, waiting: waiting) else {
+                settleStop(in: field, insertingRest: insertingRest)
+                return false
+            }
             rememberFailure(field.client.bundleIdentifier() ?? "")
             if !rest.isEmpty { insert(rest, into: field.client) }
         }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
-        (typingTask, typist, typingField, typingPastes) = (nil, TypeOut.Typist([], start: 0), nil, false)
+        (typingTask, typist, typingField, typingPastes, stopsInsertingRest) = (nil, TypeOut.Typist([], start: 0), nil, false, nil)
         caretAfterTyping = nil  // a snippet's caret stays at the end
+        return true
     }
 
     /// Whether a result is being typed out now (the self-test).
@@ -743,9 +660,9 @@ final class AllInOneIMEInputController: IMKInputController {
                 return true
             }
             // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
+            // Not stopped yet (a field that tells its text late: `settleStop`): the key only finishes typing too.
             let pastesRest = typingPastes && Composer.actsInTerminal(typist.rest)
-            stopTyping(insertingRest: true)
-            if pastesRest { return true }
+            if !stopTyping(insertingRest: true) || pastesRest { return true }
         }
         anchorToken += 1  // the field isn't asked again for the panel's rect: this key places the panel anew, if it's up
         if !receivedKeys {
@@ -1273,10 +1190,12 @@ final class AllInOneIMEInputController: IMKInputController {
         // meanwhile places the panel too, writing these; an access held open across that crashed the input method.
         var (memory, lastByApp) = (panelAnchor, Self.lastAnchorByApp)
         // The field by this controller and its focus session: the client object handed over may be another proxy each time.
-        memory.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
-        // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`).
+        let field = PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession)
+        memory.enter(field)
+        // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`):
+        // as the window server lists it, else Accessibility's once it is in (`windowFrame`).
         if clientOverride == nil, !session.secureInputActive(), let app {
-            memory.learnWindow { FocusedField.listedWindowFrame(in: app).map { ($0, false) } ?? FocusedField.windowFrame(in: app) }
+            memory.learnWindow { windowFrame(in: app, for: field, client: client) }
         }
         var asked = "Accessibility not asked"
         // Where the field puts it (`FieldAnchor.place`): the rect it tells, else Accessibility's caret, the last rect to
@@ -1284,10 +1203,10 @@ final class AllInOneIMEInputController: IMKInputController {
         let placed = FieldAnchor.place(in: client, app: app, selection: composer.selection?.range, memory: &memory,
                                        lastByApp: &lastByApp, screens: NSScreen.screens.map(\.frame),
                                        pointer: { NSEvent.mouseLocation }) { needsPage in
-            let start = ProcessInfo.processInfo.systemUptime
-            let read = caretByAccessibility(in: app, page: needsPage)
-            asked = String(format: "Accessibility %.1f ms", (ProcessInfo.processInfo.systemUptime - start) * 1000)
-                + (read?.timedOut == true ? ", timed out" : read?.caret == nil ? ", no caret" : "")
+            // Never read with the key: the last read in this field meanwhile, the panel placed again by the next (`accessibilityCaret`).
+            let read = accessibilityCaret(in: app, page: needsPage, field: field, client: client)
+            asked = read == nil ? "Accessibility read after the key" : read?.timedOut == true ? "Accessibility timed out"
+                : read?.caret == nil ? "Accessibility told no caret" : "Accessibility's caret"
             return read
         }
         let (told, placement) = (placed.told, placed.placement)

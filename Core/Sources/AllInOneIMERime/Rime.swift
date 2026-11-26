@@ -247,28 +247,31 @@ public final class RimeService {
     }
 
     /// rime-ice's English dictionary in the shared data (`EnglishDictionary`), for the English words put among the
-    /// candidates (`EnglishWordsEngine`): read on a thread of its own once librime starts (it deploys meanwhile), waited
-    /// for if it isn't read yet. Nil before `start`, or without one.
+    /// candidates (`EnglishWordsEngine`): read on a thread of its own once librime starts (it deploys meanwhile), never
+    /// waited for: nil until it is read (a session asks again with its next key, `InputSession.ensureLevelOne`), before
+    /// `start`, or without one.
     public var englishDictionary: EnglishDictionary? { englishLoad?.dictionary }
-    private var englishLoad: EnglishLoad?
+    private(set) var englishLoad: EnglishLoad?
 
-    /// The dictionary being read.
-    private final class EnglishLoad: @unchecked Sendable {
-        private let group = DispatchGroup()
+    // Waited for, off the main thread (tests): RimeService+EnglishDictionary.swift.
+
+    /// The dictionary being read (`load`; a test's may hold it up), as soon as the system can: a key may want its words.
+    final class EnglishLoad: @unchecked Sendable {
+        private let lock = NSLock()
+        let reading = DispatchGroup()
         private var loaded: EnglishDictionary?
 
-        init(_ folder: URL) {
-            group.enter()
-            DispatchQueue.global(qos: .utility).async {
-                self.loaded = EnglishDictionary.load(rimeData: folder)
-                self.group.leave()
+        init(_ folder: URL, load: @escaping @Sendable (URL) -> EnglishDictionary? = { EnglishDictionary.load(rimeData: $0) }) {
+            reading.enter()
+            DispatchQueue.global(qos: .userInitiated).async {
+                let dictionary = load(folder)
+                self.lock.withLock { self.loaded = dictionary }
+                self.reading.leave()
             }
         }
 
-        var dictionary: EnglishDictionary? {
-            group.wait()
-            return loaded
-        }
+        /// Nil until it is read.
+        var dictionary: EnglishDictionary? { lock.withLock { loaded } }
     }
 
     /// Re-deploys everything (e.g. after editing files in the user directory). Existing sessions are

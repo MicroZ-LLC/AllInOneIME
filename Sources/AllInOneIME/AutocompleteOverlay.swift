@@ -310,7 +310,7 @@ extension AllInOneIMEInputController {
             """)
         if let place {
             if ghostInPanel { hidePanelLine() }
-            if ghostField == nil { ghostField = .some(fieldFrame?() ?? FocusedField.frame()) }
+            if ghostField == nil { askGhostField(client) }
             GhostOverlay.shared.owner = self
             if !GhostOverlay.shared.show(text, at: place, field: ghostField ?? nil) {
                 // Too close to the field's edge for its text: not shown at all, and Tab isn't its.
@@ -323,6 +323,28 @@ extension AllInOneIMEInputController {
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }))
         if show(.autocomplete(text, language: UIText.language), anchoredIn: client) { ghostInPanel = true }  // superseded: as the newer one left it
+    }
+
+    /// The field's frame the suggestion is cut at (`ghostField`), asked once a suggestion: the self-test's at once
+    /// (`fieldFrame`: its harness field isn't the one focused); Accessibility's off the main thread (an app slow to answer
+    /// would hold typing up), not known meanwhile, the suggestion still shown placed again by it once it is in.
+    @MainActor
+    func askGhostField(_ client: IMKTextInput) {
+        if let fieldFrame { return ghostField = .some(fieldFrame()) }
+        ghostField = .some(nil)
+        let (box, held, top) = (WeakBox(self), MainThreadBox(client), FocusedField.screenTop)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let frame = FocusedField.frame(top: top)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    // Hidden since (`hideGhost` forgets it), or another's now: nothing to place.
+                    guard let self = box.value, self.ghostField == .some(nil), GhostOverlay.shared.owner === self,
+                          let text = GhostOverlay.shared.text else { return }
+                    self.ghostField = .some(frame)
+                    if frame != nil { self.placeGhost(text, in: held.value) }
+                }
+            }
+        }
     }
 
     @MainActor

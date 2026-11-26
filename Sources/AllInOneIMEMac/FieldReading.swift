@@ -59,8 +59,9 @@ public struct FieldReading {
 
     /// Reads `parts` of what the field says (`FieldContext`). Password fields and prompts turn on secure event input: the
     /// session composes nothing in the app that turned it on. A password field that doesn't is told by Accessibility
-    /// (`passwordField`, unknown where it can't tell), asked only when the session wants it: once a field, where
-    /// suggestions may show (for the English words learned it's asked off the key, `SessionOutput.readPasswordField`).
+    /// (`passwordField`, unknown where it can't tell), never with the key (it may wait half a second on an app that is
+    /// slow to answer, and typing with it): where the session wants it, it is told after the key, off the main thread
+    /// (`FieldContext.passwordFieldFollows`, `SessionOutput.readPasswordField`), and unknown until then.
     /// The selection the field tells (`selection(in:)`; only how long it is is logged), else whether Accessibility may
     /// tell one after the key; the character before the caret, where "@" is typed; the text around the caret for
     /// `@reply`, or a snippet of more than one line put in (`FieldTextReading`), never in a field told to be a password
@@ -68,9 +69,7 @@ public struct FieldReading {
     public func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
         if parts.contains(.secure) { context.secure = blocksComposing(target) }
         if parts.contains(.passwordField), !context.secure {
-            let told = passwordField()
-            context.field?.secure = told == true
-            context.passwordFieldUnknown = told == nil
+            (context.passwordFieldUnknown, context.passwordFieldFollows) = (true, true)
         }
         if parts.contains(.selectedRange) { context.selectedRange = target.flatMap { Self.range($0.selectedRange()) } }
         if parts.contains(.selection) {

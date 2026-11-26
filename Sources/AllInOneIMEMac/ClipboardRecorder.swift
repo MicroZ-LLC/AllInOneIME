@@ -32,11 +32,10 @@ public protocol ClipboardSource: AnyObject {
 }
 
 /// An image being made ready off the main thread (`ClipboardRecorder.imageWork`): what that came to, told from any thread,
-/// and its adding to the store, on the main thread once: at its turn there, or earlier, as ⌃V's look waits for it.
+/// and its adding to the store, on the main thread once: at its turn there, or earlier, as ⌃V's look finds it ready.
 // Unchecked: `result` is behind the lock; `add` and `outcome` are used on the main thread only.
 private final class PreparingImage: @unchecked Sendable {
     private let lock = NSLock()
-    private let ready = DispatchSemaphore(value: 0)
     private var value: ClipboardHistoryStore.Prepared?
     /// Adds it to the store; nil once it has.
     var add: ((ClipboardHistoryStore.Prepared) -> ClipboardRecorder.Outcome)?
@@ -49,13 +48,7 @@ private final class PreparingImage: @unchecked Sendable {
     /// Made ready (on any thread): `prepared` kept, and handed on.
     func prepared(_ prepared: ClipboardHistoryStore.Prepared) -> ClipboardHistoryStore.Prepared {
         lock.withLock { value = prepared }
-        ready.signal()
         return prepared
-    }
-
-    /// Whether it is ready, waiting `seconds` at most for it.
-    func wait(_ seconds: TimeInterval) -> Bool {
-        result != nil || ready.wait(timeout: .now() + seconds) == .success
     }
 
     /// Added to the store, once (main thread).
@@ -109,7 +102,7 @@ public final class ClipboardRecorder {
     public let store: ClipboardHistoryStore
     let source: ClipboardSource
     /// Where images are made ready, one at a time (a later copy never overtakes an earlier one); as soon as the system can,
-    /// as ⌃V's look may be waiting for one (`quickImageWait`: a wait on the main thread lends the queue no priority).
+    /// as ⌃V's panel may be showing without one.
     static let imageQueue = DispatchQueue(label: "com.allinoneime.inputmethod.clipboard-images", qos: .userInitiated)
     /// Runs an image's preparation (its PNG, id, thumbnail and files: `ClipboardHistoryStore.prepare`) and hands its result
     /// to the second closure on the main thread: off the main thread by default, so a large copy never holds typing up;
@@ -122,9 +115,12 @@ public final class ClipboardRecorder {
             DispatchQueue.main.async { main.value(prepared) }
         }
     }
-    /// The longest ⌃V's look waits for an image to be made ready (`poll(limit:quick:)`): a screenshot's takes 15–35 ms on
-    /// an M4 (2560 × 1664 pixels; a 6K one's 120 ms); one taking longer is kept as it is ready, after the panel.
-    public static let quickImageWait: TimeInterval = 0.15
+    /// Told on the main thread when an image made ready off it is kept after the look that found it returned: an open ⌃V
+    /// panel shows its row anew (the input method's `ClipboardHistoryShared`).
+    public var keptLater: (() -> Void)?
+    /// A look is under way (`poll`): an image kept within it (made ready at once, or ready as ⌃V looks) isn't told as kept
+    /// later.
+    private var looking = false
     /// The images being made ready, in the order copied, until each is added on the main thread.
     private var preparing: [PreparingImage] = []
     let secureInput: () -> Bool
@@ -155,20 +151,22 @@ public final class ClipboardRecorder {
         access = source.access
     }
 
-    /// A look at the clipboard: a change since the last recorded (`limit`: how many are kept). `quick`: the look of a
-    /// panel about to show (⌃V), which waits for it: a text copied is kept in memory at once and its file written off the
-    /// main thread (`ClipboardHistoryStore.record(_:at:limit:savingLater:)`); an image copied just before, made ready off
-    /// the main thread as any is, is waited for (`quickImageWait` at most) and kept at once, as is one a look before
-    /// found, still being made ready: the panel has its kept row (its thumbnail, its preview), not the image on the
-    /// clipboard. ⌃V is the user asking for the history, the clipboard's image with it.
+    /// A look at the clipboard: a change since the last recorded (`limit`: how many are kept), read here, on the main
+    /// thread, as every use of the general pasteboard in the input method is (one object for every thread: read off it
+    /// while `TerminalPaste` wrote it, AppKit crashed); its file written off the main thread after
+    /// (`ClipboardHistoryStore`). An image copied is made ready off the main thread (`imageWork`) and kept once it is
+    /// (`imageQueued` until then). `quick`: the look of a panel about to show (⌃V), which never waits: images made ready
+    /// by then, their turn on the main thread not come yet, kept now; one still being made ready is kept, and the panel
+    /// shown anew, once it is (`keptLater`): meanwhile the panel offers the image on the clipboard.
     @discardableResult
     public func poll(limit: Int, quick: Bool = false) -> Outcome {
         let secure = secureInput()
         let inPasswordManager = PasswordManagers.contains(frontmostApp())
-        defer { (wasSecure, wasInPasswordManager) = (secure, inPasswordManager) }
+        looking = true
+        defer { (wasSecure, wasInPasswordManager, looking) = (secure, inPasswordManager, false) }
         let count = source.changeCount
         guard count != seen else {
-            if quick { waitForImages() }
+            if quick { addReady() }
             return .unchanged
         }
         seen = count
@@ -183,40 +181,48 @@ public final class ClipboardRecorder {
             preparing.add = { [weak self] prepared in
                 guard let self else { return .imageQueued }
                 self.preparing.removeAll { $0 === preparing }
-                // Cleared or turned off meanwhile: not kept.
-                if case let .ready(ready) = prepared, store.generation != generation {
-                    store.discard(ready)
-                    return .imageQueued
-                }
-                switch prepared {
-                case let .ready(ready):
-                    // The newest still on the clipboard only if nothing was copied since.
-                    if source.changeCount == count { newestSeen = count }
-                    return store.add(ready, at: date, limit: limit) ? .recorded : .same
-                case .tooLarge:
-                    return .tooLong
-                case .notSaved:
-                    return .notSaved
-                }
+                return self.keep(prepared, count: count, date: date, limit: limit, generation: generation)
             }
             self.preparing.append(preparing)
             imageWork({ preparing.prepared(store.prepare(image)) }) { preparing.added($0) }
-            if quick { waitForImages() }
+            if quick { addReady() }
             return preparing.outcome
         }
         guard let text = source.text() else { return .notText }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return .blank }
         guard text.utf16.count <= ClipboardHistoryItem.maxLength * 4, text.count <= ClipboardHistoryItem.maxLength else { return .tooLong }
         newestSeen = count
-        return store.record(text, at: now(), limit: limit, savingLater: quick) ? .recorded : .same
+        return store.record(text, at: now(), limit: limit) ? .recorded : .same
     }
 
-    /// The images being made ready waited for, `quickImageWait` at most (the last of them: they are made ready one after
-    /// another), and those ready by then added now, in the order copied, not at their turn on the main thread.
-    private func waitForImages() {
-        guard let last = preparing.last, last.wait(Self.quickImageWait) else { return }
+    /// An image made ready off the main thread, copied at `date` (change count `count`), kept (`limit` at most), unless the
+    /// history was cleared or turned off since (`generation`); told as kept later where no look is under way (`keptLater`).
+    private func keep(_ prepared: ClipboardHistoryStore.Prepared, count: Int, date: Date, limit: Int, generation: Int) -> Outcome {
+        // Cleared or turned off meanwhile: not kept.
+        if case let .ready(ready) = prepared, store.generation != generation {
+            store.discard(ready)
+            return .imageQueued
+        }
+        switch prepared {
+        case let .ready(ready):
+            // The newest still on the clipboard only if nothing was copied since.
+            if source.changeCount == count { newestSeen = count }
+            guard store.add(ready, at: date, limit: limit) else { return .same }
+            if !looking { keptLater?() }
+            return .recorded
+        case .tooLarge:
+            return .tooLong
+        case .notSaved:
+            return .notSaved
+        }
+    }
+
+    /// The images made ready by now added, in the order copied, not at their turn on the main thread (⌃V's look: never
+    /// waited for).
+    private func addReady() {
         for image in preparing {
-            if let prepared = image.result { image.added(prepared) }
+            guard let prepared = image.result else { break }
+            image.added(prepared)
         }
     }
 

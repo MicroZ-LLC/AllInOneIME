@@ -85,11 +85,72 @@ extension AllInOneIMEInputController {
     }
 
     /// What Accessibility tells of the caret in `app`, the field's app (`FocusedField.caret`; the page's frame till it is
-    /// known): never during secure input or in a password field, never for the self-test's fields (it would read the
-    /// user's own frontmost app).
+    /// known), for `anchor`: never read with the key (an app slow to answer would hold typing up), but off the main thread,
+    /// and the panel placed again once it is in (`placeAgain`); meanwhile the last one read in this field, or none. Never
+    /// during secure input or in a password field, never for the self-test's fields (it would read the user's own
+    /// frontmost app).
     @MainActor
-    func caretByAccessibility(in app: String?, page: Bool) -> PanelAnchor.Accessibility? {
-        guard clientOverride == nil, !session.secureInputActive(), let app else { return nil }
-        return FocusedField.caret(in: app, page: page)
+    func accessibilityCaret(in app: String?, page: Bool, field: PanelAnchor.Field, client: IMKTextInput) -> PanelAnchor.Accessibility? {
+        if anchorReads.fresh, anchorReads.field == field {
+            anchorReads.fresh = false
+            return anchorReads.caret
+        }
+        // The app in front asked here, on the main thread: `app` not the one in front, nothing to read.
+        if anchorReads.reading != field, clientOverride == nil, !session.secureInputActive(), let app,
+           let pid = PageContextReader.runningPID(app) {
+            anchorReads.reading = field
+            let (box, held, top) = (WeakBox(self), MainThreadBox(client), FocusedField.screenTop)
+            DispatchQueue.global(qos: .userInitiated).async {
+                let read = FocusedField.caret(pid: pid, page: page, top: top)
+                DispatchQueue.main.async {
+                    MainActor.assumeIsolated {
+                        guard let self = box.value else { return }
+                        if self.anchorReads.reading == field { self.anchorReads.reading = nil }
+                        guard self.panelAnchor.field == field else { return }
+                        self.anchorReads = AnchorReads(field: field, caret: read, fresh: true)
+                        self.placeAgain(held.value)
+                    }
+                }
+            }
+        }
+        return anchorReads.field == field ? anchorReads.caret : nil
     }
+
+    /// The focused window's frame in `app`, for `anchor` (`PanelAnchor.Memory.learnWindow`): as the window server lists it,
+    /// at once; else Accessibility's, read off the main thread, learned once it is in (`PanelAnchor.Memory.learned`) and
+    /// the panel placed again by it. Nil meanwhile.
+    @MainActor
+    func windowFrame(in app: String, for field: PanelAnchor.Field, client: IMKTextInput) -> (frame: CGRect?, timedOut: Bool)? {
+        if let listed = FocusedField.listedWindowFrame(in: app) { return (listed, false) }
+        guard let pid = PageContextReader.runningPID(app) else { return nil }  // not the app in front: nothing to read
+        let (box, held, top) = (WeakBox(self), MainThreadBox(client), FocusedField.screenTop)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let told = FocusedField.windowFrame(pid: pid, top: top)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self = box.value, let told, self.panelAnchor.field == field else { return }
+                    self.panelAnchor.learned(window: told)
+                    self.placeAgain(held.value)
+                }
+            }
+        }
+        return nil
+    }
+
+    /// The panel this field shows placed again (`show`), now that Accessibility told more of where it goes.
+    @MainActor
+    func placeAgain(_ client: IMKTextInput) {
+        let panel = CandidatePanel.shared
+        guard panel.isShowing, panel.owner === self else { return }
+        show(panel.view.model, anchoredIn: client, keepingUnchanged: true)
+    }
+}
+
+/// What Accessibility told of the caret in a field (`field`; nil: not asked yet), read off the main thread for the panel's
+/// anchor (`accessibilityCaret`): `fresh` until a placement went by it; and the field it is being read in now.
+struct AnchorReads {
+    var field: PanelAnchor.Field?
+    var caret: PanelAnchor.Accessibility?
+    var fresh = false
+    var reading: PanelAnchor.Field?
 }

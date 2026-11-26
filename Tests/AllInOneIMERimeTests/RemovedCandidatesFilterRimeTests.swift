@@ -84,7 +84,7 @@ struct RemovedCandidatesFilterRimeTests {
 
     /// Level one as a field's session has it: librime's session under English words, given the list.
     static func levelOne(_ removed: [String] = [], words: [String] = []) throws -> (Composer, EnglishWordsEngine) {
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         let engine = EnglishWordsEngine(base: try #require(RimeService.shared.makeSession()), dictionary: dictionary, words: words,
                                         removedCandidates: removed)
         return (Composer(engine: engine, actionKey: .enter), engine)
@@ -251,7 +251,7 @@ struct RemovedCandidatesFilterRimeTests {
             Paging.escape(end)
             // At the end of the second page: the third page's first. librime deleted the one on that page.
             let recorder = Recorder(try #require(RimeService.shared.makeSession()))
-            let second = Composer(engine: EnglishWordsEngine(base: recorder, dictionary: try #require(RimeService.shared.englishDictionary)),
+            let second = Composer(engine: EnglishWordsEngine(base: recorder, dictionary: try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6),
                                   actionKey: .enter)
             Paging.type("niubi", second)
             Paging.press(Paging.pageDown, second)
