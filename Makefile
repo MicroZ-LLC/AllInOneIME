@@ -474,10 +474,13 @@ UPDATE_SUMMARY_ZH ?=
 # timestamp from Apple's server and no provisioning profile), as the test's "new version" is: the updater takes an
 # update only from the team that signed the running app, and an ad-hoc build has none. CI runs it on the Mac mini when a
 # change touches the updater or how the apps are built (Scripts/test-scope.sh's `update`), and on each push to a
-# release branch (quality.yml).
+# release branch (quality.yml). The apps it built are removed afterwards, whether it passed or failed: macOS may start a
+# second copy of the input method's bundle ID left in build/ instead of the installed one (why `install` moves it).
 update-test:
 	$(MAKE) app settings-app SIGN_IDENTITY= PROFILE=
-	Scripts/test-update.sh "$(BUILD_DIR)"
+	@status=0; Scripts/test-update.sh "$(BUILD_DIR)" || status=$$?; \
+		rm -rf "$(APP)" "$(SETTINGS_APP)"; \
+		exit $$status
 
 update-manifest:
 	@test -f "$(UPDATE_ZIP)" || { echo "error: no $(UPDATE_ZIP); run make dmg"; exit 1; }
@@ -497,8 +500,17 @@ TEST_AWS := AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=
 # adds none when one waits, and many tests wait on theirs: for a session's work (`FakeHost.settle`), for a child process,
 # for the input method compiled into one (this package's issue suites, eight of them, each for the whole compile), so the
 # other tests stood still until one of those ended (a git call's 1 s timeout measured 15 s). GCD's queues start another
-# thread when one waits. (Core/Scripts/test.sh, which runs the core's tests, sets both too.)
+# thread when one waits. (Core/Scripts/test.sh, which runs the core's tests, sets these too.)
 TEST_THREADS := SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
+# At most 32 tests at a time (Swift Testing's experimental setting; a toolchain without it ignores it). Those queues have
+# 64 threads in all (macOS' kern.wq_max_constrained_threads), and a test whose body waits holds one: with every test
+# started at once, the waiting ones held all 64 (the issue suites' compiles, a static compile waited for by each test of
+# its suite), and what the others wait for on those queues (a session's work, a process's end) waited too: a job queued
+# waited 15 s to start, and the tests that wait for one failed (SpotlightDatesTests, PanelPointerTests, a child's
+# compile timed out). Half of them leaves the rest for that work, and the runs are no slower for it (this package's
+# tests 3.6 min instead of 4-5 on the Mac mini; the core's, with another suite and 24 busy loops alongside, 4.3 instead
+# of 5.3).
+TEST_THREADS += SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH=32
 # The login shell is read once per test process (ShellEnvironment.login): on a loaded Mac (two CI runners on one) it
 # can take past the input method's 10 s, which left the tests that read it with nothing. `swift test` gives it 60 s;
 # selftest, screenshots and install run the input method's binary with its own 10 s.

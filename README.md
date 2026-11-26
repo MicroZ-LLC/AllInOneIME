@@ -279,7 +279,7 @@ under its first question in the recent questions, and picking it shows the round
 
 ### @question in a session of its own (new)
 
-Settings → AI is one choice for every AI feature (every choice is a card, by how they connect; one click chooses): Claude Code, Codex,
+Settings → AI is one choice for every AI feature (the one in use as a card, the others as cards under Other AIs, by how they connect; one click chooses): Claude Code, Codex,
 Antigravity (Google Antigravity's CLI, `agy`) or Kiro CLI under "With your subscription" (`questionBackend` in the
 config) has `@question` answered in the input method's own session on that CLI. (Gemini CLI is no longer one of them: it
 stopped serving personal Google accounts, which Google moved to Antigravity; a config that chose it is on Antigravity
@@ -331,8 +331,8 @@ is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes
 one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
 from before is resumed. Whether each CLI is installed
 and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Antigravity's sign-in in the
-keychain or its settings without starting it, `kiro-cli whoami`): every CLI when the page shows, for its card, and when
-you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else for a minute, so
+keychain or its settings without starting it, `kiro-cli whoami`): each CLI as its card shows (the one in use when the
+page shows, the others when you unfold Other AIs; folded, none), and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else for a minute, so
 showing the page again runs no CLI before then; never at launch nor for a question. The one chosen is tried as a question comes; one found
 signed in after it wasn't has its session's process started again by the next question. A CLI takes a second or more to
 answer, so
@@ -728,8 +728,11 @@ Settings has six pages in the sidebar, in this order, and opens on Common:
   Autocomplete (Beta). The last line says how many settings More Settings has. A language pack's problem shows its
   banner on this page.
 - **AI**: the AI that answers (the provider, its model, its key or AWS profile, and Test Connection; the base URL is
-  under More…, which opens by itself once one is set); then every choice as a card, by how it connects, always shown
-  (one click chooses; the one in use is outlined and says In use, the others' status is in gray); then **AI Commands**, each AI command's options together:
+  under More…, which opens by itself once one is set); then the one in use as a card (outlined, it says In use), and
+  the others folded under one row, **Other AIs (N) ▸**, each time the page shows: the row unfolds them as cards, by how
+  they connect, their status in gray; one click on a card chooses it (it moves to the top, the others fold again), and
+  the row clicked again folds them. Searching for "Choose the AI" or an AI's name (`kiro`) opens them at its card, as
+  the start's buttons and a banner's for an AI not in use do; then **AI Commands**, each AI command's options together:
   `@improve`'s rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a
   list is set), and `@question`'s: where a conversation continues and
   remembering recent questions (with Forget), their only place in Settings.
@@ -1197,7 +1200,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   go on typing (`#7` then `1` is `#71`). A key the rows take never reaches the app too, in Slack, Chrome, Google Docs,
   VS Code and other apps built on Chromium or Electron as well: ⏎ doesn't send the message, ↑ doesn't move the caret.
   Pinyin's own candidates while it composes are as always (⏎ puts in the
-  letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
+  letters, Space picks). No rows in launchers, remote desktops, virtual machines, SSH clients and password managers.
 - **Turning them on:** **Suggestions** in Settings → More Settings → Suggestions, on unless you turn it off, covers plugins', script
   extensions', Suggestions commands' and Code's rows; they show once there is a source (a plugin's completions, a script
   extension's, a Suggestions command, or Code). A plugin's completions are on once you install it, and one installed
@@ -1460,7 +1463,7 @@ in Settings wins over both.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-You don't need AWS: pick one of the cards in Settings → AI, paste an API key, click "Save", then "Test Connection".
+You don't need AWS: pick one of the cards in Settings → AI (under Other AIs), paste an API key, click "Save", then "Test Connection".
 
 | Provider | Default model | API key |
 |---|---|---|
@@ -1649,6 +1652,13 @@ make update-test  # the in-app updater end to end: a temporary install, a test s
 ```
 
 `make selftest` and `make realtest` don't depend on your settings. The self-test uses a config of its own (Amazon Bedrock with the AWS profile and region from yours, everything else the defaults); the real-app test sets the provider to Bedrock while it runs and puts yours back. What they can't check at the moment is skipped, not failed: live Bedrock checks without credentials for that profile, anything typed while secure input is on (a password field), Apple Intelligence's checks where the on-device model isn't available, and the Electron harness's without `ELECTRON_HARNESS`; a locked screen ends the self-test at once. The summary counts passed, failed and skipped checks, with why each was skipped, and the exit status says how the run went: 0 (PASSED) when every check ran and passed, 1 (FAILED) when one failed, 2 when none failed but some were skipped or couldn't run (INCOMPLETE, or SKIPPED when nothing that types ran; BLOCKED: the real-app test started on a locked screen). 2 isn't a pass: `make selftest` and `make realtest` fail on it too. The self-test's `--…-only` subsets exit the same way, and its last line says the same for scripts: `SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`.
+
+How a real app's field answers the input method can be recorded, to turn into a host profile or a scenario for the
+host tests (`Core/Tests/HostScenarios`): start the input method with `ALLINONEIME_IMK_RECORD` set (`launchctl setenv
+ALLINONEIME_IMK_RECORD 1`, then `killall AllInOneIME`; `launchctl unsetenv` and the same to stop), and every call it makes
+of the field (IMK's), with the field's answer and the key it came in, goes to
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl` (or the absolute path given instead of `1`), one JSON object a line,
+until the file is 50 MB. What you type is never in it, only its length. It stays on this Mac, and no setting turns it on.
 
 Interface text is written as `tr("中文", "English")`: Simplified Chinese and English come from the code, other languages
 from the String Catalogs, `Core/Resources/Localizable.xcstrings` for the core's text and `Resources/Localizable.xcstrings`

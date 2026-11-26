@@ -37,7 +37,7 @@ struct HostEvents {
         switch profile {
         case .chromium: delay = random.next(in: 0.005...0.020)
         case .electron: delay = random.next(in: 0.100...0.250)
-        case .nstextview, .tellsnothing: return
+        case .nstextview, .tellsnothing, .webkit, .qt: return
         }
         pending.append((now + delay, event))
         pending.sort { $0.at < $1.at }

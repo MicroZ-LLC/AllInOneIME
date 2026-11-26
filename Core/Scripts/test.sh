@@ -5,7 +5,11 @@
 #   - No AWS files are read: a test whose settings pick Bedrock (the default provider) without stubbing the credentials
 #     would otherwise send a real, billed request.
 #   - Swift's plain global queues instead of its cooperative pool, which has one thread per core and adds none when one
-#     waits: many tests wait on theirs (a session's work, a child process), and the rest stood still meanwhile.
+#     waits: many tests wait on theirs (a session's work, a child process), and the rest stood still meanwhile. And at
+#     most 32 tests at a time: those queues have 64 threads in all on macOS, and a test that waits holds one, so with
+#     every test started at once the waiting ones held them all and the work they wait for (`FakeHost.settle`'s) had
+#     none: on a loaded Mac, tests waiting 10 s for what takes milliseconds failed (the Makefile's TEST_THREADS). A
+#     width the caller set stays (quality.yml's 16 on GitHub's machines, which have few cores).
 #   - Off macOS, the acceptance tests of what only Apple's Foundation does are skipped, by name: requests byte for byte
 #     as Apple's writes them (a Double with 17 digits, 0.69999999999999996, where Linux's writes 0.7; a header's name as
 #     set, x-api-key, where Linux's capitalizes it: the same requests otherwise), settings compared with NSDictionary
@@ -25,6 +29,7 @@ if [ "$(uname -s)" != Darwin ]; then
 fi
 export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
 export SWIFT_DEBUG_CONCURRENCY_ENABLE_COOPERATIVE_QUEUES=0
+export SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH="${SWT_EXPERIMENTAL_MAXIMUM_PARALLELIZATION_WIDTH:-32}"
 base=${TMPDIR:-/tmp}
 run=$(mktemp -d "${base%/}/allinoneime-tests.XXXXXX")
 trap 'rm -rf "$run"' EXIT

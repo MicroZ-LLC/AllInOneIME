@@ -51,7 +51,9 @@ jobs:
           persist-credentials: false
       # GitHub's machine starts empty each time: SwiftLint (downloaded and checked by Scripts/swiftlint.sh into
       # ~/.cache/allinoneime, per its pinned version) and the String Catalog tool's builds (the packages' .build, for
-      # `make strings-check`) come from the cache instead.
+      # `make strings-check`) come from the cache instead. The builds' key is what they are built from (the packages,
+      # their pins, the tool and its plugin), not the commit: a change that leaves those alone finds its key as it is
+      # and uploads nothing; one that changes them starts from the last builds and keeps its own.
       - uses: actions/cache@v4
         with:
           path: ~/.cache/allinoneime
@@ -61,8 +63,10 @@ jobs:
           path: |
             .build
             Core/.build
-          key: lint-build-${{ hashFiles('Package.resolved', 'Core/Package.resolved') }}-${{ github.sha }}
-          restore-keys: lint-build-${{ hashFiles('Package.resolved', 'Core/Package.resolved') }}-
+          key: >-
+            lint-build-${{ runner.os }}-${{ hashFiles('Package.swift', 'Package.resolved', 'Core/Package.swift',
+            'Core/Package.resolved', 'Core/Scripts/strings/**', 'Core/Scripts/StringsPlugin/**') }}
+          restore-keys: lint-build-${{ runner.os }}-
       - name: make lint
         run: make -k lint ${BASE:+LINT_BASE=origin/$BASE}
 
@@ -241,9 +245,20 @@ jobs:
       - name: make update-test, offline
         # The updater end to end (Scripts/test-update.sh): a temporary install, a test server on 127.0.0.1, the apps
         # signed ad hoc (no certificate or Apple's timestamp server). Only when the change needs it (the changes job's
-        # `update`), and after make test-mac even when that failed, so that both say how they went.
-        if: ${{ !cancelled() && needs.changes.outputs.update == 'true' }}
-        run: make update-test
+        # `update`), and after make test-mac even when that failed, so that both say how they went; not when the job
+        # stopped before the dependencies' folder was set (they would be fetched into the checkout, which each run
+        # cleans, instead of the folder kept between runs).
+        if: ${{ !cancelled() && needs.changes.outputs.update == 'true' && env.ALLINONEIME_THIRDPARTY != '' }}
+        run: |
+          # No key or account reaches it either: the same names as make test-mac's above (keep the two lists alike).
+          for name in ANTHROPIC_API_KEY ANTHROPIC_FOUNDRY_API_KEY OPENAI_API_KEY AZURE_OPENAI_API_KEY GEMINI_API_KEY \
+              GOOGLE_API_KEY CODEX_API_KEY KIRO_API_KEY BRAVE_API_KEY AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY \
+              AWS_SESSION_TOKEN AWS_PROFILE ALLINONEIME_CLAUDE_LIVE ALLINONEIME_CODEX_LIVE ALLINONEIME_AGY_LIVE \
+              ALLINONEIME_KIRO_LIVE ALLINONEIME_ELECTRON_HARNESS GH_TOKEN GITHUB_TOKEN; do
+            unset "$name"
+          done
+          export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+          make update-test
       - name: Keep the flaky tests' names (the weekly health report counts them)
         if: ${{ !cancelled() && env.FLAKY_TESTS_FILE != '' }}
         uses: actions/upload-artifact@v4

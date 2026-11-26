@@ -42,7 +42,9 @@ jobs:
       - name: The flaky tests of the last four weeks
         # quality.yml's test jobs keep the tests that failed under load and passed alone, a file per run
         # (flaky-tests-<job>-<attempt>, 35 days): a folder per job, one per run in it, for the report to count. The
-        # folder is there only when all of them could be listed; else the report says it couldn't read them.
+        # folder is there only when all of them could be listed; else the report says it couldn't read them. One that
+        # couldn't be downloaded goes in its unread.txt, and the report says the section is partial (or skipped, when
+        # none could be), not that there were none.
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
@@ -52,13 +54,18 @@ jobs:
             | select((.name | startswith("flaky-tests-")) and (.expired | not)
                      and (.created_at | fromdateiso8601) > now - 28 * 86400)
             | "\(.id) \(.workflow_run.id) \(.name)"' > "$RUNNER_TEMP/flaky.txt"
+          # gh reads nothing of the list it's in (</dev/null), so every line reaches `read`.
           while read -r id run name; do
             job=${name#flaky-tests-} && job=${job%-*}
-            gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$flaky/$job/$id" \
-              || echo "::warning::couldn't download $name of run $run"
+            if ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$flaky/$job/$id" </dev/null; then
+              echo "::warning::couldn't download $name of run $run"
+              echo "$name $run" >> "$flaky/unread.txt"
+            fi
           done < "$RUNNER_TEMP/flaky.txt"
           mv "$flaky" "$RUNNER_TEMP/flaky"
-          echo "$(wc -l < "$RUNNER_TEMP/flaky.txt" | tr -d ' ') runs had flaky tests"
+          unread=0
+          [ ! -f "$RUNNER_TEMP/flaky/unread.txt" ] || unread=$(wc -l < "$RUNNER_TEMP/flaky/unread.txt" | tr -d ' ')
+          echo "$(wc -l < "$RUNNER_TEMP/flaky.txt" | tr -d ' ') runs had flaky tests, $unread not downloaded"
       - name: Write the report
         run: |
           make deps   # Periphery builds the app's package, which links librime

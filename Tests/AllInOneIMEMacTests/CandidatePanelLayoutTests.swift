@@ -55,6 +55,12 @@ struct CandidatePanelLayoutTests {
     @Test func aListTallerThanTheScreenScrollsItsRowsToTheHighlightedOne() throws {
         try LayoutChild.run("tall")
     }
+
+    /// VoiceOver (review of PR #162): a panel hidden says nothing more of what it showed; laid out again (wider, scrolled)
+    /// its rows' elements are where the rows are now.
+    @Test func voiceOverSaysNothingOnceHiddenAndFollowsTheLayout() throws {
+        try LayoutChild.run("accessibility")
+    }
 }
 
 private enum LayoutChild {
@@ -721,6 +727,30 @@ private enum LayoutChild {
         }
     }
 
+    extension Layout {
+        static func accessibility() {
+            let panel = CandidatePanel()
+            var spoken: [String] = []
+            panel.view.announceAccessibility = { spoken.append($0) }
+            panel.show(long(3, highlighted: 0), anchor: high)
+            panel.hide()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+            expect(spoken.isEmpty, "a hidden panel says nothing of what it showed: \(spoken)")
+
+            let view = CandidateView()
+            view.model = long(3, highlighted: 0)
+            view.setFrameSize(view.contentSize)
+            func widths() -> [CGFloat] {
+                (view.accessibilityChildren() ?? []).compactMap { ($0 as? NSAccessibilityElement)?.accessibilityFrameInParentSpace().width }
+            }
+            _ = widths()
+            view.minimumWidth = view.contentSize.width + 200
+            view.setFrameSize(view.contentSize)
+            let rowWidth = view.rowFrame(0)?.width ?? 0
+            expect(widths().first == rowWidth, "laid out wider: its row's element as wide (\(widths()), row \(rowWidth))")
+        }
+    }
+
     extension PanelModel {
         func with(header: [String]) -> PanelModel {
             var model = self
@@ -745,6 +775,7 @@ private enum LayoutChild {
             case "handoff": Layout.handoff()
             case "detail": Layout.detail()
             case "tall": Layout.tall()
+            case "accessibility": Layout.accessibility()
             default:
                 print("unknown scenario \(scenario)")
                 exit(2)

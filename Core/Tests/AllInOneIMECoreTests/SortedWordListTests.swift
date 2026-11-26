@@ -38,9 +38,11 @@ struct SortedWordListTests {
         #expect(SortedWordList(contentsOf: nil).isEmpty)
     }
 
-    /// The last line without its LF is still a word.
+    /// The last line without its LF is still a word, found and counted.
     @Test func theLastLineWithoutItsNewline() {
         let list = SortedWordList(lines: Data("abc\nabd\nxyz".utf8))
         #expect(list.contains("abc") && list.contains("abd") && list.contains("xyz") && !list.contains("xy"))
+        #expect(list.count == 3 && list.words == ["abc", "abd", "xyz"])
+        #expect(SortedWordList(lines: Data("abc".utf8)).count == 1)
     }
 }

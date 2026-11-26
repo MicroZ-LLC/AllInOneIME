@@ -10,12 +10,13 @@ public enum SuggestionsAppClass: Equatable, Sendable {
     case chat
     /// Terminals and code editors: `{match}` (a snippet as its trigger).
     case codeEditor
-    /// Launchers, remote desktops, virtual machines, SSH clients: no rows.
+    /// Launchers, remote desktops, virtual machines, SSH clients, password managers (`PasswordManagers`: what is typed
+    /// there may be a secret, as autocomplete and learning leave them alone): no rows, and nothing looked up.
     case none
 
     public init(app: String?, terminal: Bool) {
         let id = app?.lowercased() ?? ""
-        if Self.isLauncher(id) || EnglishWords.isRemote(id) {
+        if Self.isLauncher(id) || EnglishWords.isRemote(id) || PasswordManagers.contains(app) {
             self = .none
         } else if terminal || Self.isCodeEditor(id) {
             self = .codeEditor

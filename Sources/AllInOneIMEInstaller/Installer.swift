@@ -401,45 +401,20 @@ enum Installer {
         var output: String
     }
 
-    /// Runs a tool to the end; stdout and stderr together.
-    /// With a `timeout`, a program still running after it is stopped (SIGTERM, then SIGKILL a second later), and the
-    /// result is status -1, "timed out after … s".
+    /// How long a tool may run when the caller gives no `timeout`: unpacking the apps and registering them take seconds.
+    static let toolTimeout: TimeInterval = 600
+
+    /// Runs a tool to the end (`ProcessOutput`); stdout and stderr together. A program still running after `timeout`
+    /// (else `toolTimeout`) is stopped (SIGTERM, then SIGKILL), and the result is status -1, "timed out after … s".
     static func run(_ path: String, _ arguments: [String], timeout: TimeInterval? = nil) throws -> ProcessResult {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
-        process.standardInput = FileHandle.nullDevice
-        try process.run()
-        guard let timeout else {
-            let data = pipe.fileHandleForReading.readDataToEndOfFile()
-            process.waitUntilExit()
-            let output = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-            return ProcessResult(status: process.terminationStatus, output: output)
+        let seconds = timeout ?? toolTimeout
+        let result: ProcessOutput.Result
+        do {
+            result = try ProcessOutput.run(URL(fileURLWithPath: path), arguments, timeout: seconds)
+        } catch is ProcessOutput.TimedOut {
+            return ProcessResult(status: -1, output: "timed out after \(Int(seconds)) s")
         }
-        // Its output read meanwhile, so that a full pipe never holds it up.
-        let read = DispatchGroup()
-        var data = Data()
-        read.enter()
-        DispatchQueue.global().async {
-            data = pipe.fileHandleForReading.readDataToEndOfFile()
-            read.leave()
-        }
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning, Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
-        if process.isRunning {
-            process.terminate()
-            Thread.sleep(forTimeInterval: 1)
-            if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            process.waitUntilExit()
-            _ = read.wait(timeout: .now() + 1)  // a program it started may hold the pipe: not waited for
-            return ProcessResult(status: -1, output: "timed out after \(Int(timeout)) s")
-        }
-        process.waitUntilExit()
-        read.wait()
-        let output = String(decoding: data, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
-        return ProcessResult(status: process.terminationStatus, output: output)
+        let output = String(decoding: result.output + result.errors, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
+        return ProcessResult(status: result.status, output: output)
     }
 }

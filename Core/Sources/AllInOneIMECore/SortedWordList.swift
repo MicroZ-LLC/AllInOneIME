@@ -1,10 +1,10 @@
 import Foundation
 
 /// A list of words searched where it lies: the bytes of a file of them, sorted by their bytes, a word a line (LF, the
-/// last one too), as Scripts/make-redaction-words.swift writes RedactionWords.txt. A lookup halves the file until it
-/// meets the word (about 20 steps for the 234,000 English words), so nothing is parsed or copied: the file is mapped,
-/// and only the pages a lookup touches are read (a `Set` of the words took tens of milliseconds to build and megabytes
-/// to keep).
+/// last one too, as Scripts/make-redaction-words.swift writes RedactionWords.txt; a last line without it still counts).
+/// A lookup halves the file until it meets the word (about 20 steps for the 234,000 English words), so nothing is
+/// parsed or copied: the file is mapped, and only the pages a lookup touches are read (a `Set` of the words took tens
+/// of milliseconds to build and megabytes to keep).
 struct SortedWordList: Sendable {
     private let lines: Data
 
@@ -27,9 +27,12 @@ struct SortedWordList: Sendable {
     /// Whether there are none (the file was missing).
     var isEmpty: Bool { lines.isEmpty }
 
-    /// How many words there are.
+    /// How many words there are: a line each, the last one counted too when it has no LF.
     var count: Int {
-        lines.withUnsafeBytes { bytes in bytes.reduce(0) { $1 == Self.newline ? $0 + 1 : $0 } }
+        lines.withUnsafeBytes { bytes in
+            let ended = bytes.reduce(0) { $1 == Self.newline ? $0 + 1 : $0 }
+            return bytes.last == nil || bytes.last == Self.newline ? ended : ended + 1
+        }
     }
 
     /// Every word, in order.

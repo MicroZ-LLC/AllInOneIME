@@ -81,13 +81,15 @@ each "the files the shell's tests read" "- mac -" README.md README.zh-CN.md CHAN
 each "anything else" "core mac -" .github/workflows/quality.yml .swiftlint.yml changes/issue-12.md NewFolder/file.txt \
     docs-old/page.md
 each "the updater, the installer and the apps' packaging" "- mac update" Sources/AllInOneIMEInstaller/Installer.swift \
-    Sources/AllInOneIMEMac/UpdateInstall.swift Sources/AllInOneIME/Updates.swift Scripts/test-update.sh \
+    Sources/AllInOneIMEMac/UpdateInstall.swift Sources/AllInOneIME/Updates.swift Sources/AllInOneIME/main.swift \
+    Sources/AllInOneIMEMac/AppBundles.swift Sources/AllInOneIMESettings/main.swift Scripts/test-update.sh \
     Scripts/build-update-manifest.swift Scripts/installed-input-method.sh Scripts/strip-rpaths.sh \
     Scripts/check-weak-links.sh Scripts/sign-identity.sh Scripts/profile-entitlements.sh Resources/Info.plist \
     Resources/Settings-Info.plist Resources/Installer-Info.plist Resources/AllInOneIME.entitlements \
     Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
-each "the core's updater and how the apps are built" "core mac update" Core/Sources/AllInOneIMECore/Update.swift Makefile \
-    Package.swift Package.resolved Core/Package.swift Core/Package.resolved
+each "the core's updater and how the apps are built" "core mac update" Core/Sources/AllInOneIMECore/Update.swift \
+    Core/Sources/AllInOneIMECore/AppVersion.swift Makefile Package.swift Package.resolved Core/Package.swift \
+    Core/Package.resolved
 together "docs, a test of the core's and the shell's code" "core mac -" docs/a.md \
     Core/Tests/AllInOneIMECoreTests/PlainTests.swift Sources/AllInOneIME/CandidatePanel.swift
 together "docs and a test of the core's" "core - -" docs/a.md Core/Tests/AllInOneIMECoreTests/PlainTests.swift
