@@ -192,7 +192,8 @@ final class GhostView: NSView {
 /// Autocomplete's switch (`Config.autocomplete`), for the input menu, the menu bar panel and the self-test: written to the
 /// config file and counted (`Autocomplete.Metrics.switched`). Nothing asks first: it asks the AI provider picked in
 /// Settings, or the on-device model (`Autocomplete.route`), and the switch says which and where the text goes
-/// (`modelName`, `destination`).
+/// (`modelName`, `destination`); with a CLI chosen as the AI, its fast fallback's, or with none, that it can't run, as
+/// Settings → Common says it (`shown`).
 @MainActor
 enum AutocompleteSwitch {
     /// What autocomplete learns and counts, for every field: this input method's own defaults (the self-test has its own,
@@ -207,10 +208,11 @@ enum AutocompleteSwitch {
     @discardableResult
     static func set(_ on: Bool, notify field: AllInOneIMEInputController?) -> Bool {
         do {
-            let config = try Config.change { $0.autocomplete = on }
+            let saved = try Config.change { $0.autocomplete = on }
             // Counted here, before a session sees the file (`AutocompleteStore.saw`), which then counts nothing more.
             store.switched(on: on)
             NotificationCenter.default.post(name: .allInOneIMEConfigChanged, object: nil)
+            let config = fastConfig(saved) ?? saved  // what it asks: with a CLI chosen, its fast fallback
             log.notice("autocomplete \(on ? "on" : "off", privacy: .public) (\(String(describing: Autocomplete.route(config)), privacy: .public))")
             field?.applySettings()
             field?.showNotice(on ? onNotice(config) : tr("续写 已关闭", "Autocomplete off"), client: nil, long: on && !modelReady(config))
@@ -218,6 +220,73 @@ enum AutocompleteSwitch {
         } catch {
             log.error("could not turn autocomplete \(on ? "on" : "off", privacy: .public): \(String(describing: error), privacy: .public)")
             return false
+        }
+    }
+
+    // MARK: Whether it can run
+
+    /// The switch as the input menu and the menu bar panel show it, as Settings → Common does (`Config.fastConfig`): on or
+    /// off, and the model it asks and where the text goes; with a CLI chosen as the AI and no faster AI, off, not to be
+    /// turned on (the setting kept, for when there is one), and why.
+    struct Shown: Equatable {
+        var on: Bool
+        /// The model it asks (`modelName`); nil: it can't run.
+        var model: String?
+        /// Where the text goes (`destination`; nil with Apple Intelligence), or why it can't run (`noFasterAI`).
+        var line: String?
+        /// The settings it asks with: with a CLI chosen, its fast fallback's (`fastConfig`); nil: it can't run.
+        var fast: Config?
+        var available: Bool { fast != nil }
+    }
+
+    static func shown(_ config: Config) -> Shown {
+        guard let fast = fastConfig(config) else { return Shown(on: false, model: nil, line: noFasterAI, fast: nil) }
+        return Shown(on: config.autocomplete, model: modelName(fast), line: destination(fast), fast: fast)
+    }
+
+    /// Why it can't run, in the words Settings → Common has under the switch.
+    static var noFasterAI: String {
+        tr("选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」）", "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)")
+    }
+
+    /// The settings it asks with (`Config.fastConfig`): `config` with a provider chosen; with a CLI, its fast fallback's as
+    /// a request finds it (`Converter.fastConfig`: the keychain, the shell's variables, the AWS profile's files), looked
+    /// up off the main thread each time the switch is shown (`lookUp`) and at launch: what the last look found until the
+    /// next comes back (none before the first). Nil: it can't run.
+    static func fastConfig(_ config: Config) -> Config? {
+        guard case .cli = config.ai else { return config }
+        lookUp(config)
+        guard let provider = found ?? nil else { return nil }
+        var fast = config
+        fast.provider = provider
+        return fast
+    }
+
+    /// The fast fallback's provider the last look found (`.some(nil)`: none); nil: not looked up yet.
+    private static var found: Provider??
+    /// The settings a look is running for, and those the last one was for, with when it came back (system uptime): Notes
+    /// asks for the input menu after every key, and a look for the same settings isn't made again within a few seconds.
+    private static var looking: Config?
+    private static var looked: (config: Config, at: TimeInterval)?
+    /// Told when a look found another answer than the last: the menu bar panel shows the switch again.
+    static var foundAnother: @MainActor () -> Void = { FloatingPanel.shared.setAutocomplete(nil) }
+
+    /// `fastConfig`'s look with `config` (a CLI chosen), off the main thread; nothing while one runs for it, or within a
+    /// few seconds of the last for it.
+    static func lookUp(_ config: Config) {
+        let now = ProcessInfo.processInfo.systemUptime
+        guard case .cli = config.ai, looking != config else { return }
+        if let looked, looked.config == config, now - looked.at < 5 { return }
+        looking = config
+        Task.detached(priority: .userInitiated) {
+            let provider = sharedConverter.fastConfig(config)?.provider
+            await MainActor.run {
+                if looking == config { looking = nil }
+                looked = (config, ProcessInfo.processInfo.systemUptime)
+                let another = found != .some(provider)
+                found = .some(provider)
+                if another { foundAnother() }
+            }
         }
     }
 
@@ -238,14 +307,14 @@ enum AutocompleteSwitch {
         Autocomplete.Words(language: UIText.language).destination(config)
     }
 
-    /// `destination` as a menu's line, under the choice it is about (the main switch, an app's in This App): not
-    /// choosable, indented; with AllInOneIME Cloud picked, its tooltip says why it isn't asked. Nil where `destination` is.
-    static func destinationItem(_ config: Config) -> NSMenuItem? {
-        guard let destination = destination(config) else { return nil }
-        let line = NSMenuItem(title: destination, action: nil, keyEquivalent: "")
+    /// `shown`'s line as a menu's, under the switch: where the text goes, or why it can't run; not choosable, indented;
+    /// with AllInOneIME Cloud picked, its tooltip says why it isn't asked. Nil where there is no line.
+    static func lineItem(_ shown: Shown) -> NSMenuItem? {
+        guard let text = shown.line else { return nil }
+        let line = NSMenuItem(title: text, action: nil, keyEquivalent: "")
         line.isEnabled = false
         line.indentationLevel = 1
-        if config.provider == .hosted {
+        if shown.fast?.provider == .hosted {
             line.toolTip = UIText.triggered(tr("AllInOneIME 云每天的免费次数，停顿几分钟就会用完，当天的 @ 命令就用不了了",
                                                "A few minutes of pauses would use up AllInOneIME Cloud's free requests for the day, and your @ commands would fail"))
         }

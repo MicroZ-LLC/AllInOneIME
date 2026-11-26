@@ -31434,6 +31434,53 @@
         }
       }
     },
+    "No AI in a password field" : {
+      "comment" : "密码框里不用 AI",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keine KI in einem Passwortfeld"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sin IA en un campo de contraseña"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Pas d’IA dans un champ de mot de passe"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード欄ではAIを使わない"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "암호 입력란에서는 AI 사용 안 함"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sem IA em um campo de senha"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "密碼框中不使用 AI"
+          }
+        }
+      }
+    },
     "No AI in this app" : {
       "comment" : "这个 App 里不用 AI",
       "localizations" : {

@@ -24,17 +24,20 @@ extension Converter {
         fast(try Self.settings(try loadConfig(), app: app))
     }
 
-    /// `config` for a request that has to be fast (`FastRoute`): with a CLI chosen as the AI, its fast fallback
-    /// (`Config.fastProvider`, by `isReady`) put in as the provider, or none.
+    /// `config` for a request that has to be fast (`FastRoute`): with a CLI chosen as the AI, its fast fallback put in as
+    /// the provider (`fastConfig`), or none.
     func fast(_ config: Config) -> FastRoute {
-        guard case .cli = config.ai else { return FastRoute(config: config) }
-        let apple = client.apple.availability
-        guard let provider = config.fastProvider(ready: { isReady($0, config: config) }, apple: apple) else {
-            return FastRoute(config: config, slow: true, session: questionSession(config))
-        }
-        var fast = config
-        fast.provider = provider
+        guard let fast = fastConfig(config) else { return FastRoute(config: config, slow: true, session: questionSession(config)) }
         return FastRoute(config: fast)
+    }
+
+    /// The settings what has to be fast is asked with, as a request finds them (`Config.fastConfig` by `isReady`: the
+    /// keychain, the shell's variables, the AWS profile's files; never on the main thread): `config` with a provider
+    /// chosen; with a CLI, its fast fallback's; nil: a CLI and no faster AI. What a shell's autocomplete switch shows
+    /// (the Mac's input menu and menu-bar panel), as the field's own route goes (`InputSession.autocompleteLookUpRoute`).
+    public func fastConfig(_ config: Config) -> Config? {
+        guard case .cli = config.ai else { return config }
+        return config.fastConfig(ready: { isReady($0, config: config) }, apple: client.apple.availability)
     }
 
     /// Whether `provider` has what it needs to answer, as a request to it would find it (`AIStatus.isReady`): a key for its

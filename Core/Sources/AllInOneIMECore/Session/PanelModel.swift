@@ -12,7 +12,8 @@ public struct PanelModel: Equatable, Sendable {
         public enum Kind: Equatable, Sendable {
             /// Level-one pinyin candidate (and a list's row).
             case candidate
-            /// The sentence as typed (level two, row 0); dimmed.
+            /// The sentence as typed (level two, row 0); dimmed. Dimmed the same way, rows nothing picks: a list's
+            /// information, one @'s AI command where AI isn't used.
             case original
             /// A version or rewrite from the model (level two).
             case translation
@@ -34,8 +35,12 @@ public struct PanelModel: Equatable, Sendable {
         public var pickable: Bool
         /// What a click on it picks: the index `Composer.pickClicked` takes, which the session finds here for the row
         /// a shell says was clicked (`SessionEvent.pick`). The row's own index, but in a conversation, whose rows are its
-        /// questions and answers, an answer's round, and nil for a question.
+        /// questions and answers, an answer's round, and nil for a question; nil for one @'s row that isn't `pickable`.
         public var choice: Int?
+        /// Nothing picks it, but a click on it says why, as ⏎ on it does (`SessionEvent.pick`): one @'s AI command where
+        /// AI isn't used (`Composer.oneAtUnavailable`). The pointer over it doesn't highlight it
+        /// (`CandidateLayout.row(at:frames:rows:clicked:)`).
+        public var saysWhy: Bool
 
         // What follows only says how the row looks: a shell may draw the row without it, from what is above.
 
@@ -67,7 +72,7 @@ public struct PanelModel: Equatable, Sendable {
 
         public init(label: String, text: String, comment: String = "", kind: Kind, isComplete: Bool = true,
                     icon: IconToken? = nil, pickable: Bool = true, choice: Int? = nil, action: String? = nil, tag: Tag? = nil,
-                    commentDescribes: Bool = false, lead: String? = nil, secondLine: String? = nil) {
+                    commentDescribes: Bool = false, lead: String? = nil, secondLine: String? = nil, saysWhy: Bool = false) {
             self.label = label
             self.text = text
             self.comment = comment
@@ -81,6 +86,7 @@ public struct PanelModel: Equatable, Sendable {
             self.commentDescribes = commentDescribes
             self.lead = lead
             self.secondLine = secondLine
+            self.saysWhy = saysWhy
         }
     }
 

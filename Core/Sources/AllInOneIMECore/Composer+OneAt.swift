@@ -31,7 +31,7 @@ extension Composer {
     /// The rows of the one @ list (`OneAt.actions`), worked out once for what they come from (the text, the selection,
     /// the commands, their use, the app, Spotlight's files so far). While secure input is on, or in a field known as a
     /// password field (`secureInputActive`), it is as in an app with No AI: no AI row is guessed (an AI command typed by its
-    /// name is listed, and refused when run).
+    /// name is listed, dimmed with why: `oneAtUnavailable`).
     public var oneAtRows: [OneAt.Action] {
         guard let (text, letters) = oneAt else { return [] }
         let app = appInUse(), noAI = !aiAllowed() || secureInputActive()
@@ -278,10 +278,32 @@ extension Composer {
         return doOneAt(rows[oneAtHighlighted], run: run)
     }
 
+    /// One @'s row `row` (its place among the rows shown) clicked where nothing picks it but it says why
+    /// (`PanelModel.Row.saysWhy`): what ⏎ on it does, the notice, the list as it was. Nothing for any other row.
+    public func oneAtClicked(_ row: Int) -> [Effect] {
+        let rows = oneAtRows, index = oneAtFirstVisible + row
+        guard rows.indices.contains(index), oneAtUnavailable(rows[index]) != nil else { return [] }
+        return doOneAt(rows[index], run: true)
+    }
+
+    /// Why `action` can't be done here (nil: it can): an AI command typed by its name, the only AI row listed in an app
+    /// with No AI or in a password field (`OneAt.Unavailable`).
+    public func oneAtUnavailable(_ action: OneAt.Action) -> OneAt.Unavailable? {
+        guard case let .command(command) = action, command.usesAI else { return nil }
+        if secureInputActive() { return .passwordField }
+        return aiAllowed() ? nil : .noAI
+    }
+
     /// What a row does (`OneAt.Action`): a command is picked as the command list picks it; a value goes in place of the
     /// text; an app, a folder, a file or a web address opens; a reminder is added; a writing action does what `@name
-    /// text` does, the text converted first (its pinyin, as Space would pick it).
+    /// text` does, the text converted first (its pinyin, as Space would pick it). A row that can't be done here
+    /// (`oneAtUnavailable`) done (`run`: ⏎, the action key, a click, its number) only says why, the list as it was; Tab or
+    /// Space after its name only writes the command, as `@name ` typed does, refused when it runs.
     func doOneAt(_ action: OneAt.Action, run: Bool) -> [Effect] {
+        if run, let unavailable = oneAtUnavailable(action) {
+            let notice = unavailable == .noAI ? aiRefusal() : messages.secureInputCommand
+            return [.notice(notice ?? unavailable.reason(InterfaceWords(language: messages.language))), .showPanel]
+        }
         switch action {
         case let .command(command):
             // The letters composed were its name: they go.

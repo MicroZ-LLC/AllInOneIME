@@ -3,6 +3,29 @@ import AllInOneIMERime
 import AppKit
 import InputMethodKit
 
+/// A row of the settings window, by the name its page and the settings search know it by (SettingsSearch.swift has the
+/// rest of it). Declared with the input menu, whose items open Settings at one (`showPreferences`), so that the menu's
+/// code builds on its own.
+enum SettingsSpot: String, CaseIterable {
+    // Input
+    case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
+    case switchKey, candidateLayout, keyHints
+    // General
+    case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
+    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
+    // AI: the AI, then the AI commands' options (@improve's, @translate's, @question's)
+    case provider, model, apiKey, awsProfile, baseURL, testConnection
+    case rewriteStyles, improveTranslates, jargonList, outputLanguages, questionContinueIn, rememberQuestions
+    // Privacy
+    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, learnEnglishWords, learned, installID
+    // Commands
+    case customCommands, agent, notes, plugins, scriptExtensions, extensionSources
+    // Advanced
+    case typeOut, useSelection, previousAppSettings, configFile, rimeFolder
+    // About
+    case updates, troubleshoot, reportIssue
+}
+
 /// The input menu (the menu bar's input source menu while a field has the focus): the settings, the model, the languages,
 /// the rewrite styles, this app's own settings (AppProfiles.swift), the Rime folder, a report, updates. Its actions write
 /// the config file and tell the field's session (`applySettings`).
@@ -41,8 +64,8 @@ extension AllInOneIMEInputController {
         outputs.addItem(.separator())
         let addOutput = NSMenuItem(title: tr("添加 / 排序语言…", "Add or Reorder Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addOutput.target = self
-        // The page and the row it opens Settings at, as `SettingsPage` and `SettingsSpot` name them (`showPreferences`).
-        addOutput.representedObject = "ai/outputLanguages"
+        // The row it opens Settings at (`SettingsSpot`); `showPreferences` finds its page, wherever the row is now.
+        addOutput.representedObject = SettingsSpot.outputLanguages.rawValue
         outputs.addItem(addOutput)
         outputItem.submenu = outputs
         menu.addItem(outputItem)
@@ -80,7 +103,7 @@ extension AllInOneIMEInputController {
         }
         let addInput = NSMenuItem(title: tr("添加语言…", "Add Languages…"), action: #selector(showPreferences(_:)), keyEquivalent: "")
         addInput.target = self
-        addInput.representedObject = "common/inputLanguages"
+        addInput.representedObject = SettingsSpot.inputLanguages.rawValue
         inputs.addItem(addInput)
         inputItem.submenu = inputs
         menu.addItem(inputItem)
@@ -188,23 +211,24 @@ extension AllInOneIMEInputController {
     /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
     /// app's own choice is in "This App"), the model it asks in its title (`AutocompleteSwitch.modelName`), what was
     /// counted of it on the item's tooltip; under it, where the text goes (`AutocompleteSwitch.destination`): what each
-    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence.
+    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence. With
+    /// a CLI chosen as the AI, its fast fallback's; with none, off, not to be turned on, and why, as Settings → Common and
+    /// the menu bar panel show it (`AutocompleteSwitch.shown`).
     @MainActor
     func addingAutocomplete(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
-        let current = config ?? .default
+        let shown = AutocompleteSwitch.shown(config ?? .default)
         var items: [NSMenuItem] = []
         // The model it asks, and where the text goes, whether it's on or not: turning it on is the choice to send it there.
-        let model = AutocompleteSwitch.modelName(current)
-        let autocomplete = NSMenuItem(title: tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)"), action: #selector(toggleAutocomplete(_:)),
-                                      keyEquivalent: "")
+        let title = shown.model.map { model in tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)") } ?? tr("续写（Beta）", "Autocomplete (Beta)")
+        let autocomplete = NSMenuItem(title: title, action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
         autocomplete.target = self
-        autocomplete.state = current.autocomplete ? .on : .off
-        autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse
+        autocomplete.state = shown.on ? .on : .off
+        autocomplete.isEnabled = config != nil && shown.available  // don't overwrite a config file that failed to parse
         autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
             ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
         items.append(autocomplete)
-        if let line = AutocompleteSwitch.destinationItem(current) {
+        if let line = AutocompleteSwitch.lineItem(shown) {
             line.tag = Self.autocompleteDestinationTag
             items.append(line)
         }
@@ -317,11 +341,10 @@ extension AllInOneIMEInputController {
     override func showPreferences(_ sender: Any!) {
         MainActor.assumeIsolated {
             perform(composer.commitAll(), client: nil)  // the window takes focus from the text field
-            // "Add Languages…" opens the page with the languages, at their row ("common/inputLanguages"); Settings… opens
-            // on Common.
-            let place = (Self.menuItem(from: sender)?.representedObject as? String)?.split(separator: "/").map(String.init) ?? []
-            if let page = place.first.flatMap(SettingsPage.init(rawValue:)) {
-                SettingsWindow.shared.show(page: page, spot: place.dropFirst().first.flatMap(SettingsSpot.init(rawValue:)))
+            // "Add Languages…" and "Add or Reorder Languages…" carry their row (`SettingsSpot`): Settings opens at it, on the
+            // page it is on (`SettingsSpot.page`), so a row moved to another page keeps its link. Settings… opens on Common.
+            if let spot = (Self.menuItem(from: sender)?.representedObject as? String).flatMap(SettingsSpot.init(rawValue:)) {
+                SettingsWindow.shared.show(page: spot.page, spot: spot)
             } else {
                 SettingsWindow.shared.show()
             }

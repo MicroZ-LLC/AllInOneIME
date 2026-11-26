@@ -69,14 +69,9 @@ extension SettingsModel {
     }
 
     /// The settings as what has to be fast goes with them (autocomplete's row): with a CLI chosen, its fast fallback by
-    /// `aiFacts` as the provider (`Config.fastProvider`); nil: there is none.
-    var fastConfig: Config? {
-        guard config.ai.agent != nil else { return config }
-        guard let fast = config.fastProvider(aiFacts) else { return nil }
-        var shown = config
-        shown.provider = fast
-        return shown
-    }
+    /// `aiFacts` as the provider (`Config.fastConfig`, which the input menu and the menu bar panel go by too); nil: there
+    /// is none.
+    var fastConfig: Config? { config.fastConfig(aiFacts) }
 
     /// The AI chosen (`Config.ai`), saved: a provider is set as the provider and no CLI is (`cli`); a CLI is set, the
     /// provider kept as it was (the fast fallback, `Config.fastProvider`).
@@ -144,6 +139,14 @@ extension SettingsModel {
     /// Looks whether each CLI is installed and signed in (`ClaudeSessionMac.checkAvailability`: as last found unless that
     /// is too old; `force`: each one's program run now), then shows it. A preview shows what it was given: nothing of this
     /// Mac's.
+    /// The CLI picked as the AI, shown again (the start's step 2 come back to, after picking it in Settings or signing in
+    /// in Terminal): its sign-in looked at again while it isn't ready, so that the step moves on once it is. Still only as
+    /// a CLI is picked: nothing is looked at for another AI, nor at launch.
+    func pickedCLIShownAgain() {
+        guard let agent = config.ai.agent, !aiFacts.status(.cli(agent), config: config).isReady else { return }
+        refreshSessions([agent], force: true)
+    }
+
     func refreshSessions(_ agents: [SessionAgent] = SessionAgent.allCases, force: Bool = false) {
         guard persists, !agents.isEmpty else { return }
         ClaudeSessionMac.checkAvailability(agents, force: force) { [weak self] in

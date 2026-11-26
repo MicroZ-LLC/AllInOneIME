@@ -259,7 +259,10 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
 
     func installed() {
         let state = Installer.inputSourceState()
-        guard state.enabled && state.listed else {
+        let added = state.enabled && state.listed
+        // An update whose input source isn't added (taken out of the list since): the step to add it, as before. The start
+        // isn't shown after an update.
+        if !fresh, !added {
             finish(tr("还差一步：添加输入法", "One more step: add the input source"), manualAddHint,
                    button: tr("打开键盘设置", "Open Keyboard Settings")) {
                 NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")!)
@@ -268,10 +271,12 @@ final class InstallerDelegate: NSObject, NSApplicationDelegate {
             return
         }
         // A new install starts on AllInOneIME Cloud (`Config.fresh`); Apple Intelligence needs no account. An update says
-        // the magic key the settings have. A fresh install's button opens the start (#122), an update's Settings.
-        finish(tr("AllInOneIME \(newVersion) 装好了", "AllInOneIME \(newVersion) is installed"),
-               Installer.installedDetails(trigger: (try? Config.load())?.commandTrigger ?? "@"),
-               button: tr("打开 AllInOneIME 设置", "Open AllInOneIME Settings")) {
+        // the magic key the settings have. A fresh install's button opens the start (#122), an update's Settings. The
+        // start's step 1 has the step to add the input source where macOS left it to the user (with the button to
+        // Keyboard settings, going on once it is added): a fresh install reaches the start whether or not it is added.
+        let details = added ? Installer.installedDetails(trigger: (try? Config.load())?.commandTrigger ?? "@") : Installer.addInStart
+        finish(tr("AllInOneIME \(newVersion) 装好了", "AllInOneIME \(newVersion) is installed"), details,
+               button: fresh ? tr("开始使用", "Get Started") : tr("打开 AllInOneIME 设置", "Open AllInOneIME Settings")) {
             let configuration = NSWorkspace.OpenConfiguration()
             configuration.arguments = Installer.settingsAppArguments(fresh: self.fresh)
             NSWorkspace.shared.openApplication(at: Installer.settingsApp, configuration: configuration) { _, _ in

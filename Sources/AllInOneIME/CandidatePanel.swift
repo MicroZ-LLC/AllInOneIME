@@ -1010,7 +1010,7 @@ final class CandidateView: NSView {
         needsDisplay = true
         // Other rows under a pointer that stayed put: the one there now (the pointer asked once, for both).
         let location = window.flatMap { $0.isVisible ? convert($0.mouseLocationOutsideOfEventStream, from: nil) : nil }
-        (hovered, hoveredChip, hoveredHandoff) = (location.flatMap(row(at:)), location.flatMap(chipPart(at:)),
+        (hovered, hoveredChip, hoveredHandoff) = (location.flatMap { row(at: $0) }, location.flatMap(chipPart(at:)),
                                                   location.flatMap(handoffTarget(at:)))
     }
 
@@ -1785,10 +1785,11 @@ final class CandidateView: NSView {
         rowLayouts.indices.contains(index) ? rowLayouts[index].frame : nil
     }
 
-    /// The row a click at `point` picks (`CandidateLayout.row`).
-    private func row(at point: NSPoint) -> Int? {
+    /// The row the pointer at `point` highlights, or (`clicked`) a click there goes to (`CandidateLayout.row`): a click
+    /// goes to one that says why nothing picks it too (one @'s AI command where AI isn't used).
+    private func row(at point: NSPoint, clicked: Bool = false) -> Int? {
         guard bounds.contains(point), rowsClip?.contains(point) ?? true else { return nil }
-        return CandidateLayout.row(at: point, frames: rowLayouts.map(\.frame), pickable: model.rows.map(\.pickable))
+        return CandidateLayout.row(at: point, frames: rowLayouts.map(\.frame), rows: model.rows, clicked: clicked)
     }
 
     override func updateTrackingAreas() {
@@ -1827,7 +1828,7 @@ final class CandidateView: NSView {
             pointer.chipClicked(part)
         } else if let target = handoffTarget(at: point) {
             pointer.handoffClicked(target + 1)
-        } else if let index = row(at: point) {
+        } else if let index = row(at: point, clicked: true) {
             // A Control-click is a right-click.
             if event.modifierFlags.contains(.control) { pointer.rightClicked(index) } else { pointer.clicked(index) }
         }

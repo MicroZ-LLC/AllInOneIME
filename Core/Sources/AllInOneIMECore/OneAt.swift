@@ -47,6 +47,24 @@ public enum OneAt {
         }
     }
 
+    /// Why a row listed can't be done where the text is typed (`Composer.oneAtUnavailable`): an AI command typed by its
+    /// name in an app with No AI or in a password field. It is listed, so that its name still finds it, dimmed with the
+    /// reason; picking it only says why.
+    public enum Unavailable: Equatable, Sendable {
+        /// The app has No AI (Settings → Privacy's apps without AI).
+        case noAI
+        /// A password field: secure input on, or a field known as one.
+        case passwordField
+
+        /// What its row says in place of what the command does.
+        public func reason(_ t: InterfaceWords) -> String {
+            switch self {
+            case .noAI: return t.tr("这个 App 里不用 AI", "No AI in this app")
+            case .passwordField: return t.tr("密码框里不用 AI", "No AI in a password field")
+            }
+        }
+    }
+
     /// What the rows are worked out from.
     public struct Input {
         /// The text after the magic key, as it would be with the pinyin's first candidate.

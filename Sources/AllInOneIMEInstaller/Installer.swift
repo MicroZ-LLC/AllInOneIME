@@ -20,6 +20,13 @@ enum Installer {
                          trigger: trigger)
     }
 
+    /// The last dialog's text after a fresh install whose input source macOS left to the user to add: the start that
+    /// opens next says where (its step 1).
+    static var addInStart: String {
+        tr("还差一步：把 AllInOneIME 添加到输入法列表，新的输入法只能由你自己添加。接下来打开的「开始使用」会告诉你在哪里加，加好以后自己往下走。",
+           "One more step: add AllInOneIME to your input sources; only you can add a new one. Get Started, which opens next, shows you where, and goes on by itself once it's added.")
+    }
+
     static let bundleID = Updater.bundleID
     static let settingsBundleID = Updater.settingsBundleID
     /// The input method's process name.
