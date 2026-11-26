@@ -123,8 +123,10 @@ extension SettingsSpot {
         case .menuBarIcon: return tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away")
         case .iCloudSync: return Self.iCloudNote
         case .previousAppSettings: return Self.previousNote
-        // As a provider chosen has it; with a CLI chosen, only `@question` is sure to go to it (`providerNote`).
-        case .provider: return tr("选一家，所有 AI 功能都用它", "Pick one, and all the AI features use it")
+        // True whatever is chosen: with a CLI, what has to be fast may go to a faster AI (`providerNote`, beside the cards).
+        case .provider:
+            return UIText.triggered(tr("选 @ 命令用的 AI；选了 CLI 时，要快的功能可能交给更快的 AI",
+                                       "Pick the AI your @ commands use; with a CLI, what has to be fast may go to a faster one"))
         case .hideSensitive:
             return tr("邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。",
                       "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results.")
