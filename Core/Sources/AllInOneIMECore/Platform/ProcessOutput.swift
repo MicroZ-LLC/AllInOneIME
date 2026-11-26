@@ -91,15 +91,17 @@ public enum ProcessOutput {
     }
 
     /// Ends `launched` and what it started: asked first (SIGTERM), killed half a second later if anything of it is
-    /// still there (SIGKILL). Whether it has ended (`ended` signalled).
+    /// still there (SIGKILL). Whether it has ended (`ended` signalled): waited for a moment more whether or not there
+    /// was anything left to kill, as one that ended on its own right at its time limit, or at the end of that half
+    /// second, is gone before its end is told (its status was -1 then, as if it never ended).
     private static func stop(_ launched: any LaunchedProcess, ended: DispatchSemaphore) -> Bool {
         launched.terminate()
-        var exited = ended.wait(timeout: .now() + 0.5) == .success
-        if launched.treeIsRunning {
-            launched.kill()
-            if !exited { exited = ended.wait(timeout: .now() + 0.2) == .success }
+        if ended.wait(timeout: .now() + 0.5) == .success {
+            if launched.treeIsRunning { launched.kill() }
+            return true
         }
-        return exited
+        if launched.treeIsRunning { launched.kill() }
+        return ended.wait(timeout: .now() + 0.2) == .success
     }
 
     /// `data` written to a program's standard input, then closed, on a thread of its own: a program that doesn't read

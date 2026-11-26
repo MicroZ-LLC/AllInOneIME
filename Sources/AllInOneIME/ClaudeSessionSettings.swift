@@ -1,61 +1,61 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// Settings → AI's choices (`Config.ai`, the owner's design; #121, #161): the one in use as a card, outlined, then the
-/// others folded under one row (`AIPickerState`, kept as `SettingsModel.aiCards`), folded each time the page shows; one
-/// click on a card chooses it and folds them again. A CLI's card says whether it is installed and signed in, as last
-/// looked at: a CLI is looked at as its card shows (`SettingsModel.aiCardsShown`: the one in use as the page shows, the
-/// others as they unfold), each as last found unless that is too old (`ClaudeSessionMac.checkAvailability`: its program
-/// runs only then), so a folded list runs nothing.
+/// Settings → AI, choosing (Change ▾; 0.7.4's design, #174): Cancel at the top right, then every choice as a card, by
+/// how it connects (`AIPickerState`, kept as `SettingsModel.aiCards`); one click on a card chooses it and collapses the
+/// page. A CLI's card says whether it is installed and signed in, as last looked at: the CLIs are looked at as the cards
+/// show (`SettingsModel.aiPageShown`; collapsed, only the one in use is), each as last found unless that is too old
+/// (`ClaudeSessionMac.checkAvailability`: its program runs only then).
 struct AIChoiceSettings: View {
     @ObservedObject var model: SettingsModel
 
     var body: some View {
         let facts = model.aiFacts
         let cards = model.aiCards
-        let status = { (choice: AIChoice) in facts.status(choice, config: model.config) }
-        VStack(alignment: .leading, spacing: 12) {
-            // As wide as the cards under the row.
-            LazyVGrid(columns: AIChoicesGrid.columns, alignment: .leading, spacing: 10) {
-                AIChoiceCard(choice: cards.chosen, status: status(cards.chosen), chosen: true) { choose(cards.chosen) }
-                    .id(cards.chosen)  // a card pointed at, in use
-                    .onAppear { model.aiCardsShown([cards.chosen]) }
-            }
-            DisclosureGroup(isExpanded: Binding(get: { cards.isExpanded },
-                                                set: { open in model.changeAICards { if $0.isExpanded != open { $0.toggle() } } })) {
-                AIChoicesGrid(chosen: cards.chosen, groups: cards.otherGroups, status: status, pick: choose)
-                    .onAppear { model.aiCardsShown(cards.otherGroups.flatMap(\.choices)) }
-            } label: {
-                Text(cards.rowTitle)
-            }
-            .disclosureGroupStyle(RowDisclosureStyle())
-        }
+        AIChoicesGrid(chosen: cards.chosen, groups: cards.visibleGroups,
+                      status: { facts.status($0, config: model.config) }, pick: choose, cancel: collapse)
         .padding(.vertical, 6)
         .settingsRow(.provider, shown: model.spot)
-        // Folded as the page shows, and as a new window starts, opened again (`SettingsView`'s own state is reset the
-        // same way).
-        .onAppear(perform: shown)
-        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in shown() }
-        // Folded as the page goes too: shown again (another page, the window closed), it must not unfold for a moment and
-        // look at the other CLIs' sign-ins before `shown` folds it.
-        .onDisappear { model.changeAICards { $0.show(search: nil, target: nil) } }
+        .onAppear { model.aiPageShown() }
+        // Collapsed as the page goes (another page, the window closed) and as a new window starts, opened again, so that
+        // the page comes back collapsed, unless the window is pointed at the cards (`SettingsModel.point`).
+        .onDisappear { model.changeAICards { $0.pageLeft() } }
+        .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in
+            if model.spot != .provider { model.changeAICards { $0.pageLeft() } }
+        }
     }
 
-    /// The page shown, or the window opened again: the others folded, unless the window is pointed at the cards
-    /// (`SettingsModel.point`, which unfolds them as it needs).
-    private func shown() {
-        if model.spot != .provider { model.changeAICards { $0.show(search: nil, target: nil) } }
+    /// Cancel, or Esc: collapsed, nothing chosen.
+    private func collapse() {
+        withAnimation(.easeOut(duration: 0.15)) { model.changeAICards { $0.cancel() } }
+        if model.spot == .provider { model.spot = nil }
     }
 
-    /// A card clicked: chosen (`SettingsModel.choose`), the others folded again.
+    /// A card clicked: chosen (`SettingsModel.choose`), the page collapsed.
     private func choose(_ choice: AIChoice) {
-        model.changeAICards { $0.pick(choice) }
         model.choose(choice)
+        withAnimation(.easeOut(duration: 0.15)) { model.changeAICards { $0.pick(choice) } }
         if model.spot == .provider { model.spot = nil }
     }
 }
 
+/// Settings → AI's section title, with what the choice is for at the right (`SettingsSpot.providerNote`).
+struct AISectionHeader: View {
+    let cli: Bool
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline) {
+            SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
+            Spacer()
+            Text(SettingsSpot.providerNote(cli: cli)).font(.callout).foregroundStyle(.secondary)
+        }
+    }
+}
+
 extension SettingsModel {
+    /// False for previews/screenshots: nothing is ever written.
+    var persists: Bool { store.persists }
+
     /// What this Mac has, for each choice's status (`AIFacts`): the CLIs' sign-ins, the keys as their rows show them,
     /// AllInOneIME Cloud's sign-in, the AWS profiles with their regions and kinds, Apple's model.
     var aiFacts: AIFacts {
@@ -94,13 +94,17 @@ extension SettingsModel {
         })
     }
 
-    /// Settings → AI's cards `choices` shown (the one in use as the page shows, the others as they unfold): the sign-in of
-    /// each CLI among them looked at for its card, as last found unless that is too old (a signed-in one kept until quit,
-    /// the others for `ClaudeSessionManager.recheckInterval`): shown again within it, nothing runs. Never at launch or
-    /// while typing, nor for the cards folded; a preview shows what it was given.
-    func aiCardsShown(_ choices: [AIChoice]) { refreshSessions(choices.compactMap(\.agent)) }
+    /// Settings → AI shown, collapsed or choosing (the page come to, Change ▾, Cancel): the sign-in of each CLI among
+    /// the choices shown (collapsed, the one in use; choosing, every card's) looked at, as last found unless that is too
+    /// old (a signed-in one kept until quit, the others for `ClaudeSessionManager.recheckInterval`): shown again within
+    /// it, nothing runs. Never at launch or while typing; a preview shows what it was given.
+    func aiPageShown() {
+        let cards = aiCards
+        let agents = (cards.choosing ? cards.visibleGroups.flatMap(\.choices) : [cards.chosen]).compactMap(\.agent)
+        if let cliChecks { cliChecks(agents) } else { refreshSessions(agents) }
+    }
 
-    /// Settings → AI's cards as the page shows them now: `aiPicker` (folded or not, the card pointed at) with the AI
+    /// Settings → AI as the page shows it now: `aiPicker` (collapsed or choosing, the card pointed at) with the AI
     /// chosen and the choices offered now.
     var aiCards: AIPickerState {
         var cards = aiPicker
@@ -108,7 +112,7 @@ extension SettingsModel {
         return cards
     }
 
-    /// `change` made to Settings → AI's cards as they are now (`aiCards`): a click on the row or a card, the page shown.
+    /// `change` made to Settings → AI's cards as they are now (`aiCards`): Change ▾, Cancel or a card clicked, the page shown.
     func changeAICards(_ change: (inout AIPickerState) -> Void) {
         var cards = aiCards
         change(&cards)
@@ -117,19 +121,21 @@ extension SettingsModel {
 
     /// The window pointed at `spot` (`SettingsWindow.show(page:spot:card:)`, the settings search's row), outlined on its
     /// page; with no spot, a `card` (the Doctor's) points at Settings → AI's choices, unless it is the one in use (its own
-    /// rows are at the top). Pointed at them, the other cards unfold, scrolled to `card` (the start's, the Doctor's) or to
+    /// rows are at the top). Pointed at them, the choices open, scrolled to `card` (the start's, the Doctor's) or to
     /// a choice `search` names (what the search had typed: "kiro"), unless that one is in use, at the top.
     func point(at spot: SettingsSpot?, search: String? = nil, card: AIChoice? = nil) {
         // A card is compared with the AI in use as the file has it now: a change just written (the Assistant's) may not
-        // have reached the model yet, and the card it points at is then the one in use, not one to unfold.
+        // have reached the model yet, and the card it points at is then the one in use, not one to open the choices for.
         if card != nil { reloadIfChanged() }
         let spot = spot ?? card.flatMap { $0 == config.ai ? nil : SettingsSpot.provider }
-        if spot == .provider { changeAICards { $0.show(search: search, target: card) } }
+        // Pointed anywhere else (another row, the card in use), the page is collapsed: the chosen AI's rows show only then.
+        let cards = spot == .provider
+        if cards || spot != nil || card != nil { changeAICards { $0.show(search: cards ? search : nil, target: cards ? card : nil) } }
         self.spot = spot
     }
 
     /// What the window scrolls to for `spot`, in turn (`SettingsView.scroll`), and scrolls to again as it changes: its
-    /// row; on Settings → AI's choices, then the card pointed at, unfolded (`AIPickerState.scrollTarget`).
+    /// row; on Settings → AI's choices, then the card pointed at, the choices open (`AIPickerState.scrollTarget`).
     var spotIDs: [AnyHashable] {
         guard let spot else { return [] }
         let card = spot == .provider ? aiPicker.scrollTarget : nil
