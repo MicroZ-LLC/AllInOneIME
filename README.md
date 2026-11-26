@@ -1787,7 +1787,8 @@ and `Scripts/oversized-files.txt` (the files over 400 lines of code, which may n
 old code is fixed as it is touched. After fixing some, `make lint-baseline` lowers the baselines; CI fails a pull
 request that raises them. A pull request from a fork doesn't run on the maintainer's Mac: a maintainer who has read it
 pushes it to a branch here. Every Monday the Health report workflow updates the pinned "Code health report" issue: the
-files over the limit, the baseline, duplicated and unused code, and how each changed.
+files over the limit, the baseline, duplicated and unused code, and how each changed, and the tests that failed under
+load and passed when run again alone in the last four weeks' checks (each test job keeps their names).
 
 ## License
 

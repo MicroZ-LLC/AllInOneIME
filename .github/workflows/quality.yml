@@ -6,7 +6,9 @@
 # halves its change can affect (the `changes` job, Scripts/test-scope.sh: docs/ or site/ alone need neither, the
 # core's tests alone only the core's); a push to mainline or a release branch runs both. mac-test also runs the
 # updater end to end (`make update-test`, offline) when the change touches the updater, the installer or how the apps
-# are built (test-scope.sh's `update`), and on every push to a release branch. Require the check
+# are built (test-scope.sh's `update`), and on every push to a release branch. Each test job keeps the names of the
+# tests that failed under load and passed alone (Core/Scripts/retry-failed-tests.sh) as an artifact, flaky-tests-*,
+# which the weekly health report (health.yml) counts. Require the check
 # "Quality gate" (Scripts/protect-branches.sh): it passes only when lint passed and each test job passed or wasn't
 # needed, so a PR from a fork, which never runs here (its code isn't trusted there), fails it instead of skipping it; a
 # maintainer who has read such a change pushes it to a branch here to have it checked. The agent pipeline starts this
@@ -130,8 +132,21 @@ jobs:
           useradd --create-home tests
           chown -R tests:tests .
           rm -f /tmp/*_core_.build*.lock
-          su tests -c "Scripts/test.sh --skip-build"
+          # The tests that failed under load and passed alone (Core/Scripts/retry-failed-tests.sh), a name a line, in
+          # a folder that user can write to; kept below.
+          flaky=$RUNNER_TEMP/flaky-tests/flaky-tests.txt
+          mkdir -p "${flaky%/*}" && chown tests:tests "${flaky%/*}"
+          echo "FLAKY_TESTS_FILE=$flaky" >> "$GITHUB_ENV"
+          su tests -c "FLAKY_TESTS_FILE='$flaky' Scripts/test.sh --skip-build"
         working-directory: ../core
+      - name: Keep the flaky tests' names (the weekly health report counts them)
+        if: ${{ !cancelled() && env.FLAKY_TESTS_FILE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-tests-core-linux-${{ github.run_attempt }}
+          path: ${{ env.FLAKY_TESTS_FILE }}
+          if-no-files-found: ignore
+          retention-days: 35
 
   core-test-macos:
     # The core's tests on macOS, where it uses Apple's frameworks (JavaScriptCore, FoundationModels, the keychain), with
@@ -162,7 +177,19 @@ jobs:
       # Offline: GitHub's machine has no key or account of ours (no secret is given to this job), and
       # Core/Scripts/test.sh points AWS's files at nothing.
       - name: make test-core, offline
-        run: make test-core CORE=../core
+        run: |
+          # The tests that failed under load and passed alone (Core/Scripts/retry-failed-tests.sh); kept below.
+          export FLAKY_TESTS_FILE="$RUNNER_TEMP/flaky-tests/flaky-tests.txt"
+          mkdir -p "${FLAKY_TESTS_FILE%/*}" && echo "FLAKY_TESTS_FILE=$FLAKY_TESTS_FILE" >> "$GITHUB_ENV"
+          make test-core CORE=../core
+      - name: Keep the flaky tests' names (the weekly health report counts them)
+        if: ${{ !cancelled() && env.FLAKY_TESTS_FILE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-tests-core-macos-${{ github.run_attempt }}
+          path: ${{ env.FLAKY_TESTS_FILE }}
+          if-no-files-found: ignore
+          retention-days: 35
 
   mac-test:
     name: "Quality gate: mac-test"
@@ -199,6 +226,10 @@ jobs:
             unset "$name"
           done
           export AWS_CONFIG_FILE=/nonexistent/aws-config AWS_SHARED_CREDENTIALS_FILE=/nonexistent/aws-credentials
+          # The tests that failed under load and passed alone (Core/Scripts/retry-failed-tests.sh); kept below.
+          export FLAKY_TESTS_FILE="$RUNNER_TEMP/flaky-tests/flaky-tests.txt"
+          mkdir -p "${FLAKY_TESTS_FILE%/*}" && rm -f "$FLAKY_TESTS_FILE"
+          echo "FLAKY_TESTS_FILE=$FLAKY_TESTS_FILE" >> "$GITHUB_ENV"
           # A few tests need windows really drawn on screen; with the Mac mini's screen locked (no one there) they
           # can't pass. Skip only those then, and say so: `make test-screen` runs them on an unlocked Mac.
           if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
@@ -213,6 +244,14 @@ jobs:
         # `update`), and after make test-mac even when that failed, so that both say how they went.
         if: ${{ !cancelled() && needs.changes.outputs.update == 'true' }}
         run: make update-test
+      - name: Keep the flaky tests' names (the weekly health report counts them)
+        if: ${{ !cancelled() && env.FLAKY_TESTS_FILE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: flaky-tests-mac-${{ github.run_attempt }}
+          path: ${{ env.FLAKY_TESTS_FILE }}
+          if-no-files-found: ignore
+          retention-days: 35
 
   gate:
     # The one check to require. On GitHub's machine: it only reads the other jobs' results. A test job counts when it
