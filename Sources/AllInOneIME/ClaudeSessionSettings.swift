@@ -12,19 +12,16 @@ struct AIChoiceSettings: View {
     var body: some View {
         let facts = model.aiFacts
         let cards = model.aiCards
-        VStack(alignment: .leading, spacing: 18) {
-            AIChoicesHeader(cancel: collapse)
-            AIChoicesGrid(chosen: cards.chosen, groups: cards.visibleGroups,
-                          status: { facts.status($0, config: model.config) }, pick: choose)
-        }
+        AIChoicesGrid(chosen: cards.chosen, groups: cards.visibleGroups,
+                      status: { facts.status($0, config: model.config) }, pick: choose, cancel: collapse)
         .padding(.vertical, 6)
         .settingsRow(.provider, shown: model.spot)
         .onAppear { model.aiPageShown() }
         // Collapsed as the page goes (another page, the window closed) and as a new window starts, opened again, so that
         // the page comes back collapsed, unless the window is pointed at the cards (`SettingsModel.point`).
-        .onDisappear { model.changeAICards { $0.show(search: nil, target: nil) } }
+        .onDisappear { model.changeAICards { $0.pageLeft() } }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in
-            if model.spot != .provider { model.changeAICards { $0.show(search: nil, target: nil) } }
+            if model.spot != .provider { model.changeAICards { $0.pageLeft() } }
         }
     }
 

@@ -136,6 +136,10 @@ struct AIPickerState {
         cancel()
     }
 
+    /// The page left (another page, the window closed) while choosing or pointed at a card: collapsed, so that it
+    /// comes back as it starts, the card pointed at forgotten.
+    mutating func pageLeft() { cancel() }
+
     /// The page shown (`search` and `target` nil: collapsed), or pointed at: by the settings search (`search`: what was
     /// typed, "Choose the AI", "kiro"), or by the start or the Doctor (`target`, a card). Pointed at, the choices open
     /// unless the card asked for (the target, else a choice the search names) is the one in use, whose row is at the
@@ -166,24 +170,28 @@ struct AIChoicesHeader: View {
         HStack {
             Text(SettingsSpot.provider.title).font(.system(size: 14, weight: .semibold))
             Spacer()
-            Button(tr("取消", "Cancel"), action: cancel).buttonStyle(.plain).foregroundStyle(Color.accentColor)
-                .keyboardShortcut(.cancelAction)
+            // Esc is this button's own key, so that it takes the same path as a click (`AIPickerState.cancel`).
+            Button(tr("取消", "Cancel"), action: cancel).keyboardShortcut(.cancelAction)
+                .buttonStyle(.plain).foregroundStyle(Color.accentColor)
         }
     }
 }
 
-/// Settings → AI, choosing: every choice as a card, by group (`AIChoice.groups`): one click chooses one; the chosen one
-/// is outlined and says In use (#121's cards, shown under `AIChoicesHeader` by `AIChoiceSettings`).
+/// Settings → AI, choosing: Cancel at the top (`AIChoicesHeader`), then every choice as a card, by group
+/// (`AIChoice.groups`): one click chooses one; the chosen one is outlined and says In use (#121's cards, shown by
+/// `AIChoiceSettings`).
 struct AIChoicesGrid: View {
     let chosen: AIChoice
     let groups: [(group: AIChoice.Group, choices: [AIChoice])]
     let status: (AIChoice) -> AIStatus
     let pick: (AIChoice) -> Void
+    let cancel: () -> Void
 
     private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top), count: 4)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
+            AIChoicesHeader(cancel: cancel)
             ForEach(groups.indices, id: \.self) { index in
                 let entry = groups[index]
                 VStack(alignment: .leading, spacing: 8) {
