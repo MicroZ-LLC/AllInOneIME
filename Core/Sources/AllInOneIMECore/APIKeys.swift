@@ -111,6 +111,15 @@ public enum APIKeys {
             if self == .keychain, let saved, !saved.isEmpty, saved.lowercased() != host?.lowercased() { return .none }
             return sent(by: provider, to: host)
         }
+
+        /// `sent(by:to:savedFor:)` for `provider`'s requests with `config`'s base URL, the host a key in the keychain
+        /// was saved for looked up (`APIKeys.savedHost`: its item's attributes, the key isn't read): the one answer of
+        /// every place that says whether a key is set (the settings' rows, the Assistant's checks, iCloud sync's,
+        /// `--status`).
+        public func sent(by provider: Provider, in config: Config) -> Source {
+            sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider)),
+                 savedFor: self == .keychain ? APIKeys.savedHost(provider) : nil)
+        }
     }
 
     /// The host the keychain's key for `provider` was saved for (its item's comment, lowercased; the key isn't read);

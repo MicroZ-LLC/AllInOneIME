@@ -983,10 +983,10 @@ public enum ICloudSync {
         case "provider":
             guard case let .string(name) = value else { return .wrongType }
             guard let provider = Provider(rawValue: name), env.offeredProviders.contains(provider) else { return .unknownValue }
-            // A key from the login shell only where it goes: its base URL as it comes in too (its key sorts before this).
-            let host = HTTPProviders.host(of: config.settings(for: provider))
+            // A key from the login shell only where it goes, a saved one only to the host it was saved for: its base URL
+            // as it comes in too (its key sorts before this).
             return [.anthropic, .gemini, .openai, .hosted].contains(provider)
-                && env.keySource(provider).sent(by: provider, to: host) == .none ? .noKey : nil
+                && env.keySource(provider).sent(by: provider, in: config) == .none ? .noKey : nil
         case "awsProfile":
             guard case let .string(name) = value else { return .wrongType }
             if name.trimmingCharacters(in: .whitespaces).isEmpty { return .outOfRange }
