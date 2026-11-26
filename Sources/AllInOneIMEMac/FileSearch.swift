@@ -88,7 +88,7 @@ public enum FileSearch {
             }
             // A link is listed as what it leads to (a folder Tab goes into).
             let isDirectory = type == DT_DIR || type == DT_LNK && asked(path(name)) && isFolder(path(name))
-            let listed = (isDirectory && !name.hasSuffix(".app"), key, name)
+            let listed = (isDirectory && !key.hasSuffix(".app"), key, name)
             if first.count == limit, !precedes(listed, first[limit - 1]) { continue }
             first.insert(listed, at: first.firstIndex { precedes(listed, $0) } ?? first.count)
             if first.count > limit { first.removeLast() }
@@ -97,7 +97,7 @@ public enum FileSearch {
             let path = path(entry.name)
             return SearchResult(name: asked(path) ? FileManager.default.displayName(atPath: path) : entry.name, path: path,
                                 isFolder: entry.isFolder,
-                                reveals: !entry.isFolder && FileOpenPolicy.action(for: URL(fileURLWithPath: path), readsMetadata: asked(path)) == .reveal)
+                                reveals: FileOpenPolicy.action(for: URL(fileURLWithPath: path), readsMetadata: asked(path)) == .reveal)
         }
     }
 
@@ -194,9 +194,9 @@ public enum FileSearch {
     /// interface (`SearchResult.chineseName`).
     static func result(for path: String, matchedContent: Bool = false, app: AppIndex.App? = nil) -> SearchResult {
         let folder = isFolder(path)
-        return SearchResult(name: FileManager.default.displayName(atPath: path), path: path, isFolder: folder && !path.hasSuffix(".app"),
+        return SearchResult(name: FileManager.default.displayName(atPath: path), path: path, isFolder: folder && !path.lowercased().hasSuffix(".app"),
                             matchedContent: matchedContent, chineseName: app?.chinese,
-                            reveals: !folder && FileOpenPolicy.action(for: URL(fileURLWithPath: path)) == .reveal)
+                            reveals: FileOpenPolicy.action(for: URL(fileURLWithPath: path)) == .reveal)
     }
 
     static func isFolder(_ path: String) -> Bool {

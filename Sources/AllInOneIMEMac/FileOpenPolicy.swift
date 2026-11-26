@@ -17,14 +17,20 @@ public enum FileOpenPolicy {
     /// What ⏎ does to `url`. Reads its metadata (`readsMetadata` false: by its name only, for a file on a server that
     /// mustn't be asked anything): off the main thread.
     public static func action(for url: URL, readsMetadata: Bool = true) -> Action {
-        if runExtensions.contains(url.pathExtension.lowercased()) { return .reveal }
-        guard readsMetadata else { return .open }
-        // A link opens what it leads to: "readme" → payload.terminal is one to show too.
-        let resolved = url.resolvingSymlinksInPath()
-        if runExtensions.contains(resolved.pathExtension.lowercased()) { return .reveal }
-        guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
-              attributes[.type] as? FileAttributeType == .typeRegular else { return .open }  // a folder, an app bundle
-        let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
+        guard readsMetadata else { return runExtensions.contains(url.pathExtension.lowercased()) ? .reveal : .open }
+        // Finder opens aliases and links at their targets, so judge what opening actually reaches.
+        let linked = url.resolvingSymlinksInPath()
+        let alias = (try? linked.resourceValues(forKeys: [.isAliasFileKey]))?.isAliasFile == true
+        let target = alias ? try? URL(resolvingAliasFileAt: linked) : nil
+        if alias && target == nil { return .reveal }
+        let resolved = target?.resolvingSymlinksInPath() ?? linked
+        let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path)
+        if attributes?[.type] as? FileAttributeType == .typeDirectory { return .open }  // folders and app bundles
+        if runExtensions.contains(url.pathExtension.lowercased()) || runExtensions.contains(resolved.pathExtension.lowercased()) {
+            return .reveal
+        }
+        guard attributes?[.type] as? FileAttributeType == .typeRegular else { return .open }
+        let permissions = (attributes?[.posixPermissions] as? NSNumber)?.intValue ?? 0
         return permissions & 0o111 != 0 ? .reveal : .open
     }
 

@@ -28,7 +28,7 @@ extension SearchResult {
         var s = text.trimmingCharacters(in: .whitespacesAndNewlines)
         if !s.contains("://") { s = "https://" + s }
         guard let url = URL(string: s), let scheme = url.scheme?.lowercased(), ["http", "https"].contains(scheme),
-              let host = url.host, host.contains(".") || host == "localhost" else { return nil }
+              let host = url.host?.lowercased(), host.contains(".") || host == "localhost" else { return nil }
         return url
     }
 

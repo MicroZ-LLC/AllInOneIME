@@ -212,13 +212,20 @@ extension InputSession {
         return (modifiers == .command || modifiers == .control) && event.charactersIgnoringModifiers.lowercased() == "z"
     }
 
+    /// A key may belong to a password manager before activate tells this session about the new field.
+    private func autocompleteReadyForKey() -> Bool {
+        guard autocomplete.active else { return false }
+        if passwordField == .yes || fieldTextStaysHere { autocompleteLeft(.unseen); return false }
+        return true
+    }
+
     /// After the composer had `key`: `inserted`, what it put into the field (the key's own text where the app typed it,
     /// what the input method put in). While something is composed, a suggestion up is held. Text that is the start of
     /// the suggestion takes it on (typed along: its rest shows, from the caret on); anything else ends it. A key that
     /// typed starts the pause (`autocompleteSchedulePause`).
     func autocompleteAfterKey(_ key: KeyEvent, handled: Bool, inserted: String) {
         // Off here (`AutocompleteField.active`): nothing to do. Nothing of a password field is kept, not even what was typed.
-        guard autocomplete.active, passwordField != .yes else { return }
+        guard autocompleteReadyForKey() else { return }
         autocompleteFollow(key, handled: handled)
         let now = services.uptime()
         // A key that types, pinyin's too: the user's rhythm, what the pause goes by.

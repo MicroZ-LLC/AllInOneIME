@@ -6,12 +6,24 @@ import Foundation
 /// learned and where the shell tells it so (`FieldContext.passwordFieldFollows`); and with each read autocomplete's pause
 /// makes.
 extension InputSession {
+    /// A key may arrive for another field before activate; stop carrying private text, rows or a completion into it.
+    func prepareKeyField(_ context: FieldContext) {
+        if fieldTextStaysHere { fieldText = nil }
+        else if context.read.contains(.text) { fieldText = context.text }
+        if let current = context.field, current != field, current.textStaysHere {
+            autocompleteLeft(.unseen)
+            suggestionsSecure()
+        }
+    }
+
     /// Whether nothing of this field may leave the device: secure input on (`secureInputActive`), or a field told to be a
     /// password field where it isn't (`passwordField`), as if it were. Then no AI row is listed, an AI command, a message
     /// or a note to Notion is refused, a script isn't given what is typed, Translate as You Type collects nothing, and
-    /// neither the selection nor the text around the caret is read for a command. A field not told yet, or one the shell
-    /// couldn't tell, is as any other. The one check for all of these: the composer's (`Composer.secureInputActive`) too.
-    public func nothingLeavesDevice() -> Bool { secureInputActive() || passwordField == .yes }
+    /// neither the selection nor the text around the caret is read for a command. While an answer is pending, it is
+    /// treated as private; a field the shell couldn't tell keeps the existing unknown policy.
+    public func nothingLeavesDevice() -> Bool {
+        secureInputActive() || passwordField == .yes || passwordField == nil && passwordFieldAsked == fieldSession
+    }
 
     /// What the shell told of the field that has the focus being a password field where secure input isn't on
     /// (`passwordField`).
@@ -53,7 +65,8 @@ extension InputSession {
             takePasswordField(.yes)
         } else if context.passwordFieldFollows {
             askPasswordField()
-        } else if context.read.contains(.passwordField) {
+        } else if context.read.contains(.passwordField),
+                  context.field != nil || context.passwordFieldUnknown || passwordFieldAsked != fieldSession {
             takePasswordField(context.passwordFieldUnknown ? .unknown : .no)
         }
     }
@@ -62,10 +75,12 @@ extension InputSession {
     /// one not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told
     /// yet.
     func takePasswordField(_ told: PasswordField) {
+        let before = passwordField
         switch (told, passwordField) {
         case (.yes, _), (_, nil), (.no, .unknown?): passwordField = told
         default: break
         }
+        if before != .yes, passwordField == .yes { suggestionsSecure() }
     }
 
     /// The shell asked, off the key's thread (`SessionOutput.readPasswordField`), whether the field that has the focus is a
@@ -83,7 +98,6 @@ extension InputSession {
         guard focus == fieldSession else { return }
         let before = passwordField
         takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
-        guard before == nil, let now = passwordField, !composesBesidesCodeWord else { return }
-        if now == .yes { suggestionsSecure() } else { suggestionsUpdate() }
+        if before == nil, passwordField != .yes, !composesBesidesCodeWord { suggestionsUpdate() }
     }
 }

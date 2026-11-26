@@ -127,7 +127,7 @@ public final class InputSession {
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     var keyContext: FieldContext?
     var keyBeingHandled: KeyEvent?
-    private var fieldText: FieldText?
+    var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
     /// app's own keys) gives the command up (`Composer.selectionMoved`).
     private var selectionReported: Range<Int>??
@@ -936,7 +936,9 @@ public final class InputSession {
     }
 
     private func key(_ event: KeyEvent, _ context: FieldContext) -> Bool {
-        if context.read.contains(.text) { fieldText = context.text }
+        keyContext = context
+        defer { keyContext = nil; keyBeingHandled = nil }
+        prepareKeyField(context)
         if event.printableText == nil || context.selectedRange?.isEmpty == false { lastTyped.forget() }
         takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
@@ -1015,14 +1017,11 @@ public final class InputSession {
         }
         // The field's first key that types: a switch with Shift before it may teach the app its starting input.
         let learned = learningTyped(event)
-        keyContext = context
         keyBeingHandled = key
         let english = typesEnglishStraightIn
         let held = composer.codeWord ?? ""
         let pending = composer.selectionPending
         var response = composer.handleKeyDown(key)
-        keyContext = nil
-        keyBeingHandled = nil
         // The "@" key started a draft whose selection the field reads after it: asked for now, off this thread.
         if composer.selectionPending, !pending {
             selectionReads += 1
