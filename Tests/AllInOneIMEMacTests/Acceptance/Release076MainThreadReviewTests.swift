@@ -1,5 +1,6 @@
 import AllInOneIMECore
 import AllInOneIMEMac
+import AppKit
 import Foundation
 import Testing
 
@@ -92,13 +93,96 @@ struct Release076MainThreadReviewTests {
         }
     }
 
-    /// Item 28. Required runtime seam: a `ClipboardSource` fake whose image and text readers record their thread and
-    /// block on a gate. `poll` called on main must return before either reader is released; the resulting item arrives
-    /// after release. The source calls here identify the current inline path without touching the system pasteboard.
-    @Test func clipboardPollingDoesNotReadContentsInline() throws {
-        let poll = try Self.body("public func poll(limit:", in: Self.source("Sources/AllInOneIMEMac/ClipboardRecorder.swift"))
-        #expect(!poll.contains("source.image()"), "poll reads clipboard image data on its main-thread caller")
-        #expect(!poll.contains("source.text()"), "poll reads clipboard text on its main-thread caller")
+    /// Item 28. Reading `NSPasteboard` stays on the main thread (it is a single shared AppKit object; off-main reads
+    /// raced main-thread uses and crashed in `-[NSPasteboard _updateTypeCacheIfNeeded]`). What must stay off main is
+    /// image preparation (decoding, thumbnailing, PNG encoding, file writes) through `ClipboardRecorder.imageWork`.
+    /// Wrapping the recorder's default `imageWork` verifies that `poll` schedules preparation instead of running it
+    /// inline, returns promptly even for a 4000x4000 PNG, runs the preparation closure off main, and delivers the item
+    /// to the store once preparation completes.
+    @Test @MainActor func clipboardPollingDoesNotPrepareImagesInline() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("clipboard-image-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let store = ClipboardHistoryStore(url: folder.appendingPathComponent("history.json"))
+        defer {
+            store.waitForWrites()
+            try? FileManager.default.removeItem(at: folder)
+        }
+        await store.waitForLoad()
+        let largeImage = try Self.largePNG(width: 4000, height: 4000)
+        let source = ReviewImageSource(changeCount: 0, types: [], payload: nil)
+        let recorder = ClipboardRecorder(source: source, store: store, secureInput: { false }, frontmostApp: { nil })
+        #expect(recorder.poll(limit: 20) == .notText)
+
+        let defaultWork = recorder.imageWork
+        let gate = DispatchSemaphore(value: 0)
+        var released = false
+        defer { if !released { gate.signal() } }
+        let probe = Locked(initialState: ImageWorkProbe())
+        recorder.imageWork = { prepare, done in
+            probe.withLock { $0.scheduled += 1 }
+            defaultWork({
+                let onMain = Thread.isMainThread
+                probe.withLock { $0.preparedOnMain = onMain }
+                if !onMain {
+                    _ = gate.wait(timeout: .now() + 5) // Background worker only; held until poll returns.
+                }
+                return prepare()
+            }, { prepared in
+                let onMain = Thread.isMainThread
+                done(prepared)
+                let waiter = probe.withLock { state -> CheckedContinuation<Void, Never>? in
+                    state.doneOnMain = onMain
+                    state.finished = true
+                    defer { state.continuation = nil }
+                    return state.continuation
+                }
+                waiter?.resume()
+            })
+        }
+
+        source.types = ["public.png"]
+        source.payload = largeImage
+        source.changeCount = 1
+        let start = ProcessInfo.processInfo.systemUptime
+        let outcome = recorder.poll(limit: 20)
+        let elapsed = ProcessInfo.processInfo.systemUptime - start
+
+        #expect(elapsed < 0.25, "poll blocked main for \(elapsed) seconds on a large clipboard image")
+        #expect(outcome == .imageQueued, "poll must defer image preparation instead of finishing inline")
+        #expect(store.items.isEmpty, "the image must not be added synchronously before preparation completes")
+        try #require(probe.withLock { $0.scheduled } == 1, "poll must schedule image preparation through imageWork")
+
+        released = true
+        gate.signal()
+        await withCheckedContinuation { continuation in
+            let alreadyDone = probe.withLock { state -> Bool in
+                if state.finished { return true }
+                state.continuation = continuation
+                return false
+            }
+            if alreadyDone { continuation.resume() }
+        }
+
+        let result = probe.withLock { $0 }
+        #expect(result.preparedOnMain == false, "image preparation must run off the main thread")
+        #expect(result.doneOnMain == true, "recording the prepared image must return to the main thread")
+        let kept = try #require(store.items.first?.image, "the prepared image must reach the store once work completes")
+        #expect(store.items.count == 1)
+        #expect(kept.width == 4000 && kept.height == 4000)
+        #expect(kept.thumbnail != nil)
+        #expect(store.imageData(kept.id) == largeImage.data)
+        #expect(recorder.clipboardIsNewest)
+    }
+
+    private static func largePNG(width: Int, height: Int) throws -> ClipboardImage {
+        let bitmap = try #require(NSBitmapImageRep(
+            bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height, bitsPerSample: 8,
+            samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB,
+            bytesPerRow: 0, bitsPerPixel: 0
+        ))
+        if let bytes = bitmap.bitmapData { memset(bytes, 0x80, bitmap.bytesPerRow * height) }
+        let data = try #require(bitmap.representation(using: .png, properties: [:]))
+        return ClipboardImage(data: data, width: width, height: height)
     }
 
     /// Item 28. `imageWork` is the existing seam. Keep image preparation pending, then assert the ⌃V lookup returns
@@ -142,10 +226,27 @@ struct Release076MainThreadReviewTests {
     }
 }
 
+private struct ImageWorkProbe {
+    var scheduled = 0
+    var preparedOnMain: Bool?
+    var doneOnMain: Bool?
+    var finished = false
+    var continuation: CheckedContinuation<Void, Never>?
+}
+
 private final class ReviewImageSource: ClipboardSource {
-    var changeCount: Int { 1 }
+    var changeCount: Int
     var access: ClipboardAccess { .allowed }
-    var types: [String] { ["public.png"] }
+    var types: [String]
+    var payload: ClipboardImage?
+
+    init(changeCount: Int = 1, types: [String] = ["public.png"],
+         payload: ClipboardImage? = ClipboardImage(data: Data([1]), width: 1, height: 1)) {
+        self.changeCount = changeCount
+        self.types = types
+        self.payload = payload
+    }
+
     func text() -> String? { nil }
-    func image() -> ClipboardImage? { ClipboardImage(data: Data([1]), width: 1, height: 1) }
+    func image() -> ClipboardImage? { payload }
 }
