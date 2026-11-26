@@ -3,28 +3,31 @@ import AppKit
 import SwiftUI
 
 extension SelfTest {
-    /// Settings → AI's own checks: each key's row says whether it is set; the other AIs fold under one row (#161).
+    /// Settings → AI's own checks: each key's row says whether it is set; the other AIs show only while choosing (#174).
     static func testAIPage(snapshotDirectory: URL) {
         testKeyStatus(snapshotDirectory: snapshotDirectory)
-        testAIPageFolds(snapshotDirectory: snapshotDirectory)
+        testAIPageChoosing(snapshotDirectory: snapshotDirectory)
     }
 
-    /// Settings → AI (#161): the other AIs folded under one row as the page shows; the row unfolds them, a card picked
-    /// folds them again; the settings search's "kiro" lands with them unfolded, Kiro CLI's card scrolled to, and the start
-    /// pointing at the AI in use leaves them folded. The page is drawn in a window of its own, on a config of its own, and
-    /// its row found the way VoiceOver finds it.
-    static func testAIPageFolds(snapshotDirectory: URL) {
+    /// Settings → AI (#174, 0.7.4's design): collapsed as the page shows, the AI in use with Change ▾ and no other AI's
+    /// card; Change ▾ shows every card with Cancel, which collapses it again; the settings search's "kiro" lands with the
+    /// choices open, Kiro CLI's card scrolled to, and the start pointing at the AI in use leaves the page collapsed. The
+    /// page is drawn in a window of its own, on a config of its own, and its buttons found the way VoiceOver finds them.
+    static func testAIPageChoosing(snapshotDirectory: URL) {
         let groups = AIChoice.groups(hosted: true, apple: .available, keeping: .provider(.openai))
         var picker = AIPickerState(chosen: .provider(.openai), groups: groups)
-        let others = groups.flatMap(\.choices).count - 1
-        let folded = !picker.isExpanded && picker.otherGroups.isEmpty
-        picker.toggle()
-        let unfolded = picker.otherGroups.flatMap(\.choices).count == others
+        let all = groups.flatMap(\.choices).count
+        let collapsed = !picker.choosing && picker.visibleGroups.isEmpty
+        picker.change()
+        let open = picker.visibleGroups.flatMap(\.choices).count == all
+        picker.cancel()
+        let cancelled = !picker.choosing && picker.chosen == .provider(.openai)
+        picker.change()
         picker.pick(.cli(.kiro))
-        check(folded && unfolded && picker.chosen == .cli(.kiro) && !picker.isExpanded,
-              "Settings → AI: the other AIs start folded, the row unfolds all \(others), a card picked folds them again")
+        check(collapsed && open && cancelled && picker.chosen == .cli(.kiro) && !picker.choosing,
+              "Settings → AI starts collapsed, Change shows all \(all) cards, Cancel changes nothing, a card picked collapses it")
 
-        let url = snapshotDirectory.appendingPathComponent("ai-fold-config.json")
+        let url = snapshotDirectory.appendingPathComponent("ai-choosing-config.json")
         defer { try? FileManager.default.removeItem(at: url) }
         let looksUp = SettingsModel.looksUpKeys
         SettingsModel.looksUpKeys = false
@@ -33,28 +36,27 @@ extension SelfTest {
         // As the window is pointed: by the search (what was typed), by the start or the Doctor (a card).
         let kiro = SettingsSpot.search("kiro", trigger: "@", config: .default).first
         model.point(at: .provider, search: "kiro")
-        let searched = model.aiCards.isExpanded && model.spotIDs.last == AnyHashable(AIChoice.cli(.kiro))
+        let searched = model.aiCards.choosing && model.spotIDs.last == AnyHashable(AIChoice.cli(.kiro))
         check(kiro == .provider && searched,
-              "searching for \"kiro\" lands on the AI page's cards unfolded, Kiro CLI's scrolled to (\(String(describing: kiro)))")
+              "searching for \"kiro\" lands on the AI page with the choices open, Kiro CLI's card scrolled to (\(String(describing: kiro)))")
         model.point(at: .provider, card: model.config.ai)
-        check(!model.aiCards.isExpanded && model.spotIDs == [AnyHashable(SettingsSpot.provider)],
-              "pointed at the AI in use, the other cards stay folded under it (\(model.spotIDs))")
+        check(!model.aiCards.choosing && model.spotIDs == [AnyHashable(SettingsSpot.provider)],
+              "pointed at the AI in use, the page stays collapsed (\(model.spotIDs))")
         model.point(at: nil)
 
-        // The page as drawn, as VoiceOver sees it (`AXEnhancedUserInterface`, as Settings' other checks set it): one row
-        // "Other AIs (N)", folded; pressed, Kiro CLI's card shows under it; pressed again, it's gone.
+        // The page as drawn, as VoiceOver sees it (`AXEnhancedUserInterface`, as Settings' other checks set it): Change the
+        // AI, and no card of another AI; pressed, Kiro CLI's card and Cancel show; Cancel pressed, they're gone.
         func enhanced(_ on: Bool) {
             _ = NSApp.perform(NSSelectorFromString("accessibilitySetValue:forAttribute:"), with: on as NSNumber, with: "AXEnhancedUserInterface")
         }
         func ax(_ node: NSObject, _ key: String) -> Any? { node.responds(to: NSSelectorFromString(key)) ? node.value(forKey: key) : nil }
         func nodes(_ node: NSObject) -> [NSObject] { [node] + ((ax(node, "accessibilityChildren") as? [NSObject]) ?? []).flatMap(nodes) }
-        /// The element `prefix` names: what can be pressed (a button, a disclosure) first.
+        /// The element `prefix` names: a button first.
         func named(_ prefix: String, in window: NSWindow) -> NSObject? {
             let found = nodes(window).filter { node in
                 [ax(node, "accessibilityLabel"), ax(node, "accessibilityTitle")].contains { ($0 as? String)?.hasPrefix(prefix) == true }
             }
-            let pressed = [NSAccessibility.Role.button, .disclosureTriangle].map(\.rawValue)
-            return found.first { pressed.contains(ax($0, "accessibilityRole") as? String ?? "") } ?? found.first
+            return found.first { ax($0, "accessibilityRole") as? String == NSAccessibility.Role.button.rawValue } ?? found.first
         }
         enhanced(true)
         defer { enhanced(false) }
@@ -62,18 +64,19 @@ extension SelfTest {
         window.setContentSize(NSSize(width: 880, height: 900))
         window.makeKeyAndOrderFront(nil)
         defer { window.close() }
-        let title = model.aiCards.rowTitle
+        let change = tr("更换 AI", "Change the AI")
+        let cancel = tr("取消", "Cancel")
         let card = AIChoice.cli(.kiro).name
-        _ = pump(timeout: 2) { named(title, in: window) != nil }
-        let row = named(title, in: window)
+        _ = pump(timeout: 2) { named(change, in: window) != nil }
+        let row = named(change, in: window)
         let hidden = named(card, in: window) == nil
         _ = row?.perform(NSSelectorFromString("accessibilityPerformPress"))
         _ = pump(timeout: 1) { named(card, in: window) != nil }
-        let shown = named(card, in: window) != nil && model.aiCards.isExpanded
-        _ = named(title, in: window)?.perform(NSSelectorFromString("accessibilityPerformPress"))
+        let shown = named(card, in: window) != nil && model.aiCards.choosing
+        _ = named(cancel, in: window)?.perform(NSSelectorFromString("accessibilityPerformPress"))
         _ = pump(timeout: 1) { named(card, in: window) == nil }
-        check(row != nil && hidden && shown && named(card, in: window) == nil && !model.aiCards.isExpanded,
-              "Settings → AI shows the other AIs as one row, \"\(title)\", folded; pressed, their cards show (\(card)'s: \(shown)); "
-                  + "pressed again, they fold (row: \(row != nil), folded at first: \(hidden))")
+        check(row != nil && hidden && shown && named(card, in: window) == nil && !model.aiCards.choosing,
+              "Settings → AI shows the AI in use with Change ▾ and no other AI's card; pressed, the cards show (\(card)'s: \(shown)); "
+                  + "Cancel collapses it (row: \(row != nil), collapsed at first: \(hidden))")
     }
 }

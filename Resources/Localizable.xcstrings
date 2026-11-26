@@ -9672,7 +9672,6 @@
     },
     "Change ▾" : {
       "comment" : "更换 ▾",
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -9767,7 +9766,6 @@
     },
     "Change the AI" : {
       "comment" : "更换 AI",
-      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -26487,6 +26485,7 @@
     },
     "Other AIs (%@)" : {
       "comment" : "其他 AI（%@）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

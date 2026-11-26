@@ -1991,7 +1991,7 @@ enum SelfTest {
               && !SettingsPage.inputAndKeys.matches("横排") && !SettingsPage.advanced.matches("横排"),
               "searching for the candidate layout finds its row on Common, not in Input and keys or Advanced (\(layout))")
         // @agent's settings are with the command, in Commands.
-        // ("kiro" alone finds the AI page's Kiro CLI card first, unfolded there: testAIPageFolds, #161.)
+        // ("kiro" alone finds the AI page's Kiro CLI card first, the choices open: testAIPageChoosing, #174.)
         let agents = ["后台 通知", "claude tasks"].map { SettingsSpot.search($0, trigger: "@", config: .default).first }
         check(agents.allSatisfy { $0 == .agent } && SettingsSpot.agent.page == .commands && !SettingsPage.common.matches("kiro"),
               "searching for the agents or Claude Code's background finds @agent's row in Commands (\(agents))")

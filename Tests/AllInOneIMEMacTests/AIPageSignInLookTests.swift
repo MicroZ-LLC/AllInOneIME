@@ -2,8 +2,8 @@ import Foundation
 import Testing
 
 /// Settings → AI looks at the CLIs' sign-in as little as it can (read from the input method's sources: the executable
-/// target can't be linked into a test): a CLI as its card shows (#161: the one in use as the page shows, the others only
-/// as their row unfolds), each as last found unless that is too old (`ClaudeSessionManager.checkAvailability`'s cache,
+/// target can't be linked into a test): the CLIs the page shows (#174: collapsed, the one in use; the others only while
+/// choosing), each as last found unless that is too old (`ClaudeSessionManager.checkAvailability`'s cache,
 /// tested in the core); only a refresh asked for forces a look.
 struct AIPageSignInLookTests {
     static let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
@@ -26,15 +26,16 @@ struct AIPageSignInLookTests {
         return String(rest[..<end])
     }
 
-    @Test func showingACardLooksAtItsCLIUnforced() throws {
+    @Test func showingThePageLooksAtItsCLIsUnforced() throws {
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        // Each look as a card shows, for the cards shown: the one in use, and the others' only once unfolded.
-        let appears = settings.split(separator: "\n").filter { $0.contains(".onAppear {") && $0.contains("Shown(") }
+        // Each look as the page shows, collapsed (the chosen row) or choosing (the cards), for the choices shown then.
+        let page = try code("Sources/AllInOneIME/SettingsWindow.swift")
+        let appears = (settings + "\n" + page).split(separator: "\n").filter { $0.contains(".onAppear {") && $0.contains("Shown(") }
         #expect(appears.count == 2, "\(appears)")
-        #expect(appears.allSatisfy { $0.contains("model.aiCardsShown(") && !$0.contains("force") }, "\(appears)")
-        #expect(appears.contains { $0.contains("[cards.chosen]") } && appears.contains { $0.contains("cards.otherGroups") }, "\(appears)")
-        let shown = try #require(settings.split(separator: "\n").first { $0.contains("func aiCardsShown(") })
-        #expect(shown.contains("refreshSessions(choices.compactMap(\\.agent))") && !shown.contains("force"), "\(shown)")
+        #expect(appears.allSatisfy { $0.contains("model.aiPageShown()") }, "\(appears)")
+        let shown = try block(settings, "func aiPageShown(")
+        #expect(shown.contains("cards.choosing ? cards.visibleGroups.flatMap(\\.choices) : [cards.chosen]"), "\(shown)")
+        #expect(shown.contains("refreshSessions(agents)") && !shown.contains("force"), "\(shown)")
         // The CLIs asked for, unforced.
         let refresh = try block(settings, "func refreshSessions(")
         #expect(refresh.contains("force: Bool = false") && refresh.contains("checkAvailability(agents, force: force)"), "\(refresh)")
