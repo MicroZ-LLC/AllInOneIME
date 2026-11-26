@@ -66,10 +66,10 @@ public final class SettingsStore {
     /// that fails goes back to it.
     private var written: Config?
     /// A new user's settings, when there is no file (`init`'s `fresh`): also when it is deleted later, and read again.
-    private let fresh: (() -> Config)?
+    let fresh: (() -> Config)?
     /// When the config file was last read or written here: changed since (an input method's menu, an editor, sync), it
     /// is read again (`reloadIfChanged`).
-    private var fileDate: Date?
+    public private(set) var fileDate: Date?
     private var observers: [Int: (Change) -> Void] = [:]
     private var lastObserver = 0
 
@@ -163,16 +163,19 @@ public final class SettingsStore {
     }
 
     /// Reads the config file again if something else changed it, so that it is shown and the next save doesn't put back
-    /// what was there before.
+    /// what was there before. On the caller's thread: where that is one that may not wait for a file (the Mac's main
+    /// thread), the file is read elsewhere and given (`FileRead`, SettingsStore+FileRead.swift).
     public func reloadIfChanged() {
         guard persists, case let date = Self.modificationDate(configURL), date != fileDate else { return }
+        took(Result { try Self.read(configURL, fresh: fresh) }, dated: date)
+    }
+
+    /// The file as read (`reloadIfChanged`), `date` its date then: shown, or why it couldn't be read.
+    func took(_ read: Result<Config, Error>, dated date: Date?) {
         fileDate = date
-        do {
-            config = try Self.read(configURL, fresh: fresh)
-            written = config
-            loadError = nil
-        } catch {
-            loadError = UIText.describe(error)
+        switch read {
+        case let .success(now): (config, written, loadError) = (now, now, nil)
+        case let .failure(error): loadError = UIText.describe(error)
         }
     }
 
@@ -190,7 +193,7 @@ public final class SettingsStore {
         return try Config.load(from: url)
     }
 
-    private static func modificationDate(_ url: URL) -> Date? {
+    static func modificationDate(_ url: URL) -> Date? {
         (try? FileManager.default.attributesOfItem(atPath: url.path))?[.modificationDate] as? Date
     }
 
@@ -535,17 +538,7 @@ public final class SettingsStore {
         }
     }
 
-    /// Where each provider's key comes from and the last 4 characters kept with a saved one (`APIKeys.keyEnding`: the
-    /// key itself isn't read). The first look may ask the user's shell for its variables: not on a thread that draws.
-    public static func keyStates(_ providers: [Provider] = Provider.allCases.filter { $0 != .bedrock },
-                                 lookup: (Provider) -> APIKeys.Source = { APIKeys.source($0) })
-        -> (sources: [Provider: APIKeys.Source], endings: [Provider: String]) {
-        let sources = Dictionary(uniqueKeysWithValues: providers.map { ($0, lookup($0)) })
-        let endings = Dictionary(uniqueKeysWithValues: providers.compactMap { provider in
-            APIKeys.keyEnding(account: provider.rawValue).map { (provider, $0) }
-        })
-        return (sources, endings)
-    }
+    // Where each provider's key comes from (`keyStates`): SettingsStore+KeyStates.swift.
 
     // MARK: Notes (@note)
 

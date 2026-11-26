@@ -35,9 +35,27 @@ extension Converter {
     /// keychain, the shell's variables, the AWS profile's files; never on the main thread): `config` with a provider
     /// chosen; with a CLI, its fast fallback's; nil: a CLI and no faster AI. What a shell's autocomplete switch shows
     /// (the Mac's input menu and menu-bar panel), as the field's own route goes (`InputSession.autocompleteLookUpRoute`).
-    public func fastConfig(_ config: Config) -> Config? {
+    ///
+    /// `readingKeys` false: a key is looked for by its item's attributes alone (`hasKey`), never read: what a switch
+    /// shows while autocomplete is off, when no request is about to be made (reading a key may make the system ask for
+    /// the login password, after an update signed otherwise).
+    public func fastConfig(_ config: Config, readingKeys: Bool = true) -> Config? {
         guard case .cli = config.ai else { return config }
-        return config.fastConfig(ready: { isReady($0, config: config) }, apple: client.apple.availability)
+        return config.fastConfig(ready: { readingKeys ? isReady($0, config: config) : hasKey($0, config: config) },
+                                 apple: client.apple.availability)
+    }
+
+    /// `isReady` without reading a key: for a provider with one, whether there is a key that goes to its base URL's
+    /// host, by the keychain item's attributes and the login shell's variables (`APIKeys.Source.sent(by:to:savedFor:)`,
+    /// as Settings' key rows tell it).
+    func hasKey(_ provider: Provider, config: Config) -> Bool {
+        switch provider {
+        case .apple, .bedrock:
+            return isReady(provider, config: config)
+        case .anthropic, .gemini, .openai, .hosted:
+            guard let host = HTTPProviders.host(of: config.settings(for: provider)) else { return false }
+            return APIKeys.source(provider).sent(by: provider, to: host, savedFor: APIKeys.savedHost(provider)) != .none
+        }
     }
 
     /// Whether `provider` has what it needs to answer, as a request to it would find it (`AIStatus.isReady`): a key for its

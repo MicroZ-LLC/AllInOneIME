@@ -110,6 +110,7 @@ enum StartWindow {
             return
         }
         shownAt = Date()
+        EditMenu.install()  // ⌘V, ⌘C, ⌘X, ⌘A, ⌘Z in step 3's field
         if let window {
             window.makeKeyAndOrderFront(nil)
             NSApp.activate()
@@ -186,13 +187,15 @@ enum StartWindow {
     /// config file, the keys, the sign-in, the AWS profiles, the CLIs' sign-ins as last looked at. Back on step 2 with a
     /// CLI chosen that isn't ready (signed in in Terminal, or chosen in Settings a moment ago), its sign-in looked at now
     /// (forced: what was found stands for a minute), the step going on as it comes back.
+    /// The config file is read off the main thread (`SettingsModel.reloadIfChangedOffMain`), the rest once it is.
     private static func refreshAI(_ settings: SettingsModel, step: Int) {
-        settings.reloadIfChanged()
-        settings.refreshKeys()
-        settings.refreshAccount()
-        settings.aws.refresh(profile: settings.config.awsProfile)
-        settings.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
-        if step == 2 { settings.pickedCLIShownAgain() }
+        settings.reloadIfChangedOffMain {
+            settings.refreshKeys()
+            settings.refreshAccount()
+            settings.aws.refresh(profile: settings.config.awsProfile)
+            settings.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
+            if step == 2 { settings.pickedCLIShownAgain() }
+        }
     }
 
     /// Whether AllInOneIME's input source is added (enabled): read only, on the main thread (`InputSourceCheck

@@ -103,6 +103,20 @@ public enum APIKeys {
             guard case .environment = self, !APIKeys.shellKeyGoes(provider, to: host ?? "") else { return self }
             return .none
         }
+
+        /// `sent(by:to:)`, and a key in the keychain saved for another host than `host` (`saved`: `APIKeys.savedHost`)
+        /// is none too, as a request to `host` refuses it (`APIKeys.load(_:for:)`: `keyForAnotherHost`): nothing shows
+        /// it as set for a base URL it won't go to.
+        public func sent(by provider: Provider, to host: String?, savedFor saved: String?) -> Source {
+            if self == .keychain, let saved, !saved.isEmpty, saved.lowercased() != host?.lowercased() { return .none }
+            return sent(by: provider, to: host)
+        }
+    }
+
+    /// The host the keychain's key for `provider` was saved for (its item's comment, lowercased; the key isn't read);
+    /// nil: no item, or one not tied to a host yet (it goes to the first it is sent to: `load(_:for:)`).
+    public static func savedHost(_ provider: Provider) -> String? {
+        savedHost(keychain.attributes(provider.rawValue))
     }
 
     /// Where `provider`'s key comes from, whatever the host (`Source.sent(by:to:)` for the base URL's).

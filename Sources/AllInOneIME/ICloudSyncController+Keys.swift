@@ -59,6 +59,33 @@ extension ICloudSyncController {
         }
     }
 
+    /// The accounts Remove… took off this Mac, or a save wrote here, while a key sync asked for (`keySyncOnQueue`: at
+    /// launch, the queue behind a run or a keychain slow to answer) hasn't run or is running (`asked`: how many are):
+    /// a copy-back that only then lists what to copy (from "moving" or "done": key sync turned off while the input
+    /// method wasn't running) leaves them out (`startCopyBack`), as `dropFromCopyBack` takes them off a list already
+    /// written. Kept no longer than that: a key removed here long before key sync is turned on and off again is copied
+    /// back as any other.
+    private nonisolated static let changedHere = Locked<(asked: Int, accounts: Set<String>)>(initialState: (0, []))
+
+    /// What `KeySync.Stores.whenRemovedHere` is told with, for the marker at `url`: the account off the copy-back's list
+    /// (`dropFromCopyBack`), and remembered for one that hasn't made its list yet (`changedHere`).
+    private nonisolated static func removedHere(markerURL url: URL) -> @Sendable (String) -> Void {
+        { account in
+            changedHere.withLock { if $0.asked > 0 { $0.accounts.insert(account) } }
+            dropFromCopyBack(account, at: url)
+        }
+    }
+
+    /// A copy-back from "moving" or "done" about to start: the marker lists `accounts` (every synced one), but for those
+    /// removed or saved on this Mac since it was asked for (`changedHere`). The list written; nil when it couldn't be.
+    private nonisolated static func startCopyBack(_ accounts: [String], at url: URL) -> [String]? {
+        markerLock.withLock {
+            let changed = changedHere.withLock { $0.accounts }
+            let listed = accounts.filter { !changed.contains($0) }
+            return writeMarker(.copyingBack(listed), at: url) ? listed : nil
+        }
+    }
+
     /// API keys and passwords through iCloud Keychain as the config says (`ICloudSyncSettings.syncsKeys`), when it changed
     /// (in Settings, through the Assistant, while the input method wasn't running): turned on, the login keychain's keys
     /// move into iCloud Keychain; turned off, the synced ones are copied back into the login keychain and left in iCloud
@@ -85,18 +112,25 @@ extension ICloudSyncController {
     func keySyncOnQueue(atLaunch: Bool = false) {
         guard let keys else { return }
         let (configURL, markerURL) = (engine.configURL, keysSyncedURL)
-        queue.async { Self.applyKeySync(keys, configURL: configURL, markerURL: markerURL, atLaunch: atLaunch) }
+        // Told of a key removed or saved here from now, not from when the queue gets to it: one removed meanwhile (the
+        // input method just started, the queue behind a run) isn't copied back from iCloud Keychain.
+        Self.changedHere.withLock { $0.asked += 1 }
+        keys.whenRemovedHere(Self.removedHere(markerURL: markerURL))
+        queue.async {
+            defer { Self.changedHere.withLock { if $0.asked > 0 { $0.asked -= 1 }; if $0.asked == 0 { $0.accounts = [] } } }
+            Self.applyKeySync(keys, configURL: configURL, markerURL: markerURL, atLaunch: atLaunch)
+        }
     }
 
     /// `applyKeySync` with `keys`, the config file at `configURL` and the marker at `markerURL`: any thread.
     private nonisolated static func applyKeySync(_ keys: KeySync.Stores, configURL: URL, markerURL url: URL, atLaunch: Bool) {
-        keys.whenRemovedHere { account in Self.dropFromCopyBack(account, at: url) }
+        keys.whenRemovedHere(removedHere(markerURL: url))
         guard let config = try? Config.load(from: configURL) else {
             log.error("keys left as they are: the config can't be read")
             return
         }
         let wanted = config.iCloudSync.syncsKeys
-        let marker = KeySync.Marker.read(at: url)
+        let marker = markerLock.withLock { KeySync.Marker.read(at: url) }
         guard wanted ? marker != .done || atLaunch : marker != nil else {
             if keys.syncing != wanted { keys.start(syncing: wanted) }
             return
@@ -108,7 +142,8 @@ extension ICloudSyncController {
                 only = Set(accounts)
             } else {
                 // From "moving" or "done": every synced account listed before any is copied back, so that one copied
-                // before the copy-back throws, then removed here, isn't copied back again by the retry.
+                // before the copy-back throws, then removed here, isn't copied back again by the retry; but for one
+                // removed or saved here since this was asked for (`startCopyBack`).
                 let accounts: [String]
                 do {
                     accounts = try keys.listCopyBack()
@@ -116,8 +151,8 @@ extension ICloudSyncController {
                     log.error("keys not copied back out of iCloud Keychain, tried again later: its keys can't be listed: \(String(describing: error), privacy: .public)")
                     return
                 }
-                guard markKeysSynced(.copyingBack(accounts), at: url) else { return }
-                only = Set(accounts)
+                guard let listed = startCopyBack(accounts, at: url) else { return }
+                only = Set(listed)
             }
         }
         do {

@@ -32,6 +32,8 @@ final class SettingsModel: ObservableObject {
     /// with a saved one (`APIKeys.keyEnding`: the key isn't read).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyEndings: [Provider: String] = [:]
+    /// The host each saved key is tied to (`APIKeys.savedHost`): set only for a base URL of that host (`keyState`).
+    @Published private(set) var keyHosts: [Provider: String] = [:]
     @Published private(set) var keyError: String?
     /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
     /// was last shown or something was forgotten.
@@ -373,12 +375,11 @@ final class SettingsModel: ObservableObject {
         let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
-            let (sources, endings) = SettingsStore.keyStates(providers, lookup: lookup)
+            let (sources, endings, hosts) = SettingsStore.keyStates(providers, lookup: lookup)
             await MainActor.run { [weak self] in
                 // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
                 guard let self, self.keyLookups == generation else { return }
-                self.keySources = sources
-                self.keyEndings = endings
+                (self.keySources, self.keyEndings, self.keyHosts) = (sources, endings, hosts)
             }
         }
     }
@@ -391,12 +392,7 @@ final class SettingsModel: ObservableObject {
     }
     private var keysShown = false
 
-    /// Whether the provider's key is set, as its row shows it: one in the shell only for a base URL it is sent to
-    /// (`APIKeys.shellKeyGoes`).
-    func keyState(_ provider: Provider) -> KeyState {
-        let host = HTTPProviders.host(of: config.settings(for: provider))
-        return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
-    }
+    // Whether a provider's key is set, as its row shows it (`keyState`): ClaudeSessionSettings.swift.
 
     /// The key sheet's Save and Use: the key saved, then the provider chosen as the AI and Test Connection run.
     func saveKeyAndUse(_ key: String, for provider: Provider) {
