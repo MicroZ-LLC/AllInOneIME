@@ -43,11 +43,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
-          clean: false            # keeps .build (below) for an incremental build
           fetch-depth: 0          # every branch, the base's baselines among them
           persist-credentials: false
-      - name: Only this change's files
-        run: git clean -ffdx -e .build/
+      # GitHub's machine starts empty each time: SwiftLint (downloaded and checked by Scripts/swiftlint.sh into
+      # ~/.cache/allinoneime, per its pinned version) and the String Catalog tool's builds (the packages' .build, for
+      # `make strings-check`) come from the cache instead.
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/allinoneime
+          key: lint-tools-${{ runner.os }}-${{ hashFiles('Scripts/swiftlint.sh') }}
+      - uses: actions/cache@v4
+        with:
+          path: |
+            .build
+            Core/.build
+          key: lint-build-${{ hashFiles('Package.resolved', 'Core/Package.resolved') }}-${{ github.sha }}
+          restore-keys: lint-build-${{ hashFiles('Package.resolved', 'Core/Package.resolved') }}-
       - name: make lint
         run: make -k lint ${BASE:+LINT_BASE=origin/$BASE}
 
