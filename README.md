@@ -1197,7 +1197,7 @@ They take the place of [autocomplete](#autocomplete-beta-new)'s gray text while 
   go on typing (`#7` then `1` is `#71`). A key the rows take never reaches the app too, in Slack, Chrome, Google Docs,
   VS Code and other apps built on Chromium or Electron as well: ⏎ doesn't send the message, ↑ doesn't move the caret.
   Pinyin's own candidates while it composes are as always (⏎ puts in the
-  letters, Space picks). No rows in launchers, remote desktops, virtual machines and SSH clients.
+  letters, Space picks). No rows in launchers, remote desktops, virtual machines, SSH clients and password managers.
 - **Turning them on:** **Suggestions** in Settings → More Settings → Suggestions, on unless you turn it off, covers plugins', script
   extensions', Suggestions commands' and Code's rows; they show once there is a source (a plugin's completions, a script
   extension's, a Suggestions command, or Code). A plugin's completions are on once you install it, and one installed
