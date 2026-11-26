@@ -86,7 +86,7 @@ public enum ProcessOutput {
         _ = said.done.wait(timeout: pipes)
         // The pipes are left to their readers (they end once the last writer has): closed under a read, a descriptor
         // could be another file's by the time it reads again.
-        let result = Result(status: endedAtLast ? launched.terminationStatus : -1, output: output.read, errors: said.read)
+        let result = Result(status: endedAtLast ? launched.terminationStatus : -1, output: output.take(), errors: said.take())
         return Gathered(result: result, timedOut: !exited)
     }
 
@@ -113,22 +113,31 @@ public enum ProcessOutput {
     }
 }
 
-/// One pipe read to its end on a thread of its own, as it comes: what was read so far can be taken at any time.
+/// One pipe read to its end on a thread of its own, as it comes: what was read so far is taken once (`take`). After
+/// that the pipe is still read to its end (a background job left holding it never blocks on a full pipe) but nothing
+/// more is kept: such a job may print for days.
 private final class PipeReader: @unchecked Sendable {
     /// Signalled at the end of the pipe.
     let done = DispatchSemaphore(value: 0)
-    private let data = Locked(initialState: Data())
+    /// What was read; nil once taken.
+    private let data = Locked<Data?>(initialState: Data())
 
     init(_ handle: FileHandle) {
         Thread.detachNewThread { [self] in
             while true {
                 let chunk = handle.availableData
                 if chunk.isEmpty { break }
-                data.withLock { $0.append(chunk) }
+                data.withLock { $0?.append(chunk) }
             }
             done.signal()
         }
     }
 
-    var read: Data { data.withLock { $0 } }
+    /// What was read so far; later chunks are read and dropped.
+    func take() -> Data {
+        data.withLock { stored in
+            defer { stored = nil }
+            return stored ?? Data()
+        }
+    }
 }
