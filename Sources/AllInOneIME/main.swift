@@ -84,7 +84,9 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         // What script extensions started, and the questions' sessions (each agent's process and what it started), don't
         // outlive the input method: stopped side by side, half a second at most.
         DispatchQueue.concurrentPerform(iterations: 2) { $0 == 0 ? CommandRunner.stopAll() : sharedConverter.stopQuestionSessions() }
-        SessionServices.englishWordsWriter.drain(within: 0.5)  // the English words just learned, candidates removed, into the file
+        // The English words just learned and candidates removed into the file, and what clipboard history's files were
+        // still to have written or deleted (Clear History just before): side by side, half a second at most.
+        DispatchQueue.concurrentPerform(iterations: 2) { _ = $0 == 0 ? SessionServices.englishWordsWriter.drain(within: 0.5) : ClipboardHistoryStore.drain(within: 0.5) }
         WeekStatsShared.store.flushNow()  // this week's counts not written yet
     }
 }
@@ -94,9 +96,10 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
 /// most half a second), the programs running for script extensions and the questions' sessions' agents, and what they
 /// started, are stopped (`CommandRunner.stopAll`, `Converter.stopQuestionSessions`, side by side, at most half a
 /// second), the English words learned and the candidates removed not written yet go into the config file
-/// (`EnglishWords.Writer.drain`, at most half a second), then the input method ends, as the signal's default would end
-/// it. Handled on a queue of its own, not in a signal handler and not on the main thread: a
-/// main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
+/// (`EnglishWords.Writer.drain`) and clipboard history's files are written or deleted as last asked
+/// (`ClipboardHistoryStore.drain`: Clear History just before), side by side, at most half a second, then the input
+/// method ends, as the signal's default would end it. Handled on a queue of its own, not in a signal handler and not on
+/// the main thread: a main thread that hangs doesn't keep it alive, and a hard exit is armed in case stopping hangs too.
 private let terminationSignal: DispatchSourceSignal = {
     signal(SIGTERM, SIG_IGN)
     let source = DispatchSource.makeSignalSource(signal: SIGTERM, queue: DispatchQueue(label: "AllInOneIME.terminate"))
@@ -109,7 +112,7 @@ private let terminationSignal: DispatchSourceSignal = {
         }
         _ = saved.wait(timeout: .now() + 0.5)
         DispatchQueue.concurrentPerform(iterations: 2) { $0 == 0 ? CommandRunner.stopAll() : sharedConverter.stopQuestionSessions() }
-        SessionServices.englishWordsWriter.drain(within: 0.5)
+        DispatchQueue.concurrentPerform(iterations: 2) { _ = $0 == 0 ? SessionServices.englishWordsWriter.drain(within: 0.5) : ClipboardHistoryStore.drain(within: 0.5) }
         WeekStatsShared.store.flushNow()
         _exit(0)
     }
