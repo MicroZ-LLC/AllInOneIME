@@ -18,6 +18,38 @@ struct ReviewUI076AcceptanceTests {
         try String(contentsOf: root.appendingPathComponent(path), encoding: .utf8)
     }
 
+    private static func code(_ path: String) throws -> String {
+        try source(path)
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { line in line.range(of: "//").map { line[..<$0.lowerBound] } ?? line }
+            .joined(separator: "\n")
+    }
+
+    private static func braces(in text: String, from start: String.Index) -> String? {
+        guard let open = text[start...].firstIndex(of: "{") else { return nil }
+        var depth = 0
+        for index in text[open...].indices {
+            if text[index] == "{" { depth += 1 }
+            if text[index] == "}" {
+                depth -= 1
+                if depth == 0 { return String(text[open...index]) }
+            }
+        }
+        return nil
+    }
+
+    private static func methodBody(named name: String, in text: String) -> String? {
+        text.range(of: "func \(name)(").flatMap { braces(in: text, from: $0.upperBound) }
+    }
+
+    private static func settingsCalls(in text: String) -> [String] {
+        text.components(separatedBy: "settings.").dropFirst().compactMap { piece in
+            let name = String(piece.prefix { $0.isLetter || $0.isNumber || $0 == "_" })
+            guard !name.isEmpty, piece.dropFirst(name.count).first == "(" else { return nil }
+            return name
+        }
+    }
+
     private static func between(_ text: String, _ start: String, _ end: String) throws -> String {
         let first = try #require(text.range(of: start), "Missing \(start)")
         let last = try #require(text.range(of: end, range: first.upperBound..<text.endIndex), "Missing \(end)")
@@ -124,18 +156,34 @@ struct ReviewUI076AcceptanceTests {
         #expect(report["22_HOSTED_SIGNEDOUT"] == "2", "Signed-out AllInOneIME Cloud must stay at step 2")
     }
 
-    /// Item 22 (window wiring): `StartWindow` feeds the chosen AI's readiness into `StartModel.aiReady(_:)` and
-    /// refreshes the chosen CLI's sign-in when returning to step 2 (not only reading a stale in-memory cache).
+    /// Item 22 (window wiring): `StartWindow` feeds the chosen AI's readiness into `StartModel.aiReady(_:)` and,
+    /// when returning to step 2, reaches a CLI sign-in probe through `SettingsModel` in `ClaudeSessionSettings.swift`
+    /// (keeping sign-in looks inside Settings → AI's code, not only reading a stale in-memory cache).
     /// Source check only because `StartWindow.show()` binds to the host Mac's live `TISCopyCurrentKeyboardInputSource`,
     /// so offline tests cannot force it onto step 2 and return from Settings.
     @Test func startWindowWiresChosenAIAndCLIReadinessToStepTwo() throws {
-        let window = try Self.source("Sources/AllInOneIME/StartWindow.swift")
+        let window = try Self.code("Sources/AllInOneIME/StartWindow.swift")
         #expect(window.contains("model.aiReady("), "StartWindow must drive StartModel.aiReady(_:)")
         #expect(window.contains("settings.aiFacts.status(settings.config.ai, config: settings.config).isReady"),
                 "StartWindow must observe readiness of the chosen AI")
-        let refreshesCLI = window.contains("refreshSessions(") || window.contains("checkAvailability(")
-        #expect(refreshesCLI,
-                "StartWindow must probe the chosen CLI's sign-in when refreshing AI on step 2, not only read a stale cache")
+
+        let refresh = try #require(Self.methodBody(named: "refreshAI", in: window),
+                                   "StartWindow must define refreshAI")
+        let stepTwo = try #require(refresh.range(of: "step == 2"),
+                                   "StartWindow.refreshAI must refresh the chosen CLI on step 2")
+        let settingsSource = try Self.code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
+        let settingsExtension = try #require(
+            settingsSource.range(of: "extension SettingsModel").flatMap { Self.braces(in: settingsSource, from: $0.upperBound) },
+            "ClaudeSessionSettings.swift must define extension SettingsModel"
+        )
+        let calledOnStepTwo = Self.settingsCalls(in: String(refresh[stepTwo.upperBound...]))
+        let probesChosenCLI = calledOnStepTwo.contains { method in
+            guard let body = Self.methodBody(named: method, in: settingsExtension) else { return false }
+            let probes = body.contains("refreshSessions(") || body.contains("checkAvailability(")
+            return probes && body.contains("config.ai.agent")
+        }
+        #expect(probesChosenCLI,
+                "StartWindow's step-2 refresh must reach a SettingsModel method in ClaudeSessionSettings.swift that probes config.ai.agent via refreshSessions/checkAvailability, not only read a stale cache")
     }
 
     // MARK: - Item 23: Fresh install opens guide; step 1 reacts when input source is added
