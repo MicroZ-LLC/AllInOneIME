@@ -391,7 +391,7 @@ public struct PersonalDictionaryStore: Sendable {
         let fuzzy = FuzzyPinyin.patch(fuzzyPinyin, schema: schemaText)
         // Traditional characters, then the shape codes (`ShapeCode.patch`): lines of their own at the end of the patch,
         // whatever else it holds.
-        let shape = shapeCode?.patch(schema: schemaText, sharedData: schema.deletingLastPathComponent())
+        let shape = shapeCode?.patch(schema: schemaText, sharedData: schema.deletingLastPathComponent(), characters: characters)
         let ending = characters.patch(schema: schemaText).map { $0 + (shape ?? "") } ?? shape
         if state.dictionaries.isEmpty {
             let text = fuzzy == nil && ending == nil ? nil

@@ -59,19 +59,36 @@ public enum ShapeCode: String, CaseIterable, Sendable {
     /// rime-ice's filter on "`" (search.lua, by the radicals' pinyin), which this one replaces.
     static let radicalFilter = "lua_filter@*search@radical_pinyin"
 
-    /// The lines of a pinyin schema's patch (`schema`: the schema's text) for this table: the filter in the place of
-    /// rime-ice's on "`" (after the others when the schema hasn't that one), and its settings. Nil when the shared data
-    /// (`sharedData`, the schema's folder) lacks the script or the table: a Lua filter librime can't load leaves no
-    /// candidate at all, and one without its table only a warning in Chinese; typing stays as it was.
+    /// Replaces rime-ice's filter on "`" with this table's and sets its trigger. Without the Lua script or table in
+    /// `sharedData` typing stays as it was.
     public func patch(schema: String, sharedData: URL) -> String? {
+        patch(schema: schema, sharedData: sharedData, characters: .simplified)
+    }
+
+    func patch(schema: String, sharedData: URL, characters: ChineseCharacters) -> String? {
         guard ["lua/\(Self.luaFilter).lua", "\(Self.folder)/\(table).txt"].allSatisfy({
             FileManager.default.fileExists(atPath: sharedData.appendingPathComponent($0).path)
         }) else { return nil }
-        let place = Self.filters(ofSchema: schema).firstIndex(of: Self.radicalFilter).map(String.init) ?? "next"
-        return ["  # Shape codes (\(name(in: "en"))): Settings → Input → Chinese → Typing. In the place of rime-ice's filter on \"`\".",
-                "  engine/filters/@\(place): lua_filter@*\(Self.luaFilter)",
-                "  \(Self.folder)/dictionary: \(table)",
-                "  \(Self.folder)/learn_trigger: \"\(Self.trigger)\""].joined(separator: "\n") + "\n"
+        let heading = "  # Shape codes (\(name(in: "en"))): Settings → Input → Chinese → Typing. In the place of rime-ice's filter on \"`\"."
+        return ([heading] + filterPatch(Self.filters(ofSchema: schema), characters: characters) + [
+            "  \(Self.folder)/dictionary: \(table)",
+            "  \(Self.folder)/learn_trigger: \"\(Self.trigger)\"",
+        ]).joined(separator: "\n") + "\n"
+    }
+
+    private func filterPatch(_ filters: [String], characters: ChineseCharacters) -> [String] {
+        let radical = filters.firstIndex(of: Self.radicalFilter)
+        let filter = "lua_filter@*\(Self.luaFilter)"
+        // Wubi 86 and Xiaohe index simplified glyphs. Convert them for display after filtering.
+        // Moqi and Cangjie can look up the displayed traditional glyph's own code.
+        guard characters.isTraditional, self == .wubi86 || self == .flypy,
+              let conversion = filters.firstIndex(of: "simplifier@traditionalize"),
+              radical.map({ conversion < $0 }) ?? true else {
+            return ["  engine/filters/@\(radical.map(String.init) ?? "next"): \(filter)"]
+        }
+        guard let radical else { return ["  \"engine/filters/@before \(conversion)\": \(filter)"] }
+        let reordered = [filter] + filters[conversion..<radical]
+        return reordered.enumerated().map { "  engine/filters/@\(conversion + $0.offset): \($0.element)" }
     }
 
     /// The schema's filters (`engine/filters`), in order, as written in its text (comments dropped).
