@@ -123,6 +123,7 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     #if canImport(Glibc)
     var isRunning: Bool { status.withLock { $0 == nil } && process.isRunning }
     var terminationStatus: Int32 { status.withLock { $0 } ?? process.terminationStatus }
+    // swiftlint:disable:next blocking_call - the caller's own thread waits, as with Process.waitUntilExit (never main)
     func waitUntilExit() { ending.wait() }
 
     /// Its exit status once it ended, as told first: by `watchExit` or by Foundation.
