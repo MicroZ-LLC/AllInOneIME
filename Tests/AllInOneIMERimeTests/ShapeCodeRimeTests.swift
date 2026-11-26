@@ -35,6 +35,12 @@ struct ShapeCodeRimeTests {
         try RimeWorker.run("shape-code-off-zhuyin", root: root)
     }
 
+    @Test(.enabled(if: runs, "needs rime-ice, OpenCC's data and the shape codes' tables (make deps)"))
+    func traditionalOutputKeepsShapeCodeFiltering() throws {
+        defer { try? FileManager.default.removeItem(at: root) }
+        try RimeWorker.run("shape-code-traditional", root: root)
+    }
+
     /// The patch for each schema: the filter in the place of rime-ice's on "`" (its own index in each), the table, the
     /// trigger; nothing without the script or the table; Zhuyin's never.
     @Test(.enabled(if: RimeWorker.dataAvailable || RimeWorker.required, "needs rime-ice (make deps)"))
@@ -69,8 +75,9 @@ struct ShapeCodeRimeTests {
     }
 
     /// The patch for `scheme` and `code` written, the schema list, and librime started (`start`) or deployed again.
-    static func apply(_ code: ShapeCode?, scheme: PinyinScheme, pack: URL, user: URL, start: Bool) throws -> FuzzyPinyin.Outcome {
-        let outcome = try FuzzyPinyin.apply([], characters: .simplified, scheme: scheme, shapeCode: code,
+    static func apply(_ code: ShapeCode?, scheme: PinyinScheme, characters: ChineseCharacters = .simplified,
+                      pack: URL, user: URL, start: Bool) throws -> FuzzyPinyin.Outcome {
+        let outcome = try FuzzyPinyin.apply([], characters: characters, scheme: scheme, shapeCode: code,
                                             schema: pack.appendingPathComponent("rime_ice.schema.yaml"), userDir: user)
         let listed = try PinyinScheme.applySchemaList(scheme, userDir: user)
         if start {
@@ -152,6 +159,29 @@ struct ShapeCodeRimeTests {
                     #expect(session.rawInput == left, "\(code): \(session.rawInput) for \(left)")
                 }
                 session.clearComposition()
+            }
+        },
+        "shape-code-traditional": { root in
+            let pack = try pack(root), user = root.appendingPathComponent("Rime")
+            var start = true
+            for characters in [ChineseCharacters.taiwan, .hongkong] {
+                // Wubi and Xiaohe index 鱼. Moqi and Cangjie have separate codes for 魚.
+                let cases: [(ShapeCode, String)] = [(.wubi86, "qgf"), (.flypy, "da"), (.moqi, "dh"), (.cangjie, "nf")]
+                for (code, letters) in cases {
+                    #expect(try apply(code, scheme: .microsoft, characters: characters, pack: pack, user: user, start: start) == .written)
+                    start = false
+                    let session = try #require(RimeService.shared.makeSession())
+                    for schema in ["rime_ice", "double_pinyin_mspy"] {
+                        try #require(session.selectSchema(schema))
+                        let candidates = type("yu`" + letters, in: session)
+                        let context = "\(code), \(characters), \(schema): \(candidates)"
+                        #expect(candidates.first == "魚", "\(context)")
+                        if candidates.first == "魚" {
+                            #expect(session.processKey(RimeKey.space, mask: 0))
+                            #expect(session.takeCommit() == "魚", "\(context)")
+                        }
+                    }
+                }
             }
         },
         "shape-code-off-zhuyin": { root in

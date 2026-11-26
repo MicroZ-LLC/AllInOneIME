@@ -71,6 +71,22 @@ struct ShapeCodeTests {
         #expect(ShapeCode.moqi.patch(schema: Self.schema, sharedData: noScript) == nil)
     }
 
+    @Test func simplifiedTableKeepsOtherFiltersInOrderForTraditionalOutput() throws {
+        let shared = try shared(tables: [.wubi86])
+        defer { try? FileManager.default.removeItem(at: shared.deletingLastPathComponent()) }
+        let withExtraFilter = Self.schema.replacingOccurrences(of: "    - \(ShapeCode.radicalFilter)",
+                                                                with: "    - lua_filter@*custom\n    - \(ShapeCode.radicalFilter)")
+        let patch = try #require(ShapeCode.wubi86.patch(schema: withExtraFilter, sharedData: shared, characters: .taiwan))
+        #expect(patch.contains("""
+            engine/filters/@1: lua_filter@*aux_code
+              engine/filters/@2: simplifier@traditionalize
+              engine/filters/@3: lua_filter@*custom
+            """))
+        let withoutRadical = Self.schema.replacingOccurrences(of: "    - \(ShapeCode.radicalFilter)\n", with: "")
+        let inserted = try #require(ShapeCode.wubi86.patch(schema: withoutRadical, sharedData: shared, characters: .hongkong))
+        #expect(inserted.contains(#""engine/filters/@before 1": lua_filter@*aux_code"#))
+    }
+
     @Test func eachPinyinSchemasPatchHasThemAndZhuyinsNever() throws {
         let shared = try shared(tables: ShapeCode.allCases)
         defer { try? FileManager.default.removeItem(at: shared.deletingLastPathComponent()) }
