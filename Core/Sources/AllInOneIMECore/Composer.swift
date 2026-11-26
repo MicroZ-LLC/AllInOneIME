@@ -708,6 +708,9 @@ public final class Composer {
     /// The characters Chinese is typed in (`Config.typedChinese`, set by the controller): Translate as You Type's same
     /// language and its chip, `@reply`'s language.
     public var chineseCharacters: ChineseCharacters = .simplified
+    /// The shape codes typed after "`" in pinyin (`Config.typedShapeCode`, set by the controller); nil: off. On, a tap of
+    /// the right Option while pinyin is typed is "`" too (`shapeCodeTap`).
+    public var shapeCode: ShapeCode?
     /// The selection is no longer than `maxSelectionLength` (worked out once, when it is read).
     var selectionFits = false
 
@@ -866,8 +869,8 @@ public final class Composer {
     /// key … Set by the shell (the Mac's are `ModifierRoles.mac`).
     public var modifierRoles = ModifierRoles.mac
     /// Which Option key (the action tap's: `ModifierRoles.actionTap`) went down on its own, and when (nil once anything
-    /// else happens).
-    private var optionPressed: (key: Key, at: TimeInterval)?
+    /// else happens). Read by `optionTapHeld` (Composer+OptionTap.swift).
+    var optionPressed: (key: Key, at: TimeInterval)?
     private var warnedNotReady = false
     /// The last thing added to the draft was a transcript (Space then runs the command right away).
     private var draftEndsWithVoice = false
@@ -1722,7 +1725,8 @@ public final class Composer {
     /// `commit_code`); in Zhuyin what is composed is committed converted (`commit_text`).
     /// The right Option key held on its own records speech until it is released.
     /// With the `optionTap` action key, either Option key pressed and released on its own sends
-    /// the sentence (a hold of the right one still dictates).
+    /// the sentence (a hold of the right one still dictates). With another, a tap of the right one
+    /// while pinyin is typed with shape codes on is "`" (`shapeCodeTap`).
     /// The application always receives modifier changes as well. `timestamp` is in seconds.
     public func handleFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
         handleFlagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers, timestamp: timestamp)
@@ -1741,8 +1745,8 @@ public final class Composer {
         if parkedForSelection != nil, let kind = key.modifierKind, modifiers.contains(Modifiers.kind(kind)) {
             settled = selectionRead(nil)
         }
-        if let held = optionTapHeld(key: key, modifiers: modifiers, timestamp: timestamp), !pointerUsedWithin(held),
-           actionKey == .optionTap {
+        let tapped = optionTapHeld(key: key, modifiers: modifiers, timestamp: timestamp).map { !pointerUsedWithin($0) } == true
+        if tapped, actionKey == .optionTap {
             // One @ while the selection is still read: the tap is parked for it, as a key the list takes.
             if oneAt != nil, selectionPending, parkedForSelection == nil {
                 parkForSelection(.actionKeyTap)
@@ -1755,6 +1759,8 @@ public final class Composer {
                 return settled + effects
             }
         }
+        // The right one's tap while pinyin is typed with shape codes on: "`", as its key types it (no hold, no notice).
+        if tapped, let typed = shapeCodeTap(key) { return settled + typed }
         return settled + modifierChanged(key: key, modifiers: modifiers, timestamp: timestamp)
     }
 
@@ -1794,28 +1800,6 @@ public final class Composer {
     /// How long the right Option key must be held on its own before dictation starts (so ⌥
     /// shortcuts, ⌥-arrows and taps never touch the microphone).
     public static let voiceArmDelay: TimeInterval = 0.2
-
-    /// Tracks the Option keys. True for the release of one that went down on its own and came back
-    /// up within `optionTapWindow`, with no key or other modifier (including the other Option) between:
-    /// how long it was held. Nil otherwise.
-    private func optionTapHeld(key: Key, modifiers: KeyModifiers, timestamp: TimeInterval) -> TimeInterval? {
-        guard case let .modifier(kind, keySide) = key, kind == modifierRoles.actionTap else {
-            optionPressed = nil  // another modifier changed
-            return nil
-        }
-        let side = Modifiers.side(keySide, of: kind), either = Modifiers.kind(kind)
-        let sided = !modifiers.isDisjoint(with: Modifiers.sides(of: kind))
-        let down = sided ? modifiers.contains(side) : modifiers.contains(either)
-        if down {
-            let alone = modifiers.subtracting([either, side, .capsLock]).isEmpty && optionPressed == nil
-            optionPressed = alone ? (key, timestamp) : nil
-            return nil
-        }
-        defer { optionPressed = nil }
-        guard let pressed = optionPressed, pressed.key == key else { return nil }
-        let held = timestamp - pressed.at
-        return held <= Self.optionTapWindow ? max(held, 0) : nil
-    }
 
     /// The voice key: arms on press, dictation runs while it is held, stops on release. Nil for
     /// modifier changes that are for the Shift logic.

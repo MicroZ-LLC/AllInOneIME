@@ -10653,6 +10653,7 @@
     },
     "After the pinyin, press ` and type the shape code to narrow the candidates" : {
       "comment" : "拼音后按 ` 再打形码，筛出想要的字",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -10694,6 +10695,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "拼音後按 ` 再打形碼，篩出想要的字"
+          }
+        }
+      }
+    },
+    "After the pinyin, press ` or tap right ⌥, then type the shape code to narrow the candidates" : {
+      "comment" : "拼音后按 ` 或单击右 ⌥，再打形码，筛出想要的字",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nach dem Pinyin ` drücken oder die rechte ⌥-Taste antippen, dann den Formcode tippen, um die Kandidaten einzugrenzen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tras el pinyin, pulsa ` o pulsa y suelta la tecla ⌥ derecha, y escribe el código de forma para acotar los candidatos"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Après le pinyin, appuyez sur ` ou brièvement sur ⌥ droite, puis tapez le code de forme pour affiner les candidats"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ピンインの後に ` を押すか右⌥を単押しして字形コードを入力すると、候補を絞り込めます"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "병음 뒤에 `를 누르거나 오른쪽 ⌥를 짧게 누르고 자형 코드를 입력하면 후보가 좁혀짐"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Depois do pinyin, pressione ` ou toque no ⌥ direito e digite o código de forma para filtrar os candidatos"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拼音後按 ` 或單擊右 ⌥，再打形碼，篩出想要的字"
           }
         }
       }
