@@ -2710,7 +2710,10 @@ enum SelfTest {
         controller.services.buttonUsedWithin = { _ in false }  // …nor clicks in the fake field
         controller.selectionByAccessibility = false  // the fake field's selection only, never the user's frontmost app's
         controller.services.loadCommandUsage = { CommandUsage() }  // leave the user's command order alone
-        controller.services.loadExtensions = { _, _ in .empty }  // never the user's own extensions (the extension check makes its own)
+        // Never the user's own extensions (the extension check makes its own) or plugins (the sections that need one bring
+        // their own: the GitHub plugin from Core/Plugins): what @ lists is the same on every Mac (One @'s "cal" listed a
+        // plugin installed on the Mac before Calendar).
+        (controller.services.loadExtensions, controller.services.plugins) = ({ _, _ in .empty }, { _ in [] })
         controller.services.saveCommandUsage = { _ in }
         controller.recordApp = { _ in }  // the user's recent apps (Settings → Apps) left alone
         controller.services.takeRenameNotice = { _ in nil }  // the user's own rename notice left for them (the @reply section has its own)
@@ -2759,11 +2762,14 @@ enum SelfTest {
             testThisAppMenu(controller, client, app: "com.example.chat")
             testPerAppImages(snapshotDirectory: snapshotDirectory)
             testLearnedList(snapshotDirectory: snapshotDirectory)
+            // With no text field active, as the full run has them (This App's menu above left its field active): a field
+            // takes the settings again when a switch in them is saved, and with them the interface language, this Mac's
+            // here, under checks that read English.
+            controller.deactivateServer(client)
             testExtensionSourceTrust(snapshotDirectory: snapshotDirectory)
             testExtensionSourceLimits(snapshotDirectory: snapshotDirectory)
             testExtensionSourceReading(snapshotDirectory: snapshotDirectory)
             testSuggestionsOnByDefault(snapshotDirectory: snapshotDirectory)
-            controller.deactivateServer(client)
             needing([])  // read whatever the last section needed
             check((try? Data(contentsOf: Config.userURL)) == userConfig, "the user's config was left unchanged")
             return summary()

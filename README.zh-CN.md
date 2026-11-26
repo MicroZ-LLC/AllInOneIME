@@ -892,7 +892,7 @@ two-way door：可以随时撤回的决定
   → 或 Esc 隐藏这些行（别的什么都不做；代码输入下正在打的词照原样输入），之后按键照常给 App，直到你打的字变了：在 Slack 里打 `#12` 再按 ⏎ 插入 issue，
   打 `#12` 按 → 再按 ⏎ 就照原样发出 `#12`。数字从不选行，照常打字（`#7` 再打 `1` 是 `#71`）。这些行用掉的键不会同时交给 App，在 Slack、Chrome、Google Docs、
   VS Code 等基于 Chromium 或 Electron 的 App 里也一样：⏎ 不会发出消息，↑ 不会移动光标。拼音组字时它自己的候选照旧
-  （⏎ 上屏字母，空格选字）。启动器、远程桌面、虚拟机和 SSH 客户端里不出行。
+  （⏎ 上屏字母，空格选字）。启动器、远程桌面、虚拟机、SSH 客户端和密码管理器里不出行。
 - **打开**：设置 →「更多设置」→「建议」里的 **建议** 管所有的行，插件的补全、脚本扩展的、建议类的自定义命令和代码输入的都在内，默认开着；
   有了来源才出行（插件的补全、脚本扩展的、建议命令，或代码输入）。插件的补全装好就开着，0.6.7.2 以前装的在 0.6.7.2 第一次找到它时打开；
   设置 →「命令库」→「插件」里每个都有开关（显示上次更新、条数、上次的错误和「立即刷新」；它的偏好设置也在这里，密码存在钥匙串），
@@ -1253,6 +1253,12 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 ```
 
 `make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，安全输入开着时（正在输密码）要打字的检查，本机端侧模型用不了时 Apple Intelligence 的检查，以及没给 `ELECTRON_HARNESS` 时 Electron 测试窗口的检查；屏幕锁着时自测立刻结束。结尾列出通过、失败和跳过的数目和每类跳过的原因，退出码说明结果：0（PASSED）所有检查都跑了而且都通过；1（FAILED）有检查失败；2 没有失败，但有检查跳过了或没法跑（INCOMPLETE；什么打字的都没跑时是 SKIPPED；屏幕锁着时开始的真实 App 测试是 BLOCKED）。2 不算通过：`make selftest` 和 `make realtest` 遇到它也会失败。自测的 `--…-only` 子集退出码一样；最后一行是给脚本读的同样结果：`SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`。
+
+真实 App 的文本框怎么回答输入法可以录下来，再做成宿主测试（`Core/Tests/HostScenarios`）的宿主配置或场景：启动输入法时设好
+`ALLINONEIME_IMK_RECORD`（`launchctl setenv ALLINONEIME_IMK_RECORD 1`，然后 `killall AllInOneIME`；停止就 `launchctl
+unsetenv` 再同样重启），它对文本框的每次调用（IMK 的）、文本框的回答和当时的按键都写进
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl`（或用绝对路径代替 `1`），每行一个 JSON 对象，到 50 MB 为止。你打的字不会在里面，
+只有长度。录下的只留在这台 Mac 上，也没有设置能打开它。
 
 界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog：核心的文字在
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的

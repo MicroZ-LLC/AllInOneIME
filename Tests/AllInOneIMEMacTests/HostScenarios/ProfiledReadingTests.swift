@@ -30,7 +30,7 @@ struct ProfiledReadingTests {
         let text = FieldTextReading.read(from: client, before: 1500, after: 200, purpose: "test",
                                          secureInputActive: { false }, isTerminal: { _ in false })
         switch profile {
-        case .nstextview, .chromium, .electron:
+        case .nstextview, .chromium, .electron, .webkit, .qt:
             #expect(text == FieldText(before: "Hello wor", after: "ld"), "\(String(describing: text))")
         case .tellsnothing:
             #expect(text == nil, "\(String(describing: text))")
@@ -94,15 +94,43 @@ struct ProfiledReadingTests {
         #expect(short.attributedSubstring(from: NSRange(location: 0, length: 2))?.string == "Hi")
     }
 
+    /// WebKit reads anywhere in its text and nothing past its end; Qt only within 1024 of its caret, cut to it
+    /// (`NSIntersectionRange`): a range partly past what it has reads the part it has, one wholly past it nil.
+    @Test func webKitAndQtSubstrings() throws {
+        let long = String(repeating: "a", count: 1100)
+        let webkit = try field(.webkit, long + "|bc")
+        #expect(webkit.attributedSubstring(from: NSRange(location: 0, length: 3))?.string == "aaa")
+        #expect(webkit.attributedSubstring(from: NSRange(location: 1100, length: 3)) == nil)
+        let qt = try field(.qt, long + "|bc")
+        #expect(qt.attributedSubstring(from: NSRange(location: 0, length: 3)) == nil, "more than 1024 before the caret")
+        #expect(qt.attributedSubstring(from: NSRange(location: 70, length: 10))?.string == "aaaa", "cut to what it has")
+        #expect(qt.attributedSubstring(from: NSRange(location: 1100, length: 50))?.string == "bc", "cut at the end")
+        #expect(qt.attributedSubstring(from: NSRange(location: 1102, length: 5)) == nil)
+        // Qt's rect is its cursor's, whatever range is asked; WebKit's the range's.
+        let rect = qt.firstRect(forCharacterRange: NSRange(location: 0, length: 1), actualRange: nil)
+        #expect(rect.minX == ProfiledTextClient.lineOrigin.x + 1100 * 8)
+        #expect(webkit.firstRect(forCharacterRange: NSRange(location: 0, length: 1), actualRange: nil).minX == ProfiledTextClient.lineOrigin.x)
+    }
+
+    /// A replacement range Qt can't place (past its text) goes in at its cursor; the others drop it (as they did).
+    @Test func aReplacementRangePastTheEnd() throws {
+        let qt = try field(.qt, "Hi |")
+        qt.insertText("x", replacementRange: NSRange(location: 10, length: 2))
+        #expect(qt.doc == "Hi x")
+        let webkit = try field(.webkit, "Hi |")
+        webkit.insertText("x", replacementRange: NSRange(location: 0, length: 2))
+        #expect(webkit.doc == "x ")
+    }
+
     /// Typing a result out (`TypingField`): the caret and the length as the field tells them; typed at the caret.
     @Test(arguments: HostProfile.allCases)
     func typingOut(_ profile: HostProfile) throws {
         let client = try field(profile, "Hi |")
         let typing = TypingField(client, pastesControls: false)
         #expect(typing.caret == (profile == .tellsnothing ? nil : 3))
-        // Chromium, a terminal and WeChat tell a length of 0 whatever their text: taken as told (a typo's check then
-        // finds the field not as long as what was typed, and the app gets no typos).
-        #expect(typing.length == (profile == .nstextview ? 3 : 0))
+        // Chromium, WebKit, Qt, a terminal and WeChat tell a length of 0 whatever their text: taken as told (a typo's
+        // check then finds the field not as long as what was typed, and the app gets no typos).
+        #expect(typing.length == (profile.tellsLength ? 3 : 0))
         var typist = TypeOut.Typist(TypeOut.plan(for: "Bob", rate: 40), start: typing.caret ?? 0, length: typing.length)
         var steps = 0
         while typist.step(in: typing) != .done, steps < 20 { steps += 1 }
@@ -131,9 +159,13 @@ struct ProfiledReadingTests {
         client.endTurn()
         let screens = [ProfiledTextClient.screen]
         switch profile {
-        case .nstextview:
+        case .nstextview, .webkit:
             #expect(placed.placement.source == .field && placed.placement.rect.minX == ProfiledTextClient.lineOrigin.x + 3 * 8)
             #expect(asked == 0 && lastByApp[profile.app] == placed.placement.rect)
+        case .qt:
+            // Qt tells its cursor's rect for any range: after the marked text here (nothing is marked in practice).
+            #expect(placed.placement.source == .field && placed.placement.rect.minX == ProfiledTextClient.lineOrigin.x + 5 * 8)
+            #expect(asked == 0)
         case .tellsnothing:
             #expect(placed.placement == PanelAnchor.Placement(rect: ProfiledTextClient.fixedCaret.offsetBy(dx: 0, dy: -18), source: .field))
         case .chromium, .electron:

@@ -35,7 +35,7 @@ struct HostRunTests {
             case .qt:
                 #expect(field.length() == 0 && field.selectedRange() == 150..<150)
                 #expect(field.substring(0..<150)?.count == 150 && field.substring(150..<300)?.count == 150)
-                #expect(field.substring(299..<301) == nil, "nil past the end")
+                #expect(field.substring(299..<301) == "b" && field.substring(300..<302) == nil, "cut at the end, nil past it")
             case .tellsnothing, .terminal:
                 #expect(field.length() == 0 && field.selectedRange() == nil && field.markedRange() == nil)
                 #expect(field.substring(0..<1) == nil)
@@ -100,11 +100,15 @@ struct HostRunTests {
         #expect(chromium.host.document == "Hi nihao" && chromium.host.marked.isEmpty)
     }
 
-    /// Qt reads only what `ImTextBeforeCursor` / `ImTextAfterCursor` give, 1024 characters each way.
+    /// Qt reads only what `ImTextBeforeCursor` / `ImTextAfterCursor` give, 1024 characters each way, and answers the part
+    /// of a range within that (nil where none is).
     @Test func qtReadsWithinItsReach() throws {
         let text = String(repeating: "a", count: 1100) + "|"
         let (run, _) = try run("TEXT \"\(text)\"", on: .qt)
-        #expect(run.field.substring(76..<1100)?.count == 1024 && run.field.substring(75..<1100) == nil)
+        #expect(run.field.substring(76..<1100)?.count == 1024 && run.field.substring(75..<1100)?.count == 1024)
+        #expect(run.field.substring(0..<76) == nil)
+        // The shell still reads what is before the caret, the part within reach.
+        #expect(run.reader.text(before: 1500, after: 200)?.before.count == 1024)
     }
 
     /// A terminal is told as one (its real bundle id, `FieldInfo.terminal`), so the core's terminal rules apply, and

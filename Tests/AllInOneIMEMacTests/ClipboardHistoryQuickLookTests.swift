@@ -21,7 +21,7 @@ struct ClipboardHistoryQuickLookTests {
         #expect(recorder.poll(limit: 20, quick: true) == .recorded)
         #expect(Recording.texts(recorder) == ["just copied", "older"], "in the panel's list at once")
         recorder.store.waitForWrites()
-        #expect(ClipboardHistoryStore(url: recorder.store.url).items.map(\.text) == ["just copied", "older"], "then in the file")
+        #expect(ClipboardHistoryStore.loaded(url: recorder.store.url).items.map(\.text) == ["just copied", "older"], "then in the file")
         let attributes = try FileManager.default.attributesOfItem(atPath: recorder.store.url.path)
         #expect((attributes[.posixPermissions] as? NSNumber)?.intValue == 0o600)
     }
@@ -38,7 +38,7 @@ struct ClipboardHistoryQuickLookTests {
         recorder.store.clear()
         recorder.store.waitForWrites()
         #expect(!FileManager.default.fileExists(atPath: recorder.store.url.path) && recorder.store.items.isEmpty)
-        #expect(ClipboardHistoryStore(url: recorder.store.url).items.isEmpty)
+        #expect(ClipboardHistoryStore.loaded(url: recorder.store.url).items.isEmpty)
     }
 
     /// A recorder making its images ready as the input method's does: off the main thread, handed back to it after.
