@@ -27,79 +27,6 @@ extension AllInOneIMEInputController {
         return true
     }
 
-    /// Where a panel of ours goes in `client` (`PanelAnchor`): the rect it tells (`toldAnchor`) where it is one to trust;
-    /// else the caret Accessibility tells, the last rect to trust in this field, or the rect as told, and then the field
-    /// is asked again a moment later (`reaskAnchor`). Said in the log, numbers only (`log stream --predicate 'subsystem
-    /// == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`).
-    @MainActor
-    func anchor(_ client: IMKTextInput) -> NSRect {
-        (anchorToken, placements) = (anchorToken + 1, placements + 1)
-        let placing = placements
-        // The field's app, asked of the client once.
-        let app = client.bundleIdentifier()
-        // Copies: asking the field (and Accessibility) below waits on the app, running the run loop, and a key handled
-        // meanwhile places the panel too, writing these; an access held open across that crashed the input method.
-        var (memory, lastByApp) = (panelAnchor, Self.lastAnchorByApp)
-        // The field by this controller and its focus session: the client object handed over may be another proxy each time.
-        let field = PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession)
-        memory.enter(field)
-        // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`):
-        // as the window server lists it, else Accessibility's once it is in (`windowFrame`).
-        if clientOverride == nil, !session.secureInputActive(), let app {
-            memory.learnWindow { windowFrame(in: app, for: field, client: client) }
-        }
-        var asked = "Accessibility not asked"
-        // Where the field puts it (`FieldAnchor.place`): the rect it tells, else Accessibility's caret, the last rect to
-        // trust in the field or the app, the pointer, the rect as told.
-        let placed = FieldAnchor.place(in: client, app: app, selection: composer.selection?.range, memory: &memory,
-                                       lastByApp: &lastByApp, screens: NSScreen.screens.map(\.frame),
-                                       pointer: { NSEvent.mouseLocation }) { needsPage in
-            // Never read with the key: the last read in this field meanwhile, the panel placed again by the next (`accessibilityCaret`).
-            let read = accessibilityCaret(in: app, page: needsPage, field: field, client: client)
-            asked = read == nil ? "Accessibility read after the key" : read?.timedOut == true ? "Accessibility timed out"
-                : read?.caret == nil ? "Accessibility told no caret" : "Accessibility's caret"
-            return read
-        }
-        let (told, placement) = (placed.told, placed.placement)
-        // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
-        guard placements == placing else { return placement.rect }
-        // The window's frame told while the field was asked (`windowFrame`): learned now, the panel placed again by it.
-        if let window = anchorReads.window, window.field == field {
-            anchorReads.window = nil
-            memory.learned(window: window.told)
-            let (box, held) = (WeakBox(self), MainThreadBox(client))
-            DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.placeAgain(held.value) } }
-        }
-        // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then)
-        // or dropped it, on no screen now, and it is still that one: the dictionary is every controller's, and another
-        // may have written it meanwhile.
-        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""].flatMap { $0 == placed.dropped ? nil : $0 })
-        guard placement.reasks else {
-            anchorSaid = nil
-            // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
-            // "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
-            log.debug("""
-                panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
-                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
-                page \(Self.describe(self.panelAnchor.page), privacy: .public), screen \(Self.describe(NSScreen.screens.first?.frame), privacy: .public)
-                """)
-            return placement.rect
-        }
-        // Once while the field tells the same (an app that never tells a rect to trust would have it said at every key).
-        let said = "\(Self.describe(told)) \(placement.source.rawValue) \(Self.describe(placement.rect))"
-        if said != anchorSaid {
-            anchorSaid = said
-            log.notice("""
-                panel anchor not trusted in \(app ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
-                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
-                \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public)), \
-                pointer \(Self.describe(NSRect(origin: NSEvent.mouseLocation, size: .zero)), privacy: .public)
-                """)
-        }
-        reaskAnchor(client)
-        return placement.rect
-    }
-
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the panel
     /// moves there once it tells one. Not after a key, the panel placed anew or hidden, the field left.
     @MainActor
@@ -217,6 +144,17 @@ extension AllInOneIMEInputController {
             }
         }
         return nil
+    }
+
+    /// The window's frame told while a placement in `field` still asked the field (`windowFrame`): learned into its
+    /// `memory` as it ends (`anchor`), and the panel placed again by it once that placement is done.
+    @MainActor
+    func learnWindowTold(into memory: inout PanelAnchor.Memory, field: PanelAnchor.Field, client: IMKTextInput) {
+        guard let window = anchorReads.window, window.field == field else { return }
+        anchorReads.window = nil
+        memory.learned(window: window.told)
+        let (box, held) = (WeakBox(self), MainThreadBox(client))
+        DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.placeAgain(held.value) } }
     }
 
     /// The panel this field shows placed again (`show`), now that Accessibility told more of where it goes.
