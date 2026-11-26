@@ -146,20 +146,29 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return loadPending
     }
 
-    /// Once the file is read and its items are in `items`.
+    /// Once the file is read and its items are in `items` (on the main thread, wherever the store was made).
     @MainActor
     public func waitForLoad() async {
         while isLoading {
-            await withCheckedContinuation { loadWaiters.append($0) }
+            await withCheckedContinuation { waiter in
+                loadWaiters.append(waiter)
+                writes.async { DispatchQueue.main.async { self.finishLoading() } }
+            }
         }
     }
+
+    /// Whether the file has been read (on `writes`): until then, a write waits behind it, so none is waited for.
+    private var readDone: Bool { loaded.items != nil }
 
     /// What the file had, once read, in `items`: below what was recorded meanwhile (the same copy once), to the limit
     /// asked for meanwhile.
     private func finishLoading() {
         if loadPending, let read = loaded.items {
             loadPending = false
+            let all = Self.merge(current, read, limit: nil)
             current = Self.merge(current, read, limit: limitWhileLoading)
+            // A lower limit set while it was read (`trim`) drops the oldest from the file now; nothing changed, nothing written.
+            if current.count < all.count, let limit = limitWhileLoading { keep(limit, later: true) }
         }
         guard !loadPending, !loadWaiters.isEmpty else { return }
         let waiters = loadWaiters
@@ -302,15 +311,18 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// already, and nothing changed.
     @discardableResult
     public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
-        // Being made ready until the list with it is written: a write left for later, of the list before it, keeps its files.
-        defer { preparing.remove(image.id) }
         finishLoading()
-        guard current.first?.image?.id != image.id else { return false }
+        guard current.first?.image?.id != image.id else {
+            preparing.remove(image.id)
+            return false
+        }
         current.removeAll { $0.image?.id == image.id }
         let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
         let place = current.firstIndex { $0.copiedAt < date } ?? current.count
         current.insert(ClipboardHistoryItem(image: kept, copiedAt: date), at: place)
-        keep(limit)
+        // Being made ready until the list with it is written: a write queued before it, of the list before it (while the
+        // file is read, all of them are), keeps its files.
+        keep(limit, releasing: image.id)
         return true
     }
 
@@ -342,8 +354,12 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// The oldest dropped beyond `limit` (a lower one set), at once.
     public func trim(to limit: Int) {
-        if isLoading { limitWhileLoading = limit }
-        guard current.count > max(limit, 1) || loadPending else { return }
+        // While the file is read: applied as it is merged (`finishLoading`), written only if that drops something.
+        if isLoading {
+            limitWhileLoading = limit
+            return
+        }
+        guard current.count > max(limit, 1) else { return }
         keep(limit)
     }
 
@@ -351,29 +367,36 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public func clear() {
         generation += 1
         current = []
-        // What is being read is forgotten too.
+        // What is being read is forgotten too; the files deleted after it is (never waited for).
+        let waits = !readDone
         loadPending = false
         finishLoading()
-        writes.sync {
+        let wipe = { [self] in
             (keptAsideIDs, unarchived) = ([], false)
             for file in [url, imagesURL] + asideURLs { try? FileManager.default.removeItem(at: file) }
         }
+        if waits { writes.async(execute: wipe) } else { writes.sync(execute: wipe) }
     }
 
     /// `limit` kept at most, saved; images no longer in the list deleted: before it returns, or (`later`, and always while
-    /// the file is being read, which it waits for) off the main thread after.
-    private func keep(_ limit: Int, later: Bool = false) {
+    /// the file is being read, which it waits for) off the main thread after. `releasing`: an image being made ready
+    /// (`preparing`), until this write.
+    private func keep(_ limit: Int, later: Bool = false, releasing id: String? = nil) {
         current = Array(current.prefix(max(limit, 1)))
         let loading = isLoading
         if loading { limitWhileLoading = limit }
-        guard !current.isEmpty || loading else { return clear() }
+        guard !current.isEmpty || loading else {
+            if let id { preparing.remove(id) }
+            return clear()
+        }
         let items = current
         let write = { [self] in
             let whole = whole(items, loading: loading, limit: limit)
             save(whole)
             removeUnlisted(listing: whole)
+            if let id { preparing.remove(id) }
         }
-        if later || loading { writes.async(execute: write) } else { writes.sync(execute: write) }
+        if later || !readDone { writes.async(execute: write) } else { writes.sync(execute: write) }
     }
 
     func imageURL(_ id: String) -> URL { imagesURL.appendingPathComponent("\(id).png") }
@@ -398,7 +421,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     private func removeUnlisted() {
         let (items, loading, limit) = (current, isLoading, limitWhileLoading)
         let remove = { [self] in removeUnlisted(listing: whole(items, loading: loading, limit: limit)) }
-        if loading { writes.async(execute: remove) } else { writes.sync(execute: remove) }
+        if !readDone { writes.async(execute: remove) } else { writes.sync(execute: remove) }
     }
 
     /// Image files whose image isn't among `items`, nor being made ready, deleted.
