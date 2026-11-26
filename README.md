@@ -1787,8 +1787,10 @@ Every change, whoever writes it (a person, Claude Code, Codex, Kiro or the agent
 - **Quality gate** (`.github/workflows/quality.yml`): `make lint`, and `make test` in two halves side by side: the
   core's tests (`make test-core`) on GitHub's Linux and macOS machines, the Mac app's (`make test-mac`) on the
   maintainer's Mac. A pull request runs only the halves its files can affect (`Scripts/test-scope.sh`: `docs/` or
-  `site/` alone need neither); a push to `mainline` or `release-*` runs both. Run `make check` before you push; for
-  work on the core alone, `make test-core` (or `Core/Scripts/test.sh`, which runs the core's tests on Linux too).
+  `site/` alone need neither); a push to `mainline` or `release-*` runs both. The updater's end-to-end test
+  (`make update-test`, offline) runs on the maintainer's Mac too when a change touches the updater, the installer or
+  how the apps are built, and on every push to `release-*`. Run `make check` before you push; for work on the core
+  alone, `make test-core` (or `Core/Scripts/test.sh`, which runs the core's tests on Linux too).
 - **review** (`.github/workflows/review.yml`): an independent review of the diff against AGENTS.md by another model
   (Codex CLI, else Claude Code), as one comment on the pull request. It fails only for a high-confidence correctness
   or privacy problem.
@@ -1798,7 +1800,8 @@ and `Scripts/oversized-files.txt` (the files over 400 lines of code, which may n
 old code is fixed as it is touched. After fixing some, `make lint-baseline` lowers the baselines; CI fails a pull
 request that raises them. A pull request from a fork doesn't run on the maintainer's Mac: a maintainer who has read it
 pushes it to a branch here. Every Monday the Health report workflow updates the pinned "Code health report" issue: the
-files over the limit, the baseline, duplicated and unused code, and how each changed.
+files over the limit, the baseline, duplicated and unused code, and how each changed, and the tests that failed under
+load and passed when run again alone in the last four weeks' checks (each test job keeps their names).
 
 ## License
 

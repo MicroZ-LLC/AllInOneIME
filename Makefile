@@ -129,7 +129,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable changelog-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable changelog-check scope-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -217,6 +217,11 @@ $(OPENCC_BUILT):
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
+# The core's resources (Core/Package.swift: AllInOneIMECore's RedactionWords.txt), in the bundle SwiftPM builds beside
+# the binary ("<the core's package name>_<target>"). The input method carries it in Contents/Resources, where the core
+# looks (CoreResources); without it no English word would be known and far more taken for a key, so `app` fails instead.
+CORE_RESOURCES := AllInOneIME-Core_AllInOneIMECore.bundle
+
 # The interface text in languages other than Simplified Chinese and English (those two are in the code): two String
 # Catalogs, the core's (Core/Resources/Localizable.xcstrings) and the app's own text's (Resources/), merged into one (a
 # key in both fails) and compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict),
@@ -245,8 +250,9 @@ strings-check:
 	swift package --package-path $(CORE) --allow-writing-to-package-directory strings --check
 	$(STRINGS_TOOL) --check
 
-# Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy
-# of /usr/share/dict/web2 (Webster's Second International, public domain).
+# Core/Sources/AllInOneIMECore/Resources/RedactionWords.txt, the English words the key detector knows, from the pinned
+# copy of /usr/share/dict/web2 (Webster's Second International, public domain): a resource of the core, which the app
+# carries in its resource bundle (CORE_RESOURCES).
 redaction-words:
 	cd $(CORE) && swift Scripts/make-redaction-words.swift
 
@@ -254,6 +260,8 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
+	ditto "$$($(SWIFT_BUILD) --show-bin-path)/$(CORE_RESOURCES)" "$(APP)/Contents/Resources/$(CORE_RESOURCES)"
+	test -s "$(APP)/Contents/Resources/$(CORE_RESOURCES)/Contents/Resources/RedactionWords.txt"
 	Scripts/check-weak-links.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
@@ -462,9 +470,17 @@ UPDATE_SUMMARY_EN ?=
 UPDATE_SUMMARY_ZH ?=
 
 # The updater end to end against a temporary install and a test server on 127.0.0.1 (Scripts/test-update.sh):
-# never the installed app, nothing registered.
-update-test: app settings-app
-	Scripts/test-update.sh "$(BUILD_DIR)"
+# never the installed app, nothing registered. Offline: the apps are signed ad hoc (no signing identity, so no
+# timestamp from Apple's server and no provisioning profile), as the test's "new version" is: the updater takes an
+# update only from the team that signed the running app, and an ad-hoc build has none. CI runs it on the Mac mini when a
+# change touches the updater or how the apps are built (Scripts/test-scope.sh's `update`), and on each push to a
+# release branch (quality.yml). The apps it built are removed afterwards, whether it passed or failed: macOS may start a
+# second copy of the input method's bundle ID left in build/ instead of the installed one (why `install` moves it).
+update-test:
+	$(MAKE) app settings-app SIGN_IDENTITY= PROFILE=
+	@status=0; Scripts/test-update.sh "$(BUILD_DIR)" || status=$$?; \
+		rm -rf "$(APP)" "$(SETTINGS_APP)"; \
+		exit $$status
 
 update-manifest:
 	@test -f "$(UPDATE_ZIP)" || { echo "error: no $(UPDATE_ZIP); run make dmg"; exit 1; }
@@ -542,11 +558,12 @@ test-screen: deps
 # The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
 # SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so
 # that only new problems fail; the core's portability and standalone guards and the split paths; the string tables;
-# the changelog's fragments (changes/, Scripts/changelog.py).
+# the changelog's fragments (changes/, Scripts/changelog.py); which test jobs a change runs in CI (Scripts/test-scope.sh,
+# against its table: Scripts/test-scope-test.sh).
 # LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it, or a changelog's unreleased
 # section was edited by hand. `make lint-baseline` lowers the baselines after a fix. `make check` is everything a PR
 # has to pass: lint, then test.
-lint: swiftlint ratchet portable strings-check changelog-check
+lint: swiftlint ratchet portable strings-check changelog-check scope-check
 
 swiftlint:
 	Scripts/swiftlint.sh
@@ -562,6 +579,9 @@ portable:
 
 changelog-check:
 	python3 Scripts/changelog.py check $(if $(LINT_BASE),--base $(LINT_BASE))
+
+scope-check:
+	Scripts/test-scope-test.sh
 
 lint-baseline:
 	Scripts/swiftlint.sh --write-baseline

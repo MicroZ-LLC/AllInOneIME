@@ -37,9 +37,6 @@ included:
   - Sources
   - Core/Sources
 
-excluded:
-  - Core/Sources/AllInOneIMECore/RedactionWordList.swift   # generated (make redaction-words)
-
 no_empty_block:
   # Empty functions, initializers and closures are often meant (a protocol's default, a no-op handler).
   disabled_block_types: [function_bodies, initializer_bodies, closure_blocks]

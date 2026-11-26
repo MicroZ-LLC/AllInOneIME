@@ -3,10 +3,11 @@
 # holds back (AGENTS.md) is shrinking. Markdown on stdout: the files over the size limit and their trend
 # (Scripts/oversized-files.txt now and 1, 4 and 12 weeks ago, from git history), SwiftLint's baseline and its trend
 # (.swiftlint.baseline.json), duplicated code (a built-in detector: runs of 12 or more identical lines of code in
-# two places), and unused code (Periphery, pinned and checksummed like SwiftLint, when `--periphery` is given and it
-# runs; skipped otherwise). Read-only: it changes nothing in the repository.
+# two places), unused code (Periphery, pinned and checksummed like SwiftLint, when `--periphery` is given and it
+# runs; skipped otherwise), and the tests the quality gate's runs found flaky (from the folder `--flaky` names: health.yml
+# fills it with the test jobs' flaky-tests-* artifacts). Read-only: it changes nothing in the repository.
 #
-#   python3 Scripts/health-report.py [--periphery] > report.md
+#   python3 Scripts/health-report.py [--periphery] [--flaky FOLDER] > report.md
 
 from __future__ import annotations
 
@@ -22,10 +23,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCOPE = ("Sources", "Core/Sources")
-GENERATED = {"Core/Sources/AllInOneIMECore/RedactionWordList.swift"}
 WINDOW = 12  # lines of code in a row that count as a duplicate
 PERIPHERY = ("3.8.0", "07d4e286e31dd79164df39097e0b59f533c94badbe18158464a455ea88a166d7")
 WEEKS = (1, 4, 12)
+FLAKY_DAYS = 28   # the runs whose flaky tests are counted (health.yml downloads those)
+FLAKY_OFTEN = 3   # runs a test was flaky in that make it worth reproducing
 
 
 def git(*args: str, check: bool = True) -> str:
@@ -118,8 +120,7 @@ def code_lines(path: Path) -> list[tuple[int, str]]:
 
 
 def duplicates_section() -> list[str]:
-    files = sorted(p for scope in SCOPE for p in (ROOT / scope).rglob("*.swift")
-                   if str(p.relative_to(ROOT)) not in GENERATED)
+    files = sorted(p for scope in SCOPE for p in (ROOT / scope).rglob("*.swift"))
     seen: dict[str, tuple[str, int]] = {}  # a window's hash → where it was first
     matches = []  # (file, index, first file, first index) for each window seen before
     lines = {}
@@ -193,6 +194,45 @@ def periphery_section() -> list[str]:
             (", ".join(f"`{path}` {n}" for path, n in by_file.most_common(10)) or "none") + "."]
 
 
+def flaky_section(folder: Path | None) -> list[str]:
+    """The tests that failed under the machine's load and passed alone (Core/Scripts/retry-failed-tests.sh counts them
+    as passed) in the quality gate's runs: `folder` holds a folder per test job (core-linux, core-macos, mac), in it one
+    per run that had any, each with that run's flaky-tests.txt, a test a line; and unread.txt, an artifact a line, when
+    some couldn't be downloaded (those runs are left out, so the section says it is partial, never "None")."""
+    out = ["## Flaky tests", ""]
+    if folder is None:
+        return out + ["Skipped (run with --flaky FOLDER)."]
+    if not folder.is_dir():
+        return out + ["Skipped: the test jobs' flaky-tests-* artifacts couldn't be read (the workflow's log says why)."]
+    unread = len((folder / "unread.txt").read_text(errors="replace").splitlines()) \
+        if (folder / "unread.txt").is_file() else 0
+    listings = list(folder.glob("*/*/flaky-tests.txt"))
+    if unread and not listings:
+        return out + [f"Skipped: none of the {unread} flaky-tests-* artifacts of the last {FLAKY_DAYS} days could be "
+                      "downloaded (the workflow's log says why)."]
+    runs: collections.Counter[str] = collections.Counter()
+    jobs: dict[str, set[str]] = collections.defaultdict(set)
+    for listing in listings:
+        for test in {line.strip() for line in listing.read_text(errors="replace").splitlines() if line.strip()}:
+            runs[test] += 1
+            jobs[test].add(listing.parent.parent.name)
+    out += [f"Tests that failed under load and passed when run again alone, in the quality gate's runs of the last "
+            f"{FLAKY_DAYS} days; the run counted them as passed. One that keeps coming back ({FLAKY_OFTEN} runs or "
+            "more, marked) may hide a race that only shows in parallel: reproduce it (AGENTS.md, Bugs) and fix it.", ""]
+    if unread:
+        out += [f"Partial: {unread} of the {unread + len(listings)} runs' flaky-tests-* artifacts couldn't be "
+                "downloaded (the workflow's log says which); their tests aren't counted below.", ""]
+    if not runs:
+        return out + ["None in the runs that could be read." if unread else "None."]
+    out += ["| test | runs | jobs |", "|---|---|---|"]
+    for test, count in sorted(runs.items(), key=lambda item: (-item[1], item[0]))[:20]:
+        mark = " ⚠" if count >= FLAKY_OFTEN else ""
+        out.append(f"| `{test}` | {count}{mark} | {', '.join(sorted(jobs[test]))} |")
+    if len(runs) > 20:
+        out += ["", f"And {len(runs) - 20} more."]
+    return out
+
+
 def main(argv: list[str]) -> int:
     head = git("rev-parse", "--short", "HEAD").strip()
     branch = os.environ.get("REPORT_BRANCH") or git("rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -202,7 +242,8 @@ def main(argv: list[str]) -> int:
                  "whether they shrink."],
                 sizes_section(past), lint_section(past), duplicates_section(),
                 periphery_section() if "--periphery" in argv else
-                ["## Unused code", "", "Skipped (run with --periphery)."]]
+                ["## Unused code", "", "Skipped (run with --periphery)."],
+                flaky_section(Path(argv[argv.index("--flaky") + 1]) if "--flaky" in argv[:-1] else None)]
     print("\n\n".join("\n".join(section) for section in sections))
     return 0
 
