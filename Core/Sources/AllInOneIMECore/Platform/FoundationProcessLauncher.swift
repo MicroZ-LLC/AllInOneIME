@@ -69,16 +69,20 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         #endif
         if let io = Self.handle(spec.standardOutput) { process.standardOutput = io }
         if let io = Self.handle(spec.standardError) { process.standardError = io }
-        #if canImport(Glibc)
+        #if canImport(Glibc) || canImport(Musl)
+        // Foundation's own word of its end comes late on Linux, with either C library (`FoundationProcess.watchExit`).
         let child = FoundationProcess(process, onExit: spec.onExit)
-        // Foundation's own word of its end comes late on Linux (`FoundationProcess.watchExit`); whichever comes first.
-        process.terminationHandler = { _ in child.ended(nil) }
-        try process.run()
-        child.watchExit()
+        try child.start()
         #else
         let child = FoundationProcess(process)
         if let onExit = spec.onExit { process.terminationHandler = { _ in onExit(child) } }
-        try process.run()
+        do {
+            try process.run()
+        } catch {
+            // Never started, its handler never runs: let go here, or it would keep the child, and the child the Process.
+            process.terminationHandler = nil
+            throw error
+        }
         #endif
         return child
     }
@@ -106,7 +110,7 @@ public struct FoundationProcessLauncher: ProcessLauncher {
 final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     let process: Process
 
-    #if canImport(Glibc)
+    #if canImport(Glibc) || canImport(Musl)
     /// Told once it ended (`LaunchSpec.onExit`).
     private let onExit: ((any LaunchedProcess) -> Void)?
 
@@ -120,7 +124,7 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     #endif
 
     var processIdentifier: Int32 { process.processIdentifier }
-    #if canImport(Glibc)
+    #if canImport(Glibc) || canImport(Musl)
     var isRunning: Bool { status.withLock { $0 == nil } && process.isRunning }
     var terminationStatus: Int32 { status.withLock { $0 } ?? process.terminationStatus }
     // swiftlint:disable:next blocking_call - the caller's own thread waits, as with Process.waitUntilExit (never main)
@@ -131,21 +135,67 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     /// Left once it ended.
     private let ending = DispatchGroup()
 
+    /// The programs whose end a `watchExit` thread waits for, each by its process ID. Held while a program starts: a
+    /// watcher that finds another program under its ID knows its own was collected by Foundation and the ID given out
+    /// again (`watchExit`).
+    private static let watched = Locked(initialState: [Int32: ObjectIdentifier]())
+
+    /// Starts it, its end told by Foundation or by `watchExit`, whichever comes first. The termination handler keeps
+    /// this object until it ran (the end is told even to a caller that kept nothing), and the Process keeps its
+    /// handler: let go once it ran, or when the program never started. Left in place, every program started stayed in
+    /// memory with its Process and its pipes' descriptors.
+    func start() throws {
+        process.terminationHandler = { [self] process in
+            ended(nil)
+            process.terminationHandler = nil
+        }
+        do {
+            try Self.watched.withLock { watched in
+                try process.run()
+                watched[process.processIdentifier] = ObjectIdentifier(self)
+            }
+        } catch {
+            process.terminationHandler = nil
+            // Nothing will end: the group is left as it was entered (libdispatch crashes on one freed while entered).
+            ending.leave()
+            throw error
+        }
+        watchExit()
+    }
+
     /// Its end told as soon as it comes. Foundation on Linux learns of a program's end only when every process that
     /// inherited its descriptors has gone too: `sh -c "job & exit 0"` ended at once, but its termination handler came
     /// when `job` ended, seconds or days later (a login shell's startup files can leave such a job; the Linux CI's
-    /// ProcessOutputTests.whatItLeftRunningDoesntHoldTheRunUp, 3 of 3). `waitid` with WNOWAIT, on a thread of its own,
-    /// sees the end at once without collecting it: Foundation still reaps the program, when it gets there. Its status
-    /// is `si_status`: the exit code, or the signal that ended it, as Foundation's `terminationStatus` tells them.
-    func watchExit() {
+    /// ProcessOutputTests.whatItLeftRunningDoesntHoldTheRunUp, 3 of 3). That is Foundation's own way of waiting (a
+    /// socket the program's descendants inherit), whatever the C library: Musl as Glibc. `waitid` with WNOWAIT, on a
+    /// thread of its own, sees the end at once without collecting it: Foundation still reaps the program, when it gets
+    /// there. Its status is `si_status`: the exit code, or the signal that ended it, as Foundation's
+    /// `terminationStatus` tells them.
+    ///
+    /// A process ID alone doesn't say whose end `waitid` saw: once Foundation collected this program, the next one
+    /// started may be given its ID, and `waitid` then waits for that one. Every program is started under `watched`'s
+    /// lock and put there under its ID, so what `waitid` saw counts only while this program is still the one there: a
+    /// program that took its ID has replaced it by the time the lock is had (it can't have ended before it started,
+    /// under the lock), and this one's end is then Foundation's to tell.
+    private func watchExit() {
         let pid = process.processIdentifier
+        let id = id_t(pid)
         Thread.detachNewThread { [self] in
             var info = siginfo_t()
             var result: Int32
-            repeat { result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) } while result == -1 && errno == EINTR
-            // Failed (ECHILD: Foundation reaped it first): its termination handler tells the end.
-            guard result == 0 else { return }
-            ended(info._sifields._sigchld.si_status)
+            repeat { result = waitid(P_PID, id, &info, WEXITED | WNOWAIT) } while result == -1 && errno == EINTR
+            let own = Self.watched.withLock { watched -> Bool in
+                guard watched[pid] == ObjectIdentifier(self) else { return false }
+                watched[pid] = nil
+                return true
+            }
+            // Failed (ECHILD: Foundation reaped it first) or another program's end: its termination handler tells it.
+            if result == 0, own { ended(childStatus(info)) }
+            // Foundation on Linux lets go of a Process (and so of its pipes' descriptors) only once something waited for
+            // it with its own waitUntilExit: a program nobody waited for stayed in memory, its handler cleared or not
+            // (measured with swift:6.4). This thread is the one that waits, until Foundation knows of the end too.
+            // swiftlint:disable:next blocking_call - this thread of its own, never main
+            process.waitUntilExit()
         }
     }
 
@@ -179,17 +229,63 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
         return true
     }
     #else
-    var treeIsRunning: Bool { groupExists(process.processIdentifier) }
+    var treeIsRunning: Bool { groupIsRunning(process.processIdentifier) }
     func terminate() -> Bool { signalTree(process.processIdentifier, SIGTERM) }
     func kill() -> Bool { signalTree(process.processIdentifier, SIGKILL) }
     #endif
 }
 
 #if !os(Windows)
-/// Whether process group `pid` still has a process in it.
-private func groupExists(_ pid: Int32) -> Bool {
-    pid > 0 && kill(-pid, 0) == 0
+/// Whether process group `pid` still has a process running in it. On Linux a program that ended stays in its group
+/// until Foundation collects it, which can be long after (`FoundationProcess.watchExit`): a group of such only (`kill`
+/// still finds it) has nothing left to wait for or to end.
+private func groupIsRunning(_ pid: Int32) -> Bool {
+    guard pid > 0, kill(-pid, 0) == 0 else { return false }
+    #if canImport(Glibc) || canImport(Musl)
+    return groupHasLiving(pid)
+    #else
+    return true
+    #endif
 }
+
+#if canImport(Glibc) || canImport(Musl)
+/// `si_status` of what `waitid` told of a child (SIGCHLD's fields): after `si_signo`, `si_errno` and `si_code`, aligned
+/// as the pointers beside it, then `si_pid` and `si_uid`. Read at its place, which is the kernel's on every Linux,
+/// where Glibc and Musl name the fields on the way to it differently.
+private func childStatus(_ info: siginfo_t) -> Int32 {
+    let offset = MemoryLayout<Int>.size == 8 ? 24 : 20
+    return withUnsafeBytes(of: info) { $0.loadUnaligned(fromByteOffset: offset, as: Int32.self) }
+}
+
+/// The state ("R", "S", "Z" for one that ended and wasn't collected yet …) and the process group of process `pid`, as
+/// /proc/<pid>/stat has them ("pid (name) state parent group …"; the name may hold spaces and brackets, so read from
+/// its last bracket on); nil when the process is gone or there is no /proc.
+private func stateAndGroup(_ pid: Int32) -> (state: Substring, group: Int32)? {
+    let file = open("/proc/\(pid)/stat", O_RDONLY | O_CLOEXEC)
+    guard file >= 0 else { return nil }
+    defer { close(file) }
+    var bytes = [UInt8](repeating: 0, count: 512)
+    let count = read(file, &bytes, bytes.count)
+    guard count > 0 else { return nil }
+    let text = String(decoding: bytes[..<count], as: UTF8.self)
+    guard let name = text.lastIndex(of: ")") else { return nil }
+    let fields = text[text.index(after: name)...].split(separator: " ")
+    guard fields.count >= 3, let group = Int32(fields[2]) else { return nil }
+    return (fields[0], group)
+}
+
+/// Whether process group `group`, which exists, has a process that hasn't ended: its first one usually (asked first),
+/// else any of /proc's. Without /proc nothing says, and it counts as running, as the group is there.
+private func groupHasLiving(_ group: Int32) -> Bool {
+    func lives(_ pid: Int32) -> Bool {
+        guard let process = stateAndGroup(pid) else { return false }
+        return process.group == group && process.state != "Z" && process.state != "X"
+    }
+    if lives(group) { return true }
+    guard let names = try? FileManager.default.contentsOfDirectory(atPath: "/proc") else { return true }
+    return names.contains { name in Int32(name).map(lives) ?? false }
+}
+#endif
 
 /// `number` to process group `pid`, and to process `pid` alone when it has moved to another group (`setsid`); whether
 /// it went to any.
