@@ -21,6 +21,8 @@
 # updater's test on a release branch).
 #
 #   git diff --name-only --no-renames origin/<base>...HEAD | Scripts/test-scope.sh
+#
+# Scripts/test-scope-test.sh, part of `make lint`, checks it against a table of paths.
 set -eu
 core=false mac=false update=false
 # The declarations of the tests only mac-test runs on a pull request: "func name(".

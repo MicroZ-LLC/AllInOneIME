@@ -129,7 +129,7 @@ KO_PACK      := $(BUILD_DIR)/packs/ko-hangul-1.0.0.tar.xz
 HI_PACK      := $(BUILD_DIR)/packs/hi-phonetic-1.0.0.tar.xz
 PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/download
 
-.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable changelog-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
+.PHONY: test-screen all deps pack packs coding-packs install-pack build app settings-app installer-app strings strings-check redaction-words dmg update-zip update-manifest update-test test test-core test-mac check-ios lint lint-baseline swiftlint ratchet portable changelog-check scope-check check icon install uninstall cli status selftest electron-harness screenshots panel-images realtest realtest-build realtest-run realtest-when-unlocked realtest-cancel clean distclean
 
 all: app
 
@@ -546,11 +546,12 @@ test-screen: deps
 # The static checks, the gate every change passes before it merges (AGENTS.md; CI's quality.yml runs it on each PR):
 # SwiftLint's rules (.swiftlint.yml) and the size ratchet (Scripts/check-ratchet.sh), both against today's baselines so
 # that only new problems fail; the core's portability and standalone guards and the split paths; the string tables;
-# the changelog's fragments (changes/, Scripts/changelog.py).
+# the changelog's fragments (changes/, Scripts/changelog.py); which test jobs a change runs in CI (Scripts/test-scope.sh,
+# against its table: Scripts/test-scope-test.sh).
 # LINT_BASE=<a commit> (CI: the PR's base) also fails when a baseline went up since it, or a changelog's unreleased
 # section was edited by hand. `make lint-baseline` lowers the baselines after a fix. `make check` is everything a PR
 # has to pass: lint, then test.
-lint: swiftlint ratchet portable strings-check changelog-check
+lint: swiftlint ratchet portable strings-check changelog-check scope-check
 
 swiftlint:
 	Scripts/swiftlint.sh
@@ -566,6 +567,9 @@ portable:
 
 changelog-check:
 	python3 Scripts/changelog.py check $(if $(LINT_BASE),--base $(LINT_BASE))
+
+scope-check:
+	Scripts/test-scope-test.sh
 
 lint-baseline:
 	Scripts/swiftlint.sh --write-baseline
