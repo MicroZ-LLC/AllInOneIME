@@ -18,13 +18,41 @@ enum ContactBook {
     private static var reading = false
     /// How long the book read is used before it is read again (in the background: the keys meanwhile use it as it is).
     static let maxAge: TimeInterval = 60
+    /// How long macOS's prompt for access to Contacts is waited for: unanswered by then, `@imessage` goes on without the
+    /// address book (`denied`) and asks again the next time. ALLINONEIME_CONTACTS_AUTH_TIMEOUT, a number of seconds
+    /// above 0, says otherwise (the tests').
+    static let authorizationTimeout: TimeInterval = ProcessInfo.processInfo.environment["ALLINONEIME_CONTACTS_AUTH_TIMEOUT"]
+        .flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil } ?? 60
 
     /// The contacts, read again at most every `maxAge` seconds. Asks for access when it was never asked.
     static func load() async -> Lookup {
-        await withCheckedContinuation { continuation in
+        if CNContactStore.authorizationStatus(for: .contacts) == .notDetermined {
+            let granted = await requestAccess(within: authorizationTimeout)
+            log.notice("@imessage: Contacts access \(granted ? "allowed" : "denied or not answered", privacy: .public)")
+            guard granted else { return .denied }
+        }
+        return await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 continuation.resume(returning: loadNow())
             }
+        }
+    }
+
+    /// Asks for access to Contacts (macOS's prompt, the first time): whether it was allowed; false when the user said no
+    /// or hasn't answered within `seconds`. Nothing waits on a thread meanwhile.
+    private static func requestAccess(within seconds: TimeInterval) async -> Bool {
+        let waiting = Locked<CheckedContinuation<Bool, Never>?>(initialState: nil)
+        @Sendable func answer(_ granted: Bool) {
+            let continuation = waiting.withLock { waiting -> CheckedContinuation<Bool, Never>? in
+                defer { waiting = nil }
+                return waiting
+            }
+            continuation?.resume(returning: granted)
+        }
+        return await withCheckedContinuation { continuation in
+            waiting.withLock { $0 = continuation }
+            CNContactStore().requestAccess(for: .contacts) { granted, _ in answer(granted) }
+            DispatchQueue.global().asyncAfter(deadline: .now() + seconds) { answer(false) }
         }
     }
 
@@ -46,19 +74,11 @@ enum ContactBook {
         return book.contacts
     }
 
+    /// The book read (unless one less than `maxAge` old is kept and not `fresh`), once access was allowed (`load` asks
+    /// for it first).
     private static func loadNow(fresh: Bool = false) -> Lookup {
         switch CNContactStore.authorizationStatus(for: .contacts) {
-        case .notDetermined:
-            let asked = DispatchSemaphore(value: 0)
-            var granted = false
-            CNContactStore().requestAccess(for: .contacts) { ok, _ in
-                granted = ok
-                asked.signal()
-            }
-            asked.wait()
-            log.notice("@imessage: Contacts access \(granted ? "allowed" : "denied", privacy: .public)")
-            guard granted else { return .denied }
-        case .denied, .restricted:
+        case .notDetermined, .denied, .restricted:
             return .denied
         default:
             break  // authorized (or limited)
@@ -110,21 +130,19 @@ struct AppleScriptMessageSender: MessageSender {
         }
     }
 
+    /// osascript with the script on its standard input (`Osascript`). Messages not answering within its timeout fails
+    /// as an Apple event that timed out does (errAETimeout).
     private static func run(_ arguments: [String]) throws {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/osascript")
-        process.arguments = arguments
-        let input = Pipe(), errors = Pipe()
-        process.standardInput = input
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = errors
-        try process.run()
-        input.fileHandleForWriting.write(Data(MessageScript.iMessage.utf8))
-        try? input.fileHandleForWriting.close()
-        let message = String(decoding: errors.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        process.waitUntilExit()
-        guard process.terminationStatus != 0 else { return }
+        let result: ProcessOutput.Result
+        do {
+            result = try Osascript.run(arguments, input: Data(MessageScript.iMessage.utf8))
+        } catch is ProcessOutput.TimedOut {
+            log.error("@imessage: Messages didn't answer within \(Osascript.timeout, privacy: .public) s")
+            throw MessageSendError.failed(code: -1712)  // errAETimeout
+        }
+        guard result.status != 0 else { return }
         // Only the error number is kept (the message can name the recipient).
+        let message = String(decoding: result.errors, as: UTF8.self)
         throw MessageSendError.from(osascriptError: message.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 }

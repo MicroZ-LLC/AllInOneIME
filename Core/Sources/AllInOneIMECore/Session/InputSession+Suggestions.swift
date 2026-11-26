@@ -985,7 +985,8 @@ extension InputSession {
                 s.approvalsLapsed(lapsed)
             }
         }
-        guard settings.master != false, !secureInputActive() else { return }
+        // Nothing loaded from a field where no rows show (a password manager's, a launcher's): typing there asks nothing.
+        guard settings.master != false, !secureInputActive(), SuggestionsAppClass(app: app, terminal: terminal) != .none else { return }
         let lists = active.filter(\.source.list)
         let now = s.now()
         for source in lists { suggestionsLoadIfDue(source, settings: settings, now: now) }

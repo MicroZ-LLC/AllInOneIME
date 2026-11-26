@@ -47,12 +47,14 @@ struct QuestionSessionCompactionTests {
             for try await update in converter.generate(.question, input: "one more question") { last = update }
             return last
         }
-        #expect(await Timing.eventually(within: 10) { fake.last?.messages.count == 1 })
+        #expect(await Timing.eventually { fake.last?.messages.count == 1 })
         let process = try #require(fake.last)
         process.started()
         process.say(["type": "system", "subtype": "status", "status": "compacting"])
         let update = try await task.value
-        #expect(ContinuousClock.now - started < .seconds(10))
+        // Well inside the first-answer timeout's ten minutes (its note would be another, below); not 10 s: more than that
+        // with two full core suites on the Mac mini.
+        #expect(ContinuousClock.now - started < .seconds(60))
         #expect(update?.result.versions.first?.text == "From the provider.")
         let note = try #require(update?.note)
         #expect(note == ClaudeSessionError.compacting.fallbackNote(for: .claude), "\(note)")

@@ -106,25 +106,8 @@ struct QuestionSessionMacAcceptanceTests {
         #expect(!main.contains("ClaudeSessionMac"), "launch touches the sessions")
     }
 
-    /// Settings → AI shows every AI as a card, always (#121), so the page being shown looks at every CLI's sign-in, whatever
-    /// is chosen (a provider too), as last found (`ClaudeSessionManager.checkAvailability()`, cached: signed in until quit,
-    /// anything else for a minute; shown again within that, nothing runs), never forced, by the page or anything else;
-    /// never at launch (`nothingLooksAtTheSignInAtLaunch`).
-    @Test func showingTheAIPageLooksAtEveryCLIAsLastFound() throws {
-        let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        // The page shown: every CLI, whatever is chosen, not forced.
-        let appear = try #require(settings.range(of: ".onAppear").flatMap { braces(in: settings, from: $0.upperBound) },
-                                  "the AI page looks at nothing as it shows")
-        let shown = reached(from: appear, in: settings)
-        #expect(shown.contains("ClaudeSessionMac.checkAvailability(SessionAgent.allCases"),
-                "the page being shown doesn't look at every CLI: \(shown)")
-        #expect(!shown.contains("choosing") && !shown.contains(".agent"),
-                "the page being shown looks at the CLIs only for some choices: \(shown)")
-        #expect(!shown.contains("force: true"), "the page being shown forces a look: \(shown)")
-        for line in shown.split(separator: "\n") where line.contains("checkAvailability(") && line.contains("force:") {
-            // Passed on from its function's own parameter, false unless set, which nothing sets (below).
-            #expect(line.contains("force: force") && settings.contains("(force: Bool = false)"), "\(line)")
-        }
+    /// #161 folds the other cards. When they are shown, CLI sign-ins use the existing cache and are never forced.
+    @Test func showingCLICardsUsesTheCachedSignIn() throws {
         // Nothing asks for a forced look at a sign-in.
         for (name, code) in try inputMethodSources() {
             #expect(!code.contains("refreshSessions(force: true)"), "\(name) forces a look at the sign-ins")
@@ -210,8 +193,7 @@ struct QuestionSessionMacAcceptanceTests {
         }
     }
 
-    /// A CLI's sign-in is looked at only by Settings → AI (#121: its cards are always shown, so there is nothing to open):
-    /// as the page shows (`showingTheAIPageLooksAtEveryCLIAsLastFound`) and as a CLI is picked; never as a provider is
+    /// A CLI's sign-in is looked at only by Settings → AI when its card is shown or as a CLI is picked; never as a provider is
     /// picked, never at launch (see `nothingLooksAtTheSignInAtLaunch`) or while typing.
     @Test func theSignInIsLookedAtOnlyOnTheAIPageAndAsACLIIsPicked() throws {
         for (name, code) in try inputMethodSources() where code.contains("refreshSessions(") || code.contains("checkAvailability(") {
@@ -220,14 +202,7 @@ struct QuestionSessionMacAcceptanceTests {
         let main = try code("Sources/AllInOneIME/main.swift")
         #expect(!main.contains("refreshSessions(") && !main.contains("checkAvailability(") && !main.contains("aiPageShown("),
                 "launch looks at a sign-in")
-        // No cards to open: no Change ▾'s state, nothing looked at as it changes.
         let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
-        let picker = try code("Sources/AllInOneIME/AIPicker.swift")
-        #expect(!settings.contains("choosing") && !picker.contains("choosing"), "Settings → AI still opens and closes its cards")
-        for (name, code) in try inputMethodSources() {
-            #expect(!code.contains(".onChange(of: choosing)") && !code.contains("var choosing") && !code.contains("$choosing"),
-                    "\(name) still opens and closes the AI cards")
-        }
         // Picking: a provider looks at nothing itself; a CLI (another than before) is looked at.
         let chooseBody = try #require(body(of: "choose", in: settings))
         #expect(!chooseBody.contains("refreshSessions") && !chooseBody.contains("checkAvailability"), "\(chooseBody)")

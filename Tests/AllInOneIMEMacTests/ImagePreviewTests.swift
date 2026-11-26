@@ -327,7 +327,7 @@ struct ImagePreviewTests {
     @Test func aRowsThumbnailFindsItsKeptImage() throws {
         let folder = try Self.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
-        let store = ClipboardHistoryStore(url: folder.appendingPathComponent("clipboard-history.json"))
+        let store = ClipboardHistoryStore.loaded(url: folder.appendingPathComponent("clipboard-history.json"))
         let png = try Data(contentsOf: try Self.png(400, 200, in: folder, name: "copied"))
         store.record("a text", at: Date(timeIntervalSince1970: 1_800_000_000), limit: 20)
         #expect(store.recordImage(ClipboardImage(data: png, width: 400, height: 200), at: Date(timeIntervalSince1970: 1_800_000_100), limit: 20))

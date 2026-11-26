@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import InputMethodKit
 
@@ -15,6 +16,7 @@ extension AllInOneIMEInputController {
 
     /// The app cancelled the composition: nothing of it goes in, the draft and the panel go.
     override func cancelComposition() {
+        IMKRecorder.shared.event("cancelComposition")
         MainActor.assumeIsolated {
             commitRow()
             stopTyping(insertingRest: false)

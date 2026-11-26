@@ -180,16 +180,19 @@ public enum CandidateParser {
     /// Model output is inserted into whatever app has focus (possibly a terminal), so characters that
     /// could act as input rather than text are dropped: C0/C1 controls (ESC, DEL, tab, NEL…) and
     /// Unicode line/paragraph separators become spaces; bidi embedding/override/isolate controls are removed.
-    static func stripControls(_ text: String) -> String {
+    /// `removing`: for a name shown in the panel (a file's), those characters are dropped, not made spaces, and so are
+    /// the bidi marks (LRM, RLM, ALM), so a name can't pass for another ("report\u{202E}txt.exe").
+    static func stripControls(_ text: String, removing: Bool = false) -> String {
         var out = String.UnicodeScalarView()
         for scalar in text.unicodeScalars {
             switch scalar.properties.generalCategory {
             case .control, .lineSeparator, .paragraphSeparator:
-                out.append(" ")
+                if !removing { out.append(" ") }
             default:
                 if (0x202A...0x202E).contains(scalar.value) || (0x2066...0x2069).contains(scalar.value) {
                     continue
                 }
+                if removing, [0x200E, 0x200F, 0x061C].contains(scalar.value) { continue }
                 out.append(scalar)
             }
         }
