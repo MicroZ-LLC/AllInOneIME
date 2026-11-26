@@ -280,7 +280,7 @@ under its first question in the recent questions, and picking it shows the round
 
 ### @question in a session of its own (new)
 
-Settings → AI is one choice of the AI (the one in use as a card, the others as cards under Other AIs, by how they connect; one click chooses): Claude Code, Codex,
+Settings → AI is one choice of the AI (the current one on a row with Change ▾, which shows every AI as a card, by how they connect; one click chooses): Claude Code, Codex,
 Antigravity (Google Antigravity's CLI, `agy`) or Kiro CLI under "With your subscription" (`questionBackend` in the
 config) has `@question` answered in the input method's own session on that CLI. (Gemini CLI is no longer one of them: it
 stopped serving personal Google accounts, which Google moved to Antigravity; a config that chose it is on Antigravity
@@ -332,8 +332,8 @@ is Terminal's from then on: the next `@question` (an @ typed meanwhile too) goes
 one handed off. Quitting or updating AllInOneIME ends every session's process, and after the relaunch no conversation
 from before is resumed. Whether each CLI is installed
 and signed in is looked at by Settings → AI (`claude auth status`, Codex's account, Antigravity's sign-in in the
-keychain or its settings without starting it, `kiro-cli whoami`): each CLI as its card shows (the one in use when the
-page shows, the others when you unfold Other AIs; folded, none), and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else for a minute, so
+keychain or its settings without starting it, `kiro-cli whoami`): the one in use when the
+page shows, the others only while you are choosing (after Change ▾), and when you choose a CLI there. What it found stands, signed in until AllInOneIME quits and anything else for a minute, so
 showing the page again runs no CLI before then; never at launch nor for a question. The one chosen is tried as a question comes; one found
 signed in after it wasn't has its session's process started again by the next question. A CLI takes a second or more to
 answer, so
@@ -730,11 +730,12 @@ Settings has six pages in the sidebar, in this order, and opens on Common:
   Autocomplete (Beta). The last line says how many settings More Settings has. A language pack's problem shows its
   banner on this page.
 - **AI**: the AI that answers (the provider, its model, its key or AWS profile, and Test Connection; the base URL is
-  under More…, which opens by itself once one is set); then the one in use as a card (outlined, it says In use), and
-  the others folded under one row, **Other AIs (N) ▸**, each time the page shows: the row unfolds them as cards, by how
-  they connect, their status in gray; one click on a card chooses it (it moves to the top, the others fold again), and
-  the row clicked again folds them. Searching for "Choose the AI" or an AI's name (`kiro`) opens them at its card, as
-  the start's Use My Own AI… and a banner's for an AI not in use do; then **AI Commands**, each AI command's options together:
+  under More…, which opens by itself once one is set) on a row with its logo, name and status and **Change ▾** at the
+  right, its own settings below. Change ▾ shows every AI as a card, by how they connect, the current one outlined and
+  saying In use, the others' status in gray; one click on a card chooses it and closes the cards, and Cancel or `Esc`
+  closes them with nothing changed. The page is closed each time it shows. Searching for "Choose the AI" or another AI's
+  name (`kiro`) opens the cards at its card, as the start's Use My Own AI… and a banner's for an AI not in use do; then
+  **AI Commands**, each AI command's options together:
   `@improve`'s rewrite styles, "@improve also translates" and the jargon list (shown with the Jargon style, or once a
   list is set), and `@question`'s: where a conversation continues and
   remembering recent questions (with Forget), their only place in Settings.
@@ -1466,7 +1467,7 @@ in Settings wins over both.
 
 ### Other AI providers: Claude API, Gemini, OpenAI-compatible services
 
-You don't need AWS: pick one of the cards in Settings → AI (under Other AIs), paste an API key, click "Save", then "Test Connection".
+You don't need AWS: click Change ▾ in Settings → AI and pick one of the cards, paste an API key, click "Save", then "Test Connection".
 
 | Provider | Default model | API key |
 |---|---|---|
