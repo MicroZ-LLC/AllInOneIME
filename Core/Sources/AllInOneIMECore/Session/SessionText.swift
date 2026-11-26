@@ -39,8 +39,9 @@ public enum SessionText {
                 shown(result.matchedContent ? t.tr("内容", "content") + " · " + place : place))
     }
 
-    /// What ⏎ does to a result: opens it, or shows it in the file manager (`SearchResult.reveals`).
-    static func openAction(_ result: SearchResult, _ t: InterfaceWords, terms: PlatformTerms) -> String {
+    /// What ⏎ does to a result: opens it, or shows it in the file manager (`SearchResult.reveals`). The Mac's
+    /// `FileOpenPolicy.label` says it with this too.
+    public static func openAction(_ result: SearchResult, _ t: InterfaceWords, terms: PlatformTerms) -> String {
         result.reveals ? revealWord(t, terms: terms) : t.tr("打开", "open")
     }
 

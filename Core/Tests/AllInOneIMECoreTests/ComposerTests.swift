@@ -1684,6 +1684,29 @@ struct ComposerTests {
         #expect(!d.engineState.isAsciiMode && d.draft.isEmpty)
     }
 
+    /// The folder Tab went into is first for that text only while that draft lasts (review of PR #162): Esc and a new
+    /// `@open` with the same path typed lists what the search finds, no folder row left over.
+    @Test func theFolderTabWentIntoIsForgottenWithItsDraft() {
+        let documents = SearchResult(name: "Documents", path: "/Users/me/Documents", isFolder: true)
+        let report = SearchResult(name: "report.pdf", path: "/Users/me/Documents/report.pdf")
+        let (c, _) = composer(key: .enter)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("~/Doc", c)
+        _ = c.receiveLive([documents], for: "~/Doc")
+        _ = c.handleKeyDown(tab)
+        #expect(c.currentLiveResults == [documents])
+        _ = c.handleKeyDown(escKey)
+        #expect(c.draft.isEmpty)
+        _ = c.handleKeyDown(at)
+        type("o", c)
+        _ = c.handleKeyDown(tab)
+        type("/Users/me/Documents/", c)
+        _ = c.receiveLive([report], for: "/Users/me/Documents/")
+        #expect(c.currentLiveResults == [report], "no folder row left from the draft before: \(c.currentLiveResults.map(\.name))")
+    }
+
     @Test func onlyContentMatchesAsYouTypeAreListedToPickFrom() {
         let notes = SearchResult(name: "notes.md", path: "/Users/me/notes.md", matchedContent: true)
         let todo = SearchResult(name: "todo.txt", path: "/Users/me/todo.txt", matchedContent: true)

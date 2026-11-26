@@ -11,6 +11,8 @@ public enum FieldAnchor {
     public struct Placed: Equatable, Sendable {
         public var told: CGRect
         public var placement: PanelAnchor.Placement
+        /// The app's last rect, dropped by this placement for being on no screen now (`lastByApp`); nil: none dropped.
+        public var dropped: CGRect?
 
         public init(told: CGRect, placement: PanelAnchor.Placement) {
             (self.told, self.placement) = (told, placement)
@@ -40,10 +42,11 @@ public enum FieldAnchor {
         // Read before `place`, which has `memory` borrowed while it asks Accessibility (reading it in there crashed).
         let needsPage = memory.page == nil
         var placement = memory.place(told, screens: screens, edges: edges) { accessibility(needsPage) }
+        var dropped: CGRect?
         if placement.source == .told, let previous = lastByApp[app ?? ""], !PanelAnchor.onScreen(previous, screens: screens) {
             // Remembered on a display that is gone (GitHub #61): not gone by.
             PanelAnchor.log.notice("panel anchor: the app's last rect is on no screen now (\(screens.count) screens), dropped")
-            lastByApp[app ?? ""] = nil
+            (lastByApp[app ?? ""], dropped) = (nil, previous)
         }
         if placement.source == .field {
             lastByApp[app ?? ""] = placement.rect
@@ -53,7 +56,9 @@ public enum FieldAnchor {
             // A pointer outside the window or over its toolbar isn't one.
             placement = PanelAnchor.Placement(rect: rect, source: .last)
         }
-        return Placed(told: told, placement: placement)
+        var placed = Placed(told: told, placement: placement)
+        placed.dropped = dropped
+        return placed
     }
 
     /// The field asked again for the panel's rect (`PanelAnchor.reaskDelays`) after it told none to trust: the rect the

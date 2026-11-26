@@ -1294,8 +1294,9 @@ final class AllInOneIMEInputController: IMKInputController {
         // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
         guard placements == placing else { return placement.rect }
         // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then)
-        // or dropped it, on no screen now: the dictionary is every controller's, and another may have written it meanwhile.
-        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field || lastByApp[app ?? ""] == nil ? lastByApp[app ?? ""] : Self.lastAnchorByApp[app ?? ""])
+        // or dropped it, on no screen now, and it is still that one: the dictionary is every controller's, and another
+        // may have written it meanwhile.
+        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""].flatMap { $0 == placed.dropped ? nil : $0 })
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==

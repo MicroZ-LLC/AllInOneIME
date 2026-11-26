@@ -726,9 +726,10 @@ public final class Composer {
                 // picked in the next one, even with the same text.
                 questionPick = nil
                 replyState.draftEnded()  // its attachment (a screenshot, a copied message) goes with it
-                // The rows `@open` and the other lists as you type listed for it go too: the next draft lists its own, as
-                // of then.
+                // The rows `@open` and the other lists as you type listed for it go too (and the folder Tab went into): the
+                // next draft lists its own, as of then.
                 live.clear()
+                completedFolder = nil
                 lists.clear(everything: true)
                 (listAnswered, listActsWhenAnswered, listRerun) = (nil, nil, nil)
                 oneAtFiles.clear()
