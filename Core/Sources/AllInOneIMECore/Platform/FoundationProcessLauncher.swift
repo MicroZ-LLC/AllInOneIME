@@ -139,6 +139,17 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     /// watcher that finds another program under its ID knows its own was collected by Foundation and the ID given out
     /// again (`watchExit`).
     private static let watched = Locked(initialState: [Int32: ObjectIdentifier]())
+    /// The C library's pidfd_open (Glibc 2.36+; nil without it) and waitid's P_PIDFD.
+    private static let pidfdOpen: (@convention(c) (pid_t, UInt32) -> Int32)? = dlsym(nil, "pidfd_open").map {
+        unsafeBitCast($0, to: (@convention(c) (pid_t, UInt32) -> Int32).self)
+    }
+    #if canImport(Glibc)
+    private static let pidfdType = idtype_t(rawValue: 3)
+    #else
+    private static let pidfdType = idtype_t(3)
+    #endif
+    /// The program's pidfd while `watchExit` waits on it (-1: none).
+    private var exitHandle: Int32 = -1
 
     /// Starts it, its end told by Foundation or by `watchExit`, whichever comes first. The termination handler keeps
     /// this object until it ran (the end is told even to a caller that kept nothing), and the Process keeps its
@@ -148,11 +159,18 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
         process.terminationHandler = { [self] process in
             ended(nil)
             process.terminationHandler = nil
+            // Foundation on Linux lets go of a Process (and so of its pipes' descriptors) only once something waited for
+            // it with its own waitUntilExit: a program nobody waited for stayed in memory, its handler cleared or not
+            // (measured with swift:6.4). Foundation knows of the end by now, so the wait returns at once.
+            // swiftlint:disable:next blocking_call - a global queue's thread, never main; returns at once (above)
+            DispatchQueue.global().async { process.waitUntilExit() }
         }
         do {
             try Self.watched.withLock { watched in
                 try process.run()
                 watched[process.processIdentifier] = ObjectIdentifier(self)
+                // The program itself, whatever is given its ID later (`watchExit`); -1 where the kernel has no pidfd.
+                exitHandle = Self.pidfdOpen?(process.processIdentifier, 0) ?? -1
             }
         } catch {
             process.terminationHandler = nil
@@ -180,10 +198,22 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     private func watchExit() {
         let pid = process.processIdentifier
         let id = id_t(pid)
+        let handle = exitHandle
         Thread.detachNewThread { [self] in
+            // Started while `launch` had every signal unblocked: this thread, which only waits, takes none.
+            var all = sigset_t()
+            sigfillset(&all)
+            pthread_sigmask(SIG_SETMASK, &all, nil)
+            defer { if handle >= 0 { close(handle) } }
+            // Already collected and its ID perhaps another's: Foundation tells its end (this would wait for that one).
+            guard Self.watched.withLock({ $0[pid] == ObjectIdentifier(self) }) else { return }
             var info = siginfo_t()
             var result: Int32
-            repeat { result = waitid(P_PID, id, &info, WEXITED | WNOWAIT) } while result == -1 && errno == EINTR
+            repeat {
+                // By its pidfd where there is one: the program itself, never another given its ID (Linux 5.4+).
+                result = handle >= 0 ? waitid(Self.pidfdType, id_t(handle), &info, WEXITED | WNOWAIT)
+                    : waitid(P_PID, id, &info, WEXITED | WNOWAIT)
+            } while result == -1 && errno == EINTR
             let own = Self.watched.withLock { watched -> Bool in
                 guard watched[pid] == ObjectIdentifier(self) else { return false }
                 watched[pid] = nil
@@ -191,11 +221,6 @@ final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
             }
             // Failed (ECHILD: Foundation reaped it first) or another program's end: its termination handler tells it.
             if result == 0, own { ended(childStatus(info)) }
-            // Foundation on Linux lets go of a Process (and so of its pipes' descriptors) only once something waited for
-            // it with its own waitUntilExit: a program nobody waited for stayed in memory, its handler cleared or not
-            // (measured with swift:6.4). This thread is the one that waits, until Foundation knows of the end too.
-            // swiftlint:disable:next blocking_call - this thread of its own, never main
-            process.waitUntilExit()
         }
     }
 
@@ -253,8 +278,12 @@ private func groupIsRunning(_ pid: Int32) -> Bool {
 /// as the pointers beside it, then `si_pid` and `si_uid`. Read at its place, which is the kernel's on every Linux,
 /// where Glibc and Musl name the fields on the way to it differently.
 private func childStatus(_ info: siginfo_t) -> Int32 {
+    #if canImport(Glibc)
+    return info._sifields._sigchld.si_status
+    #else
     let offset = MemoryLayout<Int>.size == 8 ? 24 : 20
     return withUnsafeBytes(of: info) { $0.loadUnaligned(fromByteOffset: offset, as: Int32.self) }
+    #endif
 }
 
 /// The state ("R", "S", "Z" for one that ended and wasn't collected yet …) and the process group of process `pid`, as
