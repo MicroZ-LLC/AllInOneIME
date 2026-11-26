@@ -14,9 +14,12 @@ let response = session.handle(.key(key, context))              // response.handl
 apply(response.outputs)
 ```
 
-A change of the modifiers (`.modifiers`) is the app's too, `handled` false, but for one: the release of the right
-Option's tap that typed "`" for the shape codes (`Composer.shapeCodeTap`) is the session's alone, `handled` true, and
-the shell keeps it from the app as it keeps a key (the Mac's controller returns it from `flagsChanged`).
+A change of the modifiers (`.modifiers`) is the app's too, `handled` false, but for the right Option's on its own
+while pinyin is typed with shape codes on, whose tap types "`" (`Composer.shapeCodeTap`): its press (before it is
+known to be a tap) and its release are both the session's alone, `handled` true, and the shell keeps them from the app
+as it keeps a key (the Mac's controller returns it from `flagsChanged`). Both or neither
+(`Composer.tookModifierChange`): an app that follows the modifiers from their changes never gets a press without its
+release. Once another modifier's change has told the app the key is down, its release is the app's too.
 
 ## Threads
 

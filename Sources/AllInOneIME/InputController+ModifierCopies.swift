@@ -10,17 +10,19 @@ extension AllInOneIMEInputController {
     /// Caps Lock's changes handed over again with a time of their own (`CapsLockCopies`), whatever the text field.
     @MainActor static var capsLockCopies = CapsLockCopies()
 
-    /// The time of the modifier change the session took for itself last (`handleFlagsChanged`): its copies are taken too.
-    @MainActor static var modifierTakenAt: TimeInterval?
+    /// The modifier changes the session took for itself (`handleFlagsChanged`), whatever the text field: their copies
+    /// are taken too, however late they come.
+    @MainActor static var modifiersTaken = TakenModifierChanges()
 
-    /// A change of the modifiers. True: the input method's alone, kept from the app: the release of the right ⌥'s tap
-    /// that typed "`" for the shape codes (`SessionResponse.handled`; the owner, 2026-11-26), and that event handed over
-    /// again. False for every other one: the application sees modifier changes too.
+    /// A change of the modifiers. True: the input method's alone, kept from the app: the right ⌥'s press and release
+    /// while pinyin is typed with shape codes on, its tap "`" (`SessionResponse.handled`, both or neither:
+    /// `Composer.tookModifierChange`; the owner, 2026-11-26), and those events handed over again. False for every other
+    /// one: the application sees modifier changes too.
     @MainActor
     func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         commitRow()  // a row the key before put in, if this change came first
         // Chromium's and Electron's second copy: dropped, and the app's or not as the first was (the same event, its time).
-        guard !Self.isModifierCopy(event) else { return Self.modifierTakenAt == event.timestamp }
+        guard !Self.isModifierCopy(event) else { return Self.modifiersTaken.took(at: event.timestamp) }
         let target: IMKTextInput? = client ?? clientOverride ?? self.client()
         // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
         // is no long press of it (only the session's long press minds fn).
@@ -29,7 +31,7 @@ extension AllInOneIMEInputController {
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
         let response = session.handle(.modifiers(change, context))
         apply(response.outputs, client: client)
-        if response.handled { Self.modifierTakenAt = event.timestamp }
+        if response.handled { Self.modifiersTaken.take(at: event.timestamp) }
         return response.handled
     }
 

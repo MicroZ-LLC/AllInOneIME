@@ -279,3 +279,25 @@ extension ComposerTests {
         #expect(f.effects.filter { if case .startConversion = $0 { true } else { false } }.count == 1)
     }
 }
+
+/// A page that is busy hands a change's copy over after the next changes too (`ModifierEchoes`): the copy of a change
+/// the session took is still the session's then, whatever was taken since.
+@Suite struct TakenModifierChangesTests {
+    @Test func aLateCopyOfATakenChangeIsStillTakenAfterLaterOnes() {
+        var taken = TakenModifierChanges()
+        taken.take(at: 10)     // a tap's press
+        taken.take(at: 10.1)   // its release
+        taken.take(at: 10.6)   // the next tap's press
+        taken.take(at: 10.7)
+        #expect(taken.took(at: 10) && taken.took(at: 10.1), "the first tap's copies would reach the app")
+        #expect(taken.took(at: 10.6) && taken.took(at: 10.7))
+        #expect(!taken.took(at: 10.3))
+    }
+
+    @Test func onlyTheLatestAreKept() {
+        var taken = TakenModifierChanges()
+        for step in 0..<(TakenModifierChanges.kept + 1) { taken.take(at: Double(step + 1)) }
+        #expect(!taken.took(at: 1))
+        #expect(taken.took(at: 2) && taken.took(at: Double(TakenModifierChanges.kept + 1)))
+    }
+}

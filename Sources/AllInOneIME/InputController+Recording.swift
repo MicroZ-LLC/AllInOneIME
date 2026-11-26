@@ -25,7 +25,8 @@ extension AllInOneIMEInputController {
         case .keyDown:
             return MainActor.assumeIsolated { handleKeyDown(event, client: client) }
         case .flagsChanged:
-            // The application sees modifier changes too, but for the right ⌥'s tap that typed "`" (shape codes).
+            // The application sees modifier changes too, but for the right ⌥'s press and release that may be the shape
+            // codes' tap.
             return MainActor.assumeIsolated { handleFlagsChanged(event, client: client) }
         default:
             return false
