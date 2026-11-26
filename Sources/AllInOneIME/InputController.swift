@@ -167,7 +167,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var ghostToken = 0
     var ghostInPanel = false
     /// The self-test's say whether the field is a password field, as autocomplete's read asks Accessibility
-    /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
+    /// (`readFieldAfterPause`, `readPasswordField`): its harness field is never the one focused. Nil: Accessibility's.
     var passwordField: (@MainActor () -> Bool)?
     /// Whether an app (its bundle id) is built on Chromium or Electron (`ChromiumApps`): a key the rows take there is kept
     /// from its page with marked text (`marksRow`). Each app told once found, for every field (`chromiumApps`); the
@@ -180,6 +180,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The field's frame the suggestion is cut at (`placeGhost`), asked once a suggestion (nil: not yet; .some(nil): not
     /// known); the self-test's own (`fieldFrame`: its harness field isn't the one focused), else Accessibility's.
     var ghostField: NSRect??
+    /// Counts the field frames asked (`askGhostField`): an answer to an earlier one (another suggestion's, another
+    /// field's) is gone by.
+    var ghostFieldAsked = 0
     var fieldFrame: (@MainActor () -> NSRect?)?
     /// What a panel's anchor goes by in this field (`PanelAnchor.Memory`: the last rect to trust it told), and a count
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
@@ -342,6 +345,8 @@ final class AllInOneIMEInputController: IMKInputController {
     var typist = TypeOut.Typist([], start: 0)
     /// Typing out stopped, the field looked at again a little later (`settleStop`): whether the rest goes in then.
     var stopsInsertingRest: Bool?
+    /// The keys that type, typed while a stop settles (`keyWhileTypingOut`), each with its field: handled once it has.
+    var keysWhileStopping: [(event: NSEvent, client: IMKTextInput?)] = []
     var typingField: TypingField?
     /// Line breaks, tabs and other control characters go in as a paste (a terminal; `TerminalPaste`).
     var typingPastes = false
@@ -481,7 +486,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
     /// in the field is taken out first, where it was typed, so it holds the text, or its start. Checked like any fix: a
     /// field that tells its text late is looked at again a little later, never waited for here (`settleStop`), the rest as
-    /// the first stop asked; `waiting` false: done now, with the field as it looks. Whether it stopped now.
+    /// the first stop asked; `waiting` false: done now, with the field as it looks. Whether it stopped now. Once it has,
+    /// the keys typed meanwhile go on (`keysWhileStopping`), in the order typed.
     @MainActor @discardableResult
     func stopTyping(insertingRest: Bool, waiting: Bool = true) -> Bool {
         guard let task = typingTask else { return true }
@@ -492,12 +498,14 @@ final class AllInOneIMEInputController: IMKInputController {
                 settleStop(in: field, insertingRest: insertingRest)
                 return false
             }
-            rememberFailure(field.client.bundleIdentifier() ?? "")
+            // Judged without waiting, a field that tells its text late may look as if it didn't take a fix: not remembered.
+            if waiting { rememberFailure(field.client.bundleIdentifier() ?? "") }
             if !rest.isEmpty { insert(rest, into: field.client) }
         }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
         (typingTask, typist, typingField, typingPastes, stopsInsertingRest) = (nil, TypeOut.Typist([], start: 0), nil, false, nil)
         caretAfterTyping = nil  // a snippet's caret stays at the end
+        typeHeldKeys()
         return true
     }
 
@@ -633,22 +641,13 @@ final class AllInOneIMEInputController: IMKInputController {
     /// from one (`marksRow`, `keepFromTerminal`).
     private(set) var atTap = false
 
-    /// A key down handed over for the first time.
+    /// A key down handed over for the first time (or held while typing out stopped, now that it has: `typeHeldKeys`).
     @MainActor
-    private func handleNewKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
+    func handleNewKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
-        // then goes on as usual.
+        // then goes on as usual (`keyWhileTypingOut`).
         translateModeKeyDown()
-        if typingTask != nil {
-            if event.keyCode == VirtualKey.escape {
-                stopTyping(insertingRest: false)
-                return true
-            }
-            // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            // Not stopped yet (a field that tells its text late: `settleStop`): the key only finishes typing too.
-            let pastesRest = typingPastes && Composer.actsInTerminal(typist.rest)
-            if !stopTyping(insertingRest: true) || pastesRest { return true }
-        }
+        if typingTask != nil, let taken = keyWhileTypingOut(event, client: client) { return taken }
         anchorToken += 1  // the field isn't asked again for the panel's rect: this key places the panel anew, if it's up
         if !receivedKeys {
             receivedKeys = true
@@ -691,13 +690,13 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// How this controller reads the field (`FieldReading`): secure input as the session's services and this Mac tell it,
-    /// a password field as Accessibility does (`passwordFieldByAccessibility`), the selection Accessibility may tell after
-    /// the key (`SelectedText`, not in the self-test: `selectionByAccessibility`).
+    /// a password field as Accessibility does, asked off the main thread before the read after a pause
+    /// (`readFieldAfterPause`; unknown here), the selection Accessibility may tell after the key (`SelectedText`, not in
+    /// the self-test: `selectionByAccessibility`).
     @MainActor
     var fieldReading: FieldReading {
         FieldReading(isTerminal: Self.isTerminal(app:), secureInputActive: services.secureInputActive,
-                     blocksComposing: SecureInput.blocksComposing,
-                     passwordField: { [weak self] in self?.passwordFieldByAccessibility() ?? nil },
+                     blocksComposing: SecureInput.blocksComposing, passwordField: { nil },
                      selectionMayBeUntold: selectionByAccessibility ? { SelectedText.mayBeUntold(in: $0, chromium: $1) } : nil,
                      chromiumApp: chromiumApp)
     }
@@ -1197,6 +1196,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let (told, placement) = (placed.told, placed.placement)
         // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
         guard placements == placing else { return placement.rect }
+        learnWindowTold(into: &memory, field: field, client: client)
         // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then)
         // or dropped it, on no screen now, and it is still that one: the dictionary is every controller's, and another
         // may have written it meanwhile.

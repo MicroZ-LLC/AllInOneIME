@@ -69,9 +69,17 @@ public struct FoundationProcessLauncher: ProcessLauncher {
         #endif
         if let io = Self.handle(spec.standardOutput) { process.standardOutput = io }
         if let io = Self.handle(spec.standardError) { process.standardError = io }
+        #if canImport(Glibc)
+        let child = FoundationProcess(process, onExit: spec.onExit)
+        // Foundation's own word of its end comes late on Linux (`FoundationProcess.watchExit`); whichever comes first.
+        process.terminationHandler = { _ in child.ended(nil) }
+        try process.run()
+        child.watchExit()
+        #else
         let child = FoundationProcess(process)
         if let onExit = spec.onExit { process.terminationHandler = { _ in onExit(child) } }
         try process.run()
+        #endif
         return child
     }
 
@@ -98,12 +106,65 @@ public struct FoundationProcessLauncher: ProcessLauncher {
 final class FoundationProcess: LaunchedProcess, @unchecked Sendable {
     let process: Process
 
+    #if canImport(Glibc)
+    /// Told once it ended (`LaunchSpec.onExit`).
+    private let onExit: ((any LaunchedProcess) -> Void)?
+
+    init(_ process: Process, onExit: ((any LaunchedProcess) -> Void)? = nil) {
+        self.process = process
+        self.onExit = onExit
+        ending.enter()
+    }
+    #else
     init(_ process: Process) { self.process = process }
+    #endif
 
     var processIdentifier: Int32 { process.processIdentifier }
+    #if canImport(Glibc)
+    var isRunning: Bool { status.withLock { $0 == nil } && process.isRunning }
+    var terminationStatus: Int32 { status.withLock { $0 } ?? process.terminationStatus }
+    // swiftlint:disable:next blocking_call - the caller's own thread waits, as with Process.waitUntilExit (never main)
+    func waitUntilExit() { ending.wait() }
+
+    /// Its exit status once it ended, as told first: by `watchExit` or by Foundation.
+    private let status = Locked<Int32?>(initialState: nil)
+    /// Left once it ended.
+    private let ending = DispatchGroup()
+
+    /// Its end told as soon as it comes. Foundation on Linux learns of a program's end only when every process that
+    /// inherited its descriptors has gone too: `sh -c "job & exit 0"` ended at once, but its termination handler came
+    /// when `job` ended, seconds or days later (a login shell's startup files can leave such a job; the Linux CI's
+    /// ProcessOutputTests.whatItLeftRunningDoesntHoldTheRunUp, 3 of 3). `waitid` with WNOWAIT, on a thread of its own,
+    /// sees the end at once without collecting it: Foundation still reaps the program, when it gets there. Its status
+    /// is `si_status`: the exit code, or the signal that ended it, as Foundation's `terminationStatus` tells them.
+    func watchExit() {
+        let pid = process.processIdentifier
+        Thread.detachNewThread { [self] in
+            var info = siginfo_t()
+            var result: Int32
+            repeat { result = waitid(P_PID, id_t(pid), &info, WEXITED | WNOWAIT) } while result == -1 && errno == EINTR
+            // Failed (ECHILD: Foundation reaped it first): its termination handler tells the end.
+            guard result == 0 else { return }
+            ended(info._sifields._sigchld.si_status)
+        }
+    }
+
+    /// It ended with `told` (nil: Foundation's word, its `terminationStatus`); `onExit` told once, the first time.
+    func ended(_ told: Int32?) {
+        let first = status.withLock { stored -> Bool in
+            guard stored == nil else { return false }
+            stored = told ?? process.terminationStatus
+            return true
+        }
+        guard first else { return }
+        ending.leave()
+        onExit?(self)
+    }
+    #else
     var isRunning: Bool { process.isRunning }
     var terminationStatus: Int32 { process.terminationStatus }
     func waitUntilExit() { process.waitUntilExit() }
+    #endif
 
     #if os(Windows)
     // No signals or process groups: `Process.terminate()` (TerminateProcess) ends the program at once, but not what it

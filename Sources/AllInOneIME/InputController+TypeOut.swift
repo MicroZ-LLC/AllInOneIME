@@ -103,22 +103,66 @@ extension AllInOneIMEInputController {
 
     /// Typing out stopped while the field doesn't tell what was typed yet (`TypeOut.Typist.stopping`: Chromium tells its
     /// text late), looked at again a little later (`typeOutSleep`), off the key that stopped it: no key waits on the main
-    /// thread. Typing out goes on stopping meanwhile (`isTypingOut`; a key only finishes it), in this field and this typing
-    /// out only: another field took the focus, it is left as it is.
+    /// thread. Typing out goes on stopping meanwhile (`isTypingOut`; a key that types waits for it: `keyWhileTypingOut`),
+    /// in the field it typed into and this typing out only, also once another field has the focus: a typo there is still
+    /// taken out, where it was typed (the rest isn't typed then: `leaveField`).
     @MainActor
     func settleStop(in field: TypingField, insertingRest: Bool) {
         stopsInsertingRest = insertingRest
-        let (session, sleep) = (fieldSession, typeOutSleep)
+        let sleep = typeOutSleep
         typingTask = Task { @MainActor [weak self] in
             await sleep(0.02)
             guard let self, !Task.isCancelled, self.typingField === field else { return }
-            guard self.fieldSession == session else {
-                log.notice("typing out stopped (the field left before it told what was typed)")
-                (self.typingTask, self.typist, self.typingField, self.typingPastes) = (nil, TypeOut.Typist([], start: 0), nil, false)
-                (self.stopsInsertingRest, self.caretAfterTyping) = (nil, nil)
-                return
-            }
             self.stopTyping(insertingRest: insertingRest)
         }
+    }
+
+    /// A key down while a result is typed out (`typingTask`): Esc stops it there (the rest not typed); any other key types
+    /// the rest at once, then goes on as usual. Where the stop settles later (`settleStop`: a field that tells its text
+    /// late), a key that types (`typesText`) waits for it, held (`keysWhileStopping`) and handled once it has, in the order
+    /// typed, never looking at the field again meanwhile; any other key (⏎, ⌫, an arrow, a shortcut) settles it at once,
+    /// the held ones first, and goes on, as the app may have to have it. Whether the key is taken here; nil: it goes on.
+    @MainActor
+    func keyWhileTypingOut(_ event: NSEvent, client: IMKTextInput?) -> Bool? {
+        let typesText = Self.typesText(event)
+        if stopsInsertingRest != nil {
+            guard typesText else {
+                stopTyping(insertingRest: true, waiting: false)
+                return nil
+            }
+            keysWhileStopping.append((event, client))
+            return true
+        }
+        if event.keyCode == VirtualKey.escape {
+            stopTyping(insertingRest: false)
+            return true
+        }
+        // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
+        let pastesRest = typingPastes && Composer.actsInTerminal(typist.rest)
+        guard stopTyping(insertingRest: true, waiting: typesText) else {
+            keysWhileStopping.append((event, client))
+            return true
+        }
+        return pastesRest ? true : nil
+    }
+
+    /// The keys held while a stop settled (`keyWhileTypingOut`), now that it has: each as if typed now, in its field; one
+    /// the input method doesn't take is typed there, as its app would have typed it.
+    @MainActor
+    func typeHeldKeys() {
+        let held = keysWhileStopping
+        keysWhileStopping = []
+        for (event, client) in held where !handleNewKeyDown(event, client: client) {
+            (client ?? clientOverride ?? self.client())?.insertText(event.characters ?? "", replacementRange: Self.notFound)
+        }
+    }
+
+    /// Whether `event` types text: characters without ⌘ or ⌃, none of them a control character (⏎, ⇥, ⌫, Esc) or a
+    /// function key's (an arrow, ⌦, a page key).
+    static func typesText(_ event: NSEvent) -> Bool {
+        guard event.modifierFlags.isDisjoint(with: [.command, .control]), let characters = event.characters, !characters.isEmpty else {
+            return false
+        }
+        return characters.unicodeScalars.allSatisfy { !CharacterSet.controlCharacters.contains($0) && !(0xF700...0xF8FF).contains($0.value) }
     }
 }

@@ -32,7 +32,18 @@ public enum SourceCompiler {
         arguments += ["-Xlinker", "-weak_framework", "-Xlinker", "FoundationModels"]
         arguments += sources + extraObjects + (try libraryObjects(in: products)) + ["-o", executable.path]
         Scratch.removeAtExit(executable)
+        try copyCoreResources(from: products, besides: executable)
         return try run(arguments, repository: repository, timeout: timeout)
+    }
+
+    /// The core's resources (its English words: `CoreResources` in the core) beside the child, as SwiftPM puts them
+    /// beside the binaries it builds: without them the child would know no English word.
+    private static func copyCoreResources(from products: URL, besides executable: URL) throws {
+        let fm = FileManager.default
+        let resources = products.appendingPathComponent("AllInOneIME-Core_AllInOneIMECore.bundle")
+        let copy = executable.deletingLastPathComponent().appendingPathComponent(resources.lastPathComponent)
+        guard fm.fileExists(atPath: resources.path), !fm.fileExists(atPath: copy.path) else { return }
+        try fm.copyItem(at: resources, to: copy)
     }
 
     private static func productsDirectory(repository: URL) throws -> URL {

@@ -1,7 +1,9 @@
 # Every Monday, on the Mac mini: the code health report (Scripts/health-report.py) of the newest release branch (else
 # mainline), in one issue labelled health-report that it keeps up to date (made and pinned the first time): files over
-# the size limit and their trend, SwiftLint's baseline and its trend, duplicated code, unused code (Periphery). The
-# quality gate stops the debt from growing; this shows whether it shrinks. Changes nothing in the repository.
+# the size limit and their trend, SwiftLint's baseline and its trend, duplicated code, unused code (Periphery), and the
+# tests the quality gate's runs of the last four weeks found flaky (failed under load, passed alone: the flaky-tests-*
+# artifacts its test jobs keep). The quality gate stops the debt from growing; this shows whether it shrinks. Changes
+# nothing in the repository.
 name: Health report
 
 on:
@@ -14,6 +16,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
+  actions: read           # the test jobs' flaky-tests-* artifacts
   contents: read
   issues: write
 
@@ -36,10 +39,37 @@ jobs:
           echo "REPORT_BRANCH=$branch" >> "$GITHUB_ENV"
           pins=$(grep -E '^[A-Z_]+_(VERSION|TAG|TARBALL|ZIP|SHA256|COMMIT) +:=' Makefile | shasum | cut -c1-12)
           echo "ALLINONEIME_THIRDPARTY=$RUNNER_TOOL_CACHE/allinoneime/thirdparty-$pins" >> "$GITHUB_ENV"
+      - name: The flaky tests of the last four weeks
+        # quality.yml's test jobs keep the tests that failed under load and passed alone, a file per run
+        # (flaky-tests-<job>-<attempt>, 35 days): a folder per job, one per run in it, for the report to count. The
+        # folder is there only when all of them could be listed; else the report says it couldn't read them. One that
+        # couldn't be downloaded goes in its unread.txt, and the report says the section is partial (or skipped, when
+        # none could be), not that there were none.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flaky=$RUNNER_TEMP/flaky.partial && mkdir -p "$flaky"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[]
+            | select((.name | startswith("flaky-tests-")) and (.expired | not)
+                     and (.created_at | fromdateiso8601) > now - 28 * 86400)
+            | "\(.id) \(.workflow_run.id) \(.name)"' > "$RUNNER_TEMP/flaky.txt"
+          # gh reads nothing of the list it's in (</dev/null), so every line reaches `read`.
+          while read -r id run name; do
+            job=${name#flaky-tests-} && job=${job%-*}
+            if ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$flaky/$job/$id" </dev/null; then
+              echo "::warning::couldn't download $name of run $run"
+              echo "$name $run" >> "$flaky/unread.txt"
+            fi
+          done < "$RUNNER_TEMP/flaky.txt"
+          mv "$flaky" "$RUNNER_TEMP/flaky"
+          unread=0
+          [ ! -f "$RUNNER_TEMP/flaky/unread.txt" ] || unread=$(wc -l < "$RUNNER_TEMP/flaky/unread.txt" | tr -d ' ')
+          echo "$(wc -l < "$RUNNER_TEMP/flaky.txt" | tr -d ' ') runs had flaky tests, $unread not downloaded"
       - name: Write the report
         run: |
           make deps   # Periphery builds the app's package, which links librime
-          python3 Scripts/health-report.py --periphery > "$RUNNER_TEMP/report.md"
+          python3 Scripts/health-report.py --periphery --flaky "$RUNNER_TEMP/flaky" > "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Put it in the issue
         env:

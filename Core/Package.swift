@@ -42,7 +42,11 @@ let package = Package(
                 // The JavaScript where there is no JavaScriptCore (Platform.systemScripts).
                 .target(name: "AllInOneIMEQuickJS", condition: .when(platforms: [.linux, .windows, .android])),
                 .product(name: "Crypto", package: "swift-crypto"),
-            ]
+            ],
+            // The English words the key detector knows (RedactionWords.english; Scripts/make-redaction-words.swift).
+            // A shell that ships the core ships SwiftPM's bundle of them where `Bundle.module` would look (the macOS
+            // app: Contents/Resources, the Makefile's `app`; elsewhere beside the executable): CoreResources.
+            resources: [.copy("Resources/RedactionWords.txt")]
         ),
 
         // The JavaScript engine's interface (ScriptEngine), below the core so that AllInOneIMEQuickJS can implement it

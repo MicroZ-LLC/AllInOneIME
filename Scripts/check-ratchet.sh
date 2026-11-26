@@ -17,7 +17,6 @@ LIMIT=400
 repo=$(cd "$(dirname "$0")/.." && pwd)
 cd "$repo"
 list=Scripts/oversized-files.txt
-skip='Core/Sources/AllInOneIMECore/RedactionWordList.swift'   # generated (make redaction-words), not written
 
 mode=${1:-check}
 case $mode in
@@ -31,7 +30,6 @@ trap 'rm -rf "$tmp"' EXIT
 
 # "SIZE PATH" for every file in scope, by lines of code.
 find Sources Core/Sources -name '*.swift' -type f | LC_ALL=C sort | while IFS= read -r file; do
-    [ "$file" = "$skip" ] && continue
     awk -v file="$file" '
         { line = $0; sub(/^[ \t]+/, "", line) }
         block { if (index(line, "*/")) block = 0; next }

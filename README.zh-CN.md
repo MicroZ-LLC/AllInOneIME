@@ -1337,8 +1337,9 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 - **Quality gate**（`.github/workflows/quality.yml`）：`make lint`，以及分成两半同时跑的 `make test`：核心的测试
   （`make test-core`）在 GitHub 的 Linux 和 macOS 机器上跑，Mac App 的（`make test-mac`）在维护者的 Mac 上跑。
   pull request 只跑它改的文件可能影响到的那一半（`Scripts/test-scope.sh`：只改 docs/ 或 site/ 的两半都不用跑）；推到 `mainline`
-  或 `release-*` 时两半都跑。推送之前先跑 `make check`；只改核心时跑 `make test-core`（或 `Core/Scripts/test.sh`，
-  它在 Linux 上也能跑核心的测试）。
+  或 `release-*` 时两半都跑。改动涉及更新器、安装器或 App 的构建方式时，以及每次推到 `release-*` 时，维护者的 Mac
+  上还会跑更新器的端到端测试（`make update-test`，不联网）。推送之前先跑 `make check`；只改核心时跑
+  `make test-core`（或 `Core/Scripts/test.sh`，它在 Linux 上也能跑核心的测试）。
 - **review**（`.github/workflows/review.yml`）：另一个模型（Codex CLI，没有时用 Claude Code）按 AGENTS.md 独立审查改动，
   在 pull request 上留一条评论。只有高把握的正确性或隐私问题才会让它失败。
 
@@ -1346,7 +1347,8 @@ App 先用内置的公钥核对签名再读 update-v2.json，不会装不比现�
 （超过 400 行代码的文件，它们不能再变大）。新代码要符合规则，旧代码在改到时修好。修掉一些之后，`make lint-baseline`
 把基线降下来；把基线调高的 pull request 在 CI 里不通过。来自 fork 的 pull request 不在维护者的 Mac 上跑：由读过它的
 维护者推到这个仓库的分支上再检查。每周一，Health report 工作流更新置顶的「Code health report」issue：超限的文件、
-基线、重复和没用到的代码，以及它们各自的变化。
+基线、重复和没用到的代码，以及它们各自的变化；还有最近四周的检查里，在负载下失败、单独重跑又通过的测试（每个测试
+job 都会记下它们的名字）。
 
 ## 许可证
 
