@@ -474,10 +474,13 @@ UPDATE_SUMMARY_ZH ?=
 # timestamp from Apple's server and no provisioning profile), as the test's "new version" is: the updater takes an
 # update only from the team that signed the running app, and an ad-hoc build has none. CI runs it on the Mac mini when a
 # change touches the updater or how the apps are built (Scripts/test-scope.sh's `update`), and on each push to a
-# release branch (quality.yml).
+# release branch (quality.yml). The apps it built are removed afterwards, whether it passed or failed: macOS may start a
+# second copy of the input method's bundle ID left in build/ instead of the installed one (why `install` moves it).
 update-test:
 	$(MAKE) app settings-app SIGN_IDENTITY= PROFILE=
-	Scripts/test-update.sh "$(BUILD_DIR)"
+	@status=0; Scripts/test-update.sh "$(BUILD_DIR)" || status=$$?; \
+		rm -rf "$(APP)" "$(SETTINGS_APP)"; \
+		exit $$status
 
 update-manifest:
 	@test -f "$(UPDATE_ZIP)" || { echo "error: no $(UPDATE_ZIP); run make dmg"; exit 1; }
