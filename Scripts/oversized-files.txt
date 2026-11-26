@@ -15,7 +15,7 @@
 422 Core/Sources/AllInOneIMECore/EnglishWordsEngine.swift
 785 Core/Sources/AllInOneIMECore/ExtensionSources.swift
 544 Core/Sources/AllInOneIMECore/ExtensionStore.swift
-863 Core/Sources/AllInOneIMECore/ICloudSync.swift
+862 Core/Sources/AllInOneIMECore/ICloudSync.swift
 477 Core/Sources/AllInOneIMECore/ICloudSyncEngine.swift
 612 Core/Sources/AllInOneIMECore/PersonalDictionary.swift
 477 Core/Sources/AllInOneIMECore/Redaction.swift
@@ -50,8 +50,8 @@
 429 Sources/AllInOneIME/FloatingPanelSelfTest.swift
 875 Sources/AllInOneIME/InputController.swift
 2934 Sources/AllInOneIME/SelfTest.swift
-2927 Sources/AllInOneIME/SettingsWindow.swift
+2926 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
 779 Sources/AllInOneIME/Updates.swift
-451 Sources/AllInOneIME/main.swift
+450 Sources/AllInOneIME/main.swift
 429 Sources/AllInOneIMEMac/IdentityFinish.swift
