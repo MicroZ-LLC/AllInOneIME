@@ -63,8 +63,8 @@ extension ICloudSyncController {
     /// launch, the queue behind a run or a keychain slow to answer) hasn't run or is running (`asked`: how many are):
     /// a copy-back that only then lists what to copy (from "moving" or "done": key sync turned off while the input
     /// method wasn't running) leaves them out (`startCopyBack`), as `dropFromCopyBack` takes them off a list already
-    /// written. Kept no longer than that: a key removed here long before key sync is turned on and off again is copied
-    /// back as any other.
+    /// written. Kept no longer than that (a run that couldn't make its list leaves them for the next: `keySyncOnQueue`):
+    /// a key removed here long before key sync is turned on and off again is copied back as any other.
     private nonisolated static let changedHere = Locked<(asked: Int, accounts: Set<String>)>(initialState: (0, []))
 
     /// What `KeySync.Stores.whenRemovedHere` is told with, for the marker at `url`: the account off the copy-back's list
@@ -117,25 +117,32 @@ extension ICloudSyncController {
         Self.changedHere.withLock { $0.asked += 1 }
         keys.whenRemovedHere(Self.removedHere(markerURL: markerURL))
         queue.async {
-            defer { Self.changedHere.withLock { if $0.asked > 0 { $0.asked -= 1 }; if $0.asked == 0 { $0.accounts = [] } } }
-            Self.applyKeySync(keys, configURL: configURL, markerURL: markerURL, atLaunch: atLaunch)
+            // What was removed or saved here meanwhile is kept until a run has made the copy-back's list without it, or
+            // found none to make: one that couldn't (iCloud Keychain locked at login, the config unreadable) leaves it
+            // for the next, which would else copy the removed key back.
+            let settled = Self.applyKeySync(keys, configURL: configURL, markerURL: markerURL, atLaunch: atLaunch)
+            Self.changedHere.withLock { if $0.asked > 0 { $0.asked -= 1 }; if $0.asked == 0, settled { $0.accounts = [] } }
         }
     }
 
-    /// `applyKeySync` with `keys`, the config file at `configURL` and the marker at `markerURL`: any thread.
-    private nonisolated static func applyKeySync(_ keys: KeySync.Stores, configURL: URL, markerURL url: URL, atLaunch: Bool) {
+    /// `applyKeySync` with `keys`, the config file at `configURL` and the marker at `markerURL`: any thread. False when a
+    /// copy-back's list may still have to be made by a later run (the config couldn't be read, iCloud Keychain's keys
+    /// couldn't be listed, the list couldn't be written): the accounts changed here meanwhile (`changedHere`) are still
+    /// to be left out of it.
+    @discardableResult
+    private nonisolated static func applyKeySync(_ keys: KeySync.Stores, configURL: URL, markerURL url: URL, atLaunch: Bool) -> Bool {
         keys.whenRemovedHere(removedHere(markerURL: url))
         guard let config = try? Config.load(from: configURL) else {
             log.error("keys left as they are: the config can't be read")
-            return
+            return false
         }
         let wanted = config.iCloudSync.syncsKeys
         let marker = markerLock.withLock { KeySync.Marker.read(at: url) }
         guard wanted ? marker != .done || atLaunch : marker != nil else {
             if keys.syncing != wanted { keys.start(syncing: wanted) }
-            return
+            return true
         }
-        if wanted, !markKeysSynced(.moving, at: url) { return }
+        if wanted, !markKeysSynced(.moving, at: url) { return true }
         var only: Set<String>?
         if !wanted {
             if case let .copyingBack(accounts)? = marker {
@@ -149,9 +156,9 @@ extension ICloudSyncController {
                     accounts = try keys.listCopyBack()
                 } catch {
                     log.error("keys not copied back out of iCloud Keychain, tried again later: its keys can't be listed: \(String(describing: error), privacy: .public)")
-                    return
+                    return false
                 }
-                guard let listed = startCopyBack(accounts, at: url) else { return }
+                guard let listed = startCopyBack(accounts, at: url) else { return false }
                 only = Set(listed)
             }
         }
@@ -160,12 +167,13 @@ extension ICloudSyncController {
             guard moves.isComplete else {
                 if !wanted { Self.narrowCopyBack(to: moves.remaining, at: url) }
                 log.error("keys not all moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain, tried again later: \(moves.waiting.count) unreadable, \(moves.mismatched.count) left as they were")
-                return
+                return true
             }
             markKeysSynced(wanted ? .done : nil, at: url)
             log.notice("keys \(wanted ? "sync through iCloud Keychain" : "stay in the login keychain", privacy: .public): \(moves.moved.count) moved, \(moves.superseded.count) newer already, \(moves.setAside.count) replaced copies kept")
         } catch {
             log.error("keys not moved \(wanted ? "into" : "out of", privacy: .public) iCloud Keychain: \(String(describing: error), privacy: .public)")
         }
+        return true
     }
 }
