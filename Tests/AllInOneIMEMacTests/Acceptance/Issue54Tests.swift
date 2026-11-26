@@ -284,6 +284,8 @@ if arguments.first == "source" {
             fflush(stdout)
             Thread.sleep(forTimeInterval: delay)
             item.setString(issue54Copied, forType: type)
+            print("PROVIDED \(type.rawValue)")
+            fflush(stdout)
         }
     }
     guard arguments.count == 3 else { exit(2) }
@@ -367,6 +369,11 @@ enum Issue54Clipboard {
             }
         }
     }
+
+    /// Whether a paste of ours is on the clipboard (`TerminalPaste.write` marks it transient).
+    static var written: Bool {
+        pasteboard.types?.contains(NSPasteboard.PasteboardType("org.nspasteboard.TransientType")) == true
+    }
 }
 
 struct Issue54Report: Encodable {
@@ -391,14 +398,38 @@ enum Issue54Child {
     static let terminal = Issue54Terminal()
     static var report = Issue54Report()
     static var askedBefore = 0
+    static var pendingActions = 0
+    static let settle: TimeInterval = 0.3
+    static let maxWait: TimeInterval = 3.5
+
+    struct SettleState: Equatable {
+        var pasteKeys: Int
+        var reads: Int
+        var typed: Int
+        var changeCount: Int
+        var flagReads: Int64
+    }
 
     static func say(_ line: String) {
         print(line)
         fflush(stdout)
     }
 
-    static func asked() -> Int {
-        ((try? String(contentsOfFile: sourceLog, encoding: .utf8)) ?? "").components(separatedBy: "ASKED ").count - 1
+    static func sourceCount(_ marker: String) -> Int {
+        ((try? String(contentsOfFile: sourceLog, encoding: .utf8)) ?? "").components(separatedBy: marker).count - 1
+    }
+
+    static func asked() -> Int { sourceCount("ASKED ") }
+    static func provided() -> Int { sourceCount("PROVIDED ") }
+
+    static func after(_ delay: TimeInterval, _ action: @escaping @MainActor () -> Void) {
+        pendingActions += 1
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            MainActor.assumeIsolated {
+                action()
+                pendingActions -= 1
+            }
+        }
     }
 
     static func start() {
@@ -466,17 +497,62 @@ enum Issue54Child {
             say("FAIL unknown stop \(stop)")
             exit(2)
         }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { issue54Hold(0) }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3.5) {
-            MainActor.assumeIsolated {
-                report.pasteKeys = Issue54Clipboard.pasteKeys
-                report.terminalGot = Issue54Clipboard.terminalGot
-                report.typed = terminal.typed
-                report.clipboardAfter = Issue54Clipboard.pasteboard.string(forType: .string)
-                say("REPORT " + String(decoding: try! JSONEncoder().encode(report), as: UTF8.self))
-                exit(0)
-            }
+        if window == "modifier-held" {
+            after(0.3) { issue54Hold(0) }
         }
+        waitUntilSettled(until: Date().addingTimeInterval(maxWait))
+    }
+
+    static func currentState() -> SettleState {
+        SettleState(
+            pasteKeys: Issue54Clipboard.pasteKeys,
+            reads: Issue54Clipboard.terminalGot.count,
+            typed: terminal.typed.count,
+            changeCount: Issue54Clipboard.pasteboard.changeCount,
+            flagReads: issue54FlagReads()
+        )
+    }
+
+    /// All scheduled actions run, the copy's app finished handing over what was asked, no typing out or transient paste
+    /// left, and every posted ⌘V already read by the terminal.
+    static var isIdle: Bool {
+        pendingActions == 0
+            && provided() >= asked()
+            && !controller.isTypingOut
+            && !Issue54Clipboard.written
+            && Issue54Clipboard.terminalGot.count == Issue54Clipboard.pasteKeys
+    }
+
+    /// Reports as soon as everything is idle and quiet for `settle` (past `TerminalPaste.switchSettle`), or at `deadline`.
+    static func waitUntilSettled(until deadline: Date, last: SettleState? = nil, quietSince: Date? = nil) {
+        let now = Date()
+        if now >= deadline {
+            finish()
+            return
+        }
+        let state = currentState()
+        let since: Date?
+        if isIdle {
+            since = state == last ? (quietSince ?? now) : now
+            if let since, now.timeIntervalSince(since) >= settle {
+                finish()
+                return
+            }
+        } else {
+            since = nil
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+            MainActor.assumeIsolated { waitUntilSettled(until: deadline, last: state, quietSince: since) }
+        }
+    }
+
+    static func finish() {
+        report.pasteKeys = Issue54Clipboard.pasteKeys
+        report.terminalGot = Issue54Clipboard.terminalGot
+        report.typed = terminal.typed
+        report.clipboardAfter = Issue54Clipboard.pasteboard.string(forType: .string)
+        say("REPORT " + String(decoding: try! JSONEncoder().encode(report), as: UTF8.self))
+        exit(0)
     }
 }
 

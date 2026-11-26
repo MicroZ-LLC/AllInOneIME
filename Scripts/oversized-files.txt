@@ -46,12 +46,12 @@
 939 Sources/AllInOneIME/ElectronSelfTest.swift
 573 Sources/AllInOneIME/ExtensionSourcesSelfTest.swift
 680 Sources/AllInOneIME/ExtensionSourcesSettings.swift
-1234 Sources/AllInOneIME/FloatingPanel.swift
+1223 Sources/AllInOneIME/FloatingPanel.swift
 429 Sources/AllInOneIME/FloatingPanelSelfTest.swift
 418 Sources/AllInOneIME/ICloudSyncController.swift
 950 Sources/AllInOneIME/InputController.swift
 2934 Sources/AllInOneIME/SelfTest.swift
-2950 Sources/AllInOneIME/SettingsWindow.swift
+2931 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
 779 Sources/AllInOneIME/Updates.swift
 475 Sources/AllInOneIME/main.swift

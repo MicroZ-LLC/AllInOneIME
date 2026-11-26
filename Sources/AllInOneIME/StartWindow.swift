@@ -1,4 +1,5 @@
 import AllInOneIMECore
+import AllInOneIMEMac
 import AppKit
 import Carbon
 import Combine
@@ -115,7 +116,8 @@ enum StartWindow {
             return
         }
         let model = StartModel(defaults: .standard, ourSourceID: InputSourceRegistrar.sourceID)
-        let settings = SettingsModel()
+        // Settings' own (kept by its window): read once for both, and a CLI's sign-in Settings looks at is seen here.
+        let settings = SettingsWindow.shared.settings
         model.start(currentSourceID: InputSourceRegistrar.currentSourceID())
         model.showSourceName(currentSourceName())
         model.inputSourceAdded(sourceAdded())
@@ -156,7 +158,7 @@ enum StartWindow {
         }
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window,
                                                                 queue: .main) { _ in
-            MainActor.assumeIsolated { refreshAI(settings) }
+            MainActor.assumeIsolated { refreshAI(settings, step: model.step) }
         })
         observers.append(NotificationCenter.default.addObserver(forName: NSWindow.willCloseNotification, object: window,
                                                                 queue: .main) { _ in
@@ -181,20 +183,26 @@ enum StartWindow {
     }
 
     /// What step 2 goes by read again (as Settings' own page reads it, `SettingsModel.windowShown`): the AI chosen in the
-    /// config file, the keys, the sign-in, the AWS profiles, the CLIs' sign-ins as last looked at.
-    private static func refreshAI(_ settings: SettingsModel) {
+    /// config file, the keys, the sign-in, the AWS profiles, the CLIs' sign-ins as last looked at. Back on step 2 with a
+    /// CLI chosen that isn't ready (signed in in Terminal, or chosen in Settings a moment ago), its sign-in looked at now
+    /// (forced: what was found stands for a minute), the step going on as it comes back.
+    private static func refreshAI(_ settings: SettingsModel, step: Int) {
         settings.reloadIfChanged()
         settings.refreshKeys()
         settings.refreshAccount()
         settings.aws.refresh(profile: settings.config.awsProfile)
         settings.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
+        if step == 2, let agent = settings.config.ai.agent, !settings.aiFacts.status(.cli(agent), config: settings.config).isReady {
+            settings.refreshSessions([agent], force: true)
+        }
     }
 
-    /// Whether AllInOneIME's input source is added (enabled), as About's step looks at it (`InputSourceStatus`): a copy
-    /// that isn't the installed one (a build run from elsewhere) never is the user's input source, and counts as added.
+    /// Whether AllInOneIME's input source is added (enabled): read only, on the main thread (`InputSourceCheck
+    /// .isEnabledNow`: nothing registered or waited for; About's step registers a source Text Input Sources lost, at launch
+    /// and as the app comes back, `InputSourceStatus`). A copy that isn't the installed one (a build run from elsewhere)
+    /// never is the user's input source, and counts as added.
     private static func sourceAdded() -> Bool {
-        let status = InputSourceStatus.shared
-        return !status.isInstalled || status.check.isEnabled()
+        !InputSourceStatus.shared.isInstalled || InputSourceCheck.isEnabledNow(InputSourceRegistrar.sourceID)
     }
 
     /// The selected input source's name ("ABC", "AllInOneIME").

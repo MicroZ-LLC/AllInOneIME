@@ -58,10 +58,11 @@ extension PanelPresenter {
                            icon: IconToken.command(.stats), action: text.openAction, secondLine: text.sourceSummary)
             }
             // An AI command typed by its name where AI isn't used (an app with No AI, a password field): listed, dimmed (as a
-            // list's information is) with why in place of its summary, and nothing picks it (`Composer.oneAtUnavailable`).
+            // list's information is) with why in place of its summary, and nothing picks it (`Composer.oneAtUnavailable`); a
+            // click on it says why, as ⏎ does (`Composer.oneAtClicked`).
             if let unavailable = composer.oneAtUnavailable(action) {
                 return Row(label: "", text: command.name, comment: unavailable.reason(t), kind: .original,
-                           icon: IconToken.command(command), pickable: false)
+                           icon: IconToken.command(command), pickable: false, saysWhy: true)
             }
             // The name alone, as the command list shows it; its summary's examples written with the trigger in use. ⏎ picks
             // it, or runs one that takes no text. A built-in's name says enough: its summary may be left out.

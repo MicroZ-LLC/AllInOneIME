@@ -5,20 +5,6 @@ import Carbon
 import EventKit
 import SwiftUI
 
-/// The notes @note saved (`SavedNotes`), as JSON under `savedNotes`, in what the panel remembers between launches
-/// (`DashboardSources.defaults`).
-enum SavedNotesStore {
-    static let key = "savedNotes"
-
-    static func load(_ defaults: any KeyValueStore) -> SavedNotes {
-        defaults.data(forKey: key).flatMap { try? JSONDecoder().decode(SavedNotes.self, from: $0) } ?? SavedNotes()
-    }
-
-    static func save(_ notes: SavedNotes, to defaults: any KeyValueStore) {
-        if let data = try? JSONEncoder().encode(notes) { defaults.set(data, forKey: key) }
-    }
-}
-
 /// Whether the panel may read the reminders: macOS's answer, never a question to the user.
 enum ReminderAccess: Equatable {
     case allowed, notDetermined, denied
@@ -107,18 +93,20 @@ struct DashboardSources {
     /// (`Platform.defaults`, UserDefaults on the Mac); memory in the self-test, which leaves the user's alone.
     var defaults: any KeyValueStore
     var now: @MainActor () -> Date
-    /// Autocomplete's switch (`AutocompleteSwitch`): whether it's on, turning it on or off (what it is then), and what
-    /// was counted of it (nil: nothing yet).
-    var autocompleteOn: @MainActor () -> Bool = { AutocompleteSwitch.isOn }
+    /// Autocomplete's switch (`AutocompleteSwitch`): whether it's on (and can run: `AutocompleteSwitch.shown`, as Settings
+    /// → Common and the input menu have it), turning it on or off (what it is then), and what was counted of it (nil:
+    /// nothing yet).
+    var autocompleteOn: @MainActor () -> Bool = { AutocompleteSwitch.shown(LiveConfig.current).on }
     var setAutocomplete: @MainActor (_ on: Bool) -> Bool = { on in
         AutocompleteSwitch.set(on, notify: AllInOneIMEInputController.activeController)
         return AutocompleteSwitch.isOn
     }
     var autocompleteSummary: @MainActor () -> String? = { AutocompleteSwitch.store.metrics.summary(language: UIText.language) }
-    /// The model it asks, and where the text goes, on or off: turning it on is the choice to send it there
-    /// (`AutocompleteSwitch.modelName`, `AutocompleteSwitch.destination`).
-    var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.modelName(LiveConfig.current) }
-    var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.destination(LiveConfig.current) }
+    /// The model it asks, and where the text goes, on or off: turning it on is the choice to send it there; with a CLI
+    /// chosen as the AI, its fast fallback's. No model: it can't run (a CLI and no faster AI), the line says why
+    /// (`AutocompleteSwitch.shown`).
+    var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.shown(LiveConfig.current).model }
+    var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.shown(LiveConfig.current).line }
     /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
     var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
     /// This week's stats' row at the top ("本周 132 次指令 ↑18%"; nil before the first command is counted).
@@ -365,8 +353,7 @@ final class FloatingPanel: ObservableObject {
         commandTrigger = sources.commandTrigger()
         weekStats = sources.weekStats()
         now = sources.now()
-        (autocomplete, autocompleteSummary, autocompleteModel) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel())
-        autocompleteDestination = sources.autocompleteDestination()
+        setAutocomplete(nil)
         notes = SavedNotesStore.load(sources.defaults).newest(Self.notesShown)
         dropMissingFiles()
         scriptRuns = ScriptTasks.shared.background
@@ -584,11 +571,12 @@ final class FloatingPanel: ObservableObject {
         }
     }
 
-    /// Autocomplete turned on or off here (nothing asks first: the switch says where the text goes).
-    func setAutocomplete(_ on: Bool) {
-        autocomplete = sources.setAutocomplete(on)
-        (autocompleteSummary, autocompleteModel) = (sources.autocompleteSummary(), sources.autocompleteModel())
-        autocompleteDestination = sources.autocompleteDestination()
+    /// Autocomplete turned on or off here (`on`; nothing asks first: the switch says where the text goes), then its switch
+    /// read again; nil: only read again, as the panel drops down and as a look at what it asks (with a CLI chosen) finds
+    /// another answer (`AutocompleteSwitch.lookUp`).
+    func setAutocomplete(_ on: Bool?) {
+        if let on { _ = sources.setAutocomplete(on) }
+        (autocomplete, autocompleteSummary, autocompleteModel, autocompleteDestination) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel(), sources.autocompleteDestination())
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -1163,16 +1151,17 @@ struct FloatingPanelView: View {
                 if let model = panel.autocompleteModel {
                     Text(tr("模型：\(model)", "Model: \(model)")).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(1)
                 }
+                // Where the text goes; with no model, why it can't run (orange, as in Settings).
                 if let destination = panel.autocompleteDestination {
-                    Text(destination).font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(3)
-                        .fixedSize(horizontal: false, vertical: true)
+                    Text(destination).font(.system(size: 11)).foregroundStyle(panel.autocompleteModel == nil ? Color.orange : Color.secondary)
+                        .lineLimit(3).fixedSize(horizontal: false, vertical: true)
                 }
                 Text(panel.autocompleteSummary ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it"))
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
         }
         .toggleStyle(.switch)
-        .controlSize(.mini)
+        .controlSize(.mini).disabled(panel.autocompleteModel == nil)  // no model: a CLI chosen and no faster AI, it can't run
         .padding(.horizontal, 2)
     }
 

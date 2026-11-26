@@ -31,6 +31,13 @@ public enum CandidateLayout {
         return pickable.indices.contains(index) && pickable[index] ? index : nil
     }
 
+    /// `rows`' row under `point` that the pointer highlights: one that can be picked (`row(at:frames:pickable:)`); with
+    /// `clicked`, the one a click goes to: one that says why nothing picks it too (`PanelModel.Row.saysWhy`: the click
+    /// says it, as ⏎ on it does).
+    public static func row(at point: CGPoint, frames: [CGRect], rows: [PanelModel.Row], clicked: Bool) -> Int? {
+        row(at: point, frames: frames, pickable: rows.map { $0.pickable || clicked && $0.saysWhy })
+    }
+
     /// How far rows that don't all fit are moved up, between 0 and `overflow` (how much taller they are than the room
     /// they're shown in, `visible` high from `top`): from `current`, as little as brings `row` (the highlighted one, in
     /// the rows' place unmoved; nil: none) wholly into view, its top when it is taller than the room. ↑↓ past the edge

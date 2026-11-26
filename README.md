@@ -339,8 +339,8 @@ signed in after it wasn't has its session's process started again by the next qu
 answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
 an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
-neither, autocomplete is off (its switch in Settings → Common shows off and can't be turned on, saying why), and
-rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
+neither, autocomplete is off (its switch in Settings → Common, the input menu and the menu bar panel shows off and can't
+be turned on, saying why; with a fallback, they name its model), and rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
 tools (never an `@question` conversation, however long it waits behind a question being answered). Settings says which
 under the choice, and the line beside the cards that `@question` uses the CLI. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
@@ -1787,8 +1787,10 @@ Every change, whoever writes it (a person, Claude Code, Codex, Kiro or the agent
 - **Quality gate** (`.github/workflows/quality.yml`): `make lint`, and `make test` in two halves side by side: the
   core's tests (`make test-core`) on GitHub's Linux and macOS machines, the Mac app's (`make test-mac`) on the
   maintainer's Mac. A pull request runs only the halves its files can affect (`Scripts/test-scope.sh`: `docs/` or
-  `site/` alone need neither); a push to `mainline` or `release-*` runs both. Run `make check` before you push; for
-  work on the core alone, `make test-core` (or `Core/Scripts/test.sh`, which runs the core's tests on Linux too).
+  `site/` alone need neither); a push to `mainline` or `release-*` runs both. The updater's end-to-end test
+  (`make update-test`, offline) runs on the maintainer's Mac too when a change touches the updater, the installer or
+  how the apps are built, and on every push to `release-*`. Run `make check` before you push; for work on the core
+  alone, `make test-core` (or `Core/Scripts/test.sh`, which runs the core's tests on Linux too).
 - **review** (`.github/workflows/review.yml`): an independent review of the diff against AGENTS.md by another model
   (Codex CLI, else Claude Code), as one comment on the pull request. It fails only for a high-confidence correctness
   or privacy problem.
@@ -1798,7 +1800,8 @@ and `Scripts/oversized-files.txt` (the files over 400 lines of code, which may n
 old code is fixed as it is touched. After fixing some, `make lint-baseline` lowers the baselines; CI fails a pull
 request that raises them. A pull request from a fork doesn't run on the maintainer's Mac: a maintainer who has read it
 pushes it to a branch here. Every Monday the Health report workflow updates the pinned "Code health report" issue: the
-files over the limit, the baseline, duplicated and unused code, and how each changed.
+files over the limit, the baseline, duplicated and unused code, and how each changed, and the tests that failed under
+load and passed when run again alone in the last four weeks' checks (each test job keeps their names).
 
 ## License
 
