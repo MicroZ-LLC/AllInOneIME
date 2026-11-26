@@ -36,6 +36,9 @@ struct AIChoiceSettings: View {
         // same way).
         .onAppear(perform: shown)
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMESettingsReopened)) { _ in shown() }
+        // Folded as the page goes too: shown again (another page, the window closed), it must not unfold for a moment and
+        // look at the other CLIs' sign-ins before `shown` folds it.
+        .onDisappear { model.changeAICards { $0.show(search: nil, target: nil) } }
     }
 
     /// The page shown, or the window opened again: the others folded, unless the window is pointed at the cards
@@ -122,6 +125,9 @@ extension SettingsModel {
     /// rows are at the top). Pointed at them, the other cards unfold, scrolled to `card` (the start's, the Doctor's) or to
     /// a choice `search` names (what the search had typed: "kiro"), unless that one is in use, at the top.
     func point(at spot: SettingsSpot?, search: String? = nil, card: AIChoice? = nil) {
+        // A card is compared with the AI in use as the file has it now: a change just written (the Assistant's) may not
+        // have reached the model yet, and the card it points at is then the one in use, not one to unfold.
+        if card != nil { reloadIfChanged() }
         let spot = spot ?? card.flatMap { $0 == config.ai ? nil : SettingsSpot.provider }
         if spot == .provider { changeAICards { $0.show(search: search, target: card) } }
         self.spot = spot
