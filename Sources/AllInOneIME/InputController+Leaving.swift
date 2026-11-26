@@ -23,12 +23,15 @@ extension AllInOneIMEInputController {
         apply(session.handle(event).outputs, client: target)
     }
 
-    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go (keys typed while a stop
-    /// settles before it: `leaveField`).
+    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go, and a result being typed out
+    /// stops, its rest not typed, also where a stop already settling asked for the rest (keys typed while a stop settles
+    /// go in before it, after the rest: `leaveField`).
     override func cancelComposition() {
         IMKRecorder.shared.event("cancelComposition")
         MainActor.assumeIsolated {
             commitRow()
+            // A stop still settling drops its rest, whatever it asked (a click outside asks for the rest in).
+            if stopsInsertingRest != nil, keysWhileStopping.isEmpty { stopsInsertingRest = false }
             stopTyping(insertingRest: false, waiting: keysWhileStopping.isEmpty)
             apply(session.handle(.cancel).outputs, client: client())
         }
