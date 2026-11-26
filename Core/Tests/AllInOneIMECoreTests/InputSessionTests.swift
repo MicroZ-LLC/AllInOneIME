@@ -305,6 +305,9 @@ struct InputSessionTests {
             let a = KeyEvent(keyCode: 0, characters: "a")
             #expect(host.session.fieldWants(for: a, given: FieldContext()) == [.secure], "first whether anything is composed")
             #expect(host.session.fieldWants(for: a, given: FieldContext(read: .secure)) == [.secure], "then nothing else at idle")
+            #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) == [.secure, .passwordField],
+                    "\"@\" may start a command: first whether it's a password field, nothing of it read until it's told none")
+            host.send(.passwordField(false, focus: host.session.fieldSession))
             #expect(host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) == [.secure, .selection, .selectedRange],
                     "\"@\" may start a command on the selection")
             host.type("ni")

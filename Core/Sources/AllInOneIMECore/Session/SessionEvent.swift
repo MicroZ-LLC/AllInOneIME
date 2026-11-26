@@ -138,7 +138,9 @@ public enum SessionOutput: Equatable, Sendable {
     case readField(id: Int)
     /// Read whether the field that has the focus is a password field where secure input isn't on, off the session's
     /// thread (the Mac asks Accessibility, which may take a quarter of a second: no key waits for it), and hand it back
-    /// as `SessionEvent.passwordField` with `focus`. A shell that can't tell answers nil.
+    /// as `SessionEvent.passwordField` with `focus`. Asked as a field takes the focus (`InputSession.passwordFieldFocused`),
+    /// once a field. A shell that can't tell answers nil. A shell must answer: until it
+    /// does, no command reads the field (its selection, the text around the caret: `InputSession.fieldMayNotBeRead`).
     case readPasswordField(focus: Int)
     /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
     /// Accessibility, a quarter of a second a call), and hand it back as `SessionEvent.selection` with `id`. No key waits
@@ -288,7 +290,8 @@ public struct FieldContext: Equatable, Sendable {
         public static let text = Parts(rawValue: 1 << 5)
         /// Whether the field is a password field where secure input isn't on (the Mac: one Accessibility tells is an
         /// `AXSecureTextField`), told in `field`'s `secure` (one the shell couldn't tell, `passwordFieldUnknown`): asked
-        /// once a field, where suggestions may show.
+        /// once a field, where suggestions may show or a command starts ("@", `@reply`'s key: the field is read for a
+        /// command only once it is told none, `InputSession.fieldMayNotBeRead`).
         public static let passwordField = Parts(rawValue: 1 << 6)
         public static let all: Parts = [.secure, .selectedRange, .selection, .beforeCaret, .text, .passwordField]
     }

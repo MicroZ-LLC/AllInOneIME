@@ -292,6 +292,8 @@ extension SuggestionsSessionTests {
     @discardableResult
     func pressAsTheMac(_ key: KeyEvent, in field: SuggestionsField, passwordField: Bool? = false) -> (askedText: Bool, askedPassword: Bool) {
         var (askedText, askedPassword) = (false, false)
+        // What the shell answers where it was asked as the field took the focus (`SessionOutput.readPasswordField`): the same.
+        (field.host.passwordField, field.host.cannotTellPasswordField) = (passwordField == true, passwordField == nil)
         var context = FieldContext(field: FieldInfo(app: field.host.app, terminal: field.host.terminal))
         let all = field.host.context
         while true {
@@ -358,7 +360,7 @@ extension SuggestionsSessionTests {
     }
 
     /// Code reached with a tap of Shift in a password field Accessibility tells: no rows for what was typed there, its
-    /// words never read. The first key in Code asks (rows may show from then on).
+    /// words never read. No key in Code asks: the field was asked about as it took the focus, and told by the first key.
     @Test func codeInAPasswordFieldShowsNoRows() async throws {
         try await inEnglish {
             for password in [true, false] {
@@ -368,7 +370,7 @@ extension SuggestionsSessionTests {
                 #expect(typeAsTheMac("de", into: field, passwordField: password) == 0, "no rows may show: nothing asked")
                 field.tapShift()
                 #expect(field.host.composer.coding, "a tap of Shift: Code")
-                #expect(pressAsTheMac(SuggestionKeys.key("f"), in: field, passwordField: password).askedPassword)
+                #expect(!pressAsTheMac(SuggestionKeys.key("f"), in: field, passwordField: password).askedPassword, "told with the focus")
                 field.pause(1)
                 if password {
                     #expect(field.rows.isEmpty, "\(field.rows.map(\.text))")

@@ -21,7 +21,9 @@ public enum FileOpenPolicy {
         // Finder opens aliases and links at their targets, so judge what opening actually reaches.
         let linked = url.resolvingSymlinksInPath()
         let alias = (try? linked.resourceValues(forKeys: [.isAliasFileKey]))?.isAliasFile == true
-        let target = alias ? try? URL(resolvingAliasFileAt: linked) : nil
+        // Never mounting its volume nor asking the user anything (a share's sign-in, "fix the alias"): this runs for the
+        // rows of a search, as they are typed. An alias whose target isn't at hand is shown in Finder.
+        let target = alias ? try? URL(resolvingAliasFileAt: linked, options: [.withoutUI, .withoutMounting]) : nil
         if alias && target == nil { return .reveal }
         let resolved = target?.resolvingSymlinksInPath() ?? linked
         let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path)

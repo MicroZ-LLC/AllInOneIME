@@ -211,10 +211,12 @@ public enum FileSearch {
         // Cheapest first: a one-letter name finds some 66,000 files.
         guard path.hasPrefix(homePrefix) || path.hasPrefix("/Applications/") || path.hasPrefix("/System/Applications/")
             || path.hasPrefix("/Volumes/") else { return false }
+        // The inside of an app bundle in any case (Example.APP/Contents: the file system doesn't tell them apart).
         return !skipped.contains { path.range(of: $0, options: .literal) != nil }
+            && path.range(of: ".app/", options: .caseInsensitive) == nil
     }
 
-    private static let skipped = ["/Library/", "/.", ".app/", "/node_modules/", "/DerivedData/", "/.build/"]
+    private static let skipped = ["/Library/", "/.", "/node_modules/", "/DerivedData/", "/.build/"]
     private static let home = FileManager.default.homeDirectoryForCurrentUser.path
     private static let homePrefix = home + "/"
 }

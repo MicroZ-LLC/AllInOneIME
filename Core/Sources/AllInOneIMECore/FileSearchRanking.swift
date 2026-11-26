@@ -378,7 +378,8 @@ public enum FileSearchRanking {
         return Array((others.filter(isNamedLikeIt) + [web] + others.filter { !isNamedLikeIt($0) }).prefix(limit))
     }
 
-    static func isApp(_ path: String) -> Bool { path.hasSuffix(".app") }
+    /// An app bundle by its name, in any case (Example.APP: the file system doesn't tell them apart).
+    static func isApp(_ path: String) -> Bool { path.suffix(4).lowercased() == ".app" }
 
     /// One letter or digit (or other ASCII character): it is in most paths.
     static func isSingleASCII(_ keyword: String) -> Bool {

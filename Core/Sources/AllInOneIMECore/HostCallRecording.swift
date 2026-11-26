@@ -63,15 +63,15 @@ public struct HostCallRecording: Sendable {
 
     /// A key down's fields: one that types text (a character, the space bar's excepted, with neither ⌘ nor ⌃ held) is
     /// `"key":"text"` and its length, its key code and characters only where the recording keeps text; any other key
-    /// is its name (`Key.name`), code and modifiers, and a shortcut's characters ("v" of ⌘V).
+    /// is its name (`Key.name`), code and modifiers, and a shortcut's characters ("v" of ⌘V). A dead key types too: as
+    /// the Mac's key down tells it, it has no characters, with its modifiers or without them (the French ^, ⌥E).
     public func key(_ key: KeyEvent) -> [String: Field] {
         let modifiers = Self.modifierNames(key.modifiers)
         var fields: [String: Field] = ["mods": .name(modifiers.joined(separator: "+"))]
         if key.isRepeat { fields["repeat"] = .bool(true) }
         let shortcut = !key.modifiers.isDisjoint(with: [.command, .control])
         let typesText = key.key == .character && !shortcut
-            && (key.isDeadKey || key.characters.isEmpty && !key.charactersIgnoringModifiers.isEmpty
-                || !key.characters.isEmpty && key.characters.unicodeScalars.allSatisfy(KeyEvent.isPrintable))
+            && (key.isDeadKey || key.characters.unicodeScalars.allSatisfy(KeyEvent.isPrintable))
         if typesText {
             fields["key"] = .name("text")
             fields["chars"] = .text(key.characters)

@@ -27,10 +27,13 @@ struct NothingLeavesDeviceTests {
         let secure = Locked(initialState: false)
         let host = field(secure: secure)
         #expect(!host.session.nothingLeavesDevice(), "a field not told yet is as any other")
+        #expect(host.session.fieldMayNotBeRead(), "but isn't read until it is told none")
         tell(host, passwordField: nil)
-        #expect(!host.session.nothingLeavesDevice(), "nor one the shell couldn't tell")
+        #expect(!host.session.nothingLeavesDevice(), "nor one the shell couldn't tell: only its reads stop (`fieldMayNotBeRead`)")
+        #expect(host.session.fieldMayNotBeRead() && !host.composer.secureInputActive())
         tell(host, passwordField: false)
         #expect(!host.session.nothingLeavesDevice() && !host.composer.secureInputActive())
+        #expect(!host.session.fieldMayNotBeRead(), "told none after it couldn't tell: read")
         secure.withLock { $0 = true }
         #expect(host.session.nothingLeavesDevice() && host.composer.secureInputActive(), "secure input on anywhere")
         secure.withLock { $0 = false }
@@ -56,12 +59,15 @@ struct NothingLeavesDeviceTests {
         let known = field()
         tell(known, passwordField: true)
         #expect(!textWanted(known))
-        for told in [nil, false] as [Bool?] {
-            let other = field()
-            tell(other, passwordField: told)
-            #expect(textWanted(other), "told \(String(describing: told)): as before")
-        }
-        #expect(textWanted(field()), "not told yet: as before")
+        // One the shell couldn't tell is read no more than a password field (the owner's decision, 2026-11-26).
+        let untold = field()
+        untold.cannotTellPasswordField = true  // each key's read can't tell either
+        tell(untold, passwordField: nil)
+        #expect(!textWanted(untold), "the shell couldn't tell: not read")
+        let none = field()
+        tell(none, passwordField: false)
+        #expect(textWanted(none), "told none: read")
+        #expect(textWanted(field()), "told none with its keys (a shell that reads it all): read")
     }
 
     @Test func aKnownPasswordFieldHasNoAIRowsNorTranslateAsYouType() {

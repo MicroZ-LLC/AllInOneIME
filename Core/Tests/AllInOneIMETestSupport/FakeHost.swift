@@ -134,6 +134,10 @@ public final class FakeHost: @unchecked Sendable {
     private let interface: UIText.ScopedInterface
     /// What goes in once the key being answered is done (`commitAfterKey`), and the clipboard read then.
     private var afterKey: [() -> Void] = []
+    /// What is done before the next key is handled: the answers to what was asked outside a key (the focus).
+    private var beforeKey: [() -> Void] = []
+    /// A key is being handled (`press`).
+    private var inKey = false
 
     public init(services: SessionServices, composer: Composer = Composer()) {
         // The interface language the test picked before making the host (its task's own, `UIText.scopedInterface`:
@@ -240,20 +244,44 @@ public final class FakeHost: @unchecked Sendable {
     /// A key goes down: whether the session took it.
     @discardableResult
     public func press(_ key: KeyEvent) -> Bool {
-        press(key, with: readsWhatIsWanted ? context(wantedFor: key) : context)
+        answerBeforeKey()  // before the key's reads of the field, which go by what the session knows of it
+        return press(key, with: readsWhatIsWanted ? context(wantedFor: key) : context)
     }
 
     /// A key goes down with `context` what the field says (a shell's reads of it, made by the test): whether the session
     /// took it.
     @discardableResult
     public func press(_ key: KeyEvent, with context: FieldContext) -> Bool {
+        answerBeforeKey()
+        inKey = true
         let response = inInterface { session.handle(.key(key, context)) }
         apply(response.outputs)
+        inKey = false
         if appTypesKeys, !response.handled, let text = key.printableText { insert(text, replacing: selection) }
         let after = afterKey
         afterKey = []
         after.forEach { $0() }
         return response.handled
+    }
+
+    /// Hands the session what was asked outside a key (`beforeKey`), before the next one.
+    private func answerBeforeKey() {
+        let before = beforeKey
+        beforeKey = []
+        before.forEach { $0() }
+    }
+
+    /// The answer to a read of whether the field is a password field (`SessionOutput.readPasswordField`) for `focus`:
+    /// held back with `fieldReadsWait`, else handed over once the key is answered (`after`) or now.
+    private func tellPasswordField(focus: Int, after: Bool) {
+        let told = SessionEvent.passwordField(cannotTellPasswordField ? nil : passwordField, focus: focus)
+        if fieldReadsWait {
+            waitingReads.append(told)
+        } else if after {
+            afterKey.append { [weak self] in self?.send(told) }
+        } else {
+            send(told)
+        }
     }
 
     /// Types `text`, a key a character ("@" with Shift, " " the space bar).
@@ -276,6 +304,7 @@ public final class FakeHost: @unchecked Sendable {
 
     /// Hands `event` to the session, as the shell does what isn't a key.
     public func send(_ event: SessionEvent) {
+        if case .key = event { answerBeforeKey() }  // a key a test hands over itself comes after the focus's answer too
         apply(inInterface { session.handle(event).outputs })
     }
 
@@ -411,14 +440,15 @@ public final class FakeHost: @unchecked Sendable {
                 if passwordField, !cannotTellPasswordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
                 if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
             case let .readPasswordField(focus):
-                // Once the key is answered, off its thread as the Mac reads it (held back with `fieldReadsWait`).
-                let told = SessionEvent.passwordField(cannotTellPasswordField ? nil : passwordField, focus: focus)
                 passwordFieldReads += 1
-                if fieldReadsWait {
-                    waitingReads.append(told)
-                } else {
-                    afterKey.append { [weak self] in self?.send(told) }
+                // Asked as the field takes the focus: answered by the time the next key comes, as the Mac's read off
+                // the main thread usually is, with what the field is then (a test sets it after `focus()`).
+                guard inKey else {
+                    beforeKey.append { [weak self] in self?.tellPasswordField(focus: focus, after: false) }
+                    continue
                 }
+                // Once the key is answered, off its thread as the Mac reads it (held back with `fieldReadsWait`).
+                tellPasswordField(focus: focus, after: true)
             case let .readSelection(id):
                 // Once the key is answered, as the Mac reads it with Accessibility: the field's selection.
                 let told = SessionEvent.selection((reading?.context() ?? context).selection, id: id)

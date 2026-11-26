@@ -79,7 +79,7 @@ public final class InputSession {
     /// brings one back; one written is the list's (`RemovedCandidates.Given`).
     private var removedCandidates = RemovedCandidates.Given()
     /// The words typed in English mode in this field, learned once they stand (`learnTypedInEnglish`).
-    private var englishModeWords = EnglishModeWords()
+    var englishModeWords = EnglishModeWords()
     /// The default input last applied (applied again when the setting changes, or what the app learned).
     var appliedDefaultInput: Input?
     /// What a tap of Shift before anything is typed corrects the field's starting input to (InputSession+Learning.swift).
@@ -104,7 +104,7 @@ public final class InputSession {
     public var clipboardPanelAllowed = true
     /// Whether the field that has the focus is a password field where secure input isn't on, as the shell told it: with
     /// a key where suggestions may show (`FieldContext.Parts.passwordField`: the Mac asks Accessibility once a field), off
-    /// the key's thread where English words may be learned (`SessionOutput.readPasswordField`), and with each read
+    /// the key's thread as the field takes the focus (`SessionOutput.readPasswordField`, `passwordFieldFocused`), and with each read
     /// autocomplete's pause makes; nil until told. Autocomplete, suggestions and the English words learned all go by it
     /// (`fieldIsPrivate`); one told stays one until another field takes the focus.
     var passwordField: PasswordField?
@@ -389,7 +389,7 @@ public final class InputSession {
         fieldText = nil
         fieldSession += 1
         field = info
-        passwordField = nil
+        passwordFieldFocused()
         tasks.reopen()  // focused again after `.close`: its work starts again (the engine is made again below)
         composer.forgetRecentLive()  // a session of the field starts: `@open` searches its texts afresh
         clipboardForget()
@@ -562,7 +562,7 @@ public final class InputSession {
     /// The key went to the app (`passedOn`), else the input method took it (what it put in was told as it went in):
     /// followed for the words typed in English mode, `english` whether it was typed in English mode.
     private func followEnglishTyping(_ key: KeyEvent, english: Bool, passedOn: Bool) {
-        guard englishWords != nil else { return }
+        guard englishWords != nil, !fieldTextStaysHere else { return }
         let now = ProcessInfo.processInfo.systemUptime, since = pointerUsedSince(now: now)
         learnTypedInEnglish(passedOn ? englishModeWords.typed(key, english: english, at: now, pointerUsedSince: since)
                                      : englishModeWords.inputMethodTook(inserting: nil, at: now, pointerUsedSince: since))
@@ -570,7 +570,7 @@ public final class InputSession {
 
     /// The input method put `text` in (a commit, a result, a word picked): what `EnglishModeWords` follows.
     func followEnglishInserted(_ text: String) {
-        guard englishWords != nil else { return }
+        guard englishWords != nil, !fieldTextStaysHere else { return }
         let now = ProcessInfo.processInfo.systemUptime
         learnTypedInEnglish(englishModeWords.inputMethodTook(inserting: text, at: now, pointerUsedSince: pointerUsedSince(now: now)))
     }
@@ -879,10 +879,10 @@ public final class InputSession {
 
     /// What of the field `key` may need, given what was read of it so far (`context`): what the shell reads before it hands
     /// the key on, asking again until there is nothing more: three reads at most (whether secure input is on; what the key
-    /// may need, with the character before an "@", and once a field where suggestions may show, whether it's a password
-    /// field all the same; the selection, unless that "@" comes right after a word or the field is known as a password
-    /// field). Nothing of the field's text for a command where it stays here (`FieldInfo.textStaysHere`: a terminal, a
-    /// password manager). A shell where reading is cheap reads it all.
+    /// may need, with the character before an "@", and once a field where suggestions may show or a command starts,
+    /// whether it's a password field all the same; the selection, unless that "@" comes right after a word or the field
+    /// isn't told yet to be no password field: `fieldMayBeRead`). Nothing of the field's text for a command where it
+    /// stays here (`FieldInfo.textStaysHere`: a terminal, a password manager). A shell where reading is cheap reads it all.
     public func fieldWants(for key: KeyEvent, given context: FieldContext) -> FieldContext.Parts {
         // First whether anything is composed at all: nothing else is read in a password field.
         var wants: FieldContext.Parts = [.secure]
@@ -890,26 +890,28 @@ public final class InputSession {
         if suggestionsWantPasswordField() { wants.insert(.passwordField) }
         if composer.draftInPanel, selectionReported != nil { wants.insert(.selectedRange) }
         // "@" may start a command where level one would start one (`Composer.handleLevelOne`: an engine, nothing composed
-        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"), or the field is known
-        // as a password field (`selectionMayBeRead`). Where the field's text stays here (a terminal, a password manager)
-        // neither the character before the caret nor the selection is read: the command starts as in a terminal.
-        let config = services.loadSettings()
+        // in it, no draft): on the selection, unless it comes right after a word ("bob@example.com"). A field not told yet
+        // is asked whether it's a password field (a command run there must know), and its selection isn't read unless
+        // that says none (`fieldMayBeRead`). Where the field's text stays here (a terminal, a password manager) neither
+        // the character before the caret nor the selection is read: the command starts as in a terminal.
+        let config = services.loadSettings(), mayRead = fieldMayBeRead(given: context)
         if key.printableText == config.commandTrigger, !composer.isLevelTwo, composer.draft.isEmpty, let engine = composer.engine,
            !engine.snapshot().isComposing {
             let staysHere = (context.field ?? field).textStaysHere
             if lastTyped.character != nil, !staysHere { wants.insert(.beforeCaret) }
+            if passwordField == nil { wants.insert(.passwordField) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !staysHere,
-               usesSelection(in: (context.field ?? field).app, config: config), !nothingLeavesDevice() {
+               usesSelection(in: (context.field ?? field).app, config: config), mayRead {
                 wants.formUnion([.selection, .selectedRange])  // where it is, as the field reports it: a click moves it
             }
         }
-        // `@reply` sends the text around the caret: read with the key that may run it (not where nothing leaves the device,
-        // nor where the field's text stays here).
-        if composer.draftCommand == .reply, !nothingLeavesDevice(), !(context.field ?? field).textStaysHere,
+        // `@reply` sends the text around the caret: read with the key that may run it (not where the field may not be read,
+        // `fieldMayNotBeRead`: one not told yet is asked first, nor where the field's text stays here).
+        if composer.draftCommand == .reply, !(context.field ?? field).textStaysHere,
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
-            wants.insert(.text)
+            wants.formUnion(mayRead ? .text : passwordField == nil ? .passwordField : [])
         }
         wants.formUnion(digitPunctuationWants(for: key, context: context))
         // Suggestions: the selection where rows show, the field's words in Code (its word held too).
@@ -918,10 +920,11 @@ public final class InputSession {
     }
 
     /// What of the field a modifier change may need, given what was read of it so far: `@reply`'s text, where a tap of
-    /// Option runs it (not where the field's text stays here: `FieldInfo.textStaysHere`).
+    /// Option runs it (not where the field may not be read, `fieldMayNotBeRead`, nor where its text stays here:
+    /// `FieldInfo.textStaysHere`).
     public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
         guard context.read.contains(.secure), !context.secure, !field.secure else { return [.secure] }
-        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !nothingLeavesDevice()
+        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !fieldMayNotBeRead()
             && !(context.field ?? field).textStaysHere ? [.secure, .text] : [.secure]
     }
 
@@ -1113,19 +1116,9 @@ public final class InputSession {
 
     // MARK: - What the composer asks of the field
 
-    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`) and the app not
-    /// learned as one whose field doesn't take a result in its place (`usesSelection`), never during secure input, nor in
-    /// a field known as a password field where it isn't on (`passwordField`: unknown is read as before, no key waiting to
-    /// tell it), nor in a terminal (its selection is no text being edited: what goes back would be typed at the prompt),
-    /// nor in a password manager, whatever its field says (`FieldInfo.textStaysHere`: a command starts there as in a
-    /// terminal).
-    private func selectionMayBeRead() -> Bool {
-        usesSelection(in: app, config: services.loadSettings()) && !nothingLeavesDevice() && !fieldTextStaysHere
-    }
-
     /// Commands work on the selection in `app`: `useSelection` on (the config's: off, nowhere), and `app` not one whose
     /// field didn't take a result in place of its selection (`LearnedStore.selectionOff`, learned per app).
-    private func usesSelection(in app: String?, config: Config) -> Bool {
+    func usesSelection(in app: String?, config: Config) -> Bool {
         config.useSelection && !(app.map(services.learned.selectionOff) ?? false)
     }
 
@@ -1140,22 +1133,6 @@ public final class InputSession {
         }
         selectionReported = .some(context.read.contains(.selectedRange) ? context.selectedRange : selection.range)
         return selection
-    }
-
-    /// `selected`, read after the "@" key, where the draft may take it (`selectionMayBeRead`: a field told a password field
-    /// meanwhile too).
-    private func usable(_ selected: Composer.Selection?) -> Composer.Selection? {
-        guard let selected, !selected.text.isEmpty, selectionMayBeRead() else { return nil }
-        return selected
-    }
-
-    /// The text around the caret, for `@reply` (`Composer.readFieldText`): as the field told it with the key that runs it
-    /// (or last: after dictation). None during secure input or in a field known as a password field
-    /// (`nothingLeavesDevice`), nor in a terminal or a password manager (`FieldInfo.textStaysHere`).
-    private func readFieldText() -> FieldText? {
-        guard !nothingLeavesDevice(), !fieldTextStaysHere else { return nil }
-        if let context = keyContext, context.read.contains(.text) { return context.text }
-        return fieldText
     }
 
     /// The notice of an AI command in an app with no AI (`AppProfile.noAI`), read when the command starts; nil: AI may run.
