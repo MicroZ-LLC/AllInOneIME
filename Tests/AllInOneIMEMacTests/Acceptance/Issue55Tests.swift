@@ -26,6 +26,16 @@ import Testing
 
 @Suite(.serialized)
 struct Issue55Tests {
+    /// The wait these scenarios end with (the 0.7.6 review's item 36): a type-out that never ends (a type-out, then ⌘-Tab, the
+    /// typing task then kept from ending, as one stuck would be) is told as a failure once the child's time runs out,
+    /// not reported as whatever was seen by then. Before, the child reported at its deadline as if all were over, and
+    /// a stuck type-out passed every case here.
+    @Test func aTypeOutThatNeverEndsFailsTheScenario() throws {
+        let failure = #expect(throws: Issue55Child.Failure.self) { try Issue55Child.run(.typeOut, .modifierHeld, holdingTypeOut: true) }
+        let said = failure?.description ?? ""
+        #expect(said.contains("still busy") && said.contains("still typing out"), "\(said)")
+    }
+
     /// A two-line text being pasted into a terminal (`trigger`), the user switching to another app while the paste
     /// waits (`window`), the input method told the terminal's field was left only after: no ⌘V reaches the app switched
     /// to, and what the user copied is on the clipboard again after.
@@ -146,6 +156,10 @@ enum Issue55Child {
         var typedAfterLeft: String
         /// The clipboard's text once it is all over.
         var clipboardAfter: String?
+        /// Whether it was all over when this was told: nothing typing out, pasting or waiting to run, quiet for a
+        /// moment. False: the child's time ran out first, and `busy` says what was still going on.
+        var settled: Bool
+        var busy: String?
         var output: String?
 
         var description: String {
@@ -171,7 +185,7 @@ enum Issue55Child {
     }
 
     /// A two-line text put into a terminal by `trigger`, the user switching apps in `window`.
-    static func run(_ trigger: Trigger, _ window: Window) throws -> Report {
+    static func run(_ trigger: Trigger, _ window: Window, holdingTypeOut: Bool = false) throws -> Report {
         let executable = try compiled.get()
         let fm = FileManager.default
         let name = "com.allinoneime.inputmethod.issue55.\(UUID().uuidString)"
@@ -207,13 +221,19 @@ enum Issue55Child {
         while !sourceLog().contains("READY") && source.isRunning && Date() < ready { Thread.sleep(forTimeInterval: 0.02) }
         guard sourceLog().contains("READY") else { throw Failure(description: "the copy's app never put it on the clipboard:\n\(sourceLog())") }
 
-        let result = try command(executable, [trigger.rawValue, window.rawValue, name, log.path], environment: environment, timeout: 60)
+        let result = try command(executable, [trigger.rawValue, window.rawValue, name, log.path]
+                                 + (holdingTypeOut ? ["hold-typing-out"] : []), environment: environment, timeout: 60)
         guard result.status == 0, let line = result.output.split(separator: "\n").last(where: { $0.hasPrefix("REPORT ") }) else {
             throw Failure(description: "the child (\(trigger.rawValue), \(window.rawValue)) failed (\(result.status)):\n\(result.output)")
         }
         var report = try JSONDecoder().decode(Report.self, from: Data(line.dropFirst("REPORT ".count).utf8))
         report.output = result.output.split(separator: "\n").filter { $0.hasPrefix("FAIL") }.joined(separator: "\n")
         if report.output?.isEmpty == true { report.output = nil }
+        // Its time ran out with something still going on (a type-out that never ended, a paste never put back): what
+        // it saw then is not the outcome, and passes for no scenario.
+        guard report.settled else {
+            throw Failure(description: "the child (\(trigger.rawValue), \(window.rawValue)) was still busy when its time ran out (\(report.busy ?? "?")): \(report)")
+        }
         return report
     }
 
@@ -498,6 +518,8 @@ struct Issue55Report: Encodable {
     var typed = ""
     var typedAfterLeft = ""
     var clipboardAfter: String?
+    var settled = false
+    var busy: String?
 }
 
 @MainActor
@@ -506,6 +528,9 @@ enum Issue55Child {
     static let window = arguments.count > 1 ? arguments[1] : ""
     static let name = arguments.count > 2 ? arguments[2] : ""
     static let sourceLog = arguments.count > 3 ? arguments[3] : ""
+    /// The test of the wait itself: a type-out that never ends, as one stuck would be (kept so from when the scenario's
+    /// own actions have run).
+    static let holdsTypingOut = arguments.count > 4 && arguments[4] == "hold-typing-out"
     static let answer = "echo one\necho two"
     static let firstLine = "echo one"
     static let command: UInt64 = 0x100000  // ⌘ (kCGEventFlagMaskCommand)
@@ -652,11 +677,26 @@ enum Issue55Child {
             && Issue55Clipboard.terminalGot.count + Issue55Clipboard.otherAppGot.count == Issue55Clipboard.pasteKeys
     }
 
-    /// Reports as soon as everything is idle and quiet for `settle` (past `TerminalPaste.switchSettle`), or at `deadline`.
+    /// What keeps it from being idle, in words.
+    static var busy: String {
+        var parts: [String] = []
+        if pendingActions != 0 { parts.append("\(pendingActions) of the scenario's actions not run yet") }
+        if provided() < asked() { parts.append("the copy's app still handing over what was asked") }
+        if controller.isTypingOut { parts.append("still typing out") }
+        if Issue55Clipboard.written { parts.append("our paste still on the clipboard") }
+        if Issue55Clipboard.terminalGot.count + Issue55Clipboard.otherAppGot.count != Issue55Clipboard.pasteKeys { parts.append("a ⌘V not read yet") }
+        return parts.isEmpty ? "idle, but not quiet for \(settle) s" : parts.joined(separator: ", ")
+    }
+
+    /// Reports as soon as everything is idle and quiet for `settle` (past `TerminalPaste.switchSettle`). At `deadline`
+    /// it reports too, as not settled, with what was still going on: the test fails on that, whatever else was seen.
     static func waitUntilSettled(until deadline: Date, last: SettleState? = nil, quietSince: Date? = nil) {
         let now = Date()
+        if holdsTypingOut, pendingActions == 0, !controller.isTypingOut {
+            controller.typingTask = Task { @MainActor in try? await Task.sleep(nanoseconds: 600 * 1_000_000_000) }
+        }
         if now >= deadline {
-            finish()
+            finish(settled: false)
             return
         }
         let state = currentState()
@@ -664,7 +704,7 @@ enum Issue55Child {
         if isIdle {
             since = state == last ? (quietSince ?? now) : now
             if let since, now.timeIntervalSince(since) >= settle {
-                finish()
+                finish(settled: true)
                 return
             }
         } else {
@@ -675,7 +715,9 @@ enum Issue55Child {
         }
     }
 
-    static func finish() {
+    static func finish(settled: Bool) {
+        report.settled = settled
+        report.busy = settled ? nil : busy
         report.pasteKeys = Issue55Clipboard.pasteKeys
         report.pasteKeysAfterSwitch = Issue55Clipboard.pasteKeysAfterSwitch
         report.terminalGot = Issue55Clipboard.terminalGot
