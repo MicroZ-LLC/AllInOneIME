@@ -32,8 +32,8 @@ private let tableNames: [String: (zh: String, en: String)] = [
     "moqi": ("墨奇码", "Moqi"), "flypy": ("鹤形", "Xiaohe shape"), "ziranma": ("自然码", "Ziranma"),
     "wubi86": ("五笔 86", "Wubi 86"), "cangjie": ("仓颉", "Cangjie"),
 ]
-private let fieldWords = (zh: (label: "辅助码", help: "拼音后按 ` 再打形码，筛出想要的字", off: "关闭"),
-                          en: (label: "Shape codes", help: "After the pinyin, press ` and type the shape code to narrow the candidates",
+private let fieldWords = (zh: (label: "辅助码", help: "拼音后按 ` 或单击右 ⌥，再打形码，筛出想要的字", off: "关闭"),
+                          en: (label: "Shape codes", help: "After the pinyin, press ` or tap right ⌥, then type the shape code to narrow the candidates",
                                off: "Off"))
 
 /// rime-ice's way with "`", played by a stand-in engine: in its spelling's alphabet but starting nothing
