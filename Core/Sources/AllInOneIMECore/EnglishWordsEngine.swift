@@ -370,11 +370,12 @@ public final class EnglishWordsEngine: PinyinEngine {
     }
 
     /// Marks that go in after the word highlighted: not those librime uses while composing (' between syllables, - =
-    /// turning the page).
+    /// turning the page, "`" before a shape code or rime-ice's own filter: `ShapeCode.trigger`, which a tap of the right
+    /// Option types too).
     private static func isPunctuation(_ keycode: Int32) -> Bool {
         guard (0x21...0x7E).contains(keycode), let scalar = Unicode.Scalar(UInt32(keycode)) else { return false }
         let character = Character(scalar)
-        return !character.isLetter && !character.isNumber && !"'-=[]".contains(character)
+        return !character.isLetter && !character.isNumber && !"'-=[]`".contains(character)
     }
 
     /// The highlight moved to `place`: a word, or librime's candidate (its highlight moved there); past the page's

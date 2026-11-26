@@ -14,6 +14,10 @@ let response = session.handle(.key(key, context))              // response.handl
 apply(response.outputs)
 ```
 
+A change of the modifiers (`.modifiers`) is the app's too, `handled` false, but for one: the release of the right
+Option's tap that typed "`" for the shape codes (`Composer.shapeCodeTap`) is the session's alone, `handled` true, and
+the shell keeps it from the app as it keeps a key (the Mac's controller returns it from `flagsChanged`).
+
 ## Threads
 
 The session is used from one thread only; it is no actor, and the core has no `@MainActor`. What it starts that answers

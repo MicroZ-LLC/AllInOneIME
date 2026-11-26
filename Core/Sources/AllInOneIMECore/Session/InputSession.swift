@@ -232,8 +232,7 @@ public final class InputSession {
             case let .key(key, context):
                 handled = self.key(key, context)
             case let .modifiers(change, context):
-                handled = false  // the application sees modifier changes too
-                modifiers(change, context)
+                handled = modifiers(change, context)  // the application sees modifier changes too, but for a tap taken
             case let .focus(info):
                 focus(info)
             case .blur:
@@ -1061,19 +1060,20 @@ public final class InputSession {
         return response.handled
     }
 
-    private func modifiers(_ change: ModifierChange, _ context: FieldContext) {
+    /// A change of the modifiers. True: the session's alone, kept from the app (`Composer.tookModifierChange`: the right
+    /// Option's tap that typed "`" for the shape codes); false, as nearly always: the app's as well.
+    private func modifiers(_ change: ModifierChange, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
         guard !(context.secure || field.secure) else {
-            // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
-            // here: no switch, its lock left alone.
-            if composer.voice != .off { perform(composer.passwordFieldTakesOver()) }
-            suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
-            return
+            modifiersInSecureInput(change)
+            return false
         }
         ensureLevelOne()
-        // The key that switches the input language, as the settings say now: with Caps Lock, a tap of Shift is just Shift.
-        let switchKey = services.loadSettings().switchKey
-        composer.shiftTapSwitches = switchKey == .shift
+        // As the settings say now. The key that switches the input language: with Caps Lock, a tap of Shift is just Shift.
+        // The shape codes the right Option's tap types "`" for (turned on or off elsewhere with the focus where it was);
+        // none under clipboard history's panel, whose keys are the panel's: the pinyin behind it isn't shown.
+        let settings = services.loadSettings(), switchKey = settings.switchKey
+        (composer.shiftTapSwitches, composer.shapeCode) = (switchKey == .shift, clipboard.shown ? nil : settings.typedShapeCode)
         suggestionsModifiers(change)  // a long press of Shift turns Translate as You Type on or off
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
@@ -1090,6 +1090,7 @@ public final class InputSession {
         }
         keyContext = nil
         learningSwitched(from: before)
+        return composer.tookModifierChange
     }
 
     /// Caps Lock pressed on its own: its lock turned on, with no Shift, Control, Option or Command held (fn doesn't count,

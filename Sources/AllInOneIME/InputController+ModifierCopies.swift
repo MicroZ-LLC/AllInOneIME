@@ -1,6 +1,7 @@
 import AllInOneIMECore
 import AllInOneIMEMac
 import AppKit
+import InputMethodKit
 import os
 
 extension AllInOneIMEInputController {
@@ -8,6 +9,29 @@ extension AllInOneIMEInputController {
     @MainActor static var modifierEchoes = ModifierEchoes()
     /// Caps Lock's changes handed over again with a time of their own (`CapsLockCopies`), whatever the text field.
     @MainActor static var capsLockCopies = CapsLockCopies()
+
+    /// The time of the modifier change the session took for itself last (`handleFlagsChanged`): its copies are taken too.
+    @MainActor static var modifierTakenAt: TimeInterval?
+
+    /// A change of the modifiers. True: the input method's alone, kept from the app: the release of the right ⌥'s tap
+    /// that typed "`" for the shape codes (`SessionResponse.handled`; the owner, 2026-11-26), and that event handed over
+    /// again. False for every other one: the application sees modifier changes too.
+    @MainActor
+    func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) -> Bool {
+        commitRow()  // a row the key before put in, if this change came first
+        // Chromium's and Electron's second copy: dropped, and the app's or not as the first was (the same event, its time).
+        guard !Self.isModifierCopy(event) else { return Self.modifierTakenAt == event.timestamp }
+        let target: IMKTextInput? = client ?? clientOverride ?? self.client()
+        // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
+        // is no long press of it (only the session's long press minds fn).
+        let change = MacKeyEvents.modifierChange(event, now: ProcessInfo.processInfo.systemUptime)
+        let context = fieldReading.context(in: target) { session.fieldWants(forModifiers: change, given: $0) }
+        // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
+        let response = session.handle(.modifiers(change, context))
+        apply(response.outputs, client: client)
+        if response.handled { Self.modifierTakenAt = event.timestamp }
+        return response.handled
+    }
 
     /// Whether `event`, a modifier change, is one handed over before: dropped, for the session's composer (a tap of Shift
     /// or ⌥, a press of Caps Lock) and its long press of Shift (Translate as You Type) alike. Chromium and Electron apps
