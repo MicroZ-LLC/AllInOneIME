@@ -22,7 +22,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SCOPE = ("Sources", "Core/Sources")
-GENERATED = {"Core/Sources/AllInOneIMECore/RedactionWordList.swift"}
 WINDOW = 12  # lines of code in a row that count as a duplicate
 PERIPHERY = ("3.8.0", "07d4e286e31dd79164df39097e0b59f533c94badbe18158464a455ea88a166d7")
 WEEKS = (1, 4, 12)
@@ -118,8 +117,7 @@ def code_lines(path: Path) -> list[tuple[int, str]]:
 
 
 def duplicates_section() -> list[str]:
-    files = sorted(p for scope in SCOPE for p in (ROOT / scope).rglob("*.swift")
-                   if str(p.relative_to(ROOT)) not in GENERATED)
+    files = sorted(p for scope in SCOPE for p in (ROOT / scope).rglob("*.swift"))
     seen: dict[str, tuple[str, int]] = {}  # a window's hash → where it was first
     matches = []  # (file, index, first file, first index) for each window seen before
     lines = {}

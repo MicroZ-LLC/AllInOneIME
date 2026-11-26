@@ -217,6 +217,11 @@ $(OPENCC_BUILT):
 build: deps
 	$(SWIFT_BUILD) --product $(APP_NAME)
 
+# The core's resources (Core/Package.swift: AllInOneIMECore's RedactionWords.txt), in the bundle SwiftPM builds beside
+# the binary ("<the core's package name>_<target>"). The input method carries it in Contents/Resources, where the core
+# looks (CoreResources); without it no English word would be known and far more taken for a key, so `app` fails instead.
+CORE_RESOURCES := AllInOneIME-Core_AllInOneIMECore.bundle
+
 # The interface text in languages other than Simplified Chinese and English (those two are in the code): two String
 # Catalogs, the core's (Core/Resources/Localizable.xcstrings) and the app's own text's (Resources/), merged into one (a
 # key in both fails) and compiled by Xcode's xcstringstool into <code>.lproj/Localizable.strings (and .stringsdict),
@@ -245,8 +250,9 @@ strings-check:
 	swift package --package-path $(CORE) --allow-writing-to-package-directory strings --check
 	$(STRINGS_TOOL) --check
 
-# Core/Sources/AllInOneIMECore/RedactionWordList.swift, the English words the key detector knows, from the pinned copy
-# of /usr/share/dict/web2 (Webster's Second International, public domain).
+# Core/Sources/AllInOneIMECore/Resources/RedactionWords.txt, the English words the key detector knows, from the pinned
+# copy of /usr/share/dict/web2 (Webster's Second International, public domain): a resource of the core, which the app
+# carries in its resource bundle (CORE_RESOURCES).
 redaction-words:
 	cd $(CORE) && swift Scripts/make-redaction-words.swift
 
@@ -254,6 +260,8 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	rm -rf "$(APP)"
 	mkdir -p "$(APP)/Contents/MacOS" "$(APP)/Contents/Resources" "$(APP)/Contents/Frameworks" "$(APP)/Contents/SharedSupport"
 	cp "$$($(SWIFT_BUILD) --show-bin-path)/$(APP_NAME)" "$(APP)/Contents/MacOS/$(APP_NAME)"
+	ditto "$$($(SWIFT_BUILD) --show-bin-path)/$(CORE_RESOURCES)" "$(APP)/Contents/Resources/$(CORE_RESOURCES)"
+	test -s "$(APP)/Contents/Resources/$(CORE_RESOURCES)/Contents/Resources/RedactionWords.txt"
 	Scripts/check-weak-links.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	Scripts/strip-rpaths.sh "$(APP)/Contents/MacOS/$(APP_NAME)"
 	cp Resources/Info.plist "$(APP)/Contents/Info.plist"
