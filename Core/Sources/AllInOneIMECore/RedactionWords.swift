@@ -14,6 +14,13 @@ enum RedactionWords {
 
     private static let log = CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
 
+    /// The English words' file opened and mapped now, and read through once, on the caller's thread (never the one keys
+    /// are answered on): the first word typed that looks them up (one learned in English, a word autocomplete checks)
+    /// finds the list there instead of opening its 2.4 MB file itself. Once; later calls do nothing.
+    static func load() {
+        _ = english.count
+    }
+
     /// Whether `word` (lowercased) is an English word, or one with -s, -es, -ed, -ing, -er, -ers, -ly, -ies, -ied added.
     static func isEnglish(_ word: String) -> Bool {
         if english.contains(word) || tech.contains(word) { return true }

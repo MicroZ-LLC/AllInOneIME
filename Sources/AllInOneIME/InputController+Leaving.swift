@@ -12,8 +12,10 @@ extension AllInOneIMEInputController {
     @MainActor
     func leaveField(_ event: SessionEvent, client target: IMKTextInput?, insertingRest: Bool) {
         commitRow()
+        // A stop still settling when the field is left drops its rest, whatever the stop asked (a click outside asks for
+        // the rest in): said before it is settled here, which may be now, in the field being left.
+        if case .blur = event, stopsInsertingRest != nil, keysWhileStopping.isEmpty { stopsInsertingRest = false }
         stopTyping(insertingRest: insertingRest, waiting: keysWhileStopping.isEmpty)
-        if case .blur = event, stopsInsertingRest != nil { stopsInsertingRest = false }
         apply(session.handle(event).outputs, client: target)
     }
 
