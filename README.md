@@ -342,7 +342,7 @@ an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this
 neither, autocomplete is off (its switch in Settings → Common, the input menu and the menu bar panel shows off and can't
 be turned on, saying why; with a fallback, they name its model), and rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
 tools (never an `@question` conversation, however long it waits behind a question being answered). Settings says which
-under the choice, and the line beside the cards that `@question` uses the CLI. When the session can't answer (not
+under the chosen CLI, and the line at the right of the AI title that `@question` uses the CLI. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
 within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting the conversation before
 it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction, not waited for) the

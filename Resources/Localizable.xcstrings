@@ -41504,8 +41504,56 @@
         }
       }
     },
+    "With a CLI: @question uses it; what has to be fast may go to a faster AI" : {
+      "comment" : "选了 CLI：@question 用它，要快的功能可能交给更快的 AI",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einer CLI: @question nutzt sie; was schnell sein muss, geht eventuell an eine schnellere KI"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con una CLI: @question la usa; lo que debe ser rápido puede ir a una IA más rápida"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une CLI : @question l’utilise ; ce qui doit être rapide peut aller à une IA plus rapide"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI を選んだ場合：@question はそれを使います。速さが必要な機能は、より速い AI に回ることがあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI를 고르면: @question는 그것을 씁니다. 빨라야 하는 기능은 더 빠른 AI로 갈 수 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com uma CLI: @question a usa; o que precisa ser rápido pode ir para uma IA mais rápida"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選了 CLI：@question 用它，要快的功能可能交給更快的 AI"
+          }
+        }
+      }
+    },
     "With a CLI: @question uses it; where the rest goes is said above" : {
       "comment" : "选了 CLI：@question 用它，别的功能用哪家见上面",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

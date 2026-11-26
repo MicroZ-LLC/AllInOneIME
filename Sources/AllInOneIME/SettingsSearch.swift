@@ -153,11 +153,11 @@ extension SettingsSpot {
     }
 
     /// The line beside the AI's cards: `provider`'s note, but with a CLI chosen (`cli`) only `@question` is sure to go to
-    /// it; what has to be fast goes to the provider set up before, or Apple's model, as said above them
-    /// (`AIChoice.fallbackNote`).
+    /// it; what has to be fast goes to the provider set up before, or Apple's model. Which one is said in the chosen
+    /// CLI's rows under the cards (`AIChoice.fallbackNote`), hidden while choosing, so this line points nowhere.
     static func providerNote(cli: Bool) -> String {
         guard cli else { return provider.note ?? "" }
-        return UIText.triggered(tr("选了 CLI：@question 用它，别的功能用哪家见上面", "With a CLI: @question uses it; where the rest goes is said above"))
+        return UIText.triggered(tr("选了 CLI：@question 用它，要快的功能可能交给更快的 AI", "With a CLI: @question uses it; what has to be fast may go to a faster AI"))
     }
 
     /// Words its settings go by besides its title and note, in both languages.
