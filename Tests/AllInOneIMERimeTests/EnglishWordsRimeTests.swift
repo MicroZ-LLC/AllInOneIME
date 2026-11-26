@@ -168,7 +168,7 @@ private func unmodeledRules(_ schema: String) -> [String] {
 /// rime-ice's English dictionary, as librime's service read it once it started.
 private func englishDictionary() throws -> EnglishDictionary {
     _ = try RimeFixture.startup.get()
-    return try #require(RimeService.shared.englishDictionary)
+    return try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
 }
 
 private func shown(_ composer: Composer) -> [String] { composer.engineState.candidates.map(\.text) }

@@ -355,8 +355,8 @@ extension InputSession {
         guard !held.isEmpty else { return }
         log.notice("clipboard history: \(held.count) keys typed after ⏎ handed on")
         for (event, context) in held {
-            let told = FieldContext(read: context.read.intersection([.secure, .passwordField]), field: context.field,
-                                    secure: context.secure, passwordFieldUnknown: context.passwordFieldUnknown)
+            // Whether it is a password field was taken as the key was held (`key`): not again.
+            let told = FieldContext(read: context.read.intersection([.secure]), field: context.field, secure: context.secure)
             if !keyHandedOn(event, told), let text = event.printableText { emit(.commit(text)) }
         }
     }

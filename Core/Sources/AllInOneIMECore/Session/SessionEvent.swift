@@ -39,6 +39,9 @@ public enum SessionEvent: Sendable {
     /// The clipboard as `SessionOutput.readClipboard` asked for it, for the draft's request `id` (below 0: clipboard
     /// history's, whose image row needs only that there is one).
     case clipboard(ClipboardContent, id: Int)
+    /// Clipboard history changed while its panel may show (the Mac: a copy made just before ⌃V, read and kept off the main
+    /// thread after the panel opened): its rows anew (`InputSession.clipboardHistoryChanged`).
+    case clipboardHistoryChanged
     /// What the field says as `SessionOutput.readField` asked for it (its `id`: autocomplete's pause, or below 0 coding
     /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
     /// `FieldContext.read`, counts as unknown).
@@ -320,6 +323,10 @@ public struct FieldContext: Equatable, Sendable {
     /// Asked for the selection (`Parts.selection`), the field didn't tell one, and the shell reads it after the key
     /// instead (the Mac: with Accessibility, which may take a while): the draft waits for it (`Composer.selectionPending`).
     public var selectionFollows: Bool
+    /// Asked whether the field is a password field (`Parts.passwordField`), the shell tells it after the key instead (the
+    /// Mac: Accessibility, which may wait on a slow app, is asked off the key's thread): not told yet until it does
+    /// (`SessionOutput.readPasswordField`, `SessionEvent.passwordField`), no rows meanwhile.
+    public var passwordFieldFollows = false
 
     public init(read: Parts = [], field: FieldInfo? = nil, secure: Bool = false,
                 selectedRange: Range<Int>? = nil, selection: Composer.Selection? = nil, beforeCaret: BeforeCaret = .unknown,

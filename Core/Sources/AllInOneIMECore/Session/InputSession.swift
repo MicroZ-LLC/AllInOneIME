@@ -110,7 +110,7 @@ public final class InputSession {
     var passwordField: PasswordField?
     /// The focus (`fieldSession`) the shell was last asked in off the key's thread (`SessionOutput.readPasswordField`):
     /// once a field.
-    private var passwordFieldAsked = -1
+    var passwordFieldAsked = -1
     /// When the wheel was last over one of the session's own panels (`SessionServices.uptime`): suggestions' rows, the
     /// command list or clipboard history (`SessionEvent.scroll`). It moved no caret (`caretMayHaveMoved`).
     private var panelWheelAt: TimeInterval?
@@ -281,14 +281,13 @@ public final class InputSession {
                 // Nothing is read during secure input (the shell doesn't read it then either). Below 0: clipboard history's.
                 let content = secureInputActive() ? ClipboardContent.none : content
                 if id < 0 { clipboardRead(content, id: id) } else { perform(composer.pasted(content, id: id)); lastTyped.forget() }
+            case .clipboardHistoryChanged: clipboardHistoryChanged()
             case let .field(context, id):
                 takePasswordField(context)
                 // Below 0: Code's read of the field's words; else autocomplete's.
                 if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
             case let .passwordField(told, focus):
-                // Asked in a field that has lost the focus since: not this one's.
-                guard focus == fieldSession else { return }
-                takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
+                passwordFieldTold(told, focus: focus)
             case let .selection(selected, id):
                 // Read after the "@" key (`SessionOutput.readSelection`), the read the draft waits for: it takes it, and a key
                 // parked for it is done now, outside any key. One a key settled as none, or of a draft that's gone, is dropped.
@@ -380,64 +379,7 @@ public final class InputSession {
     /// field here, or in the field's app as the key being handled tells it.
     public func secureInputActive() -> Bool { field.secure || secureKey || services.secureInputActive() }
 
-    /// Whether nothing of this field may leave the device: secure input on (`secureInputActive`), or a field told to be a
-    /// password field where it isn't (`passwordField`), as if it were. Then no AI row is listed, an AI command, a message
-    /// or a note to Notion is refused, a script isn't given what is typed, Translate as You Type collects nothing, and
-    /// neither the selection nor the text around the caret is read for a command. A field not told yet, or one the shell
-    /// couldn't tell, is as any other. The one check for all of these: the composer's (`Composer.secureInputActive`) too.
-    public func nothingLeavesDevice() -> Bool { secureInputActive() || passwordField == .yes }
-
-    /// What the shell told of the field that has the focus being a password field where secure input isn't on
-    /// (`passwordField`).
-    enum PasswordField: Equatable {
-        /// One (the Mac: Accessibility tells an `AXSecureTextField`).
-        case yes
-        /// None.
-        case no
-        /// The shell was asked and couldn't tell (the Mac: no Accessibility, nothing focused, no answer in time, the read
-        /// failed): not asked again in this field.
-        case unknown
-    }
-
-    /// Whether nothing of this field may be read, sent or learned from: secure input on (`secureInputActive`), or a
-    /// password field where it isn't (`passwordField`), as if it were. `unknown` is what a field not told yet counts as
-    /// (true where nothing is done until it's known: suggestions' rows, Code's reads of the field, the English words
-    /// learned; false for autocomplete, whose read of the field once its pause is over tells it); `untold` what one the
-    /// shell couldn't tell counts as (`PasswordField.unknown`): true for the English words learned, so that without
-    /// Accessibility nothing is learned in a field secure input isn't on in (a password field can't be told apart there);
-    /// false for autocomplete and suggestions, which have always taken it as none. The one check learning, autocomplete
-    /// and suggestions go by.
-    func fieldIsPrivate(unknown: Bool, untold: Bool = false) -> Bool {
-        guard !secureInputActive() else { return true }
-        switch passwordField {
-        case .yes?: return true
-        case .no?: return false
-        case .unknown?: return untold
-        case nil: return unknown
-        }
-    }
-
-    /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
-    /// (`field`'s `secure`), else asked (`.passwordField`) none or, where the shell couldn't tell
-    /// (`passwordFieldUnknown`), unknown (`takePasswordField(_:)`).
-    func takePasswordField(_ context: FieldContext) {
-        guard context.read.contains(.secure), !context.secure else { return }
-        if context.field?.secure == true {
-            takePasswordField(.yes)
-        } else if context.read.contains(.passwordField) {
-            takePasswordField(context.passwordFieldUnknown ? .unknown : .no)
-        }
-    }
-
-    /// `told` of the field that has the focus: one stays one until another field takes the focus; none is taken over
-    /// one not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told
-    /// yet.
-    func takePasswordField(_ told: PasswordField) {
-        switch (told, passwordField) {
-        case (.yes, _), (_, nil), (.no, .unknown?): passwordField = told
-        default: break
-        }
-    }
+    // Password fields where secure input isn't on (`passwordField`): InputSession+PasswordField.swift.
 
     // MARK: - Focus
 
@@ -486,7 +428,15 @@ public final class InputSession {
     }
 
     private func ensureLevelOne() {
-        if let engine, services.engineIsValid(engine) { return }
+        if let engine, services.engineIsValid(engine) {
+            // rime-ice's English dictionary read since the engine was made (never waited for: `SessionServices.englishDictionary`
+            // is nil until it is): its words among the candidates from the next composition on.
+            if englishWords == nil, !composer.isComposing, composer.primaryEngine === engine, services.englishDictionary() != nil {
+                composer.engine = levelOneEngine(engine)
+                settings(app: nil)
+            }
+            return
+        }
         switch services.levelOne() {
         case let .engine(fresh):
             engine = fresh
@@ -1018,10 +968,7 @@ public final class InputSession {
         secureNoticeShown = false
         // Whether the field is a password field, for the English words learned in it: read once this key is answered,
         // off its thread (no key waits for Accessibility), and told later.
-        if learningAsksPasswordField(for: event, in: context.field ?? field) {
-            passwordFieldAsked = fieldSession
-            emit(.readPasswordField(focus: fieldSession))
-        }
+        if learningAsksPasswordField(for: event, in: context.field ?? field) { askPasswordField() }
         // One @ while the selection after the "@" key is read: a key that neither edits the draft nor is parked for the read
         // settles it as none first (`Composer.whileSelectionIsRead`), whatever takes it then.
         perform(composer.settleSelectionRead(before: event))

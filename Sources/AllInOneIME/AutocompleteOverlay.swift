@@ -379,7 +379,7 @@ extension AllInOneIMEInputController {
             """)
         if let place {
             if ghostInPanel { hidePanelLine() }
-            if ghostField == nil { ghostField = .some(fieldFrame?() ?? FocusedField.frame()) }
+            if ghostField == nil { askGhostField(client) }
             GhostOverlay.shared.owner = self
             if !GhostOverlay.shared.show(text, at: place, field: ghostField ?? nil) {
                 // Too close to the field's edge for its text: not shown at all, and Tab isn't its.
@@ -392,6 +392,31 @@ extension AllInOneIMEInputController {
         let panel = CandidatePanel.shared
         panel.take(by: self, .session({ [weak self] in self?.received($0) }))
         if show(.autocomplete(text, language: UIText.language), anchoredIn: client) { ghostInPanel = true }  // superseded: as the newer one left it
+    }
+
+    /// The field's frame the suggestion is cut at (`ghostField`), asked once a suggestion: the self-test's at once
+    /// (`fieldFrame`: its harness field isn't the one focused); Accessibility's off the main thread (an app slow to answer
+    /// would hold typing up), not known meanwhile, the suggestion still shown placed again by it once it is in. Only the
+    /// last one asked is gone by (`ghostFieldAsked`): an answer for a suggestion taken down since, or another field's, isn't.
+    @MainActor
+    func askGhostField(_ client: IMKTextInput) {
+        ghostFieldAsked += 1
+        if let fieldFrame { return ghostField = .some(fieldFrame()) }
+        ghostField = .some(nil)
+        let asked = ghostFieldAsked
+        let (box, held, top, read) = (WeakBox(self), MainThreadBox(client), FocusedField.screenTop, Self.focusedFieldReaders.frame)
+        DispatchQueue.global(qos: .userInitiated).async {
+            let frame = read(top)
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    // Asked again since, hidden since (`hideGhost` forgets it), or another's now: nothing to place.
+                    guard let self = box.value, self.ghostFieldAsked == asked, self.ghostField == .some(nil),
+                          GhostOverlay.shared.owner === self, let text = GhostOverlay.shared.text else { return }
+                    self.ghostField = .some(frame)
+                    if frame != nil { self.placeGhost(text, in: held.value) }
+                }
+            }
+        }
     }
 
     @MainActor
@@ -408,15 +433,13 @@ extension AllInOneIMEInputController {
         if panel.owner === self, !composer.wantsPanel { panel.hide() }
     }
 
-    /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`; the self-test's
-    /// harness field, which isn't the one focused, is told by the self-test). Nil: it can't tell (no Accessibility,
-    /// nothing focused, no answer in time), which the session counts as unknown, never as none.
-    @MainActor
-    func passwordFieldByAccessibility() -> Bool? {
-        passwordField.map { $0() } ?? FocusedField.isSecure()
-    }
+    /// What autocomplete and the password-field check ask Accessibility of the focused element (`FocusedField`): this
+    /// Mac's, or a test's.
+    @MainActor static var focusedFieldReaders = FocusedFieldReaders()
 
-    /// `passwordFieldByAccessibility` asked off the main thread, once the key that asks it is answered
+    /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`, the self-test's
+    /// `passwordField` for its harness field; nil: it can't tell, which the session counts as unknown, never as none),
+    /// asked off the main thread, once the key that asks it is answered
     /// (`SessionOutput.readPasswordField`: Accessibility may wait a quarter of a second for each of its two calls, more
     /// than a key may), and handed back for the focus it was asked in (`SessionEvent.passwordField`).
     @MainActor
@@ -426,7 +449,8 @@ extension AllInOneIMEInputController {
             DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.passwordField(answer, focus: focus)) } }
         }
         if let harness = passwordField { return told(harness()) }
-        DispatchQueue.global(qos: .userInitiated).async { told(FocusedField.isSecure()) }
+        let read = Self.focusedFieldReaders.isSecure
+        DispatchQueue.global(qos: .userInitiated).async { told(read()) }
     }
 
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
@@ -488,17 +512,39 @@ extension AllInOneIMEInputController {
     /// What the field says once a pause in typing is over (`SessionOutput.readField`): autocomplete's, or Code's
     /// for the field's words (`id` below 0, more after the caret): secure input, a password field as Accessibility tells
     /// it where secure input isn't on (`FocusedField.isSecure`: the field marked secure), the selection, the text around
-    /// the caret (nothing of it during secure input or in a password field). Read once this event is done, and handed
-    /// back.
+    /// the caret (nothing of it during secure input or in a password field). Whether it is a password field is asked of
+    /// Accessibility first, off the main thread (each of its two calls may wait a quarter of a second on an app slow to
+    /// answer; the self-test's harness field, which isn't the one focused, is told by the self-test: `passwordField`);
+    /// the rest is read on the main thread once that is answered, never before this event is done, and handed back.
     @MainActor
     func readFieldAfterPause(id: Int, in client: IMKTextInput?) {
-        DispatchQueue.main.async { [weak self] in
-            guard let self else { return }
-            let target = client ?? self.clientOverride ?? self.client()
-            // Secure input, a password field (told for suggestions too: both go by the same answer), the selection and the
-            // text around the caret (`FieldReading.contextAfterPause`).
-            let context = self.fieldReading.contextAfterPause(in: target, id: id)
-            self.received(.field(context, id: id))
+        let (box, held) = (WeakBox(self), MainThreadBox(client))
+        let read: @Sendable (Bool?) -> Void = { told in
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard let self = box.value else { return }
+                    let target = held.value ?? self.clientOverride ?? self.client()
+                    // Secure input, the password field as told (for suggestions too: both go by the same answer), the
+                    // selection and the text around the caret (`FieldReading.contextAfterPause`).
+                    var reading = self.fieldReading
+                    reading.passwordField = { told }
+                    self.received(.field(reading.contextAfterPause(in: target, id: id), id: id))
+                }
+            }
         }
+        if let harness = passwordField { return read(harness()) }
+        // Secure input on: nothing of the field is read, nor asked of Accessibility.
+        if services.secureInputActive() { return read(nil) }
+        let isSecure = Self.focusedFieldReaders.isSecure
+        DispatchQueue.global(qos: .userInitiated).async { read(isSecure()) }
     }
+}
+
+/// What the input method asks Accessibility of the focused element (`FocusedField`), off the main thread where it may
+/// wait on an app: this Mac's, or a test's.
+struct FocusedFieldReaders {
+    /// Whether it is a password field (`FocusedField.isSecure`; nil: it can't tell).
+    var isSecure: @Sendable () -> Bool? = { FocusedField.isSecure() }
+    /// Its frame, given the main screen's top (`FocusedField.frame`).
+    var frame: @Sendable (CGFloat) -> NSRect? = { FocusedField.frame(top: $0) }
 }

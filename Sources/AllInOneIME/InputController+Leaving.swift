@@ -6,20 +6,24 @@ import InputMethodKit
 extension AllInOneIMEInputController {
     /// The field is left, or the app ends the composition (`.commit`, `.blur`, `.pointerDown`): a row marked during the
     /// key goes in, a result being typed out stops (its rest in with `insertingRest`), and what is composed and not yet
-    /// confirmed goes, nothing of it in (#116).
+    /// confirmed goes, nothing of it in (#116). A stop that settles later (`settleStop`) does so in the field typed into,
+    /// its rest not typed once the field is left (`.blur`); one with keys typed meanwhile (`keysWhileStopping`) settles at
+    /// once, so they go in before the field is left.
     @MainActor
     func leaveField(_ event: SessionEvent, client target: IMKTextInput?, insertingRest: Bool) {
         commitRow()
-        stopTyping(insertingRest: insertingRest)
+        stopTyping(insertingRest: insertingRest, waiting: keysWhileStopping.isEmpty)
+        if case .blur = event, stopsInsertingRest != nil { stopsInsertingRest = false }
         apply(session.handle(event).outputs, client: target)
     }
 
-    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go.
+    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go (keys typed while a stop
+    /// settles before it: `leaveField`).
     override func cancelComposition() {
         IMKRecorder.shared.event("cancelComposition")
         MainActor.assumeIsolated {
             commitRow()
-            stopTyping(insertingRest: false)
+            stopTyping(insertingRest: false, waiting: keysWhileStopping.isEmpty)
             apply(session.handle(.cancel).outputs, client: client())
         }
         super.cancelComposition()

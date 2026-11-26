@@ -164,6 +164,7 @@ struct ClipboardHistoryRecordingTests {
         pasteboard.copy("fine")
         #expect(recorder.poll(limit: 20) == .recorded)
         #expect(Self.texts(recorder) == ["fine"])
+        recorder.store.waitForWrites()  // its file is written off the main thread
         #expect(!(try String(contentsOf: recorder.store.url, encoding: .utf8)).contains("hunter"))
     }
 
@@ -199,20 +200,25 @@ struct ClipboardHistoryRecordingTests {
         let (recorder, pasteboard) = Self.recorder(in: folder)
         pasteboard.copy("kept")
         recorder.poll(limit: 20)
+        recorder.store.waitForWrites()  // its file is written off the main thread
         let url = recorder.store.url
         let mode = try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int
         #expect(mode == 0o600, "mode \(String(mode ?? 0, radix: 8))")
         #expect(try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
         pasteboard.copy("again")
         recorder.poll(limit: 20)
+        recorder.store.waitForWrites()
         #expect((try FileManager.default.attributesOfItem(atPath: url.path)[.posixPermissions] as? Int) == 0o600, "each write")
         #expect(try url.resourceValues(forKeys: [.isExcludedFromBackupKey]).isExcludedFromBackup == true)
         recorder.store.clear()
+        recorder.store.waitForWrites()
         #expect(!FileManager.default.fileExists(atPath: url.path) && recorder.store.items.isEmpty)
         #expect(ClipboardHistoryStore.loaded(url: url).items.isEmpty)
         recorder.forget()
         pasteboard.copy("after")
-        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["after"] && FileManager.default.fileExists(atPath: url.path))
+        #expect(recorder.poll(limit: 20) == .recorded && Self.texts(recorder) == ["after"])
+        recorder.store.waitForWrites()
+        #expect(FileManager.default.fileExists(atPath: url.path))
     }
 
     /// Clear History (and the history turned off and on again: `ClipboardHistoryShared` forgets then too) doesn't record
@@ -308,6 +314,7 @@ struct ClipboardHistoryRecordingTests {
         first.recordImage(Self.png(10, 10, shade: 0.5), at: date + 3, limit: 20)
         let ids = first.items.compactMap { $0.image?.id }
         #expect(ids.count == 3)
+        first.waitForWrites()  // its file is written off the main thread
         // The newest image's item damaged (its size gone), and an item that is no item at all.
         var json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         var items = try #require(json["items"] as? [[String: Any]])
@@ -331,8 +338,10 @@ struct ClipboardHistoryRecordingTests {
         #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == written, "kept aside as it was")
         // Kept on the next launch too, and Clear History deletes it all.
         ClipboardHistoryStore.loaded(url: url).record("newer", at: date + 5, limit: 20)
+        store.waitForWrites()
         #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(ids[0]).png").path))
         store.clear()
+        store.waitForWrites()
         #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path).isEmpty)
     }
 
@@ -345,6 +354,7 @@ struct ClipboardHistoryRecordingTests {
         first.record("a text", at: date + 1, limit: 20)
         first.recordImage(Self.png(10, 10, shade: 0.8), at: date + 2, limit: 20)
         let ids = first.items.compactMap { $0.image?.id }
+        first.waitForWrites()  // its file is written off the main thread
         var json = try #require(try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
         var items = try #require(json["items"] as? [[String: Any]])
         items.insert(["text": 5], at: 1)
@@ -388,6 +398,7 @@ struct ClipboardHistoryRecordingTests {
         }
         fails = false
         store.record("newer", at: date + 1, limit: 20)
+        store.waitForWrites()
         let aside = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("clipboard-history-unreadable-") }
         #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == written, "moved aside once it can be")
         #expect(ClipboardHistoryStore.loaded(url: url).items.map(\.text) == ["newer", "new"])
@@ -404,11 +415,13 @@ struct ClipboardHistoryRecordingTests {
         let first = ClipboardHistoryStore.loaded(url: url)
         first.recordImage(Self.png(10, 10), at: Date(), limit: 20)
         let id = try #require(first.items.first?.image?.id)
+        first.waitForWrites()  // its file is written off the main thread
         let damaged = Data(try Data(contentsOf: url).prefix(30))
         try damaged.write(to: url)
         let store = ClipboardHistoryStore.loaded(url: url)
         #expect(store.items.isEmpty)
         store.record("new", at: Date(), limit: 20)
+        store.waitForWrites()
         #expect(FileManager.default.fileExists(atPath: store.imagesURL.appendingPathComponent("\(id).png").path))
         let aside = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.hasPrefix("clipboard-history-unreadable-") }
         #expect(try aside.first.map { try Data(contentsOf: folder.appendingPathComponent($0)) } == damaged)
@@ -441,6 +454,7 @@ struct ClipboardHistoryRecordingTests {
         let thumbnail = try #require(image.thumbnail)
         let thumb = try #require(NSBitmapImageRep(data: try Data(contentsOf: URL(fileURLWithPath: thumbnail))))
         #expect(thumb.pixelsWide == 96 && thumb.pixelsHigh == 48, "\(thumb.pixelsWide)×\(thumb.pixelsHigh)")
+        recorder.store.waitForWrites()  // the list's file is written off the main thread
         for file in [recorder.store.url.path, thumbnail, recorder.store.imagesURL.appendingPathComponent("\(image.id).png").path] {
             let mode = try FileManager.default.attributesOfItem(atPath: file)[.posixPermissions] as? Int
             #expect(mode == 0o600, "\(file): \(String(mode ?? 0, radix: 8))")
@@ -473,9 +487,11 @@ struct ClipboardHistoryRecordingTests {
         recorder.poll(limit: 2)
         #expect(recorder.store.items.map(\.text) == ["a text", ""])
         #expect(recorder.store.imageData(secondID) == nil, "the oldest dropped beyond the limit")
+        recorder.store.waitForWrites()  // its files are deleted off the main thread
         let files = try FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path).sorted()
         #expect(files == ["\(firstID)-thumb.png", "\(firstID).png"].sorted(), "\(files)")
         recorder.store.clear()
+        recorder.store.waitForWrites()
         #expect(!FileManager.default.fileExists(atPath: recorder.store.imagesURL.path), "Clear deletes the images too")
     }
 
@@ -508,6 +524,7 @@ struct ClipboardHistoryRecordingTests {
         pasteboard.copy("a text")
         recorder.poll(limit: 20)
         #expect(recorder.clipboardIsNewest)
+        recorder.store.waitForWrites()  // its write, off the main thread, deletes an images' folder it finds empty
         // A file where the images' folder goes: it can't be made.
         try Data().write(to: recorder.store.imagesURL)
         pasteboard.copy(image: Self.png(8, 8))
@@ -540,6 +557,7 @@ struct ClipboardHistoryRecordingTests {
         recorder.poll(limit: 20)
         let (newer, older) = (try #require(recorder.store.items.first?.image?.id), try #require(recorder.store.items.last?.image?.id))
         recorder.store.trim(to: 1)
+        recorder.store.waitForWrites()  // its files are deleted off the main thread
         let files = try FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)
         #expect(files.allSatisfy { $0.hasPrefix(newer) } && !files.contains { $0.hasPrefix(older) }, "\(files)")
     }
@@ -571,6 +589,7 @@ struct ClipboardHistoryRecordingTests {
         recorder.store.clear()
         held?()
         #expect(recorder.store.items.isEmpty, "Clear History meanwhile: not added after it")
+        recorder.store.waitForWrites()  // its files are deleted off the main thread
         let files = (try? FileManager.default.contentsOfDirectory(atPath: recorder.store.imagesURL.path)) ?? []
         #expect(files.isEmpty, "its files deleted: \(files)")
     }

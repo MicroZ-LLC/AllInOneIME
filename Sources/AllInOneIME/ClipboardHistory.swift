@@ -21,6 +21,9 @@ enum ClipboardHistoryShared {
     /// and nothing here reads the user's clipboard or file.
     static var isolated = false
     private static var timer: Timer?
+    /// Told when an image made ready off the main thread is kept after the look that found it
+    /// (`ClipboardRecorder.keptLater`): an open ⌃V panel shows its row (`SessionServices.wireUI`).
+    static var keptLater: () -> Void = {}
     /// The switch and the limit last applied.
     private static var applied: (on: Bool, limit: Int)?
 
@@ -30,6 +33,7 @@ enum ClipboardHistoryShared {
         guard timer == nil else { return }
         TerminalPaste.lookBeforeWrite = { tick() }
         TerminalPaste.didPutBack = { recorder.putBack(at: $0, asAt: $1) }
+        recorder.keptLater = { keptLater() }
         tick()
         let timer = Timer(timeInterval: 1, repeats: true) { _ in MainActor.assumeIsolated { tick() } }
         timer.tolerance = 0.5
@@ -39,9 +43,9 @@ enum ClipboardHistoryShared {
 
     /// The settings as they are now (turned off: the history deleted; a lower limit: the oldest dropped), then, while it's
     /// on, a copy since the last look recorded. Nothing at all while the config file doesn't parse (`currentIfValid`): its
-    /// defaults would trim the history to 20, or turn on one the user turned off. `quick`: for ⌃V's panel, which waits
-    /// for it (`ClipboardRecorder.poll(limit:quick:)`: a text in memory at once, written after; an image copied just before
-    /// kept at once, a moment waited for it at most).
+    /// defaults would trim the history to 20, or turn on one the user turned off. Its file is written off the main thread,
+    /// an image made ready there. `quick`: for ⌃V's panel, which never waits for it (`ClipboardRecorder.poll(limit:quick:)`:
+    /// an image ready by then kept at once; one still being made ready kept, and the panel shown anew, once it is).
     static func tick(quick: Bool = false) {
         guard let config = LiveConfig.currentIfValid else { return }
         apply(config)

@@ -107,7 +107,7 @@ extension RimeEngineTests {
         let librimes = candidatesOnPages("yaji", plain)
         #expect(Array(librimes.prefix(2)) == ["压机", "鸭鸡"], "\(librimes.prefix(6))")
 
-        let dictionary = try #require(RimeService.shared.englishDictionary)
+        let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6
         let mixed = EnglishWordsEngine(base: session, dictionary: dictionary, words: ["bedrock", "Yaji"])
         let composer = Composer(engine: mixed, actionKey: .enter)
         typeIn("bedrock", composer)

@@ -18,13 +18,19 @@ private final class LoadedList: @unchecked Sendable {
     func set(_ items: [ClipboardHistoryItem]) { lock.withLock { value = items } }
 }
 
-/// The ids of images being made ready, read and changed from any thread.
+/// The ids of images being made ready, read and changed from any thread: each counted as many times as it is being made
+/// ready (the same image copied before and after Clear History), until each of those is added or discarded.
 private final class PreparingIDs: @unchecked Sendable {
     private let lock = NSLock()
-    private var set: Set<String> = []
-    var ids: Set<String> { lock.withLock { set } }
-    func insert(_ id: String) { _ = lock.withLock { set.insert(id) } }
-    func remove(_ id: String) { _ = lock.withLock { set.remove(id) } }
+    private var counts: [String: Int] = [:]
+    var ids: Set<String> { lock.withLock { Set(counts.keys) } }
+    func insert(_ id: String) { lock.withLock { counts[id, default: 0] += 1 } }
+    func remove(_ id: String) {
+        lock.withLock {
+            guard let count = counts[id] else { return }
+            counts[id] = count > 1 ? count - 1 : nil
+        }
+    }
 }
 
 /// Clipboard history's copies, newest first, as kept on this Mac: one file (`url`) for the list, and beside it a folder
@@ -33,10 +39,9 @@ private final class PreparingIDs: @unchecked Sendable {
 /// in the list is deleted with it; `clear` deletes them all (Clear History, the history turned off). Read once, as it is
 /// made, off the main thread (a long history's file never holds typing up): empty meanwhile (`isLoading`), a copy
 /// recorded then kept above what is read, and no write leaves out what is still being read. Never synced, never sent
-/// anywhere. Its files are written one change after another (`writes`): at once, or, for
-/// a copy recorded as ⌃V's panel is about to show, after it, off the main thread.
-// Unchecked: `prepare` runs off the main thread and touches only the images folder (by `url`, which never changes); the
-// list itself is read and changed on the thread that made the store only (the main thread), and written from a copy of
+/// anywhere. Its files are written one change after another (`writes`), off the main thread, never waited for there.
+// Unchecked: `prepare` runs off the main thread and touches only the images folder (by `url`, which never changes), never
+// while `writes` deletes in it (`folderLock`); the list itself is read and changed on the thread that made the store only (the main thread), and written from a copy of
 // it on `writes`; the list read from the file is handed over through `LoadedList`.
 public final class ClipboardHistoryStore: @unchecked Sendable {
     /// ~/Library/Application Support/AllInOneIME/clipboard-history.json.
@@ -47,10 +52,17 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public let url: URL
     /// Counts the clears: an image made ready before one isn't added after it (`ClipboardRecorder.poll`).
     public private(set) var generation = 0
-    /// Where the list's file is written and the images no longer in it deleted, in the order the changes were made.
-    private let writes = DispatchQueue(label: "com.allinoneime.inputmethod.clipboard-history", qos: .userInitiated)
+    /// Where the list's file is written and the images no longer in it deleted, in the order the changes were made, off
+    /// the main thread: every store's (one made anew for the same file reads it after what the one before wrote).
+    private static let writes = DispatchQueue(label: "com.allinoneime.inputmethod.clipboard-history", qos: .userInitiated)
+    private var writes: DispatchQueue { Self.writes }
     /// The ids of the images being made ready (`prepare` until `add` or `discard`): their files are never removed meanwhile.
     private let preparing = PreparingIDs()
+    /// Held while an image's files are written into the images folder (`prepare`, off the main thread) and while the
+    /// folder's unlisted files are deleted (`removeUnlisted`, on `writes`): a deletion never takes files written after it
+    /// looked at what is being made ready, nor the folder with them. Never taken on the main thread but by the tests' and
+    /// the self-test's `recordImage`.
+    private let folderLock = NSLock()
     /// The kept images' folder, beside the list and named after it (clipboard-history-images for the user's): two stores
     /// never share one.
     public var imagesURL: URL {
@@ -157,9 +169,6 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         }
     }
 
-    /// Whether the file has been read (on `writes`): until then, a write waits behind it, so none is waited for.
-    private var readDone: Bool { loaded.items != nil }
-
     /// What the file had, once read, in `items`: below what was recorded meanwhile (the same copy once), to the limit
     /// asked for meanwhile.
     private func finishLoading() {
@@ -168,7 +177,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
             let all = Self.merge(current, read, limit: nil)
             current = Self.merge(current, read, limit: limitWhileLoading)
             // A lower limit set while it was read (`trim`) drops the oldest from the file now; nothing changed, nothing written.
-            if current.count < all.count, let limit = limitWhileLoading { keep(limit, later: true) }
+            if current.count < all.count, let limit = limitWhileLoading { keep(limit) }
         }
         guard !loadPending, !loadWaiters.isEmpty else { return }
         let waiters = loadWaiters
@@ -248,22 +257,33 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return ids
     }
 
-    /// `text` copied at `date`: first, once (the same text further down moves up), `limit` kept at most. False: it was
-    /// the newest already, and nothing changed. `savingLater`: in the list at once, its file written off the main thread
-    /// after (`waitForWrites` waits for it).
+    /// `text` copied at `date`: first, once (the same text further down moves up), `limit` kept at most: in the list at
+    /// once, its file written off the main thread after (`waitForWrites` waits for it), as every change's is now
+    /// (`savingLater`, from when only ⌃V's look left it for later, changes nothing). False: it was the newest already, and
+    /// nothing changed.
     @discardableResult
-    public func record(_ text: String, at date: Date, limit: Int, savingLater: Bool = false) -> Bool {
+    public func record(_ text: String, at date: Date, limit: Int, savingLater: Bool = true) -> Bool {
         finishLoading()
         guard current.first.map({ $0.image != nil || $0.text != text }) ?? true else { return false }
         current.removeAll { $0.image == nil && $0.text == text }
         current.insert(ClipboardHistoryItem(text: text, copiedAt: date), at: 0)
-        keep(limit, later: savingLater)
+        keep(limit)
         return true
     }
 
-    /// Once what was to be written is (`record(_:at:limit:savingLater:)`).
+    /// Once what was to be written is (every change's, off the main thread): tests, the self-test.
     public func waitForWrites() {
         writes.sync {}
+    }
+
+    /// What every store was asked to write or delete by now, done before the input method ends (Clear History just
+    /// before an update or a logout), `seconds` at most: whether it all was. Never on the main thread (the input method's
+    /// termination's own queue, or after the run loop is done).
+    @discardableResult
+    public static func drain(within seconds: TimeInterval) -> Bool {
+        let done = DispatchSemaphore(value: 0)
+        writes.async { done.signal() }
+        return done.wait(timeout: .now() + seconds) == .success
     }
 
     /// An image made ready to keep (`prepare`): its id (its PNG's SHA-256), size and PNG's length, its files written.
@@ -289,6 +309,10 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public func prepare(_ image: ClipboardImage) -> Prepared {
         guard let png = image.pngData(), png.count <= ClipboardHistoryImage.maxBytes else { return .tooLarge }
         let id = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        let thumbnail = Self.thumbnail(png)
+        // Being made ready before the folder is looked at again (`removeUnlisted`): one deleting it now is done first.
+        folderLock.lock()
+        defer { folderLock.unlock() }
         preparing.insert(id)
         do {
             try FileManager.default.createDirectory(at: imagesURL, withIntermediateDirectories: true,
@@ -296,7 +320,7 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
             excludeFromBackup(imagesURL)
             let file = imageURL(id)
             if !FileManager.default.fileExists(atPath: file.path) { try Platform.current.files.writePrivate(png, to: file) }
-            if let thumbnail = Self.thumbnail(png) { try Platform.current.files.writePrivate(thumbnail, to: thumbnailURL(id)) }
+            if let thumbnail { try Platform.current.files.writePrivate(thumbnail, to: thumbnailURL(id)) }
         } catch {
             CoreLog(subsystem: "com.allinoneime.inputmethod.AllInOneIME", category: "ime")
                 .error("clipboard history: could not save an image: \(String(describing: type(of: error)))")
@@ -363,25 +387,26 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         keep(limit)
     }
 
-    /// Everything forgotten: the list's file and the images deleted (after what was to be written before).
+    /// Everything forgotten: the list at once, its file and the images deleted off the main thread after what was to be
+    /// written before (`waitForWrites` waits for it).
     public func clear() {
         generation += 1
         current = []
         // What is being read is forgotten too; the files deleted after it is (never waited for).
-        let waits = !readDone
         loadPending = false
         finishLoading()
-        let wipe = { [self] in
+        writes.async { [self] in
             (keptAsideIDs, unarchived) = ([], false)
-            for file in [url, imagesURL] + asideURLs { try? FileManager.default.removeItem(at: file) }
+            for file in [url] + asideURLs { try? FileManager.default.removeItem(at: file) }
+            // Every image but one being made ready meanwhile (copied after it: kept; before it: `discard`ed), and the
+            // folder with them.
+            removeUnlisted(listing: [])
         }
-        if waits { writes.async(execute: wipe) } else { writes.sync(execute: wipe) }
     }
 
-    /// `limit` kept at most, saved; images no longer in the list deleted: before it returns, or (`later`, and always while
-    /// the file is being read, which it waits for) off the main thread after. `releasing`: an image being made ready
-    /// (`preparing`), until this write.
-    private func keep(_ limit: Int, later: Bool = false, releasing id: String? = nil) {
+    /// `limit` kept at most, saved, images no longer in the list deleted: off the main thread, after what was to be written
+    /// before (a snapshot of the list now). `releasing`: an image being made ready (`preparing`), until this write.
+    private func keep(_ limit: Int, releasing id: String? = nil) {
         current = Array(current.prefix(max(limit, 1)))
         let loading = isLoading
         if loading { limitWhileLoading = limit }
@@ -390,13 +415,12 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
             return clear()
         }
         let items = current
-        let write = { [self] in
+        writes.async { [self] in
             let whole = whole(items, loading: loading, limit: limit)
             save(whole)
             removeUnlisted(listing: whole)
             if let id { preparing.remove(id) }
         }
-        if later || !readDone { writes.async(execute: write) } else { writes.sync(execute: write) }
     }
 
     func imageURL(_ id: String) -> URL { imagesURL.appendingPathComponent("\(id).png") }
@@ -420,13 +444,15 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// Image files whose image is no longer in the list deleted.
     private func removeUnlisted() {
         let (items, loading, limit) = (current, isLoading, limitWhileLoading)
-        let remove = { [self] in removeUnlisted(listing: whole(items, loading: loading, limit: limit)) }
-        if !readDone { writes.async(execute: remove) } else { writes.sync(execute: remove) }
+        writes.async { [self] in removeUnlisted(listing: whole(items, loading: loading, limit: limit)) }
     }
 
-    /// Image files whose image isn't among `items`, nor being made ready, deleted.
+    /// Image files whose image isn't among `items`, nor being made ready, deleted: while no image's files are being
+    /// written (`folderLock`), so one made ready meanwhile is either listed as being made ready, or written after.
     private func removeUnlisted(listing items: [ClipboardHistoryItem]) {
         guard archive() else { return }
+        folderLock.lock()
+        defer { folderLock.unlock() }
         let listed = Set(items.compactMap { $0.image?.id }).union(preparing.ids).union(keptAsideIDs)
         for (name, id) in Self.files(in: imagesURL) where !listed.contains(id) {
             try? FileManager.default.removeItem(at: imagesURL.appendingPathComponent(name))
@@ -434,9 +460,10 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         if listed.isEmpty { try? FileManager.default.removeItem(at: imagesURL) }
     }
 
-    /// The files in an images folder, each with its image's id.
+    /// The files in an images folder, each with its image's id; not a hidden one: an image's file being written there
+    /// (`prepare`, off the main thread), staged under a hidden name until it is.
     private static func files(in folder: URL) -> [(name: String, id: String)] {
-        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).map { name in
+        ((try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []).filter { !$0.hasPrefix(".") }.map { name in
             (name, name.replacingOccurrences(of: "-thumb.png", with: "").replacingOccurrences(of: ".png", with: ""))
         }
     }
