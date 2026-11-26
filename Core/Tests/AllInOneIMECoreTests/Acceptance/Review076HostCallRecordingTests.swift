@@ -52,20 +52,24 @@ struct Review076HostCallRecordingTests {
 
     // MARK: 5. A dead key
 
-    /// Item 5. A dead key as the Mac's key down tells it (no characters; ⌥E on a U.S. keyboard, the ^ key of a French
-    /// one) in a recording that keeps no text: no key code, as for any key that types (the code tells which accent was
-    /// typed); the recording that keeps text has it. (Fails today: with no characters it is taken for a key that types
-    /// nothing, and its hardware key code is recorded.)
+    /// Item 5. A dead key as the Mac's key down tells it (AppKit gives a dead key neither `characters` nor
+    /// `charactersIgnoringModifiers`: both are ""; ⌥E on a U.S. keyboard, the ^ key of a French one, ⇧^ for ¨) in a
+    /// recording that keeps no text: no key code, as for any key that types (the code tells which accent was typed); the
+    /// recording that keeps text has it. (Fails today: with no characters it is taken for a key that types nothing, and
+    /// its hardware key code is recorded.)
     @Test(arguments: [
-        KeyEvent(keyCode: 0x0E, characters: "", charactersIgnoringModifiers: "e", modifiers: [.option, .leftOption]),
-        KeyEvent(keyCode: 0x21, characters: "", charactersIgnoringModifiers: "^"),
-        KeyEvent(keyCode: 0x21, characters: "", charactersIgnoringModifiers: "¨", modifiers: [.shift, .leftShift]),
+        KeyEvent(keyCode: 0x0E, characters: "", charactersIgnoringModifiers: "", modifiers: [.option, .leftOption]),
+        KeyEvent(keyCode: 0x21, characters: "", charactersIgnoringModifiers: ""),
+        KeyEvent(keyCode: 0x21, characters: "", charactersIgnoringModifiers: "", modifiers: [.shift, .leftShift]),
     ])
     func aDeadKeyIsRecordedWithoutItsKeyCode(_ deadKey: KeyEvent) throws {
+        // The premise: the key down as AppKit tells a dead key, nothing in either text.
+        try #require(deadKey.characters.isEmpty && deadKey.charactersIgnoringModifiers.isEmpty)
         let redacted = HostCallRecording(keepsText: false)
         let line = redacted.event("keyDown", at: 0, redacted.key(deadKey))
         let read = try #require(HostCallRecording.parse(line))
-        #expect(read.fields["code"] == nil, "a dead key's hardware key code is in a recording that keeps no text: \(line)")
+        #expect(read.fields["code"] == nil && read.number("code") == nil && !line.contains("\"code\""),
+                "a dead key's hardware key code is in a recording that keeps no text: \(line)")
         #expect(read.string("chars") == nil, "its characters are recorded: \(line)")
 
         // The same key marked as the core marks one (`KeyEvent.isDeadKey`, its accent in `characters`).
@@ -74,7 +78,8 @@ struct Review076HostCallRecordingTests {
         marked.characters = "´"
         let markedLine = redacted.event("keyDown", at: 0, redacted.key(marked))
         let markedRead = try #require(HostCallRecording.parse(markedLine))
-        #expect(markedRead.fields["code"] == nil && markedRead.string("chars") == nil && !markedLine.contains("´"),
+        #expect(markedRead.fields["code"] == nil && !markedLine.contains("\"code\"") && markedRead.string("chars") == nil
+                    && !markedLine.contains("´"),
                 "a key marked dead is recorded with its code or accent: \(markedLine)")
 
         // Asked for in so many words, it is kept.

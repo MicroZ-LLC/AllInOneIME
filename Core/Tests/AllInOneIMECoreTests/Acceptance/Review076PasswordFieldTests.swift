@@ -124,10 +124,34 @@ struct Review076PasswordFieldPendingTests {
         Review076Field.secrets.filter { secret in texts.contains { $0.contains(secret) } }
     }
 
+    /// How a shell that tells everything with the key leaves the password field's answer pending.
+    enum Pending: CaseIterable {
+        /// Asked whether it is a password field, it says the answer comes after the key (`passwordFieldFollows`).
+        case follows
+        /// It reads everything but that (`FieldContext.read` without `.passwordField`).
+        case notRead
+    }
+
+    /// Everything the field says with a key (`FakeHost.context`: the selection, the text around the caret), but whether
+    /// it is a password field: that answer stays pending, `pending`'s way. (`FakeHost.context` as it is answers "none"
+    /// with the key, which is no pending answer.)
+    private func everythingButThePasswordField(_ host: FakeHost, _ pending: Pending) -> FieldContext {
+        var context = host.context
+        context.field = FieldInfo(app: host.app, terminal: host.terminal)
+        switch pending {
+        case .follows: (context.passwordFieldUnknown, context.passwordFieldFollows) = (true, true)
+        case .notRead: context.read.remove(.passwordField)
+        }
+        return context
+    }
+
     /// Item 1. The shell was asked whether the field is a password field and hasn't answered: ⏎ on `@reply ok` asks the
-    /// field for no text, reads none and sends none of it; and none once the answer (a password field) comes. (Fails
-    /// today: not told yet is taken as "no", so ⏎ asks for the text around the caret and it's sent.)
-    @Test func replyReadsNoTextWhileThePasswordFieldAnswerIsPending() async throws {
+    /// field for no text, reads none and sends none of it; and none once the answer (a password field) comes. What was
+    /// typed for the command is still the user's to send: `@reply ok` is run, not refused as in a known password field,
+    /// and its draft doesn't go into the field as typed. (Failed as reviewed: not told yet was taken as "no", so ⏎
+    /// asked for the text around the caret and it was sent.)
+    @Test(arguments: Pending.allCases)
+    func replyReadsNoTextWhileThePasswordFieldAnswerIsPending(_ pending: Pending) async throws {
         try await withInterfaceLanguage("en") {
             let model = Review076Model()
             let host = host(model: model, passwordField: true)
@@ -142,10 +166,22 @@ struct Review076PasswordFieldPendingTests {
                 #expect(!asked.contains(.text),
                         "\(key.characters.debugDescription) asks for the field's text while the answer is pending: \(asked)")
             }
-            // A shell that tells everything with the key (reading is cheap there): the session itself leaves it alone.
-            host.press(FakeHost.enter)
-            host.settle(timeout: 1.5) { !model.requests.isEmpty }
+            // A shell that tells everything with the key but whether it's a password field (reading is cheap there; that
+            // answer is still the one awaited): the text around the caret is in the key's context, and the session
+            // itself leaves it alone.
+            let told = everythingButThePasswordField(host, pending)
+            try #require(told.read.contains(.text) && told.text == FieldText(before: Review076Field.before, after: Review076Field.after),
+                         "the key tells the text around the caret: \(String(describing: told.text))")
+            host.press(FakeHost.enter, with: told)
+            try #require(host.session.passwordField == nil, "still not told: \(String(describing: host.session.passwordField))")
+            #expect(host.settle(timeout: 5) { !model.requests.isEmpty }, "@reply ok sent nothing while the answer was pending")
             #expect(leaks(model.texts).isEmpty, "the field's text was sent while the answer was pending: \(leaks(model.texts))")
+            // Not refused (a field not told yet isn't a known password field), and not typed into the field as it stands.
+            #expect(host.noticeAlone != InputSession.aiRefusal, "refused as an app with no AI")
+            #expect(host.noticeAlone?.hasPrefix("Secure input is on") != true,
+                    "refused as a password field: \(String(describing: host.noticeAlone))")
+            #expect(host.document == Review076Field.before + Review076Field.after, "went into the field as typed: \(host.document)")
+            #expect(!host.document.contains("@reply"), "the draft was typed into the field: \(host.document)")
 
             // The answer comes: a password field. Nothing of it goes out afterwards either.
             host.answerFieldReads()
@@ -234,6 +270,53 @@ struct Review076KeyWithoutActivateTests {
         }
     }
 
+    /// The field loses the focus, and a field of the host's own app takes it.
+    private func leaveAndComeBack(_ host: FakeHost) {
+        host.send(.blur)
+        host.focus()
+    }
+
+    /// The words the session would learn if the field were left now (`EnglishModeWords.leftField`, on a copy: the
+    /// session's own isn't touched).
+    private func wordsHeld(_ host: FakeHost) -> [String] {
+        var words = host.session.englishModeWords
+        return words.leftField()
+    }
+
+    /// Item 2, the word that Return ends. A word typed for a password manager's field and ended by Return stands only
+    /// once the field is left (the blur learns it, by the field the session was last told: the editor's): nothing is
+    /// held for it after Return, and nothing is learned when the field loses the focus and another takes it.
+    @Test(arguments: Review076Field.passwordManagers)
+    func nothingIsLearnedOnLeavingAPasswordManagerTheSessionWasNotToldOf(_ app: String) async throws {
+        try await withInterfaceLanguage("en") {
+            // The premise: the same keys for the editor's field hold the word after Return, and leaving learns it.
+            let premise = Learned()
+            let editor = learningHost(premise)
+            try #require(editor.composer.inputLanguage == .english)
+            type("we zorblax it. we zorblax\r", editor, app: Review076Field.editor)
+            try #require(premise.words.isEmpty && wordsHeld(editor) == ["zorblax"],
+                         "the editor holds the word Return ended: \(premise.words) \(wordsHeld(editor))")
+            leaveAndComeBack(editor)
+            try #require(premise.words == ["zorblax"], "the editor learns the word once the field is left: \(premise.words)")
+
+            let learned = Learned()
+            let host = learningHost(learned)
+            type("we zorblax it. we zorblax\r", host, app: app)
+            #expect(wordsHeld(host).isEmpty, "\(app): a word typed in a password manager's field is held: \(wordsHeld(host))")
+            leaveAndComeBack(host)
+            #expect(learned.words.isEmpty, "\(app): learned from a password manager's field on leaving it: \(learned.words)")
+
+            // A word typed once in the editor, then again for the password manager's field: the second isn't counted.
+            let mixedWords = Learned()
+            let mixed = learningHost(mixedWords)
+            type("we zorblax it. ", mixed, app: Review076Field.editor)
+            type("we zorblax\r", mixed, app: app)
+            #expect(wordsHeld(mixed).isEmpty, "\(app): a word is held across fields: \(wordsHeld(mixed))")
+            leaveAndComeBack(mixed)
+            #expect(mixedWords.words.isEmpty, "\(app): learned from a password manager's field: \(mixedWords.words)")
+        }
+    }
+
     /// Item 2, autocomplete. Keys for a password manager's field, the session's own field still the editor (autocomplete
     /// on there): no pause starts, the field isn't read and nothing is asked of the AI. (Fails today: what is done after
     /// the key goes by the stale field, so the pause starts and the password manager's field is read and sent.)
@@ -300,6 +383,59 @@ struct Review076KeyWithoutActivateTests {
             field.idle()
             #expect(field.rows.isEmpty, "\(app): rows show in a password manager's field: \(field.rows.map(\.text))")
             #expect(world.runtime.loads.count == loadsBefore, "\(app): the source list was loaded for it")
+            #expect(world.runtime.queries.isEmpty, "\(app): typed text reached the source: \(world.runtime.queries)")
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is followed: \(field.host.session.suggesting.token)")
+
+            // Return for the same field, then the field is left and the editor's takes the focus: what was typed in the
+            // password manager is followed nowhere on the way (no token, no rows, no lookup).
+            field.host.press(SuggestionKeys.enter, with: context(field.host, app: app))
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is followed after Return: \(field.host.session.suggesting.token)")
+            #expect(world.runtime.loads.count == loadsBefore, "\(app): the source list was loaded for it after Return")
+            field.host.send(.blur)
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is kept once the field is left: \(field.host.session.suggesting.token)")
+            field.host.focus()
+            field.idle()
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is carried into the next field: \(field.host.session.suggesting.token)")
+            #expect(field.rows.isEmpty, "\(app): rows show after the password manager's field: \(field.rows.map(\.text))")
+            #expect(world.runtime.queries.isEmpty, "\(app): typed text reached the source: \(world.runtime.queries)")
+        }
+    }
+
+    /// Item 2, suggestions, a word then Return. A word typed for a password manager's field, then a source's prefix,
+    /// Return, and the field left for the editor's: the same keys in the editor are followed (the premise), there
+    /// nothing is.
+    @Test(arguments: Review076Field.passwordManagers)
+    func nothingTypedInAPasswordManagerIsFollowedPastReturnAndTheFieldLeft(_ app: String) async throws {
+        try await withInterfaceLanguage("en") {
+            func typed(_ text: String, in field: SuggestionsField, app: String) {
+                for character in text { field.host.press(SuggestionKeys.key(character), with: context(field.host, app: app)) }
+            }
+            // The premise: in the editor's field the prefix after a word is followed.
+            let editorWorld = SuggestionsWorld()
+            try editorWorld.github()
+            let editor = editorWorld.field()
+            typed("hello #70", in: editor, app: Review076Field.editor)
+            try #require(editor.settle { !editor.issuesShown.isEmpty }, "the editor shows the issues after a word")
+            try #require(!editor.host.session.suggesting.token.isEmpty, "the editor follows what is typed")
+
+            let world = SuggestionsWorld()
+            try world.github()
+            let field = world.field()
+            typed("hello #70", in: field, app: app)
+            field.host.press(SuggestionKeys.enter, with: context(field.host, app: app))
+            field.idle()
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is followed: \(field.host.session.suggesting.token)")
+            field.host.send(.blur)
+            field.host.focus()
+            field.idle()
+            #expect(field.host.session.suggesting.token.isEmpty,
+                    "\(app): what was typed there is carried into the next field: \(field.host.session.suggesting.token)")
+            #expect(field.rows.isEmpty, "\(app): rows show: \(field.rows.map(\.text))")
             #expect(world.runtime.queries.isEmpty, "\(app): typed text reached the source: \(world.runtime.queries)")
         }
     }
