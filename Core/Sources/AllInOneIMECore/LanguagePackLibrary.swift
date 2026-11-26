@@ -160,18 +160,28 @@ public struct LanguagePackLibrary: Sendable {
 
     static func isLocal(_ url: URL) -> Bool { ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "") }
 
+    /// How long tar has to unpack a pack (hundreds of megabytes out of xz take seconds): past that it's stuck, and is
+    /// stopped. ALLINONEIME_TAR_TIMEOUT in the launcher's environment, a number of seconds above 0, says otherwise (the
+    /// tests').
+    static let unpackTimeout: TimeInterval = 300
+
     /// The system's tar (bsdtar): refuses entries with ".." or an absolute path and doesn't extract
-    /// through links; no owners, extended attributes or Mac metadata.
+    /// through links; no owners, extended attributes or Mac metadata. Blocks the calling thread (never the main one: an
+    /// install runs in a task) until tar has ended, `unpackTimeout` at most.
     static func unpack(_ archive: URL, into folder: URL) throws {
-        let errors = Pipe()
-        let tar = try Platform.current.processes.launch(LaunchSpec(
-            executable: systemTar,
-            arguments: ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs", "--no-mac-metadata", "--no-acls", "--no-fflags"],
-            standardOutput: .null, standardError: .pipe(errors)))
-        let message = errors.fileHandleForReading.readDataToEndOfFile()
-        tar.waitUntilExit()
-        guard tar.terminationStatus == 0 else {
-            throw LanguagePackError.unpack(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+        let processes = Platform.current.processes
+        let timeout = processes.environment["ALLINONEIME_TAR_TIMEOUT"].flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil }
+            ?? unpackTimeout
+        let tar: ProcessOutput.Result
+        do {
+            tar = try ProcessOutput.run(systemTar, ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs",
+                                                    "--no-mac-metadata", "--no-acls", "--no-fflags"],
+                                        timeout: timeout, processes: processes)
+        } catch let stuck as ProcessOutput.TimedOut {
+            throw LanguagePackError.unpack(stuck.localizedDescription)
+        }
+        guard tar.status == 0 else {
+            throw LanguagePackError.unpack(String(decoding: tar.errors, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
