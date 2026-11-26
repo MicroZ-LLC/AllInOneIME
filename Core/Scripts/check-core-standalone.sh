@@ -1,6 +1,6 @@
 #!/bin/sh
 # Keeps the core standalone: this folder (the package) builds and tests as it is, alone, as its own repository will
-# (and as core-portable.yml's export of it does). It fails when
+# (and as the macOS repository's quality.yml, core-test, checks it: on an export of it). It fails when
 #   - Package.swift depends on a package by path (`.package(path:)`), or names a path with ".." in it;
 #   - a C header or module map includes a file outside the package, or one it doesn't have (`#include "…"`,
 #     `header "…"`): something `make deps` puts in place, say;
