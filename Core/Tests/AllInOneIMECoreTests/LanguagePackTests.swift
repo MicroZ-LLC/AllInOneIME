@@ -205,10 +205,10 @@ struct LanguagePackTests {
         await #expect(throws: LanguagePackError.invalidEntry("http://example.com/zh.tar.xz")) {
             try await lib.library(allowsLocalHTTP: true).install(.chinesePinyin)
         }
-        #expect(lib.library().isAllowed(URL(string: "https://github.com/x")!))
-        #expect(!lib.library().isAllowed(URL(string: "http://127.0.0.1:8000/x")!))
-        #expect(lib.library(allowsLocalHTTP: true).isAllowed(URL(string: "http://127.0.0.1:8000/x")!))
-        #expect(!lib.library(allowsLocalHTTP: true).isAllowed(URL(string: "file:///etc/passwd")!))
+        #expect(lib.library().signedIndex.isAllowed(URL(string: "https://github.com/x")!))
+        #expect(!lib.library().signedIndex.isAllowed(URL(string: "http://127.0.0.1:8000/x")!))
+        #expect(lib.library(allowsLocalHTTP: true).signedIndex.isAllowed(URL(string: "http://127.0.0.1:8000/x")!))
+        #expect(!lib.library(allowsLocalHTTP: true).signedIndex.isAllowed(URL(string: "file:///etc/passwd")!))
     }
 
     // MARK: Upgrades

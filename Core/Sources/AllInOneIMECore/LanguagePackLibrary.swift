@@ -94,29 +94,19 @@ public struct LanguagePackLibrary: Sendable {
 
     // MARK: Index
 
+    /// Its index as the library signs it, and what is checked of it and its entries (`SignedIndex`, coding packs' too).
+    var signedIndex: SignedIndex<LanguagePackIndex> {
+        SignedIndex(name: Self.indexName, schema: Self.schema, baseURL: baseURL, configuration: configuration,
+                    allowsLocalHTTP: allowsLocalHTTP)
+    }
+
     public func fetchIndex() async throws -> LanguagePackIndex {
-        let index = try await fetch(Self.indexName, limit: Self.maxIndexBytes)
-        let signature: Data
-        do {
-            signature = try await fetch(Self.indexName + ".sig", limit: 4096)
-        } catch LanguagePackError.http(status: 404, _) {
-            throw LanguagePackError.missingSignature
-        }
-        return try Self.verify(index: index, signature: signature, publicKey: publicKey)
+        try await signedIndex.fetch(publicKey: publicKey)
     }
 
     /// The index in `data`, if `signature` is the key's signature of exactly these bytes (checked first).
     public static func verify(index data: Data, signature: Data, publicKey: Data) throws -> LanguagePackIndex {
-        do {
-            try PluginLibrary.checkSignature(data, signature: signature, publicKey: publicKey)
-        } catch let error as PluginLibraryError {
-            throw LanguagePackError(error)
-        }
-        struct Schema: Decodable { var schema: Int }
-        guard let schema = try? JSONDecoder().decode(Schema.self, from: data).schema else { throw LanguagePackError.malformedIndex }
-        guard schema == Self.schema else { throw LanguagePackError.unsupportedSchema(schema) }
-        guard let index = try? JSONDecoder().decode(LanguagePackIndex.self, from: data) else { throw LanguagePackError.malformedIndex }
-        return index
+        try SignedIndex.verify(data, signature: signature, publicKey: publicKey, schema: schema)
     }
 
     /// The newest version of `pack` this app can use.
@@ -144,11 +134,7 @@ public struct LanguagePackLibrary: Sendable {
     public func install(_ entry: LanguagePackIndex.Entry, pack: LanguagePack,
                         progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> LanguagePackRecord {
         guard entry.id == pack.id else { throw LanguagePackError.invalidEntry(entry.id) }
-        guard entry.sha256.count == 64, entry.sha256.allSatisfy(\.isHexDigit) else { throw LanguagePackError.invalidEntry("sha256") }
-        guard entry.size > 0 else { throw LanguagePackError.invalidEntry("size") }
-        guard let url = URL(string: entry.url, relativeTo: baseURL)?.absoluteURL, isAllowed(url) else {
-            throw LanguagePackError.invalidEntry(entry.url)
-        }
+        let url = try signedIndex.fileURL(of: entry)
         let fm = FileManager.default
         try fm.createDirectory(at: store.directory, withIntermediateDirectories: true)
         let work = store.directory.appendingPathComponent(".\(pack.id).tmp-\(UUID().uuidString)", isDirectory: true)
@@ -170,15 +156,6 @@ public struct LanguagePackLibrary: Sendable {
         let record = LanguagePackRecord(id: pack.id, version: entry.version, source: .library, sha256: entry.sha256.lowercased())
         try store.finish(pack, temporary: unpacked, record: record)
         return record
-    }
-
-    /// https anywhere (the signed hash, not the host, vouches for the bytes); http only to this Mac, when allowed.
-    func isAllowed(_ url: URL) -> Bool {
-        switch url.scheme?.lowercased() {
-        case "https": return true
-        case "http": return allowsLocalHTTP && Self.isLocal(url)
-        default: return false
-        }
     }
 
     static func isLocal(_ url: URL) -> Bool { ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "") }
@@ -206,25 +183,6 @@ public struct LanguagePackLibrary: Sendable {
         #else
         return URL(fileURLWithPath: "/usr/bin/tar")
         #endif
-    }
-
-    // MARK: Network
-
-    private func fetch(_ path: String, limit: Int) async throws -> Data {
-        let url = baseURL.appendingPathComponent(path)
-        guard isAllowed(url) else { throw LanguagePackError.unreachable(url.absoluteString) }
-        let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(from: url)
-        } catch {
-            throw LanguagePackError.unreachable(url.host ?? url.absoluteString)
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw LanguagePackError.http(status: status, file: path) }
-        guard data.count <= limit else { throw LanguagePackError.tooLarge(path) }
-        return data
     }
 }
 
