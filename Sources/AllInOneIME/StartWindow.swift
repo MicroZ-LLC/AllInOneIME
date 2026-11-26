@@ -192,9 +192,7 @@ enum StartWindow {
         settings.refreshAccount()
         settings.aws.refresh(profile: settings.config.awsProfile)
         settings.sessionAvailability = ClaudeSessionMac.managers.mapValues(\.availability)
-        if step == 2, let agent = settings.config.ai.agent, !settings.aiFacts.status(.cli(agent), config: settings.config).isReady {
-            settings.refreshSessions([agent], force: true)
-        }
+        if step == 2 { settings.pickedCLIShownAgain() }
     }
 
     /// Whether AllInOneIME's input source is added (enabled): read only, on the main thread (`InputSourceCheck

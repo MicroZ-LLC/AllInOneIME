@@ -54,10 +54,14 @@ struct StartAndAutocompleteWiringTests {
     /// Back on the start (from Settings or Terminal) on step 2 with a CLI chosen that isn't ready: its sign-in looked at
     /// now (forced: one signed in in Terminal within the last minute), and the step goes on when the look comes back.
     @Test func backOnStepTwoTheCLIChosenIsLookedAtAgain() throws {
+        // Through Settings → AI's model (ClaudeSessionSettings.swift), the only place a sign-in is looked at
+        // (QuestionSessionMacAcceptanceTests.theSignInIsLookedAtOnlyOnTheAIPageAndAsACLIIsPicked).
         let window = try code("Sources/AllInOneIME/StartWindow.swift")
         let refresh = try block(window, "private static func refreshAI(")
-        #expect(refresh.contains("config.ai.agent"), "\(refresh)")
-        #expect(refresh.contains("refreshSessions([agent], force: true)"), "the CLI chosen isn't looked at again: \(refresh)")
+        #expect(refresh.contains("pickedCLIShownAgain()"), "the CLI chosen isn't looked at again: \(refresh)")
+        let settings = try code("Sources/AllInOneIME/ClaudeSessionSettings.swift")
+        let again = try block(settings, "func pickedCLIShownAgain(")
+        #expect(again.contains("config.ai.agent") && again.contains("refreshSessions([agent], force: true)"), "\(again)")
     }
 
     // MARK: - Use My Own AI… unfolds the other AIs whatever is in use
