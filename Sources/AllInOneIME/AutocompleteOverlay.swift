@@ -269,6 +269,9 @@ enum AutocompleteSwitch {
     /// The settings the look started last is for, until it comes back: Notes asks for the input menu after every key, and
     /// a look for the same settings isn't made again while one runs, nor within a few seconds of the last.
     private static var looking: Config?
+    /// How many looks were started: each one's number, so that only the one started last is kept. The settings alone don't
+    /// tell it: asked about again after others (a key saved meanwhile), an earlier look for them may still be on its way.
+    private static var looks = 0
     /// Told when a look found another answer than the last, and when one for settings changed since came back (its
     /// answer not kept): the menu bar panel shows the switch again, as the settings are now.
     static var foundAnother: @MainActor () -> Void = { FloatingPanel.shared.setAutocomplete(nil) }
@@ -276,17 +279,19 @@ enum AutocompleteSwitch {
     /// `fastConfig`'s look with `config` (a CLI chosen), off the main thread; nothing while one runs for it, or within a
     /// few seconds of the last for it. With autocomplete off no key is read (`Converter.fastConfig(_:readingKeys:)`):
     /// the switch shows whether it could run from the keychain items' attributes, and nothing asks for the login
-    /// password at launch or as the input menu opens. Only the answer for the settings asked about last is kept: an
-    /// earlier look that comes back later (its keychain item slow to answer) never replaces it.
+    /// password at launch or as the input menu opens. Only the answer of the look started last is kept (`looks`): an
+    /// earlier one that comes back later (its keychain item slow to answer) never replaces it, not even one for the same
+    /// settings.
     static func lookUp(_ config: Config) {
         let now = ProcessInfo.processInfo.systemUptime
         guard case .cli = config.ai, looking != config else { return }
         if let found, found.config == config, now - found.at < 5 { return }
-        looking = config
+        looks += 1
+        let (look, _) = (looks, looking = config)
         Task.detached(priority: .userInitiated) {
             let provider = sharedConverter.fastConfig(config, readingKeys: config.autocomplete)?.provider
             await MainActor.run {
-                guard looking == config else { return foundAnother() }
+                guard look == looks else { return foundAnother() }
                 looking = nil
                 let another = found.map { $0.provider != provider || $0.config.provider != config.provider } ?? true
                 found = (config, provider, ProcessInfo.processInfo.systemUptime)
