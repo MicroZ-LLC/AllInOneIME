@@ -31,9 +31,13 @@ import AllInOneIMECore
 ///   length 0 (`FieldTextReading`: "Chromium (Brave, Slack) and Qt tell length 0", seen on a real Mac 2026-11-14); the
 ///   selection is real and document-wide (`ImAbsolutePosition`) and current during a key (Qt answers synchronously); a
 ///   substring only within what `ImTextBeforeCursor` / `ImTextAfterCursor` give, 1024 characters each way by default
-///   (`QWidgetTextControl`; QLineEdit gives its whole line), nil past the end. A key the input context consumed is never
-///   sent as a QKeyEvent (`QNSView::handleKeyEvent`: `m_sendKeyEvent` false unless the input context didn't consume it),
-///   and nothing comes twice. A click commits the marked text itself (`QWidgetTextControl::mousePressEvent` →
+///   (`QWidgetTextControl`; QLineEdit gives its whole line), cut to it: Qt 6's `attributedSubstringForProposedRange:
+///   actualRange:` answers the part of the range it has (`NSIntersectionRange`, `actualRange` set), nil only where none of
+///   it is (`substringClips`; from qnsview_complextext.mm as recalled, not run on a real Mac; Qt 5 differed). Its
+///   `firstRectForCharacterRange:` is the cursor's rectangle whatever the range (the Mac's replayer has it), and a
+///   replacement range goes where Qt can place it relative to the cursor, else at the cursor. A key the input context
+///   consumed is never sent as a QKeyEvent (`QNSView::handleKeyEvent`: `m_sendKeyEvent` false unless the input context
+///   didn't consume it), and nothing comes twice. A click commits the marked text itself (`QWidgetTextControl::mousePressEvent` →
 ///   `commitPreedit` → `QCocoaInputContext::commit` → `[QNSView unmarkText]`). Losing the focus to another widget of the
 ///   window cancels the marked text (`QCocoaInputContext::setFocusObject`: `cancelComposingText`), and to another window
 ///   does nothing; neither is modelled (the input method marks nothing since contract v1.3, so only an app's own marked
@@ -84,6 +88,10 @@ enum HostProfile: String, CaseIterable, Sendable, Comparable {
         case .tellsnothing, .terminal: 0
         }
     }
+
+    /// A substring partly beyond its reach (or the text's end) reads the part within it, nil only where none of it is
+    /// (Qt's); else a range not wholly within reads nil.
+    var substringClips: Bool { self == .qt }
 
     /// During a key the ranges are the ones from before it (`HostField.beginTurn`).
     var staleRanges: Bool { chromiumLike }

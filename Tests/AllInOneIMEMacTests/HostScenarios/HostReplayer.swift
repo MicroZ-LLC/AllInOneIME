@@ -24,6 +24,8 @@ final class HostReplayer {
     let scenario: HostCase
     let profile: HostProfile
     let client: ProfiledTextClient
+    /// The client as the input method asks it: `client`, or a recorder's proxy of it (`IMKRecorder`).
+    let field: IMKTextInput
     let session: InputSession
     private var events: HostEvents
     /// The session's clock (`SessionServices.uptime`): the events' (`HostEvents.now`).
@@ -43,6 +45,8 @@ final class HostReplayer {
     private var reasksAnchor = false
 
     // The host's.
+    /// What the clipboard holds (⌘V in a command's draft reads it).
+    var clipboard = ClipboardContent.none
     /// AllInOneIME is the input source (`SWITCH abc`: ABC is, and the keys go to the app as they are).
     private var active = true
     private var capsLockOn = false
@@ -56,6 +60,9 @@ final class HostReplayer {
     private var switches = 0
     /// Each key's calls through IMK since the last `EXPECT calls`.
     private var keyCalls: [[String: Int]] = []
+    /// Every key's, modifier change's and read after a pause's calls in the run (`what`: "key", "modifiers", "pause"),
+    /// and how long they took (`ProfiledTextClient.latency`).
+    private(set) var everyTurn: [(what: String, calls: [String: Int], spent: TimeInterval)] = []
     /// What the session committed since the field was last emptied, and how many of each character the field should have:
     /// what it had, what the session committed, what the app typed or took out (`EXPECT nolost`).
     private var committed = ""
@@ -64,11 +71,13 @@ final class HostReplayer {
     /// same text committed then is that text, in once (the page's insert dropped or not).
     private var pageFinished: String?
 
-    init(_ scenario: HostCase, profile: HostProfile) {
+    init(_ scenario: HostCase, profile: HostProfile, recorder: IMKRecorder? = nil) {
         self.scenario = scenario
         self.profile = profile
-        let field = scenario.field
-        client = ProfiledTextClient(profile, text: field.text, selection: field.selection, marked: field.marked)
+        let text = scenario.field
+        let client = ProfiledTextClient(profile, text: text.text, selection: text.selection, marked: text.marked)
+        self.client = client
+        field = recorder?.recording(client) ?? client
         events = HostEvents(profile: profile, seed: scenario.source + "/" + scenario.name)
         let clock = Locked(initialState: events.now)
         self.clock = clock
@@ -135,9 +144,9 @@ final class HostReplayer {
             note("the app empties the field")
             let marked = client.markedText != nil
             client.clear()
-            // An AppKit text view tells the input method (a real NSTextField and NSTextView, 2026-11-15); a Chromium page
-            // tells it nothing (#115).
-            if marked, profile == .nstextview, active { commitComposition() }
+            // An AppKit text view tells the input method (a real NSTextField and NSTextView, 2026-11-15), and so do WebKit
+            // and Qt (`HostProfile.tellsWhenEmptied`); a Chromium page tells it nothing (#115).
+            if marked, profile.tellsWhenEmptied, active { commitComposition() }
             (committed, expectedCounts, pageFinished) = ("", [:], nil)
         case let .wait(seconds):
             advance(by: seconds)
@@ -225,8 +234,10 @@ final class HostReplayer {
         return String(UnicodeScalar(ascii & 0x1F))
     }
 
-    /// A key down from the keyboard: to the input method when it is the input source, then to the app if it left it.
+    /// A key down from the keyboard: to the input method when it is the input source, then to the app if it left it. None
+    /// reaches a field that lost the focus (another field or app has the keys), as the core's runner has it.
     private func keyDown(code: UInt16, characters: String, ignoringModifiers: String, flags: NSEvent.ModifierFlags) {
+        guard client.focused else { return }
         guard let event = events.keyDown(keyCode: code, characters: characters, ignoringModifiers: ignoringModifiers, flags: flags) else {
             failures.append("couldn't make a key down for \(characters.debugDescription)")
             return
@@ -243,7 +254,7 @@ final class HostReplayer {
     }
 
     private func flagsChanged(code: UInt16, flags: NSEvent.ModifierFlags) {
-        guard active, let event = events.flagsChanged(keyCode: code, flags: flags) else { return }
+        guard active, client.focused, let event = events.flagsChanged(keyCode: code, flags: flags) else { return }
         handleFlagsChanged(event)
         events.sendsCopy(of: event)
     }
@@ -259,11 +270,12 @@ final class HostReplayer {
         }
         beginTurn()
         let keyEvent = MacKeyEvents.key(event)
-        let context = reading.context(in: client) { session.fieldWants(for: keyEvent, given: $0) }
+        let context = reading.context(in: field) { session.fieldWants(for: keyEvent, given: $0) }
         let response = session.handle(.key(keyEvent, context))
         apply(response.outputs)
         keyEchoes.answered(key, now: events.now, handled: response.handled)
         note("key \(keyEvent.characters.debugDescription) \(response.handled ? "taken" : "left to the app")")
+        everyTurn.append(("key", client.calls, client.spent))
         endTurn()
         return response.handled
     }
@@ -277,9 +289,10 @@ final class HostReplayer {
         }
         beginTurn()
         let change = MacKeyEvents.modifierChange(event, now: events.now)
-        let context = reading.context(in: client) { session.fieldWants(forModifiers: change, given: $0) }
+        let context = reading.context(in: field) { session.fieldWants(forModifiers: change, given: $0) }
         apply(session.handle(.modifiers(change, context)).outputs)
         note("modifiers \(change.key) \(change.modifiers.rawValue)")
+        everyTurn.append(("modifiers", client.calls, client.spent))
         endTurn()
     }
 
@@ -308,18 +321,19 @@ final class HostReplayer {
         mouseDown()
         if let offset {
             note("a click at \(offset)")
-            if profile.isChromium {
-                // The page commits the marked text, then tells the input method (IMK's commitComposition: a real Brave).
+            if profile.clickCommitsMarkedText {
+                // The page commits the marked text, then tells the input method (IMK's commitComposition: a real Brave; Qt's
+                // `discardMarkedText`, taken as cancelComposition).
                 let marked = client.markedText != nil
                 pageFinishes { client.finishComposingText() }
-                if marked { commitComposition() }
+                if marked, profile == .qt { cancelComposition() } else if marked { commitComposition() }
             } else if !client.isInsideMarkedText(offset), client.markedText != nil {
                 commitComposition()
             }
             client.moveCaret(to: offset)
         } else {
             note("a click outside the field")
-            if !profile.isChromium, client.markedText != nil { commitComposition() }
+            if !profile.clickCommitsMarkedText, client.markedText != nil { commitComposition() }
             loseFocus()
         }
     }
@@ -383,6 +397,12 @@ final class HostReplayer {
     /// `commitComposition`: the app wants everything in now (a click elsewhere in it).
     private func commitComposition() {
         apply(session.handle(.commit).outputs)
+        settle()
+    }
+
+    /// `cancelComposition`: the app ended the composition itself (the controller's: `.cancel`).
+    private func cancelComposition() {
+        apply(session.handle(.cancel).outputs)
         settle()
     }
 
@@ -484,7 +504,7 @@ extension HostReplayer {
             case let .replace(text, range):
                 if let next = check, let range {
                     _ = next.apply(text, range: range,
-                                   read: { self.client.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
+                                   read: { self.field.attributedSubstring(from: NSRange(location: $0.lowerBound, length: $0.count))?.string },
                                    replace: { self.insert($0, replacing: NSRange(location: $1.lowerBound, length: $1.count)) },
                                    insert: { self.insert($0) })
                 } else {
@@ -500,14 +520,20 @@ extension HostReplayer {
             case let .readField(id):
                 nextTurn.append { [weak self] in
                     guard let self else { return }
-                    self.received(.field(self.reading.contextAfterPause(in: self.client, id: id), id: id))
+                    self.client.resetCalls()
+                    let read = self.reading.contextAfterPause(in: self.field, id: id)
+                    self.everyTurn.append(("pause", self.client.calls, self.client.spent))
+                    self.received(.field(read, id: id))
                 }
             case let .readPasswordField(focus):
                 nextTurn.append { [weak self] in self?.received(.passwordField(false, focus: focus)) }
             case let .readSelection(id):
                 nextTurn.append { [weak self] in self?.received(.selection(nil, id: id)) }
             case let .readClipboard(id):
-                nextTurn.append { [weak self] in self?.received(.clipboard(.none, id: id)) }
+                nextTurn.append { [weak self] in
+                    guard let self else { return }
+                    self.received(.clipboard(self.clipboard, id: id))
+                }
             case let .platform(.setCapsLock(on)):
                 capsLockOn = on
             default:
@@ -516,7 +542,8 @@ extension HostReplayer {
         }
     }
 
-    /// Text in, in place of the marked text (or `range`): what the session committed, for `EXPECT nolost`.
+    /// Text in, in place of the marked text (or `range`, or the selection): what the session committed, and what it took
+    /// out of the field's text (a selection typed over), for `EXPECT nolost`.
     private func insert(_ text: String, replacing range: NSRange? = nil) {
         committed += text
         if pageFinished == text {
@@ -524,10 +551,28 @@ extension HostReplayer {
         } else {
             for character in text { expectedCounts[character, default: 0] += 1 }
         }
-        client.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
+        for character in replacedText(by: range) { expectedCounts[character, default: 0] -= 1 }
+        field.insertText(text, replacementRange: range ?? NSRange(location: NSNotFound, length: NSNotFound))
         note("committed \(text.debugDescription)")
     }
 
+
+    /// What of the field's own text an insertion takes out: `range` (where the field has it), else the selection; none
+    /// in place of marked text (it isn't the field's text) or where the field drops what comes (it lost the focus).
+    private func replacedText(by range: NSRange?) -> String {
+        let state = client.state, length = (state.text as NSString).length
+        guard client.focused else { return "" }
+        let target: NSRange
+        if let range, range.location != NSNotFound {
+            target = range
+        } else if state.marked != nil {
+            return ""
+        } else {
+            target = state.selection
+        }
+        guard NSMaxRange(target) <= length else { return "" }
+        return (state.text as NSString).substring(with: target)
+    }
 
     /// The controller's `showPanel` and `anchor`: shown under the rect the field tells (`FieldAnchor.place`), its window
     /// learned once, no Accessibility; asked again on the next turn where that wasn't one to trust.
@@ -539,7 +584,7 @@ extension HostReplayer {
         let app = client.bundleIdentifier()
         anchorMemory.enter(PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession))
         anchorMemory.learnWindow { (ProfiledTextClient.window, false) }
-        let placed = FieldAnchor.place(in: client, app: app, selection: session.composer.selection?.range, memory: &anchorMemory,
+        let placed = FieldAnchor.place(in: field, app: app, selection: session.composer.selection?.range, memory: &anchorMemory,
                                        lastByApp: &lastAnchorByApp, screens: [ProfiledTextClient.screen],
                                        pointer: { CGPoint(x: 700, y: 500) }, accessibility: { _ in nil })
         (panel, anchor, reasksAnchor) = (model, placed, placed.placement.reasks)
@@ -548,7 +593,7 @@ extension HostReplayer {
     private func reaskAnchor() {
         reasksAnchor = false
         guard panel != nil else { return }
-        let (found, _) = FieldAnchor.reasked(in: client, selection: session.composer.selection?.range, memory: &anchorMemory,
+        let (found, _) = FieldAnchor.reasked(in: field, selection: session.composer.selection?.range, memory: &anchorMemory,
                                              screens: [ProfiledTextClient.screen])
         if let found { anchor = FieldAnchor.Placed(told: found, placement: PanelAnchor.Placement(rect: found, source: .field)) }
     }
@@ -556,11 +601,11 @@ extension HostReplayer {
     /// The controller's `typeOut`, at once: `TypeOut.Typist` into the field (`TypingField`), no typos, a turn for a field
     /// that tells its caret late.
     private func typeOut(_ text: String) {
-        let field = TypingField(client, pastesControls: false)
+        let typing = TypingField(field, pastesControls: false)
         let plan = TypeOut.plan(for: text, rate: session.typeOutRate, varies: false, mistakes: false)
-        var typist = TypeOut.Typist(plan, start: field.caret ?? 0, length: field.length)
+        var typist = TypeOut.Typist(plan, start: typing.caret ?? 0, length: typing.length)
         for _ in 0..<(text.count * 4 + 16) {
-            let progress = typist.step(in: field)
+            let progress = typist.step(in: typing)
             if progress == .done { break }
             if progress == .waiting { client.endTurn() }
         }

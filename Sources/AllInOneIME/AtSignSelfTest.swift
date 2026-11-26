@@ -249,7 +249,8 @@ extension SelfTest {
 
     /// One @ for the site (`make-readme-images.swift`'s `one-at.png`): the rows for a sum, an app's name, a time and a
     /// question, the likeliest first. Nothing is picked: nothing is sent or run. Only apps that ship with macOS are listed
-    /// (no file Spotlight finds, no @open history): the images are public. English (`en-oneat-*`: typed in English, the
+    /// (no file Spotlight finds, no @open history, no plugin installed on this Mac: `run` gives the controller none): the
+    /// images are public, and the same on every Mac. English (`en-oneat-*`: typed in English, the
     /// English interface, a 12-hour clock) or Chinese (`oneat-*`: the app by its pinyin initials, the time and the question
     /// in pinyin, the Chinese interface, a 24-hour clock). Each panel as it comes up with its text, and the text line above
     /// it (`<name>.marked.txt`).

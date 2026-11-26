@@ -108,3 +108,11 @@ final class HostClock: @unchecked Sendable {
     /// A click came since the last event the session had: the caret may have moved (`SessionServices.pointerUsedWithin`).
     var clicked = false
 }
+
+/// The host calls one key, modifier change or timer made (`HostRun.everyTurn`), and how long they took.
+struct HostTurnCalls: Sendable {
+    var line: Int
+    var what: String
+    var calls: HostCallCount
+    var spent: TimeInterval
+}

@@ -34,19 +34,26 @@ struct SpotlightDatesTests {
         defer { stuck.release() }
         let files = InstantFiles(index: AppIndex(folders: [root.path], apps: [], home: nil, recheckInterval: 0),
                                  dates: SpotlightDates(budget: 0.3, lookup: stuck.lookup))
-        let made = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async {
-            files.make(history: OpenHistory())
-            made.signal()
+        // Made on a thread of its own: on the shared pool, the waits of the tests running alongside held it back 15 s
+        // before it started. Made again until Spotlight was asked: a lookup whose queue gets to it only once the budget
+        // is over (a loaded machine) isn't started at all. Each make returns, whatever Spotlight does; the bound is a
+        // hang's (a make that waits for the lookup never returns: it is let go only as the test ends).
+        for _ in 0..<20 where stuck.count == 0 {
+            let made = DispatchSemaphore(value: 0)
+            Thread {
+                files.make(history: OpenHistory())
+                made.signal()
+            }.start()
+            #expect(made.wait(timeout: .now() + 60) == .success, "make waited on Spotlight for good")
         }
-        #expect(made.wait(timeout: .now() + 5) == .success, "make waited on Spotlight for good")
         #expect(files.results("calc", history: OpenHistory()).map(\.name) == ["Calculator"], "listed, undated")
         #expect(stuck.count == 1)
     }
 
     @Test func datesThatComeInTimeAreKept() {
         let used = Date(timeIntervalSince1970: 1_700_000_000), changed = Date(timeIntervalSince1970: 1_600_000_000)
-        let dates = SpotlightDates(budget: 2) { $0 == "/a" ? (used, changed) : nil }
+        // Answered at once: the budget only bounds how long a loaded machine may take to get to them.
+        let dates = SpotlightDates(budget: 60) { $0 == "/a" ? (used, changed) : nil }
         let dated = dates.dated(found(["/a", "/b"]))
         #expect(dated[0].lastUsed == used && dated[0].modified == changed)
         #expect(dated[1].lastUsed == nil && dated[1].modified == nil)
@@ -54,16 +61,20 @@ struct SpotlightDatesTests {
 
     @Test func whileOneIsStuckNoneIsStartedAndTheyComeBackOnceItReturns() {
         let stuck = Stuck()
-        let dates = SpotlightDates(budget: 0.2, lookup: stuck.lookup)
-        let started = Date()
-        _ = dates.dated(found(["/a", "/b"]))
-        #expect(Date().timeIntervalSince(started) < 2 && stuck.count == 1)
+        let budget: TimeInterval = 1
+        let dates = SpotlightDates(budget: budget, lookup: stuck.lookup)
+        // Asked until a lookup is stuck (one its queue got to only after the budget wasn't started), each back once the
+        // budget is over.
+        let until = Date().addingTimeInterval(60)
+        while stuck.count == 0, Date() < until { _ = dates.dated(found(["/a", "/b"])) }
+        #expect(stuck.count == 1)
+        // While it is stuck, none is started, so none is waited for: back before the budget, which a call that started
+        // one would wait out whatever the machine's load.
         let again = Date()
         #expect(dates.dated(found(["/c"])).first?.lastUsed == nil)
-        #expect(Date().timeIntervalSince(again) < 0.15 && stuck.count == 1, "no lookup while the first is stuck")
+        #expect(Date().timeIntervalSince(again) < budget && stuck.count == 1, "no lookup while the first is stuck")
         stuck.release()
         // The stuck one returns, the next is asked (and, let go, answers at once).
-        let until = Date().addingTimeInterval(5)
         while stuck.count < 2, Date() < until { _ = dates.dated(found(["/d"])) }
         #expect(stuck.count > 1)
     }
