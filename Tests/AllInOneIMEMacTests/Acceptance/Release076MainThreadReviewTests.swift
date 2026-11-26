@@ -94,57 +94,100 @@ struct Release076MainThreadReviewTests {
                 "readPasswordField contains a blocking call: \(SwiftSourceAudit.blockingMatches(in: readPasswordField))")
     }
 
-    /// Item 25. An autocomplete or Code's-words pause read (`FieldReading.contextAfterPause`, triggered by
-    /// `readFieldAfterPause`) also runs on the main thread and must never call the Accessibility
-    /// password-field check synchronously on main.
+    /// Item 25. An autocomplete or Code's-words pause read (`readFieldAfterPause` -> `FieldReading.contextAfterPause`)
+    /// asks Accessibility whether the focused field is a password field off the main thread first
+    /// (`FocusedFieldReaders.isSecure` on `DispatchQueue.global`), then hops back to main and hands
+    /// `contextAfterPause` a pre-answered `passwordField` closure that performs no Accessibility.
     @Test @MainActor func pauseReadDoesNotReadPasswordFieldThroughAccessibility() throws {
+        // Runtime seam check: `FieldReading.contextAfterPause` honors pre-answered password-field states
+        // (`false`, `true`, `nil`) for both autocomplete (`id: 1`) and Code's words (`id: -1`), and skips
+        // the closure entirely during secure input.
         let field = ReviewTextInput(text: "hello world", caret: 5)
         for id in [1, -1] {
+            let notPassword = FieldReading(isTerminal: { _ in false }, secureInputActive: { false }, passwordField: { false })
+                .contextAfterPause(in: field, id: id)
+            #expect(notPassword.read.contains(.passwordField))
+            #expect(notPassword.field?.secure == false)
+            #expect(!notPassword.passwordFieldUnknown)
+            #expect(notPassword.text != nil)
+
+            let password = FieldReading(isTerminal: { _ in false }, secureInputActive: { false }, passwordField: { true })
+                .contextAfterPause(in: field, id: id)
+            #expect(password.read.contains(.passwordField))
+            #expect(password.field?.secure == true)
+            #expect(!password.passwordFieldUnknown)
+            #expect(password.text == nil, "contextAfterPause(id: \(id)) must not read field text in a password field")
+
+            let unknown = FieldReading(isTerminal: { _ in false }, secureInputActive: { false }, passwordField: { nil })
+                .contextAfterPause(in: field, id: id)
+            #expect(unknown.read.contains(.passwordField))
+            #expect(unknown.field?.secure == false)
+            #expect(unknown.passwordFieldUnknown)
+
             let probe = PasswordReaderProbe()
-            let gate = DispatchSemaphore(value: 0)
-            defer { gate.signal() }
-
-            let reading = FieldReading(
-                isTerminal: { _ in false },
-                secureInputActive: { false },
-                passwordField: {
-                    probe.record(onMain: Thread.isMainThread)
-                    if !Thread.isMainThread {
-                        _ = gate.wait(timeout: .now() + 2)
-                    }
-                    return false
-                }
-            )
-
-            let start = ProcessInfo.processInfo.systemUptime
-            let context = reading.contextAfterPause(in: field, id: id)
-            let elapsed = ProcessInfo.processInfo.systemUptime - start
-
-            #expect(elapsed < 0.25, "contextAfterPause(id: \(id)) blocked main for \(elapsed)s")
-            #expect(!probe.calledOnMain,
-                    "contextAfterPause(id: \(id)) called the Accessibility password reader synchronously on the main thread")
-            if probe.calls == 0 {
-                let claimedKnownSafe = context.read.contains(.passwordField)
-                    && !context.passwordFieldUnknown
-                    && !context.passwordFieldFollows
-                    && context.field?.secure != true
-                #expect(!claimedKnownSafe,
-                        "contextAfterPause(id: \(id)) marked the field known non-password without reading Accessibility")
-            }
+            let secure = FieldReading(isTerminal: { _ in false }, secureInputActive: { true }, passwordField: {
+                probe.record(onMain: Thread.isMainThread)
+                return false
+            }).contextAfterPause(in: field, id: id)
+            #expect(secure.secure)
+            #expect(secure.text == nil)
+            #expect(probe.calls == 0, "contextAfterPause(id: \(id)) must not consult passwordField during secure input")
         }
 
-        // Follow the executable caller (`readFieldAfterPause`): it runs on DispatchQueue.main.async and must not
-        // invoke Accessibility or passwordFieldByAccessibility inline on the main thread.
+        // Source audit of the real executable path (`AutocompleteOverlay.readFieldAfterPause` and
+        // `InputController.fieldReading`): Accessibility runs off main via `FocusedFieldReaders.isSecure` on a
+        // background queue, and `contextAfterPause` on main only receives a pre-answered closure.
         let focusedAX = try SwiftSourceAudit.focusedFieldAXMembers(in: Self.source("Sources/AllInOneIME/FocusedField.swift"))
-        let overlay = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/AutocompleteOverlay.swift"))
+        let overlayRaw = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/AutocompleteOverlay.swift"))
+        let (overlay, overlayAXProperties) = SwiftSourceAudit.stripStoredClosureDefaults(in: overlayRaw, focusedFieldAX: focusedAX)
+        #expect(overlayAXProperties.contains("isSecure"), "FocusedFieldReaders.isSecure must be recognized as an AX seam property")
+
+        let controller = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/InputController.swift"))
+        let fieldReading = try SwiftSourceAudit.body(of: "var fieldReading: FieldReading", in: controller)
         let readAfterPause = try SwiftSourceAudit.body(of: "func readFieldAfterPause(", in: overlay)
-        let readAfterPauseMain = SwiftSourceAudit.mainThreadCode(in: readAfterPause)
-        let axCalls = SwiftSourceAudit.axCalls(in: readAfterPauseMain, focusedFieldAX: focusedAX)
-        #expect(axCalls.isEmpty, "readFieldAfterPause calls Accessibility on main: \(axCalls)")
-        #expect(!readAfterPauseMain.contains("passwordFieldByAccessibility("),
-                "readFieldAfterPause must not call passwordFieldByAccessibility synchronously on main")
-        #expect(SwiftSourceAudit.blockingMatches(in: readAfterPause).isEmpty,
-                "readFieldAfterPause contains a blocking call: \(SwiftSourceAudit.blockingMatches(in: readAfterPause))")
+
+        let violations = SwiftSourceAudit.auditPauseRead(
+            readAfterPause: readAfterPause,
+            fieldReading: fieldReading,
+            focusedFieldAX: focusedAX,
+            axSeamProperties: overlayAXProperties
+        )
+        #expect(violations.isEmpty, "pause read violates off-main Accessibility invariant: \(violations)")
+
+        // Negative self-checks on inline scratch samples: prove the audit fails if the old main-thread calls return.
+        let oldFieldReading = """
+        { FieldReading(isTerminal: Self.isTerminal(app:), secureInputActive: services.secureInputActive, passwordField: { FocusedField.isSecure() }) }
+        """
+        #expect(!SwiftSourceAudit.auditPauseRead(
+            readAfterPause: readAfterPause, fieldReading: oldFieldReading,
+            focusedFieldAX: focusedAX, axSeamProperties: overlayAXProperties
+        ).isEmpty, "audit must fail when fieldReading wires FocusedField.isSecure() into passwordField")
+
+        let inlineSeamOnMain = """
+        {
+            let isSecure = Self.focusedFieldReaders.isSecure
+            var reading = self.fieldReading
+            reading.passwordField = { isSecure() }
+            self.received(.field(reading.contextAfterPause(in: client, id: id), id: id))
+        }
+        """
+        #expect(!SwiftSourceAudit.auditPauseRead(
+            readAfterPause: inlineSeamOnMain, fieldReading: fieldReading,
+            focusedFieldAX: focusedAX, axSeamProperties: overlayAXProperties
+        ).isEmpty, "audit must fail when readFieldAfterPause invokes focusedFieldReaders.isSecure on main")
+
+        let inlineDirectAXOnMain = """
+        {
+            let told = FocusedField.isSecure()
+            var reading = self.fieldReading
+            reading.passwordField = { told }
+            self.received(.field(reading.contextAfterPause(in: client, id: id), id: id))
+        }
+        """
+        #expect(!SwiftSourceAudit.auditPauseRead(
+            readAfterPause: inlineDirectAXOnMain, fieldReading: fieldReading,
+            focusedFieldAX: focusedAX, axSeamProperties: overlayAXProperties
+        ).isEmpty, "audit must fail when readFieldAfterPause calls FocusedField.isSecure() on main")
     }
 
     /// Item 25. Panel placement and ghost placement must never call Accessibility synchronously on the main
@@ -182,13 +225,30 @@ struct Release076MainThreadReviewTests {
         let focusedAX = try SwiftSourceAudit.focusedFieldAXMembers(in: Self.source("Sources/AllInOneIME/FocusedField.swift"))
         #expect(focusedAX.contains("caret") && focusedAX.contains("windowFrame") && focusedAX.contains("frame") && focusedAX.contains("isSecure"),
                 "FocusedField AX classifier missed known AX readers: \(focusedAX)")
+        #expect(!focusedAX.contains("listedWindowFrame") && !focusedAX.contains("screenTop"),
+                "FocusedField AX classifier misclassified non-AX helpers: \(focusedAX)")
 
         let controllerSource = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/InputController.swift"))
         let anchorBody = try SwiftSourceAudit.body(of: "func anchor(", in: controllerSource)
-        let panelAnchorHelper = SwiftSourceAudit.stripCommentsAndStrings(
+        let panelAnchorRaw = SwiftSourceAudit.stripCommentsAndStrings(
             try Self.source("Sources/AllInOneIME/InputController+PanelAnchor.swift")
         )
-        let overlaySource = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/AutocompleteOverlay.swift"))
+        let (panelAnchorHelper, anchorAXProperties) = SwiftSourceAudit.stripStoredClosureDefaults(
+            in: panelAnchorRaw, focusedFieldAX: focusedAX
+        )
+        #expect(anchorAXProperties.contains("windowFrame") && anchorAXProperties.contains("caret"),
+                "AnchorReaders AX properties not discovered: \(anchorAXProperties)")
+        #expect(!anchorAXProperties.contains("trusted") && !anchorAXProperties.contains("listedWindow"),
+                "Non-AX AnchorReaders properties misclassified as AX: \(anchorAXProperties)")
+
+        let overlayRaw = SwiftSourceAudit.stripCommentsAndStrings(try Self.source("Sources/AllInOneIME/AutocompleteOverlay.swift"))
+        let (overlaySource, overlayAXProperties) = SwiftSourceAudit.stripStoredClosureDefaults(
+            in: overlayRaw, focusedFieldAX: focusedAX
+        )
+        #expect(overlayAXProperties.contains("frame") && overlayAXProperties.contains("isSecure"),
+                "FocusedFieldReaders AX properties not discovered: \(overlayAXProperties)")
+
+        let axSeamProperties = anchorAXProperties.union(overlayAXProperties)
         let showGhost = try SwiftSourceAudit.body(of: "func showGhost(", in: overlaySource)
         let placeGhost = try SwiftSourceAudit.body(of: "func placeGhost(", in: overlaySource)
         let askGhostField = try SwiftSourceAudit.body(of: "func askGhostField(", in: overlaySource)
@@ -201,11 +261,72 @@ struct Release076MainThreadReviewTests {
             ("AutocompleteOverlay.askGhostField", askGhostField),
         ]
         for (label, body) in checkedPaths {
-            let mainCode = SwiftSourceAudit.mainThreadCode(in: body)
-            let axCalls = SwiftSourceAudit.axCalls(in: mainCode, focusedFieldAX: focusedAX)
+            let axCalls = SwiftSourceAudit.auditMainThreadAX(
+                in: body, focusedFieldAX: focusedAX, axSeamProperties: axSeamProperties
+            )
             #expect(axCalls.isEmpty, "\(label) calls Accessibility synchronously on main: \(axCalls)")
             let blocking = SwiftSourceAudit.blockingMatches(in: body)
             #expect(blocking.isEmpty, "\(label) contains a blocking call: \(blocking)")
+        }
+
+        // Self-checks on inline scratch samples: property defaults and `AXIsProcessTrusted` pass, while any
+        // inline `FocusedField.*`, `AXUIElement*`, seam call, or immediately-invoked default on main fails.
+        let safeSample = SwiftSourceAudit.stripStoredClosureDefaults(in: """
+        struct AnchorReaders {
+            var trusted: @MainActor () -> Bool = { AXIsProcessTrusted() }
+            var caret: @Sendable (pid_t, Bool, CGFloat) -> Int? = { FocusedField.caret(pid: $0, page: $1, top: $2) }
+        }
+        extension Controller {
+            func accessibilityCaret() {
+                guard AXIsProcessTrusted(), Self.anchorReaders.trusted() else { return }
+                let readCaret = Self.anchorReaders.caret
+                DispatchQueue.global(qos: .userInitiated).async { _ = readCaret(1, false, 0) }
+            }
+        }
+        """, focusedFieldAX: focusedAX)
+        #expect(SwiftSourceAudit.auditMainThreadAX(
+            in: safeSample.code, focusedFieldAX: focusedAX, axSeamProperties: safeSample.axProperties
+        ).isEmpty, "stored closure defaults and AXIsProcessTrusted must not be flagged as main-thread AX calls")
+
+        let regressionSamples: [(label: String, source: String)] = [
+            ("inline FocusedField.caret", """
+            extension Controller {
+                func accessibilityCaret() { _ = FocusedField.caret(pid: 1, page: false, top: 0) }
+            }
+            """),
+            ("inline FocusedField.windowFrame", """
+            extension Controller {
+                func windowFrame() { _ = FocusedField.windowFrame(pid: 1, top: 0) }
+            }
+            """),
+            ("inline seam call via alias", """
+            extension Controller {
+                func accessibilityCaret() {
+                    let readCaret = Self.anchorReaders.caret
+                    _ = readCaret(1, false, 0)
+                }
+            }
+            """),
+            ("inline direct seam call", """
+            extension Controller {
+                func windowFrame() {
+                    let readers = Self.anchorReaders
+                    _ = readers.windowFrame(1, 0)
+                }
+            }
+            """),
+            ("immediately invoked property default", """
+            struct Bad {
+                var caret: Int? = { FocusedField.caret(pid: 1, page: false, top: 0) }()
+            }
+            """),
+        ]
+        for (label, sample) in regressionSamples {
+            let cleaned = SwiftSourceAudit.stripStoredClosureDefaults(in: sample, focusedFieldAX: focusedAX)
+            let hits = SwiftSourceAudit.auditMainThreadAX(
+                in: cleaned.code, focusedFieldAX: focusedAX, axSeamProperties: axSeamProperties.union(cleaned.axProperties)
+            )
+            #expect(!hits.isEmpty, "placement audit must fail when \(label) is reintroduced on main")
         }
     }
 
@@ -968,10 +1089,13 @@ private enum SwiftSourceAudit {
         return cursor...closeBrace
     }
 
+    private static let offMainPattern = #"(?:DispatchQueue\.global\s*\([^)]*\)\s*\.async|\b(?!main\b)[A-Za-z_]\w*\s*\.async|\bTask\.detached)\b"#
+    private static let mainCallbackPattern = #"\b(?:DispatchQueue\.main\.async(?:After)?|MainActor\.run)\b"#
+
     /// Extracts the bodies of any `DispatchQueue.main.async`, `DispatchQueue.main.asyncAfter`, or `MainActor.run`
     /// closures inside `stripped` (handling nested parentheses such as `deadline: .now() + 0.1`).
     static func nestedMainCallbacks(in stripped: String) -> String {
-        guard let regex = try? NSRegularExpression(pattern: #"\b(?:DispatchQueue\.main\.async(?:After)?|MainActor\.run)\b"#) else {
+        guard let regex = try? NSRegularExpression(pattern: mainCallbackPattern) else {
             return ""
         }
         var extracted = ""
@@ -985,14 +1109,33 @@ private enum SwiftSourceAudit {
         return extracted
     }
 
+    private static func stripMainCallbacks(in stripped: String) -> String {
+        guard let regex = try? NSRegularExpression(pattern: mainCallbackPattern) else { return stripped }
+        var result = ""
+        var cursor = stripped.startIndex
+        while cursor < stripped.endIndex {
+            let searchRange = NSRange(cursor..<stripped.endIndex, in: stripped)
+            guard let match = regex.firstMatch(in: stripped, range: searchRange),
+                  let matchRange = Range(match.range, in: stripped) else {
+                result += stripped[cursor...]
+                break
+            }
+            guard let closureRange = trailingClosureRange(after: matchRange.upperBound, in: stripped) else {
+                result += stripped[cursor..<matchRange.upperBound]
+                cursor = matchRange.upperBound
+                continue
+            }
+            result += stripped[cursor..<closureRange.lowerBound] + "{ }"
+            cursor = stripped.index(after: closureRange.upperBound)
+        }
+        return result
+    }
+
     /// Returns the code that executes on the calling (main) thread: strips closures dispatched asynchronously
     /// onto background queues (`DispatchQueue.global(...).async`, `<non-main-queue>.async`, `Task.detached`),
     /// while pulling any nested `DispatchQueue.main.async` / `MainActor.run` blocks back in so they are still audited.
     static func mainThreadCode(in stripped: String) -> String {
-        let offMainRegex = try? NSRegularExpression(
-            pattern: #"(?:DispatchQueue\.global\s*\([^)]*\)\s*\.async|\b(?!main\b)[A-Za-z_]\w*\s*\.async|\bTask\.detached)\b"#
-        )
-        guard let offMainRegex else { return stripped }
+        guard let offMainRegex = try? NSRegularExpression(pattern: offMainPattern) else { return stripped }
 
         var result = ""
         var cursor = stripped.startIndex
@@ -1015,6 +1158,28 @@ private enum SwiftSourceAudit {
             cursor = stripped.index(after: closureRange.upperBound)
         }
         return result
+    }
+
+    /// Returns the code that runs off the main thread inside `DispatchQueue.global(...).async`,
+    /// `<non-main-queue>.async`, or `Task.detached` closures (excluding nested `DispatchQueue.main.async` /
+    /// `MainActor.run` callbacks hopped back to main).
+    static func offMainCode(in stripped: String) -> String {
+        guard let offMainRegex = try? NSRegularExpression(pattern: offMainPattern) else { return "" }
+        var extracted = ""
+        var cursor = stripped.startIndex
+        while cursor < stripped.endIndex {
+            let searchRange = NSRange(cursor..<stripped.endIndex, in: stripped)
+            guard let match = offMainRegex.firstMatch(in: stripped, range: searchRange),
+                  let matchRange = Range(match.range, in: stripped) else { break }
+            guard let closureRange = trailingClosureRange(after: matchRange.upperBound, in: stripped) else {
+                cursor = matchRange.upperBound
+                continue
+            }
+            let inner = String(stripped[stripped.index(after: closureRange.lowerBound)..<closureRange.upperBound])
+            extracted += "\n" + stripMainCallbacks(in: inner)
+            cursor = stripped.index(after: closureRange.upperBound)
+        }
+        return extracted
     }
 
     /// Separates `<property> = { ... }` from a function body so a stored callback executed on a background queue
@@ -1068,8 +1233,9 @@ private enum SwiftSourceAudit {
         return hits
     }
 
-    /// Classifies every `FocusedField` static member that calls Accessibility (`AXUIElement*`,
-    /// `AXIsProcessTrusted`, or transitively another AX member) by inspecting `FocusedField.swift`.
+    /// Classifies every `FocusedField` static member that makes Accessibility IPC calls (`AXUIElement*`, or
+    /// transitively another AX member) by inspecting `FocusedField.swift`. Excludes `AXIsProcessTrusted`, which is
+    /// a local, non-blocking permission check rather than an IPC call to an app.
     static func focusedFieldAXMembers(in rawFocusedFieldSource: String) throws -> Set<String> {
         let stripped = stripCommentsAndStrings(rawFocusedFieldSource)
         let declRegex = try NSRegularExpression(pattern: #"\bstatic\s+(?:func|var)\s+([A-Za-z_]\w*)"#)
@@ -1086,7 +1252,8 @@ private enum SwiftSourceAudit {
         var axMembers: Set<String> = []
         for (name, memberBodies) in bodies {
             let joined = memberBodies.joined(separator: "\n")
-            if joined.contains("AXUIElement") || joined.contains("AXIsProcessTrusted") || !blockingMatches(in: joined).isEmpty {
+            // Exclude `AXIsProcessTrusted`: it is a local, non-blocking permission check, not an IPC call to an app.
+            if joined.contains("AXUIElement") || !blockingMatches(in: joined).isEmpty {
                 axMembers.insert(name)
             }
         }
@@ -1109,11 +1276,14 @@ private enum SwiftSourceAudit {
         return axMembers
     }
 
-    /// Finds any direct Accessibility API call or call to an AX-using `FocusedField.<member>` in `mainCode`.
+    /// Finds any direct Accessibility IPC call (`AXUIElement*`) or call to an AX-using `FocusedField.<member>` in
+    /// `mainCode`. Excludes `AXIsProcessTrusted`, which is a local, non-blocking permission check rather than an IPC
+    /// call to the focused app.
     static func axCalls(in mainCode: String, focusedFieldAX: Set<String>) -> [String] {
         var hits: [String] = []
         let fullRange = NSRange(mainCode.startIndex..<mainCode.endIndex, in: mainCode)
-        if let direct = try? NSRegularExpression(pattern: #"\b(?:AXUIElement\w*|AXIsProcessTrusted)\b"#) {
+        // Exclude `AXIsProcessTrusted`: it is a local, non-blocking permission check, not an IPC call to an app.
+        if let direct = try? NSRegularExpression(pattern: #"\bAXUIElement\w*\b"#) {
             for match in direct.matches(in: mainCode, range: fullRange) {
                 if let r = Range(match.range, in: mainCode) { hits.append(String(mainCode[r])) }
             }
@@ -1127,5 +1297,372 @@ private enum SwiftSourceAudit {
             }
         }
         return hits
+    }
+
+    /// Replaces stored closure property defaults (`var`/`let` at type-member scope whose initializer is `{ ... }`
+    /// not immediately invoked with `(`) with `{ }`, and returns the names of any such properties whose default
+    /// closure performs an Accessibility call. Stored defaults are declarations, not calls on main; invocations
+    /// through those seam properties are checked separately by `seamAXCalls`.
+    static func stripStoredClosureDefaults(in stripped: String, focusedFieldAX: Set<String>)
+        -> (code: String, axProperties: Set<String>) {
+        enum Scope { case typeBody, other }
+        let classModifiers: Set<String> = [
+            "func", "var", "let", "subscript", "override", "final", "open", "public", "internal", "fileprivate", "private",
+        ]
+        let declStarters: Set<String> = [
+            "var", "let", "func", "init", "deinit", "subscript", "struct", "class", "enum", "actor", "extension",
+            "typealias", "case", "static", "private", "public", "internal", "fileprivate", "open", "override",
+        ]
+
+        func isIdentStart(_ c: Character) -> Bool { c.isLetter || c == "_" }
+        func isIdentChar(_ c: Character) -> Bool { c.isLetter || c.isNumber || c == "_" }
+        func readIdentifier(at start: String.Index) -> (word: String, end: String.Index)? {
+            guard start < stripped.endIndex, isIdentStart(stripped[start]) else { return nil }
+            var end = stripped.index(after: start)
+            while end < stripped.endIndex && isIdentChar(stripped[end]) { end = stripped.index(after: end) }
+            return (String(stripped[start..<end]), end)
+        }
+        func skipWhitespace(from start: String.Index) -> String.Index {
+            var cur = start
+            while cur < stripped.endIndex && stripped[cur].isWhitespace { cur = stripped.index(after: cur) }
+            return cur
+        }
+        func findInitializerEquals(from start: String.Index) -> String.Index? {
+            var cur = start
+            var paren = 0
+            var bracket = 0
+            while cur < stripped.endIndex {
+                let ch = stripped[cur]
+                if ch == "(" { paren += 1; cur = stripped.index(after: cur); continue }
+                if ch == ")" { paren = max(0, paren - 1); cur = stripped.index(after: cur); continue }
+                if ch == "[" { bracket += 1; cur = stripped.index(after: cur); continue }
+                if ch == "]" { bracket = max(0, bracket - 1); cur = stripped.index(after: cur); continue }
+                if paren == 0 && bracket == 0 {
+                    if ch == "=" {
+                        let next = stripped.index(after: cur)
+                        if next < stripped.endIndex && stripped[next] == "=" { return nil }
+                        return cur
+                    }
+                    if ch == "{" || ch == "}" || ch == ";" { return nil }
+                    if let (word, end) = readIdentifier(at: cur) {
+                        let precededByDot = cur > stripped.startIndex && stripped[stripped.index(before: cur)] == "."
+                        if !precededByDot && declStarters.contains(word) { return nil }
+                        cur = end
+                        continue
+                    }
+                }
+                cur = stripped.index(after: cur)
+            }
+            return nil
+        }
+
+        var stack: [Scope] = []
+        var pendingTypeBody = false
+        var out = ""
+        var axProperties: Set<String> = []
+        var i = stripped.startIndex
+
+        while i < stripped.endIndex {
+            let ch = stripped[i]
+            if ch == "{" {
+                stack.append(pendingTypeBody ? .typeBody : .other)
+                pendingTypeBody = false
+                out.append(ch)
+                i = stripped.index(after: i)
+                continue
+            }
+            if ch == "}" {
+                if !stack.isEmpty { stack.removeLast() }
+                pendingTypeBody = false
+                out.append(ch)
+                i = stripped.index(after: i)
+                continue
+            }
+            if let (word, wordEnd) = readIdentifier(at: i) {
+                let precededByDot = i > stripped.startIndex && stripped[stripped.index(before: i)] == "."
+                if !precededByDot {
+                    if word == "struct" || word == "enum" || word == "actor" || word == "extension" {
+                        pendingTypeBody = true
+                        out += word
+                        i = wordEnd
+                        continue
+                    }
+                    if word == "class" {
+                        let next = skipWhitespace(from: wordEnd)
+                        if let (nextWord, _) = readIdentifier(at: next), classModifiers.contains(nextWord) {
+                            // `class func` / `class var`, not a class type declaration.
+                        } else {
+                            pendingTypeBody = true
+                        }
+                        out += word
+                        i = wordEnd
+                        continue
+                    }
+                    if (word == "var" || word == "let"), stack.last == .typeBody {
+                        let nameStart = skipWhitespace(from: wordEnd)
+                        if let (propName, afterName) = readIdentifier(at: nameStart),
+                           let eqIdx = findInitializerEquals(from: afterName) {
+                            let afterEq = skipWhitespace(from: stripped.index(after: eqIdx))
+                            if afterEq < stripped.endIndex && stripped[afterEq] == "{",
+                               let closeBrace = matchingBrace(from: afterEq, in: stripped) {
+                                let afterClose = skipWhitespace(from: stripped.index(after: closeBrace))
+                                // Keep immediately-invoked closures (`= { ... }()`); strip stored closure defaults.
+                                if afterClose == stripped.endIndex || stripped[afterClose] != "(" {
+                                    let closureBody = String(stripped[afterEq...closeBrace])
+                                    if !axCalls(in: closureBody, focusedFieldAX: focusedFieldAX).isEmpty {
+                                        axProperties.insert(propName)
+                                    }
+                                    out += stripped[i..<afterEq]
+                                    out += "{ }"
+                                    i = stripped.index(after: closeBrace)
+                                    continue
+                                }
+                            }
+                        }
+                    }
+                }
+                out += word
+                i = wordEnd
+                continue
+            }
+            out.append(ch)
+            i = stripped.index(after: i)
+        }
+        return (out, axProperties)
+    }
+
+    private static func splitTopLevelCommas(_ text: String) -> [String] {
+        var parts: [String] = []
+        var current = ""
+        var paren = 0
+        var bracket = 0
+        var brace = 0
+        for ch in text {
+            switch ch {
+            case "(": paren += 1; current.append(ch)
+            case ")": paren -= 1; current.append(ch)
+            case "[": bracket += 1; current.append(ch)
+            case "]": bracket -= 1; current.append(ch)
+            case "{": brace += 1; current.append(ch)
+            case "}": brace -= 1; current.append(ch)
+            case "," where paren == 0 && bracket == 0 && brace == 0:
+                parts.append(current.trimmingCharacters(in: .whitespacesAndNewlines))
+                current = ""
+            default:
+                current.append(ch)
+            }
+        }
+        let tail = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty { parts.append(tail) }
+        return parts
+    }
+
+    private static func enclosingBlockEnd(from index: String.Index, in text: String) -> String.Index {
+        var depth = 0
+        var cur = index
+        while cur > text.startIndex {
+            cur = text.index(before: cur)
+            if text[cur] == "}" { depth += 1 }
+            else if text[cur] == "{" {
+                if depth == 0 {
+                    return matchingBrace(from: cur, in: text) ?? text.endIndex
+                }
+                depth -= 1
+            }
+        }
+        return text.endIndex
+    }
+
+    private struct BoundSeamAlias {
+        var alias: String
+        var property: String
+        var scope: Range<String.Index>
+    }
+
+    private static func discoverReaderNames(in code: String, roots: Set<String>) -> Set<String> {
+        var names = roots
+        let fullRange = NSRange(code.startIndex..<code.endIndex, in: code)
+        guard let regex = try? NSRegularExpression(
+            pattern: #"\b(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:[^=\n]+)?\s*=\s*(?:Self\.)?([A-Za-z_]\w*)\b(?!\s*\.)"#
+        ) else { return names }
+        for _ in 0..<2 {
+            for match in regex.matches(in: code, range: fullRange) {
+                guard let lhsRange = Range(match.range(at: 1), in: code),
+                      let rhsRange = Range(match.range(at: 2), in: code) else { continue }
+                if names.contains(String(code[rhsRange])) {
+                    names.insert(String(code[lhsRange]))
+                }
+            }
+        }
+        return names
+    }
+
+    private static func boundAXAliases(in code: String, axProperties: Set<String>, readerNames: Set<String>) -> [BoundSeamAlias] {
+        var aliases: [BoundSeamAlias] = []
+        let fullRange = NSRange(code.startIndex..<code.endIndex, in: code)
+
+        // Single binding: `let read = Self.focusedFieldReaders.isSecure`
+        if let single = try? NSRegularExpression(
+            pattern: #"\b(?:let|var)\s+([A-Za-z_]\w*)(?:\s*:[^=\n]+)?\s*=\s*(?:Self\.)?([A-Za-z_]\w*)\.([A-Za-z_]\w*)\b(?!\s*\()"#
+        ) {
+            for match in single.matches(in: code, range: fullRange) {
+                guard let full = Range(match.range, in: code),
+                      let lhsRange = Range(match.range(at: 1), in: code),
+                      let recvRange = Range(match.range(at: 2), in: code),
+                      let propRange = Range(match.range(at: 3), in: code) else { continue }
+                let recv = String(code[recvRange])
+                let prop = String(code[propRange])
+                if readerNames.contains(recv) && axProperties.contains(prop) {
+                    let end = enclosingBlockEnd(from: full.lowerBound, in: code)
+                    if full.upperBound < end {
+                        aliases.append(BoundSeamAlias(alias: String(code[lhsRange]), property: prop, scope: full.upperBound..<end))
+                    }
+                }
+            }
+        }
+
+        // Tuple binding: `let (box, held, top, readCaret) = (..., Self.anchorReaders.caret)`
+        if let tupleHead = try? NSRegularExpression(pattern: #"\b(?:let|var)\s*\(([^)]+)\)\s*=\s*\("#),
+           let memberExpr = try? NSRegularExpression(pattern: #"^(?:Self\.)?([A-Za-z_]\w*)\.([A-Za-z_]\w*)$"#) {
+            for match in tupleHead.matches(in: code, range: fullRange) {
+                guard let full = Range(match.range, in: code),
+                      let lhsListRange = Range(match.range(at: 1), in: code) else { continue }
+                let rhsOpen = code.index(before: full.upperBound)
+                guard let rhsClose = matchingDelimiter(open: "(", close: ")", from: rhsOpen, in: code) else { continue }
+                let lhsNames = splitTopLevelCommas(String(code[lhsListRange]))
+                let rhsExprs = splitTopLevelCommas(String(code[code.index(after: rhsOpen)..<rhsClose]))
+                guard lhsNames.count == rhsExprs.count else { continue }
+                let afterTuple = code.index(after: rhsClose)
+                let end = enclosingBlockEnd(from: full.lowerBound, in: code)
+                guard afterTuple < end else { continue }
+                for (lhs, rhs) in zip(lhsNames, rhsExprs) {
+                    let rhsRange = NSRange(rhs.startIndex..<rhs.endIndex, in: rhs)
+                    if let m = memberExpr.firstMatch(in: rhs, range: rhsRange),
+                       let recvRange = Range(m.range(at: 1), in: rhs),
+                       let propRange = Range(m.range(at: 2), in: rhs) {
+                        let recv = String(rhs[recvRange])
+                        let prop = String(rhs[propRange])
+                        if readerNames.contains(recv) && axProperties.contains(prop) {
+                            aliases.append(BoundSeamAlias(alias: lhs, property: prop, scope: afterTuple..<end))
+                        }
+                    }
+                }
+            }
+        }
+        return aliases
+    }
+
+    /// Detects calls in `code` made through Accessibility reader seam properties (both direct calls like
+    /// `Self.anchorReaders.caret(...)` / `readers.windowFrame(...)` and calls through local aliases such as
+    /// `let readCaret = Self.anchorReaders.caret; readCaret(...)`).
+    static func seamAXCalls(
+        in code: String,
+        axProperties: Set<String>,
+        readerRoots: Set<String> = ["anchorReaders", "focusedFieldReaders"]
+    ) -> [String] {
+        guard !axProperties.isEmpty else { return [] }
+        let readerNames = discoverReaderNames(in: code, roots: readerRoots)
+        var hits: [String] = []
+        let fullRange = NSRange(code.startIndex..<code.endIndex, in: code)
+
+        for reader in readerNames.sorted() {
+            for prop in axProperties.sorted() {
+                let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: reader)
+                    + #"\."# + NSRegularExpression.escapedPattern(for: prop) + #"\s*\("#
+                if let regex = try? NSRegularExpression(pattern: pattern) {
+                    for _ in regex.matches(in: code, range: fullRange) {
+                        hits.append("\(reader).\(prop)(")
+                    }
+                }
+            }
+        }
+
+        for bound in boundAXAliases(in: code, axProperties: axProperties, readerNames: readerNames) {
+            let pattern = #"\b"# + NSRegularExpression.escapedPattern(for: bound.alias) + #"\s*\("#
+            guard let regex = try? NSRegularExpression(pattern: pattern) else { continue }
+            let scopeRange = NSRange(bound.scope, in: code)
+            for match in regex.matches(in: code, range: scopeRange) {
+                guard let range = Range(match.range, in: code) else { continue }
+                let prefix = code[..<range.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+                if !prefix.hasSuffix("func") {
+                    hits.append("\(bound.alias)( [via \(bound.property)]")
+                }
+            }
+        }
+        return hits
+    }
+
+    /// Audits `body` (with stored closure defaults already stripped) for any Accessibility call executing
+    /// synchronously on the main thread: direct `AXUIElement*`, `FocusedField.<ax>`, or seam-property calls.
+    static func auditMainThreadAX(
+        in strippedBody: String,
+        focusedFieldAX: Set<String>,
+        axSeamProperties: Set<String>
+    ) -> [String] {
+        let mainCode = mainThreadCode(in: strippedBody)
+        return axCalls(in: mainCode, focusedFieldAX: focusedFieldAX)
+            + seamAXCalls(in: mainCode, axProperties: axSeamProperties)
+    }
+
+    /// Audits the real pause-read path (`InputController.fieldReading` and `AutocompleteOverlay.readFieldAfterPause`):
+    /// - `fieldReading` must not wire Accessibility into `passwordField`.
+    /// - `readFieldAfterPause` must never block or invoke Accessibility (directly or via `focusedFieldReaders`) on main.
+    /// - `readFieldAfterPause` must invoke the Accessibility password check off main (`DispatchQueue.global`) and hand
+    ///   `contextAfterPause` a pre-answered closure on main.
+    static func auditPauseRead(
+        readAfterPause: String,
+        fieldReading: String,
+        focusedFieldAX: Set<String>,
+        axSeamProperties: Set<String>
+    ) -> [String] {
+        var violations: [String] = []
+
+        let fieldReadingAX = axCalls(in: fieldReading, focusedFieldAX: focusedFieldAX)
+            + seamAXCalls(in: fieldReading, axProperties: axSeamProperties)
+        if !fieldReadingAX.isEmpty {
+            violations.append("fieldReading invokes Accessibility: \(fieldReadingAX)")
+        }
+        if fieldReading.contains("focusedFieldReaders.isSecure") || fieldReading.contains("passwordFieldByAccessibility") {
+            violations.append("fieldReading references Accessibility password reader")
+        }
+
+        let blocking = blockingMatches(in: readAfterPause)
+        if !blocking.isEmpty {
+            violations.append("readFieldAfterPause contains blocking call(s): \(blocking)")
+        }
+
+        let mainCode = mainThreadCode(in: readAfterPause)
+        let mainAX = axCalls(in: mainCode, focusedFieldAX: focusedFieldAX)
+            + seamAXCalls(in: mainCode, axProperties: axSeamProperties)
+        if !mainAX.isEmpty {
+            violations.append("readFieldAfterPause calls Accessibility on main: \(mainAX)")
+        }
+        if mainCode.contains("passwordFieldByAccessibility") {
+            violations.append("readFieldAfterPause calls passwordFieldByAccessibility on main")
+        }
+
+        // Verify the off-main dispatched block actually invokes the Accessibility password check.
+        let offMain = offMainCode(in: readAfterPause)
+        let readerNames = discoverReaderNames(in: readAfterPause, roots: ["focusedFieldReaders"])
+        let secureAliases = boundAXAliases(in: readAfterPause, axProperties: ["isSecure"], readerNames: readerNames)
+            .map(\.alias)
+        let offMainInvokesSecure = !axCalls(in: offMain, focusedFieldAX: focusedFieldAX).isEmpty
+            || !seamAXCalls(in: offMain, axProperties: ["isSecure"], readerRoots: readerNames).isEmpty
+            || secureAliases.contains { alias in
+                (try? NSRegularExpression(pattern: #"\b"# + NSRegularExpression.escapedPattern(for: alias) + #"\s*\("#))?
+                    .firstMatch(in: offMain, range: NSRange(offMain.startIndex..<offMain.endIndex, in: offMain)) != nil
+            }
+        if !offMainInvokesSecure {
+            violations.append("readFieldAfterPause does not run the Accessibility password check off main")
+        }
+
+        // Verify `contextAfterPause` on main is given a pre-answered closure.
+        let assignsPreAnswered = (try? NSRegularExpression(pattern: #"\.passwordField\s*=\s*\{"#))?
+            .firstMatch(in: mainCode, range: NSRange(mainCode.startIndex..<mainCode.endIndex, in: mainCode)) != nil
+        if !assignsPreAnswered || !mainCode.contains("contextAfterPause(") {
+            violations.append("readFieldAfterPause must pass a pre-answered passwordField closure to contextAfterPause on main")
+        }
+
+        return violations
     }
 }
