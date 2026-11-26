@@ -3131,6 +3131,16 @@ final class SettingsWindow {
     /// Shows the window; opened now, it starts on General.
     func show() { show(opening: nil) }
 
+    /// The settings the window shows, kept once built (closed, the window keeps them too): the start's step 2 shows the
+    /// same ones (`StartWindow`), so the config file and the AWS files are read for both once, and what one looks at (a
+    /// CLI's sign-in) the other sees. Built now, with the config file as it is, if there are none for it yet.
+    var settings: SettingsModel {
+        if let model, model.configURL == Config.defaultURL { return model }
+        let model = SettingsModel()
+        self.model = model
+        return model
+    }
+
     private func show(opening page: SettingsPage?) {
         AgentAvailability.forget()  // an agent may have been installed meanwhile
         if let window, let model, !window.isVisible, model.configURL == Config.defaultURL {
@@ -3144,11 +3154,12 @@ final class SettingsWindow {
             NotificationCenter.default.post(name: .allInOneIMESettingsReopened, object: nil,
                                             userInfo: page.map { ["page": $0.rawValue] } ?? [:])
         } else if window?.isVisible != true {
-            // The first time (or the settings in another file now: the self-test's): built with the config file as it is
-            // now, and kept once closed.
+            // The first time (or the settings in another file now: the self-test's): the start's if it showed them first
+            // (read again if something else changed the file since), else built with the config file as it is now; kept
+            // once closed.
             window?.close()
-            let model = SettingsModel()
-            self.model = model
+            let model = settings
+            model.reloadIfChanged()
             UIText.choice = model.config.uiLanguage
             AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             let host = NSHostingController(rootView: SettingsView(model: model, page: page))
@@ -3178,37 +3189,6 @@ final class SettingsWindow {
         NSApp.activate()
         window?.makeKeyAndOrderFront(nil)
         window?.orderFrontRegardless()
-    }
-}
-
-/// The keys every text field answers in an app with a menu bar: an agent app (the input method, `LSUIElement`) has no
-/// main menu, so ⌘V, ⌘C, ⌘X, ⌘A and ⌘Z did nothing in Settings' fields (an API key could only be pasted from the context
-/// menu). A main menu that is never shown, with an Edit menu of the standard actions sent to the first responder, gives
-/// them their keys in every window of ours. Installed once, the first time Settings opens.
-enum EditMenu {
-    @MainActor
-    static func install() {
-        guard NSApp.mainMenu?.item(withTitle: "Edit") == nil else { return }
-        let edit = NSMenu(title: "Edit")
-        // Titles nobody sees (the menu bar of an agent app isn't shown): not translated.
-        let items: [(String, Selector, String, NSEvent.ModifierFlags)] = [
-            ("Undo", Selector(("undo:")), "z", .command),
-            ("Redo", Selector(("redo:")), "z", [.command, .shift]),
-            ("Cut", #selector(NSText.cut(_:)), "x", .command),
-            ("Copy", #selector(NSText.copy(_:)), "c", .command),
-            ("Paste", #selector(NSText.paste(_:)), "v", .command),
-            ("Select All", #selector(NSText.selectAll(_:)), "a", .command),
-        ]
-        for (title, action, key, modifiers) in items {
-            let item = NSMenuItem(title: title, action: action, keyEquivalent: key)
-            item.keyEquivalentModifierMask = modifiers
-            edit.addItem(item)  // no target: the first responder (the field being edited) takes it
-        }
-        let main = NSApp.mainMenu ?? NSMenu(title: "Main")
-        let holder = NSMenuItem(title: "Edit", action: nil, keyEquivalent: "")
-        holder.submenu = edit
-        main.addItem(holder)
-        NSApp.mainMenu = main
     }
 }
 

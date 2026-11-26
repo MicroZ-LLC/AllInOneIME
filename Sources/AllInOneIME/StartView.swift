@@ -126,10 +126,14 @@ struct StartView: View {
         }
     }
 
-    /// "Already have your own AI?": Settings → AI, where each is chosen, pointed at its first card (`AIChoice.all`'s), so
-    /// that the other cards show unfolded from the top (#161), unless that one is the AI in use.
+    /// "Already have your own AI?": Settings → AI, where each is chosen, pointed at the first card (`AIChoice.all`'s) that
+    /// isn't the AI in use, so that the other cards show unfolded from the top whatever is in use (#161: pointed at the
+    /// one in use, they stay folded). The config file read first, as Settings compares the card with it.
     private func ownAI(_ name: String) -> some View {
-        Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider, card: AIChoice.all.first) }
+        Button(name) {
+            settings.reloadIfChanged()
+            SettingsWindow.shared.show(page: .ai, spot: .provider, card: AIChoice.all.first { $0 != settings.config.ai })
+        }
     }
 
     // MARK: 3. Try one @
