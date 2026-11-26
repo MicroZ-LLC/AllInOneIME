@@ -22,6 +22,19 @@ fills in at launch (`Platform.current = …`). The macOS input method is the fir
 The package has no unsafe flags, so a shell can depend on it by URL. On macOS the shell weak-links FoundationModels
 (`-weak_framework FoundationModels`; the core also imports it `@_weakLinked`) so that the app starts on macOS 14.
 
+`AllInOneIMECore` has resources (`Sources/AllInOneIMECore/Resources/`: `RedactionWords.txt`, the English words the key
+detector knows), which SwiftPM builds into a bundle beside the binary, `AllInOneIME-Core_AllInOneIMECore`. A shell
+ships it with what it ships:
+
+- on Apple's systems, `AllInOneIME-Core_AllInOneIMECore.bundle` in the app's `Contents/Resources` (the macOS
+  Makefile's `app` puts it there, and fails without it), or beside a command-line tool;
+- on Windows and Linux, the `AllInOneIME-Core_AllInOneIMECore.resources` folder beside the executable, or beside the
+  DLL or `.so` the core is built into when another program loads it.
+
+The core looks for it there itself (`CoreResources`) and doesn't stop without it, as `Bundle.module` would: it logs that
+the words are missing and goes on knowing no English word, so with redaction on (`Config.redaction`) more ordinary
+words are taken for a key and hidden from the AI.
+
 ## A text field's session
 
 Each shell drives one `InputSession` (`Sources/AllInOneIMECore/Session/`) per text field: it hands it its events (keys
