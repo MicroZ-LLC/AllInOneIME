@@ -4,7 +4,7 @@ import Testing
 
 // #121's card wording, status tones, search, and one-click selection remain in #174's choosing view.
 //
-// The #121 properties unchanged by #161, as seen here:
+// The #121 properties preserved in #174's choosing view, as seen here:
 //   1. Every offered choice is a card in its `AIChoice.Group`, while choosing.
 //   2. "and one click chooses": a card's pick, which is `SettingsModel.choose`, makes that choice the AI.
 //   3. The chosen card says 「正在使用」 / 'In use'; no other card does (`AIChoiceCard.caption`).
@@ -71,7 +71,7 @@ struct Settings121MacTests {
             #expect(cards == offered, "\(page): the cards are \(cards), the choices offered \(offered)")
             #expect(cards.count == Set(cards).count, "\(page): a card twice: \(cards)")
             #expect(cards.filter { $0 == chosen }.count == 1, "\(page): the chosen AI must have one highlighted card")
-            #expect(Set(cards).isSuperset(of: Set(Self.alwaysOffered).subtracting([chosen])), "\(page): no card for \(Set(Self.alwaysOffered).subtracting(cards).subtracting([chosen]).sorted())")
+            #expect(Set(cards).isSuperset(of: Self.alwaysOffered), "\(page): no card for \(Set(Self.alwaysOffered).subtracting(cards).sorted())")
             #expect(Set(cards).isSubset(of: Self.choices), "\(page): cards for \(Set(cards).subtracting(Self.choices).sorted())")
             let apple = AIChoice.provider(.apple).id
             #expect(cards.contains(apple) == (Self.appleOffered[variant] == true || chosen == apple), "\(page): Apple's card: \(cards)")
@@ -304,7 +304,7 @@ enum Settings121Child {
 /// Mac has and each AI chosen in turn: the choices offered (OFFERED), the grid's cards (CARDS) and groups (GROUPS,
 /// GROUP), and each card's caption (TONE, TEXT) and status (STATUSTEXT, STATUSPROBLEM). The search's AI terms (FOUND).
 /// Once: each card picked in turn (PICKED: the AI then; PICKEDINUSE: the cards in use then). Only the contract's names
-/// of #121 (`AIChoiceCard.caption`, `Tone`, `AIChoicesGrid(chosen:groups:status:pick:)`) and what was there before are
+/// of #121 (`AIChoiceCard.caption`, `Tone`, `AIChoicesGrid(chosen:groups:status:pick:cancel:)`) and what was there before are
 /// used.
 private enum Settings121Harness {
     static let swift = #"""
@@ -370,7 +370,7 @@ MainActor.assumeIsolated {
                 let page = "\(interface)\t\(variant)\t\(chosen.id)"
                 // The page's cards: the grid, with the choices offered (as the page makes it).
                 let offered = AIChoice.groups(apple: facts.apple, keeping: chosen)
-                let grid = AIChoicesGrid(chosen: config.ai, groups: offered, status: { facts.status($0, config: config) }, pick: { _ in })
+                let grid = AIChoicesGrid(chosen: config.ai, groups: offered, status: { facts.status($0, config: config) }, pick: { _ in }, cancel: {})
                 print("OFFERED\t\(page)\t\(ids(offered.flatMap(\.choices)))")
                 print("CARDS\t\(page)\t\(ids(grid.groups.flatMap(\.choices)))")
                 print("GROUPS\t\(page)\t\(grid.groups.map(\.group.rawValue).joined(separator: ","))")
@@ -405,7 +405,7 @@ MainActor.assumeIsolated {
     for choice in AIChoice.all {
         let facts = model.aiFacts
         let grid = AIChoicesGrid(chosen: model.config.ai, groups: AIChoice.groups(apple: facts.apple, keeping: choice),
-                                 status: { facts.status($0, config: model.config) }, pick: { model.choose($0) })
+                                 status: { facts.status($0, config: model.config) }, pick: { model.choose($0) }, cancel: {})
         grid.pick(choice)
         print("PICKED\t\(choice.id)\t\(model.config.ai.id)")
         // The cards as the page shows them now.
