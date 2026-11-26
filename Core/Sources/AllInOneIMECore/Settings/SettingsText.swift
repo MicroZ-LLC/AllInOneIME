@@ -205,10 +205,11 @@ extension UIText {
     }
 
     /// Shape codes after "`" while typing pinyin (Settings → Input → Chinese → Typing, `Config.shapeCode`): its name, what
-    /// it says under it, and its Off.
+    /// it says under it (a tap of the right ⌥ is "`" there too: `Composer.shapeCodeTap`), and its Off.
     public static var shapeCodeLabel: String { tr("辅助码", "Shape codes") }
     public static var shapeCodeHelp: String {
-        tr("拼音后按 ` 再打形码，筛出想要的字", "After the pinyin, press ` and type the shape code to narrow the candidates")
+        tr("拼音后按 ` 或单击右 ⌥，再打形码，筛出想要的字",
+           "After the pinyin, press ` or tap right ⌥, then type the shape code to narrow the candidates")
     }
     public static var shapeCodeOff: String { tr("关闭", "Off", key: "shapeCode.off") }
 

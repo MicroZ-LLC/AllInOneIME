@@ -634,7 +634,7 @@ public final class InputSession {
         selectPinyinScheme(config)
         if valid { learnHeldEnglishWords(config) }
         composer.outputLanguages = config.outputLanguages
-        composer.chineseCharacters = config.typedChinese
+        (composer.chineseCharacters, composer.shapeCode) = (config.typedChinese, config.typedShapeCode)
         // The on-device model gets less of a screenshot (`ReplyContext.Limits`); an AI that can see one gets its image.
         (composer.provider, composer.aiSeesImages) = (config.provider, { [seesImages = config.questionsSeeImages] in seesImages })
         // `@reportissue`: the versions and settings it shows, read when it runs (the extensions as this field has them).
