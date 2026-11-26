@@ -397,12 +397,15 @@ extension UIText {
 
     /// The symbol that starts a command (`Config.commandTrigger`; the session and Settings set it with the settings, a
     /// settings document's is its config's: `scopedCommandTrigger`): what the interface's "@" is (`triggered`). @ until
-    /// then. In a task with an interface of its own (`scopedInterface`), its trigger once it has one, set with the
-    /// process's.
+    /// then. In a task with an interface of its own (`scopedInterface`), its trigger once it has one, set there only:
+    /// the process's stays as it is.
     public static var commandTrigger: String {
         get { scopedCommandTrigger ?? scopedInterface?.commandTrigger ?? commandTriggerState.withLock { $0 } }
         set {
-            scopedInterface?.commandTrigger = newValue
+            if let scoped = scopedInterface {
+                scoped.commandTrigger = newValue
+                return
+            }
             commandTriggerState.withLock { $0 = newValue }
         }
     }

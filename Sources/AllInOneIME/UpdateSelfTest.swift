@@ -39,6 +39,11 @@ extension SelfTest {
         check(UpdateText.available("9.9.0") == "AllInOneIME 9.9.0 可以更新了"
               && UpdateText.describe(UpdateError.hashMismatch).hasPrefix("下载的文件"), "…in Chinese too")
         UIText.choice = "en"
+        // Here, in English as checked: the pages drawn below set the interface language their config has (the
+        // self-test's: none, so this Mac's), as the input menu above did.
+        let notice = UpdateNotice.available(sample)
+        check(notice.title == "AllInOneIME 9.9.0 is available" && notice.body == "Updates from inside the app, with one click.",
+              "a new version's notification says which and what's new (\(notice.title) | \(notice.body))")
 
         // Every state of the card renders (the images are looked at by hand).
         let model = SettingsModel(configURL: Config.defaultURL, persists: false)
@@ -87,8 +92,5 @@ extension SelfTest {
         check(FileManager.default.fileExists(atPath: off.path), "…and with checking off")
         check(Config.default.checkForUpdates, "checking for updates is on by default")
         check(Config.default.notifiesUpdates, "…and so is its notification")
-        let notice = UpdateNotice.available(sample)
-        check(notice.title == "AllInOneIME 9.9.0 is available" && notice.body == "Updates from inside the app, with one click.",
-              "a new version's notification says which and what's new (\(notice.title) | \(notice.body))")
     }
 }

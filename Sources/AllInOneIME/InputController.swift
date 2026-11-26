@@ -294,28 +294,11 @@ final class AllInOneIMEInputController: IMKInputController {
         }
     }
 
-    // MARK: - IMK entry points
-
-    override func recognizedEvents(_ sender: Any!) -> Int {
-        Int(NSEvent.EventTypeMask.keyDown.rawValue | NSEvent.EventTypeMask.flagsChanged.rawValue)
-    }
-
-    override func handle(_ event: NSEvent!, client sender: Any!) -> Bool {
-        guard let event else { return false }
-        let client = sender as? IMKTextInput
-        switch event.type {
-        case .keyDown:
-            return MainActor.assumeIsolated { handleKeyDown(event, client: client) }
-        case .flagsChanged:
-            MainActor.assumeIsolated { handleFlagsChanged(event, client: client) }
-            return false  // the application must see modifier changes too
-        default:
-            return false
-        }
-    }
+    // MARK: - IMK entry points (the keys': InputController+Recording.swift)
 
     override func activateServer(_ sender: Any!) {
         super.activateServer(sender)
+        IMKRecorder.shared.event("activate", client: sender)
         MainActor.assumeIsolated {
             commitRow()  // in the field it went into, while that one's session is on
             appliedLayout = nil  // the layout is told to each text field
@@ -344,6 +327,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     override func commitComposition(_ sender: Any!) {
         // The app wants everything in now (a click elsewhere in it): what is typed out goes in, the pinyin doesn't.
+        IMKRecorder.shared.event("commitComposition", client: sender)
         MainActor.assumeIsolated { leaveField(.commit, client: sender as? IMKTextInput, insertingRest: true) }
     }
 
@@ -521,6 +505,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var isTypingOut: Bool { typingTask != nil }
 
     override func deactivateServer(_ sender: Any!) {
+        IMKRecorder.shared.event("deactivate", client: sender)
         MainActor.assumeIsolated {
             // Still this field's session; another field has the focus now: the rest of a result isn't typed anywhere.
             leaveField(.blur, client: sender as? IMKTextInput, insertingRest: false)
@@ -1213,8 +1198,9 @@ final class AllInOneIMEInputController: IMKInputController {
         // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
         guard placements == placing else { return placement.rect }
         // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then)
-        // or dropped it, on no screen now: the dictionary is every controller's, and another may have written it meanwhile.
-        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field || lastByApp[app ?? ""] == nil ? lastByApp[app ?? ""] : Self.lastAnchorByApp[app ?? ""])
+        // or dropped it, on no screen now, and it is still that one: the dictionary is every controller's, and another
+        // may have written it meanwhile.
+        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""].flatMap { $0 == placed.dropped ? nil : $0 })
         guard placement.reasks else {
             anchorSaid = nil
             // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==

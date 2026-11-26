@@ -1,11 +1,12 @@
-import AllInOneIMECore
-import AllInOneIMEMac
+import AllInOneIMETestSupport
 import Foundation
 import Testing
+@testable import AllInOneIMECore
 
 /// `ProcessOutput`, what `@tasks` runs `claude agents` through: each program's end is seen (its termination handler, not
 /// `waitUntilExit` on a dispatch thread, which missed about one exit in ten), with what it printed on both pipes and its
-/// status; one past its time is ended, and the call fails saying it timed out.
+/// status; one past its time is ended, and the call fails saying it timed out (or, gathered, gives what it printed by
+/// then).
 struct ProcessOutputTests {
     /// `ProcessOutput.run` on a dispatch thread, as `AgentMonitor` runs it; nil when it hasn't returned within `within`
     /// seconds.
@@ -63,5 +64,50 @@ struct ProcessOutputTests {
         #expect(failure(result) as? ProcessOutput.TimedOut == ProcessOutput.TimedOut(program: "sh", seconds: 0.2),
                 "\(String(describing: result))")
         #expect(Date().timeIntervalSince(started) < 10)
+    }
+
+    /// `body` on a thread of its own (it blocks), awaited.
+    func inBackground<T: Sendable>(_ body: @escaping @Sendable () -> T) async -> T {
+        await withCheckedContinuation { continuation in
+            Thread { continuation.resume(returning: body()) }.start()
+        }
+    }
+
+    /// `input` goes to its standard input, more than a pipe holds too, while what it prints is read.
+    @Test func itsInputIsWrittenWhileItsOutputIsRead() async throws {
+        let input = Data(repeating: UInt8(ascii: "x"), count: 200_000)
+        let result = await inBackground {
+            Result { try ProcessOutput.run(URL(fileURLWithPath: "/bin/sh"), ["-c", "cat"], input: input, timeout: 10,
+                                           processes: FoundationProcessLauncher()) }
+        }
+        #expect(try result.get() == ProcessOutput.Result(status: 0, output: input, errors: Data()))
+    }
+
+    /// Gathered, one past its time that ignores SIGTERM is killed all the same, and what it printed before is kept.
+    @Test func gatheredPastItsTimeKeepsWhatItPrinted() async throws {
+        let started = Date()
+        let gathered = await inBackground {
+            Result { try ProcessOutput.gather(URL(fileURLWithPath: "/bin/sh"),
+                                              ["-c", "printf ready; trap '' TERM; while :; do sleep 1; done"], timeout: 0.5,
+                                              processes: FoundationProcessLauncher()) }
+        }
+        let run = try gathered.get()
+        #expect(run.timedOut && run.result.output == Data("ready".utf8), "\(run)")
+        #expect(Date().timeIntervalSince(started) < 10)
+    }
+
+    /// Something it left running in the background holds its pipes open after it ended (a login shell's startup files
+    /// can): the run doesn't wait for that, and has what it printed.
+    @Test func whatItLeftRunningDoesntHoldTheRunUp() async throws {
+        // The job marks its end, 5 s after the program's: however slow a loaded Mac starts the program, the run is over
+        // well before that.
+        let ended = TestScratch.temporary("process-output-job-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: ended) }
+        let result = await inBackground {
+            Result { try ProcessOutput.run(URL(fileURLWithPath: "/bin/sh"), ["-c", "printf done; (sleep 5; : > '\(ended.path)') & exit 0"],
+                                           timeout: 30, processes: FoundationProcessLauncher()) }
+        }
+        #expect(try result.get() == ProcessOutput.Result(status: 0, output: Data("done".utf8), errors: Data()))
+        #expect(!FileManager.default.fileExists(atPath: ended.path), "waited for the background job")
     }
 }

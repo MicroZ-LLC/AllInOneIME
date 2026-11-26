@@ -19,16 +19,19 @@ public enum FileOpenPolicy {
     public static func action(for url: URL, readsMetadata: Bool = true) -> Action {
         if runExtensions.contains(url.pathExtension.lowercased()) { return .reveal }
         guard readsMetadata else { return .open }
+        // A link opens what it leads to: "readme" → payload.terminal is one to show too.
         let resolved = url.resolvingSymlinksInPath()
+        if runExtensions.contains(resolved.pathExtension.lowercased()) { return .reveal }
         guard let attributes = try? FileManager.default.attributesOfItem(atPath: resolved.path),
               attributes[.type] as? FileAttributeType == .typeRegular else { return .open }  // a folder, an app bundle
         let permissions = (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
         return permissions & 0o111 != 0 ? .reveal : .open
     }
 
-    /// What a row with `url` says ⏎ does.
+    /// What a row with `url` says ⏎ does: the row's own words (`SessionText.openAction`).
     public static func label(for url: URL) -> String {
-        action(for: url) == .reveal ? tr("在访达中显示", "Show in Finder") : tr("打开", "Open")
+        let result = SearchResult(name: url.lastPathComponent, path: url.path, reveals: action(for: url) == .reveal)
+        return SessionText.openAction(result, UIText.words, terms: .mac)
     }
 
     /// Opens an `@open` result (`path`): a web address in the default browser; a file as `action` says, its metadata read

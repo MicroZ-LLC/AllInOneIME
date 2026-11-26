@@ -78,6 +78,7 @@ extension Composer {
     /// Opens `path` (`Effect.open`): what `@open` opened before ranks first from now on, so what was found for its texts
     /// in this field's session (`live`, one @'s files) is forgotten, not listed again in the order from before.
     func opening(_ path: String) -> Effect {
+        completedFolder = nil
         live.clear(everything: true)
         oneAtFiles.clear(everything: true)
         return .open(path: path)

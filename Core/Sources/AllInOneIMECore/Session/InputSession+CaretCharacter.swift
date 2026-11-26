@@ -1,11 +1,13 @@
 import Foundation
 
 extension InputSession {
-    /// Ask only for the caret range in a terminal or password manager, where field text stays in the app.
+    /// What `.` `,` `:` read of the field: the selection's range and the character before the caret (one substring call:
+    /// never the text around it, which a field that tells no length reads in many calls, each a wait on a slow app);
+    /// only the caret's range in a terminal or password manager, where the field's text stays in the app.
     func digitPunctuationWants(for key: KeyEvent, context: FieldContext) -> FieldContext.Parts {
         guard composer.input == .language(.chinese), !composer.isComposing,
               [".", ",", ":"].contains(key.printableText ?? ""), !(context.field ?? field).secure else { return [] }
-        return (context.field ?? field).textStaysHere ? [.selectedRange] : [.selectedRange, .beforeCaret, .text]
+        return (context.field ?? field).textStaysHere ? [.selectedRange] : [.selectedRange, .beforeCaret]
     }
 
     /// The composer's command trigger keeps its existing typed-word rule; digit punctuation reads field text first.

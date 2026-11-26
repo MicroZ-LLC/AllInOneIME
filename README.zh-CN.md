@@ -213,7 +213,7 @@ Intelligence 时，长对话放不进它很小的上下文：先缩短最早的�
 
 ### @question 用输入法自己的会话（新）
 
-设置 →「AI」是所有 AI 功能共用的一个选择（每家一张卡片，按连接方式分组，点一下就选）：在「用你的订阅」里选 Claude Code、Codex、Antigravity（Google Antigravity 的 CLI，`agy`）或 Kiro CLI（配置里的 `questionBackend`），`@question` 就在输入法自己的这个 CLI 会话里回答。
+设置 →「AI」是所有 AI 功能共用的一个选择（正在用的一张卡片，别的卡片收在「其他 AI」下面，按连接方式分组，点一下就选）：在「用你的订阅」里选 Claude Code、Codex、Antigravity（Google Antigravity 的 CLI，`agy`）或 Kiro CLI（配置里的 `questionBackend`），`@question` 就在输入法自己的这个 CLI 会话里回答。
 （Gemini CLI 不再是其中之一：它不再支持个人 Google 账号，Google 让个人用户改用 Antigravity；选过它的配置在装了 `agy` 时改用 Antigravity，没装时用它的 AI 服务。`@agent` 照样可以交给 Gemini CLI。）
 会话是输入法为所有输入框留着的一个长期运行的 Claude Code（`claude -p`，stream JSON）、Codex（`codex app-server`）、Antigravity（`agy acp --agent allinoneime`）或 Kiro CLI（`kiro-cli acp`）进程，
 在它自己的文件夹里（`~/Library/Application Support/AllInOneIME/claude-session`、`codex-session`、`antigravity-session` 或 `kiro-session`，有它自己的说明：CLAUDE.md、AGENTS.md、Antigravity 的 agent 或 Kiro 的 steering），
@@ -231,7 +231,7 @@ Codex：不给它运行命令和读写文件的环境，`CODEX_EXEC_SERVER_URL=n
 问 AllInOneIME 本身的问题时再带上使用指南的几段。要问 `@question` 时才启动（打了或选了 `@question`，或单个 @ 里高亮的是「问 AI」那一行；只打魔法键不启动，
 不用 AI 的 App 里和安全输入时也不启动），那时就准备好一个新对话（Codex 和 ACP agent 在已有的进程里开，Claude Code 用新的 session id 重新启动进程），回答不用等；闲置 15 分钟后结束，之后的追问接着它的对话。
 用会话时对话没有轮数限制，⌘⏎ 最先列出在终端里接着同一个对话聊（`claude --resume`、`codex resume`、`agy --conversation`、`kiro-cli chat --resume-id`）；选项下面的「重新开始」开一个新对话。一个对话从不同时有两个进程：⌘⏎ 先结束会话自己的进程并等它结束（半秒还没结束就强制结束），终端里的 CLI 运行时拿着这个对话的锁（`<会话文件夹>/locks/<id>.lock` 上的 `lockf`，等输入法的锁放开才开始），从此这个对话归终端：下一个 `@question`（交接时打的 @ 也一样）在这里开新对话，不会接着交出去的那个。退出或更新 AllInOneIME 时所有会话的进程都会结束，重新启动后也不会接着以前的对话。
-各个 CLI 装没装、登没登录，由设置 →「AI」检查（`claude auth status`、Codex 的账号、Antigravity 在钥匙串里的登录或它的设置——不为此启动它、`kiro-cli whoami`）：页面显示时为了卡片查所有的，在那里选 CLI 时也查；查到的结果会留着，已登录的留到退出 AllInOneIME，别的留一分钟，在这之前再显示这一页也不会再运行 CLI；启动时和问问题时都不查。选中的那个有问题来时直接用；原来没登录、后来查到已登录的，下一个问题会重新启动它的会话进程。
+各个 CLI 装没装、登没登录，由设置 →「AI」检查（`claude auth status`、Codex 的账号、Antigravity 在钥匙串里的登录或它的设置——不为此启动它、`kiro-cli whoami`）：卡片显示时查它的 CLI（页面显示时查正在用的那个，展开「其他 AI」时查别的，收起时一个都不查），在那里选 CLI 时也查；查到的结果会留着，已登录的留到退出 AllInOneIME，别的留一分钟，在这之前再显示这一页也不会再运行 CLI；启动时和问问题时都不查。选中的那个有问题来时直接用；原来没登录、后来查到已登录的，下一个问题会重新启动它的会话进程。
 CLI 回答要 1 秒以上，所以要快的（改写、翻译、回复、续写）用你之前设置好的 AI 服务（填了 key、有 AWS profile、登录了 AllInOneIME 云），没有就用这台 Mac 上的 Apple Intelligence（能用时）；
 两个都没有时续写关闭，改写和翻译也交给会话，会慢一些，每个请求都是单独的一个对话，没有网页工具（排在正在回答的问题后面等多久都不会进 `@question` 的对话）。设置里在选项下面写着用的是哪个。
 会话回答不了时（没装、没登录、启动不了、没法只读网页、用量到上限、AWS 登录过期、30 秒内没反应、30 秒后还在回答之前的问题，或 CLI 回答之前先压缩对话：Claude Code 的 `compact_boundary` 或 compacting 状态、Codex 的上下文压缩，不等它），马上由这个更快的 AI 回答，候选框里写着原因（没有的话问题失败，写着原因）；
@@ -545,7 +545,9 @@ bundle ID 不分大小写（手写的 `com.apple.Mail` 就是「邮件」的 `co
   「**命令与功能**」：魔法键、「翻译成」（`@translate` 的语言）、「剪贴板历史」（带「清除历史」）和「续写（Beta）」。最后一行写着更多设置里有几项。
   语言包有问题时，横幅显示在这一页。
 - **AI**：先是回答的 AI（服务、模型、密钥或 AWS profile、「测试连接」；Base URL 在「更多…」里，设了 Base URL 时它自己展开）；
-  然后是所有可选的 AI，每家一张卡片，按连接方式分组，一直显示（点一下就选；正在用的那张有框、写着「正在使用」，别的状态是灰字）；
+  然后是正在用的 AI 的卡片（有框、写着「正在使用」），别的 AI 收在一行「**其他 AI（N）▸**」下面，每次显示这一页时都收起：
+  点这一行展开它们的卡片，按连接方式分组，状态是灰字；点一张卡片就选它（它移到最上面，别的又收起），再点这一行就收起。
+  搜「选择 AI」或某个 AI 的名字（`kiro`）会展开到它的卡片，上手引导的按钮、横幅里指向没在用的 AI 的按钮也一样；
   然后是「**AI 命令**」，每个 AI 命令的选项放在一起：`@improve` 的改写风格、「@improve 同时翻译」和黑话库（选了「黑话」风格或已经设了词表时才显示），
   `@question` 的「对话接着在哪里聊」和「记住最近的问题」（带「忘掉」，设置里只在这一处）。
 - **本周**：[本周统计](#本周统计新)，有「本周」「上周」，可以复制或存成图片，还有「复制时隐藏我的命令名」。
@@ -1085,7 +1087,7 @@ profile 的 `region`；设置里填的「区域」又优先于这两者。
 
 ### 其他 AI 服务：Claude API、Gemini、兼容 OpenAI 的服务
 
-不用 AWS 也可以：在设置 →「AI」的卡片里选一个，粘贴 API key 点「保存」，再点「测试连接」。
+不用 AWS 也可以：在设置 →「AI」的卡片里（「其他 AI」下面）选一个，粘贴 API key 点「保存」，再点「测试连接」。
 
 | 服务 | 默认模型 | API key |
 |---|---|---|
@@ -1253,6 +1255,12 @@ make update-test  # 应用内更新的端到端测试：临时的安装目录、
 ```
 
 `make selftest` 和 `make realtest` 不受你的设置影响。自测用它自己的配置（Amazon Bedrock，AWS profile 和区域取自你的配置，其余都是默认值）；真实 App 测试运行时把服务商设成 Bedrock，结束后换回你的。当时测不了的会跳过，不算失败：没有这个 profile 的 Bedrock 密钥时的在线检查，安全输入开着时（正在输密码）要打字的检查，本机端侧模型用不了时 Apple Intelligence 的检查，以及没给 `ELECTRON_HARNESS` 时 Electron 测试窗口的检查；屏幕锁着时自测立刻结束。结尾列出通过、失败和跳过的数目和每类跳过的原因，退出码说明结果：0（PASSED）所有检查都跑了而且都通过；1（FAILED）有检查失败；2 没有失败，但有检查跳过了或没法跑（INCOMPLETE；什么打字的都没跑时是 SKIPPED；屏幕锁着时开始的真实 App 测试是 BLOCKED）。2 不算通过：`make selftest` 和 `make realtest` 遇到它也会失败。自测的 `--…-only` 子集退出码一样；最后一行是给脚本读的同样结果：`SELFTEST-RESULT {"passed":N,"failed":N,"skipped":N,"status":"pass|fail|incomplete"}`。
+
+真实 App 的文本框怎么回答输入法可以录下来，再做成宿主测试（`Core/Tests/HostScenarios`）的宿主配置或场景：启动输入法时设好
+`ALLINONEIME_IMK_RECORD`（`launchctl setenv ALLINONEIME_IMK_RECORD 1`，然后 `killall AllInOneIME`；停止就 `launchctl
+unsetenv` 再同样重启），它对文本框的每次调用（IMK 的）、文本框的回答和当时的按键都写进
+`~/Library/Logs/AllInOneIME/imk-recording.jsonl`（或用绝对路径代替 `1`），每行一个 JSON 对象，到 50 MB 为止。你打的字不会在里面，
+只有长度。录下的只留在这台 Mac 上，也没有设置能打开它。
 
 界面文字写成 `tr("中文", "English")`：简体中文和英文来自代码，别的语言来自 String Catalog：核心的文字在
 `Core/Resources/Localizable.xcstrings`，App 自己的在 `Resources/Localizable.xcstrings`（Makefile 把两个合在一起，用 Xcode 的

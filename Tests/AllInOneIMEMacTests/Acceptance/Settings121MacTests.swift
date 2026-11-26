@@ -2,28 +2,20 @@ import AllInOneIMECore
 import Foundation
 import Testing
 
-// #121: Settings → AI shows every choice as a card. The acceptance tests, written from the issue and the integrator's
-// contract by an author other than the implementation's (whose changes don't edit them).
+// #121's cards as retained by #161: the chosen AI has its own card above a folded list of other AI cards. These
+// acceptance tests check the cards when the list is unfolded; Settings161MacTests checks the fold itself.
 //
-// "Today the AI page shows the chosen AI collapsed, and you click 「更换 ▾」 to see the others. Instead, show every choice
-// as a card all the time, so that changing the AI is one click."
-//
-// The issue's acceptance list, as seen here:
-//   1. "The AI page shows all offered choices (`AIChoice.groups`) without a click": the cards (`AIChoicesGrid`, made as
-//      the contract says: chosen, groups, status, pick, and no Cancel) are the offered choices, each once, "in the four
-//      `AIChoice.Group`s", whichever AI is chosen and whatever this Mac has set up.
+// The #121 properties unchanged by #161, as seen here:
+//   1. Every offered other choice is a card in its `AIChoice.Group`, when the list is unfolded.
 //   2. "and one click chooses": a card's pick, which is `SettingsModel.choose`, makes that choice the AI.
-//   3. "Exactly one card is marked chosen": "The chosen card is outlined and says 「正在使用」 / 'In use'", for each AI
-//      chosen in turn (`AIChoiceCard.caption`'s tone `.inUse`).
+//   3. The chosen card says 「正在使用」 / 'In use'; no other card does (`AIChoiceCard.caption`).
 //   4. "Unchosen cards never use the problem color": "A card that isn't chosen shows its status in secondary gray, never
 //      orange", for every kind of status (not signed in, not installed, can't start, no key, no AWS profile, no AWS
 //      credentials, Apple's model not available …) and for every card of a Mac with nothing set up.
 //   5. "The search's AI terms ('kiro', 'bedrock', '订阅') still land on the AI page."
 //   6. "There is no 「更换 ▾」": the input method's sources say it nowhere.
 // Not seen here: the page as drawn (the outline, the gray and the orange themselves, the chosen AI's own rows above the
-// cards, the AI commands below), that the page shows the cards without a click (the view's own state: the grid is only
-// made here, not the page), and the CLI checks as the page is shown (`SettingsModel.aiPageShown`; the cache it goes
-// through has the core's AISignInCacheAcceptanceTests).
+// cards, the AI commands below), and the CLI checks while the list is folded (the cache has AISignInCacheAcceptanceTests).
 //
 // The input method's own code can't be imported here (it is an executable target): as Settings120MacTests does it, all
 // of Sources/AllInOneIME is compiled into a child process, with the Mac library, the core and librime, as the input
@@ -71,22 +63,21 @@ struct Settings121MacTests {
         interfaces.flatMap { interface in variants.flatMap { variant in choices.map { (interface, variant, $0) } } }
     }
 
-    /// "The AI page shows all offered choices (`AIChoice.groups`)": "Every choice as a card, in the four
-    /// `AIChoice.Group`s". The cards are the offered choices, each once, the chosen one among them; each under its own
-    /// group, the groups in their order.
-    @Test func everyOfferedChoiceIsACard() throws {
+    /// #161 keeps #121's cards for the other choices when the disclosure is open. The chosen choice has its own
+    /// outlined card above the disclosure, so only the other offered choices belong to this grid.
+    @Test func everyOtherOfferedChoiceIsACardWhenUnfolded() throws {
         let report = try Settings121Child.report.get()
         for (interface, variant, chosen) in Self.pages {
             let page = "\(interface), \(variant), \(chosen) chosen"
             let offered = try #require(report.list("OFFERED", interface, variant, chosen), "\(page): no choices told: \(report)")
             let cards = try #require(report.list("CARDS", interface, variant, chosen), "\(page): no cards told: \(report)")
-            #expect(cards == offered, "\(page): the cards are \(cards), the choices offered \(offered)")
+            #expect(cards == offered.filter { $0 != chosen }, "\(page): the other cards are \(cards), the choices offered \(offered)")
             #expect(cards.count == Set(cards).count, "\(page): a card twice: \(cards)")
-            #expect(cards.contains(chosen), "\(page): the chosen AI has no card: \(cards)")
-            #expect(Set(cards).isSuperset(of: Self.alwaysOffered), "\(page): no card for \(Set(Self.alwaysOffered).subtracting(cards).sorted())")
+            #expect(!cards.contains(chosen), "\(page): the chosen AI is repeated among the other cards: \(cards)")
+            #expect(Set(cards).isSuperset(of: Set(Self.alwaysOffered).subtracting([chosen])), "\(page): no card for \(Set(Self.alwaysOffered).subtracting(cards).subtracting([chosen]).sorted())")
             #expect(Set(cards).isSubset(of: Self.choices), "\(page): cards for \(Set(cards).subtracting(Self.choices).sorted())")
             let apple = AIChoice.provider(.apple).id
-            #expect(cards.contains(apple) == (Self.appleOffered[variant] == true || chosen == apple), "\(page): Apple's card: \(cards)")
+            #expect(cards.contains(apple) == (Self.appleOffered[variant] == true && chosen != apple), "\(page): Apple's other card: \(cards)")
             // The cards in `AIChoice.all`'s order: each group's, the groups in order.
             #expect(cards == Self.choices.filter { cards.contains($0) }, "\(page): the cards' order: \(cards)")
             let groups = try #require(report.list("GROUPS", interface, variant, chosen), "\(page): no groups told: \(report)")
@@ -104,17 +95,16 @@ struct Settings121MacTests {
         }
     }
 
-    /// "Exactly one card is marked chosen": for each AI chosen in turn, its card, and no other, "says 「正在使用」 / 'In
-    /// use'" (the caption's tone `.inUse`), whatever its status.
-    @Test func exactlyOneCardIsInUseForEachAIChosenInTurn() throws {
+    /// #161 moves the outlined chosen card above the other cards; no card under the disclosure says "In use".
+    @Test func noOtherCardIsInUseForEachAIChosenInTurn() throws {
         let report = try Settings121Child.report.get()
         for (interface, variant, chosen) in Self.pages {
             let page = "\(interface), \(variant), \(chosen) chosen"
             let cards = try #require(report.list("CARDS", interface, variant, chosen), "\(page): no cards told: \(report)")
             let inUse = cards.filter { report.value("TONE", interface, variant, chosen, $0) == "inUse" }
-            #expect(inUse == [chosen], "\(page): the cards in use are \(inUse)")
+            #expect(inUse.isEmpty, "\(page): other cards in use are \(inUse)")
             let says = cards.filter { report.value("TEXT", interface, variant, chosen, $0) == Self.inUse[interface] }
-            #expect(says == [chosen], "\(page): the cards saying \(Self.inUse[interface] ?? "?") are \(says)")
+            #expect(says.isEmpty, "\(page): other cards saying \(Self.inUse[interface] ?? "?") are \(says)")
         }
     }
 
@@ -137,9 +127,7 @@ struct Settings121MacTests {
                 if report.value("STATUSPROBLEM", interface, variant, chosen, card) == "1" { problems += 1 }
             }
             // The fresh install the issue speaks of: the test's cards do have problems to tell.
-            if variant == "unset" {
-                #expect(problems >= cards.count - 2, "\(page): only \(problems) of \(cards.count) cards have a problem")
-            }
+            if variant == "unset" { #expect(problems >= cards.count - 1, "\(page): only \(problems) of \(cards.count) cards have a problem") }
         }
     }
 
@@ -384,7 +372,11 @@ MainActor.assumeIsolated {
                 let page = "\(interface)\t\(variant)\t\(chosen.id)"
                 // The page's cards: the grid, with the choices offered (as the page makes it).
                 let offered = AIChoice.groups(apple: facts.apple, keeping: chosen)
-                let grid = AIChoicesGrid(chosen: config.ai, groups: offered, status: { facts.status($0, config: config) }, pick: { _ in })
+                let others = offered.compactMap { entry -> (group: AIChoice.Group, choices: [AIChoice])? in
+                    let choices = entry.choices.filter { $0 != chosen }
+                    return choices.isEmpty ? nil : (entry.group, choices)
+                }
+                let grid = AIChoicesGrid(chosen: config.ai, groups: others, status: { facts.status($0, config: config) }, pick: { _ in })
                 print("OFFERED\t\(page)\t\(ids(offered.flatMap(\.choices)))")
                 print("CARDS\t\(page)\t\(ids(grid.groups.flatMap(\.choices)))")
                 print("GROUPS\t\(page)\t\(grid.groups.map(\.group.rawValue).joined(separator: ","))")

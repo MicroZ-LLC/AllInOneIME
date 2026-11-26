@@ -33,8 +33,7 @@ private final class PreparingIDs: @unchecked Sendable {
 /// in the list is deleted with it; `clear` deletes them all (Clear History, the history turned off). Read once, as it is
 /// made, off the main thread (a long history's file never holds typing up): empty meanwhile (`isLoading`), a copy
 /// recorded then kept above what is read, and no write leaves out what is still being read. Never synced, never sent
-/// anywhere. Its files are written one change after another (`writes`): at once, or, for
-/// a copy recorded as ⌃V's panel is about to show, after it, off the main thread.
+/// anywhere. Its files are written one change after another (`writes`), off the main thread, never waited for there.
 // Unchecked: `prepare` runs off the main thread and touches only the images folder (by `url`, which never changes); the
 // list itself is read and changed on the thread that made the store only (the main thread), and written from a copy of
 // it on `writes`; the list read from the file is handed over through `LoadedList`.
@@ -148,11 +147,14 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         return loadPending
     }
 
-    /// Once the file is read and its items are in `items`.
+    /// Once the file is read and its items are in `items` (on the main thread, wherever the store was made).
     @MainActor
     public func waitForLoad() async {
         while isLoading {
-            await withCheckedContinuation { loadWaiters.append($0) }
+            await withCheckedContinuation { waiter in
+                loadWaiters.append(waiter)
+                writes.async { DispatchQueue.main.async { self.finishLoading() } }
+            }
         }
     }
 
@@ -161,7 +163,10 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     private func finishLoading() {
         if loadPending, let read = loaded.items {
             loadPending = false
+            let all = Self.merge(current, read, limit: nil)
             current = Self.merge(current, read, limit: limitWhileLoading)
+            // A lower limit set while it was read (`trim`) drops the oldest from the file now; nothing changed, nothing written.
+            if current.count < all.count, let limit = limitWhileLoading { keep(limit) }
         }
         guard !loadPending, !loadWaiters.isEmpty else { return }
         let waiters = loadWaiters
@@ -305,16 +310,18 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     /// already, and nothing changed.
     @discardableResult
     public func add(_ image: ReadyImage, at date: Date, limit: Int) -> Bool {
-        // Being made ready until the list with it is written (after it, on `writes`): a write of the list before it, still
-        // to run, keeps its files.
-        defer { writes.async { [preparing] in preparing.remove(image.id) } }
         finishLoading()
-        guard current.first?.image?.id != image.id else { return false }
+        guard current.first?.image?.id != image.id else {
+            preparing.remove(image.id)
+            return false
+        }
         current.removeAll { $0.image?.id == image.id }
         let kept = kept(image.id, width: image.width, height: image.height, bytes: image.bytes)
         let place = current.firstIndex { $0.copiedAt < date } ?? current.count
         current.insert(ClipboardHistoryItem(image: kept, copiedAt: date), at: place)
-        keep(limit)
+        // Being made ready until the list with it is written: a write queued before it, of the list before it (while the
+        // file is read, all of them are), keeps its files.
+        keep(limit, releasing: image.id)
         return true
     }
 
@@ -346,8 +353,12 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
 
     /// The oldest dropped beyond `limit` (a lower one set), at once.
     public func trim(to limit: Int) {
-        if isLoading { limitWhileLoading = limit }
-        guard current.count > max(limit, 1) || loadPending else { return }
+        // While the file is read: applied as it is merged (`finishLoading`), written only if that drops something.
+        if isLoading {
+            limitWhileLoading = limit
+            return
+        }
+        guard current.count > max(limit, 1) else { return }
         keep(limit)
     }
 
@@ -356,27 +367,34 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
     public func clear() {
         generation += 1
         current = []
-        // What is being read is forgotten too.
+        // What is being read is forgotten too; the files deleted after it is (never waited for).
         loadPending = false
         finishLoading()
         writes.async { [self] in
             (keptAsideIDs, unarchived) = ([], false)
-            for file in [url, imagesURL] + asideURLs { try? FileManager.default.removeItem(at: file) }
+            for file in [url] + asideURLs { try? FileManager.default.removeItem(at: file) }
+            // Every image but one being made ready meanwhile (copied after it: kept; before it: `discard`ed), and the
+            // folder with them.
+            removeUnlisted(listing: [])
         }
     }
 
     /// `limit` kept at most, saved, images no longer in the list deleted: off the main thread, after what was to be written
-    /// before (a snapshot of the list now).
-    private func keep(_ limit: Int) {
+    /// before (a snapshot of the list now). `releasing`: an image being made ready (`preparing`), until this write.
+    private func keep(_ limit: Int, releasing id: String? = nil) {
         current = Array(current.prefix(max(limit, 1)))
         let loading = isLoading
         if loading { limitWhileLoading = limit }
-        guard !current.isEmpty || loading else { return clear() }
+        guard !current.isEmpty || loading else {
+            if let id { preparing.remove(id) }
+            return clear()
+        }
         let items = current
         writes.async { [self] in
             let whole = whole(items, loading: loading, limit: limit)
             save(whole)
             removeUnlisted(listing: whole)
+            if let id { preparing.remove(id) }
         }
     }
 

@@ -51,6 +51,7 @@ struct QuestionSessionHandOffTests {
             private let ends = Locked<Date?>(initialState: .distantFuture)
             private let killed = Locked(initialState: false)
             private let asked = Locked<[String?]>(initialState: [])
+            private let times = Locked<(askedToEnd: Date?, killed: Date?)>(initialState: (nil, nil))
 
             init(_ inner: FakeClaude.Process, dying: TimeInterval?, killable: Bool, conversation: (@Sendable () -> String?)?) {
                 self.inner = inner
@@ -61,6 +62,7 @@ struct QuestionSessionHandOffTests {
 
             func send(_ line: Data) throws { try inner.send(line) }
             func terminate() {
+                times.withLock { if $0.askedToEnd == nil { $0.askedToEnd = Date() } }
                 if let conversation {
                     let now = conversation()
                     asked.withLock { $0.append(now) }
@@ -69,10 +71,14 @@ struct QuestionSessionHandOffTests {
                 ends.withLock { ends in if ends == .distantFuture { ends = dying.map { Date().addingTimeInterval($0) } ?? .distantFuture } }
             }
             func kill() {
+                times.withLock { if $0.killed == nil { $0.killed = Date() } }
                 killed.withLock { $0 = true }
                 if killable { ends.withLock { $0 = Date() } }
             }
             var wasKilled: Bool { killed.withLock { $0 } }
+            /// When it was first asked to end, and first killed.
+            var askedToEndAt: Date? { times.withLock { $0.askedToEnd } }
+            var killedAt: Date? { times.withLock { $0.killed } }
             var isRunning: Bool { ends.withLock { $0.map { Date() < $0 } ?? false } }
             /// What `conversation` read each time it was asked to end, in order.
             var askedIn: [String?] { asked.withLock { $0 } }
@@ -148,9 +154,12 @@ struct QuestionSessionHandOffTests {
         let before = Date()
         _ = try await session.handOffOnceEnded(program: "/u/claude")
         #expect(process.wasKilled && !process.isRunning)
-        // Killed once `handOffGrace` is over: about half a second alone, 4–5 seconds seen under the full suite's parallel
-        // load. The bound holds under that load and still fails a hand-off that waits far longer than its grace.
-        #expect(Date().timeIntervalSince(before) < 15)
+        // Killed once `handOffGrace` was over, never before: what a loaded machine can only lengthen. How much longer
+        // it takes is the machine's (half a second alone; 19 s seen with two full core suites on the Mac mini), so the
+        // bound on the whole is a hang's only: a minute.
+        let asked = try #require(process.askedToEndAt), killed = try #require(process.killedAt)
+        #expect(killed.timeIntervalSince(asked) >= ClaudeSessionManager.handOffGrace - 0.01)
+        #expect(Date().timeIntervalSince(before) < 60)
     }
 
     /// The hand-off that can't end our process (still running a moment after it was killed) opens no Terminal, and the
@@ -344,25 +353,30 @@ struct QuestionSessionHandOffTests {
     }
 
     #if os(macOS)
-    /// Terminal runs the CLI under `lockf`, which waits for our lock to be let go, then holds it while the CLI runs.
+    /// Terminal runs the CLI under `lockf`, which waits for our lock to be let go, then holds it while the CLI runs. The
+    /// CLI here runs until the test has looked (it ends once `finish` is there, or after a minute): one that slept a
+    /// second had ended, on a loaded machine, before the test looked at its lock.
     @Test func terminalHoldsTheConversationsLockWhileItsCLIRuns() async throws {
         guard FileManager.default.isExecutableFile(atPath: "/usr/bin/lockf") else { return }
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         let file = folder.appendingPathComponent("conversation.lock")
-        let ran = folder.appendingPathComponent("ran")
+        let ran = folder.appendingPathComponent("ran"), finish = folder.appendingPathComponent("finish")
         let ours = try #require(ConversationLock.take(file))
-        let command = ClaudeSessionManager.terminalCommand(["/bin/sh", "-c", "touch \"$0\"; sleep 1", ran.path], lock: file)
+        let cli = #"touch "$0"; i=0; while [ ! -e "$1" ] && [ $i -lt 1200 ]; do sleep 0.05; i=$((i+1)); done"#
+        let command = ClaudeSessionManager.terminalCommand(["/bin/sh", "-c", cli, ran.path, finish.path], lock: file)
         let terminal = Process()
         terminal.executableURL = URL(fileURLWithPath: command[0])
         terminal.arguments = Array(command.dropFirst())
         try terminal.run()
+        defer { if terminal.isRunning { terminal.terminate() } }
         // Ours still held: the CLI waits.
         try await Task.sleep(for: .milliseconds(500))
         #expect(!FileManager.default.fileExists(atPath: ran.path))
         ours.release()
-        #expect(await Timing.eventually(within: 10) { FileManager.default.fileExists(atPath: ran.path) })
+        #expect(await Timing.eventually { FileManager.default.fileExists(atPath: ran.path) })
         #expect(ConversationLock.take(file) == nil, "held while Terminal's CLI runs")
-        #expect(await Timing.eventually(within: 10) { !terminal.isRunning })
+        try Data().write(to: finish)
+        #expect(await Timing.eventually { !terminal.isRunning })
         let after = try #require(await Self.takeOnceFree(file))
         after.release()
     }

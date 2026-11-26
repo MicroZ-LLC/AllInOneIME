@@ -319,7 +319,7 @@ extension SelfTest {
         testSentInsteadIsTheRequestsOwn(snapshotDirectory: snapshotDirectory)
 
         testRememberQuestionsReload(snapshotDirectory: snapshotDirectory)
-        testKeyStatus(snapshotDirectory: snapshotDirectory)
+        testAIPage(snapshotDirectory: snapshotDirectory)
         testKeyFieldsKeepKeys(snapshotDirectory: snapshotDirectory)
         testSettingsWritesNothingUnasked(snapshotDirectory: snapshotDirectory)
         testFieldsFollowOutsideWrites(snapshotDirectory: snapshotDirectory)
