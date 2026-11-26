@@ -4,7 +4,9 @@
 # export of Core/ alone with Core/Scripts/test.sh, and macOS, where the core uses Apple's frameworks, `make test-core`
 # on the export), and `make test-mac`, the macOS shell's, on the Mac mini (mac-test). A pull request runs only the
 # halves its change can affect (the `changes` job, Scripts/test-scope.sh: docs/ or site/ alone need neither, the
-# core's tests alone only the core's); a push to mainline or a release branch runs both. Require the check
+# core's tests alone only the core's); a push to mainline or a release branch runs both. mac-test also runs the
+# updater end to end (`make update-test`, offline) when the change touches the updater, the installer or how the apps
+# are built (test-scope.sh's `update`), and on every push to a release branch. Require the check
 # "Quality gate" (Scripts/protect-branches.sh): it passes only when lint passed and each test job passed or wasn't
 # needed, so a PR from a fork, which never runs here (its code isn't trusted there), fails it instead of skipping it; a
 # maintainer who has read such a change pushes it to a branch here to have it checked. The agent pipeline starts this
@@ -71,6 +73,7 @@ jobs:
     outputs:
       core: ${{ steps.scope.outputs.core }}
       mac: ${{ steps.scope.outputs.mac }}
+      update: ${{ steps.scope.outputs.update }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -80,8 +83,10 @@ jobs:
       - id: scope
         run: |
           if [ "$GITHUB_EVENT_NAME" = push ] || [ -z "$BASE" ]; then
-            echo "A push to $GITHUB_REF_NAME, or no base to compare with: every test runs."
-            printf 'core=true\nmac=true\n' >> "$GITHUB_OUTPUT"
+            # The updater's end-to-end test too on a release branch: what is released is updated with it.
+            case $GITHUB_REF_NAME in release-*) update=true ;; *) update=false ;; esac
+            echo "A push to $GITHUB_REF_NAME, or no base to compare with: every test runs (the updater's: $update)."
+            printf 'core=true\nmac=true\nupdate=%s\n' "$update" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           git diff --name-only --no-renames "origin/$BASE...HEAD" > "$RUNNER_TEMP/changed"
@@ -202,6 +207,12 @@ jobs:
             export TEST_SKIP
           fi
           make test-mac
+      - name: make update-test, offline
+        # The updater end to end (Scripts/test-update.sh): a temporary install, a test server on 127.0.0.1, the apps
+        # signed ad hoc (no certificate or Apple's timestamp server). Only when the change needs it (the changes job's
+        # `update`), and after make test-mac even when that failed, so that both say how they went.
+        if: ${{ !cancelled() && needs.changes.outputs.update == 'true' }}
+        run: make update-test
 
   gate:
     # The one check to require. On GitHub's machine: it only reads the other jobs' results. A test job counts when it
@@ -221,13 +232,14 @@ jobs:
           MAC: ${{ needs.mac-test.result }}
           NEEDS_CORE: ${{ needs.changes.outputs.core }}
           NEEDS_MAC: ${{ needs.changes.outputs.mac }}
+          NEEDS_UPDATE: ${{ needs.changes.outputs.update }}
         run: |
           if [ "$FORK" = true ]; then
             echo "::error::A PR from a fork doesn't run on the Mac mini. A maintainer who has read it pushes it to a branch here."
             exit 1
           fi
-          echo "changes: $CHANGES (core tests needed: ${NEEDS_CORE:-?}, Mac tests needed: ${NEEDS_MAC:-?})"
-          echo "make lint: $LINT; core-test: Linux $CORE_LINUX, macOS $CORE_MACOS; mac-test: $MAC"
+          echo "changes: $CHANGES (core tests needed: ${NEEDS_CORE:-?}, Mac tests needed: ${NEEDS_MAC:-?}, the updater's: ${NEEDS_UPDATE:-?})"
+          echo "make lint: $LINT; core-test: Linux $CORE_LINUX, macOS $CORE_MACOS; mac-test (with the updater's test when needed): $MAC"
           passed() {  # RESULT NEEDED
             [ "$1" = success ] || { [ "$1" = skipped ] && [ "$2" = false ]; }
           }

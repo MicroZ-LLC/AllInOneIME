@@ -470,8 +470,13 @@ UPDATE_SUMMARY_EN ?=
 UPDATE_SUMMARY_ZH ?=
 
 # The updater end to end against a temporary install and a test server on 127.0.0.1 (Scripts/test-update.sh):
-# never the installed app, nothing registered.
-update-test: app settings-app
+# never the installed app, nothing registered. Offline: the apps are signed ad hoc (no signing identity, so no
+# timestamp from Apple's server and no provisioning profile), as the test's "new version" is: the updater takes an
+# update only from the team that signed the running app, and an ad-hoc build has none. CI runs it on the Mac mini when a
+# change touches the updater or how the apps are built (Scripts/test-scope.sh's `update`), and on each push to a
+# release branch (quality.yml).
+update-test:
+	$(MAKE) app settings-app SIGN_IDENTITY= PROFILE=
 	Scripts/test-update.sh "$(BUILD_DIR)"
 
 update-manifest:
