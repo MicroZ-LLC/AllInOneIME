@@ -2,20 +2,18 @@ import AllInOneIMECore
 import Foundation
 import Testing
 
-// #121's cards as retained by #161: the chosen AI has its own card above a folded list of other AI cards. These
-// acceptance tests check the cards when the list is unfolded; Settings161MacTests checks the fold itself.
+// #121's card wording, status tones, search, and one-click selection remain in #174's choosing view.
 //
 // The #121 properties unchanged by #161, as seen here:
-//   1. Every offered other choice is a card in its `AIChoice.Group`, when the list is unfolded.
+//   1. Every offered choice is a card in its `AIChoice.Group`, while choosing.
 //   2. "and one click chooses": a card's pick, which is `SettingsModel.choose`, makes that choice the AI.
 //   3. The chosen card says 「正在使用」 / 'In use'; no other card does (`AIChoiceCard.caption`).
 //   4. "Unchosen cards never use the problem color": "A card that isn't chosen shows its status in secondary gray, never
 //      orange", for every kind of status (not signed in, not installed, can't start, no key, no AWS profile, no AWS
 //      credentials, Apple's model not available …) and for every card of a Mac with nothing set up.
 //   5. "The search's AI terms ('kiro', 'bedrock', '订阅') still land on the AI page."
-//   6. "There is no 「更换 ▾」": the input method's sources say it nowhere.
 // Not seen here: the page as drawn (the outline, the gray and the orange themselves, the chosen AI's own rows above the
-// cards, the AI commands below), and the CLI checks while the list is folded (the cache has AISignInCacheAcceptanceTests).
+// cards, the AI commands below), and the CLI checks while collapsed (Settings174MacTests covers these).
 //
 // The input method's own code can't be imported here (it is an executable target): as Settings120MacTests does it, all
 // of Sources/AllInOneIME is compiled into a child process, with the Mac library, the core and librime, as the input
@@ -63,21 +61,20 @@ struct Settings121MacTests {
         interfaces.flatMap { interface in variants.flatMap { variant in choices.map { (interface, variant, $0) } } }
     }
 
-    /// #161 keeps #121's cards for the other choices when the disclosure is open. The chosen choice has its own
-    /// outlined card above the disclosure, so only the other offered choices belong to this grid.
-    @Test func everyOtherOfferedChoiceIsACardWhenUnfolded() throws {
+    /// The choosing view includes every offered choice, including the current AI, in its original group.
+    @Test func everyOfferedChoiceIsACardWhileChoosing() throws {
         let report = try Settings121Child.report.get()
         for (interface, variant, chosen) in Self.pages {
             let page = "\(interface), \(variant), \(chosen) chosen"
             let offered = try #require(report.list("OFFERED", interface, variant, chosen), "\(page): no choices told: \(report)")
             let cards = try #require(report.list("CARDS", interface, variant, chosen), "\(page): no cards told: \(report)")
-            #expect(cards == offered.filter { $0 != chosen }, "\(page): the other cards are \(cards), the choices offered \(offered)")
+            #expect(cards == offered, "\(page): the cards are \(cards), the choices offered \(offered)")
             #expect(cards.count == Set(cards).count, "\(page): a card twice: \(cards)")
-            #expect(!cards.contains(chosen), "\(page): the chosen AI is repeated among the other cards: \(cards)")
+            #expect(cards.filter { $0 == chosen }.count == 1, "\(page): the chosen AI must have one highlighted card")
             #expect(Set(cards).isSuperset(of: Set(Self.alwaysOffered).subtracting([chosen])), "\(page): no card for \(Set(Self.alwaysOffered).subtracting(cards).subtracting([chosen]).sorted())")
             #expect(Set(cards).isSubset(of: Self.choices), "\(page): cards for \(Set(cards).subtracting(Self.choices).sorted())")
             let apple = AIChoice.provider(.apple).id
-            #expect(cards.contains(apple) == (Self.appleOffered[variant] == true && chosen != apple), "\(page): Apple's other card: \(cards)")
+            #expect(cards.contains(apple) == (Self.appleOffered[variant] == true || chosen == apple), "\(page): Apple's card: \(cards)")
             // The cards in `AIChoice.all`'s order: each group's, the groups in order.
             #expect(cards == Self.choices.filter { cards.contains($0) }, "\(page): the cards' order: \(cards)")
             let groups = try #require(report.list("GROUPS", interface, variant, chosen), "\(page): no groups told: \(report)")
@@ -95,16 +92,16 @@ struct Settings121MacTests {
         }
     }
 
-    /// #161 moves the outlined chosen card above the other cards; no card under the disclosure says "In use".
-    @Test func noOtherCardIsInUseForEachAIChosenInTurn() throws {
+    /// The chosen card alone says "In use" in the choosing view.
+    @Test func onlyChosenCardIsInUseForEachAIChosenInTurn() throws {
         let report = try Settings121Child.report.get()
         for (interface, variant, chosen) in Self.pages {
             let page = "\(interface), \(variant), \(chosen) chosen"
             let cards = try #require(report.list("CARDS", interface, variant, chosen), "\(page): no cards told: \(report)")
             let inUse = cards.filter { report.value("TONE", interface, variant, chosen, $0) == "inUse" }
-            #expect(inUse.isEmpty, "\(page): other cards in use are \(inUse)")
+            #expect(inUse == [chosen], "\(page): cards in use are \(inUse)")
             let says = cards.filter { report.value("TEXT", interface, variant, chosen, $0) == Self.inUse[interface] }
-            #expect(says.isEmpty, "\(page): other cards saying \(Self.inUse[interface] ?? "?") are \(says)")
+            #expect(says == [chosen], "\(page): cards saying \(Self.inUse[interface] ?? "?") are \(says)")
         }
     }
 
@@ -181,20 +178,21 @@ struct Settings121MacTests {
         }
     }
 
-    /// "There is no 「更换 ▾」 and no Cancel": nothing in the input method's sources says 「更换 ▾」 or "Change ▾" any more
-    /// (read from the sources, comments apart: what a view draws can't be asked here).
-    @Test func nothingSaysChangeAnyMore() throws {
+    /// The collapsed row restores the visible Change action in both interface languages.
+    @Test func theChosenRowOffersChangeAgain() throws {
         let sources = Settings121Child.repository.appendingPathComponent("Sources/AllInOneIME")
         let files = try FileManager.default.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" }
         #expect(!files.isEmpty, "no sources in \(sources.path)")
-        for file in files {
+        let code = try files.map { file in
             let code = try String(contentsOf: file, encoding: .utf8).split(separator: "\n", omittingEmptySubsequences: false)
                 .map { line in line.range(of: "//").map { line[..<$0.lowerBound] } ?? line }
                 .joined(separator: "\n")
-            for gone in ["更换 ▾", "Change ▾"] {
-                #expect(!code.contains(gone), "\(file.lastPathComponent) still says \(gone)")
-            }
+            return code
+        }.joined(separator: "\n")
+        for label in ["更换 ▾", "Change ▾"] {
+            let found = code.contains(label)
+            #expect(found, "The collapsed row does not say \(label)")
         }
     }
 }
@@ -372,11 +370,7 @@ MainActor.assumeIsolated {
                 let page = "\(interface)\t\(variant)\t\(chosen.id)"
                 // The page's cards: the grid, with the choices offered (as the page makes it).
                 let offered = AIChoice.groups(apple: facts.apple, keeping: chosen)
-                let others = offered.compactMap { entry -> (group: AIChoice.Group, choices: [AIChoice])? in
-                    let choices = entry.choices.filter { $0 != chosen }
-                    return choices.isEmpty ? nil : (entry.group, choices)
-                }
-                let grid = AIChoicesGrid(chosen: config.ai, groups: others, status: { facts.status($0, config: config) }, pick: { _ in })
+                let grid = AIChoicesGrid(chosen: config.ai, groups: offered, status: { facts.status($0, config: config) }, pick: { _ in })
                 print("OFFERED\t\(page)\t\(ids(offered.flatMap(\.choices)))")
                 print("CARDS\t\(page)\t\(ids(grid.groups.flatMap(\.choices)))")
                 print("GROUPS\t\(page)\t\(grid.groups.map(\.group.rawValue).joined(separator: ","))")
