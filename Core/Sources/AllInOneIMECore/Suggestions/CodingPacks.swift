@@ -178,29 +178,19 @@ public struct CodingPackLibrary: Sendable {
         self.allowsLocalHTTP = allowsLocalHTTP
     }
 
+    /// Its index as the library signs it, and what is checked of it and its entries (`SignedIndex`, language packs' too).
+    var signedIndex: SignedIndex<CodingPackIndex> {
+        SignedIndex(name: Self.indexName, schema: Self.schema, baseURL: baseURL, configuration: configuration,
+                    allowsLocalHTTP: allowsLocalHTTP)
+    }
+
     public func fetchIndex() async throws -> CodingPackIndex {
-        let index = try await fetch(Self.indexName, limit: LanguagePackLibrary.maxIndexBytes)
-        let signature: Data
-        do {
-            signature = try await fetch(Self.indexName + ".sig", limit: 4096)
-        } catch LanguagePackError.http(status: 404, _) {
-            throw LanguagePackError.missingSignature
-        }
-        return try Self.verify(index: index, signature: signature, publicKey: publicKey)
+        try await signedIndex.fetch(publicKey: publicKey)
     }
 
     /// The index in `data`, if `signature` is the key's signature of exactly these bytes (checked first).
     public static func verify(index data: Data, signature: Data, publicKey: Data) throws -> CodingPackIndex {
-        do {
-            try PluginLibrary.checkSignature(data, signature: signature, publicKey: publicKey)
-        } catch let error as PluginLibraryError {
-            throw LanguagePackError(error)
-        }
-        struct Schema: Decodable { var schema: Int }
-        guard let schema = try? JSONDecoder().decode(Schema.self, from: data).schema else { throw LanguagePackError.malformedIndex }
-        guard schema == Self.schema else { throw LanguagePackError.unsupportedSchema(schema) }
-        guard let index = try? JSONDecoder().decode(CodingPackIndex.self, from: data) else { throw LanguagePackError.malformedIndex }
-        return index
+        try SignedIndex.verify(data, signature: signature, publicKey: publicKey, schema: schema)
     }
 
     /// The newest version of each language this app can use, by title.
@@ -218,11 +208,7 @@ public struct CodingPackLibrary: Sendable {
     public func install(_ entry: CodingPackIndex.Entry, progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws
         -> CodingLanguagePack {
         guard CodingLanguagePack.isLanguage(entry.language) else { throw LanguagePackError.invalidEntry(entry.language) }
-        guard entry.sha256.count == 64, entry.sha256.allSatisfy(\.isHexDigit) else { throw LanguagePackError.invalidEntry("sha256") }
-        guard entry.size > 0, entry.size <= CodingLanguagePack.maxBytes else { throw LanguagePackError.invalidEntry("size") }
-        guard let url = URL(string: entry.url, relativeTo: baseURL)?.absoluteURL, isAllowed(url) else {
-            throw LanguagePackError.invalidEntry(entry.url)
-        }
+        let url = try signedIndex.fileURL(of: entry, maxSize: Int64(CodingLanguagePack.maxBytes))
         let work = FileManager.default.temporaryDirectory.appendingPathComponent("coding-pack-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: work) }
         let hash = try await Download.run(url, to: work, expectedSize: entry.size, configuration: configuration,
@@ -240,30 +226,5 @@ public struct CodingPackLibrary: Sendable {
             throw LanguagePackError.notOffered(CodingLanguagePack.title(of: language))
         }
         return try await install(entry, progress: progress)
-    }
-
-    func isAllowed(_ url: URL) -> Bool {
-        switch url.scheme?.lowercased() {
-        case "https": return true
-        case "http": return allowsLocalHTTP && LanguagePackLibrary.isLocal(url)
-        default: return false
-        }
-    }
-
-    private func fetch(_ path: String, limit: Int) async throws -> Data {
-        let url = baseURL.appendingPathComponent(path)
-        guard isAllowed(url) else { throw LanguagePackError.unreachable(url.absoluteString) }
-        let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(from: url)
-        } catch {
-            throw LanguagePackError.unreachable(url.host ?? url.absoluteString)
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw LanguagePackError.http(status: status, file: path) }
-        guard data.count <= limit else { throw LanguagePackError.tooLarge(path) }
-        return data
     }
 }

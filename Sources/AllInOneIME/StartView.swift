@@ -90,9 +90,9 @@ struct StartView: View {
             }
             Text(tr("已经有自己的 AI？", "Already have your own AI?")).font(.callout).foregroundStyle(.secondary).padding(.top, 6)
             HStack(spacing: 8) {
-                ownAI(tr("你的订阅（Claude Code 等）", "Your subscription (Claude Code…)"))
-                ownAI(tr("API Key", "API Key"))
-                ownAI(tr("这台 Mac 上的 Apple", "Apple on this Mac"))
+                ownAI(tr("你的订阅（Claude Code 等）", "Your subscription (Claude Code…)"), .cli(.claude))
+                ownAI(tr("API Key", "API Key"), .provider(.anthropic))
+                ownAI(tr("这台 Mac 上的 Apple", "Apple on this Mac"), .provider(.apple))
             }
             Spacer(minLength: 0)
             HStack {
@@ -102,9 +102,10 @@ struct StartView: View {
         }
     }
 
-    /// One of "already have your own AI?": Settings → AI, where each is chosen.
-    private func ownAI(_ name: String) -> some View {
-        Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider) }
+    /// One of "already have your own AI?": Settings → AI, where each is chosen, at `card` (its group's first; the other
+    /// cards unfolded to it unless it is the one in use, #161).
+    private func ownAI(_ name: String, _ card: AIChoice) -> some View {
+        Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider, card: card) }
     }
 
     // MARK: 3. Try one @

@@ -11,9 +11,15 @@ import Foundation
 /// keystrokes, and the first script waits until the user answers macOS's prompt to allow controlling
 /// Notes (System Settings → Privacy & Security → Automation). NSAppleScript may be used off the main
 /// thread (AppleScript release notes, Mac OS X 10.6), one script per thread at a time: each run makes
-/// its own. Text goes to a script as an argument (`on run argv`), never into its source.
+/// its own. Text goes to a script as an argument (`on run argv`), never into its source. Each script gives Notes
+/// `appleEventTimeout` seconds for each event, so that a Notes that never answers holds the queue, and the scripts after
+/// it, that long and no longer.
 enum NotesBridge {
     static let folderName = "AllInOneIME"
+    /// Seconds Notes has to answer each event of a script (AppleScript's own limit is two minutes): enough for it to
+    /// start cold and for the user to answer macOS's first prompt to let AllInOneIME control it. Past that the script
+    /// fails (errAETimeout, -1712).
+    static let appleEventTimeout = 30
 
     /// A note in the folder.
     struct Note: Equatable, Sendable {
@@ -62,14 +68,16 @@ enum NotesBridge {
     private static let saveScript = """
         on run argv
             set folderName to item 1 of argv
-            tell application "Notes"
-                set theAccount to default account
-                if not (exists folder folderName of theAccount) then
-                    make new folder at theAccount with properties {name:folderName}
-                end if
-                set theNote to make new note at folder folderName of theAccount with properties {body:item 2 of argv}
-                return id of theNote
-            end tell
+            with timeout of \(appleEventTimeout) seconds
+                tell application "Notes"
+                    set theAccount to default account
+                    if not (exists folder folderName of theAccount) then
+                        make new folder at theAccount with properties {name:folderName}
+                    end if
+                    set theNote to make new note at folder folderName of theAccount with properties {body:item 2 of argv}
+                    return id of theNote
+                end tell
+            end timeout
         end run
         """
 
@@ -78,23 +86,27 @@ enum NotesBridge {
     private static let recentScript = """
         on run argv
             set folderName to item 1 of argv
-            tell application "Notes"
-                set theAccount to default account
-                if not (exists folder folderName of theAccount) then return missing value
-                tell folder folderName of theAccount
-                    return {id of every note, name of every note, modification date of every note}
+            with timeout of \(appleEventTimeout) seconds
+                tell application "Notes"
+                    set theAccount to default account
+                    if not (exists folder folderName of theAccount) then return missing value
+                    tell folder folderName of theAccount
+                        return {id of every note, name of every note, modification date of every note}
+                    end tell
                 end tell
-            end tell
+            end timeout
         end run
         """
 
     /// argv: the note's identifier.
     private static let showScript = """
         on run argv
-            tell application "Notes"
-                show note id (item 1 of argv)
-                activate
-            end tell
+            with timeout of \(appleEventTimeout) seconds
+                tell application "Notes"
+                    show note id (item 1 of argv)
+                    activate
+                end tell
+            end timeout
         end run
         """
 

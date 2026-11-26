@@ -94,29 +94,19 @@ public struct LanguagePackLibrary: Sendable {
 
     // MARK: Index
 
+    /// Its index as the library signs it, and what is checked of it and its entries (`SignedIndex`, coding packs' too).
+    var signedIndex: SignedIndex<LanguagePackIndex> {
+        SignedIndex(name: Self.indexName, schema: Self.schema, baseURL: baseURL, configuration: configuration,
+                    allowsLocalHTTP: allowsLocalHTTP)
+    }
+
     public func fetchIndex() async throws -> LanguagePackIndex {
-        let index = try await fetch(Self.indexName, limit: Self.maxIndexBytes)
-        let signature: Data
-        do {
-            signature = try await fetch(Self.indexName + ".sig", limit: 4096)
-        } catch LanguagePackError.http(status: 404, _) {
-            throw LanguagePackError.missingSignature
-        }
-        return try Self.verify(index: index, signature: signature, publicKey: publicKey)
+        try await signedIndex.fetch(publicKey: publicKey)
     }
 
     /// The index in `data`, if `signature` is the key's signature of exactly these bytes (checked first).
     public static func verify(index data: Data, signature: Data, publicKey: Data) throws -> LanguagePackIndex {
-        do {
-            try PluginLibrary.checkSignature(data, signature: signature, publicKey: publicKey)
-        } catch let error as PluginLibraryError {
-            throw LanguagePackError(error)
-        }
-        struct Schema: Decodable { var schema: Int }
-        guard let schema = try? JSONDecoder().decode(Schema.self, from: data).schema else { throw LanguagePackError.malformedIndex }
-        guard schema == Self.schema else { throw LanguagePackError.unsupportedSchema(schema) }
-        guard let index = try? JSONDecoder().decode(LanguagePackIndex.self, from: data) else { throw LanguagePackError.malformedIndex }
-        return index
+        try SignedIndex.verify(data, signature: signature, publicKey: publicKey, schema: schema)
     }
 
     /// The newest version of `pack` this app can use.
@@ -144,11 +134,7 @@ public struct LanguagePackLibrary: Sendable {
     public func install(_ entry: LanguagePackIndex.Entry, pack: LanguagePack,
                         progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> LanguagePackRecord {
         guard entry.id == pack.id else { throw LanguagePackError.invalidEntry(entry.id) }
-        guard entry.sha256.count == 64, entry.sha256.allSatisfy(\.isHexDigit) else { throw LanguagePackError.invalidEntry("sha256") }
-        guard entry.size > 0 else { throw LanguagePackError.invalidEntry("size") }
-        guard let url = URL(string: entry.url, relativeTo: baseURL)?.absoluteURL, isAllowed(url) else {
-            throw LanguagePackError.invalidEntry(entry.url)
-        }
+        let url = try signedIndex.fileURL(of: entry)
         let fm = FileManager.default
         try fm.createDirectory(at: store.directory, withIntermediateDirectories: true)
         let work = store.directory.appendingPathComponent(".\(pack.id).tmp-\(UUID().uuidString)", isDirectory: true)
@@ -172,29 +158,30 @@ public struct LanguagePackLibrary: Sendable {
         return record
     }
 
-    /// https anywhere (the signed hash, not the host, vouches for the bytes); http only to this Mac, when allowed.
-    func isAllowed(_ url: URL) -> Bool {
-        switch url.scheme?.lowercased() {
-        case "https": return true
-        case "http": return allowsLocalHTTP && Self.isLocal(url)
-        default: return false
-        }
-    }
-
     static func isLocal(_ url: URL) -> Bool { ["127.0.0.1", "localhost", "::1"].contains(url.host ?? "") }
 
+    /// How long tar has to unpack a pack (hundreds of megabytes out of xz take seconds): past that it's stuck, and is
+    /// stopped. ALLINONEIME_TAR_TIMEOUT in the launcher's environment, a number of seconds above 0, says otherwise (the
+    /// tests').
+    static let unpackTimeout: TimeInterval = 300
+
     /// The system's tar (bsdtar): refuses entries with ".." or an absolute path and doesn't extract
-    /// through links; no owners, extended attributes or Mac metadata.
+    /// through links; no owners, extended attributes or Mac metadata. Blocks the calling thread (never the main one: an
+    /// install runs in a task) until tar has ended, `unpackTimeout` at most.
     static func unpack(_ archive: URL, into folder: URL) throws {
-        let errors = Pipe()
-        let tar = try Platform.current.processes.launch(LaunchSpec(
-            executable: systemTar,
-            arguments: ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs", "--no-mac-metadata", "--no-acls", "--no-fflags"],
-            standardOutput: .null, standardError: .pipe(errors)))
-        let message = errors.fileHandleForReading.readDataToEndOfFile()
-        tar.waitUntilExit()
-        guard tar.terminationStatus == 0 else {
-            throw LanguagePackError.unpack(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+        let processes = Platform.current.processes
+        let timeout = processes.environment["ALLINONEIME_TAR_TIMEOUT"].flatMap(TimeInterval.init).flatMap { $0 > 0 ? $0 : nil }
+            ?? unpackTimeout
+        let tar: ProcessOutput.Result
+        do {
+            tar = try ProcessOutput.run(systemTar, ["-x", "-J", "-f", archive.path, "-C", folder.path, "--no-same-owner", "--no-xattrs",
+                                                    "--no-mac-metadata", "--no-acls", "--no-fflags"],
+                                        timeout: timeout, processes: processes)
+        } catch let stuck as ProcessOutput.TimedOut {
+            throw LanguagePackError.unpack(stuck.localizedDescription)
+        }
+        guard tar.status == 0 else {
+            throw LanguagePackError.unpack(String(decoding: tar.errors, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
         }
     }
 
@@ -206,25 +193,6 @@ public struct LanguagePackLibrary: Sendable {
         #else
         return URL(fileURLWithPath: "/usr/bin/tar")
         #endif
-    }
-
-    // MARK: Network
-
-    private func fetch(_ path: String, limit: Int) async throws -> Data {
-        let url = baseURL.appendingPathComponent(path)
-        guard isAllowed(url) else { throw LanguagePackError.unreachable(url.absoluteString) }
-        let session = URLSession(configuration: configuration)
-        defer { session.finishTasksAndInvalidate() }
-        let data: Data, response: URLResponse
-        do {
-            (data, response) = try await session.data(from: url)
-        } catch {
-            throw LanguagePackError.unreachable(url.host ?? url.absoluteString)
-        }
-        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
-        guard status == 200 else { throw LanguagePackError.http(status: status, file: path) }
-        guard data.count <= limit else { throw LanguagePackError.tooLarge(path) }
-        return data
     }
 }
 

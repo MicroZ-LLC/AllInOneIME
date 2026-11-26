@@ -9,7 +9,7 @@ public final class Spotlight: @unchecked Sendable {
     public let deadline: DispatchTime
     private let executable: URL
     private let lock = NSLock()
-    private var running: [Process] = []
+    private var running: [any LaunchedProcess] = []
     private var queries: [Query] = []
     private var cancelled = false
 
@@ -30,33 +30,25 @@ public final class Spotlight: @unchecked Sendable {
     /// own deliveries do under load).
     var queryRuns: (@Sendable (Query) -> Void)?
 
-    /// What `mdfind arguments` printed by the time limit (its notes on stderr are dropped); nil once
-    /// the search is cancelled, even if it printed something before.
+    /// What `mdfind arguments` printed by the time limit (its notes on stderr are dropped): it is stopped then, killed
+    /// if it doesn't stop (`ProcessOutput.gather`); nil once the search is cancelled, even if it printed something before.
     public func mdfind(_ arguments: [String]) -> Data? {
         guard !isCancelled else { return nil }
-        let process = Process()
-        process.executableURL = executable
-        process.arguments = arguments
-        let output = Pipe()
-        process.standardOutput = output
-        process.standardError = FileHandle.nullDevice
+        let seconds = Double(deadline.uptimeNanoseconds) / 1e9 - Double(DispatchTime.now().uptimeNanoseconds) / 1e9
+        let started = Locked<(any LaunchedProcess)?>(initialState: nil)
         // Launched outside the lock: `cancel` runs on the main thread, which must not wait for a launch.
         // A `cancel` that comes before the process is in `running` is seen right after.
-        guard (try? process.run()) != nil else { return isCancelled ? nil : Data() }
-        let wanted = lock.withLock { () -> Bool in
-            guard !cancelled else { return false }
-            running.append(process)
-            return true
+        let gathered = try? ProcessOutput.gather(executable, arguments, timeout: max(seconds, 0)) { [self] process in
+            started.withLock { $0 = process }
+            let wanted = lock.withLock { () -> Bool in
+                guard !cancelled else { return false }
+                running.append(process)
+                return true
+            }
+            if !wanted { process.terminate() }
         }
-        let stop = Stopper(process)
-        if !wanted { stop.run() }
-        let timer = DispatchWorkItem { stop.run() }
-        DispatchQueue.global().asyncAfter(deadline: deadline, execute: timer)
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        process.waitUntilExit()
-        timer.cancel()
-        lock.withLock { running.removeAll { $0 === process } }
-        return isCancelled ? nil : data
+        if let process = started.withLock({ $0 }) { lock.withLock { running.removeAll { $0 === process } } }
+        return isCancelled ? nil : gathered?.result.output ?? Data()
     }
 
     /// What each search printed, all of them run at once; nil once the search is cancelled.
@@ -123,11 +115,11 @@ public final class Spotlight: @unchecked Sendable {
     /// (a task's cancellation handler runs where the task is cancelled): the lock is only held to take
     /// the list, never while a process starts or stops.
     public func cancel() {
-        let (processes, queries) = lock.withLock { () -> ([Process], [Query]) in
+        let (processes, queries) = lock.withLock { () -> ([any LaunchedProcess], [Query]) in
             cancelled = true
             return (running, self.queries)
         }
-        for process in processes { Stopper(process).run() }
+        for process in processes { process.terminate() }
         for query in queries { query.stop() }
     }
 
@@ -248,12 +240,5 @@ public final class Spotlight: @unchecked Sendable {
             }
             return found
         }
-    }
-
-    /// Stops one process. (A Process may be stopped from any thread; this says so to the compiler.)
-    private struct Stopper: @unchecked Sendable {
-        let process: Process
-        init(_ process: Process) { self.process = process }
-        func run() { if process.isRunning { process.terminate() } }
     }
 }
