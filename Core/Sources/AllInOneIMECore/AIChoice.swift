@@ -269,6 +269,23 @@ extension Config {
     public func fastProvider(_ facts: AIFacts) -> Provider? {
         fastProvider(ready: { facts.isReady($0, config: self) }, apple: facts.apple)
     }
+
+    /// The settings what has to be fast is asked with (`fastProvider`): with a provider chosen, these; with a CLI, these
+    /// with its fast fallback put in as the provider; nil with a CLI and no faster AI (autocomplete doesn't run, the rest
+    /// goes to the CLI's session). What a request goes by (`Converter.fast`), and what autocomplete's switch shows in
+    /// Settings, the input menu and the menu-bar panel alike: whether it can run, the model it asks, where the text goes.
+    public func fastConfig(ready: (Provider) -> Bool, apple: AppleModelAvailability) -> Config? {
+        guard case .cli = ai else { return self }
+        guard let provider = fastProvider(ready: ready, apple: apple) else { return nil }
+        var fast = self
+        fast.provider = provider
+        return fast
+    }
+
+    /// `fastConfig` by what `facts` say (Settings').
+    public func fastConfig(_ facts: AIFacts) -> Config? {
+        fastConfig(ready: { facts.isReady($0, config: self) }, apple: facts.apple)
+    }
 }
 
 extension AIChoice {

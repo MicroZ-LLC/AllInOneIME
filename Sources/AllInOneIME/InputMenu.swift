@@ -211,23 +211,24 @@ extension AllInOneIMEInputController {
     /// `menu` (`makeMenu`'s) with autocomplete's switch after "@improve Also Translates": one switch for every app (an
     /// app's own choice is in "This App"), the model it asks in its title (`AutocompleteSwitch.modelName`), what was
     /// counted of it on the item's tooltip; under it, where the text goes (`AutocompleteSwitch.destination`): what each
-    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence.
+    /// pause sends to the cloud provider picked, or, with AllInOneIME Cloud picked, that it uses Apple Intelligence. With
+    /// a CLI chosen as the AI, its fast fallback's; with none, off, not to be turned on, and why, as Settings → Common and
+    /// the menu bar panel show it (`AutocompleteSwitch.shown`).
     @MainActor
     func addingAutocomplete(to menu: NSMenu) -> NSMenu {
         let config = LiveConfig.currentIfValid
-        let current = config ?? .default
+        let shown = AutocompleteSwitch.shown(config ?? .default)
         var items: [NSMenuItem] = []
         // The model it asks, and where the text goes, whether it's on or not: turning it on is the choice to send it there.
-        let model = AutocompleteSwitch.modelName(current)
-        let autocomplete = NSMenuItem(title: tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)"), action: #selector(toggleAutocomplete(_:)),
-                                      keyEquivalent: "")
+        let title = shown.model.map { model in tr("续写（Beta） · \(model)", "Autocomplete (Beta) · \(model)") } ?? tr("续写（Beta）", "Autocomplete (Beta)")
+        let autocomplete = NSMenuItem(title: title, action: #selector(toggleAutocomplete(_:)), keyEquivalent: "")
         autocomplete.target = self
-        autocomplete.state = current.autocomplete ? .on : .off
-        autocomplete.isEnabled = config != nil  // don't overwrite a config file that failed to parse
+        autocomplete.state = shown.on ? .on : .off
+        autocomplete.isEnabled = config != nil && shown.available  // don't overwrite a config file that failed to parse
         autocomplete.toolTip = AutocompleteSwitch.store.metrics.summary(language: UIText.language)
             ?? tr("停一下，光标后出现灰字，按 Tab 接受", "Pause, and the rest of the sentence shows in gray after the caret; Tab takes it")
         items.append(autocomplete)
-        if let line = AutocompleteSwitch.destinationItem(current) {
+        if let line = AutocompleteSwitch.lineItem(shown) {
             line.tag = Self.autocompleteDestinationTag
             items.append(line)
         }

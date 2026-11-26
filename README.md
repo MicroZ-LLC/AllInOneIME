@@ -339,8 +339,8 @@ signed in after it wasn't has its session's process started again by the next qu
 answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
 an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
-neither, autocomplete is off (its switch in Settings → Common shows off and can't be turned on, saying why), and
-rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
+neither, autocomplete is off (its switch in Settings → Common, the input menu and the menu bar panel shows off and can't
+be turned on, saying why; with a fallback, they name its model), and rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
 tools (never an `@question` conversation, however long it waits behind a question being answered). Settings says which
 under the choice, and the line beside the cards that `@question` uses the CLI. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing

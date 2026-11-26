@@ -69,14 +69,9 @@ extension SettingsModel {
     }
 
     /// The settings as what has to be fast goes with them (autocomplete's row): with a CLI chosen, its fast fallback by
-    /// `aiFacts` as the provider (`Config.fastProvider`); nil: there is none.
-    var fastConfig: Config? {
-        guard config.ai.agent != nil else { return config }
-        guard let fast = config.fastProvider(aiFacts) else { return nil }
-        var shown = config
-        shown.provider = fast
-        return shown
-    }
+    /// `aiFacts` as the provider (`Config.fastConfig`, which the input menu and the menu bar panel go by too); nil: there
+    /// is none.
+    var fastConfig: Config? { config.fastConfig(aiFacts) }
 
     /// The AI chosen (`Config.ai`), saved: a provider is set as the provider and no CLI is (`cli`); a CLI is set, the
     /// provider kept as it was (the fast fallback, `Config.fastProvider`).
