@@ -167,7 +167,7 @@ final class AllInOneIMEInputController: IMKInputController {
     var ghostToken = 0
     var ghostInPanel = false
     /// The self-test's say whether the field is a password field, as autocomplete's read asks Accessibility
-    /// (`passwordFieldByAccessibility`): its harness field is never the one focused. Nil: Accessibility's.
+    /// (`readFieldAfterPause`, `readPasswordField`): its harness field is never the one focused. Nil: Accessibility's.
     var passwordField: (@MainActor () -> Bool)?
     /// Whether an app (its bundle id) is built on Chromium or Electron (`ChromiumApps`): a key the rows take there is kept
     /// from its page with marked text (`marksRow`). Each app told once found, for every field (`chromiumApps`); the
@@ -180,6 +180,9 @@ final class AllInOneIMEInputController: IMKInputController {
     /// The field's frame the suggestion is cut at (`placeGhost`), asked once a suggestion (nil: not yet; .some(nil): not
     /// known); the self-test's own (`fieldFrame`: its harness field isn't the one focused), else Accessibility's.
     var ghostField: NSRect??
+    /// Counts the field frames asked (`askGhostField`): an answer to an earlier one (another suggestion's, another
+    /// field's) is gone by.
+    var ghostFieldAsked = 0
     var fieldFrame: (@MainActor () -> NSRect?)?
     /// What a panel's anchor goes by in this field (`PanelAnchor.Memory`: the last rect to trust it told), and a count
     /// that ends the field's being asked again for one (`reaskAnchor`): a key, the panel placed anew, the field left.
@@ -342,6 +345,8 @@ final class AllInOneIMEInputController: IMKInputController {
     var typist = TypeOut.Typist([], start: 0)
     /// Typing out stopped, the field looked at again a little later (`settleStop`): whether the rest goes in then.
     var stopsInsertingRest: Bool?
+    /// The keys that type, typed while a stop settles (`keyWhileTypingOut`), each with its field: handled once it has.
+    var keysWhileStopping: [(event: NSEvent, client: IMKTextInput?)] = []
     var typingField: TypingField?
     /// Line breaks, tabs and other control characters go in as a paste (a terminal; `TerminalPaste`).
     var typingPastes = false
@@ -481,7 +486,8 @@ final class AllInOneIMEInputController: IMKInputController {
     /// Stops typing out: the rest goes in at once, or (Esc, the field lost) isn't typed. Either way a typo still
     /// in the field is taken out first, where it was typed, so it holds the text, or its start. Checked like any fix: a
     /// field that tells its text late is looked at again a little later, never waited for here (`settleStop`), the rest as
-    /// the first stop asked; `waiting` false: done now, with the field as it looks. Whether it stopped now.
+    /// the first stop asked; `waiting` false: done now, with the field as it looks. Whether it stopped now. Once it has,
+    /// the keys typed meanwhile go on (`keysWhileStopping`), in the order typed.
     @MainActor @discardableResult
     func stopTyping(insertingRest: Bool, waiting: Bool = true) -> Bool {
         guard let task = typingTask else { return true }
@@ -492,12 +498,14 @@ final class AllInOneIMEInputController: IMKInputController {
                 settleStop(in: field, insertingRest: insertingRest)
                 return false
             }
-            rememberFailure(field.client.bundleIdentifier() ?? "")
+            // Judged without waiting, a field that tells its text late may look as if it didn't take a fix: not remembered.
+            if waiting { rememberFailure(field.client.bundleIdentifier() ?? "") }
             if !rest.isEmpty { insert(rest, into: field.client) }
         }
         log.notice("typing out stopped (\(insertingRest ? "the rest inserted" : "the rest dropped"), privacy: .public)")
         (typingTask, typist, typingField, typingPastes, stopsInsertingRest) = (nil, TypeOut.Typist([], start: 0), nil, false, nil)
         caretAfterTyping = nil  // a snippet's caret stays at the end
+        typeHeldKeys()
         return true
     }
 
@@ -633,22 +641,13 @@ final class AllInOneIMEInputController: IMKInputController {
     /// from one (`marksRow`, `keepFromTerminal`).
     private(set) var atTap = false
 
-    /// A key down handed over for the first time.
+    /// A key down handed over for the first time (or held while typing out stopped, now that it has: `typeHeldKeys`).
     @MainActor
-    private func handleNewKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
+    func handleNewKeyDown(_ event: NSEvent, client: IMKTextInput?) -> Bool {
         // A result still being typed out: Esc stops it there; any other key types the rest at once,
-        // then goes on as usual.
+        // then goes on as usual (`keyWhileTypingOut`).
         translateModeKeyDown()
-        if typingTask != nil {
-            if event.keyCode == VirtualKey.escape {
-                stopTyping(insertingRest: false)
-                return true
-            }
-            // In a terminal the rest is pasted, after this key would arrive: the key only finishes typing.
-            // Not stopped yet (a field that tells its text late: `settleStop`): the key only finishes typing too.
-            let pastesRest = typingPastes && Composer.actsInTerminal(typist.rest)
-            if !stopTyping(insertingRest: true) || pastesRest { return true }
-        }
+        if typingTask != nil, let taken = keyWhileTypingOut(event, client: client) { return taken }
         anchorToken += 1  // the field isn't asked again for the panel's rect: this key places the panel anew, if it's up
         if !receivedKeys {
             receivedKeys = true
@@ -691,13 +690,13 @@ final class AllInOneIMEInputController: IMKInputController {
     }
 
     /// How this controller reads the field (`FieldReading`): secure input as the session's services and this Mac tell it,
-    /// a password field as Accessibility does (`passwordFieldByAccessibility`), the selection Accessibility may tell after
-    /// the key (`SelectedText`, not in the self-test: `selectionByAccessibility`).
+    /// a password field as Accessibility does, asked off the main thread before the read after a pause
+    /// (`readFieldAfterPause`; unknown here), the selection Accessibility may tell after the key (`SelectedText`, not in
+    /// the self-test: `selectionByAccessibility`).
     @MainActor
     var fieldReading: FieldReading {
         FieldReading(isTerminal: Self.isTerminal(app:), secureInputActive: services.secureInputActive,
-                     blocksComposing: SecureInput.blocksComposing,
-                     passwordField: { [weak self] in self?.passwordFieldByAccessibility() ?? nil },
+                     blocksComposing: SecureInput.blocksComposing, passwordField: { nil },
                      selectionMayBeUntold: selectionByAccessibility ? { SelectedText.mayBeUntold(in: $0, chromium: $1) } : nil,
                      chromiumApp: chromiumApp)
     }
@@ -1161,71 +1160,7 @@ final class AllInOneIMEInputController: IMKInputController {
 
     // MARK: - Candidate panel
 
-    /// Where a panel of ours goes in `client` (`PanelAnchor`): the rect it tells (`toldAnchor`) where it is one to trust;
-    /// else the caret Accessibility tells, the last rect to trust in this field, or the rect as told, and then the field
-    /// is asked again a moment later (`reaskAnchor`). Said in the log, numbers only (`log stream --predicate 'subsystem
-    /// == "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`).
-    @MainActor
-    func anchor(_ client: IMKTextInput) -> NSRect {
-        (anchorToken, placements) = (anchorToken + 1, placements + 1)
-        let placing = placements
-        // The field's app, asked of the client once.
-        let app = client.bundleIdentifier()
-        // Copies: asking the field (and Accessibility) below waits on the app, running the run loop, and a key handled
-        // meanwhile places the panel too, writing these; an access held open across that crashed the input method.
-        var (memory, lastByApp) = (panelAnchor, Self.lastAnchorByApp)
-        // The field by this controller and its focus session: the client object handed over may be another proxy each time.
-        let field = PanelAnchor.Field(client: ObjectIdentifier(self), app: app, session: fieldSession)
-        memory.enter(field)
-        // The window's frame once in the field (a rect on its left edge near its top is the page's corner, `PanelAnchor`):
-        // as the window server lists it, else Accessibility's once it is in (`windowFrame`).
-        if clientOverride == nil, !session.secureInputActive(), let app {
-            memory.learnWindow { windowFrame(in: app, for: field, client: client) }
-        }
-        var asked = "Accessibility not asked"
-        // Where the field puts it (`FieldAnchor.place`): the rect it tells, else Accessibility's caret, the last rect to
-        // trust in the field or the app, the pointer, the rect as told.
-        let placed = FieldAnchor.place(in: client, app: app, selection: composer.selection?.range, memory: &memory,
-                                       lastByApp: &lastByApp, screens: NSScreen.screens.map(\.frame),
-                                       pointer: { NSEvent.mouseLocation }) { needsPage in
-            // Never read with the key: the last read in this field meanwhile, the panel placed again by the next (`accessibilityCaret`).
-            let read = accessibilityCaret(in: app, page: needsPage, field: field, client: client)
-            asked = read == nil ? "Accessibility read after the key" : read?.timedOut == true ? "Accessibility timed out"
-                : read?.caret == nil ? "Accessibility told no caret" : "Accessibility's caret"
-            return read
-        }
-        let (told, placement) = (placed.told, placed.placement)
-        // A placement came in while the field was asked: it holds what's newer, and asks the field again itself.
-        guard placements == placing else { return placement.rect }
-        // Only this app's entry, and only where this placement trusted the field's rect (`FieldAnchor.place` keeps it then)
-        // or dropped it, on no screen now, and it is still that one: the dictionary is every controller's, and another
-        // may have written it meanwhile.
-        (panelAnchor, Self.lastAnchorByApp[app ?? ""]) = (memory, placement.source == .field ? placement.rect : Self.lastAnchorByApp[app ?? ""].flatMap { $0 == placed.dropped ? nil : $0 })
-        guard placement.reasks else {
-            anchorSaid = nil
-            // Every placement, numbers only (`log stream --level debug --predicate 'subsystem ==
-            // "com.allinoneime.inputmethod.AllInOneIME" AND eventMessage BEGINSWITH "panel anchor"'`): what Google Docs told.
-            log.debug("""
-                panel anchor trusted: told \(Self.describe(told), privacy: .public), line \(Self.describe(self.toldAnchor(client)), privacy: .public), \
-                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public), \
-                page \(Self.describe(self.panelAnchor.page), privacy: .public), screen \(Self.describe(NSScreen.screens.first?.frame), privacy: .public)
-                """)
-            return placement.rect
-        }
-        // Once while the field tells the same (an app that never tells a rect to trust would have it said at every key).
-        let said = "\(Self.describe(told)) \(placement.source.rawValue) \(Self.describe(placement.rect))"
-        if said != anchorSaid {
-            anchorSaid = said
-            log.notice("""
-                panel anchor not trusted in \(app ?? "", privacy: .private): told \(Self.describe(told), privacy: .public), \
-                caret \(Self.describe(FieldAnchor.caretRect(client)), privacy: .public), window \(Self.describe(self.panelAnchor.window), privacy: .public); \
-                \(placement.source.rawValue, privacy: .public) used, \(Self.describe(placement.rect), privacy: .public) (\(asked, privacy: .public)), \
-                pointer \(Self.describe(NSRect(origin: NSEvent.mouseLocation, size: .zero)), privacy: .public)
-                """)
-        }
-        reaskAnchor(client)
-        return placement.rect
-    }
+    // Where a panel of ours goes in a field (`anchor`): InputController+PanelAnchor.swift.
 
     @MainActor
     func showPanel(_ model: PanelModel?, _ client: IMKTextInput?) {
