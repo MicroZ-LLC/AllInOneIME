@@ -278,6 +278,14 @@ extension Composer {
         return doOneAt(rows[oneAtHighlighted], run: run)
     }
 
+    /// One @'s row `row` (its place among the rows shown) clicked where nothing picks it but it says why
+    /// (`PanelModel.Row.saysWhy`): what ⏎ on it does, the notice, the list as it was. Nothing for any other row.
+    public func oneAtClicked(_ row: Int) -> [Effect] {
+        let rows = oneAtRows, index = oneAtFirstVisible + row
+        guard rows.indices.contains(index), oneAtUnavailable(rows[index]) != nil else { return [] }
+        return doOneAt(rows[index], run: true)
+    }
+
     /// Why `action` can't be done here (nil: it can): an AI command typed by its name, the only AI row listed in an app
     /// with No AI or in a password field (`OneAt.Unavailable`).
     public func oneAtUnavailable(_ action: OneAt.Action) -> OneAt.Unavailable? {

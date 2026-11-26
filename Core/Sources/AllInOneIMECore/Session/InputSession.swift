@@ -253,8 +253,8 @@ public final class InputSession {
                 left(event)
                 lastTyped.forget()
             case let .pick(row):
-                // Clipboard history's rows and suggestions' put in what a click picks.
-                if clipboardPick(row) || suggestionsPick(row) { lastTyped.forget(); return }
+                // Clipboard history's rows and suggestions' put in what a click picks; one @'s row nothing picks says why.
+                if clipboardPick(row) || suggestionsPick(row) || oneAtSaidWhy(row) { lastTyped.forget(); return }
                 // What a click on the row picks (`PanelModel.Row.choice`): its number's, a conversation's answer by its
                 // round, nothing for a question; a result while a follow-up's pinyin is composed (`pickClicked`).
                 let rows = panelModel().rows
