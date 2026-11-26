@@ -1,29 +1,12 @@
 import AllInOneIMECore
 import SwiftUI
 
-/// A row of the settings window: what the sidebar's search finds, by its title, what it says and the words it goes by,
-/// and what the window is opened to point at (`SettingsWindow.show(page:spot:)`). The row picked is outlined on its page
-/// until it is used or another page is shown. A setting inside an input's chip (fuzzy pinyin in Chinese's) points at the
-/// input languages' row and opens that chip.
-enum SettingsSpot: String, CaseIterable {
-    // Input
-    case inputLanguages, pinyinScheme, chineseCharacters, fuzzyPinyin, personalDictionaries, removedCandidates, englishWords, codingLanguage
-    case switchKey, candidateLayout, keyHints
-    // General
-    case autocomplete, suggestions, suggestionsInsert, appInserts, clipboardHistory
-    case magicKey, actionKey, menuBarIcon, interfaceLanguage, iCloudSync
-    // AI: the AI, then the AI commands' options (@improve's, @translate's, @question's)
-    case provider, model, apiKey, awsProfile, baseURL, testConnection
-    case rewriteStyles, improveTranslates, jargonList, outputLanguages, questionContinueIn, rememberQuestions
-    // Privacy
-    case hideSensitive, wordsToHide, appsWithoutAI, pageContext, learnEnglishWords, learned, installID
-    // Commands
-    case customCommands, agent, notes, plugins, scriptExtensions, extensionSources
-    // Advanced
-    case typeOut, useSelection, previousAppSettings, configFile, rimeFolder
-    // About
-    case updates, troubleshoot, reportIssue
-
+/// A row of the settings window (`SettingsSpot`, its cases with the input menu that opens Settings at them,
+/// InputMenu.swift): what the sidebar's search finds, by its title, what it says and the words it goes by, and what the
+/// window is opened to point at (`SettingsWindow.show(page:spot:)`). The row picked is outlined on its page until it is
+/// used or another page is shown. A setting inside an input's chip (fuzzy pinyin in Chinese's) points at the input
+/// languages' row and opens that chip.
+extension SettingsSpot {
     /// The page or More Settings' group it lives in (owner, 0.7.5, #120): the ten most people need on Common, the AI's
     /// on AI, the rest in More Settings' groups.
     var page: SettingsPage {
@@ -140,7 +123,8 @@ enum SettingsSpot: String, CaseIterable {
         case .menuBarIcon: return tr("笔记、提醒和后台的 Claude 任务，点一下就下拉出来", "Your notes, reminders and Claude tasks, a click away")
         case .iCloudSync: return Self.iCloudNote
         case .previousAppSettings: return Self.previousNote
-        case .provider: return tr("选一家，所有 AI 功能都用它", "Pick one, and every AI feature uses it")
+        // As a provider chosen has it; with a CLI chosen, only `@question` is sure to go to it (`providerNote`).
+        case .provider: return tr("选一家，所有 AI 功能都用它", "Pick one, and all the AI features use it")
         case .hideSensitive:
             return tr("邮箱、电话、卡号、密钥这些先换成 [EMAIL_1] 这样的占位符再发给 AI，结果里再换回真实内容。",
                       "Emails, numbers and keys are replaced with placeholders such as [EMAIL_1] before the AI sees the text, and put back in the results.")
@@ -164,6 +148,14 @@ enum SettingsSpot: String, CaseIterable {
             return tr("检查这台 Mac 上的设置，也可以描述遇到的问题让 AI 帮你看。", "Checks the setup on this Mac, and can ask the AI about a problem you describe.")
         default: return nil
         }
+    }
+
+    /// The line beside the AI's cards: `provider`'s note, but with a CLI chosen (`cli`) only `@question` is sure to go to
+    /// it; what has to be fast goes to the provider set up before, or Apple's model, as said above them
+    /// (`AIChoice.fallbackNote`).
+    static func providerNote(cli: Bool) -> String {
+        guard cli else { return provider.note ?? "" }
+        return UIText.triggered(tr("选了 CLI：@question 用它，别的功能用哪家见上面", "With a CLI: @question uses it; where the rest goes is said above"))
     }
 
     /// Words its settings go by besides its title and note, in both languages.

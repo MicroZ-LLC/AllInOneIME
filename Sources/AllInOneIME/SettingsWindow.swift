@@ -1577,27 +1577,29 @@ struct SettingsView: View {
         config.jargonFile != nil || RewriteStyle.resolve(config.rewriteStyles).contains { $0.tag == "JARGON" }
     }
 
-    /// Autocomplete's switch (the input menu's), where its text goes under it; then Suggestions.
+    /// Autocomplete's switch (the input menu's), where its text goes under it; then Suggestions. With a CLI chosen as the
+    /// AI and no faster AI (`Config.fastProvider`) it can't run: the switch shows off and can't be turned on, the line
+    /// under it saying why (the setting itself is kept, for when there is one).
     @ViewBuilder var autocompleteSection: some View {
         Section {
-            Toggle(isOn: Binding(get: { model.config.autocomplete }, set: { model.setAutocomplete($0) })) {
+            Toggle(isOn: Binding(get: { model.config.autocomplete && model.fastConfig != nil }, set: { model.setAutocomplete($0) })) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(SettingsSpot.autocomplete.title)
                     Text(SettingsSpot.autocomplete.note ?? "").font(.callout).foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
                     // Where the text goes, whether it's on or not: turning it on is the choice to send it there. With a CLI
-                    // chosen as the AI, its fast fallback's (`Config.fastProvider`), or that it doesn't run.
-                    if let fast = model.fastConfig {
-                        if let destination = AutocompleteSwitch.destination(fast) {
-                            Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
-                        }
-                    } else {
-                        Text(tr("选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」）", "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)"))
-                            .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+                    // chosen as the AI, its fast fallback's.
+                    if let fast = model.fastConfig, let destination = AutocompleteSwitch.destination(fast) {
+                        Text(destination).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
                     }
                 }
             }
+            .disabled(model.fastConfig == nil)
             .settingsRow(.autocomplete, shown: model.spot)
+            if model.fastConfig == nil {
+                Text(tr("选了 CLI、又没有更快的 AI 时，续写不会运行（设置 →「AI」）", "With a CLI chosen and no faster AI, autocomplete doesn't run (Settings → AI)"))
+                    .font(.callout).foregroundStyle(.orange).fixedSize(horizontal: false, vertical: true)
+            }
         }
         .disabled(!model.canSave)
     }
@@ -1881,9 +1883,10 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice for every AI feature. The one chosen (its logo, name and
-    /// status) with its own settings under it, then every choice as a card by how it connects (`AIChoicesGrid`, #121), the
-    /// chosen one outlined; the settings search's AI row points at the cards.
+    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice (a CLI answers `@question`, what has to be fast going to
+    /// `Config.fastProvider`). The one chosen (its logo, name and status) with its own settings under it, then every choice
+    /// as a card by how it connects (`AIChoicesGrid`, #121), the chosen one outlined; the settings search's AI row points at
+    /// the cards.
     @ViewBuilder var providerSection: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
@@ -1921,7 +1924,7 @@ struct SettingsView: View {
             HStack(alignment: .firstTextBaseline) {
                 SectionTitle(SettingsSpot.provider.title, icon: CommandIcons.provider)
                 Spacer()
-                Text(SettingsSpot.provider.note ?? "").font(.callout).foregroundStyle(.secondary)
+                Text(SettingsSpot.providerNote(cli: model.config.ai.agent != nil)).font(.callout).foregroundStyle(.secondary)
             }
         }
         .disabled(!model.canSave)

@@ -5103,6 +5103,53 @@
         }
       }
     },
+    "Add AllInOneIME first" : {
+      "comment" : "先添加 AllInOneIME",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zuerst AllInOneIME hinzufügen"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primero añade AllInOneIME"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ajoutez d’abord AllInOneIME"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まず AllInOneIME を追加する"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "먼저 AllInOneIME 추가"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Primeiro, adicione o AllInOneIME"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先加入 AllInOneIME"
+          }
+        }
+      }
+    },
     "Add an input language" : {
       "comment" : "添加输入语言",
       "localizations" : {
@@ -7467,6 +7514,7 @@
     },
     "API Key" : {
       "comment" : "API Key",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -7656,6 +7704,7 @@
     },
     "Apple on this Mac" : {
       "comment" : "这台 Mac 上的 Apple",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -17130,6 +17179,53 @@
         }
       }
     },
+    "Get Started" : {
+      "comment" : "开始使用",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Los geht’s"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Empezar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Commencer"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "はじめる"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "시작하기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Começar"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始使用"
+          }
+        }
+      }
+    },
     "Get started with AllInOneIME" : {
       "comment" : "开始使用 AllInOneIME",
       "localizations" : {
@@ -17936,6 +18032,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "英文模式下字母會直接輸入：目前沒有需要設定的。"
+          }
+        }
+      }
+    },
+    "In Keyboard settings, under Input Sources, click Edit…, then + at the bottom left, choose AllInOneIME under English and click Add. Once you have, this goes on by itself." : {
+      "comment" : "在「键盘」设置的「输入法」里点「编辑…」，再点左下角的 +，选「英语」下的 AllInOneIME，点「添加」。加好以后，这里自己往下走。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Klick in den Tastatureinstellungen unter „Eingabequellen“ auf „Bearbeiten …“, dann unten links auf +, wähle AllInOneIME unter „Englisch“ und klick auf „Hinzufügen“. Danach geht es hier von selbst weiter."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En los ajustes de Teclado, en Fuentes de entrada, haz clic en Editar…, luego en + abajo a la izquierda, elige AllInOneIME en Inglés y haz clic en Añadir. Después, esto sigue solo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dans les réglages Clavier, sous Méthodes de saisie, cliquez sur Modifier…, puis sur + en bas à gauche, choisissez AllInOneIME sous Anglais et cliquez sur Ajouter. Ensuite, ceci continue tout seul."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "キーボード設定の「入力ソース」で「編集…」をクリックし、左下の + をクリックして、「英語」の下の AllInOneIME を選び、「追加」をクリックしてください。追加すると、ここは自動で次に進みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "키보드 설정의 입력 소스에서 편집…을 클릭한 다음 왼쪽 아래의 +를 클릭하고, 영어 아래의 AllInOneIME를 골라 추가를 클릭하세요. 추가하면 여기는 저절로 다음으로 넘어갑니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nos ajustes de Teclado, em Fontes de Entrada, clique em Editar…, depois em + no canto inferior esquerdo, escolha AllInOneIME em Inglês e clique em Adicionar. Depois disso, isto continua sozinho."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在「鍵盤」設定的「輸入方式」裡點「編輯⋯」，再點左下角的 +，選「英文」下的 AllInOneIME，點「加入」。加好以後，這裡自己往下走。"
           }
         }
       }
@@ -24930,6 +25073,53 @@
         }
       }
     },
+    "One more step: add AllInOneIME to your input sources; only you can add a new one. Get Started, which opens next, shows you where, and goes on by itself once it's added." : {
+      "comment" : "还差一步：把 AllInOneIME 添加到输入法列表，新的输入法只能由你自己添加。接下来打开的「开始使用」会告诉你在哪里加，加好以后自己往下走。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Noch ein Schritt: Füge AllInOneIME zu deinen Eingabequellen hinzu; eine neue kannst nur du hinzufügen. „Los geht’s“, das sich als Nächstes öffnet, zeigt dir, wo, und geht von selbst weiter, sobald sie hinzugefügt ist."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta un paso: añade AllInOneIME a tus fuentes de entrada; solo tú puedes añadir una nueva. Empezar, que se abre a continuación, te muestra dónde, y sigue solo en cuanto esté añadida."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Il reste une étape : ajoutez AllInOneIME à vos méthodes de saisie ; vous seul pouvez en ajouter une nouvelle. Commencer, qui s’ouvre ensuite, vous montre où, et continue tout seul une fois qu’elle est ajoutée."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "あと1ステップ：AllInOneIME を入力ソースに追加してください。新しい入力ソースは自分でしか追加できません。次に開く「はじめる」が追加する場所を案内し、追加すると自動で次に進みます。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "한 단계 남았습니다: AllInOneIME를 입력 소스에 추가하세요. 새 입력 소스는 직접만 추가할 수 있습니다. 다음에 열리는 시작하기가 어디서 추가하는지 보여 주고, 추가하면 저절로 다음으로 넘어갑니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Falta um passo: adicione o AllInOneIME às suas fontes de entrada; só você pode adicionar uma nova. Começar, que abre em seguida, mostra onde, e continua sozinho assim que ela for adicionada."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "還差一步：把 AllInOneIME 加入輸入方式列表，新的輸入方式只能由你自己加入。接下來打開的「開始使用」會告訴你在哪裡加，加好以後自己往下走。"
+          }
+        }
+      }
+    },
     "One more step: add the input source" : {
       "comment" : "还差一步：添加输入法",
       "localizations" : {
@@ -27018,8 +27208,56 @@
         }
       }
     },
+    "Pick one, and all the AI features use it" : {
+      "comment" : "选一家，所有 AI 功能都用它",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Wähle eine aus, und alle KI-Funktionen nutzen sie"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Elige una y todas las funciones de IA la usarán"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choisissez-en une : toutes les fonctions d’IA l’utilisent"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1つ選ぶと、すべてのAI機能がそれを使います"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "하나를 고르면 모든 AI 기능이 그것을 씁니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Escolha uma, e todos os recursos de IA vão usá-la"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選一家，所有 AI 功能都用它"
+          }
+        }
+      }
+    },
     "Pick one, and every AI feature uses it" : {
       "comment" : "选一家，所有 AI 功能都用它",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
@@ -40270,6 +40508,53 @@
         }
       }
     },
+    "Use My Own AI…" : {
+      "comment" : "使用我自己的 AI…",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Meine eigene KI verwenden …"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar mi propia IA…"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Utiliser ma propre IA…"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自分の AI を使う…"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "내 AI 사용…"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usar Minha Própria IA…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用我自己的 AI⋯"
+          }
+        }
+      }
+    },
     "Uses the model built into this Mac (macOS 26 and later): no API key, no cost, and nothing leaves the Mac. It is a small model: about %@ tokens of context, fewer languages, and results below the cloud models'." : {
       "comment" : "用这台 Mac 自带的模型（macOS 26 起）：不用 API key，不花钱，文字不离开这台 Mac。模型较小：上下文约 %@ tokens，支持的语言少一些，效果不如云端的模型。",
       "extractionState" : "stale",
@@ -41219,6 +41504,53 @@
         }
       }
     },
+    "With a CLI: @question uses it; where the rest goes is said above" : {
+      "comment" : "选了 CLI：@question 用它，别的功能用哪家见上面",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mit einer CLI: @question nutzt sie; wohin der Rest geht, steht oben"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Con una CLI: @question la usa; adónde va lo demás se indica arriba"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Avec une CLI : @question l’utilise ; où va le reste est indiqué ci-dessus"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI を選んだ場合：@question はそれを使います。ほかの機能の行き先は上に書いてあります"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CLI를 고르면: @question는 그것을 씁니다. 나머지가 어디로 가는지는 위에 있습니다"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Com uma CLI: @question a usa; para onde vai o resto está dito acima"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選了 CLI：@question 用它，別的功能用哪家見上面"
+          }
+        }
+      }
+    },
     "Write its command below." : {
       "comment" : "在下面写上命令。",
       "localizations" : {
@@ -41837,6 +42169,7 @@
     },
     "Your subscription (Claude Code…)" : {
       "comment" : "你的订阅（Claude Code 等）",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {

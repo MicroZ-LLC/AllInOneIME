@@ -51,23 +51,45 @@ struct StartView: View {
 
     // MARK: 1. Switch to AllInOneIME
 
+    /// System Settings → Keyboard, where step 1 sends the user to add the input source.
+    static let keyboardSettings = URL(string: "x-apple.systempreferences:com.apple.Keyboard-Settings.extension")
+
     private var switchStep: some View {
         VStack(alignment: .leading, spacing: 18) {
-            title(tr("先切到 AllInOneIME", "Switch to AllInOneIME"),
-                  tr("按 Control + 空格，或在菜单栏的输入法菜单里选 AllInOneIME。切过去以后，这里自己往下走。",
-                     "Press Control + Space, or choose AllInOneIME in the Input menu in the menu bar. Once you have, this goes on by itself."))
-            HStack(spacing: 8) {
-                Image(systemName: "keyboard").foregroundStyle(.secondary).accessibilityHidden(true)
-                Text(tr("现在的输入法：", "Input source now: ")).foregroundStyle(.secondary)
-                Text(model.sourceName.isEmpty ? "—" : model.sourceName).fontWeight(.medium)
+            if model.sourceAdded {
+                title(tr("先切到 AllInOneIME", "Switch to AllInOneIME"),
+                      tr("按 Control + 空格，或在菜单栏的输入法菜单里选 AllInOneIME。切过去以后，这里自己往下走。",
+                         "Press Control + Space, or choose AllInOneIME in the Input menu in the menu bar. Once you have, this goes on by itself."))
+                HStack(spacing: 8) {
+                    Image(systemName: "keyboard").foregroundStyle(.secondary).accessibilityHidden(true)
+                    Text(tr("现在的输入法：", "Input source now: ")).foregroundStyle(.secondary)
+                    Text(model.sourceName.isEmpty ? "—" : model.sourceName).fontWeight(.medium)
+                }
+                .padding(.horizontal, 12).padding(.vertical, 8)
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
+            } else {
+                addStep
             }
-            .padding(.horizontal, 12).padding(.vertical, 8)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.1)))
             Spacer(minLength: 0)
             HStack {
                 Button(tr("跳过上手", "Skip")) { StartWindow.close() }.buttonStyle(.link)
                 Spacer()
             }
+        }
+    }
+
+    /// Step 1 while the input source isn't added (a fresh install where macOS left that to the user): where to add it,
+    /// and the button to Keyboard settings; once it is added, step 1 says to switch to it.
+    private var addStep: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            title(tr("先添加 AllInOneIME", "Add AllInOneIME first"),
+                  tr("在「键盘」设置的「输入法」里点「编辑…」，再点左下角的 +，选「英语」下的 AllInOneIME，点「添加」。加好以后，这里自己往下走。",
+                     "In Keyboard settings, under Input Sources, click Edit…, then + at the bottom left, choose AllInOneIME under English and click Add. Once you have, this goes on by itself."))
+            Button(InputSourceStatus.button) {
+                if let url = Self.keyboardSettings { NSWorkspace.shared.open(url) }
+            }
+            .controlSize(.large).keyboardShortcut(.defaultAction)
+            Text(InputSourceStatus.steps).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -78,22 +100,24 @@ struct StartView: View {
             title(tr("接上 AI", "Connect an AI"),
                   tr("登录后每天免费 200 次，不用自己的 AWS 或 API Key。", "Sign in for 200 free requests a day, with no AWS or API key of your own."))
             HStack(spacing: 10) {
-                Button(tr("用 Google 登录", "Sign in with Google")) { settings.signIn(.google) }
-                    .controlSize(.large).keyboardShortcut(.defaultAction)
+                // Google's sign-in only where the service offers it, as Settings → AI shows it; Email works everywhere, so
+                // it is the default button.
+                if HostedService.googleEnabled {
+                    Button(tr("用 Google 登录", "Sign in with Google")) { settings.signIn(.google) }
+                        .controlSize(.large)
+                }
                 Button(tr("用邮箱登录 / 注册", "Sign in / Sign up with Email")) { settings.signIn(.email) }
-                    .controlSize(.large)
+                    .controlSize(.large).keyboardShortcut(.defaultAction)
                 if settings.accountBusy { ProgressView().controlSize(.small) }
             }
             .disabled(settings.accountBusy)
             if let error = settings.accountError {
                 Text(error).font(.callout).foregroundStyle(.red).fixedSize(horizontal: false, vertical: true)
             }
+            // A CLI with a subscription, an API key, a cloud service or Apple's model: each is chosen in Settings → AI,
+            // and this goes on by itself once the one chosen is ready (`StartModel.aiReady`).
             Text(tr("已经有自己的 AI？", "Already have your own AI?")).font(.callout).foregroundStyle(.secondary).padding(.top, 6)
-            HStack(spacing: 8) {
-                ownAI(tr("你的订阅（Claude Code 等）", "Your subscription (Claude Code…)"))
-                ownAI(tr("API Key", "API Key"))
-                ownAI(tr("这台 Mac 上的 Apple", "Apple on this Mac"))
-            }
+            ownAI(tr("使用我自己的 AI…", "Use My Own AI…"))
             Spacer(minLength: 0)
             HStack {
                 Spacer()
@@ -102,7 +126,7 @@ struct StartView: View {
         }
     }
 
-    /// One of "already have your own AI?": Settings → AI, where each is chosen.
+    /// "Already have your own AI?": Settings → AI, where each is chosen.
     private func ownAI(_ name: String) -> some View {
         Button(name) { SettingsWindow.shared.show(page: .ai, spot: .provider) }
     }

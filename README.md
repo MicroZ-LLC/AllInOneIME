@@ -160,9 +160,10 @@ mode the letters after `@` are pinyin and command names at once: the candidates 
 digit); the rows on the far side are for the sentence with the first candidate. With text selected, `@` alone
 lists what to do with it: Reply first in a chat app, else Translate (another language) or Improve, Ask AI about it last;
 text typed then is an instruction for the selection ("more formal"). In an app with No AI there are no AI rows: an AI
-command typed by its name (`@tr`) is still listed, and says AI is off there when run; with no row at all, ⏎ types what
-you wrote as it is. The same while secure input is on (a password field, the lock screen, another app's Secure Keyboard
-Entry): no AI rows, and an AI command typed by its name says secure input is on when run.
+command typed by its name (`@tr`) is still listed, dimmed, saying "No AI in this app": ⏎, its number or a click on it
+only says so, and Tab writes the command, which says so when run; with no row at all, ⏎ types what you wrote as it is. The same while secure input is on (a password
+field, the lock screen, another app's Secure Keyboard Entry): no AI rows, and an AI command typed by its name is dimmed,
+saying "No AI in a password field".
 `@name text` works exactly as before, for every command, yours and plugins' included; your own commands, plugins and
 script extensions are also found by the words of their summary, title or keywords (`@email` finds a snippet whose
 summary is "Email signature"), but `run`, `terminal` and `link` commands, snippets and script extensions are never
@@ -279,7 +280,7 @@ under its first question in the recent questions, and picking it shows the round
 
 ### @question in a session of its own (new)
 
-Settings → AI is one choice for every AI feature (every choice is a card, by how they connect; one click chooses): Claude Code, Codex,
+Settings → AI is one choice of the AI (every choice is a card, by how they connect; one click chooses): Claude Code, Codex,
 Antigravity (Google Antigravity's CLI, `agy`) or Kiro CLI under "With your subscription" (`questionBackend` in the
 config) has `@question` answered in the input method's own session on that CLI. (Gemini CLI is no longer one of them: it
 stopped serving personal Google accounts, which Google moved to Antigravity; a config that chose it is on Antigravity
@@ -338,9 +339,10 @@ signed in after it wasn't has its session's process started again by the next qu
 answer, so
 what has to be fast (rewriting, translating, replies, autocomplete) goes to the provider you set up before (a key added,
 an AWS profile, AllInOneIME Cloud signed in), else to Apple Intelligence on this Mac where it's available; with
-neither, autocomplete is off, and rewriting and translating go to the session too, more slowly, each request in a
-conversation of its own with no web tools (never an `@question` conversation, however long it waits behind a question
-being answered). Settings says which under the choice. When the session can't answer (not
+neither, autocomplete is off (its switch in Settings → Common shows off and can't be turned on, saying why), and
+rewriting and translating go to the session too, more slowly, each request in a conversation of its own with no web
+tools (never an `@question` conversation, however long it waits behind a question being answered). Settings says which
+under the choice, and the line beside the cards that `@question` uses the CLI. When the session can't answer (not
 installed, signed out, it can't start, it can't be kept to the web, its usage limit, an expired AWS sign-in, nothing
 within 30 seconds, still answering an earlier question after 30 seconds, or the CLI compacting the conversation before
 it answers: Claude Code's `compact_boundary` or compacting status, Codex's context compaction, not waited for) the
@@ -711,8 +713,8 @@ something, never naming them.
   suggestions in an earlier version (`"suggestions": false`) is under "In these apps", at Off.
   Nothing in `config.json` is renamed or removed by 0.6.7, and these values sync as they did.
 - With No AI, the list after `@` offers no AI row (no Improve, Translate, Ask AI or Reply for a text or a selection, and the
-  list with nothing typed has the commands that don't use AI); an AI command typed by name is still found, and running
-  one shows the notice and keeps what you wrote. Your own
+  list with nothing typed has the commands that don't use AI); an AI command typed by name is still found, dimmed with
+  why, and doing its row, or running the command, shows the notice and keeps what you wrote. Your own
   terminal commands (`"type": "terminal"`) run programs, not the AI, so they still work there.
 
 ### Settings (new)
@@ -1345,16 +1347,17 @@ Apple silicon and Intel. So far it has only been tested on macOS 27 on Apple sil
    an app downloaded from the internet: click Open. (Versions before 0.6.3 weren't notarized: each had to be allowed
    once in System Settings → Privacy & Security → Open Anyway.)
 
-Then add it to your input sources once yourself (macOS lets only you add an input method; the installer shows this step,
-with a button that opens Keyboard settings): System Settings → Keyboard → Text Input → Input Sources → Edit… → +
-(bottom left) → English → AllInOneIME (it types pinyin too once you add Chinese on Settings → Common). After that, switch
-to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in System Settings →
-Keyboard). An update, or installing again, keeps it in your input sources.
+Then add it to your input sources once yourself (macOS lets only you add an input method; on a fresh install the start's
+first step shows this step, with a button that opens Keyboard settings): System Settings → Keyboard → Text Input → Input
+Sources → Edit… → + (bottom left) → English → AllInOneIME (it types pinyin too once you add Chinese on Settings → Common).
+After that, switch to it with Ctrl+Space (the 🌐 key switches only if "Press 🌐 key to" is set to "Change Input Source" in
+System Settings → Keyboard). An update, or installing again, keeps it in your input sources.
 
-On a fresh install, the installer's last button opens a short start, once: switch to AllInOneIME (it goes on by itself
-when you have), connect an AI (sign in to AllInOneIME Cloud, or Later; your own AI is on Settings → AI), then try one @
-in a field there: after the magic key you type anything and pick what to do (a sum, a time, an app as examples). Done,
-Skip or closing it ends it for good. An update opens Settings.
+On a fresh install, the installer's last button, Get Started, opens a short start, once: add AllInOneIME to your input
+sources if macOS left that to you, and switch to it (each goes on by itself when you have), connect an AI (sign in to
+AllInOneIME Cloud with your email, or Later; Use My Own AI… opens Settings → AI, and once the AI chosen there can answer
+it goes on by itself), then try one @ in a field there: after the magic key you type anything and pick what to do (a
+sum, a time, an app as examples). Done, Skip or closing it ends it for good. An update opens Settings.
 
 If Ctrl+Space doesn't get you to AllInOneIME, or it switches back to U.S. after a while, run the installer again: it adds AllInOneIME back to your input sources.
 
