@@ -197,23 +197,33 @@ def periphery_section() -> list[str]:
 def flaky_section(folder: Path | None) -> list[str]:
     """The tests that failed under the machine's load and passed alone (Core/Scripts/retry-failed-tests.sh counts them
     as passed) in the quality gate's runs: `folder` holds a folder per test job (core-linux, core-macos, mac), in it one
-    per run that had any, each with that run's flaky-tests.txt, a test a line."""
+    per run that had any, each with that run's flaky-tests.txt, a test a line; and unread.txt, an artifact a line, when
+    some couldn't be downloaded (those runs are left out, so the section says it is partial, never "None")."""
     out = ["## Flaky tests", ""]
     if folder is None:
         return out + ["Skipped (run with --flaky FOLDER)."]
     if not folder.is_dir():
         return out + ["Skipped: the test jobs' flaky-tests-* artifacts couldn't be read (the workflow's log says why)."]
+    unread = len((folder / "unread.txt").read_text(errors="replace").splitlines()) \
+        if (folder / "unread.txt").is_file() else 0
+    listings = list(folder.glob("*/*/flaky-tests.txt"))
+    if unread and not listings:
+        return out + [f"Skipped: none of the {unread} flaky-tests-* artifacts of the last {FLAKY_DAYS} days could be "
+                      "downloaded (the workflow's log says why)."]
     runs: collections.Counter[str] = collections.Counter()
     jobs: dict[str, set[str]] = collections.defaultdict(set)
-    for listing in folder.glob("*/*/flaky-tests.txt"):
+    for listing in listings:
         for test in {line.strip() for line in listing.read_text(errors="replace").splitlines() if line.strip()}:
             runs[test] += 1
             jobs[test].add(listing.parent.parent.name)
     out += [f"Tests that failed under load and passed when run again alone, in the quality gate's runs of the last "
             f"{FLAKY_DAYS} days; the run counted them as passed. One that keeps coming back ({FLAKY_OFTEN} runs or "
             "more, marked) may hide a race that only shows in parallel: reproduce it (AGENTS.md, Bugs) and fix it.", ""]
+    if unread:
+        out += [f"Partial: {unread} of the {unread + len(listings)} runs' flaky-tests-* artifacts couldn't be "
+                "downloaded (the workflow's log says which); their tests aren't counted below.", ""]
     if not runs:
-        return out + ["None."]
+        return out + ["None in the runs that could be read." if unread else "None."]
     out += ["| test | runs | jobs |", "|---|---|---|"]
     for test, count in sorted(runs.items(), key=lambda item: (-item[1], item[0]))[:20]:
         mark = " ⚠" if count >= FLAKY_OFTEN else ""
