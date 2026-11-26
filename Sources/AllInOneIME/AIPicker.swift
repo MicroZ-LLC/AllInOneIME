@@ -65,7 +65,8 @@ struct AILogoTile: View {
 }
 
 /// Settings → AI, at the top: the AI chosen (its logo, its name, how it is now: orange when it can't answer). Its own
-/// settings are the rows under it (`SettingsView.providerSection`); every choice is a card below (`AIChoicesGrid`).
+/// settings are the rows under it (`SettingsView.providerSection`); its card and the others' are below
+/// (`AIChoiceSettings`).
 struct AIChosenRow: View {
     let choice: AIChoice
     let status: AIStatus
@@ -85,15 +86,95 @@ struct AIChosenRow: View {
     }
 }
 
-/// Settings → AI: every choice as a card, by group (`AIChoice.groups`), always shown (owner, 0.7.5, #121): one click
-/// chooses one; the chosen one is outlined and says In use.
+/// Settings → AI's cards (#161): the one in use on its own, outlined, then the others folded under one row,
+/// 「其他 AI（N）」, folded each time the page shows. The row unfolds them as #121's cards, by group; a click on one
+/// chooses it and folds them again; the row clicked again folds them, nothing chosen. The settings search landing on the
+/// cards, or the start or the Doctor pointing at a card not in use, unfolds them, that card scrolled to. Kept by the
+/// window's model (`SettingsModel.aiCards`), so that the window scrolls to the card it points at.
+struct AIPickerState {
+    typealias Groups = [(group: AIChoice.Group, choices: [AIChoice])]
+
+    private(set) var chosen: AIChoice
+    /// Every choice offered (`AIChoice.groups`), the one in use among them.
+    private(set) var groups: Groups
+    private(set) var isExpanded = false
+    /// The card the search or a pointer asked for (offered, not in use), scrolled to as the cards unfold; kept while the
+    /// row is clicked, until the page shows again or a card is chosen.
+    private(set) var scrollTarget: AIChoice?
+
+    init(chosen: AIChoice, groups: Groups) {
+        self.chosen = chosen
+        self.groups = groups
+    }
+
+    /// The choices not in use, by group (a group with none left out).
+    var others: Groups {
+        groups.compactMap { entry in
+            let choices = entry.choices.filter { $0 != chosen }
+            return choices.isEmpty ? nil : (entry.group, choices)
+        }
+    }
+
+    /// The cards shown under the row: none while it's folded.
+    var otherGroups: Groups { isExpanded ? others : [] }
+
+    /// The row's text, the count of the cards under it whether folded or not; its chevron is `RowDisclosureStyle`'s.
+    var rowTitle: String {
+        let count = others.reduce(0) { $0 + $1.choices.count }
+        return tr("其他 AI（\(count)）", "Other AIs (\(count))")
+    }
+
+    /// The row's state as VoiceOver tells it: the `DisclosureGroup` (`RowDisclosureStyle`) says it, in the system's
+    /// words; this names it for the tests.
+    var accessibilityValue: String { isExpanded ? "expanded" : "collapsed" }
+
+    /// What the page offers now (the AI chosen elsewhere, Apple's model found), the fold kept.
+    mutating func update(chosen: AIChoice, groups: Groups) {
+        self.chosen = chosen
+        self.groups = groups
+    }
+
+    /// A click on the row: unfolds or folds, nothing chosen.
+    mutating func toggle() { isExpanded.toggle() }
+
+    /// A click on a card: chosen, the others folded again (it is now at the top).
+    mutating func pick(_ choice: AIChoice) {
+        chosen = choice
+        isExpanded = false
+        scrollTarget = nil
+    }
+
+    /// The page shown (`search` and `target` nil: folded), or pointed at: by the settings search (`search`: what was
+    /// typed, "Choose the AI", "kiro"), or by the start or the Doctor (`target`, a card). Pointed at, the others unfold
+    /// unless the card asked for (the target, else a choice the search names) is the one in use, at the top; that card
+    /// is scrolled to, if it is offered.
+    mutating func show(search: String?, target: AIChoice?) {
+        let wanted = target ?? search.flatMap(Self.named)
+        isExpanded = (target != nil || search != nil) && wanted != chosen
+        scrollTarget = isExpanded ? wanted.flatMap { wanted in groups.contains { $0.choices.contains(wanted) } ? wanted : nil } : nil
+    }
+
+    /// The first choice (`AIChoice.all`'s order) that every word typed begins a word of, in its name or its config value
+    /// ("kiro", "bedrock", "claude"); nil for none ("Choose the AI", "订阅").
+    static func named(_ search: String) -> AIChoice? {
+        let typed = search.lowercased().split(whereSeparator: \.isWhitespace)
+        guard !typed.isEmpty else { return nil }
+        return AIChoice.all.first { choice in
+            let words = (choice.name + " " + choice.id).lowercased().split { !$0.isLetter && !$0.isNumber }
+            return typed.allSatisfy { part in words.contains { $0.hasPrefix(part) } }
+        }
+    }
+}
+
+/// Settings → AI: choices as cards, by group (`AIChoice.groups`; #121): one click chooses one; a chosen one is outlined
+/// and says In use. Since #161 the cards of the choices not in use, unfolded under their row (`AIChoiceSettings`).
 struct AIChoicesGrid: View {
     let chosen: AIChoice
     let groups: [(group: AIChoice.Group, choices: [AIChoice])]
     let status: (AIChoice) -> AIStatus
     let pick: (AIChoice) -> Void
 
-    private let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top), count: 4)
+    static let columns = Array(repeating: GridItem(.flexible(minimum: 0), spacing: 10, alignment: .top), count: 4)
 
     var body: some View {
         VStack(alignment: .leading, spacing: 18) {
@@ -104,9 +185,10 @@ struct AIChoicesGrid: View {
                         Text(entry.group.title).font(.system(size: 13, weight: .semibold)).foregroundStyle(.secondary)
                         Text(entry.group.note).font(.callout).foregroundStyle(.secondary)
                     }
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 10) {
+                    LazyVGrid(columns: Self.columns, alignment: .leading, spacing: 10) {
                         ForEach(entry.choices, id: \.self) { choice in
                             AIChoiceCard(choice: choice, status: status(choice), chosen: choice == chosen) { pick(choice) }
+                                .id(choice)  // scrolled to when pointed at (`AIPickerState.scrollTarget`)
                         }
                     }
                 }

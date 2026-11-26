@@ -26342,6 +26342,53 @@
         }
       }
     },
+    "Other AIs (%@)" : {
+      "comment" : "其他 AI（%@）",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Andere KIs (%@)"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Otras IA (%@)"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autres IA (%@)"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "その他のAI（%@）"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "기타 AI (%@)"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Outras IAs (%@)"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "其他 AI（%@）"
+          }
+        }
+      }
+    },
     "Otherwise it uses only Apple Intelligence on this Mac, which isn't available now: no suggestions." : {
       "comment" : "不用的话只用这台 Mac 上的 Apple Intelligence，但它现在不可用，不会出灰字。",
       "extractionState" : "stale",
