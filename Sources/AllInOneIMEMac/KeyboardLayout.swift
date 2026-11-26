@@ -34,7 +34,8 @@ public struct KeyboardLayout: KeyTranslator, @unchecked Sendable {
 
     /// `init(id:)` kept by ID (`Cache`): a layout set for a language that is neither the current one nor the current ASCII
     /// one is asked for with every key, and listing the installed layouts takes a millisecond or two. Looked up again
-    /// once the selected or the enabled input sources change. Any thread.
+    /// once the selected or the enabled input sources change. On the main thread, as every TIS call: HIToolbox aborts the
+    /// process when two threads call it at once.
     public static func cached(id: String) -> KeyboardLayout? { Cache.shared.layout(id) }
 
     /// The layouts `cached(id:)` found (nil: not installed), until the system says the selected or the enabled input

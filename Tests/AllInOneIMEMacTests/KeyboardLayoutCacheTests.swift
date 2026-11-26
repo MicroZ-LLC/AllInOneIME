@@ -3,8 +3,9 @@ import Foundation
 import Testing
 
 /// `KeyboardLayout.cached(id:)` (0.7.6): the layout a language is set to type with is looked up once, not with every
-/// key (listing the installed layouts takes a millisecond or two), and again once the input sources change.
-@Suite(.serialized)
+/// key (listing the installed layouts takes a millisecond or two), and again once the input sources change. On the main
+/// thread, as the input method asks: HIToolbox aborts the process when two threads call TIS at once (a test posting keys).
+@Suite(.serialized) @MainActor
 struct KeyboardLayoutCacheTests {
     /// Counts the lookups (any thread).
     final class Lookups: @unchecked Sendable {
