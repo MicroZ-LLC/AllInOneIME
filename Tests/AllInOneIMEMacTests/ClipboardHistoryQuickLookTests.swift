@@ -5,9 +5,9 @@ import AppKit
 import Foundation
 import Testing
 
-/// ⌃V's look at the clipboard (`ClipboardRecorder.poll(limit:quick:)`), which its panel waits for: a text copied just
-/// before is in the history at once and its file written after, off the main thread; an image isn't read then (all of
-/// its data would be), but by the next look.
+/// ⌃V's look at the clipboard (`ClipboardRecorder.poll(limit:quick:)`), which never waits (0.7.6): a text copied just
+/// before is in the history at once and its file written after, off the main thread; an image is made ready off the main
+/// thread and kept once it is.
 struct ClipboardHistoryQuickLookTests {
     typealias Recording = ClipboardHistoryRecordingTests
 
@@ -48,40 +48,51 @@ struct ClipboardHistoryQuickLookTests {
         return (recorder, pasteboard)
     }
 
-    /// An image copied just before (a screenshot): ⌃V's look keeps it at once, made ready off the main thread as any is,
-    /// waiting for it: the panel has its kept row (its thumbnail, its preview), not "Image on the clipboard".
-    @MainActor @Test func anImageCopiedJustBeforeIsKeptByControlVsLook() async throws {
+    /// An image copied just before (a screenshot): ⌃V's look never waits for it (0.7.6), made ready off the main thread as
+    /// any is, and kept once it is, told then (`keptLater`): the panel shows its kept row anew.
+    @MainActor @Test func anImageCopiedJustBeforeIsKeptOnceReadNeverWaitedFor() async throws {
         let folder = try Recording.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let (recorder, pasteboard) = Self.recorderOffTheMainThread(in: folder)
+        var told = 0
+        recorder.keptLater = { told += 1 }
         pasteboard.copy("a text")
         recorder.poll(limit: 20)
+        try await ImagePreviewTests.wait { recorder.store.items.count == 1 }
         let shot = Recording.png(400, 200)
         pasteboard.copy(image: shot)
-        #expect(recorder.poll(limit: 20, quick: true) == .recorded)
-        let image = try #require(recorder.store.items.first?.image, "kept by ⌃V's look: \(Recording.texts(recorder))")
+        // Not waited for: kept within the look only where it was ready by its end (a small image, at times).
+        let outcome = recorder.poll(limit: 20, quick: true)
+        #expect(outcome == .imageQueued || outcome == .recorded, "\(outcome)")
+        try await ImagePreviewTests.wait { recorder.store.items.first?.image != nil }
+        let image = try #require(recorder.store.items.first?.image, "kept once ready: \(Recording.texts(recorder))")
         #expect(image.width == 400 && image.thumbnail != nil && recorder.store.imageData(image.id) == shot.data)
         #expect(recorder.clipboardIsNewest, "the clipboard's image is the newest: its kept row stands for it")
-        // Its turn on the main thread coming after: nothing more.
-        try await Task.sleep(for: .milliseconds(50))
+        #expect(told == (outcome == .imageQueued ? 1 : 0), "only what is kept after its look is told: \(told)")
         #expect(recorder.store.items.count == 2 && recorder.poll(limit: 20) == .unchanged)
     }
 
-    /// An image the last look found, still being made ready as ⌃V comes (its turn on the main thread not come yet): ⌃V's
-    /// look waits for it too.
-    @MainActor @Test func anImageBeingMadeReadyAsControlVComesIsWaitedFor() throws {
+    /// An image made ready already as ⌃V comes, its turn on the main thread not come yet: ⌃V's look keeps it at once.
+    @MainActor @Test func anImageReadyBeforeItsTurnIsKeptByControlVsLook() throws {
         let folder = try Recording.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
-        let (recorder, pasteboard) = Self.recorderOffTheMainThread(in: folder)
+        let (recorder, pasteboard) = Recording.recorder(in: folder)
+        var turn: (() -> Void)?
+        recorder.imageWork = { prepare, done in
+            let result = prepare()
+            turn = { done(result) }
+        }
         pasteboard.copy(image: Recording.png(300, 300))
         #expect(recorder.poll(limit: 20) == .imageQueued)
         recorder.poll(limit: 20, quick: true)
         #expect(recorder.store.items.first?.image?.width == 300 && recorder.clipboardIsNewest, "\(recorder.store.items)")
+        turn?()
+        #expect(recorder.store.items.count == 1, "its turn after: nothing more")
     }
 
-    /// One that takes longer than ⌃V's look waits (`ClipboardRecorder.quickImageWait`): the panel doesn't wait longer, and
-    /// offers what is on the clipboard meanwhile; the image is kept once it is ready.
-    @Test func anImageTakingLongerIsNotWaitedForLonger() throws {
+    /// One still being made ready as ⌃V comes: the look doesn't wait for it (the panel offers the image on the clipboard
+    /// meanwhile); it is kept once it is ready.
+    @Test func anImageBeingMadeReadyIsNotWaitedFor() throws {
         let folder = try Recording.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let (recorder, pasteboard) = Recording.recorder(in: folder)
@@ -91,7 +102,7 @@ struct ClipboardHistoryQuickLookTests {
         let start = Date()
         #expect(recorder.poll(limit: 20, quick: true) == .imageQueued)
         let waited = Date().timeIntervalSince(start)
-        #expect(waited >= ClipboardRecorder.quickImageWait * 0.9 && waited < ClipboardRecorder.quickImageWait + 0.5, "\(waited) s")
+        #expect(waited < 0.06, "\(waited) s")
         #expect(recorder.store.items.isEmpty && !recorder.clipboardIsNewest)
         held?()
         #expect(recorder.store.items.first?.image != nil && recorder.clipboardIsNewest)
@@ -100,7 +111,9 @@ struct ClipboardHistoryQuickLookTests {
     /// The owner's report: two screenshots one after the other, ⌃V right after the second. The panel's rows, as the
     /// session builds them from what ⌃V's look gives it (the input method's `ClipboardHistoryShared.services`): the second
     /// screenshot's kept row first, chosen, its thumbnail standing for the second (what its preview shows), then the
-    /// first's. Before, the second was "Image on the clipboard", which has no preview.
+    /// first's. Before, the second was "Image on the clipboard", which has no preview. Since 0.7.6 ⌃V doesn't wait for
+    /// it: the panel opens with "Image on the clipboard" first, and shows the kept row once it is in (`keptLater`, as
+    /// `ClipboardHistoryShared` tells the field's session).
     @MainActor @Test func twoScreenshotsThenControlV() async throws {
         let folder = try Recording.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
@@ -117,9 +130,12 @@ struct ClipboardHistoryQuickLookTests {
             items: { MainActor.assumeIsolated { recorder.poll(limit: 20, quick: true); return recorder.store.items } },
             canPassPasteKey: { true }, imageData: { recorder.store.imageData($0) },
             clipboardIsNewest: { MainActor.assumeIsolated { recorder.clipboardIsNewest } })
+        recorder.keptLater = { host.send(.clipboardHistoryChanged) }
         host.clipboard = .image(Data())  // ⌃V's panel looks at the types only
         _ = host.press(FakeHost.controlV)
         _ = host.settle { host.panel != nil }
+        // "Image on the clipboard" first unless the second was ready by then (a small image is, at times).
+        try await ImagePreviewTests.wait { recorder.store.items.count == 2 && host.panel?.rows.first?.text != "Image on the clipboard" }
         let rows = host.panel?.rows ?? []
         #expect(rows.map(\.text) == ["Image 500 × 300", "Image 640 × 400"] && host.panel?.highlighted == 0, "\(rows.map(\.text))")
         let kept = rows.map { row -> ClipboardHistoryImage? in

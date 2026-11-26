@@ -157,6 +157,14 @@ public enum PanelAnchor {
             accessibilityGivenUp = told.timedOut
         }
 
+        /// The focused window's frame told after `learnWindow` asked it (read off the main thread), unless one is known by
+        /// now; one that got no answer in time gives Accessibility up in the field.
+        public mutating func learned(window told: (frame: CGRect?, timedOut: Bool)) {
+            guard window == nil else { return }
+            window = told.frame
+            accessibilityGivenUp = accessibilityGivenUp || told.timedOut
+        }
+
         /// Where the panel goes for `told`, the rect the field tells now: there, if it is one to trust (remembered);
         /// else the caret `accessibility` tells (asked only then, and not once it timed out in this field) where it is
         /// one to trust inside the focused window; else the last rect to trust; else `told`, as before.

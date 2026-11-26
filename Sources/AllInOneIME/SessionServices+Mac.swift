@@ -28,8 +28,6 @@ extension SessionServices {
     @MainActor
     static var mac: SessionServices {
         var services = SessionServices(converter: sharedConverter, loadSettings: { LiveConfig.current })
-        // Clipboard history's image rows: a larger picture of the one pointed at or chosen, beside the panel.
-        ImagePreview.shared.attach(to: CandidatePanel.shared)
         // The connection to the user's cloud provider opened as an AI command is written, after a pause.
         services.warmsConnections = true
         // librime's session once it has deployed; without the Chinese pack it never starts (Latin letters).
@@ -110,11 +108,9 @@ extension SessionServices {
         // `@open`: Spotlight's names told before what the files contain, as its text is typed (`FileSearchProgress`); what
         // is known at once listed from the key that changed the text, from memory made ready now, off the main thread.
         // A row that opens an app, a folder or a file shows its own icon (`ItemIcons`): loaded off the main thread with the
-        // results, as they are found (what is known at once as it is kept; a search's before it is told), kept by path.
-        // A row drawn before its icon was in has the symbol until it is, then its icon.
+        // results, as they are found (what is known at once as it is kept; a search's before it is told), kept by path
+        // (`wireUI`). A row drawn before its icon was in has the symbol until it is, then its icon.
         @Sendable func paths(_ rows: [SearchResult]) -> [String] { rows.filter { $0.webURL == nil }.map(\.path) }
-        CandidateView.itemIcon = { ItemIcons.shared.icon(requesting: $0) }
-        ItemIcons.shared.onLoaded = { paths in MainActor.assumeIsolated { CandidateView.itemIconsCameIn(paths) } }
         services.searchFiles = { query, history in
             let found = FileSearchProgress.found.map { told in
                 { @Sendable (rows: [SearchResult]) in
@@ -126,7 +122,6 @@ extension SessionServices {
             await ItemIcons.shared.load(paths(rows))
             return rows
         }
-        InstantFiles.shared.onKept = { ItemIcons.shared.prefetch($0) }
         InstantFiles.shared.prepare(history: OpenHistoryStore.history)
         services.instantResults = { InstantFiles.shared.results($0, history: $1) }
         // One @: Spotlight's names for its text, below what is known at once.
@@ -186,6 +181,26 @@ extension SessionServices {
         services.cachedContacts = { ContactBook.cached() }
         services.messageSender = AppleScriptMessageSender()
         return services
+    }
+
+    /// How many times the panels' shared wiring was done (`wireUI`): once, at launch. A test sets it back to 0.
+    @MainActor static var uiWirings = 0
+
+    /// What every field's panel shares, wired once when the input method starts (`runServer`, the self-test), never for
+    /// each field's session (`mac`): clipboard history's image rows show a larger picture of the one pointed at or chosen
+    /// beside the panel (`ImagePreview`), and an image made ready and kept after the panel opened has its row there
+    /// (`ClipboardHistoryShared.keptLater`); a row that opens an app, a folder or a file shows
+    /// its own icon once it is loaded (`ItemIcons`), and what `@open` knows at once has its icons fetched as it is kept
+    /// (`InstantFiles`).
+    @MainActor
+    static func wireUI() {
+        guard uiWirings == 0 else { return }
+        ImagePreview.shared.attach(to: CandidatePanel.shared)
+        ClipboardHistoryShared.keptLater = { AllInOneIMEInputController.activeController?.received(.clipboardHistoryChanged) }
+        CandidateView.itemIcon = { ItemIcons.shared.icon(requesting: $0) }
+        ItemIcons.shared.onLoaded = { paths in MainActor.assumeIsolated { CandidateView.itemIconsCameIn(paths) } }
+        InstantFiles.shared.onKept = { ItemIcons.shared.prefetch($0) }
+        uiWirings += 1
     }
 
     /// The kind of this Mac's own errors (Notes, Reminders) for the public log, without their text; nil: another's.
