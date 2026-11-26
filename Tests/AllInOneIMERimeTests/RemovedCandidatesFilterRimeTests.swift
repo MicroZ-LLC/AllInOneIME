@@ -251,8 +251,9 @@ struct RemovedCandidatesFilterRimeTests {
             Paging.escape(end)
             // At the end of the second page: the third page's first. librime deleted the one on that page.
             let recorder = Recorder(try #require(RimeService.shared.makeSession()))
-            let second = Composer(engine: EnglishWordsEngine(base: recorder, dictionary: try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))  // read off the main thread since 0.7.6),
-                                  actionKey: .enter)
+            // The English dictionary is read off the main thread since 0.7.6.
+            let dictionary = try #require(RimeService.shared.englishDictionary(waitingUpTo: 30))
+            let second = Composer(engine: EnglishWordsEngine(base: recorder, dictionary: dictionary), actionKey: .enter)
             Paging.type("niubi", second)
             Paging.press(Paging.pageDown, second)
             Paging.press(Paging.arrowDown, second, times: 4)
