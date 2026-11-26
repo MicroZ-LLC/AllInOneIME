@@ -12,6 +12,9 @@ public final class PanelAccessibility {
 
     private weak var view: NSView?
     private var elements: [NSAccessibilityElement]?
+    /// Where the elements were made for (the rows' frames, the status's, the footer's, the view's bounds): laid out again
+    /// (scrolled, wider, on the other side of the caret), they are made again.
+    private var madeFor: [NSRect] = []
     private var pending: DispatchWorkItem?
 
     public init(view: NSView) {
@@ -40,6 +43,12 @@ public final class PanelAccessibility {
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.delay, execute: work)
     }
 
+    /// The panel hid: nothing it showed is said.
+    public func cancel() {
+        pending?.cancel()
+        pending = nil
+    }
+
     /// What is said of `model`: its highlighted row, else its status.
     static func spoken(_ model: PanelModel) -> String? {
         if let index = model.highlighted, model.rows.indices.contains(index) { return label(model.rows[index]) }
@@ -49,16 +58,17 @@ public final class PanelAccessibility {
     /// The panel's children: a row element per row shown (`rowFrame`: its place in the view, nil where it isn't laid out),
     /// then the status and the footer as text.
     public func children(_ model: PanelModel, rowFrame: (Int) -> NSRect?, statusFrame: NSRect?, footerFrame: NSRect?) -> [Any] {
-        if let elements { return elements }
         guard let view else { return [] }
+        let rows = model.rows.indices.compactMap { index in rowFrame(index).map { (index, $0) } }
+        let key = rows.map(\.1) + [statusFrame ?? .zero, footerFrame ?? .zero, view.bounds]
+        if let elements, key == madeFor { return elements }
         var made: [NSAccessibilityElement] = []
-        for (index, row) in model.rows.enumerated() {
-            guard let frame = rowFrame(index) else { continue }
-            made.append(element(.row, Self.label(row), frame: frame, in: view, selected: index == model.highlighted))
+        for (index, frame) in rows {
+            made.append(element(.row, Self.label(model.rows[index]), frame: frame, in: view, selected: index == model.highlighted))
         }
         if let status = model.statusText { made.append(element(.staticText, status, frame: statusFrame ?? .zero, in: view)) }
         if !model.footer.isEmpty { made.append(element(.staticText, model.footer, frame: footerFrame ?? .zero, in: view)) }
-        elements = made
+        (elements, madeFor) = (made, key)
         return made
     }
 

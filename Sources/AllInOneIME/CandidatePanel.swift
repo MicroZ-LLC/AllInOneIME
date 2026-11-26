@@ -225,6 +225,7 @@ final class CandidatePanel: NSPanel {
         guard isShowing else { return }
         placed = nil
         view.minimumWidth = 0
+        view.panelHidden()
         contentView?.layer?.removeAnimation(forKey: "appear")
         // No stale candidates or invisible hit target. Reuse the ordered window during a burst of typing:
         // ordering it out on every commit can stall the IME on a WindowServer fence in the client app.
@@ -272,8 +273,18 @@ final class CandidatePanel: NSPanel {
         // here, made by hand with the window server's tags cleared, put back by this at once).
         collectionBehavior = []
         collectionBehavior = Self.behavior
+        moveOntoScreen()
         if reorder { orderOut(nil) }
         orderFrontRegardless()
+    }
+
+    /// On no screen now (the display it was on gone, GitHub #61): placed again for its caret, on a screen that is there.
+    private func moveOntoScreen() {
+        guard let anchor = placed?.anchor, !NSScreen.screens.isEmpty, !NSScreen.screens.contains(where: { $0.frame.intersects(frame) }) else { return }
+        Self.log.notice("candidate box on no screen: placed again for its caret")
+        let next = placement(at: anchor)
+        view.side = next.side
+        setFrame(next.frame, display: true)
     }
 
     /// Something that can take it off the screen with AppKit none the wiser (`ScreenEvents`: the displays changed or
@@ -1830,6 +1841,9 @@ final class CandidateView: NSView {
 }
 
 extension CandidateView {
+    /// The panel hid: what it showed isn't said any more.
+    func panelHidden() { accessibility.cancel() }
+
     // A list for VoiceOver, a child for each row it shows (those scrolled out of view aside), its status and its footer.
     override func isAccessibilityElement() -> Bool { true }
     override func accessibilityRole() -> NSAccessibility.Role? { .list }
