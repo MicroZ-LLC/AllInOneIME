@@ -178,11 +178,10 @@ final class SettingsModel: ObservableObject {
         aws.refresh(profile: config.awsProfile)  // Bedrock's card and the fast fallback go by the profiles read (`aiFacts`)
     }
 
-    /// The window opened again with these settings, kept since it was closed: the file read again if something else
-    /// changed it, the AWS profiles listed again (off the main thread), and what a new window wouldn't show is gone: a
-    /// test's result, the errors of before, a link pasted and not tested, the control pointed at.
+    /// The window opened again with these settings, kept since it was closed: the AWS profiles listed again (off the main
+    /// thread), and what a new window wouldn't show is gone: a test's result, the errors of before, a link pasted and not
+    /// tested, the control pointed at. The file is read again by the window (`SettingsWindow.readAgain`).
     func reopened() {
-        reloadIfChanged()
         (testStatus, notesTestStatus) = (.idle, .idle)
         (keyError, notionTokenError, accountError) = (nil, nil, nil)
         (pluginError, extensionError, voiceError) = (nil, nil, nil)
@@ -2554,12 +2553,14 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargonInBackground()  // the list may have been edited in the text editor
-            model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.readExtensionDigests()  // and an extension source's files, which its suggestions' switch shows
             model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
             model.refreshRecentQuestions()
-            // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
-            if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
+            // So may the settings, or the input method's menu changed one: read off the main thread (the window becomes
+            // key as it opens, too). Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
+            model.reloadIfChangedOffMain {
+                if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
+            }
         }
         // Settings back in front (the input method's process active again), not any window of it becoming key.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -3093,7 +3094,7 @@ struct SettingsView: View {
 @MainActor
 final class SettingsWindow {
     static let shared = SettingsWindow()
-    private var window: NSWindow?
+    private(set) var window: NSWindow?
     /// The open window's settings.
     private var model: SettingsModel?
     private var closing: NSObjectProtocol?
@@ -3142,21 +3143,20 @@ final class SettingsWindow {
         if let window, let model, !window.isVisible, model.configURL == Config.defaultURL {
             // Opened again: the window and its settings as they were kept since it was closed (building them again took
             // longer than showing them), the file read again if something else changed it, the page asked for (else
-            // General, as a new window starts), its facts read again off the main thread.
+            // General, as a new window starts), its facts read again off the main thread (the file too: `readAgain`).
             model.reopened()
-            UIText.choice = model.config.uiLanguage
+            readAgain(model)
             AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             window.title = Self.title
             NotificationCenter.default.post(name: .allInOneIMESettingsReopened, object: nil,
                                             userInfo: page.map { ["page": $0.rawValue] } ?? [:])
         } else if window?.isVisible != true {
             // The first time (or the settings in another file now: the self-test's): the start's if it showed them first
-            // (read again if something else changed the file since), else built with the config file as it is now; kept
-            // once closed.
+            // (read again if something else changed the file since, off the main thread: `readAgain`), else built with
+            // the config file as it is now; kept once closed.
             window?.close()
             let model = settings
-            model.reloadIfChanged()
-            UIText.choice = model.config.uiLanguage
+            readAgain(model)
             AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             let host = NSHostingController(rootView: SettingsView(model: model, page: page))
             let window = NSWindow(contentViewController: host)
