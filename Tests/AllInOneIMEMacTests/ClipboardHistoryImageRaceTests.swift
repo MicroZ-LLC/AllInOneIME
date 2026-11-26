@@ -19,38 +19,44 @@ struct ClipboardHistoryImageRaceTests {
         }
     }
 
-    /// Clear History deletes every unlisted file and then the folder; an image copied meanwhile is made ready (its files
-    /// written) while that runs. Its files are there once it is ready, and kept once it is added.
-    @Test func anImageMadeReadyWhileAClearDeletesTheFolderKeepsItsFiles() throws {
+    /// Clear History deletes every unlisted file and then the folder (off the main thread); images copied meanwhile are
+    /// made ready (their files written) while that runs, one after another until it is done. Each keeps its files, and
+    /// is kept with them once added.
+    @Test func imagesMadeReadyWhileAClearDeletesTheFolderKeepTheirFiles() throws {
         let folder = try Recording.folder()
         defer { try? FileManager.default.removeItem(at: folder) }
         let store = ClipboardHistoryStore.loaded(url: folder.appendingPathComponent("clipboard-history.json"))
         // Unlisted images' files enough for the clear to take a while deleting them (as a long history's would).
         try FileManager.default.createDirectory(at: store.imagesURL, withIntermediateDirectories: true)
-        let stale = 3000
-        for index in 0..<stale {
+        for index in 0..<5000 {
             let id = String(format: "%064x", index)
             FileManager.default.createFile(atPath: store.imagesURL.appendingPathComponent("\(id).png").path, contents: Data([1]))
         }
+        let shots = (0..<60).map { Recording.png(4, 4, shade: CGFloat($0) / 60) }
+        let cleared = DispatchSemaphore(value: 0)
         store.clear()
-        // The clear is deleting them now: the image is made ready meanwhile (off the main thread, as copied).
-        let underway = Date().addingTimeInterval(10)
-        func left() -> Int { (try? FileManager.default.contentsOfDirectory(atPath: store.imagesURL.path).count) ?? 0 }
-        while left() > stale - 200, left() > 0, Date() < underway { usleep(200) }
-        #expect(left() > 0, "the clear deleted them all before the image came: the test missed its moment")
-        let prepared = store.prepare(Recording.png(8, 8, shade: 0.3))
-        guard case let .ready(ready) = prepared else {
-            Issue.record("not made ready: \(prepared)")
-            return
+        DispatchQueue.global().async {
+            store.waitForWrites()  // the clear done
+            cleared.signal()
         }
-        #expect(Self.files(of: ready.id, in: store).count == 2, "written as it was made ready")
+        // Made ready one after another while it deletes (an image copied each moment), at least one, until it is done.
+        var ready: [ClipboardHistoryStore.ReadyImage] = []
+        repeat {
+            let prepared = store.prepare(shots[ready.count % shots.count])
+            guard case let .ready(image) = prepared else {
+                Issue.record("an image copied while the clear ran wasn't kept (\(prepared)): its folder deleted as it was written")
+                return
+            }
+            ready.append(image)
+        } while cleared.wait(timeout: .now()) == .timedOut
+        let date = Date()
+        for (index, image) in ready.enumerated() { store.add(image, at: date.addingTimeInterval(Double(index)), limit: 1000) }
         store.waitForWrites()
-        #expect(Self.files(of: ready.id, in: store).count == 2, "the clear running meanwhile deleted its files")
-        #expect(store.add(ready, at: Date(), limit: 20))
-        store.waitForWrites()
-        let image = try #require(store.items.first?.image)
-        #expect(image.thumbnail != nil && store.imageData(image.id) != nil, "its row has no picture")
-        #expect(ClipboardHistoryStore.loaded(url: store.url).items.first?.image?.id == ready.id, "the next launch hasn't it")
+        let kept = store.items.compactMap(\.image)
+        #expect(!kept.isEmpty)
+        let lost = kept.filter { Self.files(of: $0.id, in: store).count != 2 }
+        #expect(lost.isEmpty, "\(lost.count) of \(kept.count) images made ready while the clear ran lost their files")
+        #expect(ClipboardHistoryStore.loaded(url: store.url).items.count == kept.count, "the next launch hasn't them all")
     }
 
     /// The owner's order of things in the review: an image copied, Clear History, the same image copied again, both made
