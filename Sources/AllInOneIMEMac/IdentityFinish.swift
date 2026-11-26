@@ -466,17 +466,9 @@ public struct SystemIdentityCleanup: IdentityCleanupActions, Sendable {
         return status == errSecSuccess || status == errSecItemNotFound
     }
 
-    /// A tool's exit status (its output dropped); -1 when it can't be started.
+    /// A tool's exit status (its output dropped); -1 when it can't be started or hasn't ended within a minute.
     static func run(_ path: String, _ arguments: [String]) -> Int32 {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: path)
-        process.arguments = arguments
-        process.standardOutput = FileHandle.nullDevice
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        do { try process.run() } catch { return -1 }
-        process.waitUntilExit()
-        return process.terminationStatus
+        (try? ProcessOutput.run(URL(fileURLWithPath: path), arguments, timeout: 60))?.status ?? -1
     }
 }
 

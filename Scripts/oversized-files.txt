@@ -53,6 +53,6 @@
 2934 Sources/AllInOneIME/SelfTest.swift
 2950 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
-800 Sources/AllInOneIME/Updates.swift
+779 Sources/AllInOneIME/Updates.swift
 475 Sources/AllInOneIME/main.swift
-437 Sources/AllInOneIMEMac/IdentityFinish.swift
+429 Sources/AllInOneIMEMac/IdentityFinish.swift

@@ -32,17 +32,15 @@ extension Updater {
     /// build (a developer's) has none.
     public static func unpack(_ archive: URL, into folder: URL, manifest: UpdateManifest,
                               team: String? = CodeSignature.ownTeamID) throws -> UpdatePayload {
-        let ditto = Process()
-        ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
-        ditto.arguments = ["-x", "-k", "--noqtn", archive.path, folder.path]
-        let errors = Pipe()
-        ditto.standardError = errors
-        ditto.standardOutput = FileHandle.nullDevice
-        do { try ditto.run() } catch { throw UpdateError.unpack(error.localizedDescription) }
-        let message = errors.fileHandleForReading.readDataToEndOfFile()
-        ditto.waitUntilExit()
-        guard ditto.terminationStatus == 0 else {
-            throw UpdateError.unpack(String(decoding: message, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
+        let ditto: ProcessOutput.Result
+        do {
+            ditto = try ProcessOutput.run(URL(fileURLWithPath: "/usr/bin/ditto"), ["-x", "-k", "--noqtn", archive.path, folder.path],
+                                          timeout: 300)
+        } catch {
+            throw UpdateError.unpack(error.localizedDescription)
+        }
+        guard ditto.status == 0 else {
+            throw UpdateError.unpack(String(decoding: ditto.errors, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines))
         }
         let payload = UpdatePayload(inputMethod: folder.appendingPathComponent(inputMethodName, isDirectory: true),
                                     settingsApp: folder.appendingPathComponent(settingsAppName, isDirectory: true))

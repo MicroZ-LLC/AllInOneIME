@@ -77,36 +77,20 @@ public enum ShellEnvironment {
     static func loginValues(_ names: [String], timeout: TimeInterval = loginTimeout) -> [String: String] {
         let shell = ProcessInfo.processInfo.environment["SHELL"].flatMap { $0.isEmpty ? nil : $0 } ?? "/bin/zsh"
         let marker = "__AllInOneIME_\(UUID().uuidString)__"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: shell)
         // Interactive too: pyenv, nvm and the like are usually set up in .zshrc. Each value is printed
         // between markers, so whatever the shell's startup files print is skipped.
         let script = names.map { "printf '\(marker)\($0)=%s' \"${\($0)}\"" }.joined(separator: "; ") + "; printf '\(marker)'"
-        process.arguments = ["-ilc", script]
-        process.currentDirectoryURL = CorePaths.home
-        let out = Pipe()
-        process.standardOutput = out
-        process.standardError = FileHandle.nullDevice
-        process.standardInput = FileHandle.nullDevice
-        guard (try? process.run()) != nil else { return [:] }
-        // Read as it comes, up to the last marker, not to the end: a job the startup files leave in the background
-        // (`foo &!`, `nohup foo &`) keeps the output open after the shell has exited, until the job ends. The reading
-        // goes on until then, on its own, so the job never waits on a full pipe.
-        let output = LoginOutput(marker: marker, markers: names.count + 1)
-        let reading = out.fileHandleForReading
-        DispatchQueue.global(qos: .utility).async {
-            while true {
-                let data = reading.availableData
-                output.add(data)
-                if data.isEmpty { break }
-            }
-        }
-        if output.complete.wait(timeout: .now() + timeout) == .timedOut, process.isRunning {
-            process.terminate()
-        }
+        // Gathered: a shell that hangs after it printed is stopped, and what it printed is kept. A job the startup files
+        // leave in the background (`foo &!`, `nohup foo &`) keeps the output open after the shell has exited, until
+        // the job ends: that isn't waited for (`ProcessOutput`), and its reading goes on on its own, so the job never
+        // waits on a full pipe. Started as Foundation starts it, not through `Platform.current` (whose environment is
+        // this one's).
+        guard let gathered = try? ProcessOutput.gather(URL(fileURLWithPath: shell), ["-ilc", script], directory: CorePaths.home,
+                                                       timeout: timeout, processes: FoundationProcessLauncher()) else { return [:] }
         var values: [String: String] = [:]
         // The part after the last marker is what came after the values, or a value cut off at the timeout.
-        for part in output.take().components(separatedBy: marker).dropFirst().dropLast() {
+        let output = String(decoding: gathered.result.output, as: UTF8.self)
+        for part in output.components(separatedBy: marker).dropFirst().dropLast() {
             guard let eq = part.firstIndex(of: "="), names.contains(String(part[..<eq])) else { continue }
             let value = String(part[part.index(after: eq)...])
             if !value.isEmpty { values[String(part[..<eq])] = value }
@@ -175,42 +159,6 @@ public final class ShellReadiness: @unchecked Sendable {
         guard onMainThread, !isReady else { return value() }
         start()
         return fallback
-    }
-}
-
-/// What the login shell prints (`ShellEnvironment.loginValues`), as it comes: complete once its last marker or the end
-/// of the output is there. Nothing that comes after that, or after it has been taken, is kept.
-private final class LoginOutput: @unchecked Sendable {
-    let complete = DispatchSemaphore(value: 0)
-    private let marker: String
-    private let markers: Int
-    private let lock = NSLock()
-    private var data = Data()
-    private var done = false
-
-    /// `markers`: how many the shell prints.
-    init(marker: String, markers: Int) {
-        self.marker = marker
-        self.markers = markers
-    }
-
-    /// Adds what was read; an empty chunk is the end of the output.
-    func add(_ chunk: Data) {
-        let completed = lock.withLock { () -> Bool in
-            guard !done else { return false }
-            data.append(chunk)
-            done = chunk.isEmpty || String(decoding: data, as: UTF8.self).components(separatedBy: marker).count > markers
-            return done
-        }
-        if completed { complete.signal() }
-    }
-
-    /// What has come so far.
-    func take() -> String {
-        lock.withLock {
-            done = true
-            return String(decoding: data, as: UTF8.self)
-        }
     }
 }
 
