@@ -301,9 +301,10 @@ struct WubiTests {
         host.type("wqvb")
         #expect(engine.selected.last == "wubi86")
         #expect(engine.rawInput == "wqvb")
-        // Only in the panel, the first row chosen; nothing in the field before a pick.
+        // Only in the panel (its input line), the first row chosen; nothing in the field before a pick, nor marked there.
         #expect(host.document == "你好")
-        #expect(host.composer.markedText.isEmpty)
+        #expect(host.marked.isEmpty)
+        #expect(host.preedit.contains("wqvb"), "\(host.preedit)")
         let panel = try #require(host.panel)
         #expect(panel.rows.map(\.text).prefix(2) == ["你好", "您好"])
         #expect(panel.highlighted == 0)
@@ -316,20 +317,28 @@ struct WubiTests {
         host.press(FakeHost.space)
         #expect(host.document == "你好你好国")
 
-        // A digit picks its row; ↓ moves, Space picks the row chosen.
+        // A digit picks its row; the next row is chosen with pinyin's keys in each layout (side by side, the default:
+        // → moves, ↑↓ turn the page; in a column: ↓ moves), and Space picks the row chosen.
         host.type("wqvb")
         host.type("2")
         #expect(host.document == "你好你好国您好")
         host.type("trnt")
-        host.press(FakeHost.down)
+        host.press(FakeHost.right)
         #expect(host.panel?.highlighted == 1)
         host.press(FakeHost.space)
         #expect(host.document == "你好你好国您好特性")
+        box.config.candidateLayout = .vertical
+        _ = host.session.applySettings()  // as the shell does when the settings change
+        host.type("trnt")
+        host.press(FakeHost.down)
+        #expect(host.panel?.highlighted == 1)
+        host.press(FakeHost.space)
+        #expect(host.document == "你好你好国您好特性特性")
 
         // Esc drops what is typed.
         host.type("g")
         host.press(FakeHost.escape)
-        #expect(engine.rawInput.isEmpty && host.document == "你好你好国您好特性")
+        #expect(engine.rawInput.isEmpty && host.document == "你好你好国您好特性特性")
         #expect(host.panel?.rows.contains { $0.text == "一" } != true)
 
         // Back to full pinyin: the next key types it again.
@@ -337,7 +346,7 @@ struct WubiTests {
         host.type("nihao")
         #expect(engine.selected.last == "rime_ice")
         host.press(FakeHost.space)
-        #expect(host.document == "你好你好国您好特性你好")
+        #expect(host.document == "你好你好国您好特性特性你好")
     }
 
     @Test func atCommandsAreStillFoundByLatinLetters() {
