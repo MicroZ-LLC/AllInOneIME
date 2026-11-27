@@ -372,14 +372,14 @@ public struct SystemIdentityCleanup: IdentityCleanupActions, Sendable {
         self.bundle = bundle
     }
 
+    /// On the cleanup's queue (`IdentityFinish.queue`), where registering the source again waits up to 2 seconds: the
+    /// check goes to the main thread only for each call to Text Input Sources (`InputSourceCheck.system`).
     public func isInputSourceEnabled(_ id: String) -> Bool {
-        guard Thread.isMainThread else { return DispatchQueue.main.sync { isInputSourceEnabled(id) } }
-        return InputSourceCheck.system(id: id, bundle: bundle).isEnabled()
+        InputSourceCheck.system(id: id, bundle: bundle).isEnabled()
     }
 
     public func isInputSourceAdded(_ id: String) -> Bool {
-        guard Thread.isMainThread else { return DispatchQueue.main.sync { isInputSourceAdded(id) } }
-        return InputSourceCheck.state(of: id).added
+        InputSourceCheck.state(of: id).added
     }
 
     public func removeCache(at path: String) -> Bool {
@@ -504,13 +504,16 @@ public struct InputSourceState: Equatable, Sendable {
 /// Whether this input method's own input source is enabled: macOS lets only the user add a new input method (System
 /// Settings → Keyboard → Input Sources), so after an install or the move to this identity it may not be yet; the
 /// settings show that step until it is. A source Text Input Sources doesn't list, or files under another bundle ID, is
-/// registered again first (that files it under its own: the move left the cache with the identity before's). Main
-/// thread (Text Input Sources).
+/// registered again first (that files it under its own: the move left the cache with the identity before's), which
+/// can wait up to 2 seconds: `isEnabled()` is for a background thread; the main thread asks with
+/// `isEnabled(completion:)` and gets the answer later (InputSourceCheck+Async.swift, with the Mac's `system`).
 public struct InputSourceCheck {
     public var id: String
     public var state: () -> InputSourceState
     /// Registers this input method's bundle again.
     public var register: () -> Void
+    /// The looks the main thread asked for (`isEnabled(completion:)`), shared by this check's copies.
+    let looks = InputSourceLooks()
 
     public init(id: String, state: @escaping () -> InputSourceState, register: @escaping () -> Void) {
         self.id = id
@@ -525,16 +528,6 @@ public struct InputSourceCheck {
             now = state()
         }
         return now.isEnabled(as: id)
-    }
-
-    /// The Mac's: Text Input Sources and the user's input sources; `bundle` registered again when needed (nil: never).
-    public static func system(id: String, bundle: URL?) -> InputSourceCheck {
-        InputSourceCheck(id: id, state: { state(of: id) }, register: {
-            guard let bundle, TISRegisterInputSource(bundle as CFURL) == noErr else { return }
-            // Registration is asynchronous inside the text input server.
-            let deadline = Date().addingTimeInterval(2)
-            while source(id) == nil, Date() < deadline { Thread.sleep(forTimeInterval: 0.1) }
-        })
     }
 
     static func source(_ id: String) -> TISInputSource? {
@@ -567,11 +560,11 @@ public struct InputSourceCheck {
         }
     }
 
-    /// `id` as Text Input Sources and the user's input sources have it now.
+    /// `id` as Text Input Sources and the user's input sources have it now, from any thread: Text Input Sources asked on
+    /// the main thread (`onMain`), the user's input sources' preferences read (and synchronized) on the caller's.
     public static func state(of id: String) -> InputSourceState {
-        let source = source(id)
-        return InputSourceState(registered: source != nil, enabled: source.map { bool($0, kTISPropertyInputSourceIsEnabled) } == true,
-                                listed: userList().map { InputSourceList.contains($0, bundleID: id) } ?? false,
-                                bundleID: source.flatMap { string($0, kTISPropertyBundleID) })
+        var state = onMain { registration(of: id) }
+        state.listed = userList().map { InputSourceList.contains($0, bundleID: id) } ?? false
+        return state
     }
 }
