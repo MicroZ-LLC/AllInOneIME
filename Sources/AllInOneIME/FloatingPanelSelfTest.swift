@@ -88,10 +88,7 @@ final class PanelStandIns {
             defaults: defaults,
             now: { self.now })
         sources.autocompleteOn = { self.autocomplete }
-        sources.setAutocomplete = { on in
-            self.autocomplete = on
-            return on
-        }
+        sources.setAutocomplete = { self.autocomplete = $0; return $0 }
         sources.autocompleteSummary = { nil }
         sources.autocompleteModel = { tr("本机 Apple Intelligence", "Apple Intelligence on this Mac") }
         sources.autocompleteAvailable = { true }

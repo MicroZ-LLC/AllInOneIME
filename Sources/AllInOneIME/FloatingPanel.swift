@@ -526,9 +526,7 @@ final class FloatingPanel: ObservableObject {
     /// and only with its permission given before; only when a note in Notes is listed.
     private func refreshNoteTitles() {
         guard isShowing, !askingNotes, SavedNotesStore.load(sources.defaults).notes.contains(where: { SavedNotes.isInNotes($0.id) }),
-              sources.notesRunning() else {
-            return
-        }
+              sources.notesRunning() else { return }
         askingNotes = true
         let generation = self.generation
         Task { [weak self] in
@@ -579,8 +577,7 @@ final class FloatingPanel: ObservableObject {
     /// another answer (`AutocompleteSwitch.lookUp`).
     func setAutocomplete(_ on: Bool?) {
         if let on { _ = sources.setAutocomplete(on) }
-        (autocomplete, autocompleteSummary, autocompleteModel, autocompleteDestination) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel(), sources.autocompleteDestination())
-        autocompleteAvailable = sources.autocompleteAvailable()
+        (autocomplete, autocompleteSummary, autocompleteModel, autocompleteDestination, autocompleteAvailable) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel(), sources.autocompleteDestination(), sources.autocompleteAvailable())
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -1164,9 +1161,8 @@ struct FloatingPanelView: View {
                     .font(.system(size: 11)).foregroundStyle(.secondary).lineLimit(2).fixedSize(horizontal: false, vertical: true)
             }
         }
-        .toggleStyle(.switch)
-        .controlSize(.mini).disabled(!panel.autocompleteAvailable)  // can't run (a CLI chosen, no faster AI) or not looked at yet
-        .padding(.horizontal, 2)
+        // Off limits where it can't run (a CLI chosen, no faster AI) or while what it asks isn't looked at yet.
+        .toggleStyle(.switch).controlSize(.mini).disabled(!panel.autocompleteAvailable).padding(.horizontal, 2)
     }
 
     @ViewBuilder
