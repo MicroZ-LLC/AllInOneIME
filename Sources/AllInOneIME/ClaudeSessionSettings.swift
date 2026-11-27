@@ -116,8 +116,16 @@ extension SettingsModel {
     /// chosen and the choices offered now.
     var aiCards: AIPickerState {
         var cards = aiPicker
+        if !canSave { cards.cancel() }  // the page disabled: its choices shut (Cancel and Esc are disabled too)
         cards.update(chosen: config.ai, groups: AIChoice.groups(apple: aiFacts.apple, keeping: config.ai))
         return cards
+    }
+
+    /// The settings changed in the store (read, written, or the file found unreadable): the window shown again; a
+    /// config file that can't be read disables Settings → AI, Cancel and Esc too, so its choices never stay open.
+    func storeChanged() {
+        objectWillChange.send()
+        if !canSave, aiPicker.choosing { aiPicker.cancel() }
     }
 
     /// `change` made to Settings → AI's cards as they are now (`aiCards`): Change ▾, Cancel or a card clicked, the page shown.
