@@ -97,7 +97,7 @@ public enum FileSearch {
             let path = path(entry.name)
             return SearchResult(name: asked(path) ? FileManager.default.displayName(atPath: path) : entry.name, path: path,
                                 isFolder: entry.isFolder,
-                                reveals: FileOpenPolicy.action(for: URL(fileURLWithPath: path), readsMetadata: asked(path)) == .reveal)
+                                reveals: !entry.isFolder && FileOpenPolicy.action(for: URL(fileURLWithPath: path), readsMetadata: asked(path)) == .reveal)
         }
     }
 
@@ -196,7 +196,9 @@ public enum FileSearch {
         let folder = isFolder(path)
         return SearchResult(name: FileManager.default.displayName(atPath: path), path: path, isFolder: folder && !path.lowercased().hasSuffix(".app"),
                             matchedContent: matchedContent, chineseName: app?.chinese,
-                            reveals: FileOpenPolicy.action(for: URL(fileURLWithPath: path)) == .reveal)
+                            // A folder or an app opens (`FileOpenPolicy`): not asked, which reads every app's metadata as the
+                            // index is made, and waited for good on a busy Spotlight (the Mac mini, 2026-11-27).
+                            reveals: !folder && FileOpenPolicy.action(for: URL(fileURLWithPath: path)) == .reveal)
     }
 
     static func isFolder(_ path: String) -> Bool {
