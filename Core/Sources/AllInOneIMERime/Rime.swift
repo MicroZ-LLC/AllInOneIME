@@ -16,20 +16,22 @@ public final class RimeService {
     public static let shared = RimeService()
 
     let api: UnsafeMutablePointer<RimeApi>
-    /// Set by `start` as it ends, under `stateLock`: read on any thread (a thread waiting in `waitUntilReady`, the exit's
-    /// handler) while `start` runs on another, it sees what `start` set before it.
-    public var isStarted: Bool { stateLock.withLock { started } }
-    private var started = false
+    /// Set by `start` as it ends, under `stateLock`, with the folders and the English dictionary's load (`Started`):
+    /// read on any thread (a thread waiting in `waitUntilReady`, the exit's handler, the main thread while a start runs
+    /// on another), each sees what `start` set before it.
+    public var isStarted: Bool { stateLock.withLock { started != nil } }
+    private var started: Started?
     private let stateLock = NSLock()
     /// Held through `start`: librime's setup and first deployment, run by two threads at once, crashed (SIGSEGV in
-    /// `RimeStartMaintenance`, a double free in `SetupDeployer`); the second caller now waits and finds it started.
-    private let startLock = NSLock()
+    /// `RimeStartMaintenance`, a double free in `SetupDeployer`); the second caller now waits and finds it started. So
+    /// does an exit (`endAtExit`): recursive, for one called on the starting thread itself.
+    let startLock = NSRecursiveLock()
     /// Where `start` got to, step by step (`RimeStartTrail`): a crash in librime there shows in its file and the next log.
     static let trail = RimeStartTrail()
-    public private(set) var sharedDataDir: URL?
-    public private(set) var userDataDir: URL?
+    public var sharedDataDir: URL? { stateLock.withLock { started?.sharedDataDir } }
+    public var userDataDir: URL? { stateLock.withLock { started?.userDataDir } }
     /// The app's OpenCC data (`ChineseCharacters.openCCFiles`), copied into the user folder's `opencc` (`prepareOpenCC`).
-    public private(set) var openCCDir: URL?
+    public var openCCDir: URL? { stateLock.withLock { started?.openCCDir } }
 
     private init() {
         api = rime_get_api()
@@ -140,11 +142,9 @@ public final class RimeService {
         trail.step("start maintenance")
         // False: nothing changed since the last deployment (no full check), or librime's installation update failed.
         let deploying = api.pointee.start_maintenance(fullCheck ? 1 : 0) != 0
-        englishLoad = EnglishLoad(sharedDataDir)
-        stateLock.withLock {
-            (self.sharedDataDir, self.userDataDir, self.openCCDir) = (sharedDataDir, userDataDir, openCCDir)
-            started = true
-        }
+        let english = EnglishLoad(sharedDataDir)
+        let done = Started(sharedDataDir: sharedDataDir, userDataDir: userDataDir, openCCDir: openCCDir, englishLoad: english)
+        stateLock.withLock { started = done }
         Self.log.notice(deploying ? "librime started, deploying" : "librime started, no deployment started")
         trail.step("started")
     }
@@ -156,7 +156,7 @@ public final class RimeService {
     /// waited for: nil until it is read (a session asks again with its next key, `InputSession.ensureLevelOne`), before
     /// `start`, or without one.
     public var englishDictionary: EnglishDictionary? { englishLoad?.dictionary }
-    private(set) var englishLoad: EnglishLoad?
+    var englishLoad: EnglishLoad? { stateLock.withLock { started?.englishLoad } }
 
     // Waited for, off the main thread (tests): RimeService+EnglishDictionary.swift.
 

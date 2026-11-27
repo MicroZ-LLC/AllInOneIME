@@ -1,6 +1,7 @@
 import AllInOneIMETestSupport
 import Foundation
 import Testing
+@testable import AllInOneIMECore
 @testable import AllInOneIMERime
 
 /// librime started by several threads at once, and by two processes at once on one new user folder
@@ -32,6 +33,17 @@ struct ConcurrentStartRimeTests {
             let second = try RimeWorker.launch("start-on-shared-folder", root: root.appendingPathComponent("second"))
             let results = [Result { try RimeWorker.finish(first) }, Result { try RimeWorker.finish(second) }]
             for result in results { try result.get() }
+        }
+    }
+
+    /// `exit()` called on another thread while librime starts, its deployment thread started by then but the start not
+    /// over yet: the exit used to find librime not started and leave it, deploying, to its static destructors.
+    @Test(.enabled(if: runs))
+    func anExitWhileLibrimeStartsOnAnotherThreadWaitsForItAndEndsIt() throws {
+        for _ in 1...6 {
+            let root = TestScratch.temporary("rime-exit-while-starting-\(UUID().uuidString)")
+            defer { try? FileManager.default.removeItem(at: root) }
+            try RimeWorker.run("exit-while-starting", root: root)
         }
     }
 
@@ -71,13 +83,40 @@ struct ConcurrentStartRimeTests {
             #expect(RimeService.shared.isStarted)
             try expectTyping()
             // Set up once: one start's steps (`RimeStartTrail`, in the user folder without a logs folder).
-            let trail = try String(contentsOf: user.appendingPathComponent(RimeStartTrail.fileName), encoding: .utf8)
+            let name = RimeStartTrail.fileName(pid: ProcessInfo.processInfo.processIdentifier)
+            let trail = try String(contentsOf: user.appendingPathComponent(name), encoding: .utf8)
             #expect(trail.components(separatedBy: "\n").filter { $0.hasSuffix(" setup") }.count == 1, "\(trail)")
             #expect(trail.components(separatedBy: "\n").filter { $0.hasSuffix(" started") }.count == 1, "\(trail)")
         },
         "start-on-shared-folder": { root in
-            try RimeService.shared.start(sharedDataDir: RimeFixture.sharedData, userDataDir: sharedUserFolder(root), logDir: nil)
+            let heard = Locked<[String]>(initialState: [])
+            let stop = CoreLog.listen { message in heard.withLock { $0.append(message) } }
+            defer { stop() }
+            let user = sharedUserFolder(root)
+            try RimeService.shared.start(sharedDataDir: RimeFixture.sharedData, userDataDir: user, logDir: nil)
             try expectTyping()
+            // The other process's start, under way or over, is not taken for a crash; each one's trail is its own.
+            #expect(!heard.withLock { $0 }.contains { $0.contains("the last start of librime ended during") }, "\(heard.withLock { $0 })")
+            RimeService.trail.flush()
+            let name = RimeStartTrail.fileName(pid: ProcessInfo.processInfo.processIdentifier)
+            let trail = try String(contentsOf: user.appendingPathComponent(name), encoding: .utf8)
+            #expect(!trail.contains("\0"), "\(trail)")
+            #expect(trail.components(separatedBy: "\n").filter { $0.hasSuffix(" setup") }.count == 1, "\(trail)")
+        },
+        "exit-while-starting": { root in
+            let user = root.appendingPathComponent("Rime", isDirectory: true)
+            let trail = user.appendingPathComponent(RimeStartTrail.fileName(pid: ProcessInfo.processInfo.processIdentifier))
+            Thread.detachNewThread {
+                try? RimeService.shared.start(sharedDataDir: RimeFixture.sharedData, userDataDir: user, logDir: nil, fullCheck: true)
+            }
+            // Written on the starting thread before librime's maintenance starts its deployment thread.
+            let deadline = Date().addingTimeInterval(60)
+            var maintenance: Bool { (try? String(contentsOf: trail, encoding: .utf8))?.contains(" start maintenance\n") ?? false }
+            while Date() < deadline, !maintenance { usleep(100) }
+            try #require(maintenance, "the start got to its maintenance")
+            print("RIME_WORKER_FINISHED:exit-while-starting")
+            fflush(stdout)
+            exit(0)
         },
     ]
 }

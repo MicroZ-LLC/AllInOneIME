@@ -131,3 +131,14 @@ extension RimeService {
         return Date(timeIntervalSince1970: newest)
     }
 }
+
+extension RimeService {
+    /// What `start` set as it ended (`started`, under `stateLock`): the folders librime started with, and the English
+    /// dictionary being read.
+    struct Started {
+        let sharedDataDir: URL
+        let userDataDir: URL
+        let openCCDir: URL?
+        let englishLoad: EnglishLoad
+    }
+}
