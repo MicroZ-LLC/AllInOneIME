@@ -127,7 +127,7 @@ public final class InputSession {
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     var keyContext: FieldContext?
     /// The field left without a click while something was being typed, its draft kept for it (InputSession+KeptDraft.swift).
-    var keptDraft: FieldInfo?
+    var keptDraft: KeptDraft?
     var keyBeingHandled: KeyEvent?
     var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
@@ -232,7 +232,7 @@ public final class InputSession {
             }
             switch event {
             case let .key(key, context):
-                showKeptDraft()  // a key with no focus told first: the field is typed in again
+                keptDraftTypedIn()  // a key with no focus told first: the field is typed in again
                 handled = self.key(key, context)
             case let .modifiers(change, context):
                 handled = false  // the application sees modifier changes too
