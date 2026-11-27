@@ -150,7 +150,8 @@ extension SettingsModel {
     private func pointNow(at spot: SettingsSpot?, search: String?, card: AIChoice?) {
         let spot = spot ?? card.flatMap { $0 == config.ai ? nil : SettingsSpot.provider }
         // Pointed anywhere else (another row, the card in use), the page is collapsed: the chosen AI's rows show only then.
-        let cards = spot == .provider
+        // A config file that can't be read (`canSave` false) disables the page, Cancel and Esc too: its choices stay shut.
+        let cards = spot == .provider && canSave
         if cards || spot != nil || card != nil { changeAICards { $0.show(search: cards ? search : nil, target: cards ? card : nil) } }
         self.spot = spot
     }
