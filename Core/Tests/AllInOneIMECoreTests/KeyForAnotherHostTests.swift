@@ -47,7 +47,8 @@ struct KeyForAnotherHostTests {
 
     @Test func iCloudSyncRefusesTheProviderAsWithoutAKey() throws {
         try withOpenAIKey {
-            let environment = ICloudSync.Environment(hasKey: { _ in true })
+            // As the Mac gives it (`ICloudSyncController.liveEnvironment`), over the keychain in memory.
+            let environment = ICloudSync.Environment(keySource: { APIKeys.source($0) }, savedHost: { APIKeys.savedHost($0) })
             let (relayed, own) = (try config(Self.relayed), try config(#"{"provider": "anthropic"}"#))
             #expect(ICloudSync.problem("provider", .string("openai"), environment: environment, in: relayed) == .noKey)
             #expect(ICloudSync.problem("provider", .string("openai"), environment: environment, in: own) == nil)

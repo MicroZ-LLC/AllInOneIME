@@ -918,31 +918,6 @@ public enum ICloudSync {
         public func text(chinese: Bool) -> String { text(language: InterfaceLanguage.code(chinese: chinese)) }
     }
 
-    /// What the checks need of this Mac: which providers have a key (asked without reading it), the AWS profiles, the
-    /// providers offered. The tests give their own.
-    public struct Environment: Sendable {
-        /// Where each provider's key comes from (`APIKeys.source`: the keychain item's attributes, never the key): one
-        /// set in the login shell counts only for a base URL it goes to (`APIKeys.Source.sent(by:to:)`), as in Settings.
-        public var keySource: @Sendable (Provider) -> APIKeys.Source
-        /// The AWS profiles in ~/.aws (nil: not checked).
-        public var awsProfiles: (@Sendable () -> [String])?
-        public var offeredProviders: [Provider]
-        /// The interface languages this Mac's app ships (`InterfaceLanguage.shipped`): a `uiLanguage` naming another is
-        /// refused.
-        public var interfaceLanguages: [String]
-
-        /// `hasKey`: whether each provider has a key, as if the keychain held it; `keySource`, where given, where it
-        /// comes from instead (this Mac's: `APIKeys.source`).
-        public init(hasKey: @escaping @Sendable (Provider) -> Bool = { _ in true },
-                    keySource: (@Sendable (Provider) -> APIKeys.Source)? = nil, awsProfiles: (@Sendable () -> [String])? = nil,
-                    offeredProviders: [Provider] = Provider.allCases, interfaceLanguages: [String] = InterfaceLanguage.builtIn) {
-            self.keySource = keySource ?? { hasKey($0) ? .keychain : .none }
-            self.awsProfiles = awsProfiles
-            self.offeredProviders = offeredProviders
-            self.interfaceLanguages = interfaceLanguages
-        }
-    }
-
     /// Why `value` (nil: deleted) can't be `key`'s on this Mac, by the rules Settings keeps to; nil when it can. Names a
     /// newer version added where a list can do without them (a language, a fuzzy pair, a place to continue in) are left
     /// out when the config reads it, as for a file written by a newer version; one a single value needs is refused.
@@ -986,7 +961,7 @@ public enum ICloudSync {
             // A key from the login shell only where it goes, a saved one only to the host it was saved for: its base URL
             // as it comes in too (its key sorts before this).
             return [.anthropic, .gemini, .openai, .hosted].contains(provider)
-                && env.keySource(provider).sent(by: provider, in: config) == .none ? .noKey : nil
+                && env.keySent(by: provider, in: config) == .none ? .noKey : nil
         case "awsProfile":
             guard case let .string(name) = value else { return .wrongType }
             if name.trimmingCharacters(in: .whitespaces).isEmpty { return .outOfRange }

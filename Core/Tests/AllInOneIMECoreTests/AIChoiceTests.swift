@@ -353,7 +353,8 @@ struct AIChoiceTests {
         let url = folder.appendingPathComponent("config-\(platform).json")
         try Data(json.utf8).write(to: url)
         return SettingsService(store: SettingsStore(configURL: url), platform: platform,
-                               library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)))
+                               library: PluginLibrary(directory: folder.appendingPathComponent("plugins", isDirectory: true)),
+                               secrets: .inMemory())  // the key rows never ask this Mac's keychain
     }
 
     @Test func theDocumentsProviderFieldIsTheAI() async throws {
