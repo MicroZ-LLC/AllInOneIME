@@ -14,6 +14,13 @@ let response = session.handle(.key(key, context))              // response.handl
 apply(response.outputs)
 ```
 
+A change of the modifiers (`.modifiers`) is the app's too, `handled` false, but for the right Option's on its own
+while pinyin is typed with shape codes on, whose tap types "`" (`Composer.shapeCodeTap`): its press (before it is
+known to be a tap) and its release are both the session's alone, `handled` true, and the shell keeps them from the app
+as it keeps a key (the Mac's controller returns it from `flagsChanged`). Both or neither
+(`Composer.tookModifierChange`): an app that follows the modifiers from their changes never gets a press without its
+release. Once another modifier's change has told the app the key is down, its release is the app's too.
+
 ## Threads
 
 The session is used from one thread only; it is no actor, and the core has no `@MainActor`. What it starts that answers

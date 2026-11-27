@@ -483,7 +483,7 @@ extension InputSession {
     /// Shift here ends, its hint with it, and Shift is taken as it is (`SuggestionsServices.shiftDown`). What the shell is
     /// to do.
     public func otherAppActivated() -> [SessionOutput] {
-        collect { suggestionsModifiersMissed(shiftDown: services.suggestions.shiftDown()) }
+        collect { modifiersMissed(shiftDown: services.suggestions.shiftDown()) }
     }
 
     // MARK: - Keys

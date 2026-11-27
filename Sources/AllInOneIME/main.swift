@@ -339,8 +339,7 @@ func printStatus() -> Int32 {
         if config.provider == .apple {
             print("apple model: \(AppleModel.system.availability.rawValue)")
         } else if config.provider != .bedrock {
-            let source = APIKeys.source(config.provider).sent(by: config.provider,
-                                                              to: HTTPProviders.host(of: config.settings(for: config.provider)))
+            let source = APIKeys.source(config.provider).sent(by: config.provider, in: config)
             print("api key:     \(source == .none ? "✗ none" : "found")")  // not read: no keychain prompt
         } else {
             // Read from the files and the SSO sign-in only: no program run, nothing fetched.

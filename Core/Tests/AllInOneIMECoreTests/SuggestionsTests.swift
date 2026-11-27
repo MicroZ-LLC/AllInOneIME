@@ -271,7 +271,8 @@ struct SuggestionsTests {
         // Settings says so; turned on again, it holds.
         let url = folder.appendingPathComponent("config.json")
         try config.write(to: url)
-        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins))
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins),
+                                      secrets: .inMemory())
         let field = try #require(service.document().field("plugins.completion.github.issues"))
         #expect(field.value == .bool(false), "\(field)")
         #expect(["turn it on again", "要再打开一次"].contains { field.status?.contains($0) == true }, "\(field.status ?? "-")")
@@ -561,7 +562,8 @@ struct SuggestionsTests {
         try FileManager.default.copyItem(at: Self.github, to: plugins.appendingPathComponent("github"))
         let url = folder.appendingPathComponent("config.json")
         try Data("{}".utf8).write(to: url)
-        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins))
+        let service = SettingsService(store: SettingsStore(configURL: url), platform: .windows, library: PluginLibrary(directory: plugins),
+                                      secrets: .inMemory())
         let source = try #require(service.document().field("plugins.completion.github.issues"))
         #expect(source.kind == .toggle && source.value == .bool(false) && source.help?.contains("api.github.com") == true, "\(source)")
         #expect(service.document().field("plugins.preference.github.repos")?.kind == .text)

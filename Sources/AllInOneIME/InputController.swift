@@ -637,9 +637,9 @@ final class AllInOneIMEInputController: IMKInputController {
         watchPointerDowns()  // the clicks that leave what is being typed
     }
 
-    /// The key being answered came from the key tap (`keyAtTap`): no app will have it, so nothing is marked to keep it
-    /// from one (`marksRow`, `keepFromTerminal`).
-    private(set) var atTap = false
+    /// The key being answered came from the key tap (`keyAtTap`), or was held while typing out stopped and answered then
+    /// (`typeHeldKeys`): no app will have it, so nothing is marked to keep it from one (`marksRow`, `keepFromTerminal`).
+    var atTap = false
 
     /// A key down handed over for the first time (or held while typing out stopped, now that it has: `typeHeldKeys`).
     @MainActor
@@ -668,19 +668,6 @@ final class AllInOneIMEInputController: IMKInputController {
         apply(response.outputs, client: client)
         if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
         return response.handled
-    }
-
-    @MainActor
-    func handleFlagsChanged(_ event: NSEvent, client: IMKTextInput?) {
-        commitRow()  // a row the key before put in, if this change came first
-        guard !Self.isModifierCopy(event) else { return }  // Chromium's and Electron's second copy
-        let target: IMKTextInput? = client ?? clientOverride ?? self.client()
-        // The key was held up to the event; the pointer is asked later, so look back that much further. fn held with Shift
-        // is no long press of it (only the session's long press minds fn).
-        let change = MacKeyEvents.modifierChange(event, now: ProcessInfo.processInfo.systemUptime)
-        let context = fieldContext(in: target) { session.fieldWants(forModifiers: change, given: $0) }
-        // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
-        apply(session.handle(.modifiers(change, context)).outputs, client: client)
     }
 
     /// What the field says around the caret as a key goes down or a modifier changes (`FieldReading.context`).

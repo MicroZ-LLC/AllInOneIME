@@ -96,7 +96,9 @@ enum TerminalLauncher {
 
     /// Opens a Terminal window, waits until its shell shows a prompt (something besides the "Last
     /// login" line), and types `exec <script>` into it once. Typed again, a line could reach the
-    /// program the first one started. False when Terminal can't be told (no permission): nothing opened.
+    /// program the first one started. False when Terminal can't be told (no permission): nothing opened; and when it
+    /// didn't answer in time whether its shell is ready (a query stopped after `Osascript.timeout`): nothing was typed
+    /// into the window, so the command hasn't run, and the caller opens the script with Terminal instead.
     private static func runWhenReady(_ script: URL, marker: URL) -> Bool {
         // Terminal opens a window of its own when it starts: that one is used, not a second.
         let terminalRunning = NSRunningApplication.runningApplications(withBundleIdentifier: "com.apple.Terminal").isEmpty == false
@@ -110,8 +112,15 @@ enum TerminalLauncher {
         let started = Date()
         while Date().timeIntervalSince(started) < 8 {
             Thread.sleep(forTimeInterval: 0.2)
-            guard let contents = osascript(["tell application \"Terminal\" to get contents of \(tab)"]) else {
-                return true  // the window was closed
+            let contents: String
+            do {
+                guard let told = try osascriptInTime(["tell application \"Terminal\" to get contents of \(tab)"]) else {
+                    return true  // the window was closed
+                }
+                contents = told
+            } catch {
+                log.error("Terminal didn't tell its window's contents in time: the command isn't typed into it")
+                return false
             }
             let lines = contents.split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }
             if lines.contains(where: { !$0.isEmpty && !$0.hasPrefix("Last login") }) {
@@ -129,7 +138,21 @@ enum TerminalLauncher {
     /// Runs AppleScript lines with osascript (`Osascript`: a tab's long scrollback read whole, stopped after its
     /// timeout); its output, or nil when it failed or was stopped.
     private static func osascript(_ lines: [String]) -> String? {
-        guard let result = try? Osascript.run(lines.flatMap { ["-e", $0] }), result.status == 0 else { return nil }
+        try? osascriptInTime(lines)
+    }
+
+    /// `osascript`, telling one stopped after its timeout (thrown: `ProcessOutput.TimedOut`) from one that failed (nil:
+    /// the script's own error, osascript not started).
+    private static func osascriptInTime(_ lines: [String]) throws -> String? {
+        let result: ProcessOutput.Result
+        do {
+            result = try Osascript.run(lines.flatMap { ["-e", $0] })
+        } catch let timedOut as ProcessOutput.TimedOut {
+            throw timedOut
+        } catch {
+            return nil
+        }
+        guard result.status == 0 else { return nil }
         return String(decoding: result.output, as: UTF8.self).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 

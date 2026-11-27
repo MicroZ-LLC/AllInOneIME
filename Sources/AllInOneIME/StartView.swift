@@ -128,11 +128,13 @@ struct StartView: View {
 
     /// "Already have your own AI?": Settings → AI, where each is chosen, pointed at the first card (`AIChoice.all`'s) that
     /// isn't the AI in use, so that the choices open from the top whatever is in use (#174: pointed at the one in use,
-    /// the page stays collapsed). The config file read first, as Settings compares the card with it.
+    /// the page stays collapsed). The config file read first (off the main thread), as Settings compares the card with
+    /// it.
     private func ownAI(_ name: String) -> some View {
         Button(name) {
-            settings.reloadIfChanged()
-            SettingsWindow.shared.show(page: .ai, spot: .provider, card: AIChoice.all.first { $0 != settings.config.ai })
+            settings.reloadIfChangedOffMain {
+                SettingsWindow.shared.show(page: .ai, spot: .provider, card: AIChoice.all.first { $0 != settings.config.ai })
+            }
         }
     }
 

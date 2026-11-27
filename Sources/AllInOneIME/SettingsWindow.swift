@@ -32,6 +32,8 @@ final class SettingsModel: ObservableObject {
     /// with a saved one (`APIKeys.keyEnding`: the key isn't read).
     @Published private(set) var keySources: [Provider: APIKeys.Source] = [:]
     @Published private(set) var keyEndings: [Provider: String] = [:]
+    /// The host each saved key is tied to (`APIKeys.savedHost`): set only for a base URL of that host (`keyState`).
+    @Published private(set) var keyHosts: [Provider: String] = [:]
     @Published private(set) var keyError: String?
     /// What this Mac learned (`LearnedShared`: Privacy → Learned…), its apps by name, as when the Privacy page or the list
     /// was last shown or something was forgotten.
@@ -176,11 +178,10 @@ final class SettingsModel: ObservableObject {
         aws.refresh(profile: config.awsProfile)  // Bedrock's card and the fast fallback go by the profiles read (`aiFacts`)
     }
 
-    /// The window opened again with these settings, kept since it was closed: the file read again if something else
-    /// changed it, the AWS profiles listed again (off the main thread), and what a new window wouldn't show is gone: a
-    /// test's result, the errors of before, a link pasted and not tested, the control pointed at.
+    /// The window opened again with these settings, kept since it was closed: the AWS profiles listed again (off the main
+    /// thread), and what a new window wouldn't show is gone: a test's result, the errors of before, a link pasted and not
+    /// tested, the control pointed at. The file is read again by the window (`SettingsWindow.readAgain`).
     func reopened() {
-        reloadIfChanged()
         (testStatus, notesTestStatus) = (.idle, .idle)
         (keyError, notionTokenError, accountError) = (nil, nil, nil)
         (pluginError, extensionError, voiceError) = (nil, nil, nil)
@@ -373,12 +374,11 @@ final class SettingsModel: ObservableObject {
         let lookup = AIConfigSession.keySource, generation = keyLookups
         Task.detached {
             // The first look asks the user's shell for its variables (ANTHROPIC_API_KEY, …): not on the main thread.
-            let (sources, endings) = SettingsStore.keyStates(providers, lookup: lookup)
+            let (sources, endings, hosts) = SettingsStore.keyStates(providers, lookup: lookup)
             await MainActor.run { [weak self] in
                 // One that started earlier (the window opening) never overwrites a later one's (a key just saved).
                 guard let self, self.keyLookups == generation else { return }
-                self.keySources = sources
-                self.keyEndings = endings
+                (self.keySources, self.keyEndings, self.keyHosts) = (sources, endings, hosts)
             }
         }
     }
@@ -391,12 +391,7 @@ final class SettingsModel: ObservableObject {
     }
     private var keysShown = false
 
-    /// Whether the provider's key is set, as its row shows it: one in the shell only for a base URL it is sent to
-    /// (`APIKeys.shellKeyGoes`).
-    func keyState(_ provider: Provider) -> KeyState {
-        let host = HTTPProviders.host(of: config.settings(for: provider))
-        return KeyState(keySources[provider]?.sent(by: provider, to: host), ending: keyEndings[provider])
-    }
+    // Whether a provider's key is set, as its row shows it (`keyState`): ClaudeSessionSettings.swift.
 
     /// The key sheet's Save and Use: the key saved, then the provider chosen as the AI and Test Connection run.
     func saveKeyAndUse(_ key: String, for provider: Provider) {
@@ -2555,12 +2550,12 @@ struct SettingsView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { _ in
             model.refreshJargonInBackground()  // the list may have been edited in the text editor
-            model.reloadIfChanged()  // so may the settings, or the input method's menu changed one
             model.readExtensionDigests()  // and an extension source's files, which its suggestions' switch shows
             model.refreshNotesFolder()  // a volume mounted or unmounted meanwhile
             model.refreshRecentQuestions()
-            // Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
-            if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
+            // So may the settings, or the input method's menu changed one: read off the main thread (the window becomes
+            // key as it opens, too). Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
+            model.reloadIfChangedOffMainForKeyWindow()
         }
         // Settings back in front (the input method's process active again), not any window of it becoming key.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
@@ -2571,18 +2566,19 @@ struct SettingsView: View {
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
-            model.reloadIfChanged()
+            model.reloadIfChangedOffMain {}  // the file read off the main thread, as wherever the window reads it again
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .ai
-            model.reloadIfChanged()  // what the Assistant just set
-            guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
-            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page; its
-            // card is pointed at, `AIConfigSession.openKeyField`).
-            if provider == model.config.provider {
-                DispatchQueue.main.async { editingKey = provider }
-            } else if provider.needsKey {
-                keySheet = KeySheetRequest(provider: provider)
+            // What the Assistant just set, read off the main thread; then, with the provider in use as the file has it:
+            // its own row, ready to paste. Another one: the key sheet (nothing of it on this page; its card is pointed
+            // at, `AIConfigSession.openKeyField`).
+            model.reloadIfChangedOffMain(showingKeyOf: note) { provider, inUse in
+                if inUse {
+                    DispatchQueue.main.async { editingKey = provider }
+                } else if provider.needsKey {
+                    keySheet = KeySheetRequest(provider: provider)
+                }
             }
         }
         .sheet(item: $keySheet) { request in
@@ -3094,7 +3090,7 @@ struct SettingsView: View {
 @MainActor
 final class SettingsWindow {
     static let shared = SettingsWindow()
-    private var window: NSWindow?
+    private(set) var window: NSWindow?
     /// The open window's settings.
     private var model: SettingsModel?
     private var closing: NSObjectProtocol?
@@ -3143,21 +3139,20 @@ final class SettingsWindow {
         if let window, let model, !window.isVisible, model.configURL == Config.defaultURL {
             // Opened again: the window and its settings as they were kept since it was closed (building them again took
             // longer than showing them), the file read again if something else changed it, the page asked for (else
-            // General, as a new window starts), its facts read again off the main thread.
+            // General, as a new window starts), its facts read again off the main thread (the file too: `readAgain`).
             model.reopened()
-            UIText.choice = model.config.uiLanguage
+            readAgain(model)
             AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             window.title = Self.title
             NotificationCenter.default.post(name: .allInOneIMESettingsReopened, object: nil,
                                             userInfo: page.map { ["page": $0.rawValue] } ?? [:])
         } else if window?.isVisible != true {
             // The first time (or the settings in another file now: the self-test's): the start's if it showed them first
-            // (read again if something else changed the file since), else built with the config file as it is now; kept
-            // once closed.
+            // (read again if something else changed the file since, off the main thread: `readAgain`), else built with
+            // the config file as it is now; kept once closed.
             window?.close()
             let model = settings
-            model.reloadIfChanged()
-            UIText.choice = model.config.uiLanguage
+            readAgain(model)
             AssistantModel.shared.showsFine = false  // Check for problems: what is fine folded again
             let host = NSHostingController(rootView: SettingsView(model: model, page: page))
             let window = NSWindow(contentViewController: host)

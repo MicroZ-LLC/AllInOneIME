@@ -53,3 +53,28 @@ public struct ModifierEchoes: Equatable, Sendable {
         return false
     }
 }
+
+/// The modifier changes the session took for itself (`SessionResponse.handled`: the right Option's press and release
+/// that may be the shape codes' tap), by their times: a copy of one handed over again (`ModifierEchoes`) is kept from the
+/// app as the first was, a copy of any other is the app's as the first was.
+public struct TakenModifierChanges: Equatable, Sendable {
+    /// How many it keeps, the latest: a busy page's copies come after as many changes as came meanwhile
+    /// (`ModifierEchoes`), a tap's press and release two of them.
+    public static let kept = 32
+
+    private var times: [TimeInterval] = []
+
+    public init() {}
+
+    /// The change at `timestamp` was taken.
+    public mutating func take(at timestamp: TimeInterval) {
+        guard !times.contains(timestamp) else { return }
+        times.append(timestamp)
+        if times.count > Self.kept { times.removeFirst(times.count - Self.kept) }
+    }
+
+    /// Whether the change at `timestamp` was taken.
+    public func took(at timestamp: TimeInterval) -> Bool {
+        times.contains(timestamp)
+    }
+}
