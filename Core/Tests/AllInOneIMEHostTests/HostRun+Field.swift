@@ -149,19 +149,58 @@ extension HostRun {
         moveCaret(to: offset)
     }
 
-    /// `FOCUS`: the field loses the focus (to another field of the app, another app, its window closing) or takes it
-    /// again. Losing it, the session is told (`blur`; `close` too as the window closes) and what it commits goes in, or,
-    /// in a host that cancels the composition then (Chromium's), the host commits the marked text it shows and drops what
-    /// the session puts in.
+    /// Snapshot of a field's document state while `FOCUS other` moves focus to a different field.
+    struct SavedField {
+        var app: String?
+        var document: String
+        var caretOffset: Int?
+        var selection: Range<Int>?
+        var marked: String
+        var markedBySession: Bool
+        var ledger: CommitLedger
+        var undo: [(document: String, caret: Int, ledger: CommitLedger)]
+    }
+
+    /// `FOCUS`: the field loses the focus (to another field of the app, another app, its window closing), takes it
+    /// again (`back`), or focus moves to a different field (`other`). Losing it, the session is told (`blur`; `close`
+    /// too as the window closes) and what it commits goes in, or, in a host that cancels the composition then
+    /// (Chromium's), the host commits the marked text it shows and drops what the session puts in.
     func focus(_ change: FocusChange) {
         switch change {
         case .away, .otherapp: leave(closing: false)
         case .closewindow: leave(closing: true)
         case .back:
             guard !focused else { return }
+            if let saved = savedField {
+                restoreField(saved)
+                savedField = nil
+            }
+            inABC = false
+            focusAgain()
+        case .other:
+            if focused { leave(closing: false) }
+            if savedField == nil { savedField = captureField() }
+            host.app = "com.example.other.\(profile.rawValue)"
+            setField(FieldMarkup(text: "", caret: 0))
             inABC = false
             focusAgain()
         }
+    }
+
+    private func captureField() -> SavedField {
+        SavedField(app: host.app, document: host.document, caretOffset: host.caretOffset, selection: host.selection,
+                   marked: host.marked, markedBySession: markedBySession, ledger: ledger, undo: undo)
+    }
+
+    private func restoreField(_ saved: SavedField) {
+        host.app = saved.app
+        host.document = saved.document
+        host.caretOffset = saved.caretOffset
+        host.selection = saved.selection
+        host.marked = saved.marked
+        markedBySession = saved.markedBySession
+        ledger = saved.ledger
+        undo = saved.undo
     }
 
     private func leave(closing: Bool) {

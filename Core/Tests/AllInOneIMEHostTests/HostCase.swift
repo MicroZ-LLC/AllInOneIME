@@ -51,9 +51,9 @@ enum HostAction: Sendable, Equatable {
 }
 
 enum FocusChange: String, Sendable {
-    /// Another field of the app takes the focus; this one takes it again; another app is brought forward; the window
-    /// closes.
-    case away, back, otherapp, closewindow
+    /// Another field of the app takes the focus; this one takes it again; another field takes the focus instead;
+    /// another app is brought forward; the window closes.
+    case away, back, other, otherapp, closewindow
 }
 
 /// A key as a scenario names it (`KEY`): a modifier tapped alone (`shift`: down and up), a press of Caps Lock, or a key
