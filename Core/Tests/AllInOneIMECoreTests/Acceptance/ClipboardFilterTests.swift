@@ -11,7 +11,6 @@ struct ClipboardFilterTests {
         id: "filter-image", width: 1280, height: 720, bytes: 2_516_582,
         thumbnail: "/tmp/filter-image-thumb.png")
     private let backspace = KeyEvent(keyCode: VirtualKey.delete, characters: "\u{7F}")
-    private let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
 
     private func host(chinese: Bool = false) -> FakeHost {
         let composer = Composer()
@@ -128,12 +127,13 @@ struct ClipboardFilterTests {
             try #require(paged.panel?.input?.text == "memo")
             #expect(paged.panel?.rows.map(\.text) == ["memo 1", "memo 2", "memo 3", "memo 4", "memo 5"])
             #expect(paged.panel?.detail?.contains("1–5 / 6") == true)
-            #expect(paged.press(FakeHost.right))
-            #expect(paged.panel?.rows.map(\.text) == ["memo 6"])
-            #expect(paged.panel?.rows.map(\.choice) == [5])
-            #expect(paged.panel?.detail?.contains("6–6 / 6") == true)
-            #expect(paged.press(left))
-            #expect(paged.panel?.rows.first?.text == "memo 1")
+            // With a filter typed → no longer turns the page (#178: it puts the filter in as typed, Issue178Tests): ↓
+            // past the page's end shows the rows after it.
+            for _ in 0..<5 { #expect(paged.press(FakeHost.down)) }
+            #expect(paged.panel?.rows.map(\.text) == ["memo 2", "memo 3", "memo 4", "memo 5", "memo 6"])
+            #expect(paged.panel?.rows.map(\.choice) == [1, 2, 3, 4, 5])
+            #expect(paged.panel?.highlighted == 4)
+            #expect(paged.panel?.detail?.contains("2–6 / 6") == true)
 
             let clicked = host()
             clicked.type("git")

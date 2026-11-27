@@ -1,0 +1,85 @@
+<!doctype html>
+<!-- A page for Scripts/blur-repro: a field that loses the focus without a click, a few seconds after its first key.
+     ?field=ta|ce      the field typed in: the textarea or the contenteditable div (default ta)
+     &kind=none|jsfocus|remove   what the page does `after` seconds after the first key: nothing, other.focus() (a
+                       message arriving in a chat app), or the field removed and put back by a re-render from the
+                       page's model (kept from `input` events, as React keeps it)
+     &after=4&back=5   seconds from the first key to the focus loss, and from there to the field focused again
+     What happened is in the window's title, which the driver reads: the fields' text, the model, the focused element
+     and the events in order (cs/cu/ce: composition start/update/end with its data; in: input; fo/bl: focus/blur). -->
+<html>
+<head>
+<meta charset="utf-8">
+<title>BLUR|loading</title>
+<style>
+  body { font: 16px -apple-system, sans-serif; margin: 24px; }
+  textarea, [contenteditable], input { display: block; width: 520px; margin: 8px 0 20px; font: inherit; padding: 6px; }
+  textarea, [contenteditable] { min-height: 60px; border: 1px solid #888; }
+  pre { color: #555; white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<div id="host"></div>
+<label>other <input id="other" placeholder="the focus moves here"></label>
+<pre id="log"></pre>
+<script>
+const query = new URLSearchParams(location.search)
+const which = query.get('field') === 'ce' ? 'ce' : 'ta'
+const kind = query.get('kind') || 'none'
+const after = Number(query.get('after') || 4), back = Number(query.get('back') || 5)
+const start = '你好'
+let model = start, events = [], armed = false
+
+function text(el) { return el ? (el.id === 'ta' ? el.value : el.textContent) : '(removed)' }
+function field() { return document.getElementById(which) }
+function publish() {
+  const active = document.activeElement
+  document.title = `BLUR|field=${text(field())}|model=${model}|active=${active && active.id || active && active.tagName}|ev=${events.join(',')}`
+  document.getElementById('log').textContent = document.title.split('|').join('\n')
+}
+function note(name) { events.push(name); if (events.length > 40) events.shift(); publish() }
+
+function render(focus) {
+  const host = document.getElementById('host')
+  host.innerHTML = '<label>textarea <textarea id="ta"></textarea></label><label>contenteditable <div id="ce" contenteditable="true"></div></label>'
+  for (const id of ['ta', 'ce']) {
+    const el = document.getElementById(id)
+    const value = id === which ? model : start
+    if (id === 'ta') el.value = value; else el.textContent = value
+    el.addEventListener('compositionstart', e => note('cs'))
+    el.addEventListener('compositionupdate', e => note('cu:' + e.data))
+    el.addEventListener('compositionend', e => note('ce:' + e.data))
+    el.addEventListener('input', e => { if (id === which) model = text(el); note('in') })
+    el.addEventListener('focus', () => note('fo'))
+    el.addEventListener('blur', () => note('bl'))
+    el.addEventListener('keydown', () => { if (id === which) arm() })
+  }
+  if (focus) caretToEnd()
+  publish()
+}
+function caretToEnd() {
+  const el = field()
+  el.focus()
+  if (which === 'ta') { el.setSelectionRange(el.value.length, el.value.length); return }
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  range.collapse(false)
+  getSelection().removeAllRanges()
+  getSelection().addRange(range)
+}
+// Once, from the first key in the field: no button and no click moves the focus.
+function arm() {
+  if (armed || kind === 'none') return
+  armed = true
+  setTimeout(() => {
+    if (kind === 'jsfocus') { note('page:other.focus()'); document.getElementById('other').focus() }
+    if (kind === 'remove') { note('page:re-render'); render(false) }
+    publish()
+    setTimeout(() => { note('page:field.focus()'); caretToEnd(); publish() }, back * 1000)
+  }, after * 1000)
+}
+document.getElementById('other').addEventListener('focus', () => note('other:fo'))
+render(true)
+</script>
+</body>
+</html>

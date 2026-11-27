@@ -56,7 +56,7 @@ For more detail (every command and setting, installation troubleshooting, privac
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
 A new install writes English; to type Chinese, French, Korean or Hindi too, add it in the settings (see [Input and translation](#input-and-translation)).
 
-What you're typing (pinyin, a command such as `@improve …`, a note) shows only on the top line of the candidate box, with its cursor, in every app: nothing is shown in the text field until you pick, insert or run it. Leaving the field while you type (a click anywhere, in the same field too, another app, closing the window or tab) drops the pinyin not yet picked, so nothing of it is left behind.
+What you're typing (pinyin, a command such as `@improve …`, a note) shows only on the top line of the candidate box, with its cursor, in every app: nothing is shown in the text field until you pick, insert or run it. Leaving the field with a click while you type (a click anywhere, in the same field too, in another app), or closing the window or tab, drops the pinyin not yet picked, so nothing of it is left behind. When the field loses the focus without a click (a notification or a dialog takes it, ⌘Tab, the page moves it), the panel hides and what you were typing is kept for that field (pinyin, the `@` list's text, a command you haven't run): back in the field it is there again as it was and you go on typing; if you type in another field instead, it is dropped. It comes back only in the field it was typed in, which the input method tells through macOS Accessibility: where it can't tell (Accessibility not allowed for AllInOneIME, or a page that doesn't tell its fields apart), it is dropped as you leave rather than shown in another field. It never comes back in a password field, and it is dropped when you switch to another input source, when the screen locks or the Mac sleeps, and after ten minutes.
 
 In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII digit, so `3.14`, `10:30` and `1,000` type as shown. Other punctuation and punctuation after other characters keep their usual behavior.
 
@@ -68,7 +68,7 @@ In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII d
 | Space, ⏎ / digits | Once the results are up: insert the highlighted / numbered one; 0 is the original. ⏎ inserts even with a refine half typed (it's dropped). In an `@question` conversation ⏎ asks the next question instead (with nothing typed, ⏎ and Space do nothing), and ⇧⏎ inserts the answer |
 | ⇧⏎ | With a refine typed after AI results: sends it. In an `@question` conversation: inserts the highlighted answer, dropping a question half typed. While a command is typed, or on other AI results with nothing typed: inserts what you typed as is, `@command` included. On other results (`@open`, a reminder …) it inserts the highlighted row, as ⏎ does |
 | ⌘C | Copies the highlighted result (for `@open`, the path); the candidate panel stays open |
-| ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); typing filters them (a Chinese text by its pinyin too). ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
+| ⌃V | Shows [clipboard history](#clipboard-history-new), the text and images you copied lately, newest first: ⏎ or Tab puts in the one chosen, ↓ ↑ choose, ⇧↓ ⇧↑ choose several (⏎ puts them in one per line, oldest first), ← → turn the page with more than 5 rows, Esc hides it (→ too, on one page); typing filters them (a Chinese text by its pinyin too), and → then puts in what you typed, as typed, and gives the keys back to the app. ⌃V ⏎ is the ⌃V you had, and ⌃V twice pastes as the app does (⌘V; ⌃V in a terminal or a code editor: vim, the shell). In a command (e.g. after `@improve `) the one you choose is appended after what you've typed instead of being pasted into the app: multiple lines become one, up to 2000 characters at a time (`@note` keeps the line breaks and takes up to 20000). Works in any app, terminals too. With clipboard history off, ⌃V in a command appends the clipboard text at once, and without a command it goes to the app as usual |
 | ← → | In a command's list once the command is picked (a script extension's or a plugin's rows, `@open`'s results, `@tasks`, `@imessage`'s recipients) and in clipboard history, with more rows than the 5 shown: the previous / next page, its first row chosen (← stays on the first page, → on the last); the footer says `← → page` and which rows show (`6–10 / 12`), and ↑↓ still move a row at a time. On one page they're as before: they move the cursor in the text after the command, and → at its end hides the list, as Esc. The command list, suggestion rows, pinyin candidates and AI results keep their own ← →. The wheel or the trackpad over the panel turns these pages too (down: the next), as it does pinyin's candidates; in the command list, one @, clipboard history and suggestions it moves a row |
 | ⌘V | The app's Paste. In a command not run yet it appends the clipboard text at once, no history, in every app: also where the app handles ⌘V itself (terminals such as Ghostty, iTerm2 and Terminal, and Notes), whose own paste then doesn't happen (with Accessibility allowed; without it they paste as well) |
 | Esc, ⌫ | Back to the sentence to keep editing; typing punctuation or digits after the results continues it. After a refine: back to the results before it |
@@ -106,8 +106,9 @@ Example: `@q` ⏎, type `what is quantum computing`, ⏎. `@note books to read: 
 In Chinese mode, `@open` switches to English letters for the moment and goes back to Chinese when you're done.
 
 A command you haven't run is never typed into the app, whether its text is Chinese or English: ⌘⏎ runs it, as ⏎ does
-(`@note` saves). Leaving the text field (another field or app clicked, or a click elsewhere in it), a password field
-taking over, or any other ⌘ shortcut (⌘A, ⌘S …) drops it, nothing typed in, and the shortcut goes on to the app. ⌘V
+(`@note` saves). Leaving the text field with a click (another field or app clicked, or a click elsewhere in it), a password field
+taking over, or any other ⌘ shortcut (⌘A, ⌘S …) drops it, nothing typed in, and the shortcut goes on to the app; the
+focus lost without a click keeps it for the field, as above. ⌘V
 pastes into it in every app, terminals and Notes too. ⌘← ⌘→ move to the start or end of its text, pinyin you're typing
 picked first, as with Space. ⇧⏎ still inserts it as typed, and `@note` keeps what you wrote (see
 [Notes and reminders](#notes-and-reminders)). A command that has run (its results up, or still coming in) leaves
@@ -1270,7 +1271,8 @@ suggestions use, and puts in the one you choose.
   top, once.
 - **Keys:** the same in every app and input, as in a command's list: ↓ ↑ choose (the wheel or the trackpad too), ⏎ or
   Tab puts the chosen one in, ← → turn the page (the first row of the new one chosen), Esc hides the panel, and so does
-  → when the rows fit on one page. Digits never pick: they filter, as letters do. A click puts in the row clicked.
+  → when the rows fit on one page. With a filter typed, → puts the filter in as you typed it and hides the panel, the
+  keys the app's again (→ itself goes on to the app, as after `@abc`; in a terminal it only ends the list), however many rows match (↓ ↑ past the page's end show the others). Digits never pick: they filter, as letters do. A click puts in the row clicked.
 - **Filter (0.7.3):** outside a command, what you type filters the rows, however many there are (one or two too):
   letters, digits and punctuation, in any case and width (`12345` finds １２３４５), anywhere in the text. A text with
   Chinese in it is found by its pinyin too, in full or by initials (`nihao` or `nh` finds 你好, `fabu v2` or `fb v2` finds
@@ -1278,8 +1280,9 @@ suggestions use, and puts in the one you choose.
   what you type goes into the filter as letters, no pinyin composed; an image by `image`, `图片` or its size (`1280`). The
   filter shows on the panel's top line and the footer's right says how many match (`Clipboard · 3 matches`, or
   `no match`). Space goes into it once something is typed, ⌫ takes a character back (with nothing typed, Space and ⌫ are
-  as before: the panel hides and the key goes on), and ↑↓, ← →, ⏎, Tab, ⇧↓ ⇧↑ and a click work on the rows it keeps,
-  numbered and paged afresh; Esc hides the panel. Nothing new is read: it searches only what the history keeps. In a
+  as before: the panel hides and the key goes on), and ↑↓, ⏎, Tab, ⇧↓ ⇧↑ and a click work on the rows it keeps,
+  numbered afresh (↓ ↑ past the page's end show the rest); → puts the filter in as typed and gives the keys back
+  (since 0.7.6: it no longer turns the filtered rows' page), ← hides the panel and goes on; Esc hides the panel. Nothing new is read: it searches only what the history keeps. In a
   command (⌃V after `@improve `), a key you type hides the panel and goes on as before.
 - **Several at once:** ⇧↓ and ⇧↑ choose more from the row you're on; the rows chosen are marked ✓, and ⏎ puts them all
   in, one per line, in the order you copied them (oldest first).
@@ -1493,7 +1496,8 @@ On a Mac with Apple Intelligence (Apple silicon, macOS 26 or later, turned on in
 
 ### Hiding sensitive information (new)
 
-Settings → More Settings → Privacy → "Hide sensitive information before sending" (off by default): before a request goes
+Settings → More Settings → Privacy → "Hide sensitive information before sending" (on by default for new installs since 0.7.6; an install from before
+keeps its setting, off unless you turned it on): before a request goes
 to the AI, what it finds in your text is replaced on the Mac with placeholders such as `[EMAIL_1]` (the same value, the
 same placeholder), and the results get the real values back before they're shown or inserted. The panel says "2 items
 hidden from the AI". Each kind is hidden while it's on; one set to `false` in the config isn't, and Settings then
@@ -1567,7 +1571,7 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
 | `unconfirmedCommands` | The `suggestions` custom commands that came from another Mac through iCloud and still await Allow on this one, each by its `name` and the `argv` it came with: none of them runs here. Allow (or editing or deleting it here) takes it off the list; its program changed on another Mac puts it back. Written by sync and Settings; this Mac's own, never synced | `[]` |
 | `notes` | Where `@note` saves (Settings → Commands → Notes): `{"destination": "folder", "folder": "~/Vault/Inbox"}`, or `"notion"` with the page or database Test found; never synced through iCloud Drive (the token is in the keychain, and goes through iCloud Keychain only with "API keys and passwords" on) | `destination: "notes"` |
 | `maxTokens` | The most output tokens an AI request may answer with, 200–4000; Settings shows it only when it isn't the default. A file's `1000`, the default before 0.6.7, reads as the new default | `2000` |
-| `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` (Settings then shows it, with Restore Default) | `enabled: false` |
+| `redaction` | Hide sensitive information from the AI (see Privacy): `{"enabled": true, "phones": false, "customWords": ["Phoenix"]}`; each detector (`emails`, `phones`, `cards`, `keys`, `ips`) is on unless set to `false` (Settings then shows it, with Restore Default) | `enabled: true` for a new install; a config file without the key stays `enabled: false` |
 
 ## Privacy
 
@@ -1586,13 +1590,13 @@ All settings are stored in `~/.config/allinoneime/config.json`; after a change, 
   when it can see images (the Claude API, Gemini, OpenAI's own API, Bedrock's Claude and Nova models, or the CLI
   answering questions). AllInOneIME never keeps or logs it, nor sends it when hiding sensitive information took something
   out; a CLI answering questions keeps it in that CLI's own session history, as it keeps the questions.
-- Hide sensitive information (Settings → More Settings → Privacy, off by default): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be left out in the config (`"phones": false`). Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
+- Hide sensitive information (Settings → More Settings → Privacy; on by default for new installs since 0.7.6, while an install from before keeps its setting, off unless you turned it on): before any request goes out (`@improve`, `@translate`, `@question`, your prompt commands and prompt plugins, with every provider including AllInOneIME Cloud), email addresses, phone numbers, payment card numbers (Luhn-checked), API keys and tokens (`sk-`, `sk-ant-`, `AKIA…`, `ghp_`, `xox…` and long random strings), IP addresses and your own words (a codename, a name) are replaced on the Mac with placeholders such as `[EMAIL_1]`, `[PHONE_1]`, `[ITEM_1]`; the same value gets the same placeholder. The model's results get the real values back before they're shown or inserted, and the panel says "2 items hidden from the AI". A result whose placeholder the model changed beyond recognition is shown as written, marked "⚠ placeholder changed". Jargon list entries holding a hidden value aren't sent. Each kind can be left out in the config (`"phones": false`). Full-width forms (`zhang＠example.com`, `１３８…`) are found too, and a value or phrase may be split by a line break. It recognizes formatted values like emails, numbers and keys; it can't recognize names or addresses (add those as your own words), nor look-alike letters from other alphabets. Applies to requests to your AI service; `@agent` (with the Chrome page it takes along), plugins that fetch from a website (`@stock`) or open one (`@x`) and script extensions send text as typed. In the config: `redaction` (`enabled`, `emails`, `phones`, `cards`, `keys`, `ips`, `customWords`).
 - Autocomplete (off by default) reads the text around the caret after each pause (up to 1,500 characters before it and
   200 after it, never during secure input, in a password field it can tell (without Accessibility a few aren't told:
   Troubleshoot says so) or in the apps it never runs in) and sends of it the
   caret's line, up to 200 characters before it in the same language and up to 200 after it to the AI provider you
   picked in Settings, the one commands use, with sensitive information hidden first only when "Hide sensitive
-  information before sending" (Settings → More Settings → Privacy, off by default) is on, as for any request;
+  information before sending" (Settings → More Settings → Privacy, on by default for new installs) is on, as for any request;
   with Apple Intelligence or AllInOneIME Cloud picked, it stays on this Mac (Apple Intelligence; never AllInOneIME Cloud).
   Where it's turned on, the switch says where the text goes. Nothing of it is kept but its last 20 suggestions in memory
   and its counts (no text) in the input method's own preferences.

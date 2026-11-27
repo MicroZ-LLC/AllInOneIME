@@ -12,7 +12,7 @@ struct ClipboardHistoryFilterTests {
     private let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
 
     /// A focused field, its history `texts` (newest first, the clipboard the newest), ⌃V pressed.
-    private func host(_ texts: [String], chinese: Bool = false) -> FakeHost {
+    private func host(_ texts: [String], chinese: Bool = false, terminal: Bool = false) -> FakeHost {
         let composer = Composer()
         composer.setInputMode(chinese ? .chinese : .english)
         var services = SessionServices(loadSettings: { .default })
@@ -24,6 +24,7 @@ struct ClipboardHistoryFilterTests {
         }
         host.clipboard = .text(texts[0])
         host.keepClipboardHistory()
+        host.terminal = terminal
         host.focus()
         #expect(host.press(FakeHost.controlV))
         return host
@@ -82,23 +83,37 @@ struct ClipboardHistoryFilterTests {
         }
     }
 
-    @Test func aFiltersRowsTurnPagesAndBackspaceStartsAgainOnTheFirst() async throws {
+    /// #178: with a filter typed → isn't the list's to turn: the filter goes in as typed, and the keys are the app's
+    /// again. ↓ past the page's end shows the rows after it.
+    @Test func aFiltersRowsScrollRightPutsTheFilterInAndBackspaceStartsAgainOnTheFirst() async throws {
         try await withInterfaceLanguage("en") {
             let h = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             h.type("memo")
             try #require(h.panel?.detail == "Clipboard · 8 matches · 1–5 / 8")
-            #expect(h.press(FakeHost.right))
-            #expect(h.panel?.rows.map(\.text) == ["memo 6", "memo 7", "memo 8"] && h.panel?.highlighted == 0)
-            #expect(h.press(FakeHost.right) && h.panel?.rows.first?.text == "memo 6")  // the last page: → stays
-            #expect(h.press(FakeHost.down) && h.press(FakeHost.enter) && h.document == "memo 7")
+            for _ in 0..<6 { #expect(h.press(FakeHost.down)) }
+            #expect(h.panel?.rows.map(\.text) == ["memo 3", "memo 4", "memo 5", "memo 6", "memo 7"] && h.panel?.highlighted == 4)
+            #expect(h.press(FakeHost.enter) && h.document == "memo 7")
 
+            let typed = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
+            typed.type("memo")
+            // As in the @ list: the filter goes in, and → itself goes on to the app.
+            #expect(!typed.press(FakeHost.right), "→ goes on to the app, after the filter went in")
+            #expect(typed.document == "memo" && typed.panel == nil)
+            // A terminal wouldn't act on the key after text went in during it: there → only ends the list, as the @ list's.
+            let terminal = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" }, terminal: true)
+            terminal.type("memo")
+            #expect(terminal.press(FakeHost.right) && terminal.document == "memo" && terminal.panel == nil)
             let widened = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             widened.type("memo 8")
             #expect(widened.panel?.rows.map(\.text) == ["memo 8"])
-            #expect(widened.press(FakeHost.right) && widened.panel == nil)  // one page: → hides, as Esc
+            #expect(!widened.press(FakeHost.right) && widened.panel == nil && widened.document == "memo 8")  // one page too
+            // ← with a filter typed is as on one page: the panel hides and the key goes on.
+            let left = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
+            left.type("memo")
+            #expect(!left.press(KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")) && left.panel == nil && left.document.isEmpty)
             let back = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             back.type("memo")
-            _ = back.press(FakeHost.right)
+            for _ in 0..<6 { _ = back.press(FakeHost.down) }
             #expect(back.press(backspace) && back.panel?.input?.text == "mem")
             #expect(back.panel?.rows.first?.text == "memo 1" && back.panel?.highlighted == 0 && back.panel?.detail?.contains("1–5 / 8") == true)
         }
@@ -130,7 +145,7 @@ struct ClipboardHistoryFilterTests {
             few.appTypesKeys = true
             #expect(few.press(KeyEvent(keyCode: 0, characters: "t")))
             #expect(few.panel?.input?.text == "t" && few.panel?.rows.map(\.text) == ["two", "three"] && few.document.isEmpty)
-            #expect(few.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
+            #expect(few.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → types the filter · Esc hides")
             #expect(few.press(backspace) && few.panel?.rows.count == 5)
             few.press(backspace)
             #expect(few.panel == nil)  // nothing typed: ⌫ hides it and goes on, as on more rows
@@ -331,8 +346,11 @@ struct ClipboardHistoryFilterTests {
             let h = host((1...8).map { "memo \($0)" })
             #expect(h.panel?.footer == "⏎ inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides")
             #expect(h.panel?.footerHints.hints.map(\.key) == ["⏎", "← →", ""])
-            h.type("memo 1")
-            #expect(h.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
+            h.type("memo")
+            // More than a page with a filter typed: no page key is promised, → puts the filter in (#178).
+            #expect(h.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → types the filter · Esc hides")
+            h.type(" 1")
+            #expect(h.panel?.footer == "⏎ inserts · ↑↓ to pick · ⇧↓ selects more · → types the filter · Esc hides")
             #expect(h.panel?.input == PanelModel.Input(prompt: "filter › ", text: "memo 1", caret: 6))
             h.type("x")
             #expect(h.panel?.footer == "⌫ deletes · Esc hides" && h.panel?.detail == "Clipboard · no match")

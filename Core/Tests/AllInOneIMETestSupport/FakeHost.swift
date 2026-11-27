@@ -302,6 +302,12 @@ public final class FakeHost: @unchecked Sendable {
         apply(inInterface { session.showNotice(text) })
     }
 
+    /// The shell found the field that took the focus to be the one it kept a draft for (`InputSession.releaseKeptDraft`,
+    /// after `holdKeptDraft` and the focus).
+    public func releaseKeptDraft() {
+        apply(inInterface { session.releaseKeptDraft() })
+    }
+
     /// Hands `event` to the session, as the shell does what isn't a key.
     public func send(_ event: SessionEvent) {
         if case .key = event { answerBeforeKey() }  // a key a test hands over itself comes after the focus's answer too

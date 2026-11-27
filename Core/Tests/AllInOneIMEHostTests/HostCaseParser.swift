@@ -12,7 +12,7 @@ import AllInOneIMETestSupport
 ///     TYPE     nihao                        plain keys, one a character (quoted for spaces or #)
 ///     KEY      space enter shift cmd+z …    keys by name, modifiers joined with +; one or more
 ///     CLICK    inside 2 | outside
-///     FOCUS    away | back | otherapp | closewindow
+///     FOCUS    away | back | other | otherfield | otherapp | closewindow
 ///     SWITCH   abc | back
 ///     APP      clears
 ///     WAIT     300ms | 1.5s
@@ -75,7 +75,7 @@ enum HostCaseParser {
         case "TYPE": return .type(try text(arguments))
         case "KEY": return .keys(try words(arguments).map(keySpec))
         case "CLICK": return .click(try click(arguments))
-        case "FOCUS": return .focus(try oneOf(arguments, FocusChange.init(rawValue:), "away, back, otherapp or closewindow"))
+        case "FOCUS": return .focus(try oneOf(arguments, FocusChange.init(rawValue:), "away, back, other, otherfield, otherapp or closewindow"))
         case "SWITCH": return .switchSource(toABC: try oneOf(arguments, ["abc": true, "back": false], "abc or back"))
         case "APP": return try oneOf(arguments, ["clears": .appClears], "clears")
         case "WAIT": return .wait(try duration(arguments))

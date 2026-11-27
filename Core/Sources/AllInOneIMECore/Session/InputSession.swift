@@ -129,6 +129,8 @@ public final class InputSession {
     private var passwordFieldRefusal: String?
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     var keyContext: FieldContext?
+    /// The field left without a click while something was being typed, its draft kept for it (InputSession+KeptDraft.swift).
+    var keptDraft: KeptDraft?
     var keyBeingHandled: KeyEvent?
     var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
@@ -233,16 +235,15 @@ public final class InputSession {
             }
             switch event {
             case let .key(key, context):
+                keptDraftTypedIn(context)  // a key with no focus told first: the field is typed in again
                 handled = self.key(key, context)
             case let .modifiers(change, context):
+                keptDraftBeforeModifiers(change, context)  // with no focus told first, as a key; a held one goes
                 handled = modifiers(change, context)  // the application sees modifier changes too, but for a tap taken
             case let .focus(info):
-                focus(info)
+                focusing(info) { focus(info) }
             case .blur:
-                autocompleteLeft(.ignored)
-                clipboardLeft()
-                suggestionsLeft()
-                perform(composer.leaveField())
+                blurred()
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
                 let unwritten = services.unwrittenRemovals?()
@@ -310,7 +311,7 @@ public final class InputSession {
             case let .ghostNotShown(text):
                 autocompleteNotShown(text)
             case .close:
-                autocompleteLeft(.unseen)
+                closedKeptDraftAndAutocomplete()
                 clipboardLeft()
                 suggestionsLeft()
                 learnTypedInEnglish(englishModeWords.leftField())
