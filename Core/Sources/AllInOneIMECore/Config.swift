@@ -759,10 +759,9 @@ public struct Config: Codable, Equatable, Sendable {
     /// `fresh`, translating into the first of `languages` (the system's preferred ones) that isn't
     /// English (`OutputLanguage.preferred`); English when there is none, until one is added.
     public static func fresh(preferring languages: [String]) -> Config {
-        var config = Config.default
+        var config = Config.default.hidingSensitiveInformation
         if HostedService.isConfigured { config.provider = .hosted }
         if let language = OutputLanguage.preferred(from: languages) { config.setOrder([language]) }
-        config.redaction = RedactionSettings(enabled: true)
         return config
     }
 
