@@ -458,20 +458,23 @@ extension AllInOneIMEInputController {
     /// Mac's, or a test's.
     @MainActor static var focusedFieldReaders = FocusedFieldReaders()
 
-    /// Whether Accessibility tells the focused element is a password field (`FocusedField.isSecure`, the self-test's
-    /// `passwordField` for its harness field; nil: it can't tell, which the session counts as unknown, never as none),
-    /// asked off the main thread, once the key that asks it is answered
-    /// (`SessionOutput.readPasswordField`: Accessibility may wait a quarter of a second for each of its two calls, more
-    /// than a key may), and handed back for the focus it was asked in (`SessionEvent.passwordField`).
+    /// Whether Accessibility tells the focused element of the app being typed in (`client`'s: the field the session
+    /// asks about) is a password field (`FocusedField.isSecure(in:)`, the self-test's `passwordField` for its harness
+    /// field; nil: it can't tell, which the session counts as unknown, never as none), asked off the main thread, once
+    /// the key that asks it is answered (`SessionOutput.readPasswordField`: Accessibility may wait a quarter of a second
+    /// for each of its two calls, more than a key may), and handed back for the focus it was asked in
+    /// (`SessionEvent.passwordField`). Never asked while secure input is on (the session doesn't ask then either):
+    /// unknown.
     @MainActor
-    func readPasswordField(focus: Int) {
+    func readPasswordField(focus: Int, in client: IMKTextInput?) {
         let box = WeakBox(self)
         let told: @Sendable (Bool?) -> Void = { answer in
             DispatchQueue.main.async { MainActor.assumeIsolated { box.value?.received(.passwordField(answer, focus: focus)) } }
         }
         if let harness = passwordField { return told(harness()) }
-        let read = Self.focusedFieldReaders.isSecure
-        DispatchQueue.global(qos: .userInitiated).async { told(read()) }
+        if services.secureInputActive() { return told(nil) }
+        let (read, app) = (Self.focusedFieldReaders.isSecure, (client ?? clientOverride ?? self.client())?.bundleIdentifier())
+        DispatchQueue.global(qos: .userInitiated).async { told(read(app)) }
     }
 
     /// Where the caret is on the screen (as tall as its line), as the field tells it for an empty range there: nil
@@ -536,9 +539,10 @@ extension AllInOneIMEInputController {
     /// the caret (nothing of it during secure input or in a password field). Whether it is a password field is asked of
     /// Accessibility first, off the main thread (each of its two calls may wait a quarter of a second on an app slow to
     /// answer; the self-test's harness field, which isn't the one focused, is told by the self-test: `passwordField`);
-    /// the rest is read on the main thread once that is answered, never before this event is done, and handed back.
+    /// the rest is read on the main thread once that is answered, never before this event is done, and handed back for
+    /// the focus it was asked in (`focus`, the session's count: it drops what comes back once another field has it).
     @MainActor
-    func readFieldAfterPause(id: Int, in client: IMKTextInput?) {
+    func readFieldAfterPause(id: Int, in client: IMKTextInput?, focus: Int? = nil) {
         let (box, held) = (WeakBox(self), MainThreadBox(client))
         let read: @Sendable (Bool?) -> Void = { told in
             DispatchQueue.main.async {
@@ -549,23 +553,24 @@ extension AllInOneIMEInputController {
                     // selection and the text around the caret (`FieldReading.contextAfterPause`).
                     var reading = self.fieldReading
                     reading.passwordField = { told }
-                    self.received(.field(reading.contextAfterPause(in: target, id: id), id: id))
+                    self.received(.field(reading.contextAfterPause(in: target, id: id), id: id, focus: focus))
                 }
             }
         }
         if let harness = passwordField { return read(harness()) }
         // Secure input on: nothing of the field is read, nor asked of Accessibility.
         if services.secureInputActive() { return read(nil) }
-        let isSecure = Self.focusedFieldReaders.isSecure
-        DispatchQueue.global(qos: .userInitiated).async { read(isSecure()) }
+        let (isSecure, app) = (Self.focusedFieldReaders.isSecure, (client ?? clientOverride ?? self.client())?.bundleIdentifier())
+        DispatchQueue.global(qos: .userInitiated).async { read(isSecure(app)) }
     }
 }
 
 /// What the input method asks Accessibility of the focused element (`FocusedField`), off the main thread where it may
 /// wait on an app: this Mac's, or a test's.
 struct FocusedFieldReaders {
-    /// Whether it is a password field (`FocusedField.isSecure`; nil: it can't tell).
-    var isSecure: @Sendable () -> Bool? = { FocusedField.isSecure() }
+    /// Whether the focused element of the app being typed in (its bundle id) is a password field
+    /// (`FocusedField.isSecure(in:)`; nil: it can't tell).
+    var isSecure: @Sendable (String?) -> Bool? = { FocusedField.isSecure(in: $0) }
     /// Its frame, given the main screen's top (`FocusedField.frame`).
     var frame: @Sendable (CGFloat) -> NSRect? = { FocusedField.frame(top: $0) }
 }

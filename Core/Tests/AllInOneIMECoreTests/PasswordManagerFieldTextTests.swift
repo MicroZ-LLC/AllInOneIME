@@ -40,6 +40,8 @@ extension InputSessionTests {
                 for host in hosts {
                     host.document = "Recovery code: 4F2K-9QX1"
                     host.selection = 15..<24
+                    // Told to be no password field: only then is a field read at all (`fieldMayNotBeRead`).
+                    host.send(.passwordField(false, focus: host.session.fieldSession))
                 }
                 return hosts
             }

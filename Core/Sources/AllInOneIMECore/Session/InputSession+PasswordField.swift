@@ -6,12 +6,139 @@ import Foundation
 /// learned and where the shell tells it so (`FieldContext.passwordFieldFollows`); and with each read autocomplete's pause
 /// makes.
 extension InputSession {
+    /// A key or a modifier change may arrive for another field before activate; stop carrying private text, rows, a
+    /// completion or what was told of the field before into it (`anotherField`). Then what its own read says of the
+    /// field is taken (`takePasswordField`), and only then is the text read with it kept (`fieldText`, what `@reply`
+    /// falls back on after dictation): in a field told to be no password field, with secure input off and its text not
+    /// staying here; anywhere else nothing is kept, what was kept before neither.
+    func prepareKeyField(_ context: FieldContext) {
+        if let current = context.field, !current.isSameField(as: keyField ?? field) { anotherField(current) }
+        let staysHere = (context.field ?? field).textStaysHere
+        // Nor is the word before kept: learned once the field is left, it would go by the field the session was told.
+        if staysHere { englishModeWords = EnglishModeWords() }
+        if let current = context.field, current != field, current.textStaysHere {
+            autocompleteLeft(.unseen)
+            suggestionsSecure()
+        }
+        takePasswordField(context)
+        if staysHere || context.secure || field.secure || fieldMayNotBeRead() {
+            fieldText = nil
+        } else if context.read.contains(.text) {
+            fieldText = context.text
+        }
+    }
+
+    /// A key or a modifier change came for `current`, another field than the one the session was told of last (no
+    /// focus told before it, or the field left: `fieldLeft`): nothing told of the field before is told of this one. It
+    /// counts as a field of its own (`fieldSession`: an answer on its way for the one before is dropped), not told
+    /// yet, and the shell is asked about it at once, as where a field takes the focus (`passwordFieldFocused`).
+    private func anotherField(_ current: FieldInfo) {
+        keyField = FieldInfo(app: current.app, terminal: current.terminal)
+        fieldSession += 1
+        (passwordField, fieldText) = (nil, nil)
+        if !secureInputActive(), !current.textStaysHere { askPasswordField() }
+    }
+
+    /// The field lost the focus (`SessionEvent.blur`): what was told of it, and its text as last read, are no other
+    /// field's. A key that comes with no focus told before it is in a field not told yet, asked about then.
+    func fieldLeft() {
+        fieldSession += 1
+        (passwordField, fieldText, keyField) = (nil, nil, nil)
+    }
+
+    /// What the field says once typing paused (`SessionEvent.field`; `id` below 0: Code's read of the field's words,
+    /// else autocomplete's), unless the field it was asked in (`focus`) has lost the focus since: then it says nothing
+    /// of this one, not whether it is a password field either.
+    func fieldRead(_ context: FieldContext, id: Int, focus: Int?) {
+        guard focus == nil || focus == fieldSession else { return }
+        takePasswordField(context)
+        if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
+    }
+
     /// Whether nothing of this field may leave the device: secure input on (`secureInputActive`), or a field told to be a
     /// password field where it isn't (`passwordField`), as if it were. Then no AI row is listed, an AI command, a message
     /// or a note to Notion is refused, a script isn't given what is typed, Translate as You Type collects nothing, and
     /// neither the selection nor the text around the caret is read for a command. A field not told yet, or one the shell
-    /// couldn't tell, is as any other. The one check for all of these: the composer's (`Composer.secureInputActive`) too.
-    public func nothingLeavesDevice() -> Bool { secureInputActive() || passwordField == .yes }
+    /// couldn't tell, isn't refused so: a command still sends what the user typed for it there, but doesn't read the
+    /// field (`fieldMayNotBeRead`).
+    public func nothingLeavesDevice() -> Bool {
+        secureInputActive() || passwordField == .yes
+    }
+
+    /// Whether a command may not read this field (the selection, the text around the caret): anywhere but in a field
+    /// told to be no password field (`PasswordField.no`) with secure input off. So also not in one the shell couldn't
+    /// tell (`PasswordField.unknown`: the Mac without Accessibility can't tell a password field apart), nor in one not
+    /// told yet, asked about or not: read as a password field is, that is, not at all, until it is known to be none (the
+    /// owner's decision, 2026-11-26). A field is asked about as it takes the focus (`passwordFieldFocused`); one not
+    /// asked about yet is asked before anything reads it (`fieldWants`, `fieldMayBeReadOrAsks`), and what would have
+    /// read it goes on without. What the user typed for the command is theirs to send
+    /// (`nothingLeavesDevice` is no wider), and autocomplete's own read is its own (`fieldIsPrivate`).
+    func fieldMayNotBeRead() -> Bool {
+        secureInputActive() || passwordField != .no
+    }
+
+    /// Whether a command may read the field once `context` (a key's reads so far) is taken (`takePasswordField`): told
+    /// to be no password field before, or by `context`. What `fieldWants` goes by, before the key is handled.
+    func fieldMayBeRead(given context: FieldContext) -> Bool {
+        guard !secureInputActive(), !context.secure else { return false }
+        let known = passwordField(for: context)
+        guard let told = told(by: context) else { return known == .no }
+        return Self.passwordField(told: told, over: known) == .no
+    }
+
+    /// What is told of the field `context` comes for: `passwordField`, or nothing yet where it comes for another field
+    /// than the one told (`prepareKeyField` takes that in once the key is handled).
+    func passwordField(for context: FieldContext) -> PasswordField? {
+        if let current = context.field, !current.isSameField(as: keyField ?? field) { return nil }
+        return passwordField
+    }
+
+    /// What of the field a modifier change may need, given what was read of it so far: `@reply`'s text, where a tap of
+    /// Option runs it, by the gate a key's read goes by (`fieldMayBeRead(given:)`: only in a field told to be no
+    /// password field, what the change's own read says of it counted; one not told yet is asked first), nor where its
+    /// text stays here (`FieldInfo.textStaysHere`).
+    public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
+        guard context.read.contains(.secure), !context.secure, !field.secure, composer.draftCommand == .reply,
+              composer.actionKey == .optionTap, !(context.field ?? field).textStaysHere else { return [.secure] }
+        if fieldMayBeRead(given: context) { return [.secure, .text] }
+        return passwordField(for: context) == nil ? [.secure, .passwordField] : [.secure]
+    }
+
+    /// Whether a command may read the field now (`fieldMayNotBeRead`); in a field not asked about yet, the shell is asked
+    /// (`askPasswordField`: told later, read from then on).
+    func fieldMayBeReadOrAsks() -> Bool {
+        askPasswordField()
+        return !fieldMayNotBeRead()
+    }
+
+    // MARK: What the composer asks of the field
+
+    /// Whether "@" may read the field's selection and work on it: with the setting on (`useSelection`) and the app not
+    /// learned as one whose field doesn't take a result in its place (`usesSelection`), never during secure input, nor in
+    /// a field not known to be no password field (`fieldMayNotBeRead`: one not asked about is asked now, and "@" starts
+    /// on nothing meanwhile), nor in a terminal (its selection is no text being edited: what goes back would be typed at
+    /// the prompt), nor in a password manager, whatever its field says (`FieldInfo.textStaysHere`: a command starts
+    /// there as in a terminal).
+    func selectionMayBeRead() -> Bool {
+        usesSelection(in: app, config: services.loadSettings()) && !fieldTextStaysHere && fieldMayBeReadOrAsks()
+    }
+
+    /// `selected`, read after the "@" key, where the draft may take it (`selectionMayBeRead`: a field told a password field
+    /// meanwhile too).
+    func usable(_ selected: Composer.Selection?) -> Composer.Selection? {
+        guard let selected, !selected.text.isEmpty, selectionMayBeRead() else { return nil }
+        return selected
+    }
+
+    /// The text around the caret, for `@reply` (`Composer.readFieldText`): as the field told it with the key that runs it
+    /// (or last: after dictation). None during secure input, in a field known as a password field or in one not known to
+    /// be none (`fieldMayNotBeRead`: one not asked about is asked now), nor in a terminal or a password manager
+    /// (`FieldInfo.textStaysHere`).
+    func readFieldText() -> FieldText? {
+        guard !fieldTextStaysHere, fieldMayBeReadOrAsks() else { return nil }
+        if let context = keyContext, context.read.contains(.text) { return context.text }
+        return fieldText
+    }
 
     /// What the shell told of the field that has the focus being a password field where secure input isn't on
     /// (`passwordField`).
@@ -46,32 +173,69 @@ extension InputSession {
     /// What `context` tells of the field being a password field where secure input isn't on (`passwordField`): one
     /// (`field`'s `secure`), else asked (`.passwordField`) none or, where the shell couldn't tell
     /// (`passwordFieldUnknown`), unknown (`takePasswordField(_:)`); where the shell tells it after the key
-    /// (`passwordFieldFollows`), not told yet until it does (`askPasswordField`): no rows, nothing learned meanwhile.
+    /// (`passwordFieldFollows`), not told yet until it does (`askPasswordField`): no rows, nothing learned, nothing read
+    /// for a command meanwhile.
     func takePasswordField(_ context: FieldContext) {
         guard context.read.contains(.secure), !context.secure else { return }
-        if context.field?.secure == true {
-            takePasswordField(.yes)
+        if let told = told(by: context) {
+            takePasswordField(told)
         } else if context.passwordFieldFollows {
             askPasswordField()
-        } else if context.read.contains(.passwordField) {
-            takePasswordField(context.passwordFieldUnknown ? .unknown : .no)
         }
     }
 
-    /// `told` of the field that has the focus: one stays one until another field takes the focus; none is taken over
-    /// one not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told
-    /// yet.
-    func takePasswordField(_ told: PasswordField) {
-        switch (told, passwordField) {
-        case (.yes, _), (_, nil), (.no, .unknown?): passwordField = told
-        default: break
+    /// What `context` says the field is (nil: nothing, or that it is told after the key). A "none" that doesn't say
+    /// whose field it is (`FieldContext.field`) isn't taken while the shell's own answer is awaited
+    /// (`passwordFieldAwaited`): that answer tells it.
+    private func told(by context: FieldContext) -> PasswordField? {
+        guard context.read.contains(.secure), !context.secure else { return nil }
+        if context.field?.secure == true { return .yes }
+        guard !context.passwordFieldFollows, context.read.contains(.passwordField),
+              context.field != nil || context.passwordFieldUnknown || !passwordFieldAwaited else { return nil }
+        return context.passwordFieldUnknown ? .unknown : .no
+    }
+
+    /// What the field is once it is `told`: one stays one until another field takes the focus; none is taken over one
+    /// not told yet or not told apart (a read that tells after one that couldn't); unknown only over one not told yet.
+    private static func passwordField(told: PasswordField, over known: PasswordField?) -> PasswordField? {
+        switch (told, known) {
+        case (.yes, _), (_, nil), (.no, .unknown?): return told
+        default: return known
         }
+    }
+
+    /// `told` of the field that has the focus (`passwordField(told:)`). Told a password field just now, nothing of it is
+    /// kept: suggestions' rows and token go, autocomplete's pause, its request on its way and what was typed for it
+    /// (as where secure input comes on); and an "@" list open is shown again, without its AI rows (`Composer.oneAtRows`).
+    func takePasswordField(_ told: PasswordField) {
+        let before = passwordField
+        passwordField = Self.passwordField(told: told, over: passwordField)
+        guard before != .yes, passwordField == .yes else { return }
+        autocompleteLeft(.unseen)
+        suggestionsSecure()
+        if composer.oneAt != nil { perform([.showPanel]) }
+    }
+
+    /// Whether the shell was asked about this field (`askPasswordField`: as it took the focus, mostly) and hasn't
+    /// answered yet.
+    private var passwordFieldAwaited: Bool { passwordFieldAsked == fieldSession && passwordField == nil }
+
+    /// A field took the focus: nothing is told of it yet, and the shell is asked at once (`askPasswordField`, off the
+    /// main thread on the Mac), so that the answer is usually back before the first key: an "@" pressed first in a field
+    /// then takes the selected text (`selectionMayBeRead`). Not during secure input (nothing is read there whatever the
+    /// answer), nor where no command reads the field whatever it is (a terminal, a password manager:
+    /// `FieldInfo.textStaysHere`; what else goes by the answer there asks with its key, as before).
+    func passwordFieldFocused() {
+        (passwordField, keyField) = (nil, nil)
+        if !secureInputActive(), !field.textStaysHere { askPasswordField() }
     }
 
     /// The shell asked, off the key's thread (`SessionOutput.readPasswordField`), whether the field that has the focus is a
-    /// password field: once a field, while it isn't told yet. No key waits for the answer (`passwordFieldTold`).
+    /// password field: once a field, while it isn't told yet, and never while secure input is on (the Mac's answer is
+    /// Accessibility's: nothing is asked of it then, and nothing is read there whatever the answer; asked once it is
+    /// off). No key waits for the answer (`passwordFieldTold`).
     func askPasswordField() {
-        guard passwordField == nil, passwordFieldAsked != fieldSession else { return }
+        guard passwordField == nil, passwordFieldAsked != fieldSession, !secureInputActive() else { return }
         passwordFieldAsked = fieldSession
         emit(.readPasswordField(focus: fieldSession))
     }
@@ -83,7 +247,6 @@ extension InputSession {
         guard focus == fieldSession else { return }
         let before = passwordField
         takePasswordField(told.map { $0 ? .yes : .no } ?? .unknown)
-        guard before == nil, let now = passwordField, !composesBesidesCodeWord else { return }
-        if now == .yes { suggestionsSecure() } else { suggestionsUpdate() }
+        if before == nil, passwordField != .yes, !composesBesidesCodeWord { suggestionsUpdate() }
     }
 }

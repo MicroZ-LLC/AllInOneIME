@@ -63,14 +63,15 @@ public struct HostCallRecording: Sendable {
 
     /// A key down's fields: one that types text (a character, the space bar's excepted, with neither ⌘ nor ⌃ held) is
     /// `"key":"text"` and its length, its key code and characters only where the recording keeps text; any other key
-    /// is its name (`Key.name`), code and modifiers, and a shortcut's characters ("v" of ⌘V).
+    /// is its name (`Key.name`), code and modifiers, and a shortcut's characters ("v" of ⌘V). A dead key types too: as
+    /// the Mac's key down tells it, it has no characters, with its modifiers or without them (the French ^, ⌥E).
     public func key(_ key: KeyEvent) -> [String: Field] {
         let modifiers = Self.modifierNames(key.modifiers)
         var fields: [String: Field] = ["mods": .name(modifiers.joined(separator: "+"))]
         if key.isRepeat { fields["repeat"] = .bool(true) }
         let shortcut = !key.modifiers.isDisjoint(with: [.command, .control])
-        let typesText = key.key == .character && !shortcut && !key.characters.isEmpty
-            && key.characters.unicodeScalars.allSatisfy(KeyEvent.isPrintable)
+        let typesText = key.key == .character && !shortcut
+            && (key.isDeadKey || key.characters.unicodeScalars.allSatisfy(KeyEvent.isPrintable))
         if typesText {
             fields["key"] = .name("text")
             fields["chars"] = .text(key.characters)
@@ -96,7 +97,8 @@ public struct HostCallRecording: Sendable {
     }
 
     private func line(kind: String, name: String, time: TimeInterval, _ fields: [String: Field]) -> String {
-        var object: [String: Any] = [kind: name, "t": (max(time, 0) * 1000).rounded() / 1000]
+        let milliseconds = max(time, 0) * 1000
+        var object: [String: Any] = [kind: name, "t": milliseconds.isFinite ? milliseconds.rounded() / 1000 : 0]
         for (key, field) in fields { object[key] = value(field) }
         return Self.encode(object)
     }
@@ -113,8 +115,9 @@ public struct HostCallRecording: Sendable {
         case let .int(number): return number
         case let .bool(flag): return flag
         case let .name(name): return name
-        case let .rect(x, y, width, height): return [x, y, width, height]
-        case let .point(x, y): return [x, y]
+        case let .rect(x, y, width, height):
+            return [x, y, width, height].allSatisfy(\.isFinite) ? [x, y, width, height] : NSNull()
+        case let .point(x, y): return x.isFinite && y.isFinite ? [x, y] : NSNull()
         }
     }
 
@@ -158,14 +161,18 @@ public struct HostCallRecording: Sendable {
         public func range(_ key: String) -> Range<Int>? {
             guard case let .array(pair)? = fields[key], pair.count == 2, case let .number(location) = pair[0],
                   case let .number(length) = pair[1] else { return nil }
-            return Int(location)..<Int(location + length)
+            guard let start = Int(exactly: location), let count = Int(exactly: length), start >= 0, count >= 0 else { return nil }
+            let (end, overflow) = start.addingReportingOverflow(count)
+            return overflow ? nil : start..<end
         }
 
         /// How long a text field is (UTF-16 units), whether the text was kept or only its length; nil where none was told.
         public func length(_ key: String) -> Int? {
             switch fields[key] {
             case let .string(text)?: text.utf16.count
-            case let .object(object)?: object["len"].flatMap { if case let .number(length) = $0 { Int(length) } else { nil } }
+            case let .object(object)?: object["len"].flatMap {
+                if case let .number(length) = $0, let count = Int(exactly: length), count >= 0 { count } else { nil }
+            }
             default: nil
             }
         }

@@ -78,14 +78,15 @@ struct MainThreadWaitsTests {
     }
 
     /// A shell that reads the password field with the key (`passwordFieldFollows` false) is as before: told at once,
-    /// nothing asked after it.
+    /// nothing asked after it (the focus asked, once; its answer hasn't come).
     @Test func aPasswordFieldReadWithTheKeyIsToldAtOnce() {
         let host = FakeHost(services: SessionServices())
+        host.fieldReadsWait = true
         host.focus()
         var context = host.context
         context.read.insert(.passwordField)
         context.passwordFieldUnknown = true
         host.press(Self.letter("a"), with: context)
-        #expect(host.session.passwordField == InputSession.PasswordField.unknown && host.passwordFieldReads == 0)
+        #expect(host.session.passwordField == InputSession.PasswordField.unknown && host.passwordFieldReads == 1)
     }
 }

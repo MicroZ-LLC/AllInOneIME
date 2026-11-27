@@ -434,7 +434,7 @@ extension InputSession {
             // id below 0).
             guard pause == suggesting.wordsPause, codeReadsTheField() else { return }
             suggesting.wordsReading = pause
-            emit(.readField(id: -pause))
+            emit(.readField(id: -pause, focus: fieldSession))
         }
     }
 
@@ -602,7 +602,7 @@ extension InputSession {
     /// they may: where it left the caret isn't known then, no token until the next boundary.
     func suggestionsAfterKey(_ key: KeyEvent, handled: Bool, inserted: String, held: (before: String, after: String) = ("", ""),
                              context: FieldContext) {
-        guard !fieldIsPrivate(unknown: false) else { return suggestionsSecure() }
+        guard !fieldIsPrivate(unknown: false), !PasswordManagers.contains(app) else { return suggestionsSecure() }
         let now = services.uptime()
         let mayShow = suggestionsMayShow()
         var held = held

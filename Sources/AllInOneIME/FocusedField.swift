@@ -6,22 +6,47 @@ import AppKit
 enum FocusedField {
     static func element() -> AXUIElement? {
         guard AXIsProcessTrusted() else { return nil }
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.25)
+        return focusedElement(of: AXUIElementCreateSystemWide())
+    }
+
+    /// The focused element `root` tells (the system-wide element: whichever app's is in front just now; an app's: its
+    /// own), a quarter of a second at most.
+    private static func focusedElement(of root: AXUIElement) -> AXUIElement? {
+        AXUIElementSetMessagingTimeout(root, 0.25)
         var focused: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(system, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
+        guard AXUIElementCopyAttributeValue(root, kAXFocusedUIElementAttribute as CFString, &focused) == .success,
               let focused, CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
         let element = focused as! AXUIElement  // checked just above
         AXUIElementSetMessagingTimeout(element, 0.25)
         return element
     }
 
-    /// Whether it is a password field (`AXSecureTextField`): one whose app doesn't turn secure event input on for it, or
-    /// not yet (a web page's, a field of the app's own drawing). Nil where it can't be told (`element`'s, and a read of
-    /// its subrole that fails: no answer in time, the element gone), never false then; one that has no subrole is none.
+    /// The focused element of `app` (a bundle id: the app being typed in), asked of that app itself as `caret` asks
+    /// it, never of whichever app is in front just now: as the focus goes from one app to another, the system-wide
+    /// focused element may still be the app's before, and what it says isn't this field's. Nil where it can't be told:
+    /// `element`'s reasons, no app told, or none running by that id.
+    static func element(in app: String?) -> AXUIElement? {
+        guard AXIsProcessTrusted(), let pid = process(of: app) else { return nil }
+        return focusedElement(of: AXUIElementCreateApplication(pid))
+    }
+
+    /// The process of `app` (a bundle id) that is typed in: the active one of those running by that id, else the only
+    /// one (a panel that doesn't make its app the active one: a launcher's). Nil: none told, none running, or several
+    /// with none of them active (which one is typed in can't be told). Any thread.
+    static func process(of app: String?) -> pid_t? {
+        guard let app, !app.isEmpty else { return nil }
+        let running = NSRunningApplication.runningApplications(withBundleIdentifier: app)
+        if let active = running.first(where: \.isActive) { return active.processIdentifier }
+        return running.count == 1 ? running.first?.processIdentifier : nil
+    }
+
+    /// Whether the focused element of `app` (a bundle id: the app being typed in, `element(in:)`) is a password field
+    /// (`AXSecureTextField`): one whose app doesn't turn secure event input on for it, or not yet (a web page's, a field
+    /// of the app's own drawing). Nil where it can't be told (`element(in:)`'s, and a read of its subrole that fails: no
+    /// answer in time, the element gone), never false then; one that has no subrole is none.
     /// Any thread (`readPasswordField` asks off the main one).
-    static func isSecure() -> Bool? {
-        guard let element = element() else { return nil }
+    static func isSecure(in app: String?) -> Bool? {
+        guard let element = element(in: app) else { return nil }
         var subrole: CFTypeRef?
         switch AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) {
         case .success: return subrole as? String == kAXSecureTextFieldSubrole as String

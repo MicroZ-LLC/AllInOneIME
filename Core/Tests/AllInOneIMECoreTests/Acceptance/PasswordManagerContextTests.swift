@@ -145,6 +145,14 @@ fileprivate enum PMContext {
         return secrets.filter { secret in texts.contains { $0.contains(secret) } }
     }
 
+    /// The shell answers that `host`'s field is no password field, as it does once it was asked (asked as soon as the
+    /// field has the focus: `SessionEvent.passwordField`). Only then may a command read the field (owner decision
+    /// 2026-11-26: a field not asked about, or whose answer is pending or unknown, is read as a password field is).
+    static func toldNoPasswordField(_ host: FakeHost) -> FakeHost {
+        host.send(.passwordField(false, focus: host.session.fieldSession))
+        return host
+    }
+
     /// Whether "@" (typed first in the field) asks the field for its selection, once secure input is read off.
     static func selectionWanted(_ host: FakeHost) -> Bool {
         !host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)).isDisjoint(with: [.selection, .selectedRange])
@@ -408,23 +416,26 @@ struct PasswordManagerContextTests {
     // MARK: 4. Nothing else changes
 
     /// Outside password managers the selection is still read and worked on, and @reply still sends the text around the
-    /// caret (passes today: the control).
-    @Test func outsidePasswordManagersTheSelectionIsStillUsed() async {
-        await withInterfaceLanguage("en") {
-            let asked = PMContext.host(app: PMContext.editor, field: .selected, model: PMContextModel())
+    /// caret: once the shell has said the field is no password field (owner decision 2026-11-26: a command reads a
+    /// field only then; one never asked about is read as a password field is, which `PasswordFieldUnknownTests` and
+    /// `Review076PasswordFieldTests` cover). The control.
+    @Test func outsidePasswordManagersTheSelectionIsStillUsed() async throws {
+        try await withInterfaceLanguage("en") {
+            let asked = PMContext.toldNoPasswordField(PMContext.host(app: PMContext.editor, field: .selected, model: PMContextModel()))
+            try #require(asked.session.passwordField == .no, "told none: \(String(describing: asked.session.passwordField))")
             #expect(PMContext.selectionWanted(asked), "\"@\" asks for the selection")
-            let host = PMContext.host(app: PMContext.editor, field: .selected, model: PMContextModel())
+            let host = PMContext.toldNoPasswordField(PMContext.host(app: PMContext.editor, field: .selected, model: PMContextModel()))
             host.press(FakeHost.at)
             #expect(host.composer.selection?.text == PMContext.note, "\(String(describing: host.composer.selection))")
 
             let model = PMContextModel()
-            let translate = PMContext.host(app: PMContext.editor, field: .selected, model: model)
+            let translate = PMContext.toldNoPasswordField(PMContext.host(app: PMContext.editor, field: .selected, model: model))
             PMContext.write(translate, "translate")
             let sent = PMContext.requests(translate, model, expected: true)
             #expect(sent.contains { $0.contains(PMContext.note) }, "the selection isn't translated: \(sent)")
 
             let replyModel = PMContextModel()
-            let reply = PMContext.host(app: PMContext.editor, field: .caretInside, model: replyModel)
+            let reply = PMContext.toldNoPasswordField(PMContext.host(app: PMContext.editor, field: .caretInside, model: replyModel))
             PMContext.write(reply, "reply", typed: "ok", run: false)
             #expect(reply.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure)).contains(.text))
             reply.press(FakeHost.enter)

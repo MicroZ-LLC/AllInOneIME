@@ -44,8 +44,9 @@ extension Composer {
         let current = liveQuery
         if let current, query != current { _ = currentLiveResults }  // the rows for the text now, before any are added
         let keywords = FileSearchRanking.keywords(in: current ?? "")
-        let changed = live.receive(folderFirst(results, for: query), for: query, current: current, isFinal: isFinal,
+        let changed = live.receive(results, for: query, current: current, isFinal: isFinal,
                                    fits: { Self.stillMatches($0, keywords, for: current ?? "") })
+        if query == current, completedFolder?.query == query { live.list(folderFirst(live.rows, for: query)) }
         return changed ? [.showPanel] : []
     }
 
