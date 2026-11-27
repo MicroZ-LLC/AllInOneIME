@@ -36,10 +36,15 @@ enum FocusedField {
     static func identity() -> FieldIdentity? {
         guard let element = element() else { return nil }
         var role: CFTypeRef?, subrole: CFTypeRef?
-        guard AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role) == .success,
-              let role = role as? String, textRoles.contains(role) else { return nil }
-        let secure = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole) == .success
-            && subrole as? String == kAXSecureTextFieldSubrole as String
+        let roleRead = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        let subroleRead = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+        return identity(of: element, role: (roleRead, role), subrole: (subroleRead, subrole))
+    }
+
+    /// `identity`, of `element` by what the reads of its role and subrole told.
+    static func identity(of element: CFTypeRef, role: (AXError, CFTypeRef?), subrole: (AXError, CFTypeRef?)) -> FieldIdentity? {
+        guard role.0 == .success, let told = role.1 as? String, textRoles.contains(told) else { return nil }
+        let secure = subrole.0 == .success && subrole.1 as? String == kAXSecureTextFieldSubrole as String
         return FieldIdentity(element: element, secure: secure)
     }
 
