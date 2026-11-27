@@ -60,9 +60,10 @@ jobs:
         with:
           persist-credentials: false
           sparse-checkout: .github
+          path: agent-src          # its own folder: this clean checkout touches nothing mac-test keeps (.build)
       - name: Build or fix the issue
         env:
           GH_TOKEN: ${{ github.token }}
           ISSUE: ${{ needs.gate.outputs.issue }}
           AGENT_BASE: ${{ inputs.base }}
-        run: python3 .github/agent/pipeline.py "$ISSUE"
+        run: python3 agent-src/.github/agent/pipeline.py "$ISSUE"
