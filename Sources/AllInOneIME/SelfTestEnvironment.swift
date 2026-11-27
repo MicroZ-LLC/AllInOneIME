@@ -6,7 +6,9 @@ import AppKit
 /// Its config is a file of its own in its own folder (`Config.selfTestURL`), never the user's: Amazon Bedrock with the
 /// AWS profile and region from the user's config if set there (else the app's defaults), and nothing else of theirs, so
 /// the provider, model, languages or styles they picked change no check. Without Bedrock credentials for that profile
-/// the live Bedrock checks are skipped, not failed.
+/// the live Bedrock checks are skipped, not failed. The text fields it activates check for no update (a field's
+/// activation does once a day): nothing asks allinoneime.com, posts a notification in this Mac's language or changes the
+/// input method's update state on this Mac.
 ///
 /// Secure input held by another process (a password field) stops composing in the fake field when its owner can't be
 /// told, and refuses every request: before a section that composes, the self-test waits a while for it to go, then
@@ -55,8 +57,9 @@ extension SelfTest {
     /// Writes the self-test's config into `directory` and points `Config.defaultURL` at it for the rest of the run:
     /// Bedrock, with `awsProfile` and `region` from the user's config if set (the only keys read from it), else the
     /// app's defaults; the jargon list in `directory` too (there is none), never the user's. Says whether the profile
-    /// has credentials.
+    /// has credentials. No update check in the background (above).
     static func useOwnConfig(in directory: URL) {
+        UpdateController.shared.checksInBackground = false
         let user = (try? Data(contentsOf: Config.userURL))
             .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] } ?? [:]
         func value(_ key: String) -> String? {
