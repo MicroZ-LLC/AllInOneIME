@@ -378,6 +378,8 @@ struct Review076KeyWithoutActivateTests {
             let world = SuggestionsWorld()
             try world.github()
             let field = world.field()
+            // The editor's own focus loads the source once, on its own time: counted from after that load.
+            try #require(field.settle { world.runtime.loads.count == 1 }, "the focus's own load")
             let loadsBefore = world.runtime.loads.count
             for character in "#70" { field.host.press(SuggestionKeys.key(character), with: context(field.host, app: app)) }
             field.idle()
@@ -462,6 +464,10 @@ struct Review076PasswordFieldToldLaterTests {
     @Test func rowsGoWhenTheShellLaterSaysItIsAPasswordField() async throws {
         try await withInterfaceLanguage("en") {
             let (world, field) = try fieldShowingRows()
+            // The lookup the key started while the field was told none has gone out: only what comes after counts.
+            try #require(field.settle {
+                world.store.queryInFlight(CompletionSourceKey(plugin: "github", source: "issues"), timeout: 60, now: world.clock.now) == nil
+            }, "the key's own lookup")
             field.host.send(.passwordField(true, focus: field.host.session.fieldSession))
             try #require(field.host.session.passwordField == .yes)
             #expect(field.rows.isEmpty, "the rows stay up in a password field: \(field.rows.map(\.text))")
