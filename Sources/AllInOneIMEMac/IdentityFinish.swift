@@ -506,16 +506,17 @@ public struct InputSourceState: Equatable, Sendable {
 /// settings show that step until it is. A source Text Input Sources doesn't list, or files under another bundle ID, is
 /// registered again first (that files it under its own: the move left the cache with the identity before's), which
 /// can wait up to 2 seconds: `isEnabled()` is for a background thread; the main thread asks with
-/// `isEnabled(completion:)` and gets the answer later (InputSourceCheck+Async.swift, with the Mac's `system`).
-public struct InputSourceCheck {
+/// `isEnabled(completion:)` and gets the answer later (InputSourceCheck+Async.swift, with the Mac's `system`). Sendable:
+/// its seams run off the main thread, on the check's own queue or the identity cleanup's.
+public struct InputSourceCheck: Sendable {
     public var id: String
-    public var state: () -> InputSourceState
+    public var state: @Sendable () -> InputSourceState
     /// Registers this input method's bundle again.
-    public var register: () -> Void
+    public var register: @Sendable () -> Void
     /// The looks the main thread asked for (`isEnabled(completion:)`), shared by this check's copies.
     let looks = InputSourceLooks()
 
-    public init(id: String, state: @escaping () -> InputSourceState, register: @escaping () -> Void) {
+    public init(id: String, state: @escaping @Sendable () -> InputSourceState, register: @escaping @Sendable () -> Void) {
         self.id = id
         self.state = state
         self.register = register

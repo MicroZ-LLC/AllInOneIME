@@ -5,9 +5,10 @@ import Foundation
 // installer): macOS asks again for the permissions it keeps by bundle ID. Said once: About, its update row saying which
 // (`UpdateText.moved`), with Troubleshoot outlined, which lists those still to allow, once the input method has started.
 // Its input source not added yet (macOS leaves that to the user; nothing of AllInOneIME types until then): About from its
-// top, that step the first thing shown (`InputSourceStepSection`; a settings window asked for at launch opens on it too,
-// `whenFirstShown`), and Troubleshoot outlined once it is added. Which of the two waits for the first look at the input
-// source (`InputSourceStatus.whenKnown`, which never holds the main thread); any other launch is decided at once.
+// top, that step the first thing shown (`InputSourceStepSection`; a settings window asked for at launch, or by a reopen
+// before it is decided, opens on it too: `whenFirstShown`), and Troubleshoot outlined once it is added. Which of the two
+// waits for the first look at the input source (`InputSourceStatus.whenKnown`, which never holds the main thread); any
+// other launch is decided at once.
 
 extension UpdateController {
     /// At launch (`start`), after `result`, what the last update did (nil: none).
@@ -22,6 +23,16 @@ extension UpdateController {
     func whenFirstShown(_ body: @escaping (SystemIdentity.FirstShown) -> Void) {
         guard let firstShown else { return waitingForFirstShown.append(body) }
         body(firstShown)
+    }
+
+    /// The input method opened again (the AllInOneIME Settings app does that): the settings window. Before this launch
+    /// has decided what it shows first (right after the move, the first look at the input source hasn't answered), once
+    /// it has, and not over the step, which shows About itself: no other page before it. Decided, at once, every time.
+    func settingsReopened() {
+        guard firstShown == nil else { return SettingsWindow.shared.show() }
+        whenFirstShown { first in
+            if first != .inputSourceStep { SettingsWindow.shared.show() }
+        }
     }
 
     private func decided(_ first: SystemIdentity.FirstShown) {

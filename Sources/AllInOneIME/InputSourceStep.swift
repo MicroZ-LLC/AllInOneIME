@@ -22,8 +22,11 @@ final class InputSourceStatus: ObservableObject {
 
     /// The installed input method's source isn't enabled: the About page shows the step.
     @Published var needsAdding = false
-    /// Run once when the source is found enabled after it wasn't, the app active (the user back from System Settings).
+    /// Run once when the source is found enabled after it wasn't, the app active (the user back from System Settings)
+    /// and still active when the look answers.
     var whenAdded: (() -> Void)?
+    /// Whether the input method's app is the active one now (`whenAdded` runs only while it is).
+    var isAppActive: () -> Bool = { NSApp.isActive }
     /// Only the installed input method is the user's input source.
     var isInstalled = UpdateLocations.runningIsInstalled
     var check = InputSourceCheck.system(id: InputSourceRegistrar.sourceID, bundle: Bundle.main.bundleURL)
@@ -95,7 +98,9 @@ final class InputSourceStatus: ObservableObject {
         guard before != true else { return }
         if before == false { log.notice("input source: enabled") }
         enabled()
-        if before == false, back, let whenAdded {
+        // Only while the app is still the active one: the look may answer seconds after it became active (registering
+        // the source again waits up to 2 seconds), when the user has gone to another app; About isn't brought over it.
+        if before == false, back, isAppActive(), let whenAdded {
             self.whenAdded = nil
             whenAdded()
         }

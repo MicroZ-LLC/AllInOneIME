@@ -290,18 +290,22 @@ struct IdentityFinishTests {
     /// Enabled as itself: a source Text Input Sources doesn't list, or files under another bundle ID (its cache keeping
     /// the identity before's for this path), is registered again first, which files it under its own.
     @Test func theInputSourceIsCheckedAsItself() {
-        var state = InputSourceState(registered: true, enabled: true, bundleID: oldIME)
-        var registered = 0
-        let check = InputSourceCheck(id: Updater.bundleID, state: { state }, register: {
-            registered += 1
-            state.bundleID = Updater.bundleID
-            state.enabled = false  // the old one's entry no longer counts: the user adds this one
+        // Behind locks: the check's seams are Sendable (the main thread's looks run them on the check's queue).
+        let state = Locked(initialState: InputSourceState(registered: true, enabled: true, bundleID: oldIME))
+        let registered = Locked(initialState: 0)
+        func registrations() -> Int { registered.withLock { $0 } }
+        let check = InputSourceCheck(id: Updater.bundleID, state: { state.withLock { $0 } }, register: {
+            registered.withLock { $0 += 1 }
+            state.withLock {
+                $0.bundleID = Updater.bundleID
+                $0.enabled = false  // the old one's entry no longer counts: the user adds this one
+            }
         })
-        #expect(!check.isEnabled() && registered == 1)
-        state.enabled = true  // added in System Settings
-        #expect(check.isEnabled() && registered == 1)
-        state = InputSourceState()
-        #expect(!check.isEnabled() && registered == 2)
+        #expect(!check.isEnabled() && registrations() == 1)
+        state.withLock { $0.enabled = true }  // added in System Settings
+        #expect(check.isEnabled() && registrations() == 1)
+        state.withLock { $0 = InputSourceState() }
+        #expect(!check.isEnabled() && registrations() == 2)
         // Enabled as the old bundle ID's even after registering: not enabled as itself.
         let stuck = InputSourceCheck(id: Updater.bundleID, state: { InputSourceState(registered: true, enabled: true, bundleID: oldIME) },
                                      register: {})

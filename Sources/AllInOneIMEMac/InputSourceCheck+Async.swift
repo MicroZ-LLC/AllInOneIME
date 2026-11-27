@@ -64,10 +64,9 @@ final class InputSourceLooks {
 
     private func start(_ check: InputSourceCheck, _ completions: [Completion]) {
         running = completions
-        // The seams aren't Sendable; from here only this queue runs them, one look at a time.
-        let look = Look(check: check)
+        // Only this queue runs the check's seams, one look at a time.
         queue.async {
-            let enabled = look.check.isEnabled()
+            let enabled = check.isEnabled()
             DispatchQueue.main.async {
                 MainActor.assumeIsolated { self.answered(enabled) }
             }
@@ -84,9 +83,4 @@ final class InputSourceLooks {
         }
         for completion in completions { completion(enabled) }
     }
-}
-
-/// A check on its way to its looks' queue.
-private struct Look: @unchecked Sendable {
-    let check: InputSourceCheck
 }
