@@ -15,6 +15,16 @@ extension SettingsModel {
             done()
         }
     }
+
+    /// `reloadIfChangedOffMain` for the key field Settings is asked to show (`note`: `allInOneIMEFocusAPIKey`): then
+    /// `done` with the provider it names (none: not called) and whether that is the one in use, as the file has it.
+    func reloadIfChangedOffMain(showingKeyOf note: Notification, then done: @escaping @MainActor (Provider, _ inUse: Bool) -> Void) {
+        let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:))
+        reloadIfChangedOffMain { [weak self] in
+            guard let self, let provider else { return }
+            done(provider, provider == config.provider)
+        }
+    }
 }
 
 extension SettingsWindow {

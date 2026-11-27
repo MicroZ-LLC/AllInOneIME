@@ -2571,18 +2571,19 @@ struct SettingsView: View {
             if let raw = note.userInfo?["page"] as? String, let shown = SettingsPage(rawValue: raw) { page = shown }
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEConfigChanged).receive(on: RunLoop.main)) { _ in
-            model.reloadIfChanged()
+            model.reloadIfChangedOffMain {}  // the file read off the main thread, as wherever the window reads it again
         }
         .onReceive(NotificationCenter.default.publisher(for: .allInOneIMEFocusAPIKey)) { note in
             page = .ai
-            model.reloadIfChanged()  // what the Assistant just set
-            guard let provider = (note.userInfo?["provider"] as? String).flatMap(Provider.init(rawValue:)) else { return }
-            // The provider in use: its own row, ready to paste. Another one: the key sheet (nothing of it on this page; its
-            // card is pointed at, `AIConfigSession.openKeyField`).
-            if provider == model.config.provider {
-                DispatchQueue.main.async { editingKey = provider }
-            } else if provider.needsKey {
-                keySheet = KeySheetRequest(provider: provider)
+            // What the Assistant just set, read off the main thread; then, with the provider in use as the file has it:
+            // its own row, ready to paste. Another one: the key sheet (nothing of it on this page; its card is pointed
+            // at, `AIConfigSession.openKeyField`).
+            model.reloadIfChangedOffMain(showingKeyOf: note) { provider, inUse in
+                if inUse {
+                    DispatchQueue.main.async { editingKey = provider }
+                } else if provider.needsKey {
+                    keySheet = KeySheetRequest(provider: provider)
+                }
             }
         }
         .sheet(item: $keySheet) { request in
