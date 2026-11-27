@@ -232,11 +232,11 @@ public final class InputSession {
             }
             switch event {
             case let .key(key, context):
-                keptDraftTypedIn()  // a key with no focus told first: the field is typed in again
+                keptDraftTypedIn(context)  // a key with no focus told first: the field is typed in again
                 handled = self.key(key, context)
             case let .modifiers(change, context):
                 handled = false  // the application sees modifier changes too
-                showKeptDraft()  // with no focus told first, as a key: the field is typed in again
+                keptDraftBeforeModifiers(change, context)  // with no focus told first, as a key; a held one goes
                 modifiers(change, context)
             case let .focus(info):
                 focusing(info) { focus(info) }

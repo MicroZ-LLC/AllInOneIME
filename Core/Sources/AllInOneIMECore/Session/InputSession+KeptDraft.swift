@@ -69,16 +69,46 @@ extension InputSession {
         perform(composer.appTookMarkedText())
     }
 
-    /// A key with no focus told first: the field is typed in again, and the draft shows (a modifier key the same, but
-    /// that it leaves a held one held: ⌘ let go after ⌘-Tab comes before the shell can tell). One the shell still holds
-    /// (`holdKeptDraft`) goes instead, nothing of it in: the field typed in may not be the one it was kept for.
-    func keptDraftTypedIn() {
-        if keptDraft?.held == true { dropKeptDraft() } else { showKeptDraft() }
+    /// A key with no focus told first: the field is typed in again, and the draft shows. One the shell still holds
+    /// (`holdKeptDraft`) goes instead, nothing of it in: the field typed in may not be the one it was kept for. So does
+    /// one in a field the key tells is a password field (`keptDraftMustGo`), before the key does anything with it.
+    func keptDraftTypedIn(_ context: FieldContext) {
+        guard let kept = keptDraft else { return }
+        if kept.held || keptDraftMustGo(context) { dropKeptDraft() } else { showKeptDraft() }
     }
 
-    /// `SessionEvent.focus`: a draft kept for another field goes, and the one kept for `info` shows there again.
+    /// A modifier key with no focus told first, as a key (`keptDraftTypedIn`), before it acts: Shift's tap, Caps Lock
+    /// and Option's tap work on what is composed, and never on a draft the shell holds, which goes first. Only a
+    /// modifier let go that does nothing leaves a held one held (`releasesIdly`: ⌘ after ⌘-Tab comes before the shell
+    /// can tell which field it is).
+    func keptDraftBeforeModifiers(_ change: ModifierChange, _ context: FieldContext) {
+        guard let kept = keptDraft else { return }
+        if keptDraftMustGo(context) { return dropKeptDraft() }
+        guard kept.held else { return showKeptDraft() }
+        if !releasesIdly(change) { dropKeptDraft() }
+    }
+
+    /// Whether the field a key or a modifier key is told in is one a kept draft must never show in, as the key tells
+    /// it, before the session takes that over from it (`takePasswordField`): secure input on for it or anywhere, a
+    /// password field, or one the shell was asked about and couldn't tell.
+    private func keptDraftMustGo(_ context: FieldContext) -> Bool {
+        context.secure || context.field?.secure == true || nothingLeavesDevice()
+            || context.read.contains(.passwordField) && context.passwordFieldUnknown
+    }
+
+    /// Whether `change` is a modifier let go that does nothing on its own: none of those a tap or a hold of which acts
+    /// as it is let go (Shift's tap, the action key's, the voice key's), and no key going down (Caps Lock, fn).
+    private func releasesIdly(_ change: ModifierChange) -> Bool {
+        guard case let .modifier(kind, _) = change.key, !change.modifiers.contains(Modifiers.kind(kind)) else { return false }
+        let roles = composer.modifierRoles
+        return kind != .shift && kind != roles.actionTap && kind != roles.voiceHold.kind
+    }
+
+    /// `SessionEvent.focus`: a draft kept for another field goes, and so does one where secure input is on or the field
+    /// is a secure one, before the field is taken; the one kept for `info` shows there again.
     func focusing(_ info: FieldInfo, _ focus: () -> Void) {
         dropKeptDraft(unlessIn: info)  // another field's: it starts clean
+        if info.secure || services.secureInputActive() { dropKeptDraft() }
         focus()
         showKeptDraft()
     }

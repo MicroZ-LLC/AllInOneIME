@@ -25,7 +25,7 @@ extension AllInOneIMEInputController {
         let keeper = DraftKeeper.shared
         let keptBefore = session.keepsDraft && keeper.owner === self
         leaveField(.blur, client: client, insertingRest: false)
-        keeper.verifying += 1  // what was asked for the focus it had is no longer waited for
+        keeper.left(by: self)  // what was asked for the focus it had is no longer waited for
         guard session.keepsDraft, !keptBefore else { return }
         if let other = Self.activeController, other !== self { return dropKeptDraft("another field has the focus") }
         if !keeper.readers.sourceIsOurs() { return dropKeptDraft("another input source") }
@@ -73,6 +73,22 @@ extension AllInOneIMEInputController {
     func showKeptDraft(client: IMKTextInput?) {
         log.notice("back in the field: the kept draft shows again")
         apply(session.releaseKeptDraft(), client: client)
+    }
+
+    /// A key or a modifier key handed to the session (`handle`). On the Mac a kept draft shows only once Accessibility
+    /// told the field (`DraftKeeper.verify`), so one still kept is held for the key (`InputSession.holdKeptDraft`): the
+    /// session drops it before the key acts (a modifier let go that does nothing leaves it), and nothing of it stays
+    /// remembered.
+    @MainActor
+    func withKeptDraftHeld(_ handle: () -> SessionResponse) -> SessionResponse {
+        guard session.keepsDraft else { return handle() }
+        session.holdKeptDraft()
+        let response = handle()
+        if !session.keepsDraft {
+            log.notice("the kept draft is dropped (a key before the field was told)")
+            if DraftKeeper.shared.owner === self { DraftKeeper.shared.forget() }
+        }
+        return response
     }
 
     /// A key started a draft (`handleNewKeyDown`): which element has the focus is asked now, while the field is typed
@@ -129,7 +145,9 @@ final class DraftKeeper {
     private(set) var element: FieldIdentity?
     private(set) var caret: NSRange?
     /// Counts what ends a wait for the element with the focus (`verify`): an answer for an earlier one is dropped.
+    /// `waited`: the count of the wait an answer is still owed to, nil once it came, the field was left or the draft went.
     var verifying = 0
+    private var waited: Int?
     /// The element told while a draft was started: by which controller, in which of its activations.
     private var typing: (by: WeakBox<AllInOneIMEInputController>, session: Int, element: FieldIdentity?)?
     private var expiry: DispatchWorkItem?
@@ -176,8 +194,18 @@ final class DraftKeeper {
     func forget() {
         (owner, element, caret) = (nil, nil, nil)
         verifying += 1
+        waited = nil
         expiry?.cancel()
         expiry = nil
+    }
+
+    /// `controller`'s field lost the focus: the answer asked for the focus it had (`verify`) is no longer waited for.
+    /// Only the draft's own field ends that wait: another controller told it lost the focus (late, a closing popover's)
+    /// has none.
+    func left(by controller: AllInOneIMEInputController) {
+        guard owner === controller else { return }
+        verifying += 1
+        waited = nil
     }
 
     /// The draft kept goes, whichever field has it.
@@ -191,12 +219,19 @@ final class DraftKeeper {
     /// secure input still off; else it goes. Not once the field was left again or the draft went meanwhile.
     func verify(_ controller: AllInOneIMEInputController, client: IMKTextInput?) {
         verifying += 1
+        waited = verifying
         let (token, box, held, read) = (verifying, WeakBox(controller), MainThreadBox(client), readers.identity)
         DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + settle) {
             let now = read()
             DispatchQueue.main.async {
                 MainActor.assumeIsolated {
-                    guard token == self.verifying, let controller = box.value, self.owner === controller else { return }
+                    guard token == self.verifying else {
+                        // Ended by neither the field left, the draft gone nor a later wait: never left held.
+                        if self.waited == token { self.drop("the answer for its field is no longer waited for") }
+                        return
+                    }
+                    self.waited = nil
+                    guard let controller = box.value, self.owner === controller else { return }
                     guard controller.session.keepsDraft else { return self.forget() }
                     guard let now, now == self.element, !now.secure, !controller.services.secureInputActive() else {
                         return controller.dropKeptDraft("another element has the focus, or none told")

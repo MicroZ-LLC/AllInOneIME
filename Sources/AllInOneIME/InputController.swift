@@ -662,8 +662,8 @@ final class AllInOneIMEInputController: IMKInputController {
         if !session.clipboardShown { pastedOver = nil }
         // ⌃V's panel only where the keys it takes can be kept from the app.
         if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
-        let composing = composer.isComposing
-        let response = session.handle(.key(key, context))
+        let composing = composer.isComposing && !session.keepsDraft  // a kept draft goes with the key: what it starts is new
+        let response = withKeptDraftHeld { session.handle(.key(key, context)) }
         if !composing, composer.isComposing { draftStarted() }  // which field it is, should it lose the focus (#180)
         keyComposes = response.handled && (composing || composer.isComposing)
         apply(response.outputs, client: client)
@@ -681,7 +681,7 @@ final class AllInOneIMEInputController: IMKInputController {
         let change = MacKeyEvents.modifierChange(event, now: ProcessInfo.processInfo.systemUptime)
         let context = fieldContext(in: target) { session.fieldWants(forModifiers: change, given: $0) }
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
-        apply(session.handle(.modifiers(change, context)).outputs, client: client)
+        apply(withKeptDraftHeld { session.handle(.modifiers(change, context)) }.outputs, client: client)
     }
 
     /// What the field says around the caret as a key goes down or a modifier changes (`FieldReading.context`).
