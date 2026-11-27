@@ -56,7 +56,7 @@ For more detail (every command and setting, installation troubleshooting, privac
 Without `@`, it stays out of the way: in English, letters are typed directly and ⏎ is Return; nothing goes online.
 A new install writes English; to type Chinese, French, Korean or Hindi too, add it in the settings (see [Input and translation](#input-and-translation)).
 
-What you're typing (pinyin, a command such as `@improve …`, a note) shows only on the top line of the candidate box, with its cursor, in every app: nothing is shown in the text field until you pick, insert or run it. Leaving the field while you type (a click anywhere, in the same field too, another app, closing the window or tab) drops the pinyin not yet picked, so nothing of it is left behind.
+What you're typing (pinyin, a command such as `@improve …`, a note) shows only on the top line of the candidate box, with its cursor, in every app: nothing is shown in the text field until you pick, insert or run it. Leaving the field with a click while you type (a click anywhere, in the same field too, in another app), or closing the window or tab, drops the pinyin not yet picked, so nothing of it is left behind. When the field loses the focus without a click (a notification or a dialog takes it, ⌘Tab, the page moves it), the panel hides and what you were typing is kept for that field (pinyin, the `@` list's text, a command you haven't run): back in the field it is there again as it was and you go on typing; if you type in another field instead, it is dropped.
 
 In Chinese pinyin mode, `.`, `,` and `:` stay ASCII immediately after an ASCII digit, so `3.14`, `10:30` and `1,000` type as shown. Other punctuation and punctuation after other characters keep their usual behavior.
 
@@ -106,8 +106,9 @@ Example: `@q` ⏎, type `what is quantum computing`, ⏎. `@note books to read: 
 In Chinese mode, `@open` switches to English letters for the moment and goes back to Chinese when you're done.
 
 A command you haven't run is never typed into the app, whether its text is Chinese or English: ⌘⏎ runs it, as ⏎ does
-(`@note` saves). Leaving the text field (another field or app clicked, or a click elsewhere in it), a password field
-taking over, or any other ⌘ shortcut (⌘A, ⌘S …) drops it, nothing typed in, and the shortcut goes on to the app. ⌘V
+(`@note` saves). Leaving the text field with a click (another field or app clicked, or a click elsewhere in it), a password field
+taking over, or any other ⌘ shortcut (⌘A, ⌘S …) drops it, nothing typed in, and the shortcut goes on to the app; the
+focus lost without a click keeps it for the field, as above. ⌘V
 pastes into it in every app, terminals and Notes too. ⌘← ⌘→ move to the start or end of its text, pinyin you're typing
 picked first, as with Space. ⇧⏎ still inserts it as typed, and `@note` keeps what you wrote (see
 [Notes and reminders](#notes-and-reminders)). A command that has run (its results up, or still coming in) leaves
