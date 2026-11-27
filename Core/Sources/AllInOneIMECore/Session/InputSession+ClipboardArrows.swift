@@ -6,8 +6,8 @@ import Foundation
 extension InputSession {
     /// ← or → with no modifier while the panel shows. No filter typed and more rows than a page: the page before or
     /// after, its first row chosen (a selection ends); at the first ← and at the last → stay. A filter typed: → puts it
-    /// in as it was typed (no row, whichever is chosen), the panel hidden and the next keys the app's. Nil: not handled
-    /// here (→ on one page hides the panel, ← hides it and goes on, as before).
+    /// in as it was typed (no row, whichever is chosen), the panel hidden, → itself and the next keys the app's (false:
+    /// not taken). Nil: not handled here (→ on one page hides the panel, ← hides it and goes on, as before).
     func clipboardSideArrow(_ event: KeyEvent) -> Bool? {
         guard event.key == .arrow(.left) || event.key == .arrow(.right) else { return nil }
         if clipboard.filter.isEmpty {
@@ -21,17 +21,20 @@ extension InputSession {
             return true
         }
         guard event.key == .arrow(.right) else { return nil }
+        // As the @ list's → (`Composer.commitPalette`): the filter in, then → goes on to the app. A terminal wouldn't
+        // act on the key after text went in during it (`appTakesKeysAfterInsert`): there → only ends the list, as there.
+        let goesOn = composer.appTakesKeysAfterInsert
         clipboardTookKey()
         let typed = clipboard.filter
         clipboardForget()
         // The count of characters only: nothing typed is logged.
         log.notice("clipboard history: the filter put in as typed (\(typed.count) characters)")
-        emit(.rowByKey)
+        if !goesOn { emit(.rowByKey) }
         emit(.commit(typed))
         lastTyped.forget()
         suggestionsBoundary()
         emit(.panel(composer.wantsPanel ? panelModel() : nil))
-        return true
+        return !goesOn
     }
 
     /// The panel's keys, for `rows` rows the filter keeps: the first showing says where the history is kept; no row,
