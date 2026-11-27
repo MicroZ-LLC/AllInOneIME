@@ -664,6 +664,7 @@ final class AllInOneIMEInputController: IMKInputController {
         if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
         let composing = composer.isComposing
         let response = session.handle(.key(key, context))
+        if !composing, composer.isComposing { draftStarted() }  // which field it is, should it lose the focus (#180)
         keyComposes = response.handled && (composing || composer.isComposing)
         apply(response.outputs, client: client)
         if !context.secure { warmUpScreenshotReading() }  // a command picked with an image on the clipboard: Vision loaded for it
@@ -1245,14 +1246,6 @@ final class AllInOneIMEInputController: IMKInputController {
     @MainActor
     func showPanel(_ client: IMKTextInput?) {
         showPanel(composer.wantsPanel ? session.panelModel() : nil, client)
-    }
-
-    @MainActor
-    private func hidePanelIfOwned() {
-        let panel = CandidatePanel.shared
-        if panel.owner == nil || panel.owner === self {
-            panel.hide()
-        }
     }
 
     /// Short status message ("英" English mode, "已复制" copied, …): its own small panel when nothing else is shown,
