@@ -60,19 +60,32 @@ extension ICloudSyncController {
     }
 
     /// The accounts Remove… took off this Mac, or a save wrote here, while a key sync asked for (`keySyncOnQueue`: at
-    /// launch, the queue behind a run or a keychain slow to answer) hasn't run or is running (`asked`: how many are):
-    /// a copy-back that only then lists what to copy (from "moving" or "done": key sync turned off while the input
-    /// method wasn't running) leaves them out (`startCopyBack`), as `dropFromCopyBack` takes them off a list already
-    /// written. Kept no longer than that (a run that couldn't make its list leaves them for the next: `keySyncOnQueue`):
-    /// a key removed here long before key sync is turned on and off again is copied back as any other.
-    private nonisolated static let changedHere = Locked<(asked: Int, accounts: Set<String>)>(initialState: (0, []))
+    /// launch, the queue behind a run or a keychain slow to answer) hasn't run or is running (`asked`: how many are), or
+    /// since a run that couldn't make the copy-back's list (`unsettled`: iCloud Keychain locked at login, the config
+    /// unreadable; the marker still says "moving" or "done", so `dropFromCopyBack` has no list to take them off): a
+    /// copy-back that only then lists what to copy (from "moving" or "done": key sync turned off while the input method
+    /// wasn't running) leaves them out (`startCopyBack`), as `dropFromCopyBack` takes them off a list already written.
+    /// Kept until a run settles, the list made without them or none to make, and no longer: a key removed here long
+    /// before key sync is turned on and off again is copied back as any other. In this process's memory only: after a
+    /// run that couldn't list, a key removed here and the input method quit before the next run is copied back by it.
+    private nonisolated static let changedHere = Locked<(asked: Int, unsettled: Bool, accounts: Set<String>)>(initialState: (0, false, []))
 
     /// What `KeySync.Stores.whenRemovedHere` is told with, for the marker at `url`: the account off the copy-back's list
     /// (`dropFromCopyBack`), and remembered for one that hasn't made its list yet (`changedHere`).
     private nonisolated static func removedHere(markerURL url: URL) -> @Sendable (String) -> Void {
         { account in
-            changedHere.withLock { if $0.asked > 0 { $0.accounts.insert(account) } }
+            changedHere.withLock { if $0.asked > 0 || $0.unsettled { $0.accounts.insert(account) } }
             dropFromCopyBack(account, at: url)
+        }
+    }
+
+    /// A run of `applyKeySync` ended, `settled` or not (the copy-back's list still to be made by a later one): until one
+    /// settles, with none asked for behind it, what is removed or saved here goes on being remembered (`changedHere`).
+    private nonisolated static func keySyncRan(settled: Bool, asked: Bool) {
+        changedHere.withLock {
+            if asked, $0.asked > 0 { $0.asked -= 1 }
+            $0.unsettled = !settled
+            if $0.asked == 0, settled { $0.accounts = [] }
         }
     }
 
@@ -104,7 +117,8 @@ extension ICloudSyncController {
     /// typo while editing it by hand), nothing changes: no move, no copy-back, the routing as it was.
     func applyKeySync(atLaunch: Bool = false) {
         guard let keys else { return }
-        Self.applyKeySync(keys, configURL: engine.configURL, markerURL: keysSyncedURL, atLaunch: atLaunch)
+        let settled = Self.applyKeySync(keys, configURL: engine.configURL, markerURL: keysSyncedURL, atLaunch: atLaunch)
+        Self.keySyncRan(settled: settled, asked: false)
     }
 
     /// `applyKeySync` on the sync queue (`queue`), ahead of the run it is asked with: the keychain and the config file are
@@ -117,11 +131,11 @@ extension ICloudSyncController {
         Self.changedHere.withLock { $0.asked += 1 }
         keys.whenRemovedHere(Self.removedHere(markerURL: markerURL))
         queue.async {
-            // What was removed or saved here meanwhile is kept until a run has made the copy-back's list without it, or
-            // found none to make: one that couldn't (iCloud Keychain locked at login, the config unreadable) leaves it
-            // for the next, which would else copy the removed key back.
+            // What was removed or saved here meanwhile, and from now until the next run, is kept until a run has made the
+            // copy-back's list without it, or found none to make: one that couldn't (iCloud Keychain locked at login,
+            // the config unreadable) leaves it for the next, which would else copy the removed key back.
             let settled = Self.applyKeySync(keys, configURL: configURL, markerURL: markerURL, atLaunch: atLaunch)
-            Self.changedHere.withLock { if $0.asked > 0 { $0.asked -= 1 }; if $0.asked == 0, settled { $0.accounts = [] } }
+            Self.keySyncRan(settled: settled, asked: true)
         }
     }
 
