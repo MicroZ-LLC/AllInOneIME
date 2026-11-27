@@ -58,6 +58,8 @@ extension InputSessionTests {
             let learned = LearnedStore(file: nil, autocomplete: AutocompleteStore(), temperature: TemperatureSupport(file: nil))
             let host = host { $0.learned = learned }
             func at() -> FieldContext.Parts { host.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)) }
+            // Told to be no password field: only then is a field read at all (`fieldMayNotBeRead`).
+            host.send(.passwordField(false, focus: host.session.fieldSession))
             #expect(at().contains(.selection), "\(at())")
             learned.turnSelectionOff(in: host.app ?? "")
             #expect(at() == [.secure], "learned: \"@\" doesn't read its selection (\(at()))")
@@ -69,6 +71,7 @@ extension InputSessionTests {
             let other = self.host { $0.learned = learned }
             other.app = "com.example.other"
             other.focus()
+            other.send(.passwordField(false, focus: other.session.fieldSession))
             #expect(other.session.fieldWants(for: FakeHost.at, given: FieldContext(read: .secure)).contains(.selection))
         }
     }

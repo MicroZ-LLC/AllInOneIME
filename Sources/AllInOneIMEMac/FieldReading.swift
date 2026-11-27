@@ -65,7 +65,8 @@ public struct FieldReading {
     /// The selection the field tells (`selection(in:)`; only how long it is is logged), else whether Accessibility may
     /// tell one after the key; the character before the caret, where "@" is typed; the text around the caret for
     /// `@reply`, or a snippet of more than one line put in (`FieldTextReading`), never in a field told to be a password
-    /// field (the session doesn't ask for it in one it knows: `InputSession.nothingLeavesDevice`).
+    /// field (the session asks for it, and for the selection, only in one told to be none:
+    /// `InputSession.fieldMayNotBeRead`).
     public func read(_ parts: FieldContext.Parts, of target: IMKTextInput?, into context: inout FieldContext) {
         if parts.contains(.secure) { context.secure = blocksComposing(target) }
         if parts.contains(.passwordField), !context.secure {

@@ -64,6 +64,20 @@ struct ControllerOffMainTests {
         #expect(report["onMain"] == "0", "Accessibility asked on the main thread \(report["onMain"] ?? "?") times: \(report)")
         #expect(Int(report["offMain"] ?? "") ?? 0 >= 1, "never asked: \(report)")
         #expect(report["read"] == "true", "the field's read after the pause never came: \(report)")
+        // Asked of the app being typed in (the field's), not of whichever app's element is focused system-wide.
+        #expect(Int(report["ofTheFieldsApp"] ?? "") ?? 0 >= 1 && report["ofAnother"] == "0", "\(report)")
+    }
+
+    /// Whether the field is a password field, asked as it takes the focus (`SessionOutput.readPasswordField`): asked of
+    /// the app being typed in, off the main thread; where no app is told, or none runs by its id, the answer is
+    /// "can't tell", never "none" (the review of 0.7.6's privacy fixes, 4A: the system-wide focused element was asked,
+    /// which as the focus goes from one app to another may still be the app's before). And never while secure input is
+    /// on (4B).
+    @Test func thePasswordFieldIsAskedOfTheAppBeingTypedIn() throws {
+        let report = try ControllerOffMainChild.run("password-field")
+        #expect(report["onMain"] == "0" && report["ofTheFieldsApp"] == "1" && report["ofAnother"] == "0", "\(report)")
+        #expect(report["noApp"] == "unknown" && report["notRunning"] == "unknown", "\(report)")
+        #expect(report["askedInSecureInput"] == "0", "Accessibility asked while secure input is on: \(report)")
     }
 
     /// Clear History just before SIGTERM (an update, `make install`, logging out), its deletion still queued behind a
@@ -375,11 +389,13 @@ enum ControllerOffMainChild {
         static func pause() {
             make()
             let count = OffMainCount()
-            AllInOneIMEInputController.focusedFieldReaders.isSecure = {
+            let field = OffMainField()
+            let app = field.app
+            AllInOneIMEInputController.focusedFieldReaders.isSecure = { asked in
                 count.add(Thread.isMainThread ? "main" : "off")
+                count.add(asked == app ? "app" : "another")
                 return false
             }
-            let field = OffMainField()
             field.insertText("hello there", replacementRange: NSRange(location: NSNotFound, length: 0))
             controller.passwordField = nil
             let before = field.asked
@@ -389,7 +405,39 @@ enum ControllerOffMainChild {
             pump(0.2)
             say("onMain", count.get("main"))
             say("offMain", count.get("off"))
+            say("ofTheFieldsApp", count.get("app"))
+            say("ofAnother", count.get("another"))
             say("read", read)
+        }
+
+        static func passwordField() {
+            make()
+            let count = OffMainCount()
+            let field = OffMainField()
+            let app = field.app
+            AllInOneIMEInputController.focusedFieldReaders.isSecure = { asked in
+                count.add(Thread.isMainThread ? "main" : "off")
+                count.add(asked == app ? "app" : "another")
+                return false
+            }
+            controller.passwordField = nil
+            controller.readPasswordField(focus: 1, in: field)
+            pump(2) { count.get("off") + count.get("main") > 0 }
+            pump(0.2)
+            say("onMain", count.get("main"))
+            say("ofTheFieldsApp", count.get("app"))
+            say("ofAnother", count.get("another"))
+            // Accessibility's own answer where the app can't be told: unknown, never "none".
+            say("noApp", FocusedField.isSecure(in: nil).map { "\($0)" } ?? "unknown")
+            say("notRunning", FocusedField.isSecure(in: "com.example.not-running").map { "\($0)" } ?? "unknown")
+            // Secure input on: nothing is asked of Accessibility.
+            let asked = count.get("off") + count.get("main")
+            let services = controller.services
+            controller.services.secureInputActive = { true }
+            controller.readPasswordField(focus: 2, in: field)
+            pump(0.3)
+            controller.services = services
+            say("askedInSecureInput", count.get("off") + count.get("main") - asked)
         }
 
         static func ghost() {
@@ -516,6 +564,7 @@ enum ControllerOffMainChild {
         case "control-return": OffMain.control(OffMain.keysThenReturn)
         case "keys-return": OffMain.keysWhileSettling(OffMain.keysThenReturn)
         case "pause": OffMain.pause()
+        case "password-field": OffMain.passwordField()
         case "ghost": OffMain.ghost()
         case "window": OffMain.window()
         case "untrusted": OffMain.untrusted()

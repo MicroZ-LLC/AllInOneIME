@@ -877,15 +877,15 @@ struct EnglishWordsSessionTests {
             #expect(learned.words.isEmpty, "typed in English mode: \(learned.words)")
             #expect(password.passwordFieldReads == 1, "asked once a field: \(password.passwordFieldReads)")
 
-            // Asked off the key: a key wants nothing of it; one that types a letter has it read once it's answered.
+            // Asked off the key, as the field took the focus: a key wants nothing of it, and none asks again.
             let field = host(learned: learned)
             field.readsWhatIsWanted = true
             let f = KeyEvent(keyCode: 0, characters: "f")
             #expect(!field.session.fieldWants(for: f, given: FieldContext(read: .secure)).contains(.passwordField))
+            #expect(field.passwordFieldReads == 1, "asked with the focus")
             field.press(FakeHost.enter)
-            #expect(field.passwordFieldReads == 0, "a key that types no letter")
             field.press(f)
-            #expect(field.passwordFieldReads == 1)
+            #expect(field.passwordFieldReads == 1, "once a field")
 
             // A shell whose answer hasn't come: nothing is learned; once it has, words are.
             let waiting = host(learned: learned)
@@ -923,7 +923,7 @@ struct EnglishWordsSessionTests {
             let all = host(learned: learned)
             all.cannotTellPasswordField = true
             putInTwice("quuxify", all)
-            #expect(learned.words.isEmpty && all.passwordFieldReads == 0, "\(learned.words)")
+            #expect(learned.words.isEmpty && all.passwordFieldReads == 1, "\(learned.words) \(all.passwordFieldReads)")
 
             // Told none since (a later read could tell): learned.
             all.cannotTellPasswordField = false

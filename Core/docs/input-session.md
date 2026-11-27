@@ -78,7 +78,7 @@ a second press come at later times, never copies. Modifier changes, which Chromi
 | `readClipboard` | read once the key is answered, never during secure input: `SessionEvent.clipboard` |
 | `keyboardLayout` | the input language's layout told to the field |
 | `startTimer` | `DispatchQueue.main.asyncAfter`, then `SessionEvent.timer` |
-| `readField` | what the field says read once the event is done (secure input, the selection, the text around the caret), then `SessionEvent.field` |
+| `readField` | what the field says read once the event is done (secure input, the selection, the text around the caret), then `SessionEvent.field` with the same `id` and `focus` (the session drops an answer for a field that has lost the focus since) |
 | `ghost` | autocomplete's suggestion in gray after the caret, a window of its own (`GhostOverlay`); where the field tells no caret rect, a line of the candidate panel; with too little room for its text after the caret, nothing, and `SessionEvent.ghostNotShown` (it ends unseen, Tab is the app's) |
 | `platform(.startVoice …)` | dictation (macOS 26's speech recognition), `SessionEvent.voice` as it hears; never while voice input is off (`Features.voiceInput`, off for now) |
 

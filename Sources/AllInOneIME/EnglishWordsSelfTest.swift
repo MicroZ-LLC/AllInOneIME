@@ -24,9 +24,9 @@ extension SelfTest {
             controller.applySettings()
         }
         // The fake field is no password field: secure input off, whatever holds it on this Mac now (the lock screen), and
-        // none as Accessibility would tell it (it isn't the one focused). That is told off the key, once its first letter
-        // is answered (`readPasswordField`): until then nothing is learned in it. A field is asked once, and the one before
-        // was, of Accessibility (this Mac's frontmost app, which can't tell: nothing learned there): a field of its own.
+        // none as Accessibility would tell it (it isn't the one focused). That is told off the key, asked as the field
+        // takes the focus (`readPasswordField`): until it is answered nothing is learned in it. A field is asked once, and the
+        // one before was, of Accessibility (this Mac's frontmost app, which can't tell: nothing learned there): a field of its own.
         controller.services.secureInputActive = { false }
         controller.passwordField = { false }
         controller.commitComposition(client)

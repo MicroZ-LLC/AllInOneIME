@@ -10,7 +10,10 @@ import SwiftUI
 // once, before any other page (`UpdateController.start`): nothing of AllInOneIME types until it is done. Looked at again
 // when the input method's app becomes active (back from System Settings, say) and when a text field activates it; once
 // the source is enabled the step goes, and what the move's record waits for (the input source before this one taken
-// out) is done (`IdentityFinish`).
+// out) is done (`IdentityFinish`). A look never holds the main thread (it may register the source again and wait up to
+// 2 seconds for it): it is asked for and answers later (`InputSourceCheck.isEnabled(completion:)`). Until the first
+// answer the page shows neither the step nor anything in its place, and each later answer changes it only if it
+// differs, so it never flickers to the wrong one.
 
 /// Whether the installed input method's own input source is enabled (`InputSourceCheck`). Main thread.
 @MainActor
@@ -19,8 +22,11 @@ final class InputSourceStatus: ObservableObject {
 
     /// The installed input method's source isn't enabled: the About page shows the step.
     @Published var needsAdding = false
-    /// Run once when the source is found enabled after it wasn't, the app active (the user back from System Settings).
+    /// Run once when the source is found enabled after it wasn't, the app active (the user back from System Settings)
+    /// and still active when the look answers.
     var whenAdded: (() -> Void)?
+    /// Whether the input method's app is the active one now (`whenAdded` runs only while it is).
+    var isAppActive: () -> Bool = { NSApp.isActive }
     /// Only the installed input method is the user's input source.
     var isInstalled = UpdateLocations.runningIsInstalled
     var check = InputSourceCheck.system(id: InputSourceRegistrar.sourceID, bundle: Bundle.main.bundleURL)
@@ -31,8 +37,13 @@ final class InputSourceStatus: ObservableObject {
             if finish.waitsForInputSource { _ = finish.run() }
         }
     }
-    /// What the last look found (nil: none yet).
+    /// What the last look found (nil: none has answered yet).
     private var known: Bool?
+    /// Waiting for the first look's answer (`whenKnown`).
+    private var waitingToKnow: [(Bool) -> Void] = []
+    /// Looks the app's becoming active asked for that haven't answered: the user is back (from System Settings, say), so
+    /// the source found enabled meanwhile, by any look, counts as found with the app active (`whenAdded`).
+    private var activeLooks = 0
     private var observer: NSObjectProtocol?
 
     /// System Settings → Keyboard.
@@ -54,25 +65,51 @@ final class InputSourceStatus: ObservableObject {
         if needsAdding { refresh(appActive: false) }
     }
 
+    /// Asks for a look; the step and the rest follow its answer (`found`), never before it.
     func refresh(appActive: Bool) {
         guard isInstalled else {
             needsAdding = false
             return
         }
-        let on = check.isEnabled()
+        if appActive { activeLooks += 1 }
+        check.isEnabled { [weak self] on in self?.found(on, appActive: appActive) }
+    }
+
+    /// `body` with whether the source is enabled: now if a look has answered, else at the first answer (`start` asks for
+    /// it). A copy that isn't the installed one never needs adding.
+    func whenKnown(_ body: @escaping (Bool) -> Void) {
+        guard isInstalled else { return body(true) }
+        guard let known else { return waitingToKnow.append(body) }
+        body(known)
+    }
+
+    /// A look's answer.
+    private func found(_ on: Bool, appActive: Bool) {
+        let back = appActive || activeLooks > 0
+        if appActive { activeLooks -= 1 }
         if needsAdding == on { needsAdding = !on }
-        defer { known = on }
+        let before = known
+        known = on
+        defer { tellWaiting(on) }
         guard on else {
-            if known != false { log.notice("input source: not enabled; About shows the step to add it") }
+            if before != false { log.notice("input source: not enabled; About shows the step to add it") }
             return
         }
-        guard known != true else { return }
-        if known == false { log.notice("input source: enabled") }
+        guard before != true else { return }
+        if before == false { log.notice("input source: enabled") }
         enabled()
-        if known == false, appActive, let whenAdded {
+        // Only while the app is still the active one: the look may answer seconds after it became active (registering
+        // the source again waits up to 2 seconds), when the user has gone to another app; About isn't brought over it.
+        if before == false, back, isAppActive(), let whenAdded {
             self.whenAdded = nil
             whenAdded()
         }
+    }
+
+    private func tellWaiting(_ on: Bool) {
+        let waiting = waitingToKnow
+        waitingToKnow = []
+        for body in waiting { body(on) }
     }
 
     /// The step, in plain words: where to add it.

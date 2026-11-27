@@ -259,7 +259,7 @@ struct OneAtTests {
     /// A password field secure input isn't on in, known as one (the Mac's Accessibility told an `AXSecureTextField`), its
     /// text selected: "@" never reads the selection nor works on it, as with secure input on, whether the field tells it
     /// with the key or only Accessibility reads it after; a read under way as the field is told one is dropped. A field
-    /// that couldn't be told reads it as before, and no key waits to tell it.
+    /// that couldn't be told isn't read either, and no key waits to tell it.
     @Test func aKnownPasswordFieldsSelectionIsNeverRead() async {
         await withInterfaceLanguage("en") {
             /// "hunter2@pw" in the field, all of it selected; told a password field or not (nil: it couldn't tell).
@@ -306,11 +306,12 @@ struct OneAtTests {
             late.answerFieldReads()
             #expect(!late.composer.selectionPending && late.composer.selection == nil && !shown(late).contains("hunter2"), "\(shown(late))")
 
-            // A field that couldn't be told: as before.
+            // A field that couldn't be told: not read either (the owner's decision, 2026-11-26).
             let untold = passwordField(nil)
-            #expect(selectionWanted(untold))
+            #expect(!selectionWanted(untold))
             untold.press(FakeHost.at)
-            #expect(untold.composer.selection?.text == "hunter2@pw")
+            #expect(untold.composer.isComposing && untold.composer.selection == nil, "the list, on nothing")
+            #expect(!shown(untold).contains("hunter2"), "\(shown(untold))")
         }
     }
 

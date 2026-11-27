@@ -851,10 +851,10 @@ final class AllInOneIMEInputController: IMKInputController {
                 applyKeyboardLayout(client: target)
                 // The menu bar icon shows Code's mark while the field being typed in is in Code.
                 if Self.activeController === self { MenuBarIcon.shared.setCode(composer.coding ? composer.messages.codeMode : nil) }
-            case let .readField(id):
-                readFieldAfterPause(id: id, in: target)
+            case let .readField(id, focus):
+                readFieldAfterPause(id: id, in: target, focus: focus)
             case let .readPasswordField(focus):
-                readPasswordField(focus: focus)
+                readPasswordField(focus: focus, in: target)
             case let .readSelection(id):
                 readSelectionAfterKey(id: id)
             case let .ghost(text):

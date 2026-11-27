@@ -1452,8 +1452,10 @@ struct AutocompleteTests {
         await withInterfaceLanguage("en") {
             let r = rig()
             r.host.tellsNoText = true
+            // Told none as it took the focus (asked then, answered by the first key): a password field by the read.
+            r.host.type("h")
             r.host.passwordField = true
-            r.host.type("hunter2pass")
+            r.host.type("unter2pass")
             r.pauseEnds()
             #expect(r.host.fieldReads == 1 && r.model.requests.isEmpty && r.host.ghost == nil)
             r.host.type("x")

@@ -520,13 +520,13 @@ extension HostReplayer {
                 showPanel(model)
             case let .startTimer(id, seconds):
                 timers.append((id, events.now + seconds))
-            case let .readField(id):
+            case let .readField(id, focus):
                 nextTurn.append { [weak self] in
                     guard let self else { return }
                     self.client.resetCalls()
                     let read = self.reading.contextAfterPause(in: self.field, id: id)
                     self.everyTurn.append(("pause", self.client.calls, self.client.spent))
-                    self.received(.field(read, id: id))
+                    self.received(.field(read, id: id, focus: focus))
                 }
             case let .readPasswordField(focus):
                 nextTurn.append { [weak self] in self?.received(.passwordField(false, focus: focus)) }
