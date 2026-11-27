@@ -236,12 +236,16 @@ enum AutocompleteSwitch {
         var line: String?
         /// The settings it asks with: with a CLI chosen, its fast fallback's (`fastConfig`); nil: it can't run.
         var fast: Config?
-        var available: Bool { fast != nil }
+        /// Whether it can run, and so be turned on: false too while a fast fallback just chosen hasn't been looked at
+        /// yet (`route`), its model and where the text goes shown already.
+        var available: Bool
     }
 
     static func shown(_ config: Config) -> Shown {
-        guard let fast = fastConfig(config) else { return Shown(on: false, model: nil, line: noFasterAI, fast: nil) }
-        return Shown(on: config.autocomplete, model: modelName(fast), line: destination(fast), fast: fast)
+        guard let (fast, looked) = route(config) else { return Shown(on: false, model: nil, line: noFasterAI, fast: nil, available: false) }
+        // Not looked at yet: where the requests go from now on, but not on, nor to be turned on, until the look on its
+        // way says it can answer (a key for it, Apple Intelligence available), as where it can't run.
+        return Shown(on: looked && config.autocomplete, model: modelName(fast), line: destination(fast), fast: fast, available: looked)
     }
 
     /// Why it can't run, in the words Settings → Common has under the switch.
@@ -252,39 +256,56 @@ enum AutocompleteSwitch {
     /// The settings it asks with (`Config.fastConfig`): `config` with a provider chosen; with a CLI, its fast fallback's as
     /// a request finds it (`Converter.fastConfig`: the keychain, the shell's variables, the AWS profile's files), looked
     /// up off the main thread each time the switch is shown (`lookUp`) and at launch: what the last look found until the
-    /// next comes back (none before the first). Nil: it can't run.
-    static func fastConfig(_ config: Config) -> Config? {
-        guard case .cli = config.ai else { return config }
+    /// next comes back (none before the first); with another fast fallback chosen since that look, that one at once
+    /// (where the requests go from now on; the look on its way says whether it can answer: `route`). Nil: it can't run.
+    static func fastConfig(_ config: Config) -> Config? { route(config)?.fast }
+
+    /// `fastConfig`, and whether a look found it able to answer (`looked`; always, with a provider chosen): false for a
+    /// fast fallback chosen since the last look, which nothing has checked yet (it may have no key, one saved for
+    /// another host, or be Apple Intelligence where there is none), until the look on its way comes back.
+    private static func route(_ config: Config) -> (fast: Config, looked: Bool)? {
+        guard case .cli = config.ai else { return (config, true) }
         lookUp(config)
-        guard let provider = found ?? nil else { return nil }
+        guard let found else { return nil }
+        let looked = found.config.provider == config.provider
+        guard let provider = looked ? found.provider : config.provider else { return nil }
         var fast = config
         fast.provider = provider
-        return fast
+        return (fast, looked)
     }
 
-    /// The fast fallback's provider the last look found (`.some(nil)`: none); nil: not looked up yet.
-    private static var found: Provider??
-    /// The settings a look is running for, and those the last one was for, with when it came back (system uptime): Notes
-    /// asks for the input menu after every key, and a look for the same settings isn't made again within a few seconds.
+    /// What the last look found: the settings it was for, the fast fallback's provider with them (nil: none), and when it
+    /// came back (system uptime). Nil: not looked up yet.
+    private static var found: (config: Config, provider: Provider?, at: TimeInterval)?
+    /// The settings the look started last is for, until it comes back: Notes asks for the input menu after every key, and
+    /// a look for the same settings isn't made again while one runs, nor within a few seconds of the last.
     private static var looking: Config?
-    private static var looked: (config: Config, at: TimeInterval)?
-    /// Told when a look found another answer than the last: the menu bar panel shows the switch again.
+    /// How many looks were started: each one's number, so that only the one started last is kept. The settings alone don't
+    /// tell it: asked about again after others (a key saved meanwhile), an earlier look for them may still be on its way.
+    private static var looks = 0
+    /// Told when a look found another answer than the last, and when one for settings changed since came back (its
+    /// answer not kept): the menu bar panel shows the switch again, as the settings are now.
     static var foundAnother: @MainActor () -> Void = { FloatingPanel.shared.setAutocomplete(nil) }
 
     /// `fastConfig`'s look with `config` (a CLI chosen), off the main thread; nothing while one runs for it, or within a
-    /// few seconds of the last for it.
+    /// few seconds of the last for it. With autocomplete off no key is read (`Converter.fastConfig(_:readingKeys:)`):
+    /// the switch shows whether it could run from the keychain items' attributes, and nothing asks for the login
+    /// password at launch or as the input menu opens. Only the answer of the look started last is kept (`looks`): an
+    /// earlier one that comes back later (its keychain item slow to answer) never replaces it, not even one for the same
+    /// settings.
     static func lookUp(_ config: Config) {
         let now = ProcessInfo.processInfo.systemUptime
         guard case .cli = config.ai, looking != config else { return }
-        if let looked, looked.config == config, now - looked.at < 5 { return }
-        looking = config
+        if let found, found.config == config, now - found.at < 5 { return }
+        looks += 1
+        let (look, _) = (looks, looking = config)
         Task.detached(priority: .userInitiated) {
-            let provider = sharedConverter.fastConfig(config)?.provider
+            let provider = sharedConverter.fastConfig(config, readingKeys: config.autocomplete)?.provider
             await MainActor.run {
-                if looking == config { looking = nil }
-                looked = (config, ProcessInfo.processInfo.systemUptime)
-                let another = found != .some(provider)
-                found = .some(provider)
+                guard look == looks else { return foundAnother() }
+                looking = nil
+                let another = found.map { $0.provider != provider || $0.config.provider != config.provider } ?? true
+                found = (config, provider, ProcessInfo.processInfo.systemUptime)
                 if another { foundAnother() }
             }
         }

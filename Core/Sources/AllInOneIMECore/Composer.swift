@@ -708,8 +708,10 @@ public final class Composer {
     /// The characters Chinese is typed in (`Config.typedChinese`, set by the controller): Translate as You Type's same
     /// language and its chip, `@reply`'s language.
     public var chineseCharacters: ChineseCharacters = .simplified
-    /// The shape codes typed after "`" in pinyin (`Config.typedShapeCode`, set by the controller); nil: off. On, a tap of
-    /// the right Option while pinyin is typed is "`" too (`shapeCodeTap`).
+    /// The shape codes typed after "`" in pinyin (`Config.typedShapeCode`, set by the session: with the settings, and
+    /// again at each change of the modifiers, as the settings say then); nil: off, and while a panel of the session's
+    /// own has the keys (clipboard history). On, a tap of the right Option while pinyin is typed is "`" too
+    /// (`shapeCodeTap`).
     public var shapeCode: ShapeCode?
     /// The selection is no longer than `maxSelectionLength` (worked out once, when it is read).
     var selectionFits = false
@@ -854,11 +856,11 @@ public final class Composer {
     var requestCounter = 0
     private var voiceCounter = 0
     /// The right Option key is down on its own and dictation hasn't started yet.
-    private var voiceArmed = false
+    var voiceArmed = false
     /// Whether the voice key's events tell left and right Option apart (device bits).
     private var voiceKeySided = false
     /// When Shift went down with no other key since (nil once any key is pressed).
-    private var shiftPressedAt: TimeInterval?
+    var shiftPressedAt: TimeInterval?
     /// Whether a tap of Shift switches the input language: with Shift the switch key (`Config.switchKey`, the default).
     /// With Caps Lock it is just Shift, and the session switches on a press of Caps Lock instead (`shiftTapped`).
     public var shiftTapSwitches = true
@@ -868,9 +870,9 @@ public final class Composer {
     /// What each modifier is for: shortcuts', a word at a time, the one held to dictate, the one tapped as the action
     /// key … Set by the shell (the Mac's are `ModifierRoles.mac`).
     public var modifierRoles = ModifierRoles.mac
-    /// Which Option key (the action tap's: `ModifierRoles.actionTap`) went down on its own, and when (nil once anything
-    /// else happens). Read by `optionTapHeld` (Composer+OptionTap.swift).
-    var optionPressed: (key: Key, at: TimeInterval)?
+    /// The Option keys' taps (Composer+OptionTap.swift): which one went down on its own and when (`optionPressed`), and
+    /// whether the last change of the modifiers was the composer's alone (`tookModifierChange`).
+    var optionTap = OptionTap()
     private var warnedNotReady = false
     /// The last thing added to the draft was a transcript (Space then runs the command right away).
     private var draftEndsWithVoice = false
@@ -1591,7 +1593,7 @@ public final class Composer {
 
     func handleOtherKeyDown(_ event: KeyEvent) -> Response {
         shiftPressedAt = nil
-        optionPressed = nil  // ⌥ with a key is a shortcut, not a tap
+        optionTapEnded(by: event)  // ⌥ with a key is a shortcut, not a tap
         voiceArmed = false  // a key with right ⌥ down is an ⌥ shortcut, not dictation
         // Code's word being typed, held in the panel (Composer+CodeWord.swift).
         if let response = handleCodeWordKey(event) { return response }
@@ -1727,7 +1729,8 @@ public final class Composer {
     /// With the `optionTap` action key, either Option key pressed and released on its own sends
     /// the sentence (a hold of the right one still dictates). With another, a tap of the right one
     /// while pinyin is typed with shape codes on is "`" (`shapeCodeTap`).
-    /// The application always receives modifier changes as well. `timestamp` is in seconds.
+    /// The application receives modifier changes as well, but for that key's press and release while it may be
+    /// that tap (`tookModifierChange`). `modifiers` with fn, if it is held; `timestamp` is in seconds.
     public func handleFlagsChanged(keyCode: UInt16, modifiers: KeyModifiers, timestamp: TimeInterval) -> [Effect] {
         handleFlagsChanged(key: MacKeyCodes.key(keyCode), modifiers: modifiers, timestamp: timestamp)
     }
@@ -1761,7 +1764,8 @@ public final class Composer {
         }
         // The right one's tap while pinyin is typed with shape codes on: "`", as its key types it (no hold, no notice).
         if tapped, let typed = shapeCodeTap(key) { return settled + typed }
-        return settled + modifierChanged(key: key, modifiers: modifiers, timestamp: timestamp)
+        // fn counts for the Option's tap alone (it is none with fn held).
+        return settled + modifierChanged(key: key, modifiers: modifiers.subtracting(.function), timestamp: timestamp)
     }
 
     /// `flagsChanged` but for the action key's tap.

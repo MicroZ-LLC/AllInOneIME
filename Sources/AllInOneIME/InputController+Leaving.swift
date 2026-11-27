@@ -12,17 +12,26 @@ extension AllInOneIMEInputController {
     @MainActor
     func leaveField(_ event: SessionEvent, client target: IMKTextInput?, insertingRest: Bool) {
         commitRow()
-        stopTyping(insertingRest: insertingRest, waiting: keysWhileStopping.isEmpty)
-        if case .blur = event, stopsInsertingRest != nil { stopsInsertingRest = false }
+        // A stop still settling when the field is left drops its rest, whatever the stop asked (a click outside asks for
+        // the rest in), and goes on settling by itself (`settleStop`, which takes its typo out a moment later): nothing
+        // is put into the field at the moment it is left.
+        if case .blur = event, stopsInsertingRest != nil, keysWhileStopping.isEmpty {
+            stopsInsertingRest = false
+        } else {
+            stopTyping(insertingRest: insertingRest, waiting: keysWhileStopping.isEmpty)
+        }
         apply(session.handle(event).outputs, client: target)
     }
 
-    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go (keys typed while a stop
-    /// settles before it: `leaveField`).
+    /// The app cancelled the composition: nothing of it goes in, the draft and the panel go, and a result being typed out
+    /// stops, its rest not typed, also where a stop already settling asked for the rest (keys typed while a stop settles
+    /// go in before it, after the rest: `leaveField`).
     override func cancelComposition() {
         IMKRecorder.shared.event("cancelComposition")
         MainActor.assumeIsolated {
             commitRow()
+            // A stop still settling drops its rest, whatever it asked (a click outside asks for the rest in).
+            if stopsInsertingRest != nil, keysWhileStopping.isEmpty { stopsInsertingRest = false }
             stopTyping(insertingRest: false, waiting: keysWhileStopping.isEmpty)
             apply(session.handle(.cancel).outputs, client: client())
         }

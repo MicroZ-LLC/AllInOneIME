@@ -38,11 +38,12 @@ enum AIConfigSession {
     static var keySource: @Sendable (Provider) -> APIKeys.Source = { APIKeys.source($0) }
 
     /// The providers with a key, by `lookup` (`keySource`, taken on the main thread), for `config`'s base URLs: one in
-    /// the shell only where it is sent (`APIKeys.shellKeyGoes`), as Settings shows it.
+    /// the shell only where it is sent (`APIKeys.shellKeyGoes`), one saved only for the host it was saved for, as
+    /// Settings shows it.
     nonisolated static func providersWithKey(_ lookup: @Sendable (Provider) -> APIKeys.Source, config: Config) -> Set<Provider> {
         Set(Provider.allCases.filter { provider in
             provider != .bedrock && provider != .apple
-                && lookup(provider).sent(by: provider, to: HTTPProviders.host(of: config.settings(for: provider))) != .none
+                && lookup(provider).sent(by: provider, in: config) != .none
         })
     }
 

@@ -50,6 +50,7 @@ extension InputSession {
         suggestionsLeft()
         if keptDraft == nil {
             if composer.waitsForField {
+                composer.modifierChangesMissed()  // a modifier held now is released elsewhere, as `leaveField` has it
                 keptDraft = KeptDraft(field: field, since: services.uptime())
                 emit(.panel(nil))
             } else {

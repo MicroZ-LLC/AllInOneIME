@@ -147,11 +147,17 @@ extension AllInOneIMEInputController {
     }
 
     /// The keys held while a stop settled (`keyWhileTypingOut`), now that it has: each as if typed now, in its field; one
-    /// the input method doesn't take is typed there, as its app would have typed it.
+    /// the input method doesn't take is typed there, as its app would have typed it. Their key downs were answered when
+    /// they came (taken), so no app has one now (as a key at the tap: `atTap`): nothing is marked to keep a key from a page (a Chromium
+    /// app's space for a key that composes would stay marked until the next key, no key being done after it).
     @MainActor
     func typeHeldKeys() {
         let held = keysWhileStopping
         keysWhileStopping = []
+        guard !held.isEmpty else { return }
+        let wasAtTap = atTap
+        atTap = true
+        defer { atTap = wasAtTap }
         for (event, client) in held where !handleNewKeyDown(event, client: client) {
             (client ?? clientOverride ?? self.client())?.insertText(event.characters ?? "", replacementRange: Self.notFound)
         }

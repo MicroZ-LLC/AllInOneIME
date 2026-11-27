@@ -6,7 +6,10 @@ extension Composer {
     /// The user left the field while typing: a click elsewhere or in it, another field, another app, the window closed
     /// (the shell's blur and commit). What is being composed and not yet confirmed (pinyin) is dropped and nothing of it
     /// goes in, the same in every app (the owner, 2026-11-15; #116). The rest goes as `commitAll` has it.
-    public func leaveField() -> [Effect] { commitAll(convertingComposition: false) }
+    public func leaveField() -> [Effect] {
+        modifierChangesMissed()  // a modifier held now is released elsewhere
+        return commitAll(convertingComposition: false)
+    }
 
     /// Whether what is being typed can wait for the field while the focus is elsewhere (`InputSession.blurred`): pinyin
     /// not yet confirmed, the "@" list's text, a command not run yet with its text. Not what is already on its way
