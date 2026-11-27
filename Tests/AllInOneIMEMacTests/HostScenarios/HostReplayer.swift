@@ -355,6 +355,9 @@ final class HostReplayer {
     private func switchSource(toABC abc: Bool) {
         note(abc ? "the input source switched to ABC" : "back to AllInOneIME")
         if abc, active {
+            // Leaving for another input source isn't the field losing the focus: what is typed goes (the system has
+            // the input method commit first, as the core's runner has it; the controller drops a kept draft then).
+            commitComposition()
             deactivate()
             active = false
         } else if !abc, !active {

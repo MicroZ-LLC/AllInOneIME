@@ -312,7 +312,7 @@ final class AllInOneIMEInputController: IMKInputController {
             if let app { recordApp(app) }
             // The app's own starting language, rewrite styles, typing out (`AppProfile`); a terminal pastes on ⌘V itself.
             let field = FieldInfo(app: app, terminal: Self.isTerminal(app: app))
-            apply(session.handle(.focus(field)).outputs, client: sender as? IMKTextInput)
+            takeFocus(field, client: sender as? IMKTextInput)
             // Translate as You Type's target removed: the first output language typed text goes into, else off.
             translateModeFollow(services.loadSettings())
             // The candidates' characters, when they follow the system's languages and those changed (`RimeFuzzy.follow`);
@@ -516,7 +516,7 @@ final class AllInOneIMEInputController: IMKInputController {
         IMKRecorder.shared.event("deactivate", client: sender)
         MainActor.assumeIsolated {
             // Still this field's session; another field has the focus now: the rest of a result isn't typed anywhere.
-            leaveField(.blur, client: sender as? IMKTextInput, insertingRest: false)
+            leaveFocus(client: sender as? IMKTextInput)
             fieldSession += 1
             panelAnchor.forget()  // the last rect to trust was this field's
             (anchorToken, anchorSaid) = (anchorToken + 1, nil)
