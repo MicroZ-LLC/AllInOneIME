@@ -50,7 +50,7 @@
 429 Sources/AllInOneIME/FloatingPanelSelfTest.swift
 875 Sources/AllInOneIME/InputController.swift
 2934 Sources/AllInOneIME/SelfTest.swift
-2926 Sources/AllInOneIME/SettingsWindow.swift
+2922 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
 779 Sources/AllInOneIME/Updates.swift
 450 Sources/AllInOneIME/main.swift

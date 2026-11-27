@@ -117,10 +117,10 @@ final class SettingsModel: ObservableObject {
     /// The control the window was opened to point at (`SettingsWindow.show(page:spot:)`, `point(at:search:card:)`),
     /// outlined on its page until it's used or another page is shown.
     @Published var spot: SettingsSpot?
-    /// Settings → AI's other cards, folded or not, and the one pointed at (`aiCards`, `AIChoiceSettings`).
+    /// Settings → AI collapsed or choosing, and the card pointed at (`aiCards`, `AIChoiceSettings`).
     @Published var aiPicker = AIPickerState(chosen: .provider(.hosted), groups: [])
-    /// False for previews/screenshots: nothing is ever written.
-    var persists: Bool { store.persists }
+    /// Looks at these CLIs' sign-ins for Settings → AI (`aiPageShown`); nil: `refreshSessions`. Set by tests.
+    var cliChecks: (([SessionAgent]) -> Void)?
     private var testTask: Task<Void, Never>?
     /// Screenshots only: the name shown for the selected AWS profile. README images are public and a
     /// profile is often named after its owner; the keys, region and Test Connection (测试连接) still use the real one.
@@ -431,8 +431,8 @@ final class SettingsModel: ObservableObject {
 
     // MARK: The AI (Settings → AI)
 
-    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: each CLI as its card shows on the AI
-    /// page, never at launch; `AIChoiceSettings`). The AI chosen: `choose`, `cli`.
+    /// Each CLI's sign-in as last looked at (`ClaudeSessionMac.checkAvailability`: the CLIs shown on the AI
+    /// page, never at launch; `aiPageShown`). The AI chosen: `choose`, `cli`.
     @Published var sessionAvailability: [SessionAgent: ClaudeSession.Availability] = ClaudeSessionMac.managers.mapValues(\.availability)
 
     // What this Mac has for each choice (`aiFacts`), and the cards: ClaudeSessionSettings.swift.
@@ -1860,49 +1860,46 @@ struct SettingsView: View {
         .disabled(!model.canSave)
     }
 
-    /// The AI (`Config.ai`, the owner's design, 0.7.4): one choice (a CLI answers `@question`, what has to be fast going to
-    /// `Config.fastProvider`). The one chosen (its logo, name and status) with its own settings under it, then its card,
-    /// outlined, and the other choices' cards by how they connect folded under one row (`AIChoiceSettings`, #121, #161);
-    /// the settings search's AI row points at the cards.
+    /// The AI (`Config.ai`, the owner's design, 0.7.4; #174): one choice (a CLI answers `@question`, what has to be fast
+    /// going to `Config.fastProvider`). Collapsed, the one chosen (its logo, name and status) with Change ▾, and its own
+    /// settings under it; choosing, every choice as a card by how it connects (`AIChoiceSettings`), the chosen one
+    /// outlined. The settings search's AI row opens the cards.
     @ViewBuilder var providerSection: some View {
         let facts = model.aiFacts
         let chosen = model.config.ai
         Section {
-            AIChosenRow(choice: chosen, status: facts.status(chosen, config: model.config))
-            switch chosen {
-            case let .cli(agent):
-                AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
-            case .provider(.bedrock): bedrockSettings
-            case .provider(.hosted): hostedSettings
-            case .provider(.apple): appleSettings
-            case let .provider(provider): apiKeySettings(provider)
-            }
-            if chosen.provider != nil {
-                HStack {
-                    Button(SettingsSpot.testConnection.title) { model.runTest() }
-                        .disabled(model.testStatus == .running)
-                    switch model.testStatus {
-                    case .idle: EmptyView()
-                    case .running: ProgressView().controlSize(.small)
-                    case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
-                    case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
-                    }
+            if model.aiCards.choosing {
+                AIChoiceSettings(model: model)
+            } else {
+                AIChosenRow(choice: chosen, status: facts.status(chosen, config: model.config)) {
+                    withAnimation(.easeOut(duration: 0.15)) { model.changeAICards { $0.change() } }
                 }
-                .settingsRow(.testConnection, shown: model.spot)
+                .settingsRow(.provider, shown: model.spot)
+                .onAppear { model.aiPageShown() }
+                switch chosen {
+                case let .cli(agent):
+                    AISessionRows(model: model, agent: agent, status: facts.status(chosen, config: model.config))
+                case .provider(.bedrock): bedrockSettings
+                case .provider(.hosted): hostedSettings
+                case .provider(.apple): appleSettings
+                case let .provider(provider): apiKeySettings(provider)
+                }
+                if chosen.provider != nil {
+                    HStack {
+                        Button(SettingsSpot.testConnection.title) { model.runTest() }
+                            .disabled(model.testStatus == .running)
+                        switch model.testStatus {
+                        case .idle: EmptyView()
+                        case .running: ProgressView().controlSize(.small)
+                        case let .passed(text): Text("✓ \(text)").foregroundStyle(.green).textSelection(.enabled)
+                        case let .failed(text): Text("✗ \(text)").foregroundStyle(.red).textSelection(.enabled)
+                        }
+                    }
+                    .settingsRow(.testConnection, shown: model.spot)
+                }
             }
         } header: {
-            SectionTitle(tr("AI", "AI"), icon: CommandIcons.provider)
-        }
-        .disabled(!model.canSave)
-        // The one in use as a card, the others folded under one row (#161): one click chooses.
-        Section {
-            AIChoiceSettings(model: model)
-        } header: {
-            HStack(alignment: .firstTextBaseline) {
-                SectionTitle(SettingsSpot.provider.title, icon: CommandIcons.provider)
-                Spacer()
-                Text(SettingsSpot.providerNote(cli: model.config.ai.agent != nil)).font(.callout).foregroundStyle(.secondary)
-            }
+            AISectionHeader(cli: model.config.ai.agent != nil)
         }
         .disabled(!model.canSave)
     }
@@ -2558,9 +2555,7 @@ struct SettingsView: View {
             model.refreshRecentQuestions()
             // So may the settings, or the input method's menu changed one: read off the main thread (the window becomes
             // key as it opens, too). Back from Terminal after `aws sso login`, say: the AWS profile's line read again.
-            model.reloadIfChangedOffMain {
-                if model.config.provider == .bedrock { model.aws.refresh(profile: model.config.awsProfile) }
-            }
+            model.reloadIfChangedOffMainForKeyWindow()
         }
         // Settings back in front (the input method's process active again), not any window of it becoming key.
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

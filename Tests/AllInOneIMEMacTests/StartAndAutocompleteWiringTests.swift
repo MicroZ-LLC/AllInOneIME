@@ -64,12 +64,12 @@ struct StartAndAutocompleteWiringTests {
         #expect(again.contains("config.ai.agent") && again.contains("refreshSessions([agent], force: true)"), "\(again)")
     }
 
-    // MARK: - Use My Own AI… unfolds the other AIs whatever is in use
+    // MARK: - Use My Own AI… opens the choices whatever is in use
 
     @Test func useMyOwnAIPointsAtACardNotInUse() throws {
         let view = try code("Sources/AllInOneIME/StartView.swift")
         let own = try block(view, "private func ownAI(")
-        #expect(!own.contains("card: AIChoice.all.first)"), "the first card, which may be the one in use (folded then): \(own)")
+        #expect(!own.contains("card: AIChoice.all.first)"), "the first card, which may be the one in use (collapsed then): \(own)")
         #expect(own.contains("!= settings.config.ai"), "\(own)")
     }
 

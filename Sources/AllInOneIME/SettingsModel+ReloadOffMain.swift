@@ -16,6 +16,15 @@ extension SettingsModel {
         }
     }
 
+    /// `reloadIfChangedOffMain` for the window become key: then, with the provider as the file has it, the AWS profile's
+    /// line read again (back from Terminal after `aws sso login`, say).
+    func reloadIfChangedOffMainForKeyWindow() {
+        reloadIfChangedOffMain { [weak self] in
+            guard let self, config.provider == .bedrock else { return }
+            aws.refresh(profile: config.awsProfile)
+        }
+    }
+
     /// `reloadIfChangedOffMain` for the key field Settings is asked to show (`note`: `allInOneIMEFocusAPIKey`): then
     /// `done` with the provider it names (none: not called) and whether that is the one in use, as the file has it.
     func reloadIfChangedOffMain(showingKeyOf note: Notification, then done: @escaping @MainActor (Provider, _ inUse: Bool) -> Void) {

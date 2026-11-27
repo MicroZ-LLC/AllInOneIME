@@ -59,8 +59,7 @@ expect "nothing changed" "- - -" ""
 each "docs nobody's tests read" "- - -" docs/user-guide.md site/public/index.html AGENTS.md CLAUDE.md
 each "the core's docs" "- - -" Core/docs/wire-protocol-v1.md Core/README.md Core/LICENSE
 each "the core's code" "core mac -" Core/Sources/AllInOneIMECore/Composer.swift Core/Sources/AllInOneIMEWire/WireServer.swift
-each "the core's scripts and resources" "core mac -" Core/Scripts/test.sh Core/Resources/Localizable.xcstrings \
-    Core/Sources/AllInOneIMECore/Resources/RedactionWords.txt
+each "the core's scripts" "core mac -" Core/Scripts/test.sh
 expect "a test of the core's" "core - -" "Core/Tests/AllInOneIMECoreTests/PlainTests.swift
 "
 expect "a test of the core's that runs the input method" "core mac -" "Core/Tests/AllInOneIMECoreTests/AppTests.swift
@@ -73,12 +72,12 @@ each "what the shell's tests share" "core mac -" Core/Tests/AllInOneIMETestSuppo
     Core/Tests/HostScenarios/chromium-caret.hostcase
 each "the scripts core-test runs too" "core mac -" Scripts/test-scope.sh Scripts/core-tests-with-app.sh \
     Scripts/check-split-paths.sh
-each "the shell's code, tests, scripts and resources" "- mac -" Sources/AllInOneIME/CandidatePanel.swift \
+each "the shell's code, tests and scripts" "- mac -" Sources/AllInOneIME/CandidatePanel.swift \
     Sources/AllInOneIMEMac/FieldReading.swift Tests/AllInOneIMEMacTests/UpdateInstallTests.swift Scripts/swiftlint.sh \
-    Scripts/test-scope-test.sh Resources/user-guide.md Resources/en.lproj/InfoPlist.strings
+    Scripts/test-scope-test.sh
 each "the files the shell's tests read" "- mac -" README.md README.zh-CN.md CHANGELOG.md CHANGELOG.zh-CN.md \
     THIRD_PARTY_NOTICES.md LICENSE
-each "anything else" "core mac -" .github/workflows/quality.yml .swiftlint.yml changes/issue-12.md NewFolder/file.txt \
+each "anything else" "core mac -" .github/workflows/release.yml .swiftlint.yml changes/issue-12.md NewFolder/file.txt \
     docs-old/page.md
 each "the updater, the installer and the apps' packaging" "- mac update" Sources/AllInOneIMEInstaller/Installer.swift \
     Sources/AllInOneIMEMac/UpdateInstall.swift Sources/AllInOneIME/Updates.swift Sources/AllInOneIME/main.swift \
@@ -87,9 +86,15 @@ each "the updater, the installer and the apps' packaging" "- mac update" Sources
     Scripts/check-weak-links.sh Scripts/sign-identity.sh Scripts/profile-entitlements.sh Resources/Info.plist \
     Resources/Settings-Info.plist Resources/Installer-Info.plist Resources/AllInOneIME.entitlements \
     Resources/Signing/AllInOneIME-DeveloperID.provisionprofile
+each "the resources that go into the apps" "- mac update" Resources/Localizable.xcstrings Resources/user-guide.md \
+    Resources/icon.tiff Resources/panel-icon.tiff Resources/AppIcon.icns Resources/AILogos/anthropic.pdf \
+    Resources/en.lproj/InfoPlist.strings Resources/Settings-zh-Hans.lproj/InfoPlist.strings \
+    Resources/rime/lua/allinoneime_removed.lua Resources/rime/default.custom.yaml Resources/AppIcon.png
 each "the core's updater and how the apps are built" "core mac update" Core/Sources/AllInOneIMECore/Update.swift \
     Core/Sources/AllInOneIMECore/AppVersion.swift Makefile Package.swift Package.resolved Core/Package.swift \
-    Core/Package.resolved
+    Core/Package.resolved Core/Sources/AllInOneIMECore/Platform/ProcessOutput.swift \
+    Core/Sources/AllInOneIMECore/Resources/RedactionWords.txt Core/Resources/Localizable.xcstrings \
+    .github/workflows/quality.yml
 together "docs, a test of the core's and the shell's code" "core mac -" docs/a.md \
     Core/Tests/AllInOneIMECoreTests/PlainTests.swift Sources/AllInOneIME/CandidatePanel.swift
 together "docs and a test of the core's" "core - -" docs/a.md Core/Tests/AllInOneIMECoreTests/PlainTests.swift
