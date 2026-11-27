@@ -44,10 +44,14 @@ extension Composer {
         optionTap = OptionTap()
     }
 
-    /// A key that secure input took, never told as a key (`handleKeyDown`): no tap or hold goes on across it, as across
-    /// any key, and a key parked for the selection read after the "@" key is done first, as if nothing were selected.
-    public func secureInputTookKey() -> [Effect] {
-        (shiftPressedAt, optionPressed, voiceArmed) = (nil, nil, false)
+    /// A key (`event`) that secure input took, never told as a key (`handleKeyDown`): no tap or hold goes on across it,
+    /// as across any key (`optionTapEnded`: with no Option among its modifiers, one remembered down, its press kept from
+    /// the app or not, was released untold, as the changes of the modifiers are under secure input; the next press
+    /// starts anew), and a key parked for the selection read after the "@" key is done first, as if nothing were
+    /// selected.
+    public func secureInputTookKey(_ event: KeyEvent) -> [Effect] {
+        (shiftPressedAt, voiceArmed) = (nil, false)
+        optionTapEnded(by: event)
         return selectionRead(nil)
     }
 

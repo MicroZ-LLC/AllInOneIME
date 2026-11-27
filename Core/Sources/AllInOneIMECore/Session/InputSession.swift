@@ -947,7 +947,7 @@ public final class InputSession {
             // A key parked for the selection read after the "@" key is done first, as if nothing were selected, under
             // secure input's rules: its row if it is still listed (no AI row is), else the text as typed. No tap of a
             // modifier goes on across this key (`Composer.secureInputTookKey`).
-            perform(composer.secureInputTookKey())
+            perform(composer.secureInputTookKey(event))
             autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.passwordFieldTakesOver()
