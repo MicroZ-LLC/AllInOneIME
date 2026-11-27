@@ -228,7 +228,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// Settings for single apps, by bundle id (`AppProfile`): the input language a field starts in, the rewrite
     /// styles, typing out, no AI. Empty by default.
     public var appProfiles: [String: AppProfile]
-    /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off by default.
+    /// Emails, numbers, keys and the user's own words hidden from the AI before a request is sent (`Redaction`). Off here
+    /// (what a file without the key means); on for a new install (`fresh`).
     public var redaction: RedactionSettings
     /// Autocomplete (「续写」, `Autocomplete`): after a pause in typing, the rest of the sentence in gray after the caret,
     /// Tab puts it in. In every app but those set otherwise (`AppProfile.autocomplete`) or where it stopped for want of
@@ -749,6 +750,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// A new user's settings (no config file yet): the hosted service once it is set up, which needs
     /// nothing but a Google sign-in. A file without `provider` (from before providers) stays on Bedrock. The
     /// translation language is the first of the user's languages that isn't English (`Platform.userLanguages`).
+    /// Sensitive information is hidden from the AI (`redaction`); `Config.default` stays off, so that an existing
+    /// user's file without the key keeps what it meant.
     public static var fresh: Config {
         fresh(preferring: Platform.current.userLanguages.preferred)
     }
@@ -759,6 +762,7 @@ public struct Config: Codable, Equatable, Sendable {
         var config = Config.default
         if HostedService.isConfigured { config.provider = .hosted }
         if let language = OutputLanguage.preferred(from: languages) { config.setOrder([language]) }
+        config.redaction = RedactionSettings(enabled: true)
         return config
     }
 
