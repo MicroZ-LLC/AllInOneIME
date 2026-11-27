@@ -84,8 +84,8 @@ enum StartWindow {
 
     /// The input method started: `showNotification` listened for (its whole life), and the window the AllInOneIME Settings
     /// app asked for shown, `start` the start (once) or `settings` Settings. Settings shows on About instead when the move
-    /// to this identity shows the step to add the input source first (decided by `UpdateController.start`, before this
-    /// runs).
+    /// to this identity shows the step to add the input source first (`UpdateController.whenFirstShown`: decided at once,
+    /// but right after the move once the first look at the input source answers).
     static func launched(start: Bool, settings: Bool) {
         listening = DistributedNotificationCenter.default().addObserver(forName: Notification.Name(showNotification),
                                                                         object: nil, queue: .main) { _ in
@@ -96,8 +96,10 @@ enum StartWindow {
             MainActor.assumeIsolated {
                 if start {
                     show()
-                } else if UpdateController.shared.firstShown != .inputSourceStep {
-                    SettingsWindow.shared.show()
+                } else {
+                    UpdateController.shared.whenFirstShown { first in
+                        if first != .inputSourceStep { SettingsWindow.shared.show() }
+                    }
                 }
             }
         }

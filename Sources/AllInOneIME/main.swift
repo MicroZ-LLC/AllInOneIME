@@ -74,7 +74,7 @@ final class IMEAppDelegate: NSObject, NSApplicationDelegate {
         MainActor.assumeIsolated {
             // The Settings app's reopen after it asked for the start (`StartWindow.showNotification`): not Settings over it.
             if let shown = StartWindow.shownAt, Date().timeIntervalSince(shown) < 5 { return }
-            SettingsWindow.shared.show()
+            UpdateController.shared.settingsReopened()
         }
         return false
     }
