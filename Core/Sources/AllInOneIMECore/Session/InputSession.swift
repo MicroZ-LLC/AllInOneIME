@@ -311,8 +311,7 @@ public final class InputSession {
             case let .ghostNotShown(text):
                 autocompleteNotShown(text)
             case .close:
-                dropKeptDraft()
-                autocompleteLeft(.unseen)
+                closedKeptDraftAndAutocomplete()
                 clipboardLeft()
                 suggestionsLeft()
                 learnTypedInEnglish(englishModeWords.leftField())

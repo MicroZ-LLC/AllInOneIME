@@ -62,6 +62,12 @@ extension InputSession {
         lastTyped.forget()
     }
 
+    /// The session closes: a kept draft goes, and autocomplete's ghost with nothing shown of it.
+    func closedKeptDraftAndAutocomplete() {
+        dropKeptDraft()
+        autocompleteLeft(.unseen)
+    }
+
     /// The kept draft goes, nothing of it in: the focus went to another field (`unlessIn`: the one taking it, which keeps
     /// the draft when it is the field that was left), the session closes, or the app ended the composition meanwhile.
     func dropKeptDraft(unlessIn field: FieldInfo? = nil) {
