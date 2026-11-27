@@ -126,8 +126,10 @@ public final class InputSession {
     private var passwordFieldRefusal: String?
     /// The key being handled, and what the field said with it; the field's text as last read (`@reply` after dictation).
     var keyContext: FieldContext?
+    /// The field left without a click while something was being typed, its draft kept for it (InputSession+KeptDraft.swift).
+    var keptDraft: FieldInfo?
     var keyBeingHandled: KeyEvent?
-    private var fieldText: FieldText?
+    var fieldText: FieldText?
     /// What the field reported selected when a command started on its selection: a key finding it moved (a click, the
     /// app's own keys) gives the command up (`Composer.selectionMoved`).
     private var selectionReported: Range<Int>??
@@ -136,7 +138,7 @@ public final class InputSession {
     private var selectionReading: Int?
     private var selectionReads = 0
     /// Counts the focus coming and going: a save that comes back to another count is no longer in the field it came from.
-    private(set) var fieldSession = 0
+    var fieldSession = 0
     /// The latest notice's timer, and the voice key's (older ones do nothing).
     private var noticeToken = 0
     private var voiceArmToken = 0
@@ -230,25 +232,22 @@ public final class InputSession {
             }
             switch event {
             case let .key(key, context):
+                showKeptDraft()  // a key with no focus told first: the field is typed in again
                 handled = self.key(key, context)
             case let .modifiers(change, context):
                 handled = false  // the application sees modifier changes too
                 modifiers(change, context)
             case let .focus(info):
+                dropKeptDraft(unlessIn: info)  // another field's: it starts clean
                 focus(info)
+                showKeptDraft()
             case .blur:
-                autocompleteLeft(.ignored)
-                clipboardLeft()
-                suggestionsLeft()
-                perform(composer.leaveField())
+                blurred()
                 learnTypedInEnglish(englishModeWords.leftField())
                 // Left for Settings, say: one removed here that the file has by now is the file's, which ✕ there brings back.
                 let unwritten = services.unwrittenRemovals?()
                 takeRemovedCandidates(services.loadSettings().removedCandidates, unwritten: unwritten)
                 releasePage()  // `@agent` asked for a page it didn't send
-                fieldSession += 1
-                fieldText = nil
-                lastTyped.forget()
             case .commit, .cancel, .pointerDown:
                 left(event)
                 lastTyped.forget()
@@ -311,6 +310,7 @@ public final class InputSession {
             case let .ghostNotShown(text):
                 autocompleteNotShown(text)
             case .close:
+                dropKeptDraft()
                 autocompleteLeft(.unseen)
                 clipboardLeft()
                 suggestionsLeft()
