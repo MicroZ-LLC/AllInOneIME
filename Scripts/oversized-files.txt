@@ -15,7 +15,7 @@
 422 Core/Sources/AllInOneIMECore/EnglishWordsEngine.swift
 785 Core/Sources/AllInOneIMECore/ExtensionSources.swift
 544 Core/Sources/AllInOneIMECore/ExtensionStore.swift
-862 Core/Sources/AllInOneIMECore/ICloudSync.swift
+848 Core/Sources/AllInOneIMECore/ICloudSync.swift
 477 Core/Sources/AllInOneIMECore/ICloudSyncEngine.swift
 612 Core/Sources/AllInOneIMECore/PersonalDictionary.swift
 477 Core/Sources/AllInOneIMECore/Redaction.swift
