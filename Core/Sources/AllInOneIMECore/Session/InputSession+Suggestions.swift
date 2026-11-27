@@ -434,7 +434,7 @@ extension InputSession {
             // id below 0).
             guard pause == suggesting.wordsPause, codeReadsTheField() else { return }
             suggesting.wordsReading = pause
-            emit(.readField(id: -pause))
+            emit(.readField(id: -pause, focus: fieldSession))
         }
     }
 

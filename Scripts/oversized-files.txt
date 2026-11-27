@@ -23,7 +23,7 @@
 464 Core/Sources/AllInOneIMECore/ScriptCommand.swift
 477 Core/Sources/AllInOneIMECore/Session/InputSession+ClipboardHistory.swift
 796 Core/Sources/AllInOneIMECore/Session/InputSession+Suggestions.swift
-1426 Core/Sources/AllInOneIMECore/Session/InputSession.swift
+1419 Core/Sources/AllInOneIMECore/Session/InputSession.swift
 548 Core/Sources/AllInOneIMECore/Session/PanelPresenter.swift
 535 Core/Sources/AllInOneIMECore/Session/SessionTasks.swift
 716 Core/Sources/AllInOneIMECore/Settings/SettingsSchema.swift

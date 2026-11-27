@@ -432,13 +432,14 @@ public final class FakeHost: @unchecked Sendable {
             case let .startTimer(id, seconds):
                 timers.append(id)
                 timerDelays[id] = seconds
-            case let .readField(id):
+            case let .readField(id, focus):
                 // At once, as the Mac reads it (the field as it is now; nothing of its text where it tells none).
                 fieldReads += 1
                 var read = reading?.context() ?? context
                 if tellsNoText { read.text = nil }
                 if passwordField, !cannotTellPasswordField { read.field = FieldInfo(app: app, terminal: terminal, secure: true) }
-                if fieldReadsWait { waitingReads.append(.field(read, id: id)) } else { send(.field(read, id: id)) }
+                let told = SessionEvent.field(read, id: id, focus: focus)
+                if fieldReadsWait { waitingReads.append(told) } else { send(told) }
             case let .readPasswordField(focus):
                 passwordFieldReads += 1
                 // Asked as the field takes the focus: answered by the time the next key comes, as the Mac's read off

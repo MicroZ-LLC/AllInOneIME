@@ -111,6 +111,9 @@ public final class InputSession {
     /// The focus (`fieldSession`) the shell was last asked in off the key's thread (`SessionOutput.readPasswordField`):
     /// once a field.
     var passwordFieldAsked = -1
+    /// The field the keys come for, where the last one (or modifier change) said another than `field` (the Mac: a key
+    /// before the focus is told); nil: `field`. What is told of the field (`passwordField`) is told of that one.
+    var keyField: FieldInfo?
     /// When the wheel was last over one of the session's own panels (`SessionServices.uptime`): suggestions' rows, the
     /// command list or clipboard history (`SessionEvent.scroll`). It moved no caret (`caretMayHaveMoved`).
     private var panelWheelAt: TimeInterval?
@@ -136,7 +139,7 @@ public final class InputSession {
     private var selectionReading: Int?
     private var selectionReads = 0
     /// Counts the focus coming and going: a save that comes back to another count is no longer in the field it came from.
-    private(set) var fieldSession = 0
+    var fieldSession = 0
     /// The latest notice's timer, and the voice key's (older ones do nothing).
     private var noticeToken = 0
     private var voiceArmToken = 0
@@ -246,8 +249,7 @@ public final class InputSession {
                 let unwritten = services.unwrittenRemovals?()
                 takeRemovedCandidates(services.loadSettings().removedCandidates, unwritten: unwritten)
                 releasePage()  // `@agent` asked for a page it didn't send
-                fieldSession += 1
-                fieldText = nil
+                fieldLeft()
                 lastTyped.forget()
             case .commit, .cancel, .pointerDown:
                 left(event)
@@ -282,10 +284,8 @@ public final class InputSession {
                 let content = secureInputActive() ? ClipboardContent.none : content
                 if id < 0 { clipboardRead(content, id: id) } else { perform(composer.pasted(content, id: id)); lastTyped.forget() }
             case .clipboardHistoryChanged: clipboardHistoryChanged()
-            case let .field(context, id):
-                takePasswordField(context)
-                // Below 0: Code's read of the field's words; else autocomplete's.
-                if id < 0 { suggestionsFieldRead(context, pause: -id) } else { autocompleteRead(context, id: id) }
+            case let .field(context, id, focus):
+                fieldRead(context, id: id, focus: focus)
             case let .passwordField(told, focus):
                 passwordFieldTold(told, focus: focus)
             case let .selection(selected, id):
@@ -319,7 +319,7 @@ public final class InputSession {
                 composer.forgetRecentLive()  // `@open`'s results kept for its texts go with the field's session
                 noticeToken += 1  // its timer does nothing now
                 dropEngine()
-                fieldSession += 1  // a save still on its way tells its outcome elsewhere
+                fieldLeft()  // a save still on its way tells its outcome elsewhere; nothing told of the field is kept
             }
         }
         return SessionResponse(handled: handled, outputs: outputs)
@@ -899,7 +899,7 @@ public final class InputSession {
            !engine.snapshot().isComposing {
             let staysHere = (context.field ?? field).textStaysHere
             if lastTyped.character != nil, !staysHere { wants.insert(.beforeCaret) }
-            if passwordField == nil { wants.insert(.passwordField) }
+            if passwordField(for: context) == nil { wants.insert(.passwordField) }
             let afterWord = context.read.contains(.beforeCaret)
                 && characterBeforeCaret(in: context).map(Composer.continuesWord) == true
             if !wants.contains(.beforeCaret) || context.read.contains(.beforeCaret), !afterWord, !staysHere,
@@ -911,21 +911,12 @@ public final class InputSession {
         // `fieldMayNotBeRead`: one not told yet is asked first, nor where the field's text stays here).
         if composer.draftCommand == .reply, !(context.field ?? field).textStaysHere,
            key.key == .enter || key.key == .keypadEnter || key.key == .space || composer.isActionKey(key) {
-            wants.formUnion(mayRead ? .text : passwordField == nil ? .passwordField : [])
+            wants.formUnion(mayRead ? .text : passwordField(for: context) == nil ? .passwordField : [])
         }
         wants.formUnion(digitPunctuationWants(for: key, context: context))
         // Suggestions: the selection where rows show, the field's words in Code (its word held too).
         if !composesBesidesCodeWord { wants.formUnion(suggestionsFieldWants(for: key)) }
         return wants
-    }
-
-    /// What of the field a modifier change may need, given what was read of it so far: `@reply`'s text, where a tap of
-    /// Option runs it (not where the field may not be read, `fieldMayNotBeRead`, nor where its text stays here:
-    /// `FieldInfo.textStaysHere`).
-    public func fieldWants(forModifiers change: ModifierChange, given context: FieldContext) -> FieldContext.Parts {
-        guard context.read.contains(.secure), !context.secure, !field.secure else { return [.secure] }
-        return composer.draftCommand == .reply && composer.actionKey == .optionTap && !fieldMayNotBeRead()
-            && !(context.field ?? field).textStaysHere ? [.secure, .text] : [.secure]
     }
 
     /// A key held back and handed on late, as if typed now (clipboard history's, typed while ⏎ waited for its rows:
@@ -943,7 +934,6 @@ public final class InputSession {
         defer { keyContext = nil; keyBeingHandled = nil }
         prepareKeyField(context)
         if event.printableText == nil || context.selectedRange?.isEmpty == false { lastTyped.forget() }
-        takePasswordField(context)
         // Password fields and prompts turn on secure event input. Never compose (so nothing can be sent to the model) in
         // the app that turned it on; anything already typed goes in as typed.
         if context.secure || field.secure {
@@ -1064,7 +1054,7 @@ public final class InputSession {
     }
 
     private func modifiers(_ change: ModifierChange, _ context: FieldContext) {
-        if context.read.contains(.text) { fieldText = context.text }
+        prepareKeyField(context)  // as a key's: what the change's own read says of the field, before anything is kept of it
         guard !(context.secure || field.secure) else {
             // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
             // here: no switch, its lock left alone.

@@ -44,11 +44,14 @@ public enum SessionEvent: Sendable {
     case clipboardHistoryChanged
     /// What the field says as `SessionOutput.readField` asked for it (its `id`: autocomplete's pause, or below 0 coding
     /// mode's): whether secure input is on, the selection, the text around the caret (what wasn't read,
-    /// `FieldContext.read`, counts as unknown).
-    case field(FieldContext, id: Int)
+    /// `FieldContext.read`, counts as unknown), for the focus it was asked in (`focus`, `SessionOutput.readField`'s; nil:
+    /// the shell doesn't say, and it counts as the field that has the focus now). One for a field that has lost the
+    /// focus since is dropped: what it says is another field's (whether it is a password field, too).
+    case field(FieldContext, id: Int, focus: Int? = nil)
     /// Whether the field that had the focus when `SessionOutput.readPasswordField` asked (`focus`, its count) is a
     /// password field where secure input isn't on; nil: the shell couldn't tell (the Mac: no Accessibility, nothing
-    /// focused, no answer in time), unknown, never none. One for a field that has lost the focus since is dropped.
+    /// focused, no answer in time, the focused element not the app's being typed in), unknown, never none. One for a
+    /// field that has lost the focus since is dropped.
     case passwordField(Bool?, focus: Int)
     /// The selection read after the "@" key (`SessionOutput.readSelection`, its `id`); nil: none, or the read gave up. A key
     /// parked for it is done then (`Composer.parkedForSelection`). One the draft no longer waits for (the field lost the
@@ -134,12 +137,14 @@ public enum SessionOutput: Equatable, Sendable {
     /// Read what the field says now (secure input, the selection, the text around the caret: up to
     /// `Autocomplete.beforeLimit` characters before it and `Autocomplete.afterLimit` after it; for an `id` below 0, coding
     /// mode's words once typing paused, `ReplyContext.Limits.fieldBefore` and `fieldAfter`), never during secure input,
-    /// and hand it back as `SessionEvent.field` with `id`. A shell that can't read it answers with nothing read.
-    case readField(id: Int)
+    /// and hand it back as `SessionEvent.field` with `id` and `focus` (the field that has the focus now, by its count:
+    /// the answer is dropped once another has it). A shell that can't read it answers with nothing read.
+    case readField(id: Int, focus: Int)
     /// Read whether the field that has the focus is a password field where secure input isn't on, off the session's
     /// thread (the Mac asks Accessibility, which may take a quarter of a second: no key waits for it), and hand it back
     /// as `SessionEvent.passwordField` with `focus`. Asked as a field takes the focus (`InputSession.passwordFieldFocused`),
-    /// once a field. A shell that can't tell answers nil. A shell must answer: until it
+    /// or with the first key or modifier change that comes for another field than the one told (`anotherField`), once a
+    /// field, never while secure input is on. A shell that can't tell answers nil. A shell must answer: until it
     /// does, no command reads the field (its selection, the text around the caret: `InputSession.fieldMayNotBeRead`).
     case readPasswordField(focus: Int)
     /// Read the selection off the session's thread, as the key couldn't (`FieldContext.selectionFollows`: the Mac's
@@ -274,6 +279,10 @@ public struct FieldInfo: Equatable, Sendable {
     /// does in a terminal: no selection, nor the text around the caret, nor the web page is read for it; what is typed
     /// after the command is sent as usual. The one check on the Mac and on Windows.
     public var textStaysHere: Bool { terminal || PasswordManagers.contains(app) }
+
+    /// Whether `other` is this field as far as either tells: the same app's, a terminal's or not. Not by `secure`, which
+    /// is what is told of a field (a password field), not which one it is.
+    func isSameField(as other: FieldInfo) -> Bool { app == other.app && terminal == other.terminal }
 }
 
 /// What the field says when a key goes down, read by the shell before it hands the key on: the core never asks the field

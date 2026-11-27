@@ -359,7 +359,7 @@ extension InputSession {
             }
         }
         autocomplete.reading = token
-        emit(.readField(id: token))
+        emit(.readField(id: token, focus: fieldSession))
     }
 
     /// What the field said once the pause was over: a suggestion kept for its text in this app (`Autocomplete.Cache`),

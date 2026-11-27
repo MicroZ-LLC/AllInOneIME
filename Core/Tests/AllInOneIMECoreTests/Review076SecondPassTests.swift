@@ -68,11 +68,13 @@ private enum SecondPass {
 struct Review076NeverAskedFieldTests {
     /// A field of an ordinary app, "hunter2 secret" in it, all selected; nothing has the shell asked whether it is a
     /// password field (no suggestion source, no English words learned), and its answers wait (`answerFieldReads`).
-    private func host(model: SecondPassModel = SecondPassModel(), passwordField: Bool, useSelection: Bool = true) -> FakeHost {
+    private func host(model: SecondPassModel = SecondPassModel(), passwordField: Bool, useSelection: Bool = true,
+                      actionKey: ActionKey = .enter) -> FakeHost {
         var config = Config.default
         config.uiLanguage = "en"
         config.provider = .apple
         config.useSelection = useSelection
+        config.actionKey = actionKey
         config.setOrder([Language.english, .chinese])
         let fixed = config
         var services = SessionServices(converter: Converter(loadConfig: { fixed }, loadJargon: { _ in [] }, appleModel: model),
@@ -172,8 +174,22 @@ struct Review076NeverAskedFieldTests {
             let reads = host.passwordFieldReads
             let wanted = host.session.fieldWants(for: FakeHost.enter, given: FieldContext(read: .secure, field: FieldInfo(app: host.app)))
             #expect(wanted.contains(.passwordField) && !wanted.contains(.text), "\(wanted)")
-            let option = ModifierChange(key: .modifier(.option, .left), modifiers: [.option, .leftOption], timestamp: 1)
-            #expect(!host.session.fieldWants(forModifiers: option, given: FieldContext(read: .secure)).contains(.text))
+            // The same of a tap of Option, where that is the action key (with ⏎ the action key no tap reads anything,
+            // whatever the session knows: the check held of itself). The premise first: told none, the tap reads the text.
+            let tapped = self.host(passwordField: true, actionKey: .optionTap)
+            tapped.selection = nil
+            tapped.type("@reply")
+            tapped.press(FakeHost.tab)
+            tapped.type("ok")
+            try #require(tapped.composer.draftCommand == .reply && tapped.composer.actionKey == .optionTap)
+            let option = ModifierChange(key: .modifier(.option, .left), modifiers: [], timestamp: 1)
+            let field = FieldContext(read: .secure, field: FieldInfo(app: tapped.app))
+            tapped.session.passwordField = .no
+            try #require(tapped.session.fieldWants(forModifiers: option, given: field).contains(.text), "the premise: read once told none")
+            tapped.session.passwordField = nil
+            tapped.session.passwordFieldAsked = -1
+            let tapWanted = tapped.session.fieldWants(forModifiers: option, given: field)
+            #expect(tapWanted.contains(.passwordField) && !tapWanted.contains(.text), "\(tapWanted)")
             // A shell that told the text all the same, and nothing of a password field.
             var told = FieldContext(read: [.secure, .text], field: FieldInfo(app: host.app))
             told.text = host.context.text
