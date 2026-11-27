@@ -4524,6 +4524,53 @@
         }
       }
     },
+    "%@ inserts · ↑↓ to pick · ⇧↓ selects more · → types the filter · Esc hides" : {
+      "comment" : "%@ 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 输入筛选的字 · Esc 隐藏",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt ein · ↑↓ zum Wählen · ⇧↓ wählt mehr · → tippt den Filter ein · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ inserta · ↑↓ para elegir · ⇧↓ elige más · → escribe el filtro · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insère · ↑↓ pour choisir · ⇧↓ en choisit plus · → saisit le filtre · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で挿入 · ↑↓ で選択 · ⇧↓ で複数選択 · → で絞り込みの文字を入力 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 삽입 · ↑↓ 선택 · ⇧↓ 여러 개 선택 · → 필터 글자 입력 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere · ↑↓ para escolher · ⇧↓ escolhe mais · → digita o filtro · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 插入 · ↑↓ 選擇 · ⇧↓ 多選 · → 輸入篩選的字 · Esc 隱藏"
+          }
+        }
+      }
+    },
     "%@ inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides" : {
       "comment" : "%@ 插入 · ↑↓ 选择 · 打字筛选 · ⇧↓ 多选 · → 或 Esc 隐藏",
       "localizations" : {
@@ -4661,6 +4708,53 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%@ 一行一條插入 · ⇧↑⇧↓ 多選 · → 或 Esc 隱藏"
+          }
+        }
+      }
+    },
+    "%@ inserts them, one per line · ⇧↑⇧↓ select · → types the filter · Esc hides" : {
+      "comment" : "%@ 一行一条插入 · ⇧↑⇧↓ 多选 · → 输入筛选的字 · Esc 隐藏",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ fügt sie ein, je eine Zeile · ⇧↑⇧↓ wählen · → tippt den Filter ein · Esc blendet aus"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ los inserta, uno por línea · ⇧↑⇧↓ eligen · → escribe el filtro · Esc oculta"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ les insère, un par ligne · ⇧↑⇧↓ choisissent · → saisit le filtre · Échap masque"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ で1行ずつ挿入 · ⇧↑⇧↓ で選択 · → で絞り込みの文字を入力 · Esc で隠す"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 한 줄에 하나씩 삽입 · ⇧↑⇧↓ 선택 · → 필터 글자 입력 · Esc 숨기기"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ insere, um por linha · ⇧↑⇧↓ escolhem · → digita o filtro · Esc oculta"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 一行一條插入 · ⇧↑⇧↓ 多選 · → 輸入篩選的字 · Esc 隱藏"
           }
         }
       }

@@ -8,8 +8,10 @@ CI, so a change that breaks them doesn't merge. The rest are checked by the inde
 ## Product
 
 1. **One behaviour everywhere.** The same thing works the same way in every app, input, panel and platform (every
-   candidate panel: first row chosen, ↑↓ move, Return/Tab insert, → or Esc give the keys back). A per-app, per-input,
-   per-feature or per-platform difference needs the owner's OK: stop and ask, with the reason.
+   candidate panel: first row chosen, ↑↓ move, Return/Tab insert, → or Esc give the keys back; on a list longer than
+   one page with nothing typed → turns the page, and with text typed it puts that text in as typed and gives the keys
+   back). A per-app, per-input, per-feature or per-platform difference needs the owner's OK: stop and ask, with the
+   reason.
    *Why: users learn one product, not a list of exceptions.*
 2. **Subtract.** No new `@` command, shortcut or setting without the owner's OK (an issue labelled for the pipeline
    that asks for one in so many words has it). Reuse an existing command, key or per-app setting; prefer learning from
