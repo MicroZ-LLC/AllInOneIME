@@ -20,6 +20,8 @@ extension InputSession {
         guard !rows.isEmpty, rows != clipboard.all else { return }
         let chosen = clipboard.rows[clipboard.chosen]
         clipboard.chosen = rows.firstIndex(of: chosen) ?? min(clipboard.chosen, rows.count - 1)
+        // The page follows the chosen row, as the panel draws it: a click on a row shown counts from `top`.
+        clipboard.top = ListPage.first(top: clipboard.top, chosen: clipboard.chosen, count: rows.count)
         (clipboard.rows, clipboard.all, clipboard.keys) = (rows, rows, nil)
         clipboard.passesPasteKey = rows.contains(where: \.isImage) && services.clipboardHistory.canPassPasteKey()
         clipboard.index?.stop()

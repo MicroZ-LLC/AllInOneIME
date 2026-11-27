@@ -232,8 +232,7 @@ public final class InputSession {
             case let .key(key, context):
                 handled = self.key(key, context)
             case let .modifiers(change, context):
-                handled = false  // the application sees modifier changes too
-                modifiers(change, context)
+                handled = modifiers(change, context)  // the application sees modifier changes too, but for a tap taken
             case let .focus(info):
                 focus(info)
             case .blur:
@@ -946,8 +945,9 @@ public final class InputSession {
             secureKey = true
             defer { secureKey = false }
             // A key parked for the selection read after the "@" key is done first, as if nothing were selected, under
-            // secure input's rules: its row if it is still listed (no AI row is), else the text as typed.
-            perform(composer.selectionRead(nil))
+            // secure input's rules: its row if it is still listed (no AI row is), else the text as typed. No tap of a
+            // modifier goes on across this key (`Composer.secureInputTookKey`).
+            perform(composer.secureInputTookKey(event))
             autocompleteLeft(.unseen)
             if composer.isComposing {
                 let ended = composer.passwordFieldTakesOver()
@@ -1061,27 +1061,30 @@ public final class InputSession {
         return response.handled
     }
 
-    private func modifiers(_ change: ModifierChange, _ context: FieldContext) {
+    /// A change of the modifiers. True: the session's alone, kept from the app (`Composer.tookModifierChange`: the right
+    /// Option's press and release while pinyin is typed with shape codes on, its tap "`"); false, as nearly always: the
+    /// app's as well.
+    private func modifiers(_ change: ModifierChange, _ context: FieldContext) -> Bool {
         if context.read.contains(.text) { fieldText = context.text }
         guard !(context.secure || field.secure) else {
-            // A password field took over: stop any recording (its release may never arrive here). Caps Lock is the system's
-            // here: no switch, its lock left alone.
-            if composer.voice != .off { perform(composer.passwordFieldTakesOver()) }
-            suggestionsModifiersMissed(shiftDown: change.modifiers.contains(.shift))  // no long press of Shift either
-            return
+            modifiersInSecureInput(change)
+            return false
         }
         ensureLevelOne()
-        // The key that switches the input language, as the settings say now: with Caps Lock, a tap of Shift is just Shift.
-        let switchKey = services.loadSettings().switchKey
-        composer.shiftTapSwitches = switchKey == .shift
+        // As the settings say now. The key that switches the input language: with Caps Lock, a tap of Shift is just Shift.
+        // The shape codes the right Option's tap types "`" for (turned on or off elsewhere with the focus where it was);
+        // none under clipboard history's panel, whose keys are the panel's: the pinyin behind it isn't shown.
+        let settings = services.loadSettings(), switchKey = settings.switchKey
+        (composer.shiftTapSwitches, composer.shapeCode) = (switchKey == .shift, clipboard.shown ? nil : settings.typedShapeCode)
         suggestionsModifiers(change)  // a long press of Shift turns Translate as You Type on or off
         // The key was held up to the event; the pointer is asked later, so look back that much further.
         let (late, pointerUsedWithin) = (change.late, services.pointerUsedWithin)
         composer.pointerUsedWithin = { pointerUsedWithin($0 + late) }
         keyContext = context
-        // fn is the long press's only (fn and Shift is none); a tap of Shift with fn held switches as it always did.
+        // fn is the long press's (fn and Shift is none) and the Option's tap's (fn and Option is none: the composer's); a
+        // tap of Shift with fn held switches as it always did.
         let before = composer.input
-        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers.subtracting(.function), timestamp: change.timestamp))
+        perform(composer.handleFlagsChanged(key: change.key, modifiers: change.modifiers, timestamp: change.timestamp))
         if switchKey == .capsLock, capsLockPressed(change) {
             // A press of Caps Lock, the switch key, is a tap of Shift (0.7.4): the input language switched, and the lock the
             // press turned on is turned off again at once (no capitals, its light off).
@@ -1090,6 +1093,7 @@ public final class InputSession {
         }
         keyContext = nil
         learningSwitched(from: before)
+        return composer.tookModifierChange
     }
 
     /// Caps Lock pressed on its own: its lock turned on, with no Shift, Control, Option or Command held (fn doesn't count,

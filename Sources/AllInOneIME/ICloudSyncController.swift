@@ -108,7 +108,8 @@ final class ICloudSyncController: ObservableObject {
     /// key; one from the login shell counts only for a base URL it goes to, as in Settings), the AWS profiles, the
     /// providers offered.
     nonisolated static var liveEnvironment: ICloudSync.Environment {
-        ICloudSync.Environment(keySource: { APIKeys.source($0) }, awsProfiles: { AWSSharedConfig.profileNames() },
+        ICloudSync.Environment(keySource: { APIKeys.source($0) }, savedHost: { APIKeys.savedHost($0) },
+                               awsProfiles: { AWSSharedConfig.profileNames() },
                                offeredProviders: Provider.offered, interfaceLanguages: InterfaceLanguage.shipped())
     }
 

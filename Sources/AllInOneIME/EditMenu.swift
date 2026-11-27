@@ -3,7 +3,8 @@ import AppKit
 /// The keys every text field answers in an app with a menu bar: an agent app (the input method, `LSUIElement`) has no
 /// main menu, so ⌘V, ⌘C, ⌘X, ⌘A and ⌘Z did nothing in Settings' fields (an API key could only be pasted from the context
 /// menu). A main menu that is never shown, with an Edit menu of the standard actions sent to the first responder, gives
-/// them their keys in every window of ours. Installed once, the first time Settings opens.
+/// them their keys in every window of ours. Installed once, the first time Settings or the start (its step 3 has a field
+/// to type in) opens.
 enum EditMenu {
     @MainActor
     static func install() {

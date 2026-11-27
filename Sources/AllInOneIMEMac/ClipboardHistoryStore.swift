@@ -418,8 +418,10 @@ public final class ClipboardHistoryStore: @unchecked Sendable {
         writes.async { [self] in
             let whole = whole(items, loading: loading, limit: limit)
             save(whole)
-            removeUnlisted(listing: whole)
+            // Made ready up to here: the list with it is written. One the limit pushed out at once (older than all that
+            // is kept) is in no list, and its files go with the others' below.
             if let id { preparing.remove(id) }
+            removeUnlisted(listing: whole)
         }
     }
 

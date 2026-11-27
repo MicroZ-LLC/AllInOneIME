@@ -53,6 +53,14 @@ struct AISectionHeader: View {
 }
 
 extension SettingsModel {
+    /// Whether the provider's key is set, as its row shows it and as a request finds it (`APIKeys.load(_:for:)`): one in
+    /// the shell only for a base URL it is sent to (`APIKeys.shellKeyGoes`), one saved only for the host it was saved
+    /// for (`keyHosts`: a base URL changed to another service's doesn't get it, and nothing here says it is set).
+    func keyState(_ provider: Provider) -> KeyState {
+        let host = HTTPProviders.host(of: config.settings(for: provider))
+        return KeyState(keySources[provider]?.sent(by: provider, to: host, savedFor: keyHosts[provider]), ending: keyEndings[provider])
+    }
+
     /// False for previews/screenshots: nothing is ever written.
     var persists: Bool { store.persists }
 
@@ -124,9 +132,22 @@ extension SettingsModel {
     /// rows are at the top). Pointed at them, the choices open, scrolled to `card` (the start's, the Doctor's) or to
     /// a choice `search` names (what the search had typed: "kiro"), unless that one is in use, at the top.
     func point(at spot: SettingsSpot?, search: String? = nil, card: AIChoice? = nil) {
+        pointNow(at: spot, search: search, card: card)
+        guard card != nil else { return }
         // A card is compared with the AI in use as the file has it now: a change just written (the Assistant's) may not
         // have reached the model yet, and the card it points at is then the one in use, not one to open the choices for.
-        if card != nil { reloadIfChanged() }
+        // The file is read off the main thread (`reloadIfChangedOffMain`); where it has another AI in use, the window
+        // still pointed as it was a moment ago is pointed again, from the page collapsed.
+        let (pointed, inUse) = (self.spot, config.ai)
+        reloadIfChangedOffMain { [weak self] in
+            guard let self, config.ai != inUse, self.spot == pointed else { return }
+            changeAICards { $0.show(search: nil, target: nil) }
+            pointNow(at: spot, search: search, card: card)
+        }
+    }
+
+    /// `point`, with the settings as the model has them now.
+    private func pointNow(at spot: SettingsSpot?, search: String?, card: AIChoice?) {
         let spot = spot ?? card.flatMap { $0 == config.ai ? nil : SettingsSpot.provider }
         // Pointed anywhere else (another row, the card in use), the page is collapsed: the chosen AI's rows show only then.
         let cards = spot == .provider
