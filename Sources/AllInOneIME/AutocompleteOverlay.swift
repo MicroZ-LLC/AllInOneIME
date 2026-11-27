@@ -236,12 +236,16 @@ enum AutocompleteSwitch {
         var line: String?
         /// The settings it asks with: with a CLI chosen, its fast fallback's (`fastConfig`); nil: it can't run.
         var fast: Config?
-        var available: Bool { fast != nil }
+        /// Whether it can run, and so be turned on: false too while a fast fallback just chosen hasn't been looked at
+        /// yet (`route`), its model and where the text goes shown already.
+        var available: Bool
     }
 
     static func shown(_ config: Config) -> Shown {
-        guard let fast = fastConfig(config) else { return Shown(on: false, model: nil, line: noFasterAI, fast: nil) }
-        return Shown(on: config.autocomplete, model: modelName(fast), line: destination(fast), fast: fast)
+        guard let (fast, looked) = route(config) else { return Shown(on: false, model: nil, line: noFasterAI, fast: nil, available: false) }
+        // Not looked at yet: where the requests go from now on, but not on, nor to be turned on, until the look on its
+        // way says it can answer (a key for it, Apple Intelligence available), as where it can't run.
+        return Shown(on: looked && config.autocomplete, model: modelName(fast), line: destination(fast), fast: fast, available: looked)
     }
 
     /// Why it can't run, in the words Settings → Common has under the switch.
@@ -253,14 +257,21 @@ enum AutocompleteSwitch {
     /// a request finds it (`Converter.fastConfig`: the keychain, the shell's variables, the AWS profile's files), looked
     /// up off the main thread each time the switch is shown (`lookUp`) and at launch: what the last look found until the
     /// next comes back (none before the first); with another fast fallback chosen since that look, that one at once
-    /// (where the requests go from now on; the look on its way says so if it can't answer). Nil: it can't run.
-    static func fastConfig(_ config: Config) -> Config? {
-        guard case .cli = config.ai else { return config }
+    /// (where the requests go from now on; the look on its way says whether it can answer: `route`). Nil: it can't run.
+    static func fastConfig(_ config: Config) -> Config? { route(config)?.fast }
+
+    /// `fastConfig`, and whether a look found it able to answer (`looked`; always, with a provider chosen): false for a
+    /// fast fallback chosen since the last look, which nothing has checked yet (it may have no key, one saved for
+    /// another host, or be Apple Intelligence where there is none), until the look on its way comes back.
+    private static func route(_ config: Config) -> (fast: Config, looked: Bool)? {
+        guard case .cli = config.ai else { return (config, true) }
         lookUp(config)
-        guard let found, let provider = found.config.provider == config.provider ? found.provider : config.provider else { return nil }
+        guard let found else { return nil }
+        let looked = found.config.provider == config.provider
+        guard let provider = looked ? found.provider : config.provider else { return nil }
         var fast = config
         fast.provider = provider
-        return fast
+        return (fast, looked)
     }
 
     /// What the last look found: the settings it was for, the fast fallback's provider with them (nil: none), and when it
