@@ -56,7 +56,7 @@ enum Review076SecondPassChild {
             throw Failure(description: "the Review076P2 harness has no `\(theirs)`")
         }
         let mainFile = scratch.appendingPathComponent("main.swift")
-        try (String(main[..<cut.upperBound]) + String(Review076P2Harness.swift[..<last.lowerBound]) + ways)
+        try (String(main[..<cut.upperBound]) + String(Review076P2Harness.swift[..<last.lowerBound]) + Review076ThirdPassChild.ways + ways)
             .write(to: mainFile, atomically: true, encoding: .utf8)
         let others = try fm.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" && $0.lastPathComponent != "main.swift" }.sorted { $0.path < $1.path }
@@ -317,8 +317,11 @@ enum Review076SecondPassChild {
             case "settings-opened": settingsOpened()
             case "assistant-keys": assistantKeys()
             default:
-                print("FAIL unknown way \(way)")
-                exit(2)
+                // The third pass's ways (Review076ThirdPassChild.swift).
+                guard third(way) else {
+                    print("FAIL unknown way \(way)")
+                    exit(2)
+                }
             }
             fflush(stdout)
             _exit(0)
