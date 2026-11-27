@@ -106,6 +106,8 @@ struct DashboardSources {
     /// chosen as the AI, its fast fallback's. No model: it can't run (a CLI and no faster AI), the line says why
     /// (`AutocompleteSwitch.shown`).
     var autocompleteModel: @MainActor () -> String? = { AutocompleteSwitch.shown(LiveConfig.current).model }
+    /// Whether it can be turned on (`AutocompleteSwitch.Shown.available`): not while a fast fallback just chosen is looked at.
+    var autocompleteAvailable: @MainActor () -> Bool = { AutocompleteSwitch.shown(LiveConfig.current).available }
     var autocompleteDestination: @MainActor () -> String? = { AutocompleteSwitch.shown(LiveConfig.current).line }
     /// The command trigger the settings have (`Config.commandTrigger`): what its text names commands with.
     var commandTrigger: @MainActor () -> String = { LiveConfig.current.commandTrigger }
@@ -240,6 +242,7 @@ final class FloatingPanel: ObservableObject {
     @Published private(set) var autocomplete = false
     @Published private(set) var autocompleteSummary: String?
     @Published private(set) var autocompleteModel: String?
+    @Published private(set) var autocompleteAvailable = false
     @Published private(set) var autocompleteDestination: String?
     /// The lists' height, measured by the view: the window is as tall as they need, up to `maxHeight`.
     @Published var listHeight: CGFloat = 0 {
@@ -577,6 +580,7 @@ final class FloatingPanel: ObservableObject {
     func setAutocomplete(_ on: Bool?) {
         if let on { _ = sources.setAutocomplete(on) }
         (autocomplete, autocompleteSummary, autocompleteModel, autocompleteDestination) = (sources.autocompleteOn(), sources.autocompleteSummary(), sources.autocompleteModel(), sources.autocompleteDestination())
+        autocompleteAvailable = sources.autocompleteAvailable()
     }
 
     /// Opens the note where it was saved, by its id's scheme: a note in Notes there (one that's gone is dropped once
@@ -1161,7 +1165,7 @@ struct FloatingPanelView: View {
             }
         }
         .toggleStyle(.switch)
-        .controlSize(.mini).disabled(panel.autocompleteModel == nil)  // no model: a CLI chosen and no faster AI, it can't run
+        .controlSize(.mini).disabled(!panel.autocompleteAvailable)  // can't run (a CLI chosen, no faster AI) or not looked at yet
         .padding(.horizontal, 2)
     }
 
