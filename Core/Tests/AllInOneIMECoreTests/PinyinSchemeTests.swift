@@ -3,7 +3,7 @@ import Testing
 @testable import AllInOneIMECore
 import AllInOneIMETestSupport
 
-/// Shuangpin and Zhuyin (`PinyinScheme`) beside full pinyin: the schemes, the letters read as each reads them (what isn't
+/// Shuangpin, Zhuyin and Wubi (`PinyinScheme`) beside full pinyin: the schemes, the letters read as each reads them (what isn't
 /// learned as an English word, where one goes among the candidates), the files that deploy them (the schema list, the
 /// patch made for the scheme's schema; Zhuyin's own) and the interface text in every language the catalog has. librime
 /// on rime-ice's own schemas: `ShuangpinSchemaTests` in the shell's Rime tests; on rime-bopomofo's, `ZhuyinSchemaTests`.
@@ -11,14 +11,14 @@ struct PinyinSchemeTests {
     @Test func theSchemesAreRimeIcesSchemas() {
         #expect(PinyinScheme.allCases.map(\.schema) == ["rime_ice", "double_pinyin_flypy", "double_pinyin", "double_pinyin_mspy",
                                                          "double_pinyin_sogou", "double_pinyin_abc", "double_pinyin_jiajia",
-                                                         "double_pinyin_ziguang", "bopomofo"])
-        #expect(PinyinScheme(setting: nil) == .full && PinyinScheme(setting: "full") == .full && PinyinScheme(setting: "wubi86") == .full)
+                                                         "double_pinyin_ziguang", "bopomofo", "wubi86"])
+        #expect(PinyinScheme(setting: nil) == .full && PinyinScheme(setting: "full") == .full && PinyinScheme(setting: "wubi98") == .full)
         #expect(PinyinScheme(setting: "double_pinyin_mspy") == .microsoft && PinyinScheme.microsoft.setting == "double_pinyin_mspy")
         #expect(PinyinScheme.full.setting == nil && !PinyinScheme.full.isShuangpin && PinyinScheme.shuangpin.count == 7)
-        #expect(!PinyinScheme.zhuyin.isShuangpin && PinyinScheme.others == PinyinScheme.shuangpin + [.zhuyin])
+        #expect(!PinyinScheme.zhuyin.isShuangpin && PinyinScheme.others == PinyinScheme.shuangpin + [.zhuyin, .wubi])
         #expect(PinyinScheme.zhuyin.schemaList == ["rime_ice", "bopomofo"] && PinyinScheme.zhuyin.algebra.isEmpty)
         var config = Config.default
-        config.pinyinScheme = "wubi86"  // a later version's: full pinyin here, and not kept
+        config.pinyinScheme = "wubi98"  // a later version's: full pinyin here, and not kept
         let reread = try? JSONDecoder().decode(Config.self, from: JSONEncoder().encode(config))
         #expect(reread?.pinyinScheme == nil && reread?.typedPinyin == .full)
         #expect(PinyinScheme.xiaohe.schemaList == ["rime_ice", "double_pinyin_flypy"] && PinyinScheme.full.schemaList == ["rime_ice"])

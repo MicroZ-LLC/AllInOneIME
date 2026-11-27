@@ -353,7 +353,7 @@ public final class SettingsStore {
         save()
     }
 
-    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme or Zhuyin), saved. The shell
+    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme, Zhuyin or Wubi), saved. The shell
     /// deploys its schema, as it applies fuzzy pinyin; the next key types with it. Zhuyin picked by one who never picked
     /// the characters (`Config.chineseCharacters` absent: the system's languages') picks Taiwan's with it, as Taiwan types
     /// Zhuyin; the user can change them after. Characters picked before stay.

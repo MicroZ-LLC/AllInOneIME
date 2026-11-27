@@ -195,11 +195,27 @@ public enum ChineseCharacters: String, Codable, CaseIterable, Sendable {
             lines += ["  switches/@\(index)/reset: \(reset)", "  \(option)/opencc_config: \(config)"]
             if !isTraditional { return lines.joined(separator: "\n") + "\n" }
         }
-        for shape in ["half_shape", "full_shape"] {
-            lines.append("  \"punctuator/\(shape)/\\\"\": { pair: [ \"「\", \"」\" ] }")
-            lines.append("  \"punctuator/\(shape)/'\": { pair: [ \"『\", \"』\" ] }")
-        }
-        return lines.joined(separator: "\n") + "\n"
+        return (lines + Self.quotationMarks).joined(separator: "\n") + "\n"
+    }
+
+    /// The lines of the patch of a schema with no switch of characters, whose dictionary is in Simplified ones (Wubi's,
+    /// rime-wubi's `wubi86`: `PinyinScheme.wubi`), for these characters: rime-ice's switch added (`switchName`), on at the
+    /// start of every session, its filter first of the schema's (so that the candidates removed, after it, are found as
+    /// shown) on what is typed alone (`abc`: not the reverse lookup's, as rime-ice has it), with these characters' OpenCC
+    /// config, and the quotation marks Traditional ones write (`patch`). Nil for Simplified: nothing to convert.
+    public var addedSwitchPatch: String? {
+        guard let config = openCCConfig else { return nil }
+        return ([
+            "  # \(name(in: "en")) characters: Settings → Input → Chinese → Characters. rime-ice's switch, added.",
+            "  switches/@next: { name: \(Self.switchName), reset: 1, states: [ 简, 繁 ] }",
+            "  traditionalize: { option_name: \(Self.switchName), opencc_config: \(config), tips: none, tags: [ abc ] }",
+            "  \"engine/filters/@before 0\": simplifier@traditionalize",
+        ] + Self.quotationMarks).joined(separator: "\n") + "\n"
+    }
+
+    /// The quotation marks Taiwan and Hong Kong write (" 「」, ' 『』), in both widths: lines of a schema's patch.
+    private static let quotationMarks = ["half_shape", "full_shape"].flatMap { shape in
+        ["  \"punctuator/\(shape)/\\\"\": { pair: [ \"「\", \"」\" ] }", "  \"punctuator/\(shape)/'\": { pair: [ \"『\", \"』\" ] }"]
     }
 
     /// The place of the switch of options with `option` among them in the schema's `switches` list (from 0), as a patch

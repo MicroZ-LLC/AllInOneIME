@@ -483,8 +483,10 @@ public final class RimeSession: PinyinEngine {
         return api.pointee.config_get_cstring(&config, "schema/schema_id").map { String(cString: $0) } == id
     }
 
-    /// The session types with a Shuangpin scheme (`selectSchema`): two keys a syllable, its preedit spelled out.
-    private var shuangpin: Bool { schema.flatMap(PinyinScheme.init(rawValue:))?.isShuangpin ?? false }
+    /// The way the session types (`selectSchema`), nil for full pinyin: a Shuangpin scheme two keys a syllable, its
+    /// preedit spelled out; Zhuyin and Wubi (`isPinyin` false), their tap of Shift committing what is composed, converted
+    /// (their patches: `commit_text`).
+    private var typed: PinyinScheme? { schema.flatMap(PinyinScheme.init(rawValue:)) }
     /// The session types Zhuyin (rime-bopomofo's schema): its fluency editor commits only on Return, the composition
     /// converted (a tap of Shift too, here: `processKey`); a pick, Space (its `toggle_selection`) and a ⇧digit only
     /// confirm a part, all of it too.
@@ -525,10 +527,10 @@ public final class RimeSession: PinyinEngine {
         guard !learns else { return api.pointee.process_key(id, keycode, mask) != 0 }
         if mask & RimeKey.releaseMask != 0 {
             // A tap of Shift (rime-ice: `Shift_L: commit_code`): librime commits the part picked and the letters after
-            // it, and learns the part; in Zhuyin (`commit_text`) all of it converted, as Return. Put in here; librime then
-            // only switches to Latin.
-            if shift, shiftTap, let before = composition(), before.picked || zhuyin {
-                put(zhuyin ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
+            // it, and learns the part; in Zhuyin and Wubi (`commit_text`) all of it converted, as Zhuyin's Return. Put in
+            // here; librime then only switches to Latin.
+            if shift, shiftTap, let before = composition(), before.picked || typed?.isPinyin == false {
+                put(typed?.isPinyin == false ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: typed?.isShuangpin ?? false))
             }
             shiftTap = false
             return api.pointee.process_key(id, keycode, mask) != 0
@@ -542,7 +544,7 @@ public final class RimeSession: PinyinEngine {
             if keycode == RimeKey.returnKey, mask & RimeKey.controlMask == 0, before.picked || zhuyin {
                 // Return: librime commits the part picked and the letters after it, and learns the part; in Zhuyin it
                 // commits all of it as converted (its `commit_composition`), and learns it.
-                put(zhuyin ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: shuangpin))
+                put(zhuyin ? before.preview : before.converted + before.lettersAfterThePick(input: rawInput, shuangpin: typed?.isShuangpin ?? false))
                 return true
             }
             if before.isConfirmed, !editing {

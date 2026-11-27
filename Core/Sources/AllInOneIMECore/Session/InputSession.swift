@@ -692,7 +692,7 @@ public final class InputSession {
         emit(.keyboardLayout)
     }
 
-    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme or Zhuyin), from
+    /// Level one types pinyin the way the settings say (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme, Zhuyin or Wubi), from
     /// the next key on: its engine given the scheme's schema (`PinyinEngine.selectSchema`) when the settings name another
     /// than it was given, or it is a new one, with nothing composed (else the next key with nothing composed does). One
     /// it can't take (not deployed yet: the shell deploys it once the setting changes, and the engine made after that

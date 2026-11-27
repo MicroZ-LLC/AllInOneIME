@@ -22,6 +22,11 @@ enum RimeDirectories {
     static var zhuyin: URL? {
         Bundle.main.sharedSupportURL?.appendingPathComponent("rime-zhuyin")
     }
+    /// The app's Wubi data (rime-wubi's schema and dictionary: `PinyinScheme.wubiData`), linked into the pack
+    /// (`LanguagePackStore.linkData`); compiled only where Wubi is picked (the schema list).
+    static var wubi: URL? {
+        Bundle.main.sharedSupportURL?.appendingPathComponent("rime-wubi")
+    }
     /// The app's tables of shape codes (`ShapeCode`, the folder `aux_code` in it), linked into the pack
     /// (`LanguagePackStore.linkData`); their filter is with the scripts (`code`).
     static var auxCode: URL? {

@@ -24724,8 +24724,56 @@
         }
       }
     },
+    "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3), Wubi 86 types by the characters' shapes (王: gggg)." : {
+      "comment" : "全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3），五笔 86 按字形打（王：gggg）。",
+      "localizations" : {
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Volles Pinyin schreibt jede Silbe aus (nihao), Shuangpin tippt jede mit zwei Tasten (Xiaohe: nihc), Zhuyin tippt Bopomofo auf den Daqian-Tasten (ㄋㄧˇ: su3), Wubi 86 tippt nach der Form der Zeichen (王: gggg)."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "El pinyin completo escribe cada sílaba entera (nihao), Shuangpin cada una con dos teclas (Xiaohe: nihc), Zhuyin escribe bopomofo con las teclas Daqian (ㄋㄧˇ: su3) y Wubi 86 escribe por la forma de los caracteres (王: gggg)."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Le pinyin complet écrit chaque syllabe en entier (nihao), le Shuangpin chacune en deux touches (Xiaohe : nihc), le Zhuyin tape le bopomofo sur les touches Daqian (ㄋㄧˇ : su3), le Wubi 86 tape d’après la forme des caractères (王 : gggg)."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼は音節をすべてつづり（nihao）、双拼は音節を2キーで入力し（小鶴：nihc）、注音は大千配列で注音符号を入力し（ㄋㄧˇ：su3）、五筆 86 は字形で入力します（王：gggg）。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "전체 병음은 음절을 모두 입력하고(nihao), 쌍병은 음절마다 두 키로 입력하며(샤오허: nihc), 주음은 다첸 배열로 주음 부호를 입력하고(ㄋㄧˇ: su3), 우비 86은 글자 모양으로 입력합니다(王: gggg)."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "O pinyin completo escreve cada sílaba por inteiro (nihao), o Shuangpin digita cada uma em duas teclas (Xiaohe: nihc), o Zhuyin digita bopomofo nas teclas Daqian (ㄋㄧˇ: su3) e o Wubi 86 digita pela forma dos caracteres (王: gggg)."
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全拼把每個音節拼全（nihao），雙拼每個音節打兩個鍵（小鶴雙拼：nihc），注音按大千鍵位打注音符號（ㄋㄧˇ：su3），五筆 86 按字形打（王：gggg）。"
+          }
+        }
+      }
+    },
     "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3)." : {
       "comment" : "全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3）。",
+      "extractionState" : "stale",
       "localizations" : {
         "de" : {
           "stringUnit" : {
