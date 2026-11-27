@@ -110,7 +110,10 @@ final class RimeStartTrail: @unchecked Sendable {
             return Int32(bitPattern: GetLastError()) == ERROR_ACCESS_DENIED
         }
         defer { CloseHandle(process) }
-        return WaitForSingleObject(process, 0) == DWORD(WAIT_TIMEOUT)
+        var code: DWORD = 0
+        // PROCESS_QUERY_LIMITED_INFORMATION has no SYNCHRONIZE right, so WaitForSingleObject would fail; ask the exit code.
+        guard GetExitCodeProcess(process, &code) else { return true }
+        return code == DWORD(STILL_ACTIVE)
         #else
         return kill(pid, 0) == 0 || errno == EPERM
         #endif
