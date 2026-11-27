@@ -246,6 +246,8 @@ def on_screen_section(folder: Path | None) -> list[str]:
     states = [path.read_text(errors="replace").strip() for path in folder.glob("*/on-screen-tests.txt")]
     unread = len((folder / "unread.txt").read_text(errors="replace").splitlines()) \
         if (folder / "unread.txt").is_file() else 0
+    if not states:
+        return out + [f"Skipped: no on-screen-tests-* artifact in the last {FLAKY_DAYS} days could be read."]
     skipped = states.count("skipped")
     out += [f"Of the quality gate's {len(states)} Mac runs in the last {FLAKY_DAYS} days, {skipped} skipped the tests that "
             "need windows drawn on screen (the Mac mini's screen was locked), and passed without them.", ""]

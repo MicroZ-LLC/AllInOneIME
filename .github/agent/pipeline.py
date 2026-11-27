@@ -355,7 +355,7 @@ def retest(names: set[str], env: dict) -> Checks | None:
     """Runs only the tests that failed again (`swift test --filter`, both packages, the build already there); None
     when the filter found nothing to run (a test whose display name isn't its function's), so the caller runs it all."""
     # An XCTest failure is "Class method"; `--filter` takes "Class/method".
-    escaped = [re.escape(re.sub(r"^(\w+) (\w+)$", r"\1/\2", name)) for name in sorted(names)]
+    escaped = [re.escape(re.sub(r"^([\w.]+) (\w+)$", r"\1/\2", name)) for name in sorted(names)]
     filter_ = "|".join(escaped)
     quiet = dict(env, AWS_CONFIG_FILE="/nonexistent/aws-config", AWS_SHARED_CREDENTIALS_FILE="/nonexistent/aws-credentials",
                  ALLINONEIME_REQUIRE_RIME_DATA="1")
@@ -363,13 +363,14 @@ def retest(names: set[str], env: dict) -> Checks | None:
     for package in ([], ["--package-path", "Core"]):
         result = run(["swift", "test", *package, "--filter", filter_], cwd=WORK, env=quiet, timeout=1800)
         logs.append(result.stdout)
-        failures |= {name for pattern in FAILURE for name in pattern.findall(result.stdout)}
+        found = {name for pattern in FAILURE for name in pattern.findall(result.stdout)}
+        failures |= found
         ran += sum(int(n) for n in re.findall(r"Test run with (\d+) tests?", result.stdout))
-        ran += sum(int(n) for n in re.findall(r"Executed (\d+) tests?", result.stdout))
-        if result.returncode and not failures and not ran:
+        # A run that failed without naming a test (a crash, a timeout, a build error) says nothing: run it all.
+        if result.returncode and not found:
             return None
-    log_text = "\n".join(logs)
-    return Checks(True, ran > 0 and not failures, failures, log_text) if ran else None
+    # Fewer tests ran than were asked for: some can't be found by this filter (a display name): run it all.
+    return Checks(True, not failures, failures, "\n".join(logs)) if ran >= len(names) else None
 
 
 def test_regressions(baseline: Checks, now: Checks, base: str) -> str | None:

@@ -22,8 +22,9 @@ struct NotesBridgeTimeoutTests {
             #expect(script.contains("with timeout of \\(appleEventTimeout) seconds"), "no timeout in: \(script.prefix(60))")
             #expect(script.contains("end timeout"))
             // The Notes call is inside the timeout block, not before it.
-            if let tell = script.range(of: "tell application \"Notes\""), let timeout = script.range(of: "with timeout of") {
-                #expect(timeout.lowerBound < tell.lowerBound)
+            if let tell = script.range(of: "tell application \"Notes\""), let timeout = script.range(of: "with timeout of"),
+               let endTimeout = script.range(of: "end timeout", options: .backwards) {
+                #expect(timeout.lowerBound < tell.lowerBound && tell.upperBound < endTimeout.lowerBound)
             }
         }
     }

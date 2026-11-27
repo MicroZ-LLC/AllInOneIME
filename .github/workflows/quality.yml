@@ -240,15 +240,17 @@ jobs:
           ON_SCREEN_FILE="$RUNNER_TEMP/on-screen-tests/on-screen-tests.txt"
           mkdir -p "${ON_SCREEN_FILE%/*}"
           echo "ON_SCREEN_FILE=$ON_SCREEN_FILE" >> "$GITHUB_ENV"
-          echo ran > "$ON_SCREEN_FILE"
+          # Written after `make test-mac` passed (a failed run says nothing about them).
+          on_screen=ran
           if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
-            echo skipped > "$ON_SCREEN_FILE"
+            on_screen=skipped
             echo "::warning::The Mac mini's screen is locked: the on-screen tests were skipped; run make test-screen on an unlocked Mac."
             [ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "- on-screen tests **skipped** (the Mac mini's screen is locked): run \`make test-screen\` on an unlocked Mac before a release" >> "$GITHUB_STEP_SUMMARY"
             TEST_SKIP="$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
             export TEST_SKIP
           fi
           make test-mac
+          echo "$on_screen" > "$ON_SCREEN_FILE"
       - name: make update-test, offline
         # The updater end to end (Scripts/test-update.sh): a temporary install, a test server on 127.0.0.1, the apps
         # signed ad hoc (no certificate or Apple's timestamp server). Only when the change needs it (the changes job's
