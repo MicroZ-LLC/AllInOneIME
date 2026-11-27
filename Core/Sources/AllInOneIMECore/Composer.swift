@@ -790,7 +790,7 @@ public final class Composer {
         set {
             primaryEngine = newValue
             levelOne = shown(newValue)
-            engineState = engine?.snapshot() ?? .empty
+            engineChanged()
         }
     }
     /// The engine the controller set (`engine`), also while Hindi's is in its place: what to check for which

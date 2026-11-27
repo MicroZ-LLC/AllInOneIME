@@ -236,11 +236,10 @@ public final class InputSession {
                 handled = self.key(key, context)
             case let .modifiers(change, context):
                 handled = false  // the application sees modifier changes too
+                showKeptDraft()  // with no focus told first, as a key: the field is typed in again
                 modifiers(change, context)
             case let .focus(info):
-                dropKeptDraft(unlessIn: info)  // another field's: it starts clean
-                focus(info)
-                showKeptDraft()
+                focusing(info) { focus(info) }
             case .blur:
                 blurred()
                 learnTypedInEnglish(englishModeWords.leftField())

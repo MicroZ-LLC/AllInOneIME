@@ -69,15 +69,26 @@ extension InputSession {
         perform(composer.appTookMarkedText())
     }
 
-    /// A key with no focus told first: the field is typed in again, and the draft shows. One the shell still holds
+    /// A key with no focus told first: the field is typed in again, and the draft shows (a modifier key the same, but
+    /// that it leaves a held one held: ⌘ let go after ⌘-Tab comes before the shell can tell). One the shell still holds
     /// (`holdKeptDraft`) goes instead, nothing of it in: the field typed in may not be the one it was kept for.
     func keptDraftTypedIn() {
         if keptDraft?.held == true { dropKeptDraft() } else { showKeptDraft() }
     }
 
+    /// `SessionEvent.focus`: a draft kept for another field goes, and the one kept for `info` shows there again.
+    func focusing(_ info: FieldInfo, _ focus: () -> Void) {
+        dropKeptDraft(unlessIn: info)  // another field's: it starts clean
+        focus()
+        showKeptDraft()
+    }
+
     /// Back in the field the draft was kept for: the panel and the draft as they were, unless the shell holds it.
+    /// Never in a password field or while secure input is on (the field isn't the one left, or mustn't be given what was
+    /// typed elsewhere), nor one kept longer than `keptDraftLife`: it goes, nothing of it in.
     func showKeptDraft() {
         guard let kept = keptDraft, !kept.held else { return }
+        if nothingLeavesDevice() || services.uptime() - kept.since > Self.keptDraftLife { return dropKeptDraft() }
         keptDraft = nil
         // The engine was let go meanwhile (librime deployed again): its pinyin went with it.
         guard composer.isComposing else { return }
