@@ -30,8 +30,10 @@ extension RimeService {
         }
         let began = Date()
         while service.isSyncing { Thread.sleep(forTimeInterval: 0.01) }  // swiftlint:disable:this blocking_call (exiting, any thread)
+        trail.step("exit: join deployment, finalize")
         service.api.pointee.join_maintenance_thread()
         service.api.pointee.finalize()
         log.notice(String(format: "librime ended at exit after waiting %.2f s for its deployment", Date().timeIntervalSince(began)))
+        trail.step("ended at exit")
     }
 }
