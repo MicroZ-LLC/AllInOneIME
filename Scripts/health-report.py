@@ -5,9 +5,10 @@
 # (.swiftlint.baseline.json), duplicated code (a built-in detector: runs of 12 or more identical lines of code in
 # two places), unused code (Periphery, pinned and checksummed like SwiftLint, when `--periphery` is given and it
 # runs; skipped otherwise), and the tests the quality gate's runs found flaky (from the folder `--flaky` names: health.yml
-# fills it with the test jobs' flaky-tests-* artifacts). Read-only: it changes nothing in the repository.
+# fills it with the test jobs' flaky-tests-* artifacts), and how many of the Mac mini's runs skipped the on-screen
+# tests because its screen was locked (the on-screen-tests-* artifacts). Read-only: it changes nothing in the repository.
 #
-#   python3 Scripts/health-report.py [--periphery] [--flaky FOLDER] > report.md
+#   python3 Scripts/health-report.py [--periphery] [--flaky FOLDER] [--on-screen FOLDER] > report.md
 
 from __future__ import annotations
 
@@ -233,6 +234,31 @@ def flaky_section(folder: Path | None) -> list[str]:
     return out
 
 
+def on_screen_section(folder: Path | None) -> list[str]:
+    """The quality gate's mac runs of the last FLAKY_DAYS days that skipped the on-screen tests (a locked screen on the
+    Mac mini): `folder` holds a folder per run, each with on-screen-tests.txt, "ran" or "skipped"; and unread.txt, an
+    artifact a line, when some couldn't be downloaded."""
+    out = ["## On-screen tests", ""]
+    if folder is None:
+        return out + ["Skipped (run with --on-screen FOLDER)."]
+    if not folder.is_dir():
+        return out + ["Skipped: the on-screen-tests-* artifacts couldn't be read (the workflow's log says why)."]
+    states = [path.read_text(errors="replace").strip() for path in folder.glob("*/on-screen-tests.txt")]
+    unread = len((folder / "unread.txt").read_text(errors="replace").splitlines()) \
+        if (folder / "unread.txt").is_file() else 0
+    skipped = states.count("skipped")
+    out += [f"Of the quality gate's {len(states)} Mac runs in the last {FLAKY_DAYS} days, {skipped} skipped the tests that "
+            "need windows drawn on screen (the Mac mini's screen was locked), and passed without them.", ""]
+    if unread:
+        out += [f"Partial: {unread} more runs' artifacts couldn't be downloaded.", ""]
+    if skipped == len(states) and not unread:
+        out += ["**None ran.** Run `make test-screen` on an unlocked Mac before the next release (README, Releasing a "
+                "version, step 1)."]
+    elif skipped:
+        out += ["Before a release, `make test-screen` on an unlocked Mac, unless the release's own commit ran them."]
+    return out
+
+
 def main(argv: list[str]) -> int:
     head = git("rev-parse", "--short", "HEAD").strip()
     branch = os.environ.get("REPORT_BRANCH") or git("rev-parse", "--abbrev-ref", "HEAD").strip()
@@ -243,7 +269,8 @@ def main(argv: list[str]) -> int:
                 sizes_section(past), lint_section(past), duplicates_section(),
                 periphery_section() if "--periphery" in argv else
                 ["## Unused code", "", "Skipped (run with --periphery)."],
-                flaky_section(Path(argv[argv.index("--flaky") + 1]) if "--flaky" in argv[:-1] else None)]
+                flaky_section(Path(argv[argv.index("--flaky") + 1]) if "--flaky" in argv[:-1] else None),
+                on_screen_section(Path(argv[argv.index("--on-screen") + 1]) if "--on-screen" in argv[:-1] else None)]
     print("\n\n".join("\n".join(section) for section in sections))
     return 0
 

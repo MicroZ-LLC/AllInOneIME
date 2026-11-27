@@ -1710,7 +1710,8 @@ Releasing a version (the in-app updater reads https://allinoneime.com/update-v2.
    rule 15), removes the fragments with `git rm`, and saves the release notes for step 3 (`python3 Scripts/changelog.py
    preview` prints them beforehand, changing nothing).
    On an unlocked Mac, `make test-screen`: the tests that need windows drawn on screen, which CI skips while the Mac
-   mini's screen is locked (its Quality run says so in a warning).
+   mini's screen is locked (its Quality run says so in a warning and in its summary, and the weekly health report
+   counts the runs that skipped them). Not optional unless the release commit's own Quality run didn't skip them.
 2. `make dmg NOTARY_PROFILE=<profile>`: `build/AllInOneIME-<version>.dmg` with its `.sha256`, and
    `build/AllInOneIME-<version>-update.zip` (both apps, as the disk image's installer carries them). The apps and the
    image are signed with the Developer ID Application certificate in the keychain, and the image is notarized with

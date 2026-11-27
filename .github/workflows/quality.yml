@@ -236,8 +236,15 @@ jobs:
           echo "FLAKY_TESTS_FILE=$FLAKY_TESTS_FILE" >> "$GITHUB_ENV"
           # A few tests need windows really drawn on screen; with the Mac mini's screen locked (no one there) they
           # can't pass. Skip only those then, and say so: `make test-screen` runs them on an unlocked Mac.
+          # Kept as an artifact (on-screen-tests-*) either way: the weekly health report counts the runs that skipped them.
+          ON_SCREEN_FILE="$RUNNER_TEMP/on-screen-tests/on-screen-tests.txt"
+          mkdir -p "${ON_SCREEN_FILE%/*}"
+          echo "ON_SCREEN_FILE=$ON_SCREEN_FILE" >> "$GITHUB_ENV"
+          echo ran > "$ON_SCREEN_FILE"
           if [ "$(swift Scripts/screen-locked.swift)" = locked ]; then
+            echo skipped > "$ON_SCREEN_FILE"
             echo "::warning::The Mac mini's screen is locked: the on-screen tests were skipped; run make test-screen on an unlocked Mac."
+            [ -z "${GITHUB_STEP_SUMMARY:-}" ] || echo "- on-screen tests **skipped** (the Mac mini's screen is locked): run \`make test-screen\` on an unlocked Mac before a release" >> "$GITHUB_STEP_SUMMARY"
             TEST_SKIP="$(paste -sd'|' - < Scripts/on-screen-tests.txt)"
             export TEST_SKIP
           fi
@@ -265,6 +272,14 @@ jobs:
         with:
           name: flaky-tests-mac-${{ github.run_attempt }}
           path: ${{ env.FLAKY_TESTS_FILE }}
+          if-no-files-found: ignore
+          retention-days: 35
+      - name: Keep whether the on-screen tests ran (the weekly health report counts the skipped runs)
+        if: ${{ !cancelled() && env.ON_SCREEN_FILE != '' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: on-screen-tests-${{ github.run_attempt }}
+          path: ${{ env.ON_SCREEN_FILE }}
           if-no-files-found: ignore
           retention-days: 35
 
