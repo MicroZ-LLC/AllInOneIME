@@ -124,15 +124,20 @@ extension HostRun {
 
     /// After every step: the caret and the selection inside the text; nothing composed where the field has lost the
     /// focus (`blur` puts what's pending in), but a draft the session keeps for the field with nothing of it showing
-    /// (#180: `InputSession.keptDraft`); no marked text of the session's left in the field with nothing composed.
+    /// (#180: `InputSession.keptDraft`), and never one once the input source is ABC; no marked text of the session's
+    /// left in the field with nothing composed.
     /// (Copies of events that reach the session fail as they come: `deliver`.)
     func checkInvariants() {
         let length = (host.document as NSString).length
         if host.caret > length || host.selection.map({ $0.upperBound > length }) == true {
             fail("the caret or the selection past the text's end\(state)")
         }
-        if started, !focused || inABC, host.composer.isComposing, host.session.keptDraft == nil || host.panel != nil {
+        if started, !focused, host.composer.isComposing, host.session.keptDraft == nil || host.panel != nil {
             fail("the field lost the focus with \(Self.quote(host.composer.markedText)) still composed\(state)")
+        }
+        // Another input source selected is leaving what is typed, not the field losing the focus: nothing is kept.
+        if started, inABC, host.composer.isComposing || host.session.keepsDraft {
+            fail("the input source is ABC with \(Self.quote(host.composer.markedText)) still composed or kept\(state)")
         }
         if markedBySession, !host.marked.isEmpty, !host.composer.isComposing {
             fail("marked text \(Self.quote(host.marked)) left in the field with nothing composed\(state)")

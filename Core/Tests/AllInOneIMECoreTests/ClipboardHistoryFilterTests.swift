@@ -12,7 +12,7 @@ struct ClipboardHistoryFilterTests {
     private let left = KeyEvent(keyCode: VirtualKey.left, characters: "\u{F702}")
 
     /// A focused field, its history `texts` (newest first, the clipboard the newest), ⌃V pressed.
-    private func host(_ texts: [String], chinese: Bool = false) -> FakeHost {
+    private func host(_ texts: [String], chinese: Bool = false, terminal: Bool = false) -> FakeHost {
         let composer = Composer()
         composer.setInputMode(chinese ? .chinese : .english)
         var services = SessionServices(loadSettings: { .default })
@@ -24,6 +24,7 @@ struct ClipboardHistoryFilterTests {
         }
         host.clipboard = .text(texts[0])
         host.keepClipboardHistory()
+        host.terminal = terminal
         host.focus()
         #expect(host.press(FakeHost.controlV))
         return host
@@ -95,12 +96,17 @@ struct ClipboardHistoryFilterTests {
 
             let typed = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             typed.type("memo")
-            #expect(typed.press(FakeHost.right), "→ is taken: the filter goes in for it")
+            // As in the @ list: the filter goes in, and → itself goes on to the app.
+            #expect(!typed.press(FakeHost.right), "→ goes on to the app, after the filter went in")
             #expect(typed.document == "memo" && typed.panel == nil)
+            // A terminal wouldn't act on the key after text went in during it: there → only ends the list, as the @ list's.
+            let terminal = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" }, terminal: true)
+            terminal.type("memo")
+            #expect(terminal.press(FakeHost.right) && terminal.document == "memo" && terminal.panel == nil)
             let widened = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             widened.type("memo 8")
             #expect(widened.panel?.rows.map(\.text) == ["memo 8"])
-            #expect(widened.press(FakeHost.right) && widened.panel == nil && widened.document == "memo 8")  // one page too
+            #expect(!widened.press(FakeHost.right) && widened.panel == nil && widened.document == "memo 8")  // one page too
             // ← with a filter typed is as on one page: the panel hides and the key goes on.
             let left = host((1...8).map { "memo \($0)" } + (1...4).map { "note \($0)" })
             left.type("memo")

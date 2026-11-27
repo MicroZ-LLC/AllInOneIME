@@ -162,7 +162,7 @@ extension HostRun {
     }
 
     /// `FOCUS`: the field loses the focus (to another field of the app, another app, its window closing), takes it
-    /// again (`back`), or focus moves to a different field (`other`). Losing it, the session is told (`blur`; `close`
+    /// again (`back`), or focus moves to a different field (`other`: another app's; `otherfield`: one of the same app). Losing it, the session is told (`blur`; `close`
     /// too as the window closes) and what it commits goes in, or, in a host that cancels the composition then
     /// (Chromium's), the host commits the marked text it shows and drops what the session puts in.
     func focus(_ change: FocusChange) {
@@ -177,13 +177,17 @@ extension HostRun {
             }
             inABC = false
             focusAgain()
-        case .other:
+        case .other, .otherfield:
             if focused { leave(closing: false) }
             if savedField == nil { savedField = captureField() }
-            host.app = "com.example.other.\(profile.rawValue)"
+            if change == .other { host.app = "com.example.other.\(profile.rawValue)" }
             setField(FieldMarkup(text: "", caret: 0))
             inABC = false
+            // Another field of the same app is the same to the session (`FieldInfo`): the shell tells them apart. It
+            // holds the kept draft through the focus (it can't tell at once: the Mac asks Accessibility), then drops it.
+            if change == .otherfield { host.session.holdKeptDraft() }
             focusAgain()
+            if change == .otherfield { host.send(.cancel) }
         }
     }
 
