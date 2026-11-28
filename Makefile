@@ -96,6 +96,18 @@ AUX_CODE_TABLES := moqi_aux_code.txt flypy_full.txt wubi86-code.txt cangjie5_qui
 MOQIMA_TABLES_COMMIT := 6d8ba8f1c57466f358e682baefe11bbd0fe389ab
 RIME_WUBI_COMMIT     := 152a0d3f3efe40cae216d1e3b338242446848d07
 RIME_CANGJIE_COMMIT  := fcb3d7dd94ac1304663d575727d24d8107f6b082
+RIME_WUBI_LICENSE_SHA256 := da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768
+RIME_WUBI_AUTHORS_SHA256 := 4e4ca0e3ae6763a7cd5913f92c3b28091a7ec97d5cf4fc96c8f1a294e43f2839
+
+# Wubi 86 (Settings → Input → Chinese → Typing), LGPL-3.0: rime-wubi's `wubi86` schema and its dictionary, unmodified, at
+# the commit the shape codes' table is from (RIME_WUBI_COMMIT), each file checked against its sha256, LICENSE and AUTHORS
+# beside them (the same files as the table's). The app carries them (Contents/SharedSupport/rime-wubi, linked into the
+# Chinese pack: `LanguagePackStore.linkData`), not the pack; librime compiles them where Wubi is picked (a couple of
+# seconds). What the schema takes from other repositories (rime-prelude's punctuation, rime-pinyin-simp's dictionary for
+# its reverse lookup after "z") its patch takes from rime-ice's data instead (`PinyinScheme.ownPatch`): nothing more.
+WUBI_FILES := wubi86.schema.yaml wubi86.dict.yaml
+RIME_WUBI_SCHEMA_SHA256 := cdb5aac1a9aa071552d5fdffdfe5a6618b429b19358b8b1e003130e835d5a166
+RIME_WUBI_DICT_SHA256   := f833d86b72341fe82e069a425b6625f29ef85f1bc0f34f6fb7975fe514888b5a
 
 # Where they go, ThirdParty: $ALLINONEIME_THIRDPARTY if it is set (an absolute path, a folder several checkouts share,
 # say), else ThirdParty here. The one setting: Package.swift (librime's folder), the Rime tests (rime-ice's data) and
@@ -111,6 +123,8 @@ OPENCC_DATA := $(DEPS)/opencc
 OPENCC_BUILT := $(OPENCC_DATA)/$(lastword $(OPENCC_FILES))
 ZHUYIN_DATA  := $(DEPS)/rime-zhuyin
 ZHUYIN_BUILT := $(RIME_DATA)/bopomofo.schema.yaml
+WUBI_DATA  := $(DEPS)/rime-wubi
+WUBI_BUILT := $(RIME_DATA)/wubi86.dict.yaml
 # The shape codes' (its sources' licenses last).
 AUX_CODE_DATA  := $(DEPS)/rime-aux-code
 AUX_CODE_BUILT := $(AUX_CODE_DATA)/rime-cangjie/AUTHORS
@@ -133,7 +147,7 @@ PACK_RELEASES := https://github.com/MicroZ-LLC/AllInOneIME-languages/releases/do
 
 all: app
 
-deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT) $(ZHUYIN_BUILT) $(AUX_CODE_BUILT)
+deps: $(RIME_LIB) $(RIME_BUILT) $(OPENCC_BUILT) $(ZHUYIN_BUILT) $(WUBI_BUILT) $(AUX_CODE_BUILT)
 
 $(RIME_LIB):
 	mkdir -p $(DEPS)
@@ -178,15 +192,29 @@ $(ZHUYIN_BUILT): $(RIME_BUILT)
 	$(call zhuyin-repo,rime-essay,$(RIME_ESSAY_COMMIT),$(RIME_ESSAY_SHA256),essay.txt)
 	cp $(addprefix $(ZHUYIN_DATA)/,$(ZHUYIN_FILES)) $(RIME_DATA)/
 
-# $(call aux-code-license,OWNER/NAME,COMMIT,FILE,SHA256): FILE of the repository at COMMIT, checked, into
-# AUX_CODE_DATA/NAME.
-define aux-code-license
-	mkdir -p $(AUX_CODE_DATA)/$(notdir $(1))
+# $(call raw-file,OWNER/NAME,COMMIT,FILE,SHA256,FOLDER): FILE of the repository at COMMIT (downloaded once, into DEPS),
+# checked, into FOLDER.
+define raw-file
+	mkdir -p $(5)
 	[ -f $(DEPS)/$(notdir $(1))-$(2)-$(3) ] || curl -fsSL -o $(DEPS)/$(notdir $(1))-$(2)-$(3) \
 		https://raw.githubusercontent.com/$(1)/$(2)/$(3)
 	echo "$(4)  $(DEPS)/$(notdir $(1))-$(2)-$(3)" | shasum -a 256 -c -
-	cp $(DEPS)/$(notdir $(1))-$(2)-$(3) $(AUX_CODE_DATA)/$(notdir $(1))/$(3)
+	cp $(DEPS)/$(notdir $(1))-$(2)-$(3) $(5)/$(3)
 endef
+
+# $(call aux-code-license,OWNER/NAME,COMMIT,FILE,SHA256): FILE of the repository at COMMIT, checked, into
+# AUX_CODE_DATA/NAME.
+aux-code-license = $(call raw-file,$(1),$(2),$(3),$(4),$(AUX_CODE_DATA)/$(notdir $(1)))
+
+# Wubi's data in WUBI_DATA, as the app carries it, and beside rime-ice's, where the Rime tests and the self-test read it
+# (`make pack` leaves it out).
+$(WUBI_BUILT): $(RIME_BUILT)
+	rm -rf $(WUBI_DATA) && mkdir -p $(WUBI_DATA)
+	$(call raw-file,rime/rime-wubi,$(RIME_WUBI_COMMIT),wubi86.schema.yaml,$(RIME_WUBI_SCHEMA_SHA256),$(WUBI_DATA))
+	$(call raw-file,rime/rime-wubi,$(RIME_WUBI_COMMIT),wubi86.dict.yaml,$(RIME_WUBI_DICT_SHA256),$(WUBI_DATA))
+	$(call raw-file,rime/rime-wubi,$(RIME_WUBI_COMMIT),LICENSE,$(RIME_WUBI_LICENSE_SHA256),$(WUBI_DATA))
+	$(call raw-file,rime/rime-wubi,$(RIME_WUBI_COMMIT),AUTHORS,$(RIME_WUBI_AUTHORS_SHA256),$(WUBI_DATA))
+	cp $(addprefix $(WUBI_DATA)/,$(WUBI_FILES)) $(RIME_DATA)/
 
 # The shape codes' filter and tables in AUX_CODE_DATA (lua/aux_code.lua, aux_code/*.txt), as the app carries them; the
 # Rime tests link them as the app does. Its sources' licenses last (AUX_CODE_BUILT).
@@ -199,8 +227,8 @@ $(AUX_CODE_BUILT):
 	tar xzf $(DEPS)/rime-lua-aux-code-$(AUX_CODE_COMMIT).tar.gz -C $(AUX_CODE_DATA) --strip-components 1 \
 		$(addprefix rime-lua-aux-code-$(AUX_CODE_COMMIT)/,LICENSE lua/aux_code.lua $(addprefix aux_code/,$(AUX_CODE_TABLES)))
 	$(call aux-code-license,gaboolic/moqima-tables,$(MOQIMA_TABLES_COMMIT),LICENSE,38df95976ee2af13c6782bbddbb6048d5a4ac0496505591a1e3abfcac3a430cc)
-	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),LICENSE,da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768)
-	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),AUTHORS,4e4ca0e3ae6763a7cd5913f92c3b28091a7ec97d5cf4fc96c8f1a294e43f2839)
+	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),LICENSE,$(RIME_WUBI_LICENSE_SHA256))
+	$(call aux-code-license,rime/rime-wubi,$(RIME_WUBI_COMMIT),AUTHORS,$(RIME_WUBI_AUTHORS_SHA256))
 	$(call aux-code-license,rime/rime-cangjie,$(RIME_CANGJIE_COMMIT),LICENSE,da7eabb7bafdf7d3ae5e9f223aa5bdc1eece45ac569dc21b3b037520b4464768)
 	$(call aux-code-license,rime/rime-cangjie,$(RIME_CANGJIE_COMMIT),AUTHORS,fdc15be409ae8776d516385da6f9e021b49f98fa58d3c610c11227f0d8ba35bb)
 
@@ -297,6 +325,8 @@ app: build $(STRINGS_BUILD) Resources/icon.tiff Resources/panel-icon.tiff Resour
 	# Zhuyin's data (LGPL-3.0, each repository's LICENSE and AUTHORS in a folder of its name), linked into the Chinese
 	# pack (`LanguagePackStore.linkData`); its notice is in THIRD_PARTY_NOTICES.md.
 	ditto $(ZHUYIN_DATA) "$(APP)/Contents/SharedSupport/rime-zhuyin"
+	# Wubi's (LGPL-3.0, rime-wubi's LICENSE and AUTHORS beside), the same way.
+	ditto $(WUBI_DATA) "$(APP)/Contents/SharedSupport/rime-wubi"
 	# Hardened runtime: library validation then only loads code signed by the same team, and
 	# DYLD_* injection is ignored. Ad-hoc signing (no identity) can't use it. The entitlements
 	# allow, under the hardened runtime, microphone access (voice input), Apple events (Terminal for
@@ -597,7 +627,7 @@ check-ios:
 # build/packs/zh-pinyin-<version>.tar.xz, its .sha256, and its packs.json entry (.json) for
 # Scripts/build-packs-index.swift. The minimum app version is this one.
 pack: $(RIME_BUILT)
-	EXCLUDE="$(ZHUYIN_FILES)" Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
+	EXCLUDE="$(ZHUYIN_FILES) $(WUBI_FILES)" Scripts/make-language-pack.sh $(RIME_DATA) $(PACK_ID) $(PACK_VERSION) $(VERSION) "rime-ice $(RIME_ICE_TAG)" "$(PACK_URL)" $(PACK)
 
 # Every pack: Chinese, Korean, Hindi.
 packs: pack $(KO_PACK) $(HI_PACK)

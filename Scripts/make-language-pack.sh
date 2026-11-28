@@ -6,7 +6,8 @@
 #   make-language-pack.sh DATA ID VERSION MIN_APP_VERSION UPSTREAM URL OUT
 #
 # rime-ice's Lua scripts are left out: they are code, and the app carries its own copy (SharedSupport/rime-lua). So are
-# the files EXCLUDE names (the Zhuyin data beside rime-ice's: the app carries it, SharedSupport/rime-zhuyin).
+# the files EXCLUDE names (the Zhuyin and Wubi data beside rime-ice's: the app carries it, SharedSupport/rime-zhuyin and
+# SharedSupport/rime-wubi).
 set -eu
 data=$1 id=$2 version=$3 min_app=$4 upstream=$5 url=$6 out=$7
 

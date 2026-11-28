@@ -7,7 +7,7 @@ import Foundation
 /// tables the app carries (`Contents/SharedSupport/rime-aux-code/aux_code`, linked into the Chinese pack as `aux_code`:
 /// `LanguagePackStore.linkData`); nothing is downloaded. On, it takes the place of rime-ice's own filter on "`" (search.lua's
 /// radical pinyin) in the patch of each pinyin schema (`patch`): one meaning per key. Full pinyin and every Shuangpin
-/// scheme; never Zhuyin (its keys aren't letters, and its patch has none of this).
+/// scheme; never Zhuyin or Wubi (their keys aren't pinyin, and their patches have none of this).
 public enum ShapeCode: String, CaseIterable, Sendable {
     /// 墨奇码 (gaboolic/moqima-tables, MIT).
     case moqi

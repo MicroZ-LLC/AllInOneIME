@@ -151,8 +151,8 @@ final class LanguagePackManager: ObservableObject {
     }
 }
 
-/// Starts librime on the Chinese pack: its Lua linked to the app's (Zhuyin's data too), the fuzzy pinyin patch written
-/// (the characters too, with the app's OpenCC data for them; for the Shuangpin scheme or Zhuyin typed with as well,
+/// Starts librime on the Chinese pack: its Lua linked to the app's (Zhuyin's and Wubi's data too), the fuzzy pinyin patch
+/// written (the characters too, with the app's OpenCC data for them; for the Shuangpin scheme, Zhuyin or Wubi typed with as well,
 /// listed to deploy), and a
 /// full check when the pack changed since the last deployment. Deploys again if it was running already
 /// (the pack was installed anew in the same folder).
@@ -171,11 +171,16 @@ enum RimeStartup {
         } catch {
             log.error("could not link the Rime scripts: \(String(describing: error), privacy: .public)")
         }
-        // Zhuyin's data beside the pack's, before its patch is written (it reads the schema).
+        // Zhuyin's and Wubi's data beside the pack's, before their patches are written (they read the schema).
         do {
             try store.linkData(.chinesePinyin, from: RimeDirectories.zhuyin, names: PinyinScheme.zhuyinData)
         } catch {
             log.error("could not link Zhuyin's data: \(String(describing: error), privacy: .public)")
+        }
+        do {
+            try store.linkData(.chinesePinyin, from: RimeDirectories.wubi, names: PinyinScheme.wubiData)
+        } catch {
+            log.error("could not link Wubi's data: \(String(describing: error), privacy: .public)")
         }
         // The shape codes' tables too (`ShapeCode`), before the patch is written (it has their filter only when they're there).
         do {

@@ -16,6 +16,7 @@ stored in this repository.
 | rime-terra-pinyin 地球拼音 (`terra_pinyin.dict.yaml`, the dictionary Zhuyin types from, in `rime-zhuyin`) | 723e51b | LGPL-3.0 | https://github.com/rime/rime-terra-pinyin |
 | rime-stroke 五筆畫 (`stroke.schema.yaml`, `stroke.dict.yaml`: Zhuyin's reverse lookup by strokes, in `rime-zhuyin`) | 1e8fff9 | LGPL-3.0 | https://github.com/rime/rime-stroke |
 | rime-essay 八股文 (`essay.txt`, the word list that weighs the words of both dictionaries, in `rime-zhuyin`) | 054920d | LGPL-3.0 | https://github.com/rime/rime-essay |
+| rime-wubi 五笔 86 (Wubi's `wubi86` schema and its dictionary `wubi86.dict.yaml`, in the app's `Contents/SharedSupport/rime-wubi`) | 152a0d3 | LGPL-3.0 | https://github.com/rime/rime-wubi |
 | rime-lua-aux-code 辅助码 (its filter `lua/aux_code.lua`, unmodified, with the app's other Lua in `Contents/SharedSupport/rime-lua`; never its updater; and its tables of shape codes in `Contents/SharedSupport/rime-aux-code/aux_code`: `flypy_full.txt` 鹤形, its own, and those below) | f978003 | MIT | https://github.com/HowcanoeWang/rime-lua-aux-code |
 | moqima-tables 墨奇码 (`moqi_aux_code.txt`, as rime-lua-aux-code has it, in `rime-aux-code/aux_code`) | rime-lua-aux-code's f978003; license at 6d8ba8f | MIT | https://github.com/gaboolic/moqima-tables |
 | rime-wubi 五笔 86 (`wubi86-code.txt`, rime-lua-aux-code's table of the Wubi 86 codes from rime-wubi's dictionary, in `rime-aux-code/aux_code`) | rime-lua-aux-code's f978003; license at 152a0d3 | LGPL-3.0 | https://github.com/rime/rime-wubi |
@@ -549,6 +550,17 @@ same sources. The files Zhuyin uses are included unmodified in the app bundle un
 (what AllInOneIME changes, it changes in a patch of its own in the Rime user folder, `bopomofo.custom.yaml`), each
 repository's LICENSE and AUTHORS beside them in `rime-zhuyin/<repository>/`; the license's text is also
 `LICENSE-Zhuyin-data-LGPL-3.0.txt` on the disk image. Their source is at the commits listed above.
+
+## rime-wubi (Wubi 86)
+
+Its schema and dictionary are licensed under the GNU Lesser General Public License v3.0 (not the license of AllInOneIME
+itself), which incorporates the GNU General Public License v3.0 (its text is rime-ice's LICENSE, above). Their copyright
+holders, as its AUTHORS file lists them: the dictionary, `wubi86.dict.yaml`, derived from ibus-table by acevery (Yu
+Yuwei), based on the original work of 王永民 (Wang Yongmin, public domain); the schema, `wubi86.schema.yaml`, Gong Chen.
+The files Wubi uses are included unmodified in the app bundle under `Contents/SharedSupport/rime-wubi` (what AllInOneIME
+changes, it changes in a patch of its own in the Rime user folder, `wubi86.custom.yaml`), with rime-wubi's LICENSE and
+AUTHORS beside them; the license's text is also `LICENSE-Wubi-data-LGPL-3.0.txt` on the disk image. Their source is at
+the commit listed above.
 
 ## rime-wubi and rime-cangjie (shape codes)
 

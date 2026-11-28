@@ -166,7 +166,8 @@ public struct Config: Codable, Equatable, Sendable {
     /// languages say, read each time, until one is picked (Settings → Input → Chinese).
     public var chineseCharacters: ChineseCharacters?
     /// How Chinese is typed in pinyin (`PinyinScheme`, Settings → Input → Chinese → Typing): nil (or "full") for full
-    /// pinyin, else the scheme's id, librime's schema (Shuangpin's "double_pinyin_flypy", Zhuyin's "bopomofo").
+    /// pinyin, else the scheme's id, librime's schema (Shuangpin's "double_pinyin_flypy", Zhuyin's "bopomofo", Wubi's
+    /// "wubi86").
     /// `typedPinyin` reads it.
     public var pinyinScheme: String?
     /// Shape codes after "`" while typing pinyin (`ShapeCode`, Settings → Input → Chinese → Typing): the table's id
@@ -696,7 +697,7 @@ public struct Config: Codable, Equatable, Sendable {
         try c.encode(fuzzyPinyin, forKey: .fuzzyPinyin)
         // Only once picked: a file from before the setting doesn't gain the key, and follows the system.
         try c.encodeIfPresent(chineseCharacters, forKey: .chineseCharacters)
-        // Only Shuangpin (or Zhuyin), and shape codes only on (`encodeTyping`).
+        // Only Shuangpin (or Zhuyin, Wubi), and shape codes only on (`encodeTyping`).
         try encodeTyping(into: &c)
         // Only once there are words (or candidates removed), and learning only when it's off: a file from before them
         // doesn't gain the keys.

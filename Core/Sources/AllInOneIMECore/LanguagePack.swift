@@ -273,7 +273,8 @@ public struct LanguagePackStore: Sendable {
     }
 
     /// Links in the pack's folder to the data files `names` the app carries in `folder` beside the pack's (Zhuyin's,
-    /// `PinyinScheme.zhuyinData`, in `Contents/SharedSupport/rime-zhuyin`), where librime reads its shared data; a link
+    /// `PinyinScheme.zhuyinData`, in `Contents/SharedSupport/rime-zhuyin`; Wubi's, `PinyinScheme.wubiData`, in
+    /// `Contents/SharedSupport/rime-wubi`), where librime reads its shared data; a link
     /// to a file the app doesn't have (`folder` nil, or without it) removed. Called before every engine start, as
     /// `linkCode`, so a moved or updated app is followed. Only links are ever replaced or removed (the pack holds none,
     /// `validate`): a file of the pack's own with the name stays.

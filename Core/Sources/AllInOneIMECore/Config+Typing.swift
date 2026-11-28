@@ -9,7 +9,7 @@ public extension Config {
         chineseCharacters ?? .preferred(from: Platform.current.userLanguages.preferred)
     }
 
-    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, or Zhuyin.
+    /// How Chinese is typed in pinyin (`pinyinScheme`): full pinyin, a Shuangpin scheme, Zhuyin or Wubi.
     var typedPinyin: PinyinScheme { PinyinScheme(setting: pinyinScheme) }
 
     /// The output language a sentence typed in `language` is in: Chinese in the characters typed ("zh", "zh-Hant-TW").
@@ -21,7 +21,7 @@ public extension Config {
         OutputLanguage.of(text, language: language(of: text), chinese: typedChinese)
     }
 
-    /// The shape codes typed after "`" (`shapeCode`, `ShapeCode`); nil: off. Zhuyin's patch never has them.
+    /// The shape codes typed after "`" (`shapeCode`, `ShapeCode`); nil: off. Zhuyin's and Wubi's patches never have them.
     var typedShapeCode: ShapeCode? { ShapeCode(setting: shapeCode) }
 }
 
@@ -35,7 +35,7 @@ extension Config {
         return (PinyinScheme(setting: string(.pinyinScheme)).setting, ShapeCode(setting: string(.shapeCode))?.rawValue)
     }
 
-    /// Only Shuangpin or Zhuyin, and shape codes only once picked: a file from before the settings doesn't gain the keys,
+    /// Only Shuangpin, Zhuyin or Wubi, and shape codes only once picked: a file from before the settings doesn't gain the keys,
     /// nor one back on full pinyin or with shape codes off.
     func encodeTyping(into c: inout KeyedEncodingContainer<CodingKeys>) throws {
         try c.encodeIfPresent(typedPinyin.setting, forKey: .pinyinScheme)

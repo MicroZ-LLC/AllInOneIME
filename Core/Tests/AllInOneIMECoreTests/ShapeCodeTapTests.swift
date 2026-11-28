@@ -5,7 +5,7 @@ import AllInOneIMETestSupport
 
 /// A tap of the right ⌥ as "`" for shape codes (`Composer.shapeCodeTap`), beyond the acceptance file
 /// (Acceptance/Issue168ShapeOptionTests.swift): what the tap leaves of a hold (dictation armed, its notice), and pinyin
-/// without shape codes (Zhuyin).
+/// without shape codes (Zhuyin, Wubi).
 struct ShapeCodeTapTests {
     /// "ni" typed with shape codes on (Moqi), ⌥Space the action key.
     private func composing(voice: Bool) -> (Composer, FakeEngine) {
@@ -39,6 +39,15 @@ struct ShapeCodeTapTests {
     @Test func zhuyinKeepsTheTapAsBefore() {
         let (c, engine) = composing(voice: false)
         c.pinyinScheme = .zhuyin
+        #expect(tapRightOption(c).isEmpty)
+        #expect(graves(engine) == 0)
+        #expect(engine.input == "ni")
+    }
+
+    /// Nor has Wubi (its letters are codes, not pinyin): the tap is as before there too.
+    @Test func wubiKeepsTheTapAsBefore() {
+        let (c, engine) = composing(voice: false)
+        c.pinyinScheme = .wubi
         #expect(tapRightOption(c).isEmpty)
         #expect(graves(engine) == 0)
         #expect(engine.input == "ni")

@@ -100,10 +100,10 @@ extension Composer {
     }
 
     /// Whether a tap of `key` now would type "`" (`shapeCodeTap`): the right Option (the one held to dictate,
-    /// `ModifierRoles.voiceHold`) while pinyin is typed with shape codes on (`shapeCode`; never in Zhuyin, which has
-    /// none), with another action key than `optionTap`.
+    /// `ModifierRoles.voiceHold`) while pinyin is typed with shape codes on (`shapeCode`; never in Zhuyin or Wubi, which
+    /// have none: `PinyinScheme.isPinyin`), with another action key than `optionTap`.
     private func mayTypeShapeCode(_ key: Key) -> Bool {
-        actionKey != .optionTap && key == modifierRoles.voiceHold.key && shapeCode != nil && !typesZhuyin
+        actionKey != .optionTap && key == modifierRoles.voiceHold.key && shapeCode != nil && pinyinScheme.isPinyin
             && inputLanguage == .chinese && engineState.isComposing && voice == .off
     }
 
