@@ -291,7 +291,13 @@ final class DraftKeeper {
         let distributed = readers.distributed
         observers.append(distributed.addObserver(forName: Notification.Name("com.apple.screenIsLocked"), object: nil, queue: .main,
                                                  using: drop("the screen locked")))
+        // The system tells this on an app switch too, with our source still selected (#200): only another one ends it.
         observers.append(distributed.addObserver(forName: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String),
-                                                 object: nil, queue: .main, using: drop("another input source selected")))
+                                                 object: nil, queue: .main) { _ in
+            MainActor.assumeIsolated {
+                let keeper = DraftKeeper.shared
+                if !keeper.readers.sourceIsOurs() { keeper.drop("another input source selected") }
+            }
+        })
     }
 }

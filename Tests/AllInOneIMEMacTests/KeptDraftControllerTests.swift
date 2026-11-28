@@ -302,9 +302,11 @@ struct KeptDraftControllerTests {
             draft(in: field)
             controller.deactivateServer(field)
             OffMain.say("keptBefore", controller.session.keepsDraft)
+            ours = false  // another source really selected (our own still selected leaves it: #200)
             center.post(name: Notification.Name(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil)
             OffMain.pump(0.1)
             OffMain.say("afterNotification", controller.session.keepsDraft || controller.composer.isComposing)
+            ours = true
             // Found selected as the field is left (the system didn't have the input method commit first).
             draft(in: field)
             ours = false
