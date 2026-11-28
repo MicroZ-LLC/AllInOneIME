@@ -164,9 +164,10 @@ extension SettingsSpot {
     private var keywords: String {
         switch self {
         case .inputLanguages: return "pinyin english chinese french korean hindi shift default chips 拼音 中文 英文 法语 韩语 印地语 默认 语言包 language pack"
-        // The schemes by their names in either language (`PinyinScheme.name`), as their menu lists them; Zhuyin by its
-        // other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ), Wubi by its others (五筆, wubi86, 五笔字型). The shape codes (`ShapeCode`,
-        // no row of the search's own) the same.
+        // The ways (`TypingWay`) and the schemes by their names in either language (`PinyinScheme.name`): the Shuangpin
+        // schemes' row, shown only with Shuangpin, has no spot of its own, so a scheme's name lands here, on the row
+        // always shown right above it. Zhuyin by its other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ), Wubi by its
+        // others (五筆, wubi86, 五笔字型). The shape codes (`ShapeCode`, no row of the search's own) the same.
         case .pinyinScheme:
             return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
                 + "zhuyin bopomofo daqian taiwan 注音 注音符號 注音符号 大千 標準 标准 ㄅㄆㄇ 台灣 台湾 "

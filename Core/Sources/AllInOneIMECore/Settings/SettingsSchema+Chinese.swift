@@ -8,7 +8,8 @@ extension SettingsSchema {
         let store = store
         // Full pinyin, a Shuangpin scheme, Zhuyin or Wubi, beside the characters (`PinyinScheme`): the Mac deploys it
         // (Windows not yet). Zhuyin picked first picks Taiwan's characters (`SettingsStore.setPinyinScheme`); Wubi leaves
-        // them as they are.
+        // them as they are. One field with every scheme, the one key it saves: the Mac's window draws it as two menus, the
+        // way (`TypingWay`) and, with Shuangpin, the scheme below it, which pick the same values.
         add(choice("pinyinScheme", UIText.pinyinSchemeLabel, UIText.pinyinSchemeHelp, value: .string(config.typedPinyin.rawValue),
                    choices: PinyinScheme.allCases.map { (Choice($0.rawValue, $0.name(in: UIText.language)), nil) }, platforms: [.mac]),
             to: &fields) { value in

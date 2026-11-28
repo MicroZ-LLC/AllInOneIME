@@ -28,7 +28,7 @@
 535 Core/Sources/AllInOneIMECore/Session/SessionTasks.swift
 716 Core/Sources/AllInOneIMECore/Settings/SettingsSchema.swift
 699 Core/Sources/AllInOneIMECore/Settings/SettingsService.swift
-442 Core/Sources/AllInOneIMECore/Settings/SettingsStore.swift
+432 Core/Sources/AllInOneIMECore/Settings/SettingsStore.swift
 589 Core/Sources/AllInOneIMECore/Suggestions/ExtensionCompletions.swift
 416 Core/Sources/AllInOneIMECore/Suggestions/SuggestionRows.swift
 439 Core/Sources/AllInOneIMECore/Suggestions/SuggestionsStore.swift
