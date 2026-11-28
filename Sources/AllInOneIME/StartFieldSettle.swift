@@ -7,26 +7,23 @@ import AppKit
 /// never during the click. So the field is emptied after it is in and before the example's first key goes out: emptied
 /// sooner, the old "@…" lands in front of the example; later, the magic key arrives after the old text (and right after
 /// a letter it is only text, no list: `Composer.continuesWord`). A fixed delay is too short on a busy Mac and slow on an
-/// idle one, so the field itself is looked at, on the main queue every `interval` (nothing waits on the main thread):
+/// idle one, so it is looked at, on the main queue every `interval` (nothing waits on the main thread).
 ///
-/// - The draft the field showed has ended (no marked text left, and the field changed: its text put in as typed, or
-///   given up): on at once. Nothing more comes of the Escapes: with no draft open the input method leaves the other one
-///   to the window, where it does nothing (`StartWindow`), and it reaches the input method before the example's keys do.
-/// - No draft shown in the field (none open, or a selection's, in the panel): once both Escapes have gone through this
-///   app (their key ups seen by a local monitor, which keeps nothing from the field) and the field has then stayed as
-///   it is for `quiet`, time for what the input method does after a key.
-/// - A draft still shown (a command's result list taken back to its draft by the first Escape, the second one's answer
-///   not back yet): only its end, as above, or `limit`. Going on sooner would empty the field before the draft's text
-///   comes in; a draft the Escapes don't end is left as before this wait, and waiting changes nothing for it.
-/// - At most `limit`: Escapes the key tap takes (`KeyGuard`, a panel shown with nothing marked) never reach the app.
+/// Nothing of a draft is ever in the field (the input method marks none: it shows in the panel), so what the field
+/// shows says nothing of it. What tells is the input method itself, in this process (`draftOpen`): while it has a
+/// draft, a panel or a result being typed out, the Escapes aren't through with it. Once it has none, they are through
+/// when one of these has come (`settled`), and the field has then stayed as it is for `quiet` (time for the text an
+/// Escape put in to come back):
+///
+/// - an Escape's key up in this app (a local monitor, which keeps nothing from the field): its key down went past the
+///   input method, which had nothing open for it;
+/// - the draft or panel seen open has ended (the key tap takes an Escape's key down and up while a panel shows,
+///   `KeyGuard`, so the app may see neither);
+/// - the field's text changed (put in as typed).
+///
+/// At most `limit`: a draft the Escapes don't end is left as before this wait, and waiting changes nothing for it.
 @MainActor
 final class StartFieldSettle {
-    /// What is looked at: the field's text, marked text and all, and whether some of it is marked (a draft's).
-    struct Field: Equatable {
-        var text: String
-        var marked: Bool
-    }
-
     static let interval: TimeInterval = 0.02
     static let quiet: TimeInterval = 0.15
     static let limit: TimeInterval = 1.5
@@ -36,30 +33,34 @@ final class StartFieldSettle {
     private static var current: StartFieldSettle?
 
     private let editor: NSTextView
-    private let escapes: Int
+    private let draftOpen: @MainActor () -> Bool
     private let then: @MainActor () -> Void
-    private let start: Field
-    private var last: Field
+    private let start: String
+    private var last: String
     private let began = ProcessInfo.processInfo.systemUptime
     private var changed: TimeInterval
-    private var escapesSeen = 0
-    private var escapesThrough: TimeInterval?
+    private var escapeAt: TimeInterval?
+    private var draftSeen = false
+    private var draftEndedAt: TimeInterval?
     private var monitor: Any?
 
-    private init(_ editor: NSTextView, escapes: Int, then: @escaping @MainActor () -> Void) {
+    private init(_ editor: NSTextView, draftOpen: @escaping @MainActor () -> Bool, then: @escaping @MainActor () -> Void) {
         self.editor = editor
-        self.escapes = escapes
+        self.draftOpen = draftOpen
         self.then = then
-        start = Self.field(editor)
+        start = editor.string
         last = start
         changed = began
+        // Looked at before the Escapes go out: a draft they end before the first look is seen to end there.
+        draftSeen = draftOpen()
     }
 
-    /// `editor` looked at for the `escapes` Escapes about to be posted, `then` run once they are handled (above). Called
-    /// before they are posted: they come to this app no sooner than the main thread's next turn, so none goes by unseen.
-    static func watch(_ editor: NSTextView, escapes: Int, then: @escaping @MainActor () -> Void) {
-        current?.stop()
-        let settle = StartFieldSettle(editor, escapes: escapes, then: then)
+    /// `editor` looked at for the Escapes about to be posted, `then` run once they are handled (above); `draftOpen`
+    /// tells whether the input method has a draft, a panel or a result being typed out now. Called before they are
+    /// posted: they come to this app no sooner than the main thread's next turn, so none goes by unseen.
+    static func watch(_ editor: NSTextView, draftOpen: @escaping @MainActor () -> Bool, then: @escaping @MainActor () -> Void) {
+        cancel()
+        let settle = StartFieldSettle(editor, draftOpen: draftOpen, then: then)
         current = settle
         settle.monitor = NSEvent.addLocalMonitorForEvents(matching: .keyUp) { [weak settle] event in
             if event.keyCode == VirtualKey.escape { MainActor.assumeIsolated { settle?.escapeWentThrough() } }
@@ -68,21 +69,26 @@ final class StartFieldSettle {
         settle.lookLater()
     }
 
-    /// Whether the Escapes are handled (above): `sinceEscapes` nil until both have gone through the app.
-    static func settled(start: Field, now: Field, sinceChange: TimeInterval, sinceEscapes: TimeInterval?,
-                        elapsed: TimeInterval) -> Bool {
-        if !now.marked, now != start { return true }
-        if elapsed >= limit { return true }
-        guard let sinceEscapes, !now.marked else { return false }
-        return min(sinceChange, sinceEscapes) >= quiet
-    }
+    /// The wait going on stopped, its `then` never run: a newer ask for step 3's keys, or the window closed.
+    static func cancel() { current?.stop() }
 
-    private static func field(_ editor: NSTextView) -> Field { Field(text: editor.string, marked: editor.hasMarkedText()) }
+    /// Whether the Escapes are handled (above). `draftOpen`: the input method has something open now. Each `since…` is
+    /// the time since it came: `sinceChange` the field's text last changed (or the watch began), `sinceEscape` an
+    /// Escape's key up came to the app (nil: none yet), `sinceDraftEnded` a draft or panel seen open ended (nil: none).
+    static func settled(start: String, now: String, draftOpen: Bool, sinceChange: TimeInterval, sinceEscape: TimeInterval?,
+                        sinceDraftEnded: TimeInterval?, elapsed: TimeInterval) -> Bool {
+        if elapsed >= limit { return true }
+        guard !draftOpen else { return false }
+        // The first sign the Escapes went through; the text changing is one, and its last change the quiet's start.
+        guard let through = [sinceEscape, sinceDraftEnded, now != start ? sinceChange : nil].compactMap({ $0 }).max() else {
+            return false
+        }
+        return min(through, sinceChange) >= quiet
+    }
 
     /// An Escape's key up dequeued: its key down went through the field (and the input method's context) before it.
     private func escapeWentThrough() {
-        escapesSeen += 1
-        if escapesSeen >= escapes, escapesThrough == nil { escapesThrough = ProcessInfo.processInfo.systemUptime }
+        if escapeAt == nil { escapeAt = ProcessInfo.processInfo.systemUptime }
     }
 
     private func lookLater() {
@@ -92,9 +98,17 @@ final class StartFieldSettle {
     private func look() {
         guard Self.current === self else { return }
         let now = ProcessInfo.processInfo.systemUptime
-        let field = Self.field(editor)
-        if field != last { (last, changed) = (field, now) }
-        guard Self.settled(start: start, now: field, sinceChange: now - changed, sinceEscapes: escapesThrough.map { now - $0 },
+        let text = editor.string
+        if text != last { (last, changed) = (text, now) }
+        let open = draftOpen()
+        // Ended as last seen: one opened again (a key posted before the Escapes, still on its way) ends anew.
+        if open {
+            (draftSeen, draftEndedAt) = (true, nil)
+        } else if draftSeen, draftEndedAt == nil {
+            draftEndedAt = now
+        }
+        guard Self.settled(start: start, now: text, draftOpen: open, sinceChange: now - changed,
+                           sinceEscape: escapeAt.map { now - $0 }, sinceDraftEnded: draftEndedAt.map { now - $0 },
                            elapsed: now - began) else {
             lookLater()
             return

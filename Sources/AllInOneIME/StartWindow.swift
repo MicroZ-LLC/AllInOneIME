@@ -145,6 +145,24 @@ enum StartWindow {
     /// go to whatever has the keyboard focus.
     static var isKey: Bool { NSApp.isActive && window != nil && NSApp.keyWindow === window }
 
+    /// Step 3's keys asked for so far (the step shown, an example clicked; the window closing counts as one): what an
+    /// ask still has to do later (tried again while the window wasn't key, its Escapes waited for) is done only while it
+    /// is the last, so that an older ask never types onto a newer one's draft, nor into another window.
+    private(set) static var keysAsked = 0
+
+    /// A new ask for step 3's keys, its number: what earlier ones still had to do is dropped (`dropKeys`).
+    static func askKeys() -> Int {
+        dropKeys()
+        return keysAsked
+    }
+
+    /// What the asks for step 3's keys still had to do dropped, their wait for the Escapes stopped (`StartFieldSettle`):
+    /// a newer ask, or the window closed (the wait's key monitor and field go with it).
+    static func dropKeys() {
+        keysAsked += 1
+        StartFieldSettle.cancel()
+    }
+
     nonisolated static func shouldShow(_ defaults: UserDefaults) -> Bool { !defaults.bool(forKey: seenKey) }
 
     nonisolated static func markSeen(_ defaults: UserDefaults) { defaults.set(true, forKey: seenKey) }
@@ -246,6 +264,8 @@ enum StartWindow {
 
     private static func closed(_ model: StartModel) {
         model.close()
+        dropKeys()  // step 3's keys not posted yet never are
+
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
             DistributedNotificationCenter.default().removeObserver(observer)

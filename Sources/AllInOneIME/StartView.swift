@@ -173,14 +173,17 @@ struct StartView: View {
     /// An example's keys begin with two Escapes (`StartModel.shouldCancelFirst`), which end what the @ list has open:
     /// emptying the field alone leaves the input method's draft open, and the example would go onto it. The field is
     /// emptied once what the Escapes put in has come back (`StartFieldSettle`), right before the rest is typed.
-    private func type(_ example: String?, attempt: Int = 0) {
+    /// Each call is a new ask (`StartWindow.askKeys`): an older one's tries and wait still to come do nothing.
+    private func type(_ example: String?, attempt: Int = 0, asked: Int? = nil) {
+        let asked = asked ?? StartWindow.askKeys()
         let field = StartModel.tryField(trigger: trigger, example: example)
         let strokes = StartModel.strokes(for: field.typed, cancelFirst: StartModel.shouldCancelFirst(example: example))
         fieldFocused = true
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.1)) {
+            guard asked == StartWindow.keysAsked else { return }  // a newer ask, or the window closed
             // The window may not be key yet as the step comes up: asked again for up to two seconds.
             guard StartWindow.isKey, let editor = NSApp.keyWindow?.firstResponder as? NSTextView else {
-                if attempt < 20 { type(example, attempt: attempt + 1) }
+                if attempt < 20 { type(example, attempt: attempt + 1, asked: asked) }
                 return
             }
             let cancel = Array(strokes.prefix { $0 == .escape })
@@ -189,13 +192,21 @@ struct StartView: View {
                 empty(editor, preset: field.preset, then: keys)
                 return
             }
-            StartFieldSettle.watch(editor, escapes: cancel.count) {
+            StartFieldSettle.watch(editor, draftOpen: Self.draftOpen) {
                 // The focus may have left the field (or the window gone) while the Escapes were handled.
-                guard StartWindow.isKey, NSApp.keyWindow?.firstResponder === editor else { return }
+                guard asked == StartWindow.keysAsked, StartWindow.isKey, NSApp.keyWindow?.firstResponder === editor else { return }
                 empty(editor, preset: field.preset, then: keys)
             }
             Self.post(cancel)
         }
+    }
+
+    /// Whether the input method (this process's) has what an Escape ends open: a draft, a panel, a result being typed
+    /// out. The field never shows a draft (nothing of it is marked there), so it is asked here.
+    @MainActor
+    private static func draftOpen() -> Bool {
+        let controller = AllInOneIMEInputController.activeController
+        return CandidatePanel.shared.isShowing || controller?.composer.isComposing == true || controller?.isTypingOut == true
     }
 
     /// The field emptied, marked text and all, then `keys` typed into it.
