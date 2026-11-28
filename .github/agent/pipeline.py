@@ -351,10 +351,37 @@ def regressions(baseline: Checks, now: Checks, base: str) -> str | None:
     return "\n\n".join(problem for problem in (lint, tests) if problem) or None
 
 
+def retest(names: set[str], env: dict) -> Checks | None:
+    """Runs only the tests that failed again (`swift test --filter`, both packages, the build already there); None
+    when the filter found nothing to run (a test whose display name isn't its function's), so the caller runs it all."""
+    # An XCTest failure is "Class method"; `--filter` takes "Class/method".
+    escaped = [re.escape(re.sub(r"^([\w.]+) (\w+)$", r"\1/\2", name)) for name in sorted(names)]
+    filter_ = "|".join(escaped)
+    quiet = dict(env, AWS_CONFIG_FILE="/nonexistent/aws-config", AWS_SHARED_CREDENTIALS_FILE="/nonexistent/aws-credentials",
+                 ALLINONEIME_REQUIRE_RIME_DATA="1")
+    logs, failures, ran = [], set(), 0
+    for package in ([], ["--package-path", "Core"]):
+        result = run(["swift", "test", *package, "--filter", filter_], cwd=WORK, env=quiet, timeout=1800)
+        logs.append(result.stdout)
+        found = {name for pattern in FAILURE for name in pattern.findall(result.stdout)}
+        failures |= found
+        ran += sum(int(n) for n in re.findall(r"Test run with (\d+) tests?", result.stdout))
+        # A run that failed without naming a test (a crash, a timeout, a build error) says nothing: run it all.
+        if result.returncode and not found:
+            return None
+    # Fewer tests ran than were asked for: some can't be found by this filter (a display name): run it all.
+    return Checks(True, not failures, failures, "\n".join(logs)) if ran >= len(names) else None
+
+
 def test_regressions(baseline: Checks, now: Checks, base: str) -> str | None:
     if now.passed or (now.failures and not now.failures - baseline.failures):
         return None
-    again = checks(base)
+    # Only the tests that failed are run again (the whole suite only when they can't be found alone).
+    suspects = now.failures - baseline.failures
+    env = {k: v for k, v in os.environ.items() if k not in ("GH_TOKEN", "GITHUB_TOKEN")}
+    again = retest(suspects, env) if suspects else None
+    if again is None:
+        again = checks(base)
     new = (again.failures - baseline.failures) & ((now.failures - baseline.failures) or again.failures)
     if again.passed or (again.failures and not new):
         return None

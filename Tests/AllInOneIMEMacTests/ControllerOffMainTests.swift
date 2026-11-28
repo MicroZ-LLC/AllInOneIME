@@ -199,7 +199,8 @@ enum ControllerOffMainChild {
         let dispatch = "\nlet arguments = Array(CommandLine.arguments.dropFirst())\n"
         guard let cut = main.range(of: dispatch) else { throw Failure(description: "main.swift: no `\(dispatch.dropFirst().dropLast())`") }
         let mainFile = scratch.appendingPathComponent("main.swift")
-        try (String(main[..<cut.upperBound]) + harness).write(to: mainFile, atomically: true, encoding: .utf8)
+        // KeptDraftControllerTests' ways run in the same child (one compile for both suites).
+        try (String(main[..<cut.upperBound]) + KeptDraftControllerTests.harness + harness).write(to: mainFile, atomically: true, encoding: .utf8)
         let others = try fm.contentsOfDirectory(at: sources, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "swift" && $0.lastPathComponent != "main.swift" }.map(\.path).sorted()
         let executable = scratch.appendingPathComponent("offmain")
@@ -569,8 +570,10 @@ enum ControllerOffMainChild {
         case "untrusted": OffMain.untrusted()
         case "terminate": OffMain.terminate(arguments.count > 1 ? arguments[1] : "")
         default:
-            print("FAIL way \(arguments.first ?? "")")
-            exit(3)
+            guard KeptDrafts.run(arguments.first ?? "") else {
+                print("FAIL way \(arguments.first ?? "")")
+                exit(3)
+            }
         }
         fflush(stdout)
         exit(0)

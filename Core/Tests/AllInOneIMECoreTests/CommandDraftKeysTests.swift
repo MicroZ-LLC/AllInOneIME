@@ -111,8 +111,9 @@ struct CommandDraftKeysTests {
         #expect(commits(pinyin.commitAll()).isEmpty && !pinyin.engineState.isComposing && pinyin.phase == .idle)
     }
 
-    /// The session's blur, the app's commit and a click, with a Chinese command: nothing in the field. Plain text still
-    /// goes in.
+    /// The app's commit and a click, with a Chinese command: nothing in the field. The session's blur (the focus lost
+    /// without a click) keeps it for the field, nothing in and nothing showing, and it is back with the focus (#180).
+    /// Plain text still goes in.
     @Test func aChineseCommandIsDroppedWhenTheFieldIsLeftAndPlainTextIsNot() {
         for event in [SessionEvent.blur, .commit, .pointerDown] {
             let host = Self.host()
@@ -123,7 +124,13 @@ struct CommandDraftKeysTests {
             host.press(FakeHost.space)
             #expect(host.composer.draft == "@question 你好", "\(event)")
             host.send(event)
-            #expect(host.document.isEmpty && host.composer.draft.isEmpty, "\(event): \"\(host.document)\"")
+            guard case .blur = event else {
+                #expect(host.document.isEmpty && host.composer.draft.isEmpty, "\(event): \"\(host.document)\"")
+                continue
+            }
+            #expect(host.document.isEmpty && host.panel == nil && host.composer.draft == "@question 你好", "\"\(host.document)\"")
+            host.focus()
+            #expect(host.document.isEmpty && host.panel != nil && host.composer.draft == "@question 你好", "\"\(host.document)\"")
         }
         // Plain text picked stays when the field is left (pinyin not yet picked leaves nothing: #126).
         let host = Self.host()
@@ -147,7 +154,8 @@ struct CommandDraftKeysTests {
     }
 
     /// `@note` of one line keeps going in as typed when the session's field is left, the app commits or a click comes,
-    /// as with a shortcut (the owner kept it as it was).
+    /// as with a shortcut (the owner kept it as it was): it doesn't wait for the field as other drafts do on a blur
+    /// (`Composer.waitsForField`), which another field taking the focus would drop.
     @Test func theSessionKeepsAOneLineNoteOnEveryWayOut() {
         for event in [SessionEvent.blur, .commit, .pointerDown] {
             let host = Self.host()

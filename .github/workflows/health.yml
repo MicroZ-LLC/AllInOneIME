@@ -66,10 +66,29 @@ jobs:
           unread=0
           [ ! -f "$RUNNER_TEMP/flaky/unread.txt" ] || unread=$(wc -l < "$RUNNER_TEMP/flaky/unread.txt" | tr -d ' ')
           echo "$(wc -l < "$RUNNER_TEMP/flaky.txt" | tr -d ' ') runs had flaky tests, $unread not downloaded"
+      - name: Whether the on-screen tests ran
+        # quality.yml's mac job keeps a file saying "ran" or "skipped" (the Mac mini's screen was locked) per run
+        # (on-screen-tests-<attempt>, 35 days). The folder is there only when all of them could be listed.
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          screen=$RUNNER_TEMP/on-screen.partial && mkdir -p "$screen"
+          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq '.artifacts[]
+            | select((.name | startswith("on-screen-tests-")) and (.expired | not)
+                     and (.created_at | fromdateiso8601) > now - 28 * 86400)
+            | "\(.id) \(.workflow_run.id) \(.name)"' > "$RUNNER_TEMP/on-screen.txt"
+          while read -r id run name; do
+            if ! gh run download "$run" -R "$GITHUB_REPOSITORY" -n "$name" -D "$screen/$id" </dev/null; then
+              echo "::warning::couldn't download $name of run $run"
+              echo "$name $run" >> "$screen/unread.txt"
+            fi
+          done < "$RUNNER_TEMP/on-screen.txt"
+          mv "$screen" "$RUNNER_TEMP/on-screen"
       - name: Write the report
         run: |
           make deps   # Periphery builds the app's package, which links librime
-          python3 Scripts/health-report.py --periphery --flaky "$RUNNER_TEMP/flaky" > "$RUNNER_TEMP/report.md"
+          python3 Scripts/health-report.py --periphery --flaky "$RUNNER_TEMP/flaky" --on-screen "$RUNNER_TEMP/on-screen" > "$RUNNER_TEMP/report.md"
           cat "$RUNNER_TEMP/report.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Put it in the issue
         env:

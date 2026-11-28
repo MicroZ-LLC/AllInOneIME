@@ -3,7 +3,8 @@ import Foundation
 import WinSDK  // inet_pton (Winsock's, not the C library's)
 #endif
 
-/// What is hidden from the AI before a request is sent (`Redaction`): `Config.redaction`. Off by default; on, each
+/// What is hidden from the AI before a request is sent (`Redaction`): `Config.redaction`. Off where a config
+/// file doesn't say (an existing user's), on for a new install (`Config.fresh`); on, each
 /// detector is on unless turned off, and the user's own words are hidden too.
 public struct RedactionSettings: Codable, Equatable, Sendable {
     public var enabled: Bool

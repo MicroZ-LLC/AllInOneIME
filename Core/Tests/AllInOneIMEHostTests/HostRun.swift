@@ -44,6 +44,9 @@ final class HostRun {
     var everyTurn: [HostTurnCalls] = []
     /// The app's undo: the field before each change, with what the ledger held then.
     var undo: [(document: String, caret: Int, ledger: CommitLedger)] = []
+    /// The first field's state kept while `FOCUS other` has the focus in another field (`HostRun+Field.swift`),
+    /// restored if `FOCUS back` returns to it.
+    var savedField: SavedField?
     var failures: [HostFailure] = []
     /// After every step, the stress runs' checks too (`checkStrictInvariants`), not only `checkInvariants`.
     var strict = false

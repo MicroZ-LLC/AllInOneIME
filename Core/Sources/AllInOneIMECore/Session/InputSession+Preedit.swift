@@ -14,6 +14,12 @@ extension InputSession {
     /// what dictation heard, as typed), as leaving the field does; cancelled, nothing pending goes in
     /// (`appTookMarkedText`). A click (or the app's commit on one) may have moved the caret: the suggestion token ends.
     func left(_ event: SessionEvent) {
+        // A draft kept for the field while the focus is elsewhere (InputSession+KeptDraft.swift): a click then leaves
+        // nothing (the field was left already); the app's commit or cancel ends it, nothing of it in.
+        if keptDraft != nil {
+            if case .pointerDown = event { return }
+            return dropKeptDraft()
+        }
         autocompleteLeft(.ignored)
         clipboardLeft()
         if case .cancel = event { perform(composer.appTookMarkedText()) } else { perform(composer.leaveField()) }
@@ -24,13 +30,14 @@ extension InputSession {
     /// The panel told again once what is being typed changed since it was last told: after everything the shell is told
     /// of an event, so the input line is never left behind (the composition ended by a commit, a key Code's word ended on).
     func followPreedit() {
-        guard SessionText.panelInput(composer) != preeditShown else { return }
+        guard keptDraft == nil, SessionText.panelInput(composer) != preeditShown else { return }
         showPanel()
     }
 
     /// `panel` as the shell is told it (`emit`): with the input line on top while something is being typed, on its own
     /// (the notice up now beside it) where nothing else shows; never over clipboard history's. Nil: none.
     func withPreedit(_ panel: PanelModel?) -> PanelModel? {
+        guard keptDraft == nil else { return nil }  // the focus is elsewhere: nothing shows until it's back
         guard let input = SessionText.panelInput(composer), !clipboard.shown else { return panel }
         var panel = panel ?? PanelModel(detail: notice)
         if panel.input == nil { panel.input = input }

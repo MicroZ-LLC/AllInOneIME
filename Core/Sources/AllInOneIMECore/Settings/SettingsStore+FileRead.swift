@@ -6,6 +6,8 @@ extension SettingsStore {
     /// (`reloadIfChanged(_:)`).
     public struct FileRead: Sendable {
         let date: Date?
+        /// The store's `fileDate` the read started from: taken only while the store's is still that one.
+        let since: Date?
         let exists: Bool
         let config: Result<Config, Error>
 
@@ -15,16 +17,19 @@ extension SettingsStore {
             let now = SettingsStore.modificationDate(url)
             guard now != date else { return nil }
             self.date = now
+            since = date
             exists = FileManager.default.fileExists(atPath: url.path)
             config = Result { try Config.load(from: url) }
         }
     }
 
-    /// `reloadIfChanged()` with the file read elsewhere (`FileRead`): shown unless the store read or wrote the file as
-    /// it was then meanwhile. Whether anything was taken.
+    /// `reloadIfChanged()` with the file read elsewhere (`FileRead`): shown only while the store's `fileDate` is still
+    /// the one the read started from. The store read or wrote the file meanwhile (a save, another read arrived first,
+    /// newer or not), the read is dropped: an older file never replaces what the store has since. Whether anything was
+    /// taken.
     @discardableResult
     public func reloadIfChanged(_ read: FileRead) -> Bool {
-        guard persists, read.date != fileDate else { return false }
+        guard persists, read.since == fileDate, read.date != fileDate else { return false }
         // No file: a new user's settings where the store has them (`fresh`), as `reloadIfChanged()` reads one.
         took(read.exists ? read.config : fresh.map { .success($0()) } ?? read.config, dated: read.date)
         return true

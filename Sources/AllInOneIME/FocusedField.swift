@@ -55,6 +55,30 @@ enum FocusedField {
         }
     }
 
+    /// Which element it is, for telling a field again once it lost the focus (`DraftKeeper`): only a text field or area
+    /// (a page whose app doesn't tell its fields has the whole page focused: no field is told from another there), and
+    /// whether it is a password field. Nil where it can't be told (`element`'s, its role not read, or its subrole as
+    /// `isSecure` has it: never "no password field" then). Any thread.
+    static func identity() -> FieldIdentity? {
+        guard let element = element() else { return nil }
+        var role: CFTypeRef?, subrole: CFTypeRef?
+        let roleRead = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &role)
+        let subroleRead = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
+        return identity(of: element, role: (roleRead, role), subrole: (subroleRead, subrole))
+    }
+
+    /// `identity`, of `element` by what the reads of its role and subrole told.
+    static func identity(of element: CFTypeRef, role: (AXError, CFTypeRef?), subrole: (AXError, CFTypeRef?)) -> FieldIdentity? {
+        guard role.0 == .success, let told = role.1 as? String, textRoles.contains(told) else { return nil }
+        switch subrole.0 {
+        case .success: return FieldIdentity(element: element, secure: subrole.1 as? String == kAXSecureTextFieldSubrole as String)
+        case .noValue, .attributeUnsupported: return FieldIdentity(element: element, secure: false)
+        default: return nil
+        }
+    }
+
+    private static let textRoles: Set<String> = [kAXTextFieldRole as String, kAXTextAreaRole as String, kAXComboBoxRole as String]
+
     /// The main screen's top in AppKit's coordinates, where Accessibility's start (y down): asked on the main thread, for
     /// the reads made off it (`top`).
     @MainActor

@@ -183,7 +183,7 @@ extension InputSession {
     // MARK: - Keys
 
     /// A key the panel takes: no long press of Shift with it (as every key suggestions' rows see).
-    private func clipboardTookKey() {
+    func clipboardTookKey() {
         shiftHold.keyDown()
         suggesting.shift += 1
         holdHintEnds()
@@ -223,17 +223,8 @@ extension InputSession {
             emit(.panel(clipboardPanel()))
             return true
         }
-        // More rows than a page: ← → the page before or after, its first row chosen; at the first ← and at the last → stay.
-        let leftOrRight = event.key == .arrow(.left) || event.key == .arrow(.right)
-        if leftOrRight, modifiers.isEmpty, ListPage.turns(clipboard.rows.count) {
-            clipboardTookKey()
-            if !clipboard.command { emit(.rowsTookKey) }
-            if let next = ListPage.turned(event.key == .arrow(.left) ? -1 : 1, first: clipboard.top, count: clipboard.rows.count) {
-                (clipboard.top, clipboard.chosen, clipboard.anchor) = (next, next, nil)
-            }
-            emit(.panel(clipboardPanel()))
-            return true
-        }
+        // ← → turn the page with no filter typed; with one, → puts it in as typed (`clipboardSideArrow`).
+        if modifiers.isEmpty, let taken = clipboardSideArrow(event) { return taken }
         if let taken = clipboardFilterKey(event, modifiers: modifiers) { return taken }
         guard modifiers.isEmpty else {
             // ⌃⌦ deletes the highlighted candidate (`Composer.deleteCandidate`): not one the history's rows hid. With
@@ -544,31 +535,7 @@ extension InputSession {
             return PanelModel.Row(label: selected.contains(index) ? "✓" : "", text: text, comment: comment, kind: .candidate,
                                   icon: Self.clipboardRowIcon(row), pickable: row != .permission, choice: index)
         }
-        let terms = Platform.current.terms
-        let (enter, backspace) = (terms.enter, terms.backspace)
-        let footer: String
-        if clipboard.first {
-            footer = t.tr("只存在这台 Mac 上；在设置 →「常用」→「剪贴板历史」里可以关掉",
-                          "Kept on this Mac only; turn it off in Settings → Common → Clipboard history")
-        } else if all == 0 {
-            footer = t.tr("\(backspace) 删字 · Esc 隐藏", "\(backspace) deletes · Esc hides")
-        } else if !selected.isEmpty {
-            // More rows than a page: ← → turn it, Esc alone hides.
-            footer = paged
-                ? t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · ← → 翻页 · Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · ← → page · Esc hides")
-                : t.tr("\(enter) 一行一条插入 · ⇧↑⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts them, one per line · ⇧↑⇧↓ select · → or Esc hides")
-        } else if clipboardFilters, !filtered {
-            // Typing filters the rows: said, before ⇧↓.
-            footer = paged
-                ? t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · 打字筛选 · ⇧↓ 多选 · Esc 隐藏",
-                       "\(enter) inserts · ↑↓ to pick · ← → page · type to filter · ⇧↓ selects more · Esc hides")
-                : t.tr("\(enter) 插入 · ↑↓ 选择 · 打字筛选 · ⇧↓ 多选 · → 或 Esc 隐藏",
-                       "\(enter) inserts · ↑↓ to pick · type to filter · ⇧↓ selects more · → or Esc hides")
-        } else {
-            footer = paged
-                ? t.tr("\(enter) 插入 · ↑↓ 选择 · ← → 翻页 · ⇧↓ 多选 · Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ← → page · ⇧↓ selects more · Esc hides")
-                : t.tr("\(enter) 插入 · ↑↓ 选择 · ⇧↓ 多选 · → 或 Esc 隐藏", "\(enter) inserts · ↑↓ to pick · ⇧↓ selects more · → or Esc hides")
-        }
+        let footer = clipboardFooter(rows: all, selecting: !selected.isEmpty, in: t)
         var detail = t.tr("剪贴板", "Clipboard")
         if !selected.isEmpty { detail += t.tr(" · 已选 \(selected.count) 条", " · \(selected.count) selected") }
         // How many match once they are found (a longer history's: `clipboardFound`), not the rows shown till then.

@@ -245,9 +245,9 @@ struct InputSessionTests {
         }
     }
 
-    /// Leaving the field while pinyin is typed (the app's commit on a click, or the field losing the focus) puts nothing
-    /// of it in and hides the panel, the same in every app (the owner, 2026-11-15; #116); a draft before it still goes
-    /// in as typed.
+    /// Leaving the field while pinyin is typed puts nothing of it in and hides the panel, the same in every app (the
+    /// owner, 2026-11-15; #116). The app's commit (a click) drops it: the next key starts afresh. The field losing the
+    /// focus without a click keeps it for the field (#180): back there it is as it was, and typing goes on.
     @Test(arguments: [SessionEvent.commit, .blur]) func leavingMidCompositionPutsNothingIn(_ leaving: SessionEvent) async {
         await inEnglish {
             let host = host()
@@ -256,10 +256,36 @@ struct InputSessionTests {
             #expect(host.preedit == "nihao" && host.panel != nil)
             host.send(leaving)
             #expect(host.document == "Hi " && host.preedit.isEmpty && host.panel == nil, "\(host.document)")
-            #expect(!host.composer.isComposing)
+            var kept = false
+            if case .blur = leaving { kept = true }
+            #expect(host.composer.isComposing == kept)
             host.focus()
+            #expect(host.preedit == (kept ? "nihao" : "") && (host.panel != nil) == kept, "\(host.preedit)")
             host.type("wo")
-            #expect(host.preedit == "wo", "the next key starts afresh")
+            #expect(host.preedit == (kept ? "nihaowo" : "wo"), "\(host.preedit)")
+            #expect(host.document == "Hi ")
+        }
+    }
+
+    /// A draft kept on a blur (#180) goes, nothing of it in, once another field takes the focus, the session closes or
+    /// the app ends the composition; a click while the focus is elsewhere leaves it; a key with no focus told shows it.
+    @Test func aKeptDraftGoesWithAnotherFieldAndStaysThroughAClickElsewhere() async {
+        await inEnglish {
+            for ending in [SessionEvent.focus(FieldInfo(app: "com.example.other")), .close, .commit, .cancel] {
+                let host = host()
+                host.type("nihao")
+                host.send(.blur)
+                host.send(ending)
+                #expect(!host.composer.isComposing && host.document.isEmpty && host.panel == nil, "\(ending)")
+            }
+            let host = host()
+            host.type("nihao")
+            host.send(.blur)
+            host.send(.blur)
+            host.send(.pointerDown)
+            #expect(host.composer.isComposing && host.panel == nil && host.document.isEmpty)
+            host.type("wo")
+            #expect(host.preedit == "nihaowo" && host.panel != nil, "\(host.preedit)")
         }
     }
 

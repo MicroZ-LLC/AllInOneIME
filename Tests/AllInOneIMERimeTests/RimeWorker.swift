@@ -10,7 +10,8 @@ import Darwin
 /// scenarios, by name: `LunarDatabaseTests.scenarios`, `PersonalDictionaryBuildTests.scenarios`, `RedeployTests.scenarios`,
 /// `TraditionalChineseRimeTests.scenarios`, `RemovedCandidatesFilterRimeTests.scenarios`,
 /// `RemovedDerivedCandidatesRimeTests.scenarios`, `ShuangpinSchemaTests.scenarios`, `ZhuyinSchemaTests.scenarios`,
-/// `WubiSchemaTests.scenarios`, `CandidateKeysSchemeTests.scenarios`, `DeploymentLogTests.scenarios`, `ShapeCodeRimeTests.scenarios`.
+/// `WubiSchemaTests.scenarios`, `CandidateKeysSchemeTests.scenarios`, `DeploymentLogTests.scenarios`,
+/// `ShapeCodeRimeTests.scenarios`, `ConcurrentStartRimeTests.scenarios`.
 enum RimeWorker {
     static let scenarioKey = "ALLINONEIME_RIME_WORKER"
     static let rootKey = "ALLINONEIME_RIME_WORKER_ROOT"
@@ -30,14 +31,27 @@ enum RimeWorker {
         .merging(CandidateKeysSchemeTests.scenarios) { first, _ in first }
         .merging(DeploymentLogTests.scenarios) { first, _ in first }
         .merging(ShapeCodeRimeTests.scenarios) { first, _ in first }
+        .merging(ConcurrentStartRimeTests.scenarios) { first, _ in first }
 
     /// Runs `scenario` in `root` (made here) and waits for it: it must exit cleanly, having run.
     static func run(_ scenario: String, root: URL) throws {
+        try finish(launch(scenario, root: root))
+    }
+
+    /// A worker started (`launch`), with what it prints going to `output`.
+    struct Launched {
+        let scenario: String
+        let process: Process
+        let output: URL
+        let handle: FileHandle
+    }
+
+    /// Starts `scenario` in `root` (made here) and returns at once: `finish` waits for it. Several run at once this way.
+    static func launch(_ scenario: String, root: URL) throws -> Launched {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         let output = root.appendingPathComponent("output.txt")
         FileManager.default.createFile(atPath: output.path, contents: nil)
         let handle = try FileHandle(forWritingTo: output)
-        defer { try? handle.close() }
         let process = Process()
         process.executableURL = URL(fileURLWithPath: try #require(CommandLine.arguments.first))
         // As PersonalDictionaryRimeAcceptanceTests runs its workers: the test bundle's argument kept, if there is one.
@@ -53,7 +67,14 @@ enum RimeWorker {
         process.environment = environment
         process.standardOutput = handle
         process.standardError = handle
-        try process.run()
+        do { try process.run() } catch { try? handle.close(); throw error }
+        return Launched(scenario: scenario, process: process, output: output, handle: handle)
+    }
+
+    /// Waits for a worker `launch` started: it must exit cleanly, having run.
+    static func finish(_ launched: Launched) throws {
+        let (scenario, process, output) = (launched.scenario, launched.process, launched.output)
+        defer { try? launched.handle.close() }
         let deadline = Date().addingTimeInterval(240)
         while process.isRunning && Date() < deadline { Thread.sleep(forTimeInterval: 0.05) }
         if process.isRunning { kill(process.processIdentifier, SIGKILL) }

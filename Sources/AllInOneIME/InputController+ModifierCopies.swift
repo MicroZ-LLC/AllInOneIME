@@ -29,7 +29,7 @@ extension AllInOneIMEInputController {
         let change = MacKeyEvents.modifierChange(event, now: ProcessInfo.processInfo.systemUptime)
         let context = fieldReading.context(in: target) { session.fieldWants(forModifiers: change, given: $0) }
         // The session times a long press of Shift itself: Translate as You Type on or off (not in Code).
-        let response = session.handle(.modifiers(change, context))
+        let response = withKeptDraftHeld { session.handle(.modifiers(change, context)) }
         apply(response.outputs, client: client)
         if response.handled { Self.modifiersTaken.take(at: event.timestamp) }
         return response.handled
