@@ -58,8 +58,22 @@ final class StartModel: ObservableObject {
     /// Done, Skip or the window closed: it isn't shown again.
     func close() { StartWindow.markSeen(defaults) }
 
-    /// Step 3's field: the magic key alone (prefilled), or followed by an example.
-    static func fieldText(trigger: String, example: String?) -> String { trigger + (example ?? "") }
+    /// Step 3's field (#198): `preset` is the text put in it programmatically, always empty (a selected "@" set there
+    /// was typed over, and text set there never reaches the input method, so no @ list opened); `typed` is what the
+    /// view feeds the input method as real key events through the field's input context: the magic key alone (on
+    /// showing the step), or followed by an example (its button).
+    struct TryField: Equatable { var preset: String; var typed: String }
+
+    static func tryField(trigger: String, example: String?) -> TryField {
+        TryField(preset: "", typed: trigger + (example ?? ""))
+    }
+
+    /// What step 3's field shows once `tryField`'s keys are typed.
+    static func fieldText(trigger: String, example: String?) -> String { tryField(trigger: trigger, example: example).typed }
+
+    /// Whether the step's button carries Return as its key equivalent: steps 1 and 2; not 3, where Return belongs to the
+    /// field (the @ list's), and with no list open it does nothing rather than closing the guide (#198).
+    static func hasDefaultAction(step: Int) -> Bool { step != 3 }
 }
 
 /// The start's window: shown once, by `--start` (the installer's last button on a fresh install, through the
@@ -77,6 +91,10 @@ enum StartWindow {
     private static var ready: AnyCancellable?
     /// When it was shown: the reopen that follows `showNotification` shows no Settings window over it.
     private(set) static var shownAt: Date?
+
+    /// Whether the start's window is the key window of the active app: where step 3's keys may be posted (#198), as they
+    /// go to whatever has the keyboard focus.
+    static var isKey: Bool { NSApp.isActive && window != nil && NSApp.keyWindow === window }
 
     nonisolated static func shouldShow(_ defaults: UserDefaults) -> Bool { !defaults.bool(forKey: seenKey) }
 
