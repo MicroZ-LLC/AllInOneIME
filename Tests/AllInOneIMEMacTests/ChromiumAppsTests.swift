@@ -43,6 +43,9 @@ struct ChromiumAppsTests {
             ("libcef", ["libcef.dylib"], true),
             // Chromium's Mojo in a library's name (WeChat's libmmmojo.dylib: #193).
             ("Mojo", ["ProtobufLite.framework", "libmmmojo.dylib"], true),
+            ("Mojo core", ["libmojo_core.dylib"], true),
+            // Mojo only as Chromium's libraries name it: other libraries that happen to have it in a name aren't.
+            ("Mojo look-alike", ["libmojo.dylib", "Mojo.framework", "demojob.dylib"], false),
             ("Native", ["Sparkle.framework"], false),
             ("Look-alike", ["Operations Framework.framework", "Electronics.framework", "Arcade Framework.framework"], false),
             // CEF in capitals only: "ceF" and "Cef" in other words aren't.

@@ -8,7 +8,7 @@ import Foundation
 /// kept the first pinyin letter typed ("c测试" for ceshi, #193). Only there does the input method keep such a key from
 /// the app (`AllInOneIMEInputController.markRow`); other fields (AppKit's, WebKit's) never act on a key the input
 /// method took. Told by the app: a Chromium browser known by its bundle id (its web apps too), another app known by its
-/// (`otherApps`), or a bundle with Electron's, a Chromium browser's or any Chromium, CEF or Mojo framework in
+/// (`otherApps`), or a bundle with Electron's, a Chromium browser's or any Chromium, CEF or Chromium Mojo framework in
 /// Contents/Frameworks.
 public enum ChromiumApps {
     /// Frameworks in an app's Contents/Frameworks that make it one: Electron's and the Chromium Embedded Framework's.
@@ -16,7 +16,7 @@ public enum ChromiumApps {
     /// What in the name of anything else in Contents/Frameworks (a framework, a library) makes it one too: Chromium's
     /// or the Chromium Embedded Framework's under another name ("CEF.framework", "libcef.dylib"), or Chromium's Mojo
     /// (WeChat's "libmmmojo.dylib"). As written, case and all: "PlaceFramework" has no CEF in it.
-    static let frameworkNameParts = ["Chromium", "CEF", "libcef", "mojo"]
+    static let frameworkNameParts = ["Chromium", "CEF", "libcef", "mmmojo", "mojo_core"]
     /// A Chromium browser's framework, "<name> Framework.framework" or "<name> <channel> Framework.framework" (Google
     /// Chrome's, Microsoft Edge Beta's …), by its name.
     static let browserFrameworks = ["Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser", "Arc", "Vivaldi", "Opera",
@@ -44,7 +44,7 @@ public enum ChromiumApps {
     static let otherApps: Set<String> = ["com.tencent.xinWeChat"]
 
     /// Whether the app at `bundle` (its .app) has Electron's or a Chromium framework in Contents/Frameworks: one of
-    /// `frameworks`, a Chromium browser's, or one with Chromium, CEF or Mojo in its name (`frameworkNameParts`).
+    /// `frameworks`, a Chromium browser's, or one with Chromium, CEF or Chromium's Mojo in its name (`frameworkNameParts`).
     public static func hasChromium(bundle: URL) -> Bool {
         let folder = bundle.appendingPathComponent("Contents/Frameworks", isDirectory: true)
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return false }
