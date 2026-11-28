@@ -5,18 +5,21 @@ import Carbon
 import InputMethodKit
 
 // A draft kept for the field that lost the focus without a click (#180, the core's InputSession+KeptDraft.swift), as
-// the Mac tells whether the field taking the focus is that one. A different controller's never is. The same
-// controller's (a page's fields share one, and so do a window's text fields) only where Accessibility tells the same
-// element, a text field or area, has the focus as when the draft was started, with the caret where it was left; where
-// that can't be told (Accessibility not allowed, the element not a text field: a page whose app doesn't tell its
-// fields), the draft goes, as before #180, rather than show in another field. Never in a password field or while
-// secure input is on. It goes too when another input source is selected, the screen locks or sleeps, and after ten
-// minutes (the owner, 2026-11-26, after the review of PR #188).
+// the Mac tells whether the field taking the focus is that one. A different controller's never is, but it isn't always
+// a field: the app switched to (Calculator, Finder) activates its controller with no text field focused, so the draft
+// stays kept until Accessibility tells a text field other than its own has the focus there, or a key is typed there
+// (#200). The same controller's (a page's fields share one, and so do a window's text fields) only where Accessibility
+// tells the same element, a text field or area, has the focus as when the draft was started, with the caret where it
+// was left; where that can't be told (Accessibility not allowed, the element not a text field: a page whose app doesn't
+// tell its fields), the draft goes, as before #180, rather than show in another field. Never in a password field or
+// while secure input is on. It goes too when another input source is selected, the screen locks or sleeps, and after
+// ten minutes (the owner, 2026-11-26, after the review of PR #188).
 
 extension AllInOneIMEInputController {
     /// `deactivateServer`: the field lost the focus without a click (a click came first, as `pointerDown`). What was
     /// being typed is kept for it by the session (nothing of it in, the panel hidden) and comes back with the focus
-    /// (`takeFocus`), unless another field has the focus already or the field can't be told again: then it goes.
+    /// (`takeFocus`), unless the field can't be told again: then it goes. Another controller activated first (its
+    /// activation told before this field's end) is asked about as one activated after is (`DraftKeeper.watchFocus`).
     /// Another input source selected (ABC) is leaving what is typed, not the field losing the focus (the owner,
     /// 2026-11-15): nothing of it stays, whether or not the system had it committed first. Told a second time for the
     /// same draft (the client gone by then), it changes nothing of what was kept the first time.
@@ -27,21 +30,23 @@ extension AllInOneIMEInputController {
         leaveField(.blur, client: client, insertingRest: false)
         keeper.left(by: self)  // what was asked for the focus it had is no longer waited for
         guard session.keepsDraft, !keptBefore else { return }
-        if let other = Self.activeController, other !== self { return dropKeptDraft("another field has the focus") }
         if !keeper.readers.sourceIsOurs() { return dropKeptDraft("another input source") }
         guard let element = keeper.elementTypedIn(by: self) else { return dropKeptDraft("the field can't be told again") }
         keeper.keep(for: self, element: element, caret: client?.selectedRange())
         log.notice("the focus lost while composing: what is being typed is kept for the field")
+        if let other = Self.activeController, other !== self { keeper.watchFocus(of: other) }
     }
 
     /// `activateServer`: the session is told the field took the focus. A draft kept for a field (`leaveFocus`) comes
-    /// back in that field only: another controller's field drops it; this one's holds it (`InputSession.holdKeptDraft`)
-    /// until Accessibility told which element has the focus (`DraftKeeper.verify`, off the main thread), and never
-    /// with the caret elsewhere or while secure input is on.
+    /// back in that field only. Another controller activated leaves it kept, hidden, unless Accessibility tells a text
+    /// field other than its own has the focus there (`DraftKeeper.watchFocus`), or a key is typed there
+    /// (`withKeptDraftHeld`): an app switched to may have none (#200). This one's holds it
+    /// (`InputSession.holdKeptDraft`) until Accessibility told which element has the focus (`DraftKeeper.verify`, off
+    /// the main thread), and never with the caret elsewhere or while secure input is on.
     @MainActor
     func takeFocus(_ field: FieldInfo, client: IMKTextInput?) {
         let keeper = DraftKeeper.shared
-        if let owner = keeper.owner, owner !== self { owner.dropKeptDraft("another field took the focus") }
+        if let owner = keeper.owner, owner !== self { keeper.watchFocus(of: self) }
         if session.keepsDraft {
             if keeper.owner !== self || keeper.element == nil {
                 dropKeptDraft("the field can't be told again")
@@ -78,9 +83,12 @@ extension AllInOneIMEInputController {
     /// A key or a modifier key handed to the session (`handle`). On the Mac a kept draft shows only once Accessibility
     /// told the field (`DraftKeeper.verify`), so one still kept is held for the key (`InputSession.holdKeptDraft`): the
     /// session drops it before the key acts (a modifier let go that does nothing leaves it), and nothing of it stays
-    /// remembered.
+    /// remembered. A key (`typing`, a key down: what starts a draft too) typed in another controller's field drops the
+    /// draft kept first: that field has the focus, where Accessibility couldn't tell it (#200); a modifier changed there
+    /// (⌘ let go after ⌘-Tab) types nothing.
     @MainActor
-    func withKeptDraftHeld(_ handle: () -> SessionResponse) -> SessionResponse {
+    func withKeptDraftHeld(typing: Bool = false, _ handle: () -> SessionResponse) -> SessionResponse {
+        if typing, let owner = DraftKeeper.shared.owner, owner !== self { owner.dropKeptDraft("another field is typed in") }
         guard session.keepsDraft else { return handle() }
         session.holdKeptDraft()
         let response = handle()
@@ -129,7 +137,7 @@ struct DraftKeeperReaders {
 }
 
 /// The one draft kept for a field that lost the focus (`AllInOneIMEInputController.leaveFocus`): whose it is, the
-/// element and the caret it was left in, and what ends it without the field (`watch`, `life`).
+/// element and the caret it was left in, and what ends it without the field (`watch`, `watchFocus`, `life`).
 @MainActor
 final class DraftKeeper {
     static let shared = DraftKeeper()
@@ -144,6 +152,8 @@ final class DraftKeeper {
     private(set) weak var owner: AllInOneIMEInputController?
     private(set) var element: FieldIdentity?
     private(set) var caret: NSRange?
+    /// Counts the drafts kept and forgotten: an answer asked for one (`watchFocus`) is dropped once it went.
+    private var keeping = 0
     /// Counts what ends a wait for the element with the focus (`verify`): an answer for an earlier one is dropped.
     /// `waited`: the count of the wait an answer is still owed to, nil once it came, the field was left or the draft went.
     var verifying = 0
@@ -183,6 +193,7 @@ final class DraftKeeper {
     func keep(for controller: AllInOneIMEInputController, element: FieldIdentity, caret: NSRange?) {
         if let owner, owner !== controller { owner.dropKeptDraft("another field keeps a draft") }
         (owner, self.element, self.caret) = (controller, element, caret)
+        keeping += 1
         watch()
         expiry?.cancel()
         let expiry = DispatchWorkItem { [weak self] in MainActor.assumeIsolated { self?.drop("kept longer than ten minutes") } }
@@ -193,6 +204,7 @@ final class DraftKeeper {
     /// Nothing is kept any more (the draft came back, or went).
     func forget() {
         (owner, element, caret) = (nil, nil, nil)
+        keeping += 1
         verifying += 1
         waited = nil
         expiry?.cancel()
@@ -240,6 +252,25 @@ final class DraftKeeper {
                     // Typed in again, in this activation: told as the same field should it lose the focus again.
                     self.typing = (box, controller.fieldSession, now)
                     controller.showKeptDraft(client: held.value)
+                }
+            }
+        }
+    }
+
+    /// Another controller's field took the focus while a draft is kept (`takeFocus`; `leaveFocus` told after it): the
+    /// element with the focus is asked once the focus settled, off the main thread, and the draft goes if it is a text
+    /// field other than the one it was kept for (a password field too). No text field told (an app with none, a page
+    /// that doesn't tell its fields) leaves it kept: it shows only in its own field (`verify`). Not once that
+    /// controller's field was left, or the draft went meanwhile.
+    func watchFocus(of controller: AllInOneIMEInputController) {
+        let (draft, box, session, read) = (keeping, WeakBox(controller), controller.fieldSession, readers.identity)
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + settle) {
+            let now = read()
+            DispatchQueue.main.async {
+                MainActor.assumeIsolated {
+                    guard draft == self.keeping, let controller = box.value, controller.fieldSession == session,
+                          let now, now != self.element else { return }
+                    self.drop("another field took the focus")
                 }
             }
         }

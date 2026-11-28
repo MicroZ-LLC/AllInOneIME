@@ -83,13 +83,26 @@ struct KeptDraftControllerTests {
     }
 
     /// Review #3: a second controller that keeps a draft (keys without an activation, then left) drops the first one's,
-    /// which would otherwise come back with its field later; another controller's field taking the focus does too.
+    /// which would otherwise come back with its field later; another controller's text field taking the focus does too,
+    /// once Accessibility told it after the settle (an app with no text field leaves it kept: #200's acceptance tests).
     @Test func anotherControllerKeepingOrFocusedDropsTheFirstDraft() throws {
         let report = try Self.run("orphan")
         #expect(report["firstKept"] == "true" && report["secondKept"] == "true" && report["firstAfter"] == "false", "\(report)")
         #expect(report["firstRestored"] == "false", "\(report)")
         let other = try Self.run("other-controller")
         #expect(other["firstKept"] == "true" && other["firstAfter"] == "false" && other["firstRestored"] == "false", "\(other)")
+    }
+
+    /// #200: another controller activated before the first field's end is told (the app switched to told first) is
+    /// asked as when it comes after: no text field told there leaves the draft kept, and it shows back in its field;
+    /// another text field told drops it. Nothing of it goes into either field.
+    @Test func anotherControllerActivatedFirstIsAskedAsWhenAfter() throws {
+        let none = try Self.run("other-first-none")
+        #expect(none["keptOnLeave"] == "true" && none["keptAfterSettle"] == "true", "\(none)")
+        #expect(none["firstRestored"] == "true" && none["typed"] == "", "\(none)")
+        let field = try Self.run("other-first-field")
+        #expect(field["keptOnLeave"] == "true" && field["keptAfterSettle"] == "false", "\(field)")
+        #expect(field["firstRestored"] == "false" && field["typed"] == "", "\(field)")
     }
 
     /// A modifier let go before the field is told (⌘ after ⌘-Tab) leaves the draft held, and it shows; a key typed
@@ -372,6 +385,7 @@ struct KeptDraftControllerTests {
             element.set("B")
             if activating {
                 second.activateServer(secondField)
+                OffMain.pump(0.3)  // the element with the focus asked once it settled: another text field, "B"
             } else {
                 // Keys with no activation told first, then left.
                 typeDraft(on: second, in: secondField)
@@ -384,6 +398,26 @@ struct KeptDraftControllerTests {
             first.activateServer(firstField)
             OffMain.pump(0.3)
             OffMain.say("firstRestored", restored)
+        }
+
+        /// The second controller activated before the first one's field is left, Accessibility telling `told` there.
+        static func otherFirst(_ told: String?) {
+            make()
+            let (first, firstField, secondField) = (controller, OffMainField(), OffMainField())
+            draft(in: firstField)
+            let second = second()
+            element.set(told)
+            second.activateServer(secondField)
+            first.deactivateServer(firstField)
+            OffMain.say("keptOnLeave", first.session.keepsDraft)
+            OffMain.pump(0.3)
+            OffMain.say("keptAfterSettle", first.session.keepsDraft)
+            second.deactivateServer(secondField)
+            element.set("A")
+            first.activateServer(firstField)
+            OffMain.pump(0.3)
+            OffMain.say("firstRestored", restored)
+            OffMain.say("typed", firstField.document + secondField.document)
         }
 
         static func held(key: Bool) {
@@ -555,6 +589,8 @@ struct KeptDraftControllerTests {
             case "kept-double": double()
             case "kept-orphan": orphan(activating: false)
             case "kept-other-controller": orphan(activating: true)
+            case "kept-other-first-none": otherFirst(nil)
+            case "kept-other-first-field": otherFirst("B")
             case "kept-modifier-held": held(key: false)
             case "kept-key-held": held(key: true)
             default: return false
