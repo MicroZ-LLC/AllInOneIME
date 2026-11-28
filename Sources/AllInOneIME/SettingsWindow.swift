@@ -132,7 +132,7 @@ final class SettingsModel: ObservableObject {
         store = SettingsStore(configURL: configURL, persists: persists)
         profiles = AWSSharedConfig.profileNames()
         if !profiles.contains(config.awsProfile) { profiles.insert(config.awsProfile, at: 0) }
-        observation = store.observe { [weak self] _ in self?.objectWillChange.send() }
+        observation = store.observe { [weak self] _ in self?.storeChanged() }
         store.questionsForgotten = { [weak self] in self?.forgetQuestions() }
         // Another CLI chosen as the AI in the settings document: the sessions' processes end, the next question starts
         // the one chosen (as Settings → AI's choice does, `SettingsModel.cli`).
