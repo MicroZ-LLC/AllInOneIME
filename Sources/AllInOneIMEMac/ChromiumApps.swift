@@ -1,20 +1,24 @@
 import Foundation
 
-/// Apps built on Chromium or Electron (Slack, VS Code, Claude, Chrome, Edge, Brave, Arc …): their text fields are a web
-/// page's, and Chromium gives the page a key the input method took as a key down of its own (its keyCode, not 229)
-/// unless the field has marked text before or after the key, or more than one character goes in during it with no
-/// range. Slack's composer sent its message on a Return that put a suggestion row in, and moved its caret (or the focus)
-/// on the ↓ and ↑ that chose one (0.6.7.2's and 0.6.7.3's Electron harness measured it). Only there does the input method
-/// keep such a key from the app (`AllInOneIMEInputController.markRow`); other fields (AppKit's, WebKit's) never act on a
-/// key the input method took. Told by the app: a Chromium browser known by its bundle id (its web apps too), or a
-/// bundle with Electron's, a Chromium browser's or any Chromium or CEF framework in Contents/Frameworks.
+/// Apps built on Chromium or Electron (Slack, VS Code, Claude, Chrome, Edge, Brave, Arc, WeChat …): their text fields
+/// are a web page's, and Chromium gives the page a key the input method took as a key down of its own (its keyCode, not
+/// 229) unless the field has marked text before or after the key, or more than one character goes in during it with no
+/// range. Slack's composer sent its message on a Return that put a suggestion row in, and moved its caret (or the
+/// focus) on the ↓ and ↑ that chose one (0.6.7.2's and 0.6.7.3's Electron harness measured it); WeChat's message box
+/// kept the first pinyin letter typed ("c测试" for ceshi, #193). Only there does the input method keep such a key from
+/// the app (`AllInOneIMEInputController.markRow`); other fields (AppKit's, WebKit's) never act on a key the input
+/// method took. Told by the app: a Chromium browser known by its bundle id (its web apps too), another app known by its
+/// (`otherApps`), or a bundle with Electron's, a Chromium browser's or any Chromium, CEF or Mojo framework in
+/// Contents/Frameworks.
 public enum ChromiumApps {
-    /// Frameworks in an app's Contents/Frameworks that make it one: Electron's and the Chromium Embedded Framework's.
-    static let frameworks: Set<String> = ["Electron Framework.framework", "Chromium Embedded Framework.framework"]
+    /// Frameworks in an app's Contents/Frameworks that make it one: Electron's, the Chromium Embedded Framework's, and
+    /// WeChat's owl.framework, beside the Chromium parts it carries under names of its own (`frameworkNameParts`).
+    static let frameworks: Set<String> = ["Electron Framework.framework", "Chromium Embedded Framework.framework",
+                                          "owl.framework"]
     /// What in the name of anything else in Contents/Frameworks (a framework, a library) makes it one too: Chromium's
-    /// or the Chromium Embedded Framework's under another name ("CEF.framework", "libcef.dylib"). As written, case and
-    /// all: "PlaceFramework" has no CEF in it.
-    static let frameworkNameParts = ["Chromium", "CEF", "libcef"]
+    /// or the Chromium Embedded Framework's under another name ("CEF.framework", "libcef.dylib"), or Chromium's Mojo
+    /// (WeChat's "libmmmojo.dylib"). As written, case and all: "PlaceFramework" has no CEF in it.
+    static let frameworkNameParts = ["Chromium", "CEF", "libcef", "mojo"]
     /// A Chromium browser's framework, "<name> Framework.framework" or "<name> <channel> Framework.framework" (Google
     /// Chrome's, Microsoft Edge Beta's …), by its name.
     static let browserFrameworks = ["Google Chrome", "Chromium", "Microsoft Edge", "Brave Browser", "Arc", "Vivaldi", "Opera",
@@ -37,8 +41,12 @@ public enum ChromiumApps {
         browsers.contains(bundleID) || browsers.contains { bundleID.hasPrefix($0 + ".app.") }
     }
 
+    /// Apps other than the browsers whose fields are a Chromium page's, by bundle id: told so even where their bundle
+    /// isn't found. WeChat's (#193).
+    static let otherApps: Set<String> = ["com.tencent.xinWeChat"]
+
     /// Whether the app at `bundle` (its .app) has Electron's or a Chromium framework in Contents/Frameworks: one of
-    /// `frameworks`, a Chromium browser's, or one with Chromium or CEF in its name (`frameworkNameParts`).
+    /// `frameworks`, a Chromium browser's, or one with Chromium, CEF or Mojo in its name (`frameworkNameParts`).
     public static func hasChromium(bundle: URL) -> Bool {
         let folder = bundle.appendingPathComponent("Contents/Frameworks", isDirectory: true)
         guard let names = try? FileManager.default.contentsOfDirectory(atPath: folder.path) else { return false }
@@ -50,11 +58,11 @@ public enum ChromiumApps {
         }
     }
 
-    /// Whether apps are Chromium's or Electron's, by bundle id: a known browser (`isBrowser`), else its bundle
-    /// (`hasChromium`), found by `locate` (the app running with that id, else where Launch Services has it); each answer
-    /// kept for good. An app not found is no for now, and nothing kept: it is looked for again once `retry` seconds
-    /// have gone (`now`, the system's uptime), so an app installed or moved since is told, a key costing no look-up
-    /// meanwhile. A field that tells none: no. Any thread.
+    /// Whether apps are Chromium's or Electron's, by bundle id: a known browser (`isBrowser`) or other app
+    /// (`otherApps`), else its bundle (`hasChromium`), found by `locate` (the app running with that id, else where
+    /// Launch Services has it); each answer kept for good. An app not found is no for now, and nothing kept: it is
+    /// looked for again once `retry` seconds have gone (`now`, the system's uptime), so an app installed or moved since
+    /// is told, a key costing no look-up meanwhile. A field that tells none: no. Any thread.
     public final class Known: @unchecked Sendable {
         /// How long an app not found stays no before it is looked for again.
         public static let retry: TimeInterval = 30
@@ -81,7 +89,7 @@ public enum ChromiumApps {
             }
             if let known { return known }
             let found: Bool
-            if ChromiumApps.isBrowser(bundleID) {
+            if ChromiumApps.isBrowser(bundleID) || ChromiumApps.otherApps.contains(bundleID) {
                 found = true
             } else if let bundle = locate(bundleID) {
                 found = ChromiumApps.hasChromium(bundle: bundle)

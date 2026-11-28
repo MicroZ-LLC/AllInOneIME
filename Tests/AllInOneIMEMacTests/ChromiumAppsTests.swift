@@ -5,7 +5,7 @@ import Testing
 
 /// Apps built on Chromium or Electron (`ChromiumApps`), where the input method keeps a key the suggestion rows take from
 /// the page: told by Electron's or a Chromium framework in their bundle, or a Chromium browser's bundle id (a web app of
-/// one too); each app found once, one not found again after a while.
+/// one too) or WeChat's; each app found once, one not found again after a while.
 struct ChromiumAppsTests {
     /// A bundle in a temporary folder with `frameworks` in its Contents/Frameworks.
     static func bundle(_ name: String, _ frameworks: [String], in folder: URL) throws -> URL {
@@ -41,10 +41,15 @@ struct ChromiumAppsTests {
             ("CEF renamed", ["CEF.framework"], true),
             ("CEF helper", ["AppCEFHelper.framework"], true),
             ("libcef", ["libcef.dylib"], true),
+            // Chromium's Mojo in a library's name, WeChat's owl.framework (WeChat's frameworks: #193).
+            ("Mojo", ["ProtobufLite.framework", "libmmmojo.dylib"], true),
+            ("owl", ["wechat.dylib", "owl.framework"], true),
             ("Native", ["Sparkle.framework"], false),
             ("Look-alike", ["Operations Framework.framework", "Electronics.framework", "Arcade Framework.framework"], false),
             // CEF in capitals only: "ceF" and "Cef" in other words aren't.
             ("Case look-alike", ["PlaceFramework.framework", "Cefalu.framework"], false),
+            // owl.framework by its whole name only.
+            ("owl look-alike", ["Owl.framework", "owlkit.framework", "Bowl.framework"], false),
             ("Plain", [], false),
         ]
         for (name, frameworks, chromium) in cases {
@@ -77,10 +82,10 @@ struct ChromiumAppsTests {
             looked.ids.append(id)
             return ["com.example.chat": chat, "com.example.notes": notes][id]
         }
-        // A browser's other channel and a web app of one: told by their id too, no bundle looked for.
+        // A browser's other channel, a web app of one and WeChat: told by their id too, no bundle looked for.
         let ids: [String?] = ["com.example.chat", "com.example.notes", "com.example.chat", "com.google.Chrome", "com.microsoft.edgemac.Beta",
-                              "com.google.Chrome.app.abcdefgh", "com.example.gone", "com.example.gone", nil, ""]
-        #expect(ids.map(known.isChromium) == [true, false, true, true, true, true, false, false, false, false])
+                              "com.google.Chrome.app.abcdefgh", "com.tencent.xinWeChat", "com.example.gone", "com.example.gone", nil, ""]
+        #expect(ids.map(known.isChromium) == [true, false, true, true, true, true, true, false, false, false, false])
         #expect(looked.ids == ["com.example.chat", "com.example.notes", "com.example.gone"], "\(looked.ids)")
     }
 
