@@ -157,10 +157,10 @@ struct KeptDraftControllerTests {
     /// told its field as any draft started is, so it is kept when the focus is lost, and comes back.
     @Test func aDraftStartedOverAHeldOneIsKeptForItsField() throws {
         let report = try Self.run("new-draft")
-        // "@w" as the panel shows it while typed ("＠w" until its commands are listed, as any draft's first is).
+        // "@w" as the panel shows it while typed ("＠w": no command's name has a "w", so its "@" is shown full-width).
         #expect(report["input"]?.hasSuffix("w") == true && report["input"]?.contains("q") == false, "\(report)")
         #expect(report["keptOnLeave"] == "true", "the new draft went with the focus: \(report)")
-        #expect(report["restored"] == "true" && report["inputBack"] == "w" && report["typed"] == "", "\(report)")
+        #expect(report["restored"] == "true" && report["inputBack"] == report["input"] && report["typed"] == "", "\(report)")
     }
 
     /// The second review #4: which field it is can't be told where its subrole wasn't read (no answer in time, the

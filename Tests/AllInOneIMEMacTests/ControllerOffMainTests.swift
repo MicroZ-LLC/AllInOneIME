@@ -315,6 +315,11 @@ enum ControllerOffMainChild {
             config.setOrder([Language.english])
             config.typeOutMistakes = true
             config.autocomplete = false
+            // No Raycast scripts of the Mac's: Spotlight isn't asked (it finds Core/Examples/extensions' `@wordcount` in
+            // every copy of this repository there), nor are the folders an earlier child found read back (UserDefaults
+            // are every child's, CFFIXED_USER_HOME doesn't move them): a rebuild took them in, in time for an "@" or not.
+            config.findRaycastScripts = false
+            LiveExtensions.shownFound = []
             controller.services.loadSettings = { config }
             controller.services.secureInputActive = { false }
             controller.applySettings()

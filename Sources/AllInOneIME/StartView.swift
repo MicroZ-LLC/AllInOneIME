@@ -170,57 +170,67 @@ struct StartView: View {
     /// the keyboard's are (#198): an event fed to the field's input context never reaches the input method, so only these
     /// open the @ list. The field emptied first (anything typed there before, and what was being typed, dropped), the
     /// focus in it; nothing posted unless the start's window is the key window, as the keys go wherever the focus is.
-    private func type(_ example: String?, attempt: Int = 0) {
+    /// An example's keys begin with two Escapes (`StartModel.shouldCancelFirst`), which end what the @ list has open:
+    /// emptying the field alone leaves the input method's draft open, and the example would go onto it. The field is
+    /// emptied once what the Escapes put in has come back (`StartFieldSettle`), right before the rest is typed.
+    /// Each call is a new ask (`StartWindow.askKeys`): an older one's tries and wait still to come do nothing.
+    private func type(_ example: String?, attempt: Int = 0, asked: Int? = nil) {
+        let asked = asked ?? StartWindow.askKeys()
         let field = StartModel.tryField(trigger: trigger, example: example)
+        let strokes = StartModel.strokes(for: field.typed, cancelFirst: StartModel.shouldCancelFirst(example: example))
         fieldFocused = true
         DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.1)) {
+            guard asked == StartWindow.keysAsked else { return }  // a newer ask, or the window closed
             // The window may not be key yet as the step comes up: asked again for up to two seconds.
             guard StartWindow.isKey, let editor = NSApp.keyWindow?.firstResponder as? NSTextView else {
-                if attempt < 20 { type(example, attempt: attempt + 1) }
+                if attempt < 20 { type(example, attempt: attempt + 1, asked: asked) }
                 return
             }
-            editor.inputContext?.discardMarkedText()
-            text = field.preset
-            editor.string = field.preset
-            Self.post(field.typed)
+            let cancel = Array(strokes.prefix { $0 == .escape })
+            let keys = Array(strokes.dropFirst(cancel.count))
+            guard !cancel.isEmpty else {
+                empty(editor, preset: field.preset, then: keys)
+                return
+            }
+            StartFieldSettle.watch(editor, draftOpen: Self.draftOpen) {
+                // The focus may have left the field (or the window gone) while the Escapes were handled.
+                guard asked == StartWindow.keysAsked, StartWindow.isKey, NSApp.keyWindow?.firstResponder === editor else { return }
+                empty(editor, preset: field.preset, then: keys)
+            }
+            Self.post(cancel)
         }
     }
 
-    /// Each character down and up, as from the keyboard: its key (US layout) with Shift where it takes it, and the
-    /// character itself for one with no key (明). Not marked as ours (`PostedKeys`), so the input method takes them.
-    private static func post(_ typed: String) {
+    /// Whether the input method (this process's) has what an Escape ends open: a draft, a panel, a result being typed
+    /// out. The field never shows a draft (nothing of it is marked there), so it is asked here.
+    @MainActor
+    private static func draftOpen() -> Bool {
+        let controller = AllInOneIMEInputController.activeController
+        return CandidatePanel.shared.isShowing || controller?.composer.isComposing == true || controller?.isTypingOut == true
+    }
+
+    /// The field emptied, marked text and all, then `keys` typed into it.
+    private func empty(_ editor: NSTextView, preset: String, then keys: [StartModel.Stroke]) {
+        editor.inputContext?.discardMarkedText()
+        text = preset
+        editor.string = preset
+        Self.post(keys)
+    }
+
+    /// Each stroke down and up, as from the keyboard: its key (US layout) with Shift where it takes it, and its character
+    /// set as the event's characters whatever its key, so another layout types the same text (the input method reads the
+    /// text from the characters). Not marked as ours (`PostedKeys`), so the input method takes them.
+    private static func post(_ strokes: [StartModel.Stroke]) {
         let source = CGEventSource(stateID: .privateState)
-        for character in typed {
-            let (code, shift) = keyCode(character)
-            let units = Array(String(character).utf16)
+        for stroke in strokes {
+            let units = Array(stroke.characters.utf16)
             for down in [true, false] {
-                guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down) else { continue }
-                event.flags = shift ? .maskShift : []
-                if code == KeyEvent.noKeyCode { event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units) }
+                guard let event = CGEvent(keyboardEventSource: source, virtualKey: stroke.keyCode, keyDown: down) else { continue }
+                event.flags = stroke.shift ? .maskShift : []
+                // Escape has none of its own: it keeps the key's, as a real Escape does.
+                if !units.isEmpty { event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units) }
                 event.post(tap: .cgSessionEventTap)
             }
         }
     }
-
-    /// The key (US layout) a character is typed with, and whether with Shift; a character with no key (明), no key code
-    /// (`KeyEvent.noKeyCode`: the input method reads the characters).
-    private static func keyCode(_ character: Character) -> (UInt16, Bool) {
-        let lower = Character(character.lowercased())
-        if let code = keys[lower] { return (code, character != lower) }
-        if let code = shifted[character] { return (code, true) }
-        return (KeyEvent.noKeyCode, false)
-    }
-
-    private static let keys: [Character: UInt16] = [
-        "a": 0x00, "s": 0x01, "d": 0x02, "f": 0x03, "h": 0x04, "g": 0x05, "z": 0x06, "x": 0x07, "c": 0x08, "v": 0x09,
-        "b": 0x0B, "q": 0x0C, "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10, "t": 0x11, "1": 0x12, "2": 0x13, "3": 0x14,
-        "4": 0x15, "6": 0x16, "5": 0x17, "=": 0x18, "9": 0x19, "7": 0x1A, "-": 0x1B, "8": 0x1C, "0": 0x1D, "]": 0x1E,
-        "o": 0x1F, "u": 0x20, "[": 0x21, "i": 0x22, "p": 0x23, "l": 0x25, "j": 0x26, "'": 0x27, "k": 0x28, ";": 0x29,
-        "\\": 0x2A, ",": 0x2B, "/": 0x2C, "n": 0x2D, "m": 0x2E, ".": 0x2F, " ": 0x31, "`": 0x32,
-    ]
-    private static let shifted: [Character: UInt16] = [
-        "!": 0x12, "@": 0x13, "#": 0x14, "$": 0x15, "^": 0x16, "%": 0x17, "+": 0x18, "(": 0x19, "&": 0x1A, "_": 0x1B,
-        "*": 0x1C, ")": 0x1D, "}": 0x1E, "{": 0x21, "\"": 0x27, ":": 0x29, "|": 0x2A, "<": 0x2B, "?": 0x2C, ">": 0x2F,
-        "~": 0x32,
-    ]
 }

@@ -74,6 +74,55 @@ final class StartModel: ObservableObject {
     /// Whether the step's button carries Return as its key equivalent: steps 1 and 2; not 3, where Return belongs to the
     /// field (the @ list's), and with no list open it does nothing rather than closing the guide (#198).
     static func hasDefaultAction(step: Int) -> Bool { step != 3 }
+
+    // MARK: Step 3's keys
+
+    /// One key step 3 posts, down and up: its key (US layout) and Shift as that layout types the character, and the
+    /// character itself, which the view sets as the event's characters. Another layout puts other characters on those
+    /// keys, and the input method reads the text from the characters (it tells keys such as Esc by their code).
+    struct Stroke: Equatable {
+        var keyCode: UInt16
+        var shift: Bool
+        var characters: String
+
+        /// No characters of its own: the event keeps the key's, as a real Escape has them.
+        static let escape = Stroke(keyCode: VirtualKey.escape, shift: false, characters: "")
+    }
+
+    /// The keys that type `typed`, one stroke a character; with `cancelFirst`, Escape twice before them. What the @ list
+    /// has open is ended first: one Esc takes a command's result list back to its draft, the next gives the draft up, or
+    /// puts its text in as typed (`Composer.handleOneAtKey`), which the view clears before the rest is typed.
+    static func strokes(for typed: String, cancelFirst: Bool) -> [Stroke] {
+        (cancelFirst ? [Stroke.escape, .escape] : []) + typed.map(stroke)
+    }
+
+    /// Whether the keys cancel first: for an example clicked, which may come while a draft is open in the @ list (typed
+    /// before, or the one an example before opened); not for the magic key typed as the step shows, into an empty field.
+    static func shouldCancelFirst(example: String?) -> Bool { example != nil }
+
+    /// A character's stroke: a character with no key (明) has no key code (`KeyEvent.noKeyCode`) and only its characters.
+    private static func stroke(_ character: Character) -> Stroke {
+        // (A character's lower case may be more than one: never one of these keys, then.)
+        let lower = character.lowercased()
+        if lower.count == 1, let key = lower.first, let code = keys[key] {
+            return Stroke(keyCode: code, shift: character != key, characters: String(character))
+        }
+        if let code = shifted[character] { return Stroke(keyCode: code, shift: true, characters: String(character)) }
+        return Stroke(keyCode: KeyEvent.noKeyCode, shift: false, characters: String(character))
+    }
+
+    private static let keys: [Character: UInt16] = [
+        "a": 0x00, "s": 0x01, "d": 0x02, "f": 0x03, "h": 0x04, "g": 0x05, "z": 0x06, "x": 0x07, "c": 0x08, "v": 0x09,
+        "b": 0x0B, "q": 0x0C, "w": 0x0D, "e": 0x0E, "r": 0x0F, "y": 0x10, "t": 0x11, "1": 0x12, "2": 0x13, "3": 0x14,
+        "4": 0x15, "6": 0x16, "5": 0x17, "=": 0x18, "9": 0x19, "7": 0x1A, "-": 0x1B, "8": 0x1C, "0": 0x1D, "]": 0x1E,
+        "o": 0x1F, "u": 0x20, "[": 0x21, "i": 0x22, "p": 0x23, "l": 0x25, "j": 0x26, "'": 0x27, "k": 0x28, ";": 0x29,
+        "\\": 0x2A, ",": 0x2B, "/": 0x2C, "n": 0x2D, "m": 0x2E, ".": 0x2F, " ": 0x31, "`": 0x32,
+    ]
+    private static let shifted: [Character: UInt16] = [
+        "!": 0x12, "@": 0x13, "#": 0x14, "$": 0x15, "^": 0x16, "%": 0x17, "+": 0x18, "(": 0x19, "&": 0x1A, "_": 0x1B,
+        "*": 0x1C, ")": 0x1D, "}": 0x1E, "{": 0x21, "\"": 0x27, ":": 0x29, "|": 0x2A, "<": 0x2B, "?": 0x2C, ">": 0x2F,
+        "~": 0x32,
+    ]
 }
 
 /// The start's window: shown once, by `--start` (the installer's last button on a fresh install, through the
@@ -95,6 +144,24 @@ enum StartWindow {
     /// Whether the start's window is the key window of the active app: where step 3's keys may be posted (#198), as they
     /// go to whatever has the keyboard focus.
     static var isKey: Bool { NSApp.isActive && window != nil && NSApp.keyWindow === window }
+
+    /// Step 3's keys asked for so far (the step shown, an example clicked; the window closing counts as one): what an
+    /// ask still has to do later (tried again while the window wasn't key, its Escapes waited for) is done only while it
+    /// is the last, so that an older ask never types onto a newer one's draft, nor into another window.
+    private(set) static var keysAsked = 0
+
+    /// A new ask for step 3's keys, its number: what earlier ones still had to do is dropped (`dropKeys`).
+    static func askKeys() -> Int {
+        dropKeys()
+        return keysAsked
+    }
+
+    /// What the asks for step 3's keys still had to do dropped, their wait for the Escapes stopped (`StartFieldSettle`):
+    /// a newer ask, or the window closed (the wait's key monitor and field go with it).
+    static func dropKeys() {
+        keysAsked += 1
+        StartFieldSettle.cancel()
+    }
 
     nonisolated static func shouldShow(_ defaults: UserDefaults) -> Bool { !defaults.bool(forKey: seenKey) }
 
@@ -144,6 +211,9 @@ enum StartWindow {
         model.inputSourceAdded(sourceAdded())
         let host = NSHostingController(rootView: StartView(model: model, settings: settings))
         let window = NSWindow(contentViewController: host)
+        // A window, not a panel, and no button of the start's on Esc (`.cancelAction`): an Escape no draft takes (an
+        // example's click posts two first, `StartModel.strokes`) goes from the field up to the window's
+        // `cancelOperation`, which leaves it open (seen on macOS 27: no completion list either). Keep it so.
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.title = tr("开始使用 AllInOneIME", "Get started with AllInOneIME")
@@ -194,6 +264,8 @@ enum StartWindow {
 
     private static func closed(_ model: StartModel) {
         model.close()
+        dropKeys()  // step 3's keys not posted yet never are
+
         for observer in observers {
             NotificationCenter.default.removeObserver(observer)
             DistributedNotificationCenter.default().removeObserver(observer)
