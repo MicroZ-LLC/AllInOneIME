@@ -166,30 +166,38 @@ struct StartView: View {
         }
     }
 
-    /// The magic key, then the example if any, typed into step 3's field as key events through its input context, so
-    /// that the input method sees them as typing and opens the @ list (#198); a key it doesn't take goes in as typed.
-    /// The field emptied first (anything typed there before, and what was being typed, dropped); the caret ends after
-    /// the text, the focus in the field.
-    private func type(_ example: String?) {
+    /// The magic key, then the example if any, typed into step 3's field as real key events, posted to the session as
+    /// the keyboard's are (#198): an event fed to the field's input context never reaches the input method, so only these
+    /// open the @ list. The field emptied first (anything typed there before, and what was being typed, dropped), the
+    /// focus in it; nothing posted unless the start's window is the key window, as the keys go wherever the focus is.
+    private func type(_ example: String?, attempt: Int = 0) {
         let field = StartModel.tryField(trigger: trigger, example: example)
         fieldFocused = true
-        DispatchQueue.main.async {
-            guard let editor = NSApp.keyWindow?.firstResponder as? NSTextView else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + (attempt == 0 ? 0 : 0.1)) {
+            // The window may not be key yet as the step comes up: asked again for up to two seconds.
+            guard StartWindow.isKey, let editor = NSApp.keyWindow?.firstResponder as? NSTextView else {
+                if attempt < 20 { type(example, attempt: attempt + 1) }
+                return
+            }
             editor.inputContext?.discardMarkedText()
             text = field.preset
             editor.string = field.preset
-            for (index, character) in field.typed.enumerated() {
-                let characters = String(character)
-                let (code, shift) = Self.keyCode(character)
-                guard let event = NSEvent.keyEvent(
-                    with: .keyDown, location: .zero, modifierFlags: shift ? .shift : [],
-                    timestamp: ProcessInfo.processInfo.systemUptime + Double(index) / 1000,
-                    windowNumber: editor.window?.windowNumber ?? 0, context: nil, characters: characters,
-                    charactersIgnoringModifiers: characters, isARepeat: false, keyCode: code)
-                else { continue }
-                if editor.inputContext?.handleEvent(event) != true {
-                    editor.insertText(characters, replacementRange: NSRange(location: NSNotFound, length: 0))
-                }
+            Self.post(field.typed)
+        }
+    }
+
+    /// Each character down and up, as from the keyboard: its key (US layout) with Shift where it takes it, and the
+    /// character itself for one with no key (明). Not marked as ours (`PostedKeys`), so the input method takes them.
+    private static func post(_ typed: String) {
+        let source = CGEventSource(stateID: .privateState)
+        for character in typed {
+            let (code, shift) = keyCode(character)
+            let units = Array(String(character).utf16)
+            for down in [true, false] {
+                guard let event = CGEvent(keyboardEventSource: source, virtualKey: code, keyDown: down) else { continue }
+                event.flags = shift ? .maskShift : []
+                if code == KeyEvent.noKeyCode { event.keyboardSetUnicodeString(stringLength: units.count, unicodeString: units) }
+                event.post(tap: .cgSessionEventTap)
             }
         }
     }

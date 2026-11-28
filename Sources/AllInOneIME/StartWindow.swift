@@ -92,6 +92,10 @@ enum StartWindow {
     /// When it was shown: the reopen that follows `showNotification` shows no Settings window over it.
     private(set) static var shownAt: Date?
 
+    /// Whether the start's window is the key window of the active app: where step 3's keys may be posted (#198), as they
+    /// go to whatever has the keyboard focus.
+    static var isKey: Bool { NSApp.isActive && window != nil && NSApp.keyWindow === window }
+
     nonisolated static func shouldShow(_ defaults: UserDefaults) -> Bool { !defaults.bool(forKey: seenKey) }
 
     nonisolated static func markSeen(_ defaults: UserDefaults) { defaults.set(true, forKey: seenKey) }
