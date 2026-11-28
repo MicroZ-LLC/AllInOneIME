@@ -32,8 +32,15 @@ public final class SettingsStore {
     /// The settings as shown and changed. A change is only kept in memory until `save` (a settings window saves on each
     /// change, its text fields on Return).
     public var config: Config {
-        didSet { if config != oldValue { notify(.config) } }
+        didSet {
+            // A Shuangpin scheme left (picked here, or read from the file) is the one Shuangpin picks again.
+            if oldValue.typedPinyin.isShuangpin { lastShuangpin = oldValue.typedPinyin }
+            if config != oldValue { notify(.config) }
+        }
     }
+
+    /// The Shuangpin scheme typed last, while another way is (`shuangpinScheme`): in memory only.
+    private(set) var lastShuangpin: PinyinScheme?
 
     /// Why the file couldn't be read: nothing is saved then (`canSave`), and the file stays as it is.
     public private(set) var loadError: String? {
@@ -334,33 +341,6 @@ public final class SettingsStore {
         let before = config.questionSessionAgent
         config.ai = choice
         if config.questionSessionAgent != before { questionBackendChanged() }
-    }
-
-    /// Fuzzy pinyin's pairs (`FuzzyPinyin.pairs` ids; the ones this version doesn't know are left out), saved. The shell
-    /// applies them to its Rime.
-    public func setFuzzyPinyin(_ ids: [String]) {
-        config.fuzzyPinyin = FuzzyPinyin.known(ids)
-        save()
-    }
-
-    /// What turning fuzzy pinyin on picks: the pairs most often mixed up.
-    public static let fuzzyDefaults = ["z-zh", "c-ch", "s-sh", "en-eng", "in-ing"]
-
-    /// The characters Chinese is typed in (`Config.chineseCharacters`), saved: picked, they no longer follow the system's
-    /// languages. The shell applies them to its Rime, as it does fuzzy pinyin.
-    public func setChineseCharacters(_ characters: ChineseCharacters) {
-        config.chineseCharacters = characters
-        save()
-    }
-
-    /// How Chinese is typed in pinyin (`Config.pinyinScheme`: full pinyin, a Shuangpin scheme, Zhuyin or Wubi), saved. The shell
-    /// deploys its schema, as it applies fuzzy pinyin; the next key types with it. Zhuyin picked by one who never picked
-    /// the characters (`Config.chineseCharacters` absent: the system's languages') picks Taiwan's with it, as Taiwan types
-    /// Zhuyin; the user can change them after. Characters picked before stay.
-    public func setPinyinScheme(_ scheme: PinyinScheme) {
-        config.pinyinScheme = scheme.setting
-        if scheme == .zhuyin, config.chineseCharacters == nil { config.chineseCharacters = .taiwan }
-        save()
     }
 
     // MARK: Rewrite styles

@@ -108,6 +108,13 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
         }
     }
 
+    /// A Shuangpin scheme's name alone, for the menu under "Shuangpin" (小鹤, Xiaohe): `name` without its "双拼 – " lead.
+    public func shuangpinName(in language: String) -> String {
+        let full = name(in: language)
+        guard isShuangpin, let dash = full.range(of: " – ") else { return full }
+        return String(full[dash.upperBound...])
+    }
+
     // MARK: The schemas deployed
 
     /// The schemas librime deploys for it, full pinyin's first (a new session starts in it): with Shuangpin, Zhuyin or
