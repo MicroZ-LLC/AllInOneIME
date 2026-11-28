@@ -11,10 +11,8 @@ import Foundation
 /// (`otherApps`), or a bundle with Electron's, a Chromium browser's or any Chromium, CEF or Mojo framework in
 /// Contents/Frameworks.
 public enum ChromiumApps {
-    /// Frameworks in an app's Contents/Frameworks that make it one: Electron's, the Chromium Embedded Framework's, and
-    /// WeChat's owl.framework, beside the Chromium parts it carries under names of its own (`frameworkNameParts`).
-    static let frameworks: Set<String> = ["Electron Framework.framework", "Chromium Embedded Framework.framework",
-                                          "owl.framework"]
+    /// Frameworks in an app's Contents/Frameworks that make it one: Electron's and the Chromium Embedded Framework's.
+    static let frameworks: Set<String> = ["Electron Framework.framework", "Chromium Embedded Framework.framework"]
     /// What in the name of anything else in Contents/Frameworks (a framework, a library) makes it one too: Chromium's
     /// or the Chromium Embedded Framework's under another name ("CEF.framework", "libcef.dylib"), or Chromium's Mojo
     /// (WeChat's "libmmmojo.dylib"). As written, case and all: "PlaceFramework" has no CEF in it.
