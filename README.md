@@ -8,10 +8,19 @@
 
 # AllInOneIME
 
-### Talk to AI wherever you type.
+## Type `@`, then anything.
 
-Type `@improve`, `@translate` or `@question` in any app, press ⏎, and pick the result.<br>
-No copying into a chat window, no switching apps. Your own AI provider, your own keys.
+**In any app, type `@` and whatever you have. The list suggests what to do with it, the likeliest first. ⏎ and it's done.**
+
+| You type | ⏎ does |
+|---|---|
+| `@3*7+2` | puts in **23** |
+| `@saf` | opens **Safari** |
+| `@call mom tomorrow 3pm` · `@明天下午3点开会` | adds a **reminder** |
+| `@how do I undo a commit` | **asks AI**, the answer right there |
+| `@` + any sentence | **improves** or **translates** it |
+
+No commands to learn, no switching apps. Your own AI provider, your own keys.
 
 [![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#installation)
@@ -26,7 +35,7 @@ No copying into a chat window, no switching apps. Your own AI provider, your own
 
 <br>
 
-<img src="docs/en/demo.png" width="820" alt="@translate and a sentence, then ⏎: a line in Spanish, French and German">
+<img src="docs/demo.gif" width="820" alt="An animated demo: type @3*7+2 and the list shows 23 first, ⏎ puts it in; @saf lists Open Safari; @call mom tomorrow 3pm lists a Reminder; @how do I undo a commit lists Ask AI">
 
 </div>
 
