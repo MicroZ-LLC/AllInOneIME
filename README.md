@@ -8,10 +8,12 @@
 
 # AllInOneIME
 
-### Talk to AI wherever you type.
+### Type `@`, then anything.
 
-Type `@improve`, `@translate` or `@question` in any app, press ⏎, and pick the result.<br>
-No copying into a chat window, no switching apps. Your own AI provider, your own keys.
+In any app, type `@` and what you have: a sentence, a sum, a date, an app's name.<br>
+The list suggests what to do with it, the likeliest first: ⏎ and it's done.<br>
+`@3*7+2` → 23 · `@saf` → open Safari · `@明天下午3点开会` → a reminder · a sentence → improve, translate or ask AI.<br>
+No commands to learn, no switching apps. Your own AI provider, your own keys.
 
 [![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#installation)

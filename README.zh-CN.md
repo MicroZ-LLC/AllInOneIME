@@ -8,10 +8,12 @@
 
 # AllInOneIME
 
-### 在哪打字，就在哪和 AI 对话。
+### 打 `@`，再打任何字。
 
-在任何 App 里打 `@improve`、`@translate` 或 `@question`，按 ⏎，选结果。<br>
-不用复制到聊天窗口，不用切换 App。用你自己的 AI 服务和 key。
+在任何 App 里打 `@`，接着打你手上的内容：一句话、一个算式、一个日期、一个 App 名。<br>
+列表按内容提示能拿它做什么，最可能的排第一：按 ⏎ 就完成。<br>
+`@3*7+2` → 23 · `@saf` → 打开 Safari · `@明天下午3点开会` → 提醒事项 · 一句话 → 润色、翻译或问 AI。<br>
+不用记命令，不用切换 App。用你自己的 AI 服务和 key。
 
 [![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-111?logo=apple&logoColor=white)](#安装)
