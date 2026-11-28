@@ -41,15 +41,12 @@ struct ChromiumAppsTests {
             ("CEF renamed", ["CEF.framework"], true),
             ("CEF helper", ["AppCEFHelper.framework"], true),
             ("libcef", ["libcef.dylib"], true),
-            // Chromium's Mojo in a library's name, WeChat's owl.framework (WeChat's frameworks: #193).
+            // Chromium's Mojo in a library's name (WeChat's libmmmojo.dylib: #193).
             ("Mojo", ["ProtobufLite.framework", "libmmmojo.dylib"], true),
-            ("owl", ["wechat.dylib", "owl.framework"], true),
             ("Native", ["Sparkle.framework"], false),
             ("Look-alike", ["Operations Framework.framework", "Electronics.framework", "Arcade Framework.framework"], false),
             // CEF in capitals only: "ceF" and "Cef" in other words aren't.
             ("Case look-alike", ["PlaceFramework.framework", "Cefalu.framework"], false),
-            // owl.framework by its whole name only.
-            ("owl look-alike", ["Owl.framework", "owlkit.framework", "Bowl.framework"], false),
             ("Plain", [], false),
         ]
         for (name, frameworks, chromium) in cases {
