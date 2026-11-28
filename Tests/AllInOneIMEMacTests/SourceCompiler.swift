@@ -1,7 +1,16 @@
 import Foundation
 
 /// Compiles app sources into a test child using the libraries built by SwiftPM.
+///
+/// A few compiles at a time (`turns`), each timed from its own start. The suites that compile a child (some 35) start
+/// together, each on its first test, and the compiles of the whole app among them use every core (`-j`): all at once,
+/// with the machine busy besides (CI's other tests, another checkout's build), a compile timed from when it was asked
+/// for waited on all the others, and a harness of a few files failed at its 60 or 90 seconds ("timed out: swiftc";
+/// reproduced: every suite's compile timed out, the 900-second ones too). Two compiles of the whole app already keep
+/// every core busy; more at once only make each slower. A compile that waited for its turn says so when it times out.
 public enum SourceCompiler {
+    private static let turns = DispatchSemaphore(value: 2)
+
     public static func compile(repository: URL, sources: [String], extraObjects: [String] = [],
                                executable: URL, parseAsLibrary: Bool = false,
                                timeout: TimeInterval) throws -> (status: Int32, output: String) {
@@ -12,9 +21,7 @@ public enum SourceCompiler {
             .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
             ?? repository.appendingPathComponent("ThirdParty")
         let rimeLib = thirdParty.appendingPathComponent("librime/dist/lib")
-        let platform = try run(["--show-sdk-platform-path"], repository: repository, timeout: 30)
-        guard platform.status == 0 else { throw CompileError(platform.output) }
-        let testingFrameworks = URL(fileURLWithPath: platform.output.trimmingCharacters(in: .whitespacesAndNewlines))
+        let testingFrameworks = URL(fileURLWithPath: try platformPath(repository: repository))
             .appendingPathComponent("Developer/Library/Frameworks")
         var arguments = ["swiftc", "-swift-version", "5"]
         if parseAsLibrary {
@@ -33,7 +40,35 @@ public enum SourceCompiler {
         arguments += sources + extraObjects + (try libraryObjects(in: products)) + ["-o", executable.path]
         Scratch.removeAtExit(executable)
         try copyCoreResources(from: products, besides: executable)
-        return try run(arguments, repository: repository, timeout: timeout)
+        let asked = Date()
+        turns.wait()
+        defer { turns.signal() }
+        return try run(arguments, repository: repository, timeout: timeout, waited: Date().timeIntervalSince(asked))
+    }
+
+    /// The SDK's platform folder (for Swift Testing's frameworks), asked of xcrun once for every compile: asked by each
+    /// at once, its 30 seconds ran out too on a busy machine.
+    private static func platformPath(repository: URL) throws -> String {
+        try platform.withLock { known in
+            if let known { return known }
+            let asked = try run(["--show-sdk-platform-path"], repository: repository, timeout: 30)
+            guard asked.status == 0 else { throw CompileError(asked.output) }
+            let path = asked.output.trimmingCharacters(in: .whitespacesAndNewlines)
+            known = path
+            return path
+        }
+    }
+    private static let platform = PlatformPath()
+
+    private final class PlatformPath: @unchecked Sendable {
+        private let lock = NSLock()
+        private var path: String?
+
+        func withLock<T>(_ body: (inout String?) throws -> T) rethrows -> T {
+            lock.lock()
+            defer { lock.unlock() }
+            return try body(&path)
+        }
     }
 
     /// The core's resources (its English words: `CoreResources` in the core) beside the child, as SwiftPM puts them
@@ -80,8 +115,8 @@ public enum SourceCompiler {
         return objects
     }
 
-    private static func run(_ arguments: [String], repository: URL,
-                            timeout: TimeInterval) throws -> (status: Int32, output: String) {
+    private static func run(_ arguments: [String], repository: URL, timeout: TimeInterval,
+                            waited: TimeInterval = 0) throws -> (status: Int32, output: String) {
         let log = FileManager.default.temporaryDirectory
             .appendingPathComponent("source-compiler-\(UUID().uuidString).log")
         FileManager.default.createFile(atPath: log.path, contents: nil)
@@ -109,7 +144,8 @@ public enum SourceCompiler {
             process.terminate()
             Thread.sleep(forTimeInterval: 0.5)
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            throw CompileError("timed out: \(arguments.prefix(2).joined(separator: " "))\n"
+            let turn = waited >= 1 ? ", after waiting \(Int(waited)) s for its turn" : ""
+            throw CompileError("timed out: \(arguments.prefix(2).joined(separator: " ")) (\(Int(timeout)) s\(turn))\n"
                                + ((try? String(contentsOf: log, encoding: .utf8)) ?? ""))
         }
         return (process.terminationStatus, (try? String(contentsOf: log, encoding: .utf8)) ?? "")

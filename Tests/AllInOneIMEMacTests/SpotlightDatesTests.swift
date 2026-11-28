@@ -38,7 +38,12 @@ struct SpotlightDatesTests {
         // before it started. Made again until Spotlight was asked: a lookup whose queue gets to it only once the budget
         // is over (a loaded machine) isn't started at all. Each make returns, whatever Spotlight does; the bound is a
         // hang's (a make that waits for the lookup never returns: it is let go only as the test ends).
+        // How many makes that took, and how long: what a failure of the count below says (none started in all of them,
+        // or the twenty used up in no time while a late lookup held the others back).
+        let started = Date()
+        var makes = 0
         for _ in 0..<20 where stuck.count == 0 {
+            makes += 1
             let made = DispatchSemaphore(value: 0)
             Thread {
                 files.make(history: OpenHistory())
@@ -47,7 +52,7 @@ struct SpotlightDatesTests {
             #expect(made.wait(timeout: .now() + 60) == .success, "make waited on Spotlight for good")
         }
         #expect(files.results("calc", history: OpenHistory()).map(\.name) == ["Calculator"], "listed, undated")
-        #expect(stuck.count == 1)
+        #expect(stuck.count == 1, "Spotlight asked once, \(makes) makes in \(Date().timeIntervalSince(started)) s")
     }
 
     @Test func datesThatComeInTimeAreKept() {

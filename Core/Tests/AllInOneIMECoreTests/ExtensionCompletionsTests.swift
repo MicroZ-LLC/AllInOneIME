@@ -139,7 +139,9 @@ struct ExtensionCompletionsTests {
     }
 
     /// A declaration that breaks a plugin's rules is refused on its own, with the reason a plugin's gets; the command loads.
-    @Test(arguments: [
+    /// In English of its own task: some reasons are the interface's (`tr`), and a test alongside in Chinese
+    /// (`withInterfaceLanguage("zh")`) sets the process's language meanwhile.
+    @Test(TaskLanguage("en"), arguments: [
         (#"{"query": true, "list": false}"#, "a completion without a prefix can't query"),
         (#"{"compare": "prefix", "list": true}"#, "a completion without a prefix must compare exact"),
         (##"{"prefix": "#", "list": true, "insert": {"default": "{arg"}}"##, "insert.default isn't a template"),
