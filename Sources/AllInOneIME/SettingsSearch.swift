@@ -169,7 +169,7 @@ extension SettingsSpot {
         // always shown right above it. Zhuyin by its other names too (Bopomofo, 注音符號, 大千, ㄅㄆㄇ), Wubi by its
         // others (五筆, wubi86, 五笔字型). The shape codes (`ShapeCode`, no row of the search's own) the same.
         case .pinyinScheme:
-            return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 输入方式 方案 拼音 中文 "
+            return "shuangpin double pinyin full pinyin typing scheme 双拼 全拼 雙拼 双拼方案 雙拼方案 输入方式 方案 拼音 中文 "
                 + "zhuyin bopomofo daqian taiwan 注音 注音符號 注音符号 大千 標準 标准 ㄅㄆㄇ 台灣 台湾 "
                 + "wubi wubi86 86 五笔 五筆 五笔86 五笔字型 "
                 + PinyinScheme.others.map { $0.name(in: "en") + " " + $0.name(in: "zh-Hans") }.joined(separator: " ")
