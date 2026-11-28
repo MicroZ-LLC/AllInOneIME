@@ -8,11 +8,18 @@
 
 # AllInOneIME
 
-### Type `@`, then anything.
+## Type `@`, then anything.
 
-In any app, type `@` and what you have: a sentence, a sum, a date, an app's name.<br>
-The list suggests what to do with it, the likeliest first: ⏎ and it's done.<br>
-`@3*7+2` → 23 · `@saf` → open Safari · `@明天下午3点开会` → a reminder · a sentence → improve, translate or ask AI.<br>
+**In any app, type `@` and whatever you have. The list suggests what to do with it, the likeliest first. ⏎ and it's done.**
+
+| You type | ⏎ does |
+|---|---|
+| `@3*7+2` | puts in **23** |
+| `@saf` | opens **Safari** |
+| `@call mom tomorrow 3pm` · `@明天下午3点开会` | adds a **reminder** |
+| `@how do I undo a commit` | **asks AI**, the answer right there |
+| `@` + any sentence | **improves** or **translates** it |
+
 No commands to learn, no switching apps. Your own AI provider, your own keys.
 
 [![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)

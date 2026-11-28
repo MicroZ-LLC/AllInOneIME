@@ -8,11 +8,18 @@
 
 # AllInOneIME
 
-### 打 `@`，再打任何字。
+## 打 `@`，再打任何字。
 
-在任何 App 里打 `@`，接着打你手上的内容：一句话、一个算式、一个日期、一个 App 名。<br>
-列表按内容提示能拿它做什么，最可能的排第一：按 ⏎ 就完成。<br>
-`@3*7+2` → 23 · `@saf` → 打开 Safari · `@明天下午3点开会` → 提醒事项 · 一句话 → 润色、翻译或问 AI。<br>
+**在任何 App 里打 `@`，接着打你手上的内容。列表按内容提示能拿它做什么，最可能的排第一，按 ⏎ 就完成。**
+
+| 你打 | ⏎ 做什么 |
+|---|---|
+| `@3*7+2` | 上屏 **23** |
+| `@saf` | 打开 **Safari** |
+| `@明天下午3点开会` · `@call mom tomorrow 3pm` | 加一条**提醒事项** |
+| `@红烧肉怎么做` | **问 AI**，答案就在原地 |
+| `@` + 任何一句话 | **润色**或**翻译** |
+
 不用记命令，不用切换 App。用你自己的 AI 服务和 key。
 
 [![Release](https://img.shields.io/github/v/release/MicroZ-LLC/AllInOneIME?label=release&color=3b82f6)](https://github.com/MicroZ-LLC/AllInOneIME/releases/latest)
