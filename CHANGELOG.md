@@ -2,6 +2,158 @@
 
 English | [中文](CHANGELOG.zh-CN.md)
 
+## 0.7.6 (2026-11-28)
+
+### Added
+
+- Shape codes (辅助码): a tap of the right ⌥ after the pinyin works as `` ` ``, so `yu`, a tap of right ⌥, then `da`
+  narrows the candidates as `` yu`da `` does. Only while pinyin is typed with Shape codes on: with nothing typed, or
+  Shape codes off, the right ⌥ is as before. A press with another key (⌥1 picks a row) or modifier, the left ⌥, a
+  ⌥-click or a hold (dictation) isn't a tap. The tap that types `` ` `` is the input method's alone: while
+  pinyin is typed with Shape codes on, the app gets neither the press nor the release of the right ⌥ on its own (a key
+  or click with it still carries ⌥; every other press of ⌥ reaches the app as before). With the action key set to Tap ⌥ the tap stays
+  the action key; `` ` `` still works there and everywhere. No new setting.
+- Wubi 86: Settings → Input → Chinese → Typing → Wubi 86 types Chinese by the characters' shapes (`g` 一, `gggg` 王,
+  `wqvb` 你好) with Rime's own Wubi (rime-wubi, which the app carries). Its candidates are in the panel as every way's:
+  the first row chosen, Space or a digit puts one in, and a code left with one candidate still waits for you (nothing
+  goes in by itself at four codes). `z` then pinyin looks a character up and shows its code. Your characters
+  (Simplified or Traditional), removed candidates and a tap of Shift (it puts in what is composed) work as with Zhuyin,
+  punctuation as with pinyin; fuzzy pinyin, personal dictionaries, shape codes and English words don't apply to it,
+  and the words it learns stay in Wubi's own. `@` commands, clipboard history and the AI's features work as with
+  pinyin. Settings search finds it as wubi, 五笔 or 86; in `config.json`, `"pinyinScheme": "wubi86"`.
+
+### Changed
+
+- A fresh install opens the start even when macOS leaves adding the input source to you: the installer's last button, Get Started, opens it, and its first step says where to add AllInOneIME, with Open Keyboard Settings, and goes on by itself once it's added. An update whose input source isn't added still says how in the installer.
+- Settings → AI: with a CLI chosen, the line at the right of the AI title no longer says every AI feature uses it; it says `@question` does and that what has to be fast may go to a faster AI, and the chosen CLI's rows under it say which. Autocomplete with a CLI chosen and no faster AI: its switch in Settings → Common, the input menu and the menu bar panel shows off and can't be turned on, the reason under it (your setting is kept for when there is one); with a faster AI, the input menu and the panel name its model, not the provider set before.
+- In an app with No AI, or in a password field, an AI command typed by its name after the magic key (`@que` → `question`) is still listed, but dimmed, with why: "No AI in this app" or "No AI in a password field". ⏎, its number or a click on it only says so, and the list stays; Tab still writes the command, which is refused when run, as before.
+- Settings → AI shows the current AI on one row again, as in 0.7.4: its logo, name and status, with **Change ▾** on the
+  right and its own settings below. The other AIs' cards appear only while choosing: Change ▾ shows every AI as a card,
+  by how it connects, the current one outlined; one click on a card chooses it and closes the cards, and Cancel or
+  `Esc` closes them with nothing changed. Leaving the page and coming back shows it closed. Searching Settings for
+  "Choose the AI" or another AI's name (`kiro`, `bedrock`) opens the cards at that card, as do the start's Use My Own
+  AI… and the Troubleshoot banners' buttons for an AI not in use. The other CLIs' sign-ins are looked at only while
+  choosing.
+- Until the Mac has told that a field is no password field, commands no longer read the field, as in a password field:
+  `@` doesn't take the selected text and `@reply` doesn't take the text around the cursor. That holds where the Mac can't
+  tell (Accessibility not allowed, or no answer in time) and until it has answered: the Mac is now asked in the
+  background as soon as a field gets the focus (once per field, never during secure input), so the answer is usually
+  in before the first key and `@` takes the selected text as before; an `@` pressed before the answer is in starts
+  without it (Esc and `@` again takes it). What you type after a command is still sent when you run it. An answer for the field you just left doesn't count for the next one, a field left or a key in another app starts unknown again, and a tap of Option that runs `@reply` (`actionKey` set to `"optionTap"`) follows the same rule as ⏎.
+- New installs hide sensitive information from the AI by default: email addresses, phone numbers, payment card numbers, API keys and tokens, and IP addresses are replaced on the Mac with placeholders such as `[EMAIL_1]` before a request is sent, and the answer gets the real values back before it's shown or inserted. An existing install keeps its setting (off unless you turned it on): Settings → More Settings → Privacy → "Hide sensitive information before sending", `redaction.enabled` in the config.
+- `→` follows one rule: on a list longer than a page it turns the page (`←` back), and on one page it gives the keys back, as before; in a list you narrow by typing (the `@` list after the magic key, clipboard history's filter), once you've typed something it puts what you typed in, exactly as typed, closes the list and gives the keys back to the app (`→` itself goes on to the app after the text; in a terminal it only closes the list). A command's own list (`@open`'s results, the recipients) still turns its pages with `→` and the wheel. So in clipboard history (`⌃V`) with a filter typed, `→` now puts the filter in as typed instead of turning the filtered rows' page or only hiding them, as it puts `@abc` in after the magic key; `↓` `↑` past the page's end show the other rows, and the footer says `→ types the filter`.
+- Settings → Common → Chinese typing now offers four ways: Full pinyin, Shuangpin, Zhuyin and Wubi 86. With Shuangpin
+  chosen, the Shuangpin scheme row right below it picks the scheme (Xiaohe, Ziranma, Microsoft, Sogou, Zhineng ABC,
+  Pinyin Jiajia or Ziguang); it is hidden otherwise. Choosing Shuangpin again picks the scheme you used last (Xiaohe
+  the first time). The saved setting is the same `pinyinScheme` as before, and Settings search still finds each scheme
+  by name (xiaohe, 小鹤, ziranma, 自然码…).
+
+### Fixed
+
+- In Chinese mode, `.` `,` and `:` read only the character before the caret to tell whether they follow a digit, no
+  longer the text around it: in a slow page (a busy web app, an Electron app) these keys no longer wait on it for many
+  reads.
+- Clipboard history reads its file off the main thread at launch, so a long history no longer holds up typing; a copy
+  made while it is read is kept above the older ones, and the file is never written with only part of the list.
+- Suggestions show no rows and look nothing up in password managers (1Password, Bitwarden and others), as autocomplete
+  and learning already leave them alone. Keys received there before its field is activated no longer learn words, show
+  suggestions or start autocomplete, and when a field is later identified as a password field its suggestion rows
+  disappear and the typed suggestion token is forgotten.
+- `@open`: after Tab goes into a folder, ⏎ without moving the highlight opens the folder itself, listed first above
+  what is in it. A script or program (a `.command`, `.tool`, `.sh` or `.terminal` file, or one with an execute bit) is
+  shown in Finder instead of run, and its row says "Show in Finder". File names with control or bidi characters show
+  without them.
+- `@open` shows Finder aliases to scripts and executable files in Finder instead of opening what they point to.
+- `@open` lists app bundles ending in `.APP` or `.App` as apps, not folders.
+- After using Tab to enter an `@open` folder and pressing Esc, typing that path again lists its contents first.
+- An `@open` folder named like a script, such as `foo.command`, now opens as its row says.
+- `@open` recognizes web addresses with uppercase `LOCALHOST` and opens them in the browser.
+- VoiceOver reads the candidate box: a list of its rows ("1 你好"), the highlighted one selected, its status and footer,
+  and says the highlighted row once as ↑↓ move it or results stream in. With Increase contrast the footer is drawn in
+  the label color too, as the comments are.
+- The candidate box could stay hidden after waking the Mac (closing and opening the lid) or a display change: it is
+  checked and brought back again after each wake or display change, and a caret remembered on a display that is gone
+  is no longer used to place it.
+- `@agent`, `@imessage`, `@note` and `@open` no longer hang when what they ask doesn't answer: Terminal, Messages and
+  Notes get 30 seconds (a Terminal tab with a long scrollback is read whole), the Contacts prompt a minute (left
+  unanswered, `@imessage` goes on without the address book and asks again the next time), and the Spotlight search
+  behind `@open` is stopped at the search's time limit even when it ignores the request to stop. Unpacking a language
+  pack stops after 5 minutes, and a step of an update or of the installer that hangs is stopped, instead of waiting
+  forever.
+- The input menu's Translate to → Add or Reorder Languages… opens Settings → Common at Translate to; it opened Settings → AI, which no longer has that row.
+- The start's step 2 no longer offers Sign in with Google, which AllInOneIME Cloud doesn't have yet: Sign in / Sign up with Email is its default button. "Already have your own AI?" is one button, Use My Own AI…, which opens Settings → AI with the AIs' cards shown, and once the AI chosen there can answer (a CLI signed in, an API key added, Apple Intelligence, an AWS profile), the start goes on to trying one @ by itself, not only after signing in to AllInOneIME Cloud.
+- Typing no longer stalls in an app that is slow to answer: the first key in a field no longer waits for macOS to say
+  whether it is a password field (suggestions show once it has said, none until then), and the candidate box and
+  autocomplete's gray text show at once and move to the caret when the app tells where it is.
+- `⌃V` opens clipboard history at once: an image copied just before is no longer waited for, its row with its thumbnail
+  comes in as soon as it is ready; the history is written to disk without holding up typing.
+- Typing no longer stalls while a result being typed out stops, while iCloud sync moves keys or writes the config, or
+  on the first key that offers English words among the pinyin candidates; a keyboard layout set for a language is no
+  longer looked up again with every key.
+- Coming back to the start window, and opening Settings (also on an AI's card or a key's field: the start's "Use My
+  Own AI…", the Doctor's, the Assistant's), no longer read `config.json` while your keys wait: it is read in the
+  background, as it is when something else changes it while Settings is open.
+- ⌘C, ⌘V, ⌘X, ⌘A and ⌘Z work in the text field of the start window's step 3 before Settings has ever been opened.
+- An API key removed in Settings right after the input method starts, with "API keys and passwords" sync turned off,
+  no longer comes back from iCloud Keychain a moment later (the copy-back that was still waiting to run leaves it out,
+  also when iCloud Keychain couldn't be listed the first time and it runs again later, for a key removed or saved in
+  between too).
+- `@agent` (and continuing a conversation in Terminal): when Terminal doesn't answer in time whether its new window is
+  ready, the command is opened with Terminal directly instead of being dropped with nothing run.
+- With a CLI chosen as the AI, the autocomplete switch in the input menu and the menu bar panel names the fast fallback
+  you just changed to at once, not the one before; and a slow earlier look (a keychain item slow to answer) no longer
+  replaces the newer answer, not even after you changed back to the same fallback. Until the new fallback has been
+  checked (a key for it, Apple Intelligence available), the switch is shown off and can't be turned on.
+- With a CLI chosen and autocomplete off, no API key is read at launch or when the input menu opens (only whether one is
+  saved): macOS no longer asks for the login password there after an update.
+- Settings no longer shows a saved API key as set, or its provider as the fast fallback, when the Base URL now points at
+  another host than the one the key was saved for: requests already refused to send it there. The Settings Assistant,
+  Check for problems, iCloud sync and `--status` count it the same way.
+- Leaving a text field (another field, another app) just after a click stopped an answer being typed out (Type results
+  out) no longer puts the rest of the answer into the field you left: a typo still there is taken out, and nothing more
+  is typed. The same when the app cancels what is being typed at that moment.
+- Clipboard history (⌃V): when a copy comes in while the panel is open (an image that took a moment to keep) and the
+  page shown moves down to keep your row on it, a click on a row puts that row in, not the one above it that isn't shown.
+- Clipboard history: an image pushed out at once by the limit (older than everything kept) no longer leaves its picture
+  and thumbnail files on disk.
+- Keys typed while an answer being typed out stops are no longer followed by a marked space left in Chrome, Slack, VS
+  Code and other Chromium apps until the next key.
+- The first English word learned after launch no longer reads the 2.4 MB word list while your keys wait: it is read in
+  the background at launch.
+- What you're typing is no longer lost, or typed into the field, when the field loses the focus without a click (a
+  notification or a dialog takes it, `⌘Tab`, the page moves it): the panel hides and the draft is kept for that field
+  (pinyin not yet picked, the text typed in the `@` list, a command you haven't run), the same in every app. Back in
+  the field, the panel and the draft are there again as they were and you go on typing (`⏎`, `Space` as before);
+  another field taking the focus instead drops it and starts clean, but merely switching to another app doesn't: in
+  apps with no text field (Calculator, Finder) it stays kept until a field there takes the focus or you type there.
+  It comes back only in the field it was typed in,
+  told through macOS Accessibility: where the field can't be told again (Accessibility not allowed, a page that
+  doesn't tell its fields apart) it is dropped as you leave, never shown in another field, and never in a password
+  field. It is also dropped by a key pressed before it shows again (`Shift`, `Caps Lock` and the action key too: they
+  act on nothing of it), when another input source is selected, when the screen locks or the Mac sleeps, and after
+  ten minutes. A click still leaves as before; `@note` still goes in as typed. Before, `@q` was typed into the field in some
+  apps and lost in others (Chrome, Electron apps, Safari), and pinyin was dropped everywhere. The system's "input source changed" signal that comes with an app switch no longer throws a draft away while AllInOneIME is still the selected input source.
+- While macOS doesn't list AllInOneIME's input source yet (right after an install, or the update that moved it to its
+  new identity), starting it, coming back to its Settings window or switching to it in a text field no longer freezes
+  typing and Settings for up to 2 seconds: whether it's added is looked at in the background, and Settings → About
+  shows the step to add it once that look answers.
+- Pinyin starts when two programs set up Rime's folder at the same moment (on a first install, for example, the
+  installer's registration and the input method macOS starts for it): one of them could fail to start Rime, and pinyin
+  stayed off until the input method restarted. Within the input method Rime starts one caller at a time. The Rime logs
+  folder keeps `rime-start-<pid>.txt`, the steps of each running process's start (one file a process, so two starting
+  at once never write over each other), so that a crash in one shows where it stopped (the next start says so in the
+  log).
+- Settings no longer goes back to older values when the config file changes twice in quick succession, or when a
+  switch is flipped while Settings is reading the file again: what was saved last stays shown.
+- With a config file that can't be read, searching Settings for an AI (`kiro`) or a pointer from the start or the
+  Doctor no longer opens Settings → AI's choices on a disabled page whose Cancel and `Esc` don't work.
+- In WeChat for Mac, typing Chinese no longer leaves the first pinyin letter in the message box: `ceshi` and `Space`
+  put in 测试, not c测试 (GitHub #193, #197).
+- The start guide's last step opens the @ list again: the magic key shown in its field, and an example clicked, are
+  typed into the field as keys, so AllInOneIME sees them as it sees your typing; an example clicked while the @ list is
+  open replaces what was typed there instead of going on after it, and the keys come out right on keyboard layouts
+  other than U.S.; Return there no longer closes the guide (Done is a click) (#198).
+
 ## 0.7.5 (2026-11-25)
 
 ### Added
