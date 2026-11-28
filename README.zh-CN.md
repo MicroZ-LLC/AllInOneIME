@@ -35,7 +35,7 @@
 
 <br>
 
-<img src="docs/demo.png" width="820" alt="两步：@translate 加拼音，再按 ⏎ 出三种地道的英文说法">
+<img src="docs/demo.gif" width="820" alt="动图演示：输入 @3*7+2，列表第一行是 23，按 ⏎ 就写进文本；@saf 列出“打开 Safari”；@call mom tomorrow 3pm 列出“提醒”；@how do I undo a commit 列出“问 AI”">
 
 </div>
 

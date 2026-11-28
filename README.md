@@ -35,7 +35,7 @@ No commands to learn, no switching apps. Your own AI provider, your own keys.
 
 <br>
 
-<img src="docs/en/demo.png" width="820" alt="@translate and a sentence, then ⏎: a line in Spanish, French and German">
+<img src="docs/demo.gif" width="820" alt="An animated demo: type @3*7+2 and the list shows 23 first, ⏎ puts it in; @saf lists Open Safari; @call mom tomorrow 3pm lists a Reminder; @how do I undo a commit lists Ask AI">
 
 </div>
 
