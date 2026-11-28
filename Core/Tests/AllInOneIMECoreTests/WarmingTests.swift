@@ -67,8 +67,13 @@ struct WarmingTests {
         host.settle(timeout: seconds) { Date() >= deadline }
     }
 
+    /// `condition` waited for, up to a minute. The model is loaded on a task of its own at utility priority
+    /// (`Converter.prewarmOnDevice`), and the process's global queues run about as many threads at once as there are
+    /// cores: while that many are busy, the task waits for one to be free. In a full parallel test run that can be
+    /// seconds (GitHub's hosted runner has three cores, and the suite runs 16 tests at once there): 5 s failed there, and
+    /// with as many threads kept busy alongside for 15 s the task ran only after them. It holds as soon as the task runs.
     func settled(_ condition: () -> Bool) -> Bool {
-        let deadline = Date().addingTimeInterval(5)
+        let deadline = Date().addingTimeInterval(60)
         while !condition(), Date() < deadline { Thread.sleep(forTimeInterval: 0.01) }
         return condition()
     }

@@ -106,7 +106,10 @@ extension SelfTest {
             controller.hideTranslateChip()
             if let notice = controller.notice { controller.endNotice(notice) }
         }
-        settings.provider = .apple  // the canned model's place
+        // The canned model's place, and the interface pinned to Simplified Chinese (the run's own, as its images have
+        // it), whatever this Mac's language or the sections before left: each field activated below takes it
+        // (`services.loadSettings`), and every text checked here is read in it. The settings are put back as they were.
+        (settings.provider, settings.uiLanguage) = (.apple, "zh")
         settings.setOrder([OutputLanguage.english, .chinese])
         settings.setOrder([Language.chinese, .english])
         settings.appProfiles = [mail: AppProfile(rewriteStyles: ["正式"], translateAlways: true)]
@@ -143,7 +146,7 @@ extension SelfTest {
                                  tr("继续按住 → 关闭边打边译", "Keep holding → Translate as You Type off"))
 
         // Off: no @ command for it; Shift with a letter (a capital) held long toggles nothing.
-        check(!controller.composer.commands.contains { $0.name == "mode" || $0.name == "exit" }, "no @mode or @exit")
+        check(!controller.composer.commands.contains { $0.name == "mode" || $0.name == "exit" }, "no @mode or @exit (the interface in \(UIText.language))")
         shift(true)
         press(controller, client, "A", code: 0x00, flags: .shift)
         _ = pump(timeout: 1.3) { false }
