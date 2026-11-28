@@ -371,7 +371,7 @@ To open the session yourself and read its history, in Terminal (one line per age
 
 `@question` with nothing typed after it lists your last 5 questions, newest first, with when they were asked ("3 hours
 ago"). Typing narrows them down: every word anywhere in the question, in any case (Chinese without spaces too). A digit,
-↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: Space or ⇧⏎ inserts it, ⌘C copies
+↑↓ then ⏎, or a click shows a question's saved answer at once, without going online: ⇧⏎ inserts it, ⌘C copies
 it, ⌘R asks it again for a fresh answer (a conversation: its latest question), Esc goes back to the list. A saved
 conversation shows all its rounds: type to go on with it. With no match, or nothing picked, ⏎ asks what you typed. A new answer to the same question, or a conversation
 that goes on, replaces the saved one.
