@@ -2,7 +2,7 @@ import AllInOneIMECore
 import SwiftUI
 
 /// Common → Typing, while Chinese is typed: how it is typed (`PinyinScheme`), the characters, and for pinyin the shape
-/// codes (`ShapeCode`; not with Zhuyin), as Settings' document has them. The shape codes have no row of the search's own:
+/// codes (`ShapeCode`; not with Zhuyin or Wubi), as Settings' document has them. The shape codes have no row of the search's own:
 /// the search finds them by the scheme's (`SettingsSpot.pinyinScheme`), two rows above them.
 struct ChineseTypingRows: View {
     @ObservedObject var model: SettingsModel
@@ -10,10 +10,10 @@ struct ChineseTypingRows: View {
     var body: some View {
         pinyinSchemeRow
         chineseCharactersRow
-        if model.config.typedPinyin != .zhuyin { shapeCodeRow }
+        if model.config.typedPinyin.isPinyin { shapeCodeRow }
     }
 
-    /// Common → how Chinese is typed: full pinyin, a Shuangpin scheme or Zhuyin (`PinyinScheme`).
+    /// Common → how Chinese is typed: full pinyin, a Shuangpin scheme, Zhuyin or Wubi (`PinyinScheme`).
     private var pinyinSchemeRow: some View {
         Picker(selection: Binding(get: { model.config.typedPinyin }, set: { model.setPinyinScheme($0) })) {
             ForEach(PinyinScheme.allCases, id: \.self) { scheme in

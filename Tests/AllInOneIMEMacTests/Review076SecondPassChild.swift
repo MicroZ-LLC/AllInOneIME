@@ -229,19 +229,30 @@ enum Review076SecondPassChild {
         // MARK: Item 4 (a stop settling, its rest to go in, and the field left or the composition cancelled)
 
         /// A type-out with a typo the field doesn't tell yet, a click outside (the rest to go in once the stop settles),
-        /// the field tells the typo; then `then`, and the stop left to settle.
+        /// the field tells the typo; then `then`, and the stop left to settle. The stop looks at the field again only once
+        /// `then` has run (its sleep waits for that), not after a time of its own: timed (0.6 s, the field's telling
+        /// waited for 0.4 s), on a loaded Mac the field told the typo late and the test failed as if the stop had never
+        /// been reached ("caught" false, 3 runs in 14 with the machine busy).
         static func settlingStop(then: (P2Field) -> Void) {
             make()
             let field = P2Field()
             let caught = typeOutToATypo(field)
-            controller.typeOutSleep = { _ in try? await Task.sleep(nanoseconds: 600_000_000) }
+            let thenRan = Locked(initialState: false)
+            controller.typeOutSleep = { _ in
+                while !thenRan.withLock({ $0 }) { try? await Task.sleep(nanoseconds: 10_000_000) }
+            }
             controller.pointerDown()
             let settling = controller.stopsInsertingRest == true && controller.isTypingOut
-            let told = pump(0.4) { field.told == field.document }
+            let told = pump(10) { field.told == field.document }
             field.lag = 0
             then(field)
+            thenRan.withLock { $0 = true }
             let settled = pump(5) { !controller.isTypingOut }
             pump(0.2)
+            // Each part of the premise on its own too, for a run that fails.
+            say("typoCaught", caught)
+            say("stopSettling", settling)
+            say("typoTold", told)
             say("caught", caught && settling && told)
             say("settled", settled)
             say("typed", field.document)

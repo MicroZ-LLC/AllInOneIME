@@ -116,8 +116,16 @@ extension SettingsModel {
     /// chosen and the choices offered now.
     var aiCards: AIPickerState {
         var cards = aiPicker
+        if !canSave { cards.cancel() }  // the page disabled: its choices shut (Cancel and Esc are disabled too)
         cards.update(chosen: config.ai, groups: AIChoice.groups(apple: aiFacts.apple, keeping: config.ai))
         return cards
+    }
+
+    /// The settings changed in the store (read, written, or the file found unreadable): the window shown again; a
+    /// config file that can't be read disables Settings → AI, Cancel and Esc too, so its choices never stay open.
+    func storeChanged() {
+        objectWillChange.send()
+        if !canSave, aiPicker.choosing { aiPicker.cancel() }
     }
 
     /// `change` made to Settings → AI's cards as they are now (`aiCards`): Change ▾, Cancel or a card clicked, the page shown.
@@ -150,7 +158,8 @@ extension SettingsModel {
     private func pointNow(at spot: SettingsSpot?, search: String?, card: AIChoice?) {
         let spot = spot ?? card.flatMap { $0 == config.ai ? nil : SettingsSpot.provider }
         // Pointed anywhere else (another row, the card in use), the page is collapsed: the chosen AI's rows show only then.
-        let cards = spot == .provider
+        // A config file that can't be read (`canSave` false) disables the page, Cancel and Esc too: its choices stay shut.
+        let cards = spot == .provider && canSave
         if cards || spot != nil || card != nil { changeAICards { $0.show(search: cards ? search : nil, target: cards ? card : nil) } }
         self.spot = spot
     }

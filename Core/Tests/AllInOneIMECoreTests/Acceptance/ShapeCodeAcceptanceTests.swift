@@ -184,14 +184,16 @@ struct ShapeCodeAcceptanceTests {
         #expect(field.choices?.map(\.label) == [fieldWords.zh.off] + Names.tables.compactMap { tableNames[$0]?.zh })
     }
 
-    /// Shown for full pinyin and every Shuangpin scheme, hidden for Zhuyin; and, as Typing, only with Chinese typed.
+    /// Shown for full pinyin and every Shuangpin scheme, hidden for the ways that aren't pinyin (Zhuyin; Wubi 86, whose
+    /// spec, issue #187, hides them too); and, as Typing, only with Chinese typed.
     @Test func shownForPinyinHiddenForZhuyin() throws {
         let (service, url) = try service(language: "en")
         defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
+        let notPinyin: Set<PinyinScheme> = [.zhuyin, .wubi]
         for scheme in PinyinScheme.allCases {
             _ = try service.set("pinyinScheme", to: .string(scheme.rawValue)).get()
             let field = service.document().field(Names.key)
-            #expect((field == nil) == (scheme == .zhuyin), "\(scheme)")
+            #expect((field == nil) == notPinyin.contains(scheme), "\(scheme)")
         }
         let (english, other) = try self.service(language: "en", file: #"{"inputLanguages":["en"],"uiLanguage":"en"}"#)
         defer { try? FileManager.default.removeItem(at: other.deletingLastPathComponent()) }

@@ -200,8 +200,8 @@ extension UIText {
     /// under it.
     public static var pinyinSchemeLabel: String { tr("输入方式", "Typing") }
     public static var pinyinSchemeHelp: String {
-        tr("全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3）。",
-           "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3).")
+        tr("全拼把每个音节拼全（nihao），双拼每个音节打两个键（小鹤双拼：nihc），注音按大千键位打注音符号（ㄋㄧˇ：su3），五笔 86 按字形打（王：gggg）。",
+           "Full pinyin spells each syllable out (nihao), Shuangpin types each in two keys (Xiaohe: nihc), Zhuyin types Bopomofo on the Daqian keys (ㄋㄧˇ: su3), Wubi 86 types by the characters' shapes (王: gggg).")
     }
 
     /// Shape codes after "`" while typing pinyin (Settings → Input → Chinese → Typing, `Config.shapeCode`): its name, what

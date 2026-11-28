@@ -17,6 +17,14 @@ import Foundation
 /// never English words (`EnglishWordsEngine`). Of what goes with pinyin, the characters (its own switch,
 /// `ChineseCharacters.patch`) and the candidates removed go with it; fuzzy pinyin and the personal dictionaries (pinyin
 /// spellings of rime-ice's dictionary) don't, nor does its own dictionary learn into rime_ice's.
+///
+/// Or Wubi 86 (五笔 86: `wubi`), typed by the characters' shapes, up to four Latin letters a character (王 gggg, 一 g):
+/// rime-wubi's schema and dictionary (in Simplified characters), which the app carries (`wubiData`), its reverse lookup
+/// after "z" in pinyin on rime-ice's dictionary. Its keys are letters, as pinyin's, so digits pick and punctuation is
+/// punctuation as there; but the letters are no pinyin and no English words (`isPinyin`). Of what goes with pinyin, the
+/// characters (a switch its patch adds, as rime-ice's) and the candidates removed go with it, as with Zhuyin; fuzzy
+/// pinyin, the personal dictionaries and the shape codes don't, and it learns into its own user dictionary
+/// (`ownPatch`).
 public enum PinyinScheme: String, CaseIterable, Sendable {
     case full
     /// 小鹤双拼.
@@ -35,6 +43,8 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     case ziguang = "double_pinyin_ziguang"
     /// 注音（標準/大千）: rime-bopomofo's schema.
     case zhuyin = "bopomofo"
+    /// 五笔 86: rime-wubi's schema.
+    case wubi = "wubi86"
 
     /// The scheme `Config.pinyinScheme` names: full pinyin for none, "full", and one this version doesn't know (a later
     /// one's).
@@ -48,7 +58,11 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     /// The Shuangpin schemes, in the order Settings lists them.
     public static var shuangpin: [PinyinScheme] { allCases.filter(\.isShuangpin) }
 
-    public var isShuangpin: Bool { self != .full && self != .zhuyin }
+    public var isShuangpin: Bool { isPinyin && self != .full }
+
+    /// Whether its letters are pinyin (full pinyin's or a Shuangpin scheme's): what fuzzy pinyin, the personal
+    /// dictionaries, the shape codes and the English words among the candidates read. Not Zhuyin's keys, nor Wubi's.
+    public var isPinyin: Bool { self != .zhuyin && self != .wubi }
 
     /// Every way of typing but full pinyin: a schema deployed beside rime-ice's when picked, with a patch of its own.
     public static var others: [PinyinScheme] { allCases.filter { $0 != .full } }
@@ -59,6 +73,11 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     /// that weighs their words (rime-essay's).
     public static let zhuyinData = ["bopomofo.schema.yaml", "zhuyin.yaml", "terra_pinyin.dict.yaml", "stroke.schema.yaml",
                                     "stroke.dict.yaml", "essay.txt"]
+
+    /// The files of Wubi's schema, which the app carries (`Contents/SharedSupport/rime-wubi`, the Makefile's WUBI_FILES,
+    /// rime-wubi's LICENSE and AUTHORS beside them) and links into the Chinese pack (`LanguagePackStore.linkData`):
+    /// rime-wubi's schema and its dictionary.
+    public static let wubiData = ["wubi86.schema.yaml", "wubi86.dict.yaml"]
 
     /// The keys a Zhuyin syllable starts with (rime-bopomofo's `speller/initials`): ㄅ to ㄦ, the digits and
     /// punctuation among them too; not a tone's (Space, 6, 3, 4, 7).
@@ -71,9 +90,10 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
     public static let fullSchema = "rime_ice"
 
     /// Its name as Settings lists it (Settings → Input → Chinese → Typing): 全拼, 双拼 – 小鹤, Shuangpin – Xiaohe. Zhuyin's
-    /// Chinese is in Traditional characters, as Taiwan names it.
+    /// Chinese is in Traditional characters, as Taiwan names it; Wubi's as its makers name it (五笔 86). `language` is an
+    /// interface language's code, or "zh", the settings' name of Simplified Chinese (`InterfaceLanguage.setting`).
     public func name(in language: String) -> String {
-        let t = InterfaceWords(language: language)
+        let t = InterfaceWords(language: language == "zh" ? "zh-Hans" : language)
         switch self {
         case .full: return t.tr("全拼", "Full pinyin")
         case .xiaohe: return t.tr("双拼 – 小鹤", "Shuangpin – Xiaohe")
@@ -84,18 +104,19 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
         case .pinyinJiajia: return t.tr("双拼 – 拼音加加", "Shuangpin – Pinyin Jiajia")
         case .ziguang: return t.tr("双拼 – 紫光", "Shuangpin – Ziguang")
         case .zhuyin: return t.tr("注音 – 標準/大千", "Zhuyin (Bopomofo) – Standard")
+        case .wubi: return t.tr("五笔 86", "Wubi 86")
         }
     }
 
     // MARK: The schemas deployed
 
-    /// The schemas librime deploys for it, full pinyin's first (a new session starts in it): with Shuangpin or Zhuyin, the
-    /// scheme's too; only those, so that only what is used is compiled.
+    /// The schemas librime deploys for it, full pinyin's first (a new session starts in it): with Shuangpin, Zhuyin or
+    /// Wubi, the scheme's too; only those, so that only what is used is compiled.
     public var schemaList: [String] { self == .full ? [Self.fullSchema] : [Self.fullSchema, rawValue] }
 
     /// The first line of `default.custom.yaml` (the schema list, in the Rime user folder) when this app wrote it: one
     /// without it is the user's (`ownsSchemaList`). Its words are those of the first version that wrote it, which said
-    /// Shuangpin's only (Zhuyin's list has it too).
+    /// Shuangpin's only (Zhuyin's and Wubi's lists have it too).
     static let schemaListMarker = "# Written by AllInOneIME: the schemas used, full pinyin's and the Shuangpin scheme picked (Settings → Input → Chinese → Typing). Edits here are replaced."
 
     /// `default.custom.yaml` for `schemas`.
@@ -170,10 +191,10 @@ public enum PinyinScheme: String, CaseIterable, Sendable {
 
     /// rime-ice's spelling rules for the scheme (`speller/algebra` in its schema, in order; `ShuangpinSchemaTests` checks
     /// them against the schemas): full pinyin's syllables made into the scheme's two keys. None for full pinyin
-    /// (`Pinyin.algebra` is rime-ice's), nor for Zhuyin, whose keys are never read as letters.
+    /// (`Pinyin.algebra` is rime-ice's), nor for Zhuyin or Wubi, whose keys are never read as pinyin.
     var algebra: [String] {
         switch self {
-        case .full, .zhuyin: return []
+        case .full, .zhuyin, .wubi: return []
         case .xiaohe: return Self.erase + Self.vowelsDoubled + [
             "xform/iu$/Ⓠ/", "xform/(.)ei$/$1Ⓦ/", "xform/uan$/Ⓡ/", "xform/[uv]e$/Ⓣ/", "xform/un$/Ⓨ/", "xform/^sh/Ⓤ/",
             "xform/^ch/Ⓘ/", "xform/^zh/Ⓥ/", "xform/uo$/Ⓞ/", "xform/ie$/Ⓟ/", "xform/(.)i?ong$/$1Ⓢ/", "xform/ing$|uai$/Ⓚ/",

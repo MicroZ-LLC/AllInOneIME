@@ -17,7 +17,7 @@
 544 Core/Sources/AllInOneIMECore/ExtensionStore.swift
 848 Core/Sources/AllInOneIMECore/ICloudSync.swift
 477 Core/Sources/AllInOneIMECore/ICloudSyncEngine.swift
-612 Core/Sources/AllInOneIMECore/PersonalDictionary.swift
+604 Core/Sources/AllInOneIMECore/PersonalDictionary.swift
 477 Core/Sources/AllInOneIMECore/Redaction.swift
 1107 Core/Sources/AllInOneIMECore/Reminder.swift
 464 Core/Sources/AllInOneIMECore/ScriptCommand.swift
@@ -52,6 +52,6 @@
 2934 Sources/AllInOneIME/SelfTest.swift
 2922 Sources/AllInOneIME/SettingsWindow.swift
 450 Sources/AllInOneIME/SuggestionsSelfTest.swift
-768 Sources/AllInOneIME/Updates.swift
+727 Sources/AllInOneIME/Updates.swift
 450 Sources/AllInOneIME/main.swift
 420 Sources/AllInOneIMEMac/IdentityFinish.swift

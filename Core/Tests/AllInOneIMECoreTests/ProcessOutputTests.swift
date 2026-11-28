@@ -110,16 +110,20 @@ struct ProcessOutputTests {
     /// Something it left running in the background holds its pipes open after it ended (a login shell's startup files
     /// can): the run doesn't wait for that, and has what it printed.
     @Test func whatItLeftRunningDoesntHoldTheRunUp() async throws {
-        // The job marks its end, 5 s after the program's: however slow a loaded Mac starts the program, the run is over
-        // well before that. Its mark goes in a folder of this test's: the job outlives the test, and once the folder is
-        // removed it has nowhere to write (a mark of its own in the temporary folder came back after the clean-up).
+        // The job holds the pipes until the test is over (its folder removed), and marks its end a minute after the
+        // program's if it is still running then: past the run's own time limit, so a run that waited for it times out,
+        // however slow a loaded Mac starts the program and tells its end (with every thread of the process's queues
+        // busy for 15 s, a run took longer than the 5 s the job used to sleep). Its mark goes in a folder of this test's:
+        // once the folder is removed it has nowhere to write (a mark of its own in the temporary folder came back after
+        // the clean-up).
         let folder = TestScratch.temporary("process-output-job-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: folder) }
         let ended = folder.appendingPathComponent("ended")
+        let job = "i=0; while [ -d '\(folder.path)' ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i + 1)); done; : > '\(ended.path)'"
         let shell = try Self.shell()
         let result = await inBackground {
-            Result { try ProcessOutput.run(shell, ["-c", "printf done; (sleep 5; : > '\(ended.path)') & exit 0"],
+            Result { try ProcessOutput.run(shell, ["-c", "printf done; (\(job)) & exit 0"],
                                            timeout: 30, processes: FoundationProcessLauncher()) }
         }
         #expect(try result.get() == ProcessOutput.Result(status: 0, output: Data("done".utf8), errors: Data()))

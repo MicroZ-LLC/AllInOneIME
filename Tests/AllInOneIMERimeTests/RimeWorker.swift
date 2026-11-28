@@ -10,8 +10,8 @@ import Darwin
 /// scenarios, by name: `LunarDatabaseTests.scenarios`, `PersonalDictionaryBuildTests.scenarios`, `RedeployTests.scenarios`,
 /// `TraditionalChineseRimeTests.scenarios`, `RemovedCandidatesFilterRimeTests.scenarios`,
 /// `RemovedDerivedCandidatesRimeTests.scenarios`, `ShuangpinSchemaTests.scenarios`, `ZhuyinSchemaTests.scenarios`,
-/// `CandidateKeysSchemeTests.scenarios`, `DeploymentLogTests.scenarios`, `ShapeCodeRimeTests.scenarios`,
-/// `ConcurrentStartRimeTests.scenarios`.
+/// `WubiSchemaTests.scenarios`, `CandidateKeysSchemeTests.scenarios`, `DeploymentLogTests.scenarios`,
+/// `ShapeCodeRimeTests.scenarios`, `ConcurrentStartRimeTests.scenarios`.
 enum RimeWorker {
     static let scenarioKey = "ALLINONEIME_RIME_WORKER"
     static let rootKey = "ALLINONEIME_RIME_WORKER_ROOT"
@@ -27,6 +27,7 @@ enum RimeWorker {
         .merging(RemovedDerivedCandidatesRimeTests.scenarios) { first, _ in first }
         .merging(ShuangpinSchemaTests.scenarios) { first, _ in first }
         .merging(ZhuyinSchemaTests.scenarios) { first, _ in first }
+        .merging(WubiSchemaTests.scenarios) { first, _ in first }
         .merging(CandidateKeysSchemeTests.scenarios) { first, _ in first }
         .merging(DeploymentLogTests.scenarios) { first, _ in first }
         .merging(ShapeCodeRimeTests.scenarios) { first, _ in first }
