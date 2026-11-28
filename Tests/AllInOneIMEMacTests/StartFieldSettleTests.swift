@@ -212,6 +212,7 @@ private enum SettleChild {
             Check.expect(settled(draftOpen: true, sinceChange: limit, elapsed: limit), "a draft left open held it past the limit")
             Check.expect(settled(sinceChange: 0.5, sinceDraftEnded: quiet, elapsed: 0.5), "the draft ended, then quiet")
             Check.expect(!settled(sinceChange: 0.5, sinceDraftEnded: quiet - 0.01, elapsed: 0.5), "settled before quiet after the draft")
+            Check.expect(!settled(sinceChange: 0.9, sinceEscape: 0.9, sinceDraftEnded: 0, elapsed: 0.9), "settled as the draft ended, the Escape long seen")
             let open = Live()
             open.open = true
             open.watch()

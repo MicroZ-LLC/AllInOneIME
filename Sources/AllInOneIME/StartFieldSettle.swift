@@ -79,16 +79,16 @@ final class StartFieldSettle {
                         sinceDraftEnded: TimeInterval?, elapsed: TimeInterval) -> Bool {
         if elapsed >= limit { return true }
         guard !draftOpen else { return false }
-        // The first sign the Escapes went through; the text changing is one, and its last change the quiet's start.
-        guard let through = [sinceEscape, sinceDraftEnded, now != start ? sinceChange : nil].compactMap({ $0 }).max() else {
-            return false
-        }
-        return min(through, sinceChange) >= quiet
+        // Some sign the Escapes went through (the text changing is one), then quiet since the latest of the signs and of
+        // the field's last change: the smallest of the elapsed times, not the oldest.
+        let signs = [sinceEscape, sinceDraftEnded, now != start ? sinceChange : nil].compactMap { $0 }
+        guard !signs.isEmpty else { return false }
+        return min(signs.min() ?? 0, sinceChange) >= quiet
     }
 
     /// An Escape's key up dequeued: its key down went through the field (and the input method's context) before it.
     private func escapeWentThrough() {
-        if escapeAt == nil { escapeAt = ProcessInfo.processInfo.systemUptime }
+        escapeAt = ProcessInfo.processInfo.systemUptime
     }
 
     private func lookLater() {
