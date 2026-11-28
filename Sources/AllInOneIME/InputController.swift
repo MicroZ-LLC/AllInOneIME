@@ -663,7 +663,7 @@ final class AllInOneIMEInputController: IMKInputController {
         // ⌃V's panel only where the keys it takes can be kept from the app.
         if !context.secure, session.isPasteAnywhere(key) { session.clipboardPanelAllowed = clipboardPanelFits(in: target) }
         let composing = composer.isComposing && !session.keepsDraft  // a kept draft goes with the key: what it starts is new
-        let response = withKeptDraftHeld { session.handle(.key(key, context)) }
+        let response = withKeptDraftHeld(typing: true) { session.handle(.key(key, context)) }
         if !composing, composer.isComposing { draftStarted() }  // which field it is, should it lose the focus (#180)
         keyComposes = response.handled && (composing || composer.isComposing)
         apply(response.outputs, client: client)
